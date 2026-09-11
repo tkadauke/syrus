@@ -18,7 +18,7 @@ import {
 } from "../../api/jobs"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
-import { DiffReviewVersionSelector } from "./DiffReviewVersionSelector"
+import { DiffReviewVersionSelector, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 
@@ -43,12 +43,20 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   })
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
+  const [selectedRange, setSelectedRange] = useState<{ baseSha: string; headSha: string } | null>(null)
   const [pendingCommentFocus, setPendingCommentFocus] = useState<DiffReviewComment | null>(null)
   const versions = sourceDiff.data?.versions || []
   const payloadVersionId = sourceDiff.data?.version?.id ?? null
   const defaultVersionId = preferredReviewVersionId(sourceDiff.data?.version ?? null, versions)
-  const activeVersionId = selectedVersionId ?? defaultVersionId
-  const historicalVersionSelected = activeVersionId != null && activeVersionId !== payloadVersionId
+  const rangeSearch = selectedRange ? `?${new URLSearchParams({ base: selectedRange.baseSha, head: selectedRange.headSha }).toString()}` : ""
+  const rangeDiff = useQuery({
+    enabled: sourceDiff.isSuccess && Boolean(selectedRange),
+    queryKey: ["jobs", String(jobId), "review_source_diff_range", selectedRange?.baseSha, selectedRange?.headSha],
+    queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId), rangeSearch), { metadata: { job_id: jobId } }),
+    placeholderData: keepPreviousData
+  })
+  const activeVersionId = selectedRange ? rangeDiff.data?.version?.id ?? null : selectedVersionId ?? defaultVersionId
+  const historicalVersionSelected = !selectedRange && activeVersionId != null && activeVersionId !== payloadVersionId
   const historicalVersion = useQuery({
     enabled: sourceDiff.isSuccess && historicalVersionSelected,
     queryKey: ["jobs", String(jobId), "diff_review_versions", activeVersionId],
@@ -57,6 +65,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const selectedVersion = versions.find((version) => version.id === activeVersionId) ?? sourceDiff.data?.version ?? null
   const activeDiff = useMemo(() => {
     if (!sourceDiff.data) return null
+    if (selectedRange && rangeDiff.data) return rangeDiff.data
     if (activeVersionId != null && activeVersionId !== payloadVersionId && historicalVersion.data) {
       return {
         ...sourceDiff.data,
@@ -69,7 +78,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
       }
     }
     return sourceDiff.data
-  }, [activeVersionId, historicalVersion.data, payloadVersionId, sourceDiff.data])
+  }, [activeVersionId, historicalVersion.data, payloadVersionId, rangeDiff.data, selectedRange, sourceDiff.data])
   const feedback = useDiffReviewFeedback({
     baseRef: activeDiff?.base_ref,
     diffReviewVersionId: activeVersionId,
@@ -140,10 +149,21 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   }
 
   function viewCommentVersion(comment: DiffReviewComment) {
+    setSelectedRange(null)
     setSelectedVersionId(comment.diff_review_version_id)
     if (comment.path) setSelectedPath(comment.path)
     setPendingCommentFocus(comment)
     if (comment.anchor_kind === "review") focusPendingComment(comment)
+  }
+
+  function selectVersion(versionId: number) {
+    setSelectedRange(null)
+    setSelectedVersionId(versionId)
+  }
+
+  function selectRange(range: DiffReviewRangeSelection) {
+    setSelectedRange({ baseSha: range.baseSha, headSha: range.headSha })
+    setSelectedVersionId(range.versionId)
   }
 
   if (sourceDiff.isPending) return <PanelMessage>{t("review_loading")}</PanelMessage>
@@ -152,6 +172,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   if (!activeDiff) return <PanelMessage>{t("review_loading")}</PanelMessage>
   if (historicalVersionSelected && historicalVersion.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
   if (historicalVersionSelected && historicalVersion.isError) return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
+  if (selectedRange && rangeDiff.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
+  if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{errorMessage(rangeDiff.error, t("source_diff_error"))}</PanelMessage>
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
   return (
@@ -165,9 +187,11 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             </div>
             <div className="flex flex-wrap items-start gap-3 text-xs">
               <DiffReviewVersionSelector
-                disabled={sourceDiff.isFetching || historicalVersion.isFetching}
+                disabled={sourceDiff.isFetching || historicalVersion.isFetching || rangeDiff.isFetching}
                 latestVersionId={defaultVersionId}
-                onChange={setSelectedVersionId}
+                onChange={selectVersion}
+                onRangeChange={selectRange}
+                selectedRange={selectedRange}
                 selectedVersionId={activeVersionId}
                 versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
               />

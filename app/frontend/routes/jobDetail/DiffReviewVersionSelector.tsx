@@ -2,29 +2,42 @@ import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { useT } from "../../hooks/useT"
 import type { DiffReviewVersion } from "../../api/jobs"
 import type { TFunction } from "i18next"
-import type { KeyboardEvent } from "react"
+import type { KeyboardEvent, MouseEventHandler } from "react"
+
+export type DiffReviewRangeSelection = {
+  baseSha: string
+  headSha: string
+  versionId: number | null
+}
 
 export function DiffReviewVersionSelector({
   disabled = false,
   latestVersionId,
   onChange,
+  onRangeChange,
+  selectedRange,
   selectedVersionId,
   versions
 }: {
   disabled?: boolean
   latestVersionId: number | null
   onChange: (versionId: number) => void
+  onRangeChange?: (range: DiffReviewRangeSelection) => void
+  selectedRange?: { baseSha: string; headSha: string } | null
   selectedVersionId: number | null
   versions: DiffReviewVersion[]
 }) {
   const { t } = useT("jobs")
   const listboxId = useId()
   const buttonRef = useRef<HTMLButtonElement | null>(null)
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const optionRefs = useRef<Array<HTMLDivElement | null>>([])
   const [open, setOpen] = useState(false)
   const ordered = useMemo(() => [...versions].sort(compareVersions), [versions])
-  const selected = ordered.find((version) => version.id === selectedVersionId) || ordered[0] || null
-  const selectedIndex = Math.max(0, ordered.findIndex((version) => version.id === selected?.id))
+  const selected = ordered.find((version) => version.id === selectedVersionId) || (selectedRange ? null : ordered[0]) || null
+  const rangeBaseSha = selectedRange?.baseSha || selected?.base_sha || ordered[0]?.base_sha || ""
+  const rangeHeadSha = selectedRange?.headSha || selected?.head_sha || ordered[ordered.length - 1]?.head_sha || ""
+  const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha) : selected ? collapsedLabel(t, selected) : t("review_version_label")
+  const selectedIndex = Math.max(0, ordered.findIndex((version) => version.id === selected?.id || version.base_sha === rangeBaseSha || version.head_sha === rangeHeadSha))
   const [activeIndex, setActiveIndex] = useState(selectedIndex)
 
   useEffect(() => {
@@ -62,6 +75,20 @@ export function DiffReviewVersionSelector({
     buttonRef.current?.focus()
   }
 
+  function selectEndpoint(version: DiffReviewVersion, endpoint: "from" | "to") {
+    const nextBaseSha = endpoint === "from" ? version.base_sha : rangeBaseSha
+    const nextHeadSha = endpoint === "to" ? version.head_sha : rangeHeadSha
+    const matchingVersion = findMatchingVersion(ordered, nextBaseSha, nextHeadSha)
+    if (matchingVersion) {
+      selectVersion(matchingVersion)
+      return
+    }
+
+    setOpen(false)
+    onRangeChange?.({ baseSha: nextBaseSha, headSha: nextHeadSha, versionId: null })
+    buttonRef.current?.focus()
+  }
+
   function moveActive(delta: number) {
     setActiveIndex((current) => (current + delta + ordered.length) % ordered.length)
   }
@@ -74,7 +101,7 @@ export function DiffReviewVersionSelector({
     }
   }
 
-  function onOptionKeyDown(event: KeyboardEvent<HTMLButtonElement>, version: DiffReviewVersion) {
+  function onOptionKeyDown(event: KeyboardEvent<HTMLDivElement>, version: DiffReviewVersion) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault()
       moveActive(event.key === "ArrowDown" ? 1 : -1)
@@ -112,7 +139,7 @@ export function DiffReviewVersionSelector({
         ref={buttonRef}
         type="button"
       >
-        <span className="min-w-0 truncate">{selected ? collapsedLabel(t, selected) : t("review_version_label")}</span>
+        <span className="min-w-0 truncate">{displayLabel}</span>
         <span aria-hidden="true" className="shrink-0 text-gray-400">v</span>
       </button>
       {open ? (
@@ -123,28 +150,37 @@ export function DiffReviewVersionSelector({
           role="listbox"
         >
           {ordered.map((version, index) => {
-            const selectedOption = version.id === selected?.id
+            const selectedOption = version.id === selected?.id || (version.base_sha === rangeBaseSha && version.head_sha === rangeHeadSha)
+            const fromSelected = version.base_sha === rangeBaseSha
+            const toSelected = version.head_sha === rangeHeadSha
             const allChanges = isAllChangesVersion(version)
             return (
-              <button
+              <div
                 aria-label={optionAccessibleName(t, version)}
                 aria-selected={selectedOption}
                 className={`block w-full rounded px-2.5 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-brand/40 ${selectedOption ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900"} ${allChanges ? "border border-brand/30 bg-brand/5 font-medium" : ""}`}
                 id={`${listboxId}-option-${version.id}`}
                 key={version.id}
-                onClick={() => selectVersion(version)}
+                onClick={allChanges ? () => selectVersion(version) : undefined}
                 onKeyDown={(event) => onOptionKeyDown(event, version)}
                 ref={(element) => { optionRefs.current[index] = element }}
                 role="option"
                 tabIndex={activeIndex === index ? 0 : -1}
-                type="button"
               >
                 {allChanges ? (
                   <AllChangesRow selected={selectedOption} t={t} version={version} />
                 ) : (
-                  <RangeRow selected={selectedOption} t={t} version={version} />
+                  <RangeRow
+                    fromSelected={fromSelected}
+                    onSelectEndpoint={(endpoint) => selectEndpoint(version, endpoint)}
+                    onSelectVersion={() => selectVersion(version)}
+                    selected={selectedOption}
+                    t={t}
+                    toSelected={toSelected}
+                    version={version}
+                  />
                 )}
-              </button>
+              </div>
             )
           })}
         </div>
@@ -160,14 +196,9 @@ export function DiffReviewVersionSelector({
 
 function AllChangesRow({ selected, t, version }: { selected: boolean; t: TFunction<"jobs">; version: DiffReviewVersion }) {
   return (
-    <span className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+    <span className="flex min-w-0 items-center justify-between">
       <span className="truncate">{t("review_version_all_changes")}</span>
-      <span className="flex flex-wrap items-center gap-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-        <EndpointChip highlighted={selected} label={endpointShortLabel(version.base_ref, version.base_sha)} title={endpointTitle(version.base_ref, version.base_sha)} type={t("review_version_from_chip")} />
-        <EndpointChip highlighted={selected} label={endpointShortLabel(version.head_ref, version.head_sha)} title={endpointTitle(version.head_ref, version.head_sha)} type={t("review_version_to_chip")} />
-        <span>{filesLabel(t, version.files_count)}</span>
-        <span>{commentsLabel(t, version.comments_count)}</span>
-      </span>
+      {selected ? <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brand" /> : null}
     </span>
   )
 }
@@ -175,31 +206,78 @@ function AllChangesRow({ selected, t, version }: { selected: boolean; t: TFuncti
 function compareVersions(a: DiffReviewVersion, b: DiffReviewVersion) {
   if (isAllChangesVersion(a) && !isAllChangesVersion(b)) return -1
   if (!isAllChangesVersion(a) && isAllChangesVersion(b)) return 1
-  return b.version_index - a.version_index || b.id - a.id
+  return a.version_index - b.version_index || a.id - b.id
 }
 
-function RangeRow({ selected, t, version }: { selected: boolean; t: TFunction<"jobs">; version: DiffReviewVersion }) {
+function RangeRow({
+  fromSelected,
+  onSelectEndpoint,
+  onSelectVersion,
+  selected,
+  t,
+  toSelected,
+  version
+}: {
+  fromSelected: boolean
+  onSelectEndpoint: (endpoint: "from" | "to") => void
+  onSelectVersion: () => void
+  selected: boolean
+  t: TFunction<"jobs">
+  toSelected: boolean
+  version: DiffReviewVersion
+}) {
   return (
-    <span className="grid min-w-0 gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-center">
-      <span className="flex min-w-0 flex-wrap gap-2">
-        <EndpointChip highlighted={selected} label={endpointShortLabel(version.base_ref, version.base_sha)} title={endpointTitle(version.base_ref, version.base_sha)} type={t("review_version_from_chip")} />
-        <EndpointChip highlighted={selected} label={endpointShortLabel(version.head_ref, version.head_sha)} title={endpointTitle(version.head_ref, version.head_sha)} type={t("review_version_to_chip")} />
+    <span className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2">
+      <span className="contents">
+        <EndpointChip
+          ariaLabel={`${t("review_version_from_chip")} ${compactVersionSummary(t, version)}`}
+          highlighted={fromSelected || selected}
+          label=""
+          onClick={() => onSelectEndpoint("from")}
+          title={endpointTitle(version.base_ref, version.base_sha)}
+          type={t("review_version_from_chip")}
+        />
+        <EndpointChip
+          ariaLabel={`${t("review_version_to_chip")} ${compactVersionSummary(t, version)}`}
+          highlighted={toSelected || selected}
+          label=""
+          onClick={() => onSelectEndpoint("to")}
+          title={endpointTitle(version.head_ref, version.head_sha)}
+          type={t("review_version_to_chip")}
+        />
       </span>
-      <span className="min-w-0 truncate font-medium">{rangeName(version)}</span>
-      <span className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">{metadataSummary(t, version)}</span>
+      <button
+        className="min-w-0 truncate text-left font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-brand/40"
+        onClick={onSelectVersion}
+        title={metadataTitle(t, version)}
+        type="button"
+      >
+        {compactVersionSummary(t, version)}
+      </button>
     </span>
   )
 }
 
-function EndpointChip({ highlighted, label, title, type }: { highlighted: boolean; label: string; title: string; type: string }) {
-  return (
-    <span
-      className={`inline-flex max-w-[9rem] shrink-0 items-center gap-1 rounded border px-2 py-0.5 text-xs ${highlighted ? "border-brand bg-brand text-white" : "border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"}`}
-      title={title}
-    >
+function EndpointChip({ ariaLabel, highlighted, label, onClick, title, type }: { ariaLabel?: string; highlighted: boolean; label: string; onClick?: MouseEventHandler<HTMLButtonElement>; title: string; type: string }) {
+  const className = `inline-flex h-7 w-16 shrink-0 items-center justify-center gap-1 rounded border px-2 py-0.5 text-xs ${onClick ? "cursor-pointer hover:border-brand/70" : ""} ${highlighted ? "border-brand bg-brand text-white" : "border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"}`
+  const content = (
+    <>
       <span className="font-semibold uppercase">{type}</span>
-      <span className="truncate font-mono">{label}</span>
-    </span>
+      {label ? <span className="truncate font-mono">{label}</span> : null}
+    </>
+  )
+  if (!onClick) {
+    return (
+      <span className={className} title={title}>
+        {content}
+      </span>
+    )
+  }
+
+  return (
+    <button aria-label={ariaLabel} className={className} onClick={onClick} title={title} type="button">
+      {content}
+    </button>
   )
 }
 
@@ -210,8 +288,23 @@ function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion) {
   return t("review_version_prefix", { version: version.version_index })
 }
 
+function selectedRangeLabel(t: TFunction<"jobs">, versions: DiffReviewVersion[], baseSha: string, headSha: string) {
+  const matching = findMatchingVersion(versions, baseSha, headSha)
+  if (matching) return collapsedLabel(t, matching)
+
+  const fromVersion = versions.find((version) => version.base_sha === baseSha)
+  const toVersion = versions.find((version) => version.head_sha === headSha)
+  const from = fromVersion ? t("review_version_prefix", { version: fromVersion.version_index }) : shortSha(baseSha)
+  const to = toVersion ? t("review_version_prefix", { version: toVersion.version_index }) : shortSha(headSha)
+  return `${from} to ${to}`
+}
+
 function rangeName(version: DiffReviewVersion) {
   return version.run_id ? `RUN-${version.run_id}` : (version.label || version.reason || version.trigger_kind || `v${version.version_index}`)
+}
+
+function compactVersionSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
+  return [t("review_version_prefix", { version: version.version_index }), rangeName(version)].filter(Boolean).join(" ")
 }
 
 function metadataSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
@@ -223,6 +316,13 @@ function metadataSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
     filesLabel(t, version.files_count),
     commentsLabel(t, version.comments_count)
   ].filter(Boolean).join(t("review_version_separator"))
+}
+
+function metadataTitle(t: TFunction<"jobs">, version: DiffReviewVersion) {
+  return [
+    metadataSummary(t, version),
+    t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) })
+  ].join(t("review_version_separator"))
 }
 
 function versionMetadata(t: TFunction<"jobs">, version: DiffReviewVersion, latest: boolean) {
@@ -258,6 +358,10 @@ function optionAccessibleName(t: TFunction<"jobs">, version: DiffReviewVersion) 
     t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) }),
     metadataSummary(t, version)
   ].filter(Boolean).join(t("review_version_separator"))
+}
+
+function findMatchingVersion(versions: DiffReviewVersion[], baseSha: string, headSha: string) {
+  return versions.find((version) => version.base_sha === baseSha && version.head_sha === headSha) || null
 }
 
 function filesLabel(t: TFunction<"jobs">, count: number) {
