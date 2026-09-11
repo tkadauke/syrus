@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { jsonResponse } from "../testSupport"
 import { AdminQueueRoute } from "./AdminQueue"
-import type { WorkerHealthPayload, WorkersQueuePayload } from "../api/adminQueue"
+import type { ActiveQueuePayload, WorkerHealthPayload, WorkersQueuePayload } from "../api/adminQueue"
 
 type WorkersQueuePayloadWithHealth = WorkersQueuePayload & { worker_health: WorkerHealthPayload }
 
@@ -21,6 +21,35 @@ function renderAdminQueue(initialEntry = "/admin/queue/workers") {
 }
 
 describe("AdminQueue worker health charts", () => {
+  it("preserves active queue empty states", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({ jobs: [] })))
+
+    renderAdminQueue("/admin/queue/active")
+
+    expect(await screen.findByText("No active claimed executions.")).toBeInTheDocument()
+  })
+
+  it("renders active queue jobs in the DataTable overflow wrapper", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({
+      jobs: [
+        {
+          arguments: [{ job_id: 42 }],
+          claimed_at: "2026-05-30T12:00:00Z",
+          class_name: "RunJob",
+          created_at: "2026-05-30T11:59:00Z",
+          id: 1,
+          queue_name: "runs"
+        }
+      ]
+    })))
+
+    renderAdminQueue("/admin/queue/active")
+
+    expect(await screen.findByRole("cell", { name: "RunJob" })).toBeInTheDocument()
+    expect(screen.getByRole("table").parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+    expect(screen.getByText(JSON.stringify([{ job_id: 42 }]))).toBeInTheDocument()
+  })
+
   it("renders chart-first worker health with missing sample buckets", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(workerQueuePayload()))
 
@@ -123,6 +152,17 @@ describe("AdminQueue worker health charts", () => {
     expect(screen.queryByText(/Historical workers/)).not.toBeInTheDocument()
   })
 })
+
+function activeQueuePayload(overrides: Partial<ActiveQueuePayload> = {}): ActiveQueuePayload {
+  return {
+    active_smart_folder_id: null,
+    controls: { filter_schema: [] },
+    filter: {},
+    jobs: [],
+    smart_folders: [],
+    ...overrides
+  }
+}
 
 function workerQueuePayload(): WorkersQueuePayloadWithHealth {
   return {
