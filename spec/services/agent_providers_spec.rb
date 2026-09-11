@@ -62,6 +62,33 @@ RSpec.describe AgentProviders do
       )
     end
 
+    it "sets and restores one-shot agent context around provider invocation" do
+      agent = Agent.find_or_create_for!(Factories.run)
+      prior_agent = Agent.find_or_create_for!(Factories.run)
+      Thread.current[:syrus_current_agent] = prior_agent
+
+      expect(AgentProviders::Codex).to receive(:invoke_one_shot) do
+        expect(Thread.current[:syrus_current_agent]).to eq(agent)
+        fake_result
+      end
+
+      described_class.run_one_shot(
+        provider: "codex",
+        user: user,
+        runner: nil,
+        scope: "test-scope",
+        prompt: "hello",
+        log_sink: ->(*) { },
+        timeout: 30,
+        max_turns: 1,
+        agent: agent
+      )
+
+      expect(Thread.current[:syrus_current_agent]).to eq(prior_agent)
+    ensure
+      Thread.current[:syrus_current_agent] = nil
+    end
+
     it "raises ConfigurationError for unknown provider" do
       expect {
         described_class.run_one_shot(
