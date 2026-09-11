@@ -147,26 +147,27 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   })
 
   function updateDraftName(name: string) {
-    if (!draft) return
-    setDraft({ ...draft, name })
+    setDraft((current) => current ? { ...current, name } : current)
   }
 
   function updateDraftToken(mode: "light" | "dark", key: string, value: string) {
-    if (!draft) return
+    setDraft((current) => {
+      if (!current) return current
 
-    const nextDraft = {
-      ...draft,
-      tokens: {
-        ...draft.tokens,
-        [mode]: {
-          ...draft.tokens[mode],
-          [key]: value
+      const nextDraft = {
+        ...current,
+        tokens: {
+          ...current.tokens,
+          [mode]: {
+            ...current.tokens[mode],
+            [key]: value
+          }
         }
       }
-    }
-    setDraft(nextDraft)
+      if (hexPattern.test(value)) previewColorTheme(nextDraft)
+      return nextDraft
+    })
     setContrastIssues((issues) => issues.filter((issue) => !issueMatchesField(issue, mode, key)))
-    if (hexPattern.test(value)) previewColorTheme(nextDraft)
   }
 
   function startDrag(index: number, event: DragEvent<HTMLElement>) {
