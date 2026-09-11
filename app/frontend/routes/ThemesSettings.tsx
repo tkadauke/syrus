@@ -65,10 +65,16 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   const customThemes = useMemo(() => allThemes.filter((theme) => !theme.built_in), [allThemes])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [draft, setDraft] = useState<ThemeDraft | null>(null)
+  const draftRef = useRef<ThemeDraft | null>(null)
   const [contrastIssues, setContrastIssues] = useState<ContrastIssue[]>([])
   const [orderedThemes, setOrderedThemes] = useState<ColorTheme[]>([])
   const orderedThemesRef = useRef<ColorTheme[]>([])
   const dragIndex = useRef<number | null>(null)
+
+  function setCurrentDraft(nextDraft: ThemeDraft | null) {
+    draftRef.current = nextDraft
+    setDraft(nextDraft)
+  }
 
   useEffect(() => {
     setOrderedThemes(customThemes)
@@ -80,7 +86,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
         : undefined
     ) ?? customThemes[0]
     setSelectedId(selected?.id ?? null)
-    setDraft(selected ? draftFromTheme(selected) : null)
+    setCurrentDraft(selected ? draftFromTheme(selected) : null)
     setContrastIssues([])
   }, [customThemes, selectedId])
 
@@ -102,13 +108,14 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      if (!draft) throw new Error("No theme selected.")
-      return updateTheme(draft.id, { name: draft.name, tokens: draft.tokens })
+      const currentDraft = draftRef.current
+      if (!currentDraft) throw new Error("No theme selected.")
+      return updateTheme(currentDraft.id, { name: currentDraft.name, tokens: currentDraft.tokens })
     },
     onSuccess: (payload) => {
       setContrastIssues([])
       queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => mergeCustomTheme(current, payload.theme))
-      setDraft(draftFromTheme(payload.theme))
+      setCurrentDraft(draftFromTheme(payload.theme))
       void setColorTheme(payload.theme)
       onNotice("Theme saved.")
     },
@@ -147,24 +154,26 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   })
 
   function updateDraftName(name: string) {
-    if (!draft) return
-    setDraft({ ...draft, name })
+    const currentDraft = draftRef.current
+    if (!currentDraft) return
+    setCurrentDraft({ ...currentDraft, name })
   }
 
   function updateDraftToken(mode: "light" | "dark", key: string, value: string) {
-    if (!draft) return
+    const currentDraft = draftRef.current
+    if (!currentDraft) return
 
     const nextDraft = {
-      ...draft,
+      ...currentDraft,
       tokens: {
-        ...draft.tokens,
+        ...currentDraft.tokens,
         [mode]: {
-          ...draft.tokens[mode],
+          ...currentDraft.tokens[mode],
           [key]: value
         }
       }
     }
-    setDraft(nextDraft)
+    setCurrentDraft(nextDraft)
     setContrastIssues((issues) => issues.filter((issue) => !issueMatchesField(issue, mode, key)))
     if (hexPattern.test(value)) previewColorTheme(nextDraft)
   }
