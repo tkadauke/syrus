@@ -315,6 +315,10 @@ function SourceDiffBrowser({
             <DiffReviewVersionSelector
               latestVersionId={latestVersionId}
               onChange={selectVersion}
+              onRangeChange={(range) => {
+                onSelectBaseRef(range.baseSha)
+                onSelectHeadRef(range.headSha)
+              }}
               selectedVersionId={selectedVersionId}
               versions={versions}
             />
