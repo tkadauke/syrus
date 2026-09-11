@@ -74,6 +74,7 @@ describe("@app/components/ui", () => {
         <Skeleton className="h-4" data-testid="skeleton" />
         <PanelMessage tone="warning">Careful</PanelMessage>
         <StatusPill state="running" />
+        <StatusPill state="succeeded" />
         <TonePill tone="amber">Queued</TonePill>
       </>
     )
@@ -83,6 +84,7 @@ describe("@app/components/ui", () => {
     expect(screen.getByTestId("skeleton").className).toContain("animate-pulse")
     expect(screen.getByText("Careful").parentElement?.className).toContain("border-warning-border")
     expect(screen.getByText("running")).toBeInTheDocument()
+    expect(screen.getByText("succeeded").closest("[data-status-pill]")?.className).toContain("bg-success-surface")
     expect(screen.getByText("Queued")).toBeInTheDocument()
   })
 

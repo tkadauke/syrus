@@ -42,6 +42,7 @@ const STATE_LATIN: Record<string, string> = {
   no_change_needed: "Iam factum est — It was already done",
   // Run / step states
   running:     "Currit — It runs",
+  succeeded:   "Successit — It has succeeded",
   success:     "Successit — It has succeeded",
   failed:      "Defecit — It has failed",
   cancelled:   "Intermissum est — It has been interrupted",
@@ -56,7 +57,7 @@ export function StatusPill({ state }: { state: string }) {
   const { t } = useT()
   const normalized = state.toLowerCase()
   const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
-    normalized.includes("success") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
+    normalized.includes("success") || normalized.includes("succeed") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
       normalized.includes("running") || normalized.includes("queued") ? "blue" :
         normalized.includes("backlog") || normalized.includes("paused") ? "amber" : "gray"
 
