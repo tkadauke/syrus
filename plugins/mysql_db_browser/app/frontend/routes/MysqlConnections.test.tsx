@@ -228,6 +228,18 @@ describe("MysqlConnections", () => {
       "sm:p-6"
     )
     expect(await screen.findByText("Staging")).toBeInTheDocument()
+    const table = screen.getByRole("table")
+    expect(table.parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+    expect(table.parentElement).toHaveClass("overflow-x-auto")
+    expect(screen.getByRole("columnheader", { name: "Label" })).toHaveAttribute("scope", "col")
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toHaveAttribute("scope", "col")
+
+    const row = screen.getByText("Staging").closest("tr") as HTMLElement
+    expect(row).not.toBeNull()
+    expect(within(row).getByRole("button", { name: "Connect" })).toBeInTheDocument()
+    expect(within(row).getByRole("button", { name: "Test" })).toBeInTheDocument()
+    expect(within(row).getByRole("button", { name: "Edit" })).toBeInTheDocument()
+    expect(within(row).getByRole("button", { name: "Delete" })).toBeInTheDocument()
     expect(screen.getByText("db.staging.internal:3306")).toBeInTheDocument()
     expect(screen.getByText("Set")).toBeInTheDocument()
     expect(document.body.textContent).not.toContain("hunter2")
@@ -237,7 +249,9 @@ describe("MysqlConnections", () => {
     setupFetchMock([])
     renderConnections()
 
-    expect(await screen.findByText("No connections yet. Add one to get started.")).toBeInTheDocument()
+    const emptyCell = await screen.findByRole("cell", { name: "No connections yet. Add one to get started." })
+    expect(emptyCell).toHaveAttribute("colspan", "8")
+    expect(emptyCell.closest("table")?.parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
   })
 
   it("creates a connection from the add form", async () => {
@@ -461,8 +475,11 @@ describe("MysqlConnections", () => {
       fireEvent.click(screen.getByRole("tab", { name: "Structure" }))
 
       expect(await screen.findByText("app_staging.users")).toBeInTheDocument()
-      expect(screen.getByText("id")).toBeInTheDocument()
-      expect(screen.getByText("email")).toBeInTheDocument()
+      const columnsTable = screen.getByRole("table")
+      expect(columnsTable.parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+      expect(screen.getByRole("columnheader", { name: "Name" })).toHaveAttribute("scope", "col")
+      expect(screen.getByRole("cell", { name: "id" })).toBeInTheDocument()
+      expect(screen.getByRole("cell", { name: "email" })).toBeInTheDocument()
       expect(screen.getByText("PRIMARY", { exact: false })).toBeInTheDocument()
     })
 

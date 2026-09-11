@@ -66,9 +66,27 @@ describe("DataTable", () => {
     const header = screen.getByRole("columnheader", { name: /Created/ })
     expect(header).toHaveAttribute("aria-sort", "ascending")
     expect(header.textContent).toContain("^")
+    expect(screen.getByRole("button", { name: "Created" })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /Created/ }))
     expect(onSort).toHaveBeenCalled()
+  })
+
+  it("keeps inactive sortable headers semantic without adding a button when no sort handler is present", () => {
+    render(
+      <DataTable.Root aria-label="Jobs">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell sortable sortDirection="none">Status</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+      </DataTable.Root>
+    )
+
+    const header = screen.getByRole("columnheader", { name: /Status/ })
+    expect(header).toHaveAttribute("aria-sort", "none")
+    expect(header).toHaveAttribute("scope", "col")
+    expect(screen.queryByRole("button", { name: /Status/ })).not.toBeInTheDocument()
   })
 
   it("renders empty states as a table row with configurable colspan and passthrough props", () => {

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test"
+import { test, expect, type Locator, type Page } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
 
 const PERFORMANCE_PATH = "/api/v1/app/admin/performance"
@@ -200,9 +200,13 @@ test("Syrus Dev Performance UI drills into a seeded request/run and runs a real 
   await expect(page.getByText("PollAllPullRequestsJob")).toBeVisible()
   await expect(page.getByText("job_payload.dependencies")).toBeVisible()
   await expect(page.getByText("Job Load")).toBeVisible()
+  await expectDataTableWithOverflow(page.getByRole("table").first())
+  await expect(page.getByRole("columnheader", { name: "Request" }).first()).toBeVisible()
 
   // Requests tab: drill into the seeded request to see its phase + SQL breakdown.
   await page.getByRole("button", { name: "Requests", exact: true }).click()
+  await expectDataTableWithOverflow(page.getByRole("table").first())
+  await expect(page.getByRole("columnheader", { name: "Actions" })).toBeVisible()
   await page.getByRole("button", { name: "Details" }).click()
   const requestDialog = page.getByRole("dialog", { name: "Slow request SQL details" })
   await expect(requestDialog).toBeVisible()
@@ -243,5 +247,12 @@ test("Syrus Dev Performance UI drills into a seeded request/run and runs a real 
 
   // SQL tab shows the seeded fingerprint and can explain it directly too.
   await page.getByRole("button", { name: "SQL", exact: true }).click()
+  await expectDataTableWithOverflow(page.getByRole("table").first())
   await expect(page.getByText(REQUEST_SQL)).toBeVisible()
 })
+
+async function expectDataTableWithOverflow(table: Locator) {
+  await expect(table).toBeVisible()
+  await expect(table.locator("xpath=..")).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+  await expect(table.locator("xpath=..")).toHaveCSS("overflow-x", "auto")
+}
