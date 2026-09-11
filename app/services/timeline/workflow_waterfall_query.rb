@@ -19,7 +19,7 @@ module Timeline
     def self.call(workflow_id:) = new(workflow_id: workflow_id).call
 
     def initialize(workflow_id:)
-      @workflow = Workflow.includes(steps: :runs).find(workflow_id)
+      @workflow = Workflow.includes(:job, steps: :runs).find(workflow_id)
     end
 
     def call
@@ -44,7 +44,11 @@ module Timeline
     def workflow_payload
       {
         id: workflow.id,
+        slug: workflow.slug,
         job_id: workflow.job_id,
+        job_slug: workflow.job.slug,
+        job_path: "/jobs/#{workflow.job_id}",
+        workflow_path: App::WorkflowNavigation.path(workflow),
         trigger_kind: workflow.trigger_kind,
         status: workflow.state,
         started_at: workflow.started_at&.iso8601,
