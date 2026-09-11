@@ -38,25 +38,35 @@ describe("performanceMarkers", () => {
       let clock = 100
       vi.spyOn(performance, "now").mockImplementation(() => clock)
 
-      const result = measureSync("diff_review.parse_diff", () => {
-        clock += 12.34
-        return 42
-      }, { enabled: true })
+      const result = measureSync(
+        "diff_review.parse_diff",
+        () => {
+          clock += 12.34
+          return 42
+        },
+        { enabled: true }
+      )
 
       expect(result).toBe(42)
       flushPerformanceMarkerQueue()
-      const [ batch ] = sentBatches(fetchSpy)
-      expect(batch).toEqual([ expect.objectContaining({ name: "diff_review.parse_diff", duration_ms: 12.3 }) ])
+      const [batch] = sentBatches(fetchSpy)
+      expect(batch).toEqual([expect.objectContaining({ name: "diff_review.parse_diff", duration_ms: 12.3 })])
     })
 
     it("propagates a thrown error and still records the span", () => {
       let clock = 0
       vi.spyOn(performance, "now").mockImplementation(() => clock)
 
-      expect(() => measureSync("diff_review.parse_diff", () => {
-        clock += 5
-        throw new Error("parse failed")
-      }, { enabled: true })).toThrow("parse failed")
+      expect(() =>
+        measureSync(
+          "diff_review.parse_diff",
+          () => {
+            clock += 5
+            throw new Error("parse failed")
+          },
+          { enabled: true }
+        )
+      ).toThrow("parse failed")
 
       flushPerformanceMarkerQueue()
       expect(sentBatches(fetchSpy)[0]).toHaveLength(1)
@@ -80,13 +90,19 @@ describe("performanceMarkers", () => {
 
       expect(result).toBe("diff-payload")
       flushPerformanceMarkerQueue()
-      expect(sentBatches(fetchSpy)[0]).toEqual([ expect.objectContaining({ name: "diff_review.fetch_source_diff" }) ])
+      expect(sentBatches(fetchSpy)[0]).toEqual([expect.objectContaining({ name: "diff_review.fetch_source_diff" })])
     })
 
     it("propagates a rejection and still records the span", async () => {
-      await expect(measureAsync("diff_review.fetch_source_diff", async () => {
-        throw new Error("network down")
-      }, { enabled: true })).rejects.toThrow("network down")
+      await expect(
+        measureAsync(
+          "diff_review.fetch_source_diff",
+          async () => {
+            throw new Error("network down")
+          },
+          { enabled: true }
+        )
+      ).rejects.toThrow("network down")
 
       flushPerformanceMarkerQueue()
       expect(sentBatches(fetchSpy)[0]).toHaveLength(1)
@@ -98,7 +114,13 @@ describe("performanceMarkers", () => {
       let clock = 0
       vi.spyOn(performance, "now").mockImplementation(() => clock)
 
-      measureSync("diff_review.viewport_render", () => { clock += 5 }, { enabled: true, thresholdMs: 16 })
+      measureSync(
+        "diff_review.viewport_render",
+        () => {
+          clock += 5
+        },
+        { enabled: true, thresholdMs: 16 }
+      )
 
       flushPerformanceMarkerQueue()
       expect(fetchSpy).not.toHaveBeenCalled()
@@ -108,7 +130,13 @@ describe("performanceMarkers", () => {
       let clock = 0
       vi.spyOn(performance, "now").mockImplementation(() => clock)
 
-      measureSync("diff_review.viewport_render", () => { clock += 20 }, { enabled: true, thresholdMs: 16 })
+      measureSync(
+        "diff_review.viewport_render",
+        () => {
+          clock += 20
+        },
+        { enabled: true, thresholdMs: 16 }
+      )
 
       flushPerformanceMarkerQueue()
       expect(sentBatches(fetchSpy)[0]).toHaveLength(1)
@@ -149,7 +177,7 @@ describe("performanceMarkers", () => {
 
       flushPerformanceMarkerQueue()
       const names = sentBatches(fetchSpy)[0].map((event) => event.name)
-      expect(names).toEqual(expect.arrayContaining([ "diff_review.files_menu_open", "diff_review.anchor_scroll" ]))
+      expect(names).toEqual(expect.arrayContaining(["diff_review.files_menu_open", "diff_review.anchor_scroll"]))
     })
   })
 
@@ -233,9 +261,7 @@ describe("performanceMarkers", () => {
       })
 
       flushPerformanceMarkerQueue()
-      expect(sentBatches(fetchSpy)[0]).toEqual([
-        expect.objectContaining({ name: "diff_review.initial_render", metadata: { total_files: 5 } })
-      ])
+      expect(sentBatches(fetchSpy)[0]).toEqual([expect.objectContaining({ name: "diff_review.initial_render", metadata: { total_files: 5 } })])
       unmount()
     })
 

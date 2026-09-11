@@ -34,7 +34,7 @@ describe("SectionHeading", () => {
     expect(heading.className).toContain("font-semibold")
   })
 
-  it("renders an h3 when as=\"h3\" is passed", () => {
+  it('renders an h3 when as="h3" is passed', () => {
     render(<SectionHeading as="h3">Nested section</SectionHeading>)
     expect(screen.getByRole("heading", { level: 3, name: "Nested section" })).toBeInTheDocument()
   })

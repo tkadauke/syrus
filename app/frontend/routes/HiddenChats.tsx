@@ -19,8 +19,8 @@ export function HiddenChatsRoute() {
     <main aria-label={t("aria_hidden_chats")} className="mx-auto max-w-4xl space-y-6 p-6">
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <header>
-        <PageHeading>{t('hidden.heading')}</PageHeading>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('hidden.description')}</p>
+        <PageHeading>{t("hidden.heading")}</PageHeading>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("hidden.description")}</p>
       </header>
       <HiddenChatsPanel onNotice={setNotice} />
     </main>
@@ -39,7 +39,7 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
   const unhide = useMutation({
     mutationFn: (chat: HiddenChatRecord) => unhideChat(chat.app_unhide_path),
     onSuccess: (payload) => {
-      onNotice(payload.message || t('hidden.restored'))
+      onNotice(payload.message || t("hidden.restored"))
       void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
       void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
     }
@@ -57,10 +57,10 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
   return (
     <section className="rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
       <div>
-        {hiddenChats.isPending ? <PanelMessage>{t('hidden.loading')}</PanelMessage> : null}
-        {hiddenChats.isError ? <PanelMessage tone="error">{errorMessage(hiddenChats.error, t('hidden.error_load'))}</PanelMessage> : null}
-        {unhide.isError ? <PanelMessage tone="error">{errorMessage(unhide.error, t('hidden.error_restore'))}</PanelMessage> : null}
-        {payload && chats.length === 0 ? <PanelMessage>{t('hidden.empty')}</PanelMessage> : null}
+        {hiddenChats.isPending ? <PanelMessage>{t("hidden.loading")}</PanelMessage> : null}
+        {hiddenChats.isError ? <PanelMessage tone="error">{errorMessage(hiddenChats.error, t("hidden.error_load"))}</PanelMessage> : null}
+        {unhide.isError ? <PanelMessage tone="error">{errorMessage(unhide.error, t("hidden.error_restore"))}</PanelMessage> : null}
+        {payload && chats.length === 0 ? <PanelMessage>{t("hidden.empty")}</PanelMessage> : null}
         {payload && chats.length > 0 ? (
           <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700">
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -69,8 +69,8 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
                   <div className="min-w-0">
                     <div className="truncate font-medium text-gray-900 dark:text-gray-100">{chat.title || chat.repository?.slug || t("new_title")}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                      <span>{chat.repository?.slug || t('hidden.general')}</span>
-                      <span>{t('hidden.hidden_at', { date: chat.hidden_at ? formatRelativeDate(new Date(chat.hidden_at)) : "-" })}</span>
+                      <span>{chat.repository?.slug || t("hidden.general")}</span>
+                      <span>{t("hidden.hidden_at", { date: chat.hidden_at ? formatRelativeDate(new Date(chat.hidden_at)) : "-" })}</span>
                     </div>
                   </div>
                   <Button
@@ -79,7 +79,7 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
                     onClick={() => unhide.mutate(chat)}
                     variant="secondary"
                   >
-                    {unhide.isPending && unhide.variables?.id === chat.id ? t('hidden.restoring') : t('hidden.unhide')}
+                    {unhide.isPending && unhide.variables?.id === chat.id ? t("hidden.restoring") : t("hidden.unhide")}
                   </Button>
                 </div>
               ))}
@@ -90,17 +90,29 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
 
       {payload && totalPages > 1 ? (
         <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-          <span>{t('hidden.showing', { first: firstItem, last: lastItem, total })}</span>
+          <span>{t("hidden.showing", { first: firstItem, last: lastItem, total })}</span>
           <div className="flex gap-2">
             {currentPage > 1 ? (
-              <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800" onClick={() => setPage((current) => Math.max(current - 1, 1))} type="button">{t('hidden.previous')}</button>
+              <button
+                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                type="button"
+              >
+                {t("hidden.previous")}
+              </button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t('hidden.previous')}</span>
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t("hidden.previous")}</span>
             )}
             {currentPage < totalPages ? (
-              <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800" onClick={() => setPage((current) => current + 1)} type="button">{t('hidden.next')}</button>
+              <button
+                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                onClick={() => setPage((current) => current + 1)}
+                type="button"
+              >
+                {t("hidden.next")}
+              </button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t('hidden.next')}</span>
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t("hidden.next")}</span>
             )}
           </div>
         </div>
@@ -112,5 +124,3 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
 function chatTitle(chat: HiddenChatRecord) {
   return chat.title || chat.repository?.slug || "New chat"
 }
-
-

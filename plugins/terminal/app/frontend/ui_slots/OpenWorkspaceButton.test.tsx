@@ -7,7 +7,12 @@ import OpenWorkspaceButton from "./OpenWorkspaceButton"
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}{location.search}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 describe("OpenWorkspaceButton", () => {
@@ -19,13 +24,23 @@ describe("OpenWorkspaceButton", () => {
   // feature flag; it reaches the job page through the job.workflow.actions
   // slot now.
   it("opens a terminal session for the workflow and navigates to it", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      session: { id: 77, name: "WF-4 workspace", working_directory: "/tmp/workflows/4", started_at: "2026-06-27T10:00:00Z", finished_at: null, outcome: null, workflow_id: 4 }
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        session: {
+          id: 77,
+          name: "WF-4 workspace",
+          working_directory: "/tmp/workflows/4",
+          started_at: "2026-06-27T10:00:00Z",
+          finished_at: null,
+          outcome: null,
+          workflow_id: 4
+        }
+      })
+    )
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={[ "/app-shell/jobs/1" ]}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
           <OpenWorkspaceButton prefix="/app-shell" workflow={{ id: 4, slug: "WF-4" }} />
           <LocationProbe />
         </MemoryRouter>
@@ -34,13 +49,15 @@ describe("OpenWorkspaceButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open terminal in workspace" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/terminal_sessions",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ terminal_session: { workflow_id: 4, name: "WF-4 workspace" } })
-      })
-    ))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/terminal_sessions",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ terminal_session: { workflow_id: 4, name: "WF-4 workspace" } })
+        })
+      )
+    )
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/terminal?session=77"))
   })
 
@@ -59,13 +76,18 @@ describe("OpenWorkspaceButton", () => {
   })
 
   it("keeps the operator on the job page and shows an inline error when creation fails", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      error: { code: "validation_failed", message: "This workflow workspace is not present on this storage root." }
-    }, 422))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        {
+          error: { code: "validation_failed", message: "This workflow workspace is not present on this storage root." }
+        },
+        422
+      )
+    )
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={[ "/app-shell/jobs/1" ]}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
           <OpenWorkspaceButton prefix="/app-shell" workflow={{ id: 4, slug: "WF-4" }} />
           <LocationProbe />
         </MemoryRouter>
@@ -78,9 +100,11 @@ describe("OpenWorkspaceButton", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1")
   })
 
-  it("renders nothing without a workflow" , () => {
+  it("renders nothing without a workflow", () => {
     const { container } = render(
-      <MemoryRouter><OpenWorkspaceButton /></MemoryRouter>
+      <MemoryRouter>
+        <OpenWorkspaceButton />
+      </MemoryRouter>
     )
 
     expect(container).toBeEmptyDOMElement()

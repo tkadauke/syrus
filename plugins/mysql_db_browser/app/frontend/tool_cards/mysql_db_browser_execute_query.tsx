@@ -16,7 +16,16 @@ import { formatMs, MysqlErrorNotice, parseMysqlError, TableShell, TruncatedNotic
 type QueryOutcome =
   | { kind: "error"; statement: string | null; error: MysqlError | null; durationMs: number | null }
   | { kind: "write"; statement: string | null; readOnly: boolean; affectedRows: number; durationMs: number | null }
-  | { kind: "select"; statement: string | null; readOnly: boolean; columns: string[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean; durationMs: number | null }
+  | {
+      kind: "select"
+      statement: string | null
+      readOnly: boolean
+      columns: string[]
+      rows: Record<string, unknown>[]
+      rowCount: number
+      truncated: boolean
+      durationMs: number | null
+    }
 
 function parseOutcome(context: ToolCardContext): QueryOutcome | null {
   const parsed = context.parsedResult
@@ -104,7 +113,9 @@ function renderExpanded(context: ToolCardContext) {
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
               {outcome.columns.map((column) => (
-                <th className="whitespace-nowrap px-2 py-1 font-semibold" key={column} scope="col">{column}</th>
+                <th className="whitespace-nowrap px-2 py-1 font-semibold" key={column} scope="col">
+                  {column}
+                </th>
               ))}
             </tr>
           </thead>
@@ -112,7 +123,9 @@ function renderExpanded(context: ToolCardContext) {
             {outcome.rows.map((row, index) => (
               <tr key={index}>
                 {outcome.columns.map((column) => (
-                  <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-700 dark:text-gray-300" key={column}>{cellText(row[column])}</td>
+                  <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-700 dark:text-gray-300" key={column}>
+                    {cellText(row[column])}
+                  </td>
                 ))}
               </tr>
             ))}

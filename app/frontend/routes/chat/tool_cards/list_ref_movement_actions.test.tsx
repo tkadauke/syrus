@@ -17,7 +17,14 @@ describe("list_ref_movement_actions tool card", () => {
       repository: "tkadauke/syrus",
       ref_movement_actions: [
         { name: "send_job_upstream", enabled: true, mode: "auto", grade_phases: [], available: true, blocked_reason: null },
-        { name: "submit_branch_upstream", enabled: false, mode: null, grade_phases: [], available: false, blocked_reason: "not enabled in delivery.ref_movement_actions" }
+        {
+          name: "submit_branch_upstream",
+          enabled: false,
+          mode: null,
+          grade_phases: [],
+          available: false,
+          blocked_reason: "not enabled in delivery.ref_movement_actions"
+        }
       ]
     }
     expect(listRefMovementActionsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("1/2 ref movement actions available")

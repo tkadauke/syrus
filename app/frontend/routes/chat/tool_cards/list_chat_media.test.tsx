@@ -30,7 +30,15 @@ describe("list_chat_media tool card", () => {
   it("renders a compact gallery with a thumbnail, stable ID, filename, kind, and content type", () => {
     const parsedResult = {
       snapshots: [],
-      chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" }]
+      chat_images: [
+        {
+          id: "chat_image:3",
+          kind: "chat_image",
+          filename: "desktop.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/12/media/chat_images/3/file"
+        }
+      ]
     }
 
     render(<>{listChatMediaToolCard.renderExpanded(context({ parsedResult }))}</>)
@@ -60,7 +68,15 @@ describe("list_chat_media tool card", () => {
   it("opens a preview modal with full details on click", () => {
     const parsedResult = {
       snapshots: [],
-      chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" }]
+      chat_images: [
+        {
+          id: "chat_image:3",
+          kind: "chat_image",
+          filename: "desktop.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/12/media/chat_images/3/file"
+        }
+      ]
     }
 
     render(<>{listChatMediaToolCard.renderExpanded(context({ parsedResult }))}</>)

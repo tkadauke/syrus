@@ -62,38 +62,46 @@ function setupFetchMock(initial = [stagingCluster()]) {
       return Promise.resolve(jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", truncated: false, nodes: [] }))
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/namespaces$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        generated_at: "2026-01-01T00:00:00Z",
-        truncated: false,
-        namespaces: [{ name: "default", status: "Active", created_at: "2026-01-01T00:00:00Z" }]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          truncated: false,
+          namespaces: [{ name: "default", status: "Active", created_at: "2026-01-01T00:00:00Z" }]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/pods$/.test(url) && method === "GET") {
       return Promise.resolve(jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", truncated: false, pods: [] }))
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/cronjobs$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        generated_at: "2026-01-01T00:00:00Z",
-        truncated: false,
-        cron_jobs: [{
-          name: "nightly-backup",
-          namespace: "default",
-          schedule: "0 2 * * *",
-          suspended: false,
-          active_count: 0,
-          last_schedule_time: null,
-          created_at: "2026-01-01T00:00:00Z"
-        }]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          truncated: false,
+          cron_jobs: [
+            {
+              name: "nightly-backup",
+              namespace: "default",
+              schedule: "0 2 * * *",
+              suspended: false,
+              active_count: 0,
+              last_schedule_time: null,
+              created_at: "2026-01-01T00:00:00Z"
+            }
+          ]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/overview$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        generated_at: "2026-01-01T00:00:00Z",
-        nodes: { available: false, reason: "metrics_unavailable", message: "no metrics-server" },
-        pods: { available: false, reason: "metrics_unavailable", message: "no metrics-server" }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          generated_at: "2026-01-01T00:00:00Z",
+          nodes: { available: false, reason: "metrics_unavailable", message: "no metrics-server" },
+          pods: { available: false, reason: "metrics_unavailable", message: "no metrics-server" }
+        })
+      )
     }
 
     throw new Error(`Unhandled fetch: ${method} ${url}`)

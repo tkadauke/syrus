@@ -19,26 +19,33 @@ describe("admin_list_processes tool card", () => {
   })
 
   it("summarizes the collapsed row with a count", () => {
-    const parsedResult = { processes: [{ id: 1, hostname: "worker-1" }, { id: 2, hostname: "worker-1" }] }
+    const parsedResult = {
+      processes: [
+        { id: 1, hostname: "worker-1" },
+        { id: 2, hostname: "worker-1" }
+      ]
+    }
     expect(adminListProcessesToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 processes")
   })
 
   it("renders kind, host/pid, state, resource usage, timing, and attribution", () => {
     const parsedResult = {
-      processes: [{
-        id: 1,
-        kind: "agent",
-        hostname: "worker-1",
-        pid: 4242,
-        state: "running",
-        started_at: "2026-09-06T00:00:00Z",
-        last_heartbeat_at: "2026-09-06T00:05:00Z",
-        cpu: 42.5,
-        rss: 1024 * 1024 * 256,
-        run_id: 9001,
-        workflow_id: null,
-        outcome: null
-      }]
+      processes: [
+        {
+          id: 1,
+          kind: "agent",
+          hostname: "worker-1",
+          pid: 4242,
+          state: "running",
+          started_at: "2026-09-06T00:00:00Z",
+          last_heartbeat_at: "2026-09-06T00:05:00Z",
+          cpu: 42.5,
+          rss: 1024 * 1024 * 256,
+          run_id: 9001,
+          workflow_id: null,
+          outcome: null
+        }
+      ]
     }
 
     render(<>{adminListProcessesToolCard.renderExpanded(context({ parsedResult }))}</>)

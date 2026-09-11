@@ -82,10 +82,12 @@ export function uploadVideoWalkthrough(input: {
         resolve(xhr.response as { video_walkthrough: VideoWalkthrough })
       } else {
         const payload = xhr.response as { error?: { code?: string; message?: string } } | null
-        reject(new ApiError(payload?.error?.message || `Upload failed with ${xhr.status}`, {
-          status: xhr.status,
-          code: payload?.error?.code
-        }))
+        reject(
+          new ApiError(payload?.error?.message || `Upload failed with ${xhr.status}`, {
+            status: xhr.status,
+            code: payload?.error?.code
+          })
+        )
       }
     }
     xhr.onerror = () => reject(new ApiError("Upload failed — check your connection.", { status: 0 }))
@@ -100,7 +102,5 @@ export function uploadVideoWalkthrough(input: {
 // owns the route -- core does not know the URL, which is what keeps this file
 // on the right side of the plugin boundary.
 export function retryVideoWalkthrough(pathTemplate: string, id: number): Promise<{ video_walkthrough: VideoWalkthrough }> {
-  return postJson<{ video_walkthrough: VideoWalkthrough }>(
-    pathTemplate.replace(":id", encodeURIComponent(String(id)))
-  )
+  return postJson<{ video_walkthrough: VideoWalkthrough }>(pathTemplate.replace(":id", encodeURIComponent(String(id))))
 }

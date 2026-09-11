@@ -29,11 +29,15 @@ describe("mysql_db_browser_list_tables tool card", () => {
   })
 
   it("summarizes the collapsed row with a table count and database", () => {
-    expect(listTablesToolCard.collapsedSummary?.(context({ parsedResult: { available: true, database: "syrus_production", truncated: false, tables: [table] } }))).toBe("1 table in syrus_production")
+    expect(
+      listTablesToolCard.collapsedSummary?.(context({ parsedResult: { available: true, database: "syrus_production", truncated: false, tables: [table] } }))
+    ).toBe("1 table in syrus_production")
   })
 
   it("renders table name, engine, approximate row count, and data size", () => {
-    render(<>{listTablesToolCard.renderExpanded(context({ parsedResult: { available: true, database: "syrus_production", truncated: false, tables: [table] } }))}</>)
+    render(
+      <>{listTablesToolCard.renderExpanded(context({ parsedResult: { available: true, database: "syrus_production", truncated: false, tables: [table] } }))}</>
+    )
 
     expect(screen.getByText("jobs")).toBeInTheDocument()
     expect(screen.getByText("InnoDB")).toBeInTheDocument()
@@ -42,7 +46,9 @@ describe("mysql_db_browser_list_tables tool card", () => {
   })
 
   it("shows a truncation notice when the table list was truncated", () => {
-    render(<>{listTablesToolCard.renderExpanded(context({ parsedResult: { available: true, database: "syrus_production", truncated: true, tables: [table] } }))}</>)
+    render(
+      <>{listTablesToolCard.renderExpanded(context({ parsedResult: { available: true, database: "syrus_production", truncated: true, tables: [table] } }))}</>
+    )
 
     expect(screen.getByText(/truncated/)).toBeInTheDocument()
   })

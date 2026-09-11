@@ -45,13 +45,7 @@ describe("ValidationStages", () => {
   })
 
   it("renders the optional detail next to a stage label", () => {
-    render(
-      <ValidationStages
-        labels={labels}
-        stages={stages({ video: { key: "video", status: "ok", detail: "gemini-2.5-flash" } })}
-        testIdPrefix="gemini"
-      />
-    )
+    render(<ValidationStages labels={labels} stages={stages({ video: { key: "video", status: "ok", detail: "gemini-2.5-flash" } })} testIdPrefix="gemini" />)
 
     expect(screen.getByText("(gemini-2.5-flash)")).toBeInTheDocument()
   })

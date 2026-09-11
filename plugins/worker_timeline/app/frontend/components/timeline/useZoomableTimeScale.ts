@@ -12,10 +12,13 @@ export function useZoomableTimeScale(from: string, to: string) {
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity)
 
   const baseScale = useMemo(
-    () => scaleTime().domain([ new Date(from), new Date(to) ]).range([ 0, CHART_WIDTH ]),
-    [ from, to ]
+    () =>
+      scaleTime()
+        .domain([new Date(from), new Date(to)])
+        .range([0, CHART_WIDTH]),
+    [from, to]
   )
-  const xScale = useMemo(() => transform.rescaleX(baseScale), [ baseScale, transform ])
+  const xScale = useMemo(() => transform.rescaleX(baseScale), [baseScale, transform])
 
   // Bound to the time-axis header only, NOT the scrollable lanes container
   // below it. d3-zoom's default wheel handler calls preventDefault() /
@@ -29,9 +32,15 @@ export function useZoomableTimeScale(from: string, to: string) {
     if (!el) return undefined
 
     const behavior = d3zoom<HTMLDivElement, unknown>()
-      .scaleExtent([ 1, 200 ])
-      .translateExtent([ [ 0, 0 ], [ CHART_WIDTH, 0 ] ])
-      .extent([ [ 0, 0 ], [ CHART_WIDTH, 0 ] ])
+      .scaleExtent([1, 200])
+      .translateExtent([
+        [0, 0],
+        [CHART_WIDTH, 0]
+      ])
+      .extent([
+        [0, 0],
+        [CHART_WIDTH, 0]
+      ])
       .on("zoom", (event) => setTransform(event.transform))
 
     const selection = select(el)

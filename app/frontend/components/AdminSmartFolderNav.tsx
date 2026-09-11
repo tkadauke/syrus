@@ -57,7 +57,8 @@ export function AdminSmartFolderNav({
   const currentTree = filterTreeFromPayload(currentFilter)
   const selectedFolder = folders.find((folder) => folder.id === activeFolderId)
   const filtersDiffer = selectedFolder?.filter != null && !filterTreesEqual(currentTree, filterTreeFromPayload(selectedFolder.filter))
-  const canSaveAsNew = topFilterChildren(currentTree).length > 0 && Boolean(subjectType) && (filtersDiffer || (allowSaveWithoutActiveFolder && selectedFolder == null))
+  const canSaveAsNew =
+    topFilterChildren(currentTree).length > 0 && Boolean(subjectType) && (filtersDiffer || (allowSaveWithoutActiveFolder && selectedFolder == null))
   const createFolder = useMutation({
     mutationFn: () => {
       if (!currentFilter || !subjectType) throw new Error("No filter to save.")
@@ -103,9 +104,7 @@ export function AdminSmartFolderNav({
 
   const reorder = useMutation({
     mutationFn: (nextFolders: AdminSmartFolder[]) => {
-      return Promise.all(
-        nextFolders.map((folder, index) => updateSmartFolder(folder.id, { name: folder.name, position: index }))
-      )
+      return Promise.all(nextFolders.map((folder, index) => updateSmartFolder(folder.id, { name: folder.name, position: index })))
     },
     onSuccess: () => {
       onMutationSuccess?.()
@@ -145,12 +144,18 @@ export function AdminSmartFolderNav({
         <Link className={folderClass(activeFolderId == null)} to={withRoutePrefix(allPath, prefix)}>
           <span className="truncate">{allLabel}</span>
         </Link>
-        {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
+        {primaryFolders.map((folder) => (
+          <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />
+        ))}
         {moreFolders.length > 0 ? (
           <details className="space-y-1" open={moreFolders.some((folder) => folder.active) || undefined}>
-            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.more")}</summary>
+            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+              {t("smart_folder.more")}
+            </summary>
             <div className="space-y-1">
-              {moreFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
+              {moreFolders.map((folder) => (
+                <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />
+              ))}
             </div>
           </details>
         ) : null}
@@ -186,7 +191,11 @@ export function AdminSmartFolderNav({
             >
               {updateFolder.isPending ? t("smart_folder.updating") : t("smart_folder.update_named_folder", { name: activeFolder.name })}
             </button>
-            {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("smart_folder.unable_to_update")}</p> : null}
+            {updateFolder.isError ? (
+              <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+                {t("smart_folder.unable_to_update")}
+              </p>
+            ) : null}
           </div>
         ) : null}
         {canSaveAsNew ? (
@@ -208,7 +217,11 @@ export function AdminSmartFolderNav({
               <Button className="w-full" disabled={createFolder.isPending} type="submit">
                 {createFolder.isPending ? t("smart_folder.saving") : t("smart_folder.save_as_new_folder")}
               </Button>
-              {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("smart_folder.unable_to_save")}</p> : null}
+              {createFolder.isError ? (
+                <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+                  {t("smart_folder.unable_to_save")}
+                </p>
+              ) : null}
             </form>
           </div>
         ) : null}
@@ -327,9 +340,7 @@ function SmartFolderLink({
     }
   }
 
-  const displayName = folder.i18n_key
-    ? t(`smart_folder_names.${folder.i18n_key}`, { defaultValue: folder.name })
-    : folder.name
+  const displayName = folder.i18n_key ? t(`smart_folder_names.${folder.i18n_key}`, { defaultValue: folder.name }) : folder.name
 
   if (!isUserDefined) {
     return (
@@ -400,33 +411,42 @@ function SmartFolderLink({
           <FolderCount active={folder.active} count={folder.count} />
         )}
       </div>
-      {menuOpen && menuAnchor ? createPortal(
-        <div
-          ref={menuRef}
-          className="fixed z-50 min-w-36 rounded border border-gray-200 bg-white p-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900"
-          role="menu"
-          style={{ top: menuAnchor.top, right: menuAnchor.right }}
-        >
-          <button className={menuItemClass()} onClick={startRename} role="menuitem" type="button">{t("smart_folder.rename")}</button>
-          <button
-            className={menuItemClass("text-red-700 dark:text-red-300")}
-            disabled={destroy.isPending}
-            onClick={() => confirmDelete ? destroy.mutate() : setConfirmDelete(true)}
-            role="menuitem"
-            type="button"
-          >
-            {confirmDelete ? t("smart_folder.confirm_delete") : t("smart_folder.delete")}
-          </button>
-        </div>,
-        document.body
-      ) : null}
+      {menuOpen && menuAnchor
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className="fixed z-50 min-w-36 rounded border border-gray-200 bg-white p-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900"
+              role="menu"
+              style={{ top: menuAnchor.top, right: menuAnchor.right }}
+            >
+              <button className={menuItemClass()} onClick={startRename} role="menuitem" type="button">
+                {t("smart_folder.rename")}
+              </button>
+              <button
+                className={menuItemClass("text-red-700 dark:text-red-300")}
+                disabled={destroy.isPending}
+                onClick={() => (confirmDelete ? destroy.mutate() : setConfirmDelete(true))}
+                role="menuitem"
+                type="button"
+              >
+                {confirmDelete ? t("smart_folder.confirm_delete") : t("smart_folder.delete")}
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   )
 }
 
 function GripIcon({ floating = false }: { floating?: boolean }) {
   return (
-    <svg aria-hidden="true" className={`${floating ? "pointer-events-none absolute left-0 top-1/2 -translate-y-1/2" : "-ml-1 shrink-0"} size-4 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500`} fill="none" viewBox="0 0 16 16">
+    <svg
+      aria-hidden="true"
+      className={`${floating ? "pointer-events-none absolute left-0 top-1/2 -translate-y-1/2" : "-ml-1 shrink-0"} size-4 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500`}
+      fill="none"
+      viewBox="0 0 16 16"
+    >
       <circle cx="6" cy="4" fill="currentColor" r="1" />
       <circle cx="10" cy="4" fill="currentColor" r="1" />
       <circle cx="6" cy="8" fill="currentColor" r="1" />
@@ -439,7 +459,11 @@ function GripIcon({ floating = false }: { floating?: boolean }) {
 
 function FolderCount({ active, count }: { active: boolean; count: number }) {
   return (
-    <span className={`ml-auto inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${active ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"}`}>{count}</span>
+    <span
+      className={`ml-auto inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${active ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"}`}
+    >
+      {count}
+    </span>
   )
 }
 

@@ -5,11 +5,7 @@ import { ConfirmationCard } from "./ConfirmationCard"
 describe("ConfirmationCard", () => {
   it("renders header, body, and footer slots", () => {
     render(
-      <ConfirmationCard
-        header={<h2>Confirm JOB-12</h2>}
-        body={<p>Review this action before it runs.</p>}
-        footer={<button type="button">Confirm</button>}
-      />
+      <ConfirmationCard header={<h2>Confirm JOB-12</h2>} body={<p>Review this action before it runs.</p>} footer={<button type="button">Confirm</button>} />
     )
 
     expect(screen.getByRole("article")).toHaveClass("border-brand/30")

@@ -38,7 +38,9 @@ export function AdminProcessesIndex() {
     queryKey: ["admin", "processes", location.search],
     queryFn: () => fetchAdminProcesses(location.search)
   })
-  const activeUserFolderId = processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined")?.id
+  const activeUserFolderId = processes.data?.smart_folders.find(
+    (folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined"
+  )?.id
 
   return (
     <main aria-label={t("processes.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
@@ -109,8 +111,13 @@ export function AdminProcessDetail() {
   return (
     <main aria-label={t("processes.aria_detail")} className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
-        <PageHeading className="mt-2">{t("processes.detail_heading")}{id ? ` #${id}` : ""}</PageHeading>
+        <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>
+          {t("processes.heading")}
+        </Link>
+        <PageHeading className="mt-2">
+          {t("processes.detail_heading")}
+          {id ? ` #${id}` : ""}
+        </PageHeading>
       </header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -149,7 +156,9 @@ function ProcessesTable({ processes, basePath, prefix }: { processes: SpawnedPro
               <td className="px-3 py-2 align-top">
                 <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
               </td>
-              <td className="max-w-md truncate px-3 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200" title={process.command}>{process.command}</td>
+              <td className="max-w-md truncate px-3 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200" title={process.command}>
+                {process.command}
+              </td>
               <td className="max-w-xs px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
                 <UserLabel user={process.user} prefix={prefix} />
               </td>
@@ -160,15 +169,25 @@ function ProcessesTable({ processes, basePath, prefix }: { processes: SpawnedPro
                 {process.hostname || "-"}
                 {process.pid ? <div className="text-gray-500 dark:text-gray-400">pid {process.pid}</div> : null}
               </td>
-              <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200"><RelativeTimestamp value={process.started_at} /></td>
+              <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
+                <RelativeTimestamp value={process.started_at} />
+              </td>
               <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
                 <RelativeTimestamp value={process.last_chunk_at} />
-                {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}
+                {process.stale ? (
+                  <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">
+                    {t("processes.stale")}
+                  </span>
+                ) : null}
               </td>
               <td className="px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatDuration(process.duration_s)}</td>
-              <td className="px-3 py-2 align-top text-xs"><Outcome process={process} /></td>
+              <td className="px-3 py-2 align-top text-xs">
+                <Outcome process={process} />
+              </td>
               <td className="space-x-3 whitespace-nowrap px-3 py-2 text-right align-top text-xs">
-                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${process.id}`}>{t("processes.detail")}</Link>
+                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${process.id}`}>
+                  {t("processes.detail")}
+                </Link>
                 <KillButton process={process} />
               </td>
             </tr>
@@ -198,31 +217,50 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         {process.owner ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_owner")}</dt>
-            <dd><OwnerLabel owner={process.owner} prefix={prefix} /></dd>
+            <dd>
+              <OwnerLabel owner={process.owner} prefix={prefix} />
+            </dd>
           </>
         ) : null}
         {process.user ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_user")}</dt>
-            <dd><UserLabel user={process.user} prefix={prefix} /></dd>
+            <dd>
+              <UserLabel user={process.user} prefix={prefix} />
+            </dd>
           </>
         ) : null}
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_hostname")}</dt>
         <dd className="font-mono text-gray-900 dark:text-gray-100">{process.hostname || "-"}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_pid_pgid")}</dt>
-        <dd className="font-mono text-gray-900 dark:text-gray-100">{process.pid || "-"} / {process.pgid || "-"}</dd>
+        <dd className="font-mono text-gray-900 dark:text-gray-100">
+          {process.pid || "-"} / {process.pgid || "-"}
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_workdir")}</dt>
         <dd className="break-all font-mono text-gray-900 dark:text-gray-100">{process.workdir || "-"}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_started")}</dt>
-        <dd><RelativeTimestamp value={process.started_at} /></dd>
+        <dd>
+          <RelativeTimestamp value={process.started_at} />
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_last_chunk")}</dt>
-        <dd><RelativeTimestamp value={process.last_chunk_at} /> {process.stale ? <span className="rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}</dd>
+        <dd>
+          <RelativeTimestamp value={process.last_chunk_at} />{" "}
+          {process.stale ? (
+            <span className="rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">
+              {t("processes.stale")}
+            </span>
+          ) : null}
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_finished")}</dt>
-        <dd><RelativeTimestamp value={process.finished_at} /></dd>
+        <dd>
+          <RelativeTimestamp value={process.finished_at} />
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_duration")}</dt>
         <dd>{formatDuration(process.duration_s)}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_outcome")}</dt>
-        <dd><Outcome process={process} /></dd>
+        <dd>
+          <Outcome process={process} />
+        </dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_wall_timeout")}</dt>
         <dd>{formatDuration(process.wall_timeout_s)}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_silent_timeout")}</dt>
@@ -230,7 +268,11 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         {process.run_id ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_run")}</dt>
-            <dd><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${process.run_id}/transcript`, prefix)}>#{process.run_id}</Link></dd>
+            <dd>
+              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${process.run_id}/transcript`, prefix)}>
+                #{process.run_id}
+              </Link>
+            </dd>
           </>
         ) : null}
         {process.workflow_id ? (
@@ -241,14 +283,18 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
                 <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(process.workflow_path, prefix)}>
                   {process.workflow_slug || workflowSlug(process.workflow_id)}
                 </Link>
-              ) : process.workflow_slug || workflowSlug(process.workflow_id)}
+              ) : (
+                process.workflow_slug || workflowSlug(process.workflow_id)
+              )}
             </dd>
           </>
         ) : null}
         {process.kill_requested_at ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_kill_requested")}</dt>
-            <dd><RelativeTimestamp value={process.kill_requested_at} /></dd>
+            <dd>
+              <RelativeTimestamp value={process.kill_requested_at} />
+            </dd>
           </>
         ) : null}
       </dl>
@@ -272,12 +318,7 @@ function KillButton({ process }: { process: SpawnedProcessPayload }) {
   if (process.finished_at || process.kill_requested_at) return null
 
   return (
-    <Button
-      disabled={kill.isPending}
-      onClick={() => kill.mutate()}
-      size="sm"
-      variant="danger"
-    >
+    <Button disabled={kill.isPending} onClick={() => kill.mutate()} size="sm" variant="danger">
       {kill.isPending ? t("processes.killing") : t("processes.kill")}
     </Button>
   )
@@ -329,13 +370,15 @@ function UserLabel({ user, prefix }: { user: SpawnedProcessUser | null; prefix: 
 function Outcome({ process }: { process: SpawnedProcessPayload }) {
   const { t } = useT("admin")
   if (process.finished_at) {
-    const label = process.outcome
-      ? t(`processes.outcome_${process.outcome}`, { defaultValue: process.outcome })
-      : t("processes.outcome_finished")
+    const label = process.outcome ? t(`processes.outcome_${process.outcome}`, { defaultValue: process.outcome }) : t("processes.outcome_finished")
     return <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-medium text-gray-700 dark:text-gray-200">{label}</span>
   }
   if (process.kill_requested_at) {
-    return <span className="rounded bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 font-medium text-amber-800 dark:text-amber-200">{t("processes.outcome_kill_requested")}</span>
+    return (
+      <span className="rounded bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 font-medium text-amber-800 dark:text-amber-200">
+        {t("processes.outcome_kill_requested")}
+      </span>
+    )
   }
   return <span className="rounded border border-info bg-surface-raised px-2 py-0.5 font-medium text-info">{t("processes.outcome_running")}</span>
 }
@@ -356,8 +399,8 @@ function formatDuration(value: number | null) {
   if (value < 60) return `${Math.round(value)}s`
 
   const minutes = Math.floor(value / 60)
-  if (minutes < 60) return`${minutes}m`
+  if (minutes < 60) return `${minutes}m`
 
   const hours = Math.floor(minutes / 60)
-  return`${hours}h ${minutes % 60}m`
+  return `${hours}h ${minutes % 60}m`
 }

@@ -35,12 +35,7 @@ function makeSetupStatus(overrides: Pick<SetupStatus, "next_step" | "next_step_p
 function renderState(setupStatus: SetupStatus | null = null) {
   return render(
     <MemoryRouter>
-      <OnboardingEmptyState
-        fallbackTitle="Nothing here"
-        fallbackDescription="Nothing to show."
-        prefix="/app-shell"
-        setupStatus={setupStatus}
-      />
+      <OnboardingEmptyState fallbackTitle="Nothing here" fallbackDescription="Nothing to show." prefix="/app-shell" setupStatus={setupStatus} />
     </MemoryRouter>
   )
 }

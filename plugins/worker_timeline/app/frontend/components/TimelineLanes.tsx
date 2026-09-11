@@ -36,13 +36,7 @@ type RestartMarker = {
   label: string
 }
 
-export function TimelineLanes({
-  payload,
-  onSelectWorkflow
-}: {
-  payload: WorkerTimelineMacroPayload
-  onSelectWorkflow: (workflowId: number) => void
-}) {
+export function TimelineLanes({ payload, onSelectWorkflow }: { payload: WorkerTimelineMacroPayload; onSelectWorkflow: (workflowId: number) => void }) {
   const { t } = useT("worker_timeline")
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const [restartTooltip, setRestartTooltip] = useState<RestartTooltipState | null>(null)
@@ -61,11 +55,7 @@ export function TimelineLanes({
       <div ref={axisRef} style={{ touchAction: "none" }}>
         <TimeAxis scale={xScale} width={CHART_WIDTH} />
       </div>
-      <div
-        aria-label={t("lanes_aria")}
-        className="relative overflow-x-hidden border-t border-gray-200 dark:border-gray-800"
-        style={{ height: totalHeight }}
-      >
+      <div aria-label={t("lanes_aria")} className="relative overflow-x-hidden border-t border-gray-200 dark:border-gray-800" style={{ height: totalHeight }}>
         {lanes.map((lane, index) => (
           <LaneRow
             index={index}
@@ -79,7 +69,11 @@ export function TimelineLanes({
         ))}
       </div>
       {tooltip ? <SpanTooltip span={tooltip.span} x={tooltip.x} y={tooltip.y} /> : null}
-      {restartTooltip ? <TooltipCard x={restartTooltip.x} y={restartTooltip.y}>{restartTooltip.text}</TooltipCard> : null}
+      {restartTooltip ? (
+        <TooltipCard x={restartTooltip.x} y={restartTooltip.y}>
+          {restartTooltip.text}
+        </TooltipCard>
+      ) : null}
     </div>
   )
 }
@@ -113,7 +107,9 @@ function LaneRow({
         ) : (
           <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-600">
             <span className="min-w-0 truncate font-semibold">{lane.laneLabel} ·</span>
-            <span className="shrink-0 rounded border border-gray-200 px-1 font-mono dark:border-gray-800">{lane.subrowIndex + 1}/{lane.subrowCount}</span>
+            <span className="shrink-0 rounded border border-gray-200 px-1 font-mono dark:border-gray-800">
+              {lane.subrowIndex + 1}/{lane.subrowCount}
+            </span>
           </div>
         )}
       </div>
@@ -171,7 +167,9 @@ function SpanTooltip({ span, x, y }: { span: WorkerTimelineSpan; x: number; y: n
       <p className="font-semibold">{span.label}</p>
       {span.job_title ? <p className="text-gray-700 dark:text-gray-200">{span.job_title}</p> : null}
       <p className="text-gray-500 dark:text-gray-400">{t("tooltip_workflow", { id: span.workflow_id })}</p>
-      <p className="text-gray-500 dark:text-gray-400">{t("tooltip_host", { host: span.hostname ?? "?", start: span.started_at, end: span.finished_at ?? "now" })}</p>
+      <p className="text-gray-500 dark:text-gray-400">
+        {t("tooltip_host", { host: span.hostname ?? "?", start: span.started_at, end: span.finished_at ?? "now" })}
+      </p>
       <p>{duration}</p>
       <p className="mt-1 text-gray-600 dark:text-gray-300">{blockedMessage(span.blocked, t)}</p>
     </TooltipCard>
@@ -198,7 +196,7 @@ function buildPackedLaneRows(lanes: WorkerTimelineLane[], t: (key: string, optio
 }
 
 function packSpans(spans: WorkerTimelineSpan[]) {
-  const sorted = [ ...spans ].sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
+  const sorted = [...spans].sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
   const subrows: WorkerTimelineSpan[][] = []
   const subrowEnds: number[] = []
 
@@ -208,7 +206,7 @@ function packSpans(spans: WorkerTimelineSpan[]) {
     const rowIndex = subrowEnds.findIndex((lastEnd) => lastEnd <= start)
 
     if (rowIndex === -1) {
-      subrows.push([ span ])
+      subrows.push([span])
       subrowEnds.push(end)
     } else {
       subrows[rowIndex].push(span)
@@ -220,7 +218,7 @@ function packSpans(spans: WorkerTimelineSpan[]) {
 }
 
 function restartMarkersFor(spans: WorkerTimelineSpan[], t: (key: string, options?: Record<string, unknown>) => string) {
-  const sorted = [ ...spans ].sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
+  const sorted = [...spans].sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
   const markers: RestartMarker[] = []
 
   sorted.forEach((span, index) => {

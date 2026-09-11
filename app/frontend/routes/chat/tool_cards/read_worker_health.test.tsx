@@ -27,7 +27,11 @@ const HEALTHY_PAYLOAD = {
     }
   ],
   hosts: [
-    { hostname: "worker-1", status: "current", windows: { "1h": { sample_count: 60, warning_count: 0, critical_count: 0 }, "24h": { sample_count: 1440, warning_count: 0, critical_count: 0 } } }
+    {
+      hostname: "worker-1",
+      status: "current",
+      windows: { "1h": { sample_count: 60, warning_count: 0, critical_count: 0 }, "24h": { sample_count: 1440, warning_count: 0, critical_count: 0 } }
+    }
   ]
 }
 

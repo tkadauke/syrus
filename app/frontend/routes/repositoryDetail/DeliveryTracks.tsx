@@ -3,7 +3,14 @@ import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { Link } from "react-router-dom"
 import { withRoutePrefix } from "../../lib/routing"
 import { useT } from "../../hooks/useT"
-import type { RepositoryDeliveryPayload, RepositoryDeliveryPrIngestion, RepositoryDeliveryRefMovementAction, RepositoryDeliveryRefMovementSummary, RepositoryDeliveryRefMovementWorkflow, RepositoryDeliveryTrack } from "../../api/repositories"
+import type {
+  RepositoryDeliveryPayload,
+  RepositoryDeliveryPrIngestion,
+  RepositoryDeliveryRefMovementAction,
+  RepositoryDeliveryRefMovementSummary,
+  RepositoryDeliveryRefMovementWorkflow,
+  RepositoryDeliveryTrack
+} from "../../api/repositories"
 
 // Repository page "Delivery" section : tracks table, ref-movement
 // action availability, recent ref-movement workflows, and recent PR
@@ -23,9 +30,7 @@ export function DeliveryTracksSection({ delivery, prefix }: { delivery: Reposito
 
   return (
     <section aria-label={t("delivery.aria_section")}>
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
-        {t("delivery.heading")}
-      </h2>
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("delivery.heading")}</h2>
       <div className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <DeliveryTracksTable tracks={delivery.tracks} />
         <RefMovementActionsList actions={delivery.ref_movement_actions} />
@@ -59,14 +64,20 @@ function DeliveryTracksTable({ tracks }: { tracks: RepositoryDeliveryTrack[] }) 
             <tr key={track.name}>
               <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
                 {track.name}
-                {track.is_default ? <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">{t("delivery.default_track_suffix")}</span> : null}
+                {track.is_default ? (
+                  <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">{t("delivery.default_track_suffix")}</span>
+                ) : null}
               </td>
               <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">{track.branch}</td>
               <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
                 {track.review_grade_phase} / {track.landing_grade_phase} / {track.branch_health_grade_phase}
               </td>
               <td className="px-3 py-2">
-                {track.health ? <StatusPill tone={healthTone(track.health)}>{track.health}</StatusPill> : <span className="text-xs text-gray-400 dark:text-gray-500">{t("delivery.health_not_tracked")}</span>}
+                {track.health ? (
+                  <StatusPill tone={healthTone(track.health)}>{track.health}</StatusPill>
+                ) : (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">{t("delivery.health_not_tracked")}</span>
+                )}
               </td>
               <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{track.queue_length}</td>
               <td className="px-3 py-2">
@@ -89,7 +100,9 @@ function RefMovementSummaryCell({ summary }: { summary: RepositoryDeliveryRefMov
 
   return (
     <div className="text-xs text-gray-600 dark:text-gray-400">
-      <div className="font-mono">{summary.source_ref} &rarr; {summary.target_ref}</div>
+      <div className="font-mono">
+        {summary.source_ref} &rarr; {summary.target_ref}
+      </div>
       {summary.finished_at ? <RelativeTimestamp value={summary.finished_at} /> : null}
     </div>
   )
@@ -141,15 +154,29 @@ function RecentRefMovementWorkflows({ workflows, prefix }: { workflows: Reposito
               <tr key={workflow.id}>
                 <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{workflow.trigger_kind}</td>
                 <td className="px-3 py-2">
-                  <Link className="text-brand hover:underline" to={withRoutePrefix(workflow.workflow_path, prefix)}>{workflow.job_slug}</Link>
+                  <Link className="text-brand hover:underline" to={withRoutePrefix(workflow.workflow_path, prefix)}>
+                    {workflow.job_slug}
+                  </Link>
                 </td>
                 <td className="px-3 py-2 font-mono text-xs text-gray-600 dark:text-gray-400">
-                  {workflow.source_ref} &rarr; {workflow.target_repository_slug ? `${workflow.target_repository_slug}:` : ""}{workflow.target_ref}
-                  {workflow.pr_number ? <span className="ml-1 text-gray-400 dark:text-gray-500">PR #{workflow.pr_number}{workflow.pr_state ? ` (${workflow.pr_state})` : ""}</span> : null}
+                  {workflow.source_ref} &rarr; {workflow.target_repository_slug ? `${workflow.target_repository_slug}:` : ""}
+                  {workflow.target_ref}
+                  {workflow.pr_number ? (
+                    <span className="ml-1 text-gray-400 dark:text-gray-500">
+                      PR #{workflow.pr_number}
+                      {workflow.pr_state ? ` (${workflow.pr_state})` : ""}
+                    </span>
+                  ) : null}
                 </td>
-                <td className="px-3 py-2"><StatusPill tone={workflowStateTone(workflow.state)}>{workflow.state}</StatusPill></td>
+                <td className="px-3 py-2">
+                  <StatusPill tone={workflowStateTone(workflow.state)}>{workflow.state}</StatusPill>
+                </td>
                 <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
-                  {workflow.finished_at ? <RelativeTimestamp value={workflow.finished_at} /> : workflow.created_at ? <RelativeTimestamp value={workflow.created_at} /> : null}
+                  {workflow.finished_at ? (
+                    <RelativeTimestamp value={workflow.finished_at} />
+                  ) : workflow.created_at ? (
+                    <RelativeTimestamp value={workflow.created_at} />
+                  ) : null}
                 </td>
               </tr>
             ))}
@@ -189,7 +216,9 @@ function RecentPrIngestions({ ingestions, prefix }: { ingestions: RepositoryDeli
               <tr key={`${ingestion.job_id}-${ingestion.pr_number}`}>
                 <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{ingestion.pr_number ? `#${ingestion.pr_number}` : "—"}</td>
                 <td className="px-3 py-2">
-                  <Link className="text-brand hover:underline" to={withRoutePrefix(ingestion.job_path, prefix)}>{ingestion.job_slug}</Link>
+                  <Link className="text-brand hover:underline" to={withRoutePrefix(ingestion.job_path, prefix)}>
+                    {ingestion.job_slug}
+                  </Link>
                 </td>
                 <td className="px-3 py-2">
                   <StatusPill tone={ingestion.classification === "external_unknown" ? "gray" : "blue"}>{ingestion.classification}</StatusPill>

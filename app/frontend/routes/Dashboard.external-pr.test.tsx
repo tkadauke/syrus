@@ -97,13 +97,13 @@ function renderTable(items: DashboardJobItem[]) {
 
 describe("external PR marking in the dashboard job list", () => {
   it("does not show an external badge for a PR Syrus opened itself", () => {
-    renderTable([ jobItem(1, { pr_is_external: false }) ])
+    renderTable([jobItem(1, { pr_is_external: false })])
     expect(screen.getByText("PR #17")).toBeInTheDocument()
     expect(screen.queryByText("External")).toBeNull()
   })
 
   it("shows an external badge next to the PR link when it was not opened by Syrus", () => {
-    renderTable([ jobItem(2, { pr_is_external: true }) ])
+    renderTable([jobItem(2, { pr_is_external: true })])
     expect(screen.getByText("PR #17")).toBeInTheDocument()
     expect(screen.getByText("External")).toBeInTheDocument()
   })

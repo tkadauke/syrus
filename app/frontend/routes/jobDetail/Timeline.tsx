@@ -34,7 +34,17 @@ const STATUS_COLORS: Record<string, string> = {
 type TFunc = (key: string, options?: Record<string, unknown>) => string
 type TooltipState = { x: number; y: number; content: ReactNode }
 
-export function TimelineTab({ jobId, workflows, loading = false, error = null }: { jobId: string; workflows: JobWorkflow[]; loading?: boolean; error?: unknown }) {
+export function TimelineTab({
+  jobId,
+  workflows,
+  loading = false,
+  error = null
+}: {
+  jobId: string
+  workflows: JobWorkflow[]
+  loading?: boolean
+  error?: unknown
+}) {
   const { t } = useT("jobs")
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null)
 
@@ -60,7 +70,9 @@ export function TimelineTab({ jobId, workflows, loading = false, error = null }:
           value={selectedWorkflowId ?? ""}
         >
           {workflows.map((workflow) => (
-            <option key={workflow.id} value={workflow.id}>{workflowOptionLabel(workflow)}</option>
+            <option key={workflow.id} value={workflow.id}>
+              {workflowOptionLabel(workflow)}
+            </option>
           ))}
         </Select>
       </label>
@@ -89,7 +101,9 @@ function TimelineWaterfall({ jobId, workflowId }: { jobId: string; workflowId: n
   const hasStarted = Boolean(workflow.started_at)
   const from = workflow.started_at ?? workflow.finished_at ?? new Date().toISOString()
   const to = workflow.finished_at ?? new Date().toISOString()
-  const xScale = scaleTime().domain([new Date(from), new Date(to)]).range([0, CHART_WIDTH])
+  const xScale = scaleTime()
+    .domain([new Date(from), new Date(to)])
+    .range([0, CHART_WIDTH])
 
   function showTooltip(content: ReactNode, x: number, y: number) {
     setTooltip({ content, x, y })
@@ -101,7 +115,10 @@ function TimelineWaterfall({ jobId, workflowId }: { jobId: string; workflowId: n
 
   return (
     <div className="relative space-y-3">
-      <section aria-label={t("timeline_summary_aria")} className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+      <section
+        aria-label={t("timeline_summary_aria")}
+        className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+      >
         <p>{t("timeline_workflow_summary", { id: workflow.id, trigger_kind: workflow.trigger_kind, status: workflow.status })}</p>
         {workflow.hostname ? <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("timeline_ran_on_host", { host: workflow.hostname })}</p> : null}
         {!hasStarted ? <p className="mt-1 text-gray-500 dark:text-gray-400">{t("timeline_not_started_note")}</p> : null}
@@ -132,7 +149,11 @@ function TimelineWaterfall({ jobId, workflowId }: { jobId: string; workflowId: n
         </div>
       )}
 
-      {tooltip ? <TooltipCard x={tooltip.x} y={tooltip.y}>{tooltip.content}</TooltipCard> : null}
+      {tooltip ? (
+        <TooltipCard x={tooltip.x} y={tooltip.y}>
+          {tooltip.content}
+        </TooltipCard>
+      ) : null}
     </div>
   )
 }
@@ -157,7 +178,9 @@ function StepRow({
 
   return (
     <div className="flex items-center gap-2 px-2 py-2">
-      <div className="w-48 shrink-0 truncate px-1 font-mono text-xs text-gray-600 dark:text-gray-400" title={label}>{label}</div>
+      <div className="w-48 shrink-0 truncate px-1 font-mono text-xs text-gray-600 dark:text-gray-400" title={label}>
+        {label}
+      </div>
       {startedRuns.length === 0 ? (
         <button
           className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 dark:border-gray-600 dark:text-gray-400"

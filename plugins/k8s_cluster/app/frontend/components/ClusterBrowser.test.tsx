@@ -26,7 +26,7 @@ const DEFAULT_NODES = {
     {
       name: "node-1",
       ready: true,
-      roles: [ "control-plane" ],
+      roles: ["control-plane"],
       kubelet_version: "v1.30.0",
       internal_ip: "10.0.0.1",
       capacity_cpu: "4",
@@ -40,7 +40,12 @@ const DEFAULT_NODES = {
 
 const DEFAULT_OVERVIEW = {
   generated_at: GENERATED_AT,
-  nodes: { available: true, items: [ { name: "node-1", cpu_millicores: 500, memory_bytes: 1073741824 } ], total_cpu_millicores: 500, total_memory_bytes: 1073741824 },
+  nodes: {
+    available: true,
+    items: [{ name: "node-1", cpu_millicores: 500, memory_bytes: 1073741824 }],
+    total_cpu_millicores: 500,
+    total_memory_bytes: 1073741824
+  },
   pods: { available: false, reason: "metrics_unavailable", message: "metrics-server is not installed" }
 }
 
@@ -57,7 +62,7 @@ const DEFAULT_PODS = {
       node_name: "node-1",
       ready: "1/1",
       restart_count: 0,
-      container_names: [ "app" ],
+      container_names: ["app"],
       created_at: GENERATED_AT
     }
   ]
@@ -71,7 +76,7 @@ const MULTI_CONTAINER_POD = {
   node_name: "node-1",
   ready: "2/2",
   restart_count: 1,
-  container_names: [ "app", "sidecar" ],
+  container_names: ["app", "sidecar"],
   created_at: GENERATED_AT
 }
 
@@ -79,9 +84,7 @@ const DEFAULT_DEPLOYMENTS = {
   available: true,
   generated_at: GENERATED_AT,
   truncated: false,
-  deployments: [
-    { name: "web", namespace: "default", replicas: 3, ready_replicas: 3, available_replicas: 3, updated_replicas: 3, created_at: GENERATED_AT }
-  ]
+  deployments: [{ name: "web", namespace: "default", replicas: 3, ready_replicas: 3, available_replicas: 3, updated_replicas: 3, created_at: GENERATED_AT }]
 }
 
 const DEFAULT_CRONJOBS = {
@@ -104,7 +107,7 @@ const DEFAULT_SERVICES = {
       type: "ClusterIP",
       cluster_ip: "10.0.0.10",
       external_ips: [],
-      ports: [ { name: "http", port: 80, target_port: 8080, protocol: "TCP" } ],
+      ports: [{ name: "http", port: 80, target_port: 8080, protocol: "TCP" }],
       created_at: GENERATED_AT
     }
   ]
@@ -120,7 +123,7 @@ const DEFAULT_ENDPOINTS = {
       namespace: "default",
       ready_addresses: 2,
       not_ready_addresses: 0,
-      ports: [ { name: "http", port: 8080, protocol: "TCP" } ],
+      ports: [{ name: "http", port: 8080, protocol: "TCP" }],
       created_at: GENERATED_AT
     }
   ]
@@ -131,7 +134,16 @@ const DEFAULT_PVCS = {
   generated_at: GENERATED_AT,
   truncated: false,
   persistent_volume_claims: [
-    { name: "data", namespace: "default", status: "Bound", capacity: "10Gi", storage_class: "standard", access_modes: [ "ReadWriteOnce" ], volume_name: "pvc-1", created_at: GENERATED_AT }
+    {
+      name: "data",
+      namespace: "default",
+      status: "Bound",
+      capacity: "10Gi",
+      storage_class: "standard",
+      access_modes: ["ReadWriteOnce"],
+      volume_name: "pvc-1",
+      created_at: GENERATED_AT
+    }
   ]
 }
 
@@ -163,18 +175,7 @@ const DEFAULT_POD_LOGS = {
   log: "line one\nline two\n"
 }
 
-type ResourceKey =
-  | "namespaces"
-  | "nodes"
-  | "overview"
-  | "pods"
-  | "deployments"
-  | "cronjobs"
-  | "services"
-  | "endpoints"
-  | "pvcs"
-  | "events"
-  | "podLogs"
+type ResourceKey = "namespaces" | "nodes" | "overview" | "pods" | "deployments" | "cronjobs" | "services" | "endpoints" | "pvcs" | "events" | "podLogs"
 
 function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, errors: Partial<Record<ResourceKey, number>> = {}) {
   const calls: string[] = []
@@ -365,7 +366,7 @@ describe("ClusterBrowser", () => {
           available: true,
           generated_at: GENERATED_AT,
           truncated: false,
-          endpoints: [ { name: "web", namespace: "default", ready_addresses: 1, not_ready_addresses: 1, ports: [], created_at: GENERATED_AT } ]
+          endpoints: [{ name: "web", namespace: "default", ready_addresses: 1, not_ready_addresses: 1, ports: [], created_at: GENERATED_AT }]
         }
       })
       renderBrowser()
@@ -516,7 +517,7 @@ describe("ClusterBrowser", () => {
     })
 
     it("shows a container picker for a multi-container pod", async () => {
-      setupFetchMock({ pods: { available: true, generated_at: GENERATED_AT, truncated: false, pods: [ MULTI_CONTAINER_POD ] } })
+      setupFetchMock({ pods: { available: true, generated_at: GENERATED_AT, truncated: false, pods: [MULTI_CONTAINER_POD] } })
       renderBrowser()
       await switchTab("Logs")
       await screen.findByText("Select a pod to view its log tail.")

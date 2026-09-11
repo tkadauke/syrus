@@ -43,9 +43,7 @@ describe("read_test_insight tool card", () => {
   })
 
   it("summarizes the collapsed row with the test name and status", () => {
-    expect(readTestInsightToolCard.collapsedSummary?.(context({ parsedResult: { test, history: [] } }))).toBe(
-      "does something important (failed)"
-    )
+    expect(readTestInsightToolCard.collapsedSummary?.(context({ parsedResult: { test, history: [] } }))).toBe("does something important (failed)")
   })
 
   it("renders actionable identifiers, flaky/slow evidence, and recent record", () => {

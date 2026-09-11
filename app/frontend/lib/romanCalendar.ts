@@ -1,7 +1,4 @@
-const MONTHS_ABL = [
-  "Ian.", "Feb.", "Mart.", "Apr.", "Mai.", "Iun.",
-  "Iul.", "Aug.", "Sept.", "Oct.", "Nov.", "Dec."
-]
+const MONTHS_ABL = ["Ian.", "Feb.", "Mart.", "Apr.", "Mai.", "Iun.", "Iul.", "Aug.", "Sept.", "Oct.", "Nov.", "Dec."]
 
 // March (3), May (5), July (7), October (10) have Nones on the 7th and Ides on the 15th
 const LATE_NONES_MONTHS = new Set([3, 5, 7, 10])
@@ -19,7 +16,7 @@ function daysInMonth(year: number, month: number): number {
 }
 
 function toRomanNumeral(n: number): string {
-  const values =   [1000, 900, 500, 400, 100, 90,  50, 40, 10, 9,   5,  4,  1]
+  const values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
   const numerals = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"]
   let result = ""
   for (let i = 0; i < values.length; i++) {

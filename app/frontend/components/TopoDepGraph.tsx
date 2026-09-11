@@ -60,7 +60,7 @@ type ArrowLayer = { graphKey: string; paths: ArrowPath[] }
 function graphRenderKey(nodes: GraphNode[], edges: GraphEdge[]): string {
   return JSON.stringify({
     nodes: nodes.map((node) => node.id),
-    edges: edges.map((edge) => [edge.from_id, edge.to_id]),
+    edges: edges.map((edge) => [edge.from_id, edge.to_id])
   })
 }
 
@@ -72,15 +72,7 @@ function numericNodeId(node: GraphNode): number | null {
   return slugMatch ? Number.parseInt(slugMatch[1], 10) : null
 }
 
-export function TopoDepGraph({
-  nodes,
-  edges,
-  className,
-}: {
-  nodes: GraphNode[]
-  edges: GraphEdge[]
-  className?: string
-}) {
+export function TopoDepGraph({ nodes, edges, className }: { nodes: GraphNode[]; edges: GraphEdge[]; className?: string }) {
   const navigate = useNavigate()
   const markerId = `topo-arrow-${useId().replace(/:/g, "")}`
   const containerRef = useRef<HTMLDivElement>(null)
@@ -116,16 +108,12 @@ export function TopoDepGraph({
 
       next.push({
         key: `${edge.from_id}→${edge.to_id}`,
-        d: `M ${x1} ${y1} C ${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`,
+        d: `M ${x1} ${y1} C ${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`
       })
     }
 
     // Return prev unchanged if computed value is identical — prevents re-render loop.
-    setArrowLayer((prev) =>
-      prev.graphKey === graphKey && JSON.stringify(prev.paths) === JSON.stringify(next)
-        ? prev
-        : { graphKey, paths: next }
-    )
+    setArrowLayer((prev) => (prev.graphKey === graphKey && JSON.stringify(prev.paths) === JSON.stringify(next) ? prev : { graphKey, paths: next }))
     setSvgDims((prev) => {
       const w = Math.ceil(cRect.width)
       const h = Math.ceil(cRect.height)
@@ -176,34 +164,14 @@ export function TopoDepGraph({
         ))}
       </div>
 
-      <svg
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        height={svgDims.h}
-        width={svgDims.w}
-      >
+      <svg aria-hidden="true" className="pointer-events-none absolute inset-0" height={svgDims.h} width={svgDims.w}>
         <defs>
-          <marker
-            id={markerId}
-            markerHeight="6"
-            markerUnits="strokeWidth"
-            markerWidth="6"
-            orient="auto"
-            refX="5"
-            refY="3"
-          >
+          <marker id={markerId} markerHeight="6" markerUnits="strokeWidth" markerWidth="6" orient="auto" refX="5" refY="3">
             <path d="M 0 0 L 6 3 L 0 6 z" fill="#9ca3af" />
           </marker>
         </defs>
         {arrows.map(({ key, d }) => (
-          <path
-            d={d}
-            fill="none"
-            key={key}
-            markerEnd={`url(#${markerId})`}
-            stroke="#9ca3af"
-            strokeWidth="1.5"
-          />
+          <path d={d} fill="none" key={key} markerEnd={`url(#${markerId})`} stroke="#9ca3af" strokeWidth="1.5" />
         ))}
       </svg>
     </div>
@@ -214,16 +182,14 @@ function GraphSlug({ id, kind, slug }: { id: number | null; kind: "epic" | "job"
   const content = <CopyableSlug className="shrink-0 text-xs" slug={slug} />
 
   return (
-    <span
-      className="shrink-0"
-      onClick={(event) => event.stopPropagation()}
-      onKeyDown={(event) => event.stopPropagation()}
-    >
+    <span className="shrink-0" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
       {id ? (
         <SlugHoverCard id={id} kind={kind}>
           {content}
         </SlugHoverCard>
-      ) : content}
+      ) : (
+        content
+      )}
     </span>
   )
 }

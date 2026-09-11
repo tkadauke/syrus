@@ -47,12 +47,18 @@ describe("deliveryPanelRelevant", () => {
   })
 
   it("is true when there are PR links", () => {
-    expect(deliveryPanelRelevant(payload({ pr_links: [ prLink() ] }))).toBe(true)
+    expect(deliveryPanelRelevant(payload({ pr_links: [prLink()] }))).toBe(true)
   })
 
   it("is true when send_job_upstream is available or blocked", () => {
-    expect(deliveryPanelRelevant(payload({ actions: { can_send_job_upstream: true, send_job_upstream_blocked_reason: null } as JobDetailPayload["actions"] }))).toBe(true)
-    expect(deliveryPanelRelevant(payload({ actions: { can_send_job_upstream: false, send_job_upstream_blocked_reason: "job is not open" } as JobDetailPayload["actions"] }))).toBe(true)
+    expect(
+      deliveryPanelRelevant(payload({ actions: { can_send_job_upstream: true, send_job_upstream_blocked_reason: null } as JobDetailPayload["actions"] }))
+    ).toBe(true)
+    expect(
+      deliveryPanelRelevant(
+        payload({ actions: { can_send_job_upstream: false, send_job_upstream_blocked_reason: "job is not open" } as JobDetailPayload["actions"] })
+      )
+    ).toBe(true)
   })
 
   it("is true for a notable delivery status", () => {
@@ -62,17 +68,25 @@ describe("deliveryPanelRelevant", () => {
 
 describe("DeliveryPanel", () => {
   it("renders the track and target ref", () => {
-    render(<DeliveryPanel payload={payload({ job: { ...payload().job, delivery_track: "hotfix", delivery_target_ref: "release/1.0" } as JobDetailPayload["job"] })} />)
+    render(
+      <DeliveryPanel
+        payload={payload({ job: { ...payload().job, delivery_track: "hotfix", delivery_target_ref: "release/1.0" } as JobDetailPayload["job"] })}
+      />
+    )
 
     expect(screen.getByText("hotfix")).toBeInTheDocument()
     expect(screen.getByText("release/1.0")).toBeInTheDocument()
   })
 
   it("interpolates the PR number into the waiting_for_upstream_approval status from the promotion/upstream_export PR link", () => {
-    render(<DeliveryPanel payload={payload({
-      job: { ...payload().job, delivery_status: "waiting_for_upstream_approval" } as JobDetailPayload["job"],
-      pr_links: [ prLink({ id: 2, role: "upstream_export", pr_number: 123 }) ]
-    })} />)
+    render(
+      <DeliveryPanel
+        payload={payload({
+          job: { ...payload().job, delivery_status: "waiting_for_upstream_approval" } as JobDetailPayload["job"],
+          pr_links: [prLink({ id: 2, role: "upstream_export", pr_number: 123 })]
+        })}
+      />
+    )
 
     expect(screen.getByText("Sent upstream: PR #123 waiting for review")).toBeInTheDocument()
   })
@@ -84,12 +98,16 @@ describe("DeliveryPanel", () => {
   })
 
   it("renders PR links grouped by role", () => {
-    render(<DeliveryPanel payload={payload({
-      pr_links: [
-        prLink({ id: 1, role: "local", pr_number: 10 }),
-        prLink({ id: 2, role: "upstream_export", pr_number: 20, target_repository_slug: "acme/upstream-widgets" })
-      ]
-    })} />)
+    render(
+      <DeliveryPanel
+        payload={payload({
+          pr_links: [
+            prLink({ id: 1, role: "local", pr_number: 10 }),
+            prLink({ id: 2, role: "upstream_export", pr_number: 20, target_repository_slug: "acme/upstream-widgets" })
+          ]
+        })}
+      />
+    )
 
     expect(screen.getByText("Local")).toBeInTheDocument()
     expect(screen.getByText("Upstream export")).toBeInTheDocument()
@@ -98,7 +116,11 @@ describe("DeliveryPanel", () => {
   })
 
   it("shows the blocked reason for send_job_upstream when present", () => {
-    render(<DeliveryPanel payload={payload({ actions: { can_send_job_upstream: false, send_job_upstream_blocked_reason: "job is not open" } as JobDetailPayload["actions"] })} />)
+    render(
+      <DeliveryPanel
+        payload={payload({ actions: { can_send_job_upstream: false, send_job_upstream_blocked_reason: "job is not open" } as JobDetailPayload["actions"] })}
+      />
+    )
 
     expect(screen.getByText("Send upstream: job is not open")).toBeInTheDocument()
   })

@@ -48,10 +48,12 @@ export type PendingActionResult =
 function parseEvidence(value: unknown): PendingActionEvidence {
   const evidence = isPlainObject(value) ? value : {}
   const diffSummary = isPlainObject(evidence.diff_summary) ? evidence.diff_summary : {}
-  const files = Array.isArray(diffSummary.files) ? diffSummary.files.flatMap((file) => {
-    const label = displayValue(file)
-    return label ? [label] : []
-  }) : []
+  const files = Array.isArray(diffSummary.files)
+    ? diffSummary.files.flatMap((file) => {
+        const label = displayValue(file)
+        return label ? [label] : []
+      })
+    : []
 
   return {
     workflowId: displayValue(evidence.workflow_id),
@@ -124,7 +126,9 @@ function ShaRow({ label, sha }: { label: string; sha: string }) {
   return (
     <div className="min-w-0">
       <dt className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="truncate font-mono text-gray-700 dark:text-gray-300" title={sha}>{sha.slice(0, 12)}</dd>
+      <dd className="truncate font-mono text-gray-700 dark:text-gray-300" title={sha}>
+        {sha.slice(0, 12)}
+      </dd>
     </div>
   )
 }
@@ -132,7 +136,9 @@ function ShaRow({ label, sha }: { label: string; sha: string }) {
 function DetailSection({ label, children }: { label: string; children: ReactNode }) {
   return (
     <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
-      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{label}</summary>
+      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        {label}
+      </summary>
       <div className="mt-1 text-gray-700 dark:text-gray-300">{children}</div>
     </details>
   )
@@ -165,14 +171,14 @@ function DryRunEvidenceCard({ result }: { result: Extract<PendingActionResult, {
           {evidence.baseSha ? <ShaRow label="Base SHA" sha={evidence.baseSha} /> : null}
         </dl>
       ) : null}
-      {evidence.diffUnavailableReason ? (
-        <div className="text-gray-500 dark:text-gray-400">Diff unavailable: {evidence.diffUnavailableReason}</div>
-      ) : null}
+      {evidence.diffUnavailableReason ? <div className="text-gray-500 dark:text-gray-400">Diff unavailable: {evidence.diffUnavailableReason}</div> : null}
       {evidence.files.length > 0 ? (
         <DetailSection label={`${evidence.files.length} changed ${evidence.files.length === 1 ? "file" : "files"}`}>
           <ul className="space-y-0.5 font-mono">
             {evidence.files.map((file) => (
-              <li className="truncate" key={file} title={file}>{file}</li>
+              <li className="truncate" key={file} title={file}>
+                {file}
+              </li>
             ))}
           </ul>
         </DetailSection>
@@ -197,7 +203,9 @@ export function PendingActionResultCard({ result }: { result: PendingActionResul
           {result.groupId ? `Group #${result.groupId}` : `#${result.pendingActionId}`}
         </span>
         {result.memberCount != null ? (
-          <Badge>{result.memberCount} {result.memberCount === 1 ? "action" : "actions"}</Badge>
+          <Badge>
+            {result.memberCount} {result.memberCount === 1 ? "action" : "actions"}
+          </Badge>
         ) : null}
       </div>
       {result.message ? <div className="text-gray-700 dark:text-gray-300">{result.message}</div> : null}

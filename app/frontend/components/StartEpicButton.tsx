@@ -35,18 +35,11 @@ export function StartEpicButton({ proposal, onNotice }: { proposal: ChatProposal
 
   return (
     <>
-      <Button
-        className="rounded-full"
-        disabled={start.isPending}
-        onClick={() => start.mutate()}
-        size="sm"
-      >
+      <Button className="rounded-full" disabled={start.isPending} onClick={() => start.mutate()} size="sm">
         {start.isPending ? t("epic_start.starting") : t("epic_start.start")}
       </Button>
       {start.isError ? (
-        <span className="text-xs text-red-700 dark:text-red-300">
-          {start.error instanceof ApiError ? start.error.message : t("epic_start.error")}
-        </span>
+        <span className="text-xs text-red-700 dark:text-red-300">{start.error instanceof ApiError ? start.error.message : t("epic_start.error")}</span>
       ) : null}
     </>
   )

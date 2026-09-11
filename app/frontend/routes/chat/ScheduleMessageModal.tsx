@@ -60,7 +60,9 @@ export function ScheduleMessageModal({
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="schedule-message-title">Schedule Message</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="schedule-message-title">
+          Schedule Message
+        </h2>
         <form className="mt-4 space-y-4" onSubmit={submit}>
           <label className="block">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Time</span>
@@ -83,8 +85,12 @@ export function ScheduleMessageModal({
           </label>
           {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
           <div className="flex justify-end gap-2">
-            <button className={secondaryButton()} disabled={submitting} onClick={onCancel} type="button">Cancel</button>
-            <button className={primaryButton()} disabled={submitting} type="submit">Schedule</button>
+            <button className={secondaryButton()} disabled={submitting} onClick={onCancel} type="button">
+              Cancel
+            </button>
+            <button className={primaryButton()} disabled={submitting} type="submit">
+              Schedule
+            </button>
           </div>
         </form>
       </section>

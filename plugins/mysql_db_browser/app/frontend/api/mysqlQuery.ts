@@ -84,12 +84,7 @@ export type MysqlQueryBuilderSpec = {
   limit?: number
 }
 
-export function fetchMysqlQueryBuilderResult(
-  connectionId: number,
-  database: string,
-  spec: MysqlQueryBuilderSpec,
-  params: { q?: string } = {}
-) {
+export function fetchMysqlQueryBuilderResult(connectionId: number, database: string, spec: MysqlQueryBuilderSpec, params: { q?: string } = {}) {
   const search = new URLSearchParams()
   search.set("spec", JSON.stringify(spec))
   if (params.q) search.set("q", params.q)

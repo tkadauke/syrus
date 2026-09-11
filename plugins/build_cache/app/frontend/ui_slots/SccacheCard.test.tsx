@@ -32,7 +32,11 @@ describe("SccacheCard", () => {
   })
 
   it("renders a fallback message instead of badges when hit/miss counts are unavailable", () => {
-    render(<SccacheCard sccache={{ ...fullSccache, summary: { hits: null, misses: null, hit_rate: null, cache_size: null, max_cache_size: null, cache_location: null } }} />)
+    render(
+      <SccacheCard
+        sccache={{ ...fullSccache, summary: { hits: null, misses: null, hit_rate: null, cache_size: null, max_cache_size: null, cache_location: null } }}
+      />
+    )
 
     expect(screen.queryByTestId("sccache-summary")).not.toBeInTheDocument()
     expect(screen.getByText(/not reported/i)).toBeInTheDocument()

@@ -19,10 +19,7 @@ describe("subscribeToAppEvents", () => {
 
     const subscription = subscribeToAppEvents(queryClient, consumer)
 
-    expect(consumer.subscriptions.create).toHaveBeenCalledWith(
-      { channel: "AppUserChannel" },
-      expect.objectContaining({ received: expect.any(Function) })
-    )
+    expect(consumer.subscriptions.create).toHaveBeenCalledWith({ channel: "AppUserChannel" }, expect.objectContaining({ received: expect.any(Function) }))
 
     received?.({
       type: "admin_overview.updated",
@@ -53,10 +50,7 @@ describe("subscribeToAppEvents", () => {
 
     subscribeToAppEvents(queryClient, consumer)
 
-    expect(consumer.subscriptions.create).toHaveBeenCalledWith(
-      { channel: "AppUserChannel" },
-      expect.objectContaining({ connected: expect.any(Function) })
-    )
+    expect(consumer.subscriptions.create).toHaveBeenCalledWith({ channel: "AppUserChannel" }, expect.objectContaining({ connected: expect.any(Function) }))
 
     connected?.()
     expect(invalidate).not.toHaveBeenCalled()

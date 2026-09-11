@@ -12,7 +12,7 @@ vi.mock("../components/SlugHoverCard", () => ({
     <span data-testid="slug-hover-card" data-kind={kind} data-prefix={prefix} data-id={String(id)}>
       {children}
     </span>
-  ),
+  )
 }))
 
 describe("linkifySlugs", () => {

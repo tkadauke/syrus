@@ -107,7 +107,7 @@ export async function getJsonWithMeta<T>(path: string, options: { signal?: Abort
 
   if (response.status === 204) return { data: undefined as T, meta }
 
-  return { data: await response.json() as T, meta }
+  return { data: (await response.json()) as T, meta }
 }
 
 export async function postJson<T>(path: string, body?: unknown): Promise<T> {

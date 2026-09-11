@@ -46,7 +46,7 @@ function makePayload(locale = "en"): CredentialsPayload {
       claude_oauth_token: false,
       codex_api_key: false,
       codex_auth_json: false,
-    gemini_api_key: false,
+      gemini_api_key: false,
       api_token: null
     },
     github_rate_limit: null,
@@ -60,9 +60,7 @@ function makePayload(locale = "en"): CredentialsPayload {
       agent_provider_failover_causes: ["usage_exhausted", "usage_low", "rate_limited", "provider_transient", "auth_error"],
       agent_max_turns: { min: 0, max: 1000 },
       clearable_credentials: [],
-      auto_approve_modes: [
-        { value: "never", label: "Never", preview: "No auto-approval." }
-      ]
+      auto_approve_modes: [{ value: "never", label: "Never", preview: "No auto-approval." }]
     }
   }
 }
@@ -108,7 +106,9 @@ describe("Language switcher", () => {
   })
 
   it("calls i18next.changeLanguage when the locale is changed", async () => {
-    const changeLanguage = vi.spyOn(i18n, "changeLanguage").mockResolvedValue(undefined as unknown as ReturnType<typeof i18n.changeLanguage> extends Promise<infer T> ? T : never)
+    const changeLanguage = vi
+      .spyOn(i18n, "changeLanguage")
+      .mockResolvedValue(undefined as unknown as ReturnType<typeof i18n.changeLanguage> extends Promise<infer T> ? T : never)
     renderPreferences(makePayload("en"))
 
     const select = await screen.findByRole("combobox", { name: /language/i })
@@ -133,9 +133,7 @@ describe("Language switcher", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
-      expect(updateCredentials).toHaveBeenCalledWith(
-        expect.objectContaining({ locale: "la" })
-      )
+      expect(updateCredentials).toHaveBeenCalledWith(expect.objectContaining({ locale: "la" }))
     })
   })
 })

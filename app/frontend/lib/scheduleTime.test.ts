@@ -55,11 +55,5 @@ describe("parseScheduleCommandArgs", () => {
 function localParts(date: Date | null | undefined) {
   if (!date) return null
 
-  return [
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    date.getHours(),
-    date.getMinutes()
-  ]
+  return [date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes()]
 }

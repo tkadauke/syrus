@@ -37,9 +37,7 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseScheduleRecurring(context)
   if (!card) return null
 
-  return card.explanation
-    ? `Recurring task proposed: ${card.explanation}`
-    : `Recurring task proposed (confirmation #${card.confirmationId})`
+  return card.explanation ? `Recurring task proposed: ${card.explanation}` : `Recurring task proposed (confirmation #${card.confirmationId})`
 }
 
 function renderExpanded(context: ToolCardContext) {

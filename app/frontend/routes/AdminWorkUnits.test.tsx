@@ -31,7 +31,7 @@ function payload(overrides: Record<string, unknown> = {}) {
         source_repository: null,
         target_repository: null,
         actor: { id: 1, display_name: "Thomas Kadauke", email_address: "thomas@example.com" },
-        jobs: [ { id: 3578, slug: "JOB-478", title: "Fix CI", state: "running", path: "/jobs/3578" } ],
+        jobs: [{ id: 3578, slug: "JOB-478", title: "Fix CI", state: "running", path: "/jobs/3578" }],
         units: [
           {
             id: 8,
@@ -55,7 +55,7 @@ function payload(overrides: Record<string, unknown> = {}) {
             source_repository: null,
             target_repository: null,
             workflow: { id: 20041, slug: "WF-141", trigger_kind: "ci_failure", state: "running", path: "/jobs/3578?tab=workflows#workflow-20041" },
-            members: [ { role: "primary", job: { id: 3578, slug: "JOB-478", title: "Fix CI", state: "running", path: "/jobs/3578" } } ]
+            members: [{ role: "primary", job: { id: 3578, slug: "JOB-478", title: "Fix CI", state: "running", path: "/jobs/3578" } }]
           }
         ]
       }
@@ -71,8 +71,8 @@ function payload(overrides: Record<string, unknown> = {}) {
       next_path: null
     },
     filter_schema: [
-      { field: "intent_state", label: "Intent state", bucket: "enum", operators: [ "is" ], values: [ { value: "requested", label: "requested" } ] },
-      { field: "job_id", label: "Job ID", bucket: "number", operators: [ "is" ] }
+      { field: "intent_state", label: "Intent state", bucket: "enum", operators: ["is"], values: [{ value: "requested", label: "requested" }] },
+      { field: "job_id", label: "Job ID", bucket: "number", operators: ["is"] }
     ],
     filter: { and: [] },
     filters: { sort: "requested", direction: "desc" },
@@ -85,7 +85,7 @@ function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ "/admin/work_units" ]}>
+      <MemoryRouter initialEntries={["/admin/work_units"]}>
         <AdminWorkUnits />
       </MemoryRouter>
     </QueryClientProvider>

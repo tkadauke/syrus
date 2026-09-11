@@ -44,9 +44,25 @@ const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
 const MAX_EXTRA_ATTACHMENTS = 9
 const OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS = 300
 const ACCEPTED_ATTACHMENT_TYPES = [
-  "text/plain", "text/markdown", "text/x-markdown", "application/pdf",
-  "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
-  ".txt", ".md", ".markdown", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"
+  "text/plain",
+  "text/markdown",
+  "text/x-markdown",
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  ".txt",
+  ".md",
+  ".markdown",
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".svg"
 ].join(",")
 
 function collectContext(chatId?: number | null, featureFlags?: Record<string, boolean>): BugReportContext {
@@ -65,14 +81,17 @@ export interface BugReportButtonHandle {
   open: (options?: BugReportOpenOptions) => void
 }
 
-export const BugReportButton = forwardRef<BugReportButtonHandle, {
-  bugReportMode?: "direct_job" | "github_issue" | null
-  chatId?: number | null
-  context: string
-  featureFlags?: Record<string, boolean>
-  pageAttachments?: BugReportOptionalAttachment[]
-  reportIssueRepoSlug?: string | null
-}>(function BugReportButton({ bugReportMode, chatId, context, featureFlags, pageAttachments = [], reportIssueRepoSlug }, ref) {
+export const BugReportButton = forwardRef<
+  BugReportButtonHandle,
+  {
+    bugReportMode?: "direct_job" | "github_issue" | null
+    chatId?: number | null
+    context: string
+    featureFlags?: Record<string, boolean>
+    pageAttachments?: BugReportOptionalAttachment[]
+    reportIssueRepoSlug?: string | null
+  }
+>(function BugReportButton({ bugReportMode, chatId, context, featureFlags, pageAttachments = [], reportIssueRepoSlug }, ref) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
@@ -146,19 +165,27 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   // replaces only its `previewUrl` in place, and the still-displayed `originalPreviewUrl` must
   // survive that update so re-opening the annotator can keep editing from the pristine capture.
   const capturesRef = useRef<ScreenshotCaptures>({})
-  useEffect(() => { capturesRef.current = captures }, [captures])
+  useEffect(() => {
+    capturesRef.current = captures
+  }, [captures])
   useEffect(() => () => revokeCaptures(capturesRef.current), [])
 
-  useShakeToReport(() => { if (!capturing && !open) void openDialog() })
+  useShakeToReport(() => {
+    if (!capturing && !open) void openDialog()
+  })
 
   // Keep the ref up to date so the imperative handle always calls the latest openDialog.
   openDialogRef.current = (options?: BugReportOpenOptions) => void openDialog(options)
 
-  useImperativeHandle(ref, () => ({
-    open(options?: BugReportOpenOptions) {
-      openDialogRef.current?.(options)
-    }
-  }), [])
+  useImperativeHandle(
+    ref,
+    () => ({
+      open(options?: BugReportOpenOptions) {
+        openDialogRef.current?.(options)
+      }
+    }),
+    []
+  )
 
   async function openDialog(options: BugReportOpenOptions = {}) {
     if (capturing || open) return
@@ -339,8 +366,12 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   const isGitHubIssueMode = bugReportMode === "github_issue"
   const formDisabled = bugReport.isPending
   const submitLabel = bugReport.isPending
-    ? (isGitHubIssueMode ? t("bug_report.submitting_issue") : t("bug_report.submitting"))
-    : (isGitHubIssueMode ? t("bug_report.submit_issue") : t("bug_report.submit"))
+    ? isGitHubIssueMode
+      ? t("bug_report.submitting_issue")
+      : t("bug_report.submitting")
+    : isGitHubIssueMode
+      ? t("bug_report.submit_issue")
+      : t("bug_report.submit")
 
   return (
     <>
@@ -359,15 +390,15 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
           >
             {isDragOver ? (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-brand/10">
-                <p className="rounded-md bg-white dark:bg-gray-900 px-4 py-2 text-sm font-semibold text-brand shadow">
-                  {t("bug_report.drop_to_attach")}
-                </p>
+                <p className="rounded-md bg-white dark:bg-gray-900 px-4 py-2 text-sm font-semibold text-brand shadow">{t("bug_report.drop_to_attach")}</p>
               </div>
             ) : null}
             <form className="space-y-5 p-5 sm:p-6" onKeyDown={submitOnShortcut} onSubmit={submit}>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="bug-report-title">{t("bug_report.title")}</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="bug-report-title">
+                    {t("bug_report.title")}
+                  </h2>
                   {bugReportMode === "direct_job" ? (
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t("bug_report.mode_direct_job")}</p>
                   ) : bugReportMode === "github_issue" && reportIssueRepoSlug ? (
@@ -387,14 +418,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {t("bug_report.field_title")}
-                <Input
-                  className="mt-1"
-                  disabled={formDisabled}
-                  onChange={(event) => setTitle(event.target.value)}
-                  required
-                  type="text"
-                  value={title}
-                />
+                <Input className="mt-1" disabled={formDisabled} onChange={(event) => setTitle(event.target.value)} required type="text" value={title} />
               </label>
 
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -411,7 +435,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("bug_report.screenshot")}</legend>
                 {captureError ? (
-                  <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">{captureError}</p>
+                  <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                    {captureError}
+                  </p>
                 ) : null}
                 <div className="grid gap-3 sm:grid-cols-3">
                   <ScreenshotOption
@@ -459,7 +485,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("bug_report.attachments")}</span>
-                  <label className={`cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 ${formDisabled || attachments.length >= MAX_EXTRA_ATTACHMENTS ? "opacity-50 cursor-not-allowed" : ""}`}>
+                  <label
+                    className={`cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 ${formDisabled || attachments.length >= MAX_EXTRA_ATTACHMENTS ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
                     {t("bug_report.attachments_add")}
                     <Input
                       accept={ACCEPTED_ATTACHMENT_TYPES}
@@ -476,12 +504,17 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{t("bug_report.attachments_hint")}</p>
                 {attachmentError ? (
-                  <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">{attachmentError}</p>
+                  <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                    {attachmentError}
+                  </p>
                 ) : null}
                 {attachments.length > 0 ? (
                   <ul className="space-y-1">
                     {attachments.map((file, index) => (
-                      <li className="flex items-center gap-2 rounded border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300" key={index}>
+                      <li
+                        className="flex items-center gap-2 rounded border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300"
+                        key={index}
+                      >
                         <span className="min-w-0 flex-1 truncate">{file.name}</span>
                         <button
                           aria-label={t("bug_report.attachments_remove", { filename: file.name })}
@@ -501,7 +534,10 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                     {optionalAttachments.map((attachment) => {
                       const checked = selectedOptionalAttachmentIds.has(attachment.id)
                       return (
-                        <label className={`flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300 ${formDisabled ? "opacity-60 cursor-not-allowed" : ""}`} key={attachment.id}>
+                        <label
+                          className={`flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300 ${formDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                          key={attachment.id}
+                        >
                           <Checkbox
                             checked={checked}
                             className="mt-0.5"
@@ -510,7 +546,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                           />
                           <span className="min-w-0 flex-1">
                             <span className="block font-medium text-gray-800 dark:text-gray-200">{attachment.label}</span>
-                            {attachment.description ? <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{attachment.description}</span> : null}
+                            {attachment.description ? (
+                              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{attachment.description}</span>
+                            ) : null}
                             {checked && attachment.preview ? (
                               <span className="mt-2 block max-h-32 overflow-y-auto whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 font-mono text-xs text-gray-600 dark:text-gray-400">
                                 {truncateForPreview(attachment.preview)}
@@ -526,7 +564,10 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
               <WhatsIncluded bugContext={bugContext} captures={captures} screenshotChoice={screenshotChoice} />
 
               {bugReport.isError ? (
-                <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
+                <p
+                  className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300"
+                  role="alert"
+                >
                   {errorMessage(bugReport.error, t("bug_report.error"))}
                 </p>
               ) : null}
@@ -586,22 +627,22 @@ function WhatsIncluded({
               label={t("bug_report.context_viewport")}
               value={`${bugContext.viewport.width}×${bugContext.viewport.height} @ ${bugContext.device_pixel_ratio}x`}
             />
-            {bugContext.chat_session_id != null ? (
-              <ContextRow label={t("bug_report.context_chat")} value={String(bugContext.chat_session_id)} />
-            ) : null}
+            {bugContext.chat_session_id != null ? <ContextRow label={t("bug_report.context_chat")} value={String(bugContext.chat_session_id)} /> : null}
             {bugContext.enabled_features != null && Object.keys(bugContext.enabled_features).length > 0 ? (
               <div>
                 <dt className="font-medium text-gray-700 dark:text-gray-300">{t("bug_report.context_features")}</dt>
                 <dd className="mt-1">
                   <ul className="space-y-0.5">
-                    {Object.entries(bugContext.enabled_features).sort(([a], [b]) => a.localeCompare(b)).map(([slug, enabled]) => (
-                      <li key={slug} className="font-mono text-xs">
-                        <code className="text-gray-800 dark:text-gray-200">{slug}</code>
-                        <span className={`ml-1.5 ${enabled ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-gray-500"}`}>
-                          {enabled ? "enabled" : "disabled"}
-                        </span>
-                      </li>
-                    ))}
+                    {Object.entries(bugContext.enabled_features)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([slug, enabled]) => (
+                        <li key={slug} className="font-mono text-xs">
+                          <code className="text-gray-800 dark:text-gray-200">{slug}</code>
+                          <span className={`ml-1.5 ${enabled ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-gray-500"}`}>
+                            {enabled ? "enabled" : "disabled"}
+                          </span>
+                        </li>
+                      ))}
                   </ul>
                 </dd>
               </div>
@@ -641,7 +682,16 @@ function ContextRow({ label, value }: { label: string; value: string }) {
 
 function ChevronDownIcon() {
   return (
-    <svg aria-hidden="true" className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
       <path d="m6 9 6 6 6-6" />
     </svg>
   )
@@ -663,10 +713,14 @@ function ScreenshotOption({
   selected: boolean
 }) {
   const { t } = useT("common")
-  const borderClass = selected ? "border-brand ring-2 ring-brand dark:border-brand-emphasis dark:ring-brand-emphasis" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"
+  const borderClass = selected
+    ? "border-brand ring-2 ring-brand dark:border-brand-emphasis dark:ring-brand-emphasis"
+    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"
 
   return (
-    <label className={`flex cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}>
+    <label
+      className={`flex cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+    >
       <Input
         aria-label={label}
         checked={selected}
@@ -677,11 +731,15 @@ function ScreenshotOption({
         type="radio"
       />
       {choice === "none" ? (
-        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-500 dark:text-gray-400">{t("bug_report.none")}</span>
+        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-500 dark:text-gray-400">
+          {t("bug_report.none")}
+        </span>
       ) : capture?.previewUrl ? (
         <img alt="" className="aspect-video w-full rounded border border-gray-100 dark:border-gray-800 object-cover" src={capture.previewUrl} />
       ) : (
-        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-400 dark:text-gray-500">{t("bug_report.unavailable")}</span>
+        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-400 dark:text-gray-500">
+          {t("bug_report.unavailable")}
+        </span>
       )}
       <span className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{label}</span>
     </label>
@@ -690,7 +748,16 @@ function ScreenshotOption({
 
 export function BugIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.25" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2.25"
+      viewBox="0 0 24 24"
+    >
       <path d="M9 9.5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0z" />
       <path d="M9 10h6" />
       <path d="M9 14h6" />
@@ -704,7 +771,6 @@ export function BugIcon({ className = "h-5 w-5" }: { className?: string }) {
     </svg>
   )
 }
-
 
 function selectedScreenshot(captures: ScreenshotCaptures, choice: ScreenshotChoice) {
   if (choice === "none") return null
@@ -760,16 +826,8 @@ function captureViewport(html2canvas: Html2Canvas) {
 }
 
 function captureFullPage(html2canvas: Html2Canvas) {
-  const width = Math.max(
-    document.body.scrollWidth,
-    document.documentElement.scrollWidth,
-    window.innerWidth
-  )
-  const height = Math.max(
-    document.body.scrollHeight,
-    document.documentElement.scrollHeight,
-    window.innerHeight
-  )
+  const width = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, window.innerWidth)
+  const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, window.innerHeight)
   const scale = Math.min(1, Math.sqrt(MAX_FULL_PAGE_SCREENSHOT_PIXELS / (width * height)))
 
   return html2canvas(document.body, {

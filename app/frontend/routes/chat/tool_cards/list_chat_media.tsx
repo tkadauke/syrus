@@ -109,7 +109,9 @@ function MediaGallery({ items, whiteboardElementCount }: { items: ChatMediaItem[
     <>
       <div className="mt-1 rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
         <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{items.length} media {items.length === 1 ? "item" : "items"}</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">
+            {items.length} media {items.length === 1 ? "item" : "items"}
+          </span>
           {whiteboardElementCount != null ? <span>{whiteboardElementCount} whiteboard elements</span> : null}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -134,8 +136,8 @@ function MediaGallery({ items, whiteboardElementCount }: { items: ChatMediaItem[
             setPreview(null)
             setPreviewImageIndex(null)
           }}
-          onNext={() => setPreviewImageIndex((index) => index == null ? index : Math.min(index + 1, imageItems.length - 1))}
-          onPrevious={() => setPreviewImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
+          onNext={() => setPreviewImageIndex((index) => (index == null ? index : Math.min(index + 1, imageItems.length - 1)))}
+          onPrevious={() => setPreviewImageIndex((index) => (index == null ? index : Math.max(index - 1, 0)))}
           showNavigation={previewImageIndex != null && imageItems.length > 1}
         />
       ) : null}
@@ -162,19 +164,37 @@ function MediaTile({ item, onOpen }: { item: ChatMediaItem; onOpen: () => void }
           </span>
         )}
       </span>
-      <span className="block truncate px-1.5 pt-1 text-2xs font-medium text-gray-800 dark:text-gray-100" title={mediaTitle(item)}>{mediaTitle(item)}</span>
+      <span className="block truncate px-1.5 pt-1 text-2xs font-medium text-gray-800 dark:text-gray-100" title={mediaTitle(item)}>
+        {mediaTitle(item)}
+      </span>
       <span className="flex items-center justify-between gap-1 px-1.5 pb-1 text-2xs text-gray-500 dark:text-gray-400">
-        <span className="truncate font-mono" title={item.id}>{item.id}</span>
+        <span className="truncate font-mono" title={item.id}>
+          {item.id}
+        </span>
         <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 uppercase dark:bg-gray-800">{item.kind === "chat_image" ? "image" : "snapshot"}</span>
       </span>
-      {item.kind === "chat_image" ? (
-        <span className="block truncate px-1.5 pb-1.5 text-2xs text-gray-500 dark:text-gray-400">{item.content_type}</span>
-      ) : null}
+      {item.kind === "chat_image" ? <span className="block truncate px-1.5 pb-1.5 text-2xs text-gray-500 dark:text-gray-400">{item.content_type}</span> : null}
     </button>
   )
 }
 
-function MediaPreviewModal({ item, onClose, showNavigation = false, hasPrevious = false, hasNext = false, onPrevious, onNext }: { item: ChatMediaItem; onClose: () => void; showNavigation?: boolean; hasPrevious?: boolean; hasNext?: boolean; onPrevious?: () => void; onNext?: () => void }) {
+function MediaPreviewModal({
+  item,
+  onClose,
+  showNavigation = false,
+  hasPrevious = false,
+  hasNext = false,
+  onPrevious,
+  onNext
+}: {
+  item: ChatMediaItem
+  onClose: () => void
+  showNavigation?: boolean
+  hasPrevious?: boolean
+  hasNext?: boolean
+  onPrevious?: () => void
+  onNext?: () => void
+}) {
   const thumbnailSrc = mediaThumbnailSrc(item)
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -196,7 +216,13 @@ function MediaPreviewModal({ item, onClose, showNavigation = false, hasPrevious 
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
-      <section aria-label={mediaTitle(item)} aria-modal="true" className="relative max-h-full max-w-full rounded bg-white p-4 shadow-lg dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
+      <section
+        aria-label={mediaTitle(item)}
+        aria-modal="true"
+        className="relative max-h-full max-w-full rounded bg-white p-4 shadow-lg dark:bg-gray-900"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
         <button
           aria-label="Close media preview"
           className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
@@ -228,7 +254,11 @@ function MediaPreviewModal({ item, onClose, showNavigation = false, hasPrevious 
           </>
         ) : null}
         {thumbnailSrc ? (
-          <img alt={mediaTitle(item)} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain dark:bg-gray-900" src={thumbnailSrc} />
+          <img
+            alt={mediaTitle(item)}
+            className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain dark:bg-gray-900"
+            src={thumbnailSrc}
+          />
         ) : (
           <h3 className="pr-8 text-sm font-semibold text-gray-900 dark:text-gray-100">{mediaTitle(item)}</h3>
         )}

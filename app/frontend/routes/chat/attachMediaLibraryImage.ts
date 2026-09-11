@@ -1,9 +1,7 @@
 import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
 import { type AttachMediaToComposerDetail, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT } from "./constants"
 
-export type AttachMediaLibraryImageResult =
-  | { ok: true }
-  | { ok: false; reason: "fetch_failed" | "too_large" }
+export type AttachMediaLibraryImageResult = { ok: true } | { ok: false; reason: "fetch_failed" | "too_large" }
 
 // Fetches an already-hosted media-library image (from the gallery or its
 // lightbox, see WorkspacePanels.tsx) and merges it into the target chat's

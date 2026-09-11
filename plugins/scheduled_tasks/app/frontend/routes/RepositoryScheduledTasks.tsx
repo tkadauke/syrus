@@ -44,11 +44,15 @@ export function RepositoryScheduledTasksRoute() {
     <RepositoryPageShell
       activeTab="scheduled_tasks.repository"
       ariaLabel={t("aria_repo_scheduled_tasks")}
-      heading={payload ? (
-        <PageHeading mono>
-          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
-        </PageHeading>
-      ) : null}
+      heading={
+        payload ? (
+          <PageHeading mono>
+            <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>
+              {payload.repository.slug}
+            </Link>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={payload?.tabs ?? []}
     >
@@ -66,7 +70,8 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const queryKey = ["repositories", String(payload.repository.id), "scheduled_tasks"] as const
   const toggle = useMutation({
-    mutationFn: ({ task, enabled }: { task: RepositoryScheduledTask; enabled: boolean }) => updateRepositoryScheduledTask(payload.repository.id, task.id, enabled),
+    mutationFn: ({ task, enabled }: { task: RepositoryScheduledTask; enabled: boolean }) =>
+      updateRepositoryScheduledTask(payload.repository.id, task.id, enabled),
     onSuccess: (updated) => {
       setNotice(updated.message || null)
       queryClient.setQueryData(queryKey, updated)
@@ -86,7 +91,9 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading>{t("scheduled_tasks.heading")}</SectionHeading>
-        <Link className={buttonClasses("primary")} to={`${prefix}/repositories/${payload.repository.id}/scheduled_tasks/new`}>{t("scheduled_tasks.new_task")}</Link>
+        <Link className={buttonClasses("primary")} to={`${prefix}/repositories/${payload.repository.id}/scheduled_tasks/new`}>
+          {t("scheduled_tasks.new_task")}
+        </Link>
       </div>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -113,23 +120,27 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
               {payload.tasks.map((task) => (
                 <tr key={task.id}>
                   <td className="px-4 py-3">
-                    <Link className="font-medium text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
+                    <Link className="font-medium text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${prefix}/scheduled_tasks/${task.id}`}>
+                      {task.name}
+                    </Link>
                     <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{task.schedule_label || t("scheduled_tasks.none")}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                    {task.next_fire_at
-                      ? <span title={toRomanDate(task.next_fire_at)}><RelativeTimestamp value={task.next_fire_at} /></span>
-                      : t("scheduled_tasks.none")}
+                    {task.next_fire_at ? (
+                      <span title={toRomanDate(task.next_fire_at)}>
+                        <RelativeTimestamp value={task.next_fire_at} />
+                      </span>
+                    ) : (
+                      t("scheduled_tasks.none")
+                    )}
                   </td>
-                  <td className="px-4 py-3"><StatePill state={task.state} /></td>
+                  <td className="px-4 py-3">
+                    <StatePill state={task.state} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <Button
-                        disabled={toggle.isPending}
-                        onClick={() => toggle.mutate({ task, enabled: !task.active })}
-                        variant="secondary"
-                      >
+                      <Button disabled={toggle.isPending} onClick={() => toggle.mutate({ task, enabled: !task.active })} variant="secondary">
                         {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
                       </Button>
                       <button
@@ -162,12 +173,16 @@ function StatePill({ state }: { state: string }) {
     auto_paused: "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300",
     fired: "bg-info/10 text-info"
   }
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}>{state}</span>
+  return (
+    <span
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}
+    >
+      {state}
+    </span>
+  )
 }
 
 function RepositoryScheduledTasksError({ error }: { error: Error }) {
   const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, t("scheduled_tasks.error_load"))}</PanelMessage>
 }
-
-

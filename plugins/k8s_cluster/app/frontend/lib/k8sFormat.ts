@@ -29,7 +29,7 @@ export function formatMillicores(millicores: number): string {
 
 export function formatBytes(bytes: number): string {
   if (!bytes) return "0 B"
-  const units = [ "B", "KB", "MB", "GB", "TB", "PB" ]
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"]
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
   const value = bytes / 1024 ** exponent
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
@@ -66,7 +66,8 @@ export function kubernetesCpuMillicores(value: string | null | undefined): numbe
 export function kubernetesMemoryBytes(value: string | null | undefined): number | null {
   if (!value) return null
 
-  const suffix = Object.keys(BINARY_MEMORY_SUFFIXES).find((candidate) => value.endsWith(candidate)) ??
+  const suffix =
+    Object.keys(BINARY_MEMORY_SUFFIXES).find((candidate) => value.endsWith(candidate)) ??
     Object.keys(DECIMAL_MEMORY_SUFFIXES).find((candidate) => value.endsWith(candidate))
   if (!suffix) {
     const bytes = Number(value)

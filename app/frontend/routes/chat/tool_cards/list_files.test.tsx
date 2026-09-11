@@ -13,7 +13,12 @@ describe("list_files tool card", () => {
   })
 
   it("summarizes the collapsed row with an item count", () => {
-    const parsedResult = { files: [{ name: "app", is_dir: true }, { name: "README.md", is_dir: false }] }
+    const parsedResult = {
+      files: [
+        { name: "app", is_dir: true },
+        { name: "README.md", is_dir: false }
+      ]
+    }
     expect(listFilesToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 items")
   })
 

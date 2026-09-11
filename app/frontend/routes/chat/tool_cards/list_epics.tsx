@@ -78,18 +78,30 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Epic</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Title</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Repository</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Progress</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Epic
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Title
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              State
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Repository
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Progress
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((row) => (
             <tr key={row.key}>
               <td className="whitespace-nowrap px-2 py-1 font-mono font-medium text-gray-900 dark:text-gray-100">{row.epicId}</td>
-              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={row.title}>{row.title}</td>
+              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={row.title}>
+                {row.title}
+              </td>
               <td className="whitespace-nowrap px-2 py-1 capitalize text-gray-600 dark:text-gray-300">{row.state.replace(/_/g, " ")}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.repositorySlug || "—"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{progressLabel(row)}</td>

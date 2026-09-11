@@ -23,7 +23,7 @@ export function PrPreviewCard({ jobId, prNumber, prUrl }: { jobId: number; prNum
   const { data, isPending } = useQuery({
     queryKey: ["jobs", String(jobId)],
     queryFn: () => fetchJobDetail(String(jobId)),
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   if (!prUrl) return null
@@ -56,9 +56,7 @@ export function PrPreviewCard({ jobId, prNumber, prUrl }: { jobId: number; prNum
       )}
       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
         <MergeablePill value={job.pr_mergeable} />
-        {job.pr_mergeable_checked_at && (
-          <RelativeTimestamp value={job.pr_mergeable_checked_at} />
-        )}
+        {job.pr_mergeable_checked_at && <RelativeTimestamp value={job.pr_mergeable_checked_at} />}
       </div>
     </Card>
   )

@@ -42,9 +42,7 @@ describe("read_scheduled_task tool card", () => {
   it("summarizes the collapsed row with the label, id, and state", () => {
     const parsedResult = { scheduled_task: task }
 
-    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "Nightly main-branch health check (#12, scheduled)"
-    )
+    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Nightly main-branch health check (#12, scheduled)")
   })
 
   it("renders the schedule, repository, and firing history", () => {

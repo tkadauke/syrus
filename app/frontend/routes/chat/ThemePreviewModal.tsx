@@ -48,9 +48,16 @@ export function ThemePreviewModal({ chatId, prefix }: { chatId: string; prefix: 
       <header className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{t("theme_preview_title")}</h2>
         {previewUrl ? (
-          <a className={buttonClasses("secondary", "sm")} href={previewUrl} rel="noreferrer" target="_blank">{t("theme_preview_open_in_new_tab")}</a>
+          <a className={buttonClasses("secondary", "sm")} href={previewUrl} rel="noreferrer" target="_blank">
+            {t("theme_preview_open_in_new_tab")}
+          </a>
         ) : null}
-        <button aria-label={t("theme_preview_close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white" onClick={() => setPreviewPath(null)} type="button">
+        <button
+          aria-label={t("theme_preview_close")}
+          className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white"
+          onClick={() => setPreviewPath(null)}
+          type="button"
+        >
           <CloseIcon className="h-4 w-4" />
         </button>
       </header>

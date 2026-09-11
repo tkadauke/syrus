@@ -8,11 +8,11 @@ import { SearchRoute } from "./Search"
 // Stub preview cards so tests don't trigger live API calls from SlugHoverCard
 vi.mock("@app/components/JobPreviewCard", () => ({
   JobPreviewCard: () => <div />,
-  JobPreviewSkeleton: () => <div />,
+  JobPreviewSkeleton: () => <div />
 }))
 vi.mock("@app/components/EpicPreviewCard", () => ({
   EpicPreviewCard: () => <div />,
-  EpicPreviewSkeleton: () => <div />,
+  EpicPreviewSkeleton: () => <div />
 }))
 
 function searchPayload(results: unknown[]) {
@@ -94,33 +94,47 @@ describe("SearchRoute result rows", () => {
   })
 })
 
-function chatGroupPayload(results = [
-  {
-    type: "chat",
-    id: 11,
-    title: "Forum planning",
-    snippet: "Best <mark>needle</mark>",
-    rank: 0,
-    path: "/chats/77?message_id=11",
-    state: null,
-    repository_slug: null,
-    created_at: "2026-06-20T10:00:00Z",
-    grouped_matches: [
-      { id: 12, snippet: "Second <mark>needle</mark>", path: "/chats/77?message_id=12", created_at: "2026-06-20T10:01:00Z" },
-      { id: 13, snippet: "Third <mark>needle</mark>", path: "/chats/77?message_id=13", created_at: "2026-06-20T10:02:00Z" }
-    ],
-    total_match_count: 4,
-    has_more_matches: true
-  }
-]) {
+function chatGroupPayload(
+  results = [
+    {
+      type: "chat",
+      id: 11,
+      title: "Forum planning",
+      snippet: "Best <mark>needle</mark>",
+      rank: 0,
+      path: "/chats/77?message_id=11",
+      state: null,
+      repository_slug: null,
+      created_at: "2026-06-20T10:00:00Z",
+      grouped_matches: [
+        { id: 12, snippet: "Second <mark>needle</mark>", path: "/chats/77?message_id=12", created_at: "2026-06-20T10:01:00Z" },
+        { id: 13, snippet: "Third <mark>needle</mark>", path: "/chats/77?message_id=13", created_at: "2026-06-20T10:02:00Z" }
+      ],
+      total_match_count: 4,
+      has_more_matches: true
+    }
+  ]
+) {
   return {
     results,
     filter: null,
     controls: {
       filter_schema: [
-        { field: "repository_id", label: "Repository", bucket: "fk", operators: [ "is", "is_not", "is_one_of", "is_none_of" ], typeahead: true },
-        { field: "created_at", label: "Created", bucket: "date", operators: [ "before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset" ], values: [] },
-        { field: "updated_at", label: "Updated", bucket: "date", operators: [ "before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset" ], values: [] }
+        { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is", "is_not", "is_one_of", "is_none_of"], typeahead: true },
+        {
+          field: "created_at",
+          label: "Created",
+          bucket: "date",
+          operators: ["before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset"],
+          values: []
+        },
+        {
+          field: "updated_at",
+          label: "Updated",
+          bucket: "date",
+          operators: ["before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset"],
+          values: []
+        }
       ]
     }
   }
@@ -141,7 +155,7 @@ function renderWithPayload(payload: unknown) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ "/search?query=needle" ]}>
+      <MemoryRouter initialEntries={["/search?query=needle"]}>
         <SearchRoute />
       </MemoryRouter>
     </QueryClientProvider>
@@ -179,10 +193,12 @@ describe("SearchRoute results", () => {
     fireEvent.click(screen.getByRole("button", { name: "Repository reference" }))
 
     await waitFor(() => {
-      expect(fetchSpy.mock.calls.some((call) => {
-        const path = String(call[0])
-        return path.startsWith("/api/v1/app/search?") && path.includes("query=needle") && path.includes("q=")
-      })).toBe(true)
+      expect(
+        fetchSpy.mock.calls.some((call) => {
+          const path = String(call[0])
+          return path.startsWith("/api/v1/app/search?") && path.includes("query=needle") && path.includes("q=")
+        })
+      ).toBe(true)
     })
   })
 })

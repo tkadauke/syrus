@@ -14,10 +14,7 @@ function errorMessage(context: ToolCardContext, fallback: string) {
   return displayValue(context.resultBody) ?? fallback
 }
 
-export type CardState<T> =
-  | { kind: "success"; data: T }
-  | { kind: "error"; message: string }
-  | { kind: "malformed" }
+export type CardState<T> = { kind: "success"; data: T } | { kind: "error"; message: string } | { kind: "malformed" }
 
 export function successOrError<T>(context: ToolCardContext, fallbackError: string, parse: (parsed: Record<string, unknown>) => T | null): CardState<T> {
   if (context.resultError) return { kind: "error", message: errorMessage(context, fallbackError) }
@@ -42,9 +39,7 @@ export function StatusCard({ title, status, children }: { title: string; status?
 export function ErrorCard({ title, message }: { title: string; message: string }) {
   return (
     <StatusCard title={title} status="failed">
-      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
-        {message}
-      </div>
+      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{message}</div>
     </StatusCard>
   )
 }
@@ -72,17 +67,21 @@ export function questionsFromInput(input: Record<string, unknown> | undefined): 
     if (!isPlainObject(item)) return []
     const question = displayValue(item.question)
     if (!question) return []
-    const options = Array.isArray(item.options) ? item.options.flatMap((option) => {
-      const label = displayValue(option)
-      return label ? [label] : []
-    }) : []
+    const options = Array.isArray(item.options)
+      ? item.options.flatMap((option) => {
+          const label = displayValue(option)
+          return label ? [label] : []
+        })
+      : []
 
-    return [{
-      key: `${index}-${question}`,
-      question,
-      options,
-      multiple: item.multiple === true
-    }]
+    return [
+      {
+        key: `${index}-${question}`,
+        question,
+        options,
+        multiple: item.multiple === true
+      }
+    ]
   })
 }
 
@@ -102,10 +101,14 @@ export function QuestionList({ questions }: { questions: AskedQuestion[] }) {
                 {question.options.length > 0 ? (
                   <div className="mt-1 flex flex-wrap gap-1">
                     <Badge>{question.multiple ? "multi-select" : "single-select"}</Badge>
-                    {question.options.map((option) => <Badge key={option}>{option}</Badge>)}
+                    {question.options.map((option) => (
+                      <Badge key={option}>{option}</Badge>
+                    ))}
                   </div>
                 ) : (
-                  <div className="mt-1"><Badge>free text</Badge></div>
+                  <div className="mt-1">
+                    <Badge>free text</Badge>
+                  </div>
                 )}
               </div>
             </div>

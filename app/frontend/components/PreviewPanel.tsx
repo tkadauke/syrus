@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
-import { fetchDeploy, fetchPreview, fetchPreviewLogs, startDeploy, startPreview, stopPreview, type DeployWorkflowRecord, type PreviewEnvironmentRecord } from "../api/jobs"
+import {
+  fetchDeploy,
+  fetchPreview,
+  fetchPreviewLogs,
+  startDeploy,
+  startPreview,
+  stopPreview,
+  type DeployWorkflowRecord,
+  type PreviewEnvironmentRecord
+} from "../api/jobs"
 import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { Button, buttonClasses } from "./Button"
@@ -37,11 +46,17 @@ function useCountdown(expiresAt: string | null) {
   const [remaining, setRemaining] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!expiresAt) { setRemaining(null); return }
+    if (!expiresAt) {
+      setRemaining(null)
+      return
+    }
 
     function update() {
       const ms = new Date(expiresAt!).getTime() - Date.now()
-      if (ms <= 0) { setRemaining(null); return }
+      if (ms <= 0) {
+        setRemaining(null)
+        return
+      }
       const totalSeconds = Math.floor(ms / 1000)
       const minutes = Math.floor(totalSeconds / 60)
       const seconds = totalSeconds % 60
@@ -160,17 +175,18 @@ export function PreviewPanel({
   })
 
   const fixPreview = useMutation({
-    mutationFn: () => createDirectJob({
-      repositoryId: String(repositoryId),
-      agentProvider: "",
-      epicId: "",
-      title: t("preview_fix_job_title"),
-      prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
-      priority: "high",
-      createMore: false,
-      files: [],
-      googleDocUrl: ""
-    }),
+    mutationFn: () =>
+      createDirectJob({
+        repositoryId: String(repositoryId),
+        agentProvider: "",
+        epicId: "",
+        title: t("preview_fix_job_title"),
+        prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
+        priority: "high",
+        createMore: false,
+        files: [],
+        googleDocUrl: ""
+      }),
     onSuccess: (created) => navigate(withRoutePrefix(created.redirect_to, routePrefix(location.pathname))),
     onError: (err) => setError(errorMessage(err, t("preview_fix_error")))
   })
@@ -188,9 +204,13 @@ export function PreviewPanel({
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t("preview_section")}>
       <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("preview_section")}</h2>
       <div className="mt-3 space-y-2">
-        {(canStart || env) ? (
+        {canStart || env ? (
           <>
-            {error ? <p className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</p> : null}
+            {error ? (
+              <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+                {error}
+              </p>
+            ) : null}
             <PreviewControls
               env={env ?? null}
               canStart={canStart}
@@ -200,30 +220,32 @@ export function PreviewPanel({
               onStop={() => stop.mutate()}
               t={t}
             />
-            {env ? <PreviewLogs queryKeyPrefix={queryKeyPrefix} entityId={entityId} previewLogsPath={previewLogsPath} running={env.state === "running"} /> : null}
+            {env ? (
+              <PreviewLogs queryKeyPrefix={queryKeyPrefix} entityId={entityId} previewLogsPath={previewLogsPath} running={env.state === "running"} />
+            ) : null}
             {env?.state === "running" && !expired && countdown ? (
               <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_expires_in", { time: countdown })}</p>
             ) : null}
-            {expired ? (
-              <p className="text-xs text-amber-600 dark:text-amber-400">{t("preview_expired")}</p>
-            ) : null}
+            {expired ? <p className="text-xs text-amber-600 dark:text-amber-400">{t("preview_expired")}</p> : null}
             {env?.state === "failed" && env.error_message ? (
-              <p className="text-xs text-red-600 dark:text-red-400" role="alert">{env.error_message}</p>
+              <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+                {env.error_message}
+              </p>
             ) : null}
             {env?.state === "failed" && env.error_reason === "not_reachable" ? (
-              <Button
-                size="sm"
-                disabled={fixPreview.isPending}
-                onClick={() => fixPreview.mutate()}
-              >
+              <Button size="sm" disabled={fixPreview.isPending} onClick={() => fixPreview.mutate()}>
                 {t("preview_fix_button")}
               </Button>
             ) : null}
           </>
         ) : null}
         {showDeploy ? (
-          <div className={(canStart || env) ? "mt-2 border-t border-gray-100 pt-2 dark:border-gray-800" : ""}>
-            {deployError ? <p className="text-xs text-red-600 dark:text-red-400" role="alert">{deployError}</p> : null}
+          <div className={canStart || env ? "mt-2 border-t border-gray-100 pt-2 dark:border-gray-800" : ""}>
+            {deployError ? (
+              <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+                {deployError}
+              </p>
+            ) : null}
             <DeployControls
               deploy={deployRecord ?? null}
               canDeploy={Boolean(canDeploy)}
@@ -239,7 +261,17 @@ export function PreviewPanel({
   )
 }
 
-function PreviewLogs({ queryKeyPrefix, entityId, previewLogsPath, running }: { queryKeyPrefix: string; entityId: number; previewLogsPath: string; running: boolean }) {
+function PreviewLogs({
+  queryKeyPrefix,
+  entityId,
+  previewLogsPath,
+  running
+}: {
+  queryKeyPrefix: string
+  entityId: number
+  previewLogsPath: string
+  running: boolean
+}) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
 
@@ -297,10 +329,7 @@ function PreviewLogsModal({
   }, [onClose])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <section
         aria-labelledby="preview-logs-modal-title"
         aria-modal="true"
@@ -332,7 +361,9 @@ function PreviewLogsModal({
                 <span>{log.path}</span>
                 {log.missing ? <span className="text-amber-600 dark:text-amber-400">{t("preview_logs_missing")}</span> : null}
               </div>
-              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-2xs leading-4 text-gray-100">{log.missing ? "" : log.content || t("preview_logs_empty_content")}</pre>
+              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-2xs leading-4 text-gray-100">
+                {log.missing ? "" : log.content || t("preview_logs_empty_content")}
+              </pre>
             </div>
           ))}
         </div>
@@ -363,11 +394,7 @@ function PreviewControls({
   if (!state || state === "stopped" || state === "failed") {
     if (!canStart && !expired) return null
     return (
-      <Button
-        size="sm"
-        disabled={isPending}
-        onClick={onStart}
-      >
+      <Button size="sm" disabled={isPending} onClick={onStart}>
         {t("preview_start")}
       </Button>
     )
@@ -403,11 +430,7 @@ function PreviewControls({
   if (state === "running") {
     if (expired) {
       return (
-        <Button
-          size="sm"
-          disabled={isPending}
-          onClick={onStart}
-        >
+        <Button size="sm" disabled={isPending} onClick={onStart}>
           {t("preview_restart")}
         </Button>
       )
@@ -415,20 +438,10 @@ function PreviewControls({
 
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <a
-          className={buttonClasses("success", "sm")}
-          href={env!.url ?? "#"}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
+        <a className={buttonClasses("success", "sm")} href={env!.url ?? "#"} rel="noopener noreferrer" target="_blank">
           {t("preview_open")}
         </a>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={isPending}
-          onClick={onStop}
-        >
+        <Button variant="secondary" size="sm" disabled={isPending} onClick={onStop}>
           {t("preview_stop")}
         </Button>
       </div>
@@ -468,7 +481,10 @@ function DeployControls({
   if (!state) return deployButton
 
   const viewLink = (
-    <Link className="text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" to={withRoutePrefix(deploy!.path, prefix)}>
+    <Link
+      className="text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+      to={withRoutePrefix(deploy!.path, prefix)}
+    >
       {t("deploy_view")}
     </Link>
   )
@@ -485,9 +501,12 @@ function DeployControls({
     )
   }
 
-  const statusLabel = state === "succeeded"
-    ? <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{t("deploy_succeeded")}</span>
-    : <span className="text-xs font-medium text-red-600 dark:text-red-400">{state === "cancelled" ? t("deploy_cancelled") : t("deploy_failed_status")}</span>
+  const statusLabel =
+    state === "succeeded" ? (
+      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{t("deploy_succeeded")}</span>
+    ) : (
+      <span className="text-xs font-medium text-red-600 dark:text-red-400">{state === "cancelled" ? t("deploy_cancelled") : t("deploy_failed_status")}</span>
+    )
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -507,13 +526,7 @@ function Spinner() {
   )
 }
 
-export function PreviewStopModal({
-  onStop,
-  onKeepRunning
-}: {
-  onStop: () => void
-  onKeepRunning: () => void
-}) {
+export function PreviewStopModal({ onStop, onKeepRunning }: { onStop: () => void; onKeepRunning: () => void }) {
   const { t } = useT("jobs")
   const cancelRef = useRef<HTMLButtonElement>(null)
 
@@ -527,10 +540,7 @@ export function PreviewStopModal({
   }, [onKeepRunning])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onKeepRunning}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onKeepRunning}>
       <section
         aria-labelledby="preview-stop-modal-title"
         aria-modal="true"
@@ -544,17 +554,10 @@ export function PreviewStopModal({
           </h2>
           <p className="text-sm text-gray-700 dark:text-gray-300">{t("preview_stop_on_action_body")}</p>
           <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={onKeepRunning}
-              ref={cancelRef}
-            >
+            <Button variant="secondary" onClick={onKeepRunning} ref={cancelRef}>
               {t("preview_keep_running")}
             </Button>
-            <Button
-              variant="danger"
-              onClick={onStop}
-            >
+            <Button variant="danger" onClick={onStop}>
               {t("preview_stop_yes")}
             </Button>
           </div>

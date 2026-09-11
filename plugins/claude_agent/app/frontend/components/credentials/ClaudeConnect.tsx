@@ -7,10 +7,7 @@ import { useBackendOutage } from "@app/hooks/useBackendUpdate"
 import { Button } from "@app/components/Button"
 import { Input } from "@app/components/Input"
 
-type Preflight =
-  | { status: "checking" }
-  | { status: "done"; result: CredentialTestResult }
-  | { status: "error" }
+type Preflight = { status: "checking" } | { status: "done"; result: CredentialTestResult } | { status: "error" }
 
 // The Claude subscription connect flow: a CLI preflight on mount ("Claude
 // already works on this machine"), authorize with a popup-blocked fallback,
@@ -98,14 +95,14 @@ export function ClaudeConnect({
       if (!openInNewTab(authorize_url)) setPopupBlocked(authorize_url)
       setAuthStarted(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('configure_agent.auth_error'))
+      setError(err instanceof Error ? err.message : t("configure_agent.auth_error"))
     }
   }
 
   async function connect(codeOverride?: string) {
     const codeToExchange = (codeOverride ?? code).trim()
     if (codeToExchange.length === 0) {
-      setError(t('configure_agent.paste_code_first'))
+      setError(t("configure_agent.paste_code_first"))
       return
     }
     setError(null)
@@ -118,10 +115,10 @@ export function ClaudeConnect({
         setCode("")
         onConnected(payload.credential_test)
       } else {
-        setError(payload.credential_test.message || t('configure_agent.exchange_error'))
+        setError(payload.credential_test.message || t("configure_agent.exchange_error"))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('configure_agent.exchange_catch_error'))
+      setError(err instanceof Error ? err.message : t("configure_agent.exchange_catch_error"))
     } finally {
       setExchanging(false)
     }
@@ -145,7 +142,7 @@ export function ClaudeConnect({
     // secondary action (Cancel / Skip) stays reachable.
     return (
       <div className="space-y-4">
-        <StatusBox tone="warning">{t('backend_updating')}</StatusBox>
+        <StatusBox tone="warning">{t("backend_updating")}</StatusBox>
         {secondaryAction ? <div className="flex items-center justify-end gap-2">{secondaryAction}</div> : null}
       </div>
     )
@@ -155,53 +152,42 @@ export function ClaudeConnect({
     <div className="space-y-4">
       {preflight.status === "checking" ? (
         <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-          <Spinner /> {t('configure_agent.checking_login')}
+          <Spinner /> {t("configure_agent.checking_login")}
         </p>
       ) : null}
 
-      {ambientReady ? (
-        <StatusBox tone="ok">
-          {t('configure_agent.ambient_ready')}
-        </StatusBox>
-      ) : null}
+      {ambientReady ? <StatusBox tone="ok">{t("configure_agent.ambient_ready")}</StatusBox> : null}
 
       <ol className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">{t('configure_agent.step1_heading')}</p>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">
-            {t('configure_agent.step1_description')}
-          </p>
-          <Button
-            className="mt-2"
-            onClick={authorize}
-            ref={authorizeRef}
-            variant="primary"
-          >
-            {authStarted ? t('configure_agent.reopen_auth') : t('configure_agent.authorize_claude')}
+          <p className="font-medium text-gray-900 dark:text-gray-100">{t("configure_agent.step1_heading")}</p>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">{t("configure_agent.step1_description")}</p>
+          <Button className="mt-2" onClick={authorize} ref={authorizeRef} variant="primary">
+            {authStarted ? t("configure_agent.reopen_auth") : t("configure_agent.authorize_claude")}
             <span aria-hidden="true">↗</span>
           </Button>
           {popupBlocked ? (
             <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-              {t('configure_agent.popup_blocked')}{" "}
+              {t("configure_agent.popup_blocked")}{" "}
               <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
-                {t('configure_agent.open_auth_page')}
+                {t("configure_agent.open_auth_page")}
               </a>{" "}
-              {t('configure_agent.popup_blocked_manually')}
+              {t("configure_agent.popup_blocked_manually")}
             </p>
           ) : null}
         </li>
         <li className={authStarted ? "" : "opacity-50"}>
-          <p className="font-medium text-gray-900 dark:text-gray-100">{t('configure_agent.step2_heading')}</p>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">{t('configure_agent.step2_description')}</p>
+          <p className="font-medium text-gray-900 dark:text-gray-100">{t("configure_agent.step2_heading")}</p>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">{t("configure_agent.step2_description")}</p>
           <label className="mt-2 block">
-            <span className="sr-only">{t('configure_agent.input_label')}</span>
+            <span className="sr-only">{t("configure_agent.input_label")}</span>
             <Input
               autoComplete="off"
               className="font-mono"
               disabled={!authStarted}
               onChange={(event) => setCode(event.target.value)}
               onPaste={pasteAndConnect}
-              placeholder={t('configure_agent.input_placeholder')}
+              placeholder={t("configure_agent.input_placeholder")}
               spellCheck={false}
               type="text"
               value={code}
@@ -214,17 +200,13 @@ export function ClaudeConnect({
 
       <div className="flex items-center justify-end gap-2">
         {secondaryAction}
-        <Button
-          disabled={!authStarted || exchanging || code.trim().length === 0}
-          onClick={() => connect()}
-          variant="primary"
-        >
+        <Button disabled={!authStarted || exchanging || code.trim().length === 0} onClick={() => connect()} variant="primary">
           {exchanging ? (
             <>
-              <Spinner light /> {t('configure_agent.connecting')}
+              <Spinner light /> {t("configure_agent.connecting")}
             </>
           ) : (
-            t('configure_agent.connect')
+            t("configure_agent.connect")
           )}
         </Button>
       </div>

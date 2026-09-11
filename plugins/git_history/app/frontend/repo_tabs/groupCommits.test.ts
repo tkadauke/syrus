@@ -83,8 +83,22 @@ describe("groupCommits", () => {
         bundle,
         jobs: [job42, job43]
       }),
-      commit({ sha: "2".repeat(40), subject: "Implement dark mode", classification: "syrus_landed", job: job42, epic: null, user: { id: 1, display_name: "Ada" } }),
-      commit({ sha: "3".repeat(40), subject: "Implement light mode", classification: "syrus_landed", job: job43, epic: null, user: { id: 2, display_name: "Grace" } })
+      commit({
+        sha: "2".repeat(40),
+        subject: "Implement dark mode",
+        classification: "syrus_landed",
+        job: job42,
+        epic: null,
+        user: { id: 1, display_name: "Ada" }
+      }),
+      commit({
+        sha: "3".repeat(40),
+        subject: "Implement light mode",
+        classification: "syrus_landed",
+        job: job43,
+        epic: null,
+        user: { id: 2, display_name: "Grace" }
+      })
     ]
 
     const groups = groupCommits(commits)

@@ -9,7 +9,16 @@ import { fetchChatWhiteboard, patchChatWhiteboard, type ChatPayload, type ChatWh
 import { errorMessage } from "@app/lib/errorMessage"
 import { errorAsError } from "@app/routes/chat/utils"
 import { WHITEBOARD_SAVE_DEBOUNCE_MS } from "@app/routes/chat/constants"
-import { asExcalidrawElements, asExcalidrawFiles, cleanWhiteboardAppState, cleanWhiteboardFiles, cloneWhiteboardScene, normalizeWhiteboardScene, signatureForScene, whiteboardScene } from "@app/routes/chat/whiteboardScene"
+import {
+  asExcalidrawElements,
+  asExcalidrawFiles,
+  cleanWhiteboardAppState,
+  cleanWhiteboardFiles,
+  cloneWhiteboardScene,
+  normalizeWhiteboardScene,
+  signatureForScene,
+  whiteboardScene
+} from "@app/routes/chat/whiteboardScene"
 import { useT } from "@app/hooks/useT"
 import type { PluginWorkspaceTabProps } from "@app/pluginWorkspaceTabs"
 
@@ -22,7 +31,7 @@ import type { PluginWorkspaceTabProps } from "@app/pluginWorkspaceTabs"
 // -viewport portal into document.body (Escape or the toggle button exits),
 // rather than the old core-threaded layout-shift (hide the chat column,
 // hide the tab bar) that Chat.tsx used to implement for this one tab.
-type ExcalidrawComponent = typeof import("@excalidraw/excalidraw")["Excalidraw"]
+type ExcalidrawComponent = (typeof import("@excalidraw/excalidraw"))["Excalidraw"]
 type ExcalidrawApi = Pick<ExcalidrawImperativeAPI, "addFiles" | "updateScene">
 
 export default function WhiteboardTab({ payload }: PluginWorkspaceTabProps) {
@@ -132,24 +141,27 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
     })
   }, [])
 
-  const recoverConflict = useCallback(async (originalScene: ChatWhiteboardScene) => {
-    if (retryingConflictRef.current) return
+  const recoverConflict = useCallback(
+    async (originalScene: ChatWhiteboardScene) => {
+      if (retryingConflictRef.current) return
 
-    retryingConflictRef.current = true
-    try {
-      const current = await fetchChatWhiteboard(pathRef.current)
-      applyRemoteScene(normalizeWhiteboardScene(current.scene_json), current.version)
-      const retry = await patchChatWhiteboard(pathRef.current, {
-        ...originalScene,
-        expected_version: current.version
-      })
-      if (retry.status === 409) throw new ApiError("Whiteboard changed again before the retry completed.", { status: 409 })
+      retryingConflictRef.current = true
+      try {
+        const current = await fetchChatWhiteboard(pathRef.current)
+        applyRemoteScene(normalizeWhiteboardScene(current.scene_json), current.version)
+        const retry = await patchChatWhiteboard(pathRef.current, {
+          ...originalScene,
+          expected_version: current.version
+        })
+        if (retry.status === 409) throw new ApiError("Whiteboard changed again before the retry completed.", { status: 409 })
 
-      applyRemoteScene(normalizeWhiteboardScene(retry.payload.scene_json), retry.payload.version)
-    } finally {
-      retryingConflictRef.current = false
-    }
-  }, [applyRemoteScene])
+        applyRemoteScene(normalizeWhiteboardScene(retry.payload.scene_json), retry.payload.version)
+      } finally {
+        retryingConflictRef.current = false
+      }
+    },
+    [applyRemoteScene]
+  )
 
   const savePending = useCallback(async () => {
     const pendingScene = pendingSceneRef.current
@@ -205,47 +217,57 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
     const data = whiteboard.data
     if (!data) return
 
-    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(payload.chat.id)] }, (currentPayload) => currentPayload ? {
-      ...currentPayload,
-      whiteboard: {
-        version: data.version,
-        ...normalizeWhiteboardScene(data.scene_json),
-        loaded: true
-      }
-    } : currentPayload)
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(payload.chat.id)] }, (currentPayload) =>
+      currentPayload
+        ? {
+            ...currentPayload,
+            whiteboard: {
+              version: data.version,
+              ...normalizeWhiteboardScene(data.scene_json),
+              loaded: true
+            }
+          }
+        : currentPayload
+    )
     applyRemoteScene(normalizeWhiteboardScene(data.scene_json), data.version)
   }, [applyRemoteScene, payload.chat.id, queryClient, whiteboard.data])
 
-  useEffect(() => () => {
-    clearPendingSave()
-    const pendingScene = pendingSceneRef.current
-    if (pendingScene) {
-      void patchChatWhiteboard(pathRef.current, {
-        ...pendingScene,
-        expected_version: versionRef.current
-      }).catch(() => {})
-    }
-  }, [clearPendingSave])
+  useEffect(
+    () => () => {
+      clearPendingSave()
+      const pendingScene = pendingSceneRef.current
+      if (pendingScene) {
+        void patchChatWhiteboard(pathRef.current, {
+          ...pendingScene,
+          expected_version: versionRef.current
+        }).catch(() => {})
+      }
+    },
+    [clearPendingSave]
+  )
 
-  const handleChange = useCallback((nextElements: readonly ChatWhiteboardElement[], nextAppState: unknown, nextFiles: unknown) => {
-    if (remoteUpdateInProgressRef.current) return
+  const handleChange = useCallback(
+    (nextElements: readonly ChatWhiteboardElement[], nextAppState: unknown, nextFiles: unknown) => {
+      if (remoteUpdateInProgressRef.current) return
 
-    const copied = cloneWhiteboardScene({
-      elements: Array.from(nextElements),
-      appState: cleanWhiteboardAppState(nextAppState),
-      files: cleanWhiteboardFiles(nextFiles)
-    })
-    const signature = signatureForScene(copied)
-    if (signature === appliedSignatureRef.current) return
+      const copied = cloneWhiteboardScene({
+        elements: Array.from(nextElements),
+        appState: cleanWhiteboardAppState(nextAppState),
+        files: cleanWhiteboardFiles(nextFiles)
+      })
+      const signature = signatureForScene(copied)
+      if (signature === appliedSignatureRef.current) return
 
-    appliedSignatureRef.current = signature
-    setScene(copied)
-    pendingSceneRef.current = copied
-    clearPendingSave()
-    saveTimerRef.current = window.setTimeout(() => {
-      void savePending()
-    }, WHITEBOARD_SAVE_DEBOUNCE_MS)
-  }, [clearPendingSave, savePending])
+      appliedSignatureRef.current = signature
+      setScene(copied)
+      pendingSceneRef.current = copied
+      clearPendingSave()
+      saveTimerRef.current = window.setTimeout(() => {
+        void savePending()
+      }, WHITEBOARD_SAVE_DEBOUNCE_MS)
+    },
+    [clearPendingSave, savePending]
+  )
 
   const panel = (
     <section className="flex h-full min-h-0 flex-col">
@@ -280,9 +302,7 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
             onChange={(nextElements, nextAppState, nextFiles) => handleChange(nextElements as readonly ChatWhiteboardElement[], nextAppState, nextFiles)}
           />
         ) : (
-          <div className="flex h-full items-center justify-center p-4 text-sm text-gray-500 dark:text-gray-400">
-            {loadError || t("canvas_loading")}
-          </div>
+          <div className="flex h-full items-center justify-center p-4 text-sm text-gray-500 dark:text-gray-400">{loadError || t("canvas_loading")}</div>
         )}
         {scene.elements.length === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-gray-400 dark:text-gray-500">
@@ -290,18 +310,11 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
           </div>
         ) : null}
       </div>
-      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {saveError || t("canvas_elements", { count: scene.elements.length })}
-      </div>
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{saveError || t("canvas_elements", { count: scene.elements.length })}</div>
     </section>
   )
 
   if (!fullscreen) return <div className="h-full min-h-0 p-3">{panel}</div>
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-white p-3 dark:bg-gray-950">
-      {panel}
-    </div>,
-    document.body
-  )
+  return createPortal(<div className="fixed inset-0 z-50 flex flex-col bg-white p-3 dark:bg-gray-950">{panel}</div>, document.body)
 }

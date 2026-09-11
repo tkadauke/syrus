@@ -44,7 +44,15 @@ describe("read_workflow tool card", () => {
             started_at: "2026-01-01T00:00:00Z",
             finished_at: "2026-01-01T00:02:00Z",
             runs: [
-              { id: 9, state: "succeeded", agent_outcome: "success", agent_summary: "changed the code", started_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:02:00Z", cost_usd: "0.42" }
+              {
+                id: 9,
+                state: "succeeded",
+                agent_outcome: "success",
+                agent_summary: "changed the code",
+                started_at: "2026-01-01T00:00:00Z",
+                finished_at: "2026-01-01T00:02:00Z",
+                cost_usd: "0.42"
+              }
             ]
           }
         ]

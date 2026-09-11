@@ -6,11 +6,27 @@
 // systemMessages parsers), and the small grouping/anchor predicates. Pure over
 // the shared utils, systemMessages, and chat types; imported back by the
 // MessageStream components.
-import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatPendingActionInline, ChatRenderItem, ChatToolGroupCall, ChatToolGroupItem } from "../../api/chats"
+import type {
+  ChatMessageItem,
+  ChatPendingAction,
+  ChatPendingActionGroup,
+  ChatPendingActionInline,
+  ChatRenderItem,
+  ChatToolGroupCall,
+  ChatToolGroupItem
+} from "../../api/chats"
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
-import { fullResultBody, fullResultBodyUnbounded, parseJsonText, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
+import {
+  fullResultBody,
+  fullResultBodyUnbounded,
+  parseJsonText,
+  shortenWorkspacePaths,
+  simpleToolProgressLabel,
+  toolPresentation,
+  toolResultPresentation
+} from "./toolRendering"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -18,8 +34,37 @@ import { fullResultBody, fullResultBodyUnbounded, parseJsonText, shortenWorkspac
 // alone (the pre-the relevant change behavior) orphaned the outer group. ROOT_KEY is
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
-const READ_ONLY_TOOLS = new Set(["Read", "Glob", "Grep", "WebFetch", "WebSearch", "list_chat_media", "read_live_state", "read_memory", "search_memories", "list_memories", "list_design_docs", "read_design_doc"])
-const SIDE_EFFECTING_TOOLS = new Set(["Bash", "Edit", "MultiEdit", "Write", "NotebookEdit", "TodoWrite", "create_site", "save_site_version", "deploy_site", "propose_job", "propose_epic", "propose_epic_with_jobs", "show_preview", "write_preview_file", "edit_preview_file"])
+const READ_ONLY_TOOLS = new Set([
+  "Read",
+  "Glob",
+  "Grep",
+  "WebFetch",
+  "WebSearch",
+  "list_chat_media",
+  "read_live_state",
+  "read_memory",
+  "search_memories",
+  "list_memories",
+  "list_design_docs",
+  "read_design_doc"
+])
+const SIDE_EFFECTING_TOOLS = new Set([
+  "Bash",
+  "Edit",
+  "MultiEdit",
+  "Write",
+  "NotebookEdit",
+  "TodoWrite",
+  "create_site",
+  "save_site_version",
+  "deploy_site",
+  "propose_job",
+  "propose_epic",
+  "propose_epic_with_jobs",
+  "show_preview",
+  "write_preview_file",
+  "edit_preview_file"
+])
 
 type OpenCall = {
   call: ChatToolGroupCall
@@ -29,8 +74,8 @@ type OpenCall = {
 
 export function renderChatMessages(messages: ChatMessageItem[], options: { simpleMode?: boolean } = {}): ChatRenderItem[] {
   const items: ChatRenderItem[] = []
-  const containerByParentKey = new Map<string, ChatRenderItem[]>([ [ ROOT_KEY, items ] ])
-  const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([ [ ROOT_KEY, null ] ])
+  const containerByParentKey = new Map<string, ChatRenderItem[]>([[ROOT_KEY, items]])
+  const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([[ROOT_KEY, null]])
   const openCallsByToolUseId = new Map<string, OpenCall>()
 
   for (const message of messages) {
@@ -61,7 +106,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         lastGroup.calls.push(call)
         group = lastGroup
       } else {
-        group = { type: "tool_group", tool, calls: [ call ] }
+        group = { type: "tool_group", tool, calls: [call] }
         container.push(group)
         lastGroupByParentKey.set(parentKey, group)
       }
@@ -89,7 +134,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
 
       if (open && open.call.result_body === "") {
         const content = contentRecord(message.content)
-        const rawResult = content ? content.content ?? content.result : message.content ?? message.text
+        const rawResult = content ? (content.content ?? content.result) : (message.content ?? message.text)
         const unboundedBody = content ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
         open.call.result_body = content ? fullResultBody(rawResult) : unboundedBody
         open.call.result_json = parseJsonText(unboundedBody)
@@ -206,7 +251,11 @@ export function lastAssistantRenderedMessage(messages: ChatMessageItem[]) {
   return null
 }
 
-export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions: ChatPendingAction[], pendingActionGroups: ChatPendingActionGroup[] = []): ChatStreamItem[] {
+export function buildMessageStreamItems(
+  items: ChatRenderItem[],
+  pendingActions: ChatPendingAction[],
+  pendingActionGroups: ChatPendingActionGroup[] = []
+): ChatStreamItem[] {
   if (pendingActions.length === 0 && pendingActionGroups.length === 0) return items
 
   const anchoredByMessageId = new Map<number, ChatStreamItem[]>()

@@ -3,7 +3,15 @@ import { useState } from "react"
 import { SectionHeading } from "@app/components/Heading"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchRepositoryThroughputMetrics, type RepositoryThroughputConfidence, type RepositoryThroughputDuration, type RepositoryThroughputMetricsPayload, type RepositoryThroughputRate, type RepositoryThroughputWindow, type RepositoryThroughputWindowKey } from "../api/throughput"
+import {
+  fetchRepositoryThroughputMetrics,
+  type RepositoryThroughputConfidence,
+  type RepositoryThroughputDuration,
+  type RepositoryThroughputMetricsPayload,
+  type RepositoryThroughputRate,
+  type RepositoryThroughputWindow,
+  type RepositoryThroughputWindowKey
+} from "../api/throughput"
 
 const THROUGHPUT_WINDOWS: Array<{ key: RepositoryThroughputWindowKey; label: string }> = [
   { key: "1h", label: "1h" },
@@ -43,7 +51,15 @@ function RepositoryThroughputPanel({ repositoryId }: { repositoryId: number }) {
   return <RepositoryThroughputDashboard metrics={metrics.data} windowKey={windowKey} onWindowChange={setWindowKey} />
 }
 
-function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: { metrics: RepositoryThroughputMetricsPayload; windowKey: RepositoryThroughputWindowKey; onWindowChange: (key: RepositoryThroughputWindowKey) => void }) {
+function RepositoryThroughputDashboard({
+  metrics,
+  windowKey,
+  onWindowChange
+}: {
+  metrics: RepositoryThroughputMetricsPayload
+  windowKey: RepositoryThroughputWindowKey
+  onWindowChange: (key: RepositoryThroughputWindowKey) => void
+}) {
   const window = metrics.windows[windowKey]
 
   return (
@@ -51,11 +67,12 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <SectionHeading>Throughput</SectionHeading>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {formatWindowRange(window)}
-          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{formatWindowRange(window)}</p>
         </div>
-        <div aria-label="Throughput window" className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900">
+        <div
+          aria-label="Throughput window"
+          className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900"
+        >
           {THROUGHPUT_WINDOWS.map((item) => (
             <button
               aria-pressed={windowKey === item.key}
@@ -71,10 +88,34 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
       </div>
       <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
         <div className="grid gap-px bg-gray-200 dark:bg-gray-800 sm:grid-cols-2 xl:grid-cols-4">
-          <ThroughputMetric title="PR creation" value={`${formatRate(window.pr_creation)}/h`} detail={`${window.pr_creation.count} Syrus-authored, ${window.pr_creation.total_observed_count} observed`} confidence={window.pr_creation.confidence} sampleCount={window.pr_creation.sample_count} />
-          <ThroughputMetric title="Output" value={`${formatRate(window.output.commits)}/h`} detail={`${formatSignedNumber(window.output.loc.net)} net LOC, ${window.output.loc.additions}+/${window.output.loc.deletions}-`} confidence={window.output.commits.confidence} sampleCount={window.output.commits.sample_count} />
-          <ThroughputMetric title="Landing units" value={`${formatRate(window.landing.landing_units)}/h`} detail={`${window.landing.unit_types.auto_merge.landing_units} auto, ${window.landing.unit_types.merge_train.landing_units} trains`} confidence={window.landing.landing_units.confidence} sampleCount={window.landing.landing_units.sample_count} />
-          <ThroughputMetric title="Jobs landed" value={`${formatRate(window.landing.jobs_landed)}/h`} detail={`${window.landing.jobs_landed.count} jobs; train avg ${formatNullableNumber(window.landing.merge_train_size.average)}`} confidence={window.landing.jobs_landed.confidence} sampleCount={window.landing.jobs_landed.sample_count} />
+          <ThroughputMetric
+            title="PR creation"
+            value={`${formatRate(window.pr_creation)}/h`}
+            detail={`${window.pr_creation.count} Syrus-authored, ${window.pr_creation.total_observed_count} observed`}
+            confidence={window.pr_creation.confidence}
+            sampleCount={window.pr_creation.sample_count}
+          />
+          <ThroughputMetric
+            title="Output"
+            value={`${formatRate(window.output.commits)}/h`}
+            detail={`${formatSignedNumber(window.output.loc.net)} net LOC, ${window.output.loc.additions}+/${window.output.loc.deletions}-`}
+            confidence={window.output.commits.confidence}
+            sampleCount={window.output.commits.sample_count}
+          />
+          <ThroughputMetric
+            title="Landing units"
+            value={`${formatRate(window.landing.landing_units)}/h`}
+            detail={`${window.landing.unit_types.auto_merge.landing_units} auto, ${window.landing.unit_types.merge_train.landing_units} trains`}
+            confidence={window.landing.landing_units.confidence}
+            sampleCount={window.landing.landing_units.sample_count}
+          />
+          <ThroughputMetric
+            title="Jobs landed"
+            value={`${formatRate(window.landing.jobs_landed)}/h`}
+            detail={`${window.landing.jobs_landed.count} jobs; train avg ${formatNullableNumber(window.landing.merge_train_size.average)}`}
+            confidence={window.landing.jobs_landed.confidence}
+            sampleCount={window.landing.jobs_landed.sample_count}
+          />
         </div>
         <div className="grid gap-4 p-4 lg:grid-cols-3">
           <ThroughputFunnel window={window} />
@@ -86,7 +127,19 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
   )
 }
 
-function ThroughputMetric({ title, value, detail, confidence, sampleCount }: { title: string; value: string; detail: string; confidence: RepositoryThroughputConfidence; sampleCount: number }) {
+function ThroughputMetric({
+  title,
+  value,
+  detail,
+  confidence,
+  sampleCount
+}: {
+  title: string
+  value: string
+  detail: string
+  confidence: RepositoryThroughputConfidence
+  sampleCount: number
+}) {
   return (
     <article className="bg-white p-4 dark:bg-gray-900">
       <div className="flex items-start justify-between gap-3">
@@ -113,7 +166,10 @@ function ThroughputFunnel({ window }: { window: RepositoryThroughputWindow }) {
         <MetricRow label="Feedback jobs" value={`${funnel.jobs_with_pr_feedback}${feedbackRate == null ? "" : ` (${formatPercent(feedbackRate)})`}`} />
         <MetricRow label="Feedback rounds" value={funnel.feedback_rounds} />
         <MetricRow label="Approvals" value={`${funnel.approval_count} jobs / ${funnel.approval_vote_count} votes`} />
-        <MetricRow label="Approved without feedback" value={`${funnel.jobs_approved_immediately_without_feedback}${approvedWithoutFeedbackRate == null ? "" : ` (${formatPercent(approvedWithoutFeedbackRate)})`}`} />
+        <MetricRow
+          label="Approved without feedback"
+          value={`${funnel.jobs_approved_immediately_without_feedback}${approvedWithoutFeedbackRate == null ? "" : ` (${formatPercent(approvedWithoutFeedbackRate)})`}`}
+        />
       </dl>
     </div>
   )
@@ -127,8 +183,16 @@ function ThroughputBottlenecks({ window }: { window: RepositoryThroughputWindow 
     <div>
       <SectionHeading as="h3">Bottlenecks</SectionHeading>
       <dl className="mt-3 space-y-2 text-sm">
-        <MetricRow label="Landing occupied" value={formatDurationSeconds(landing.landing_start_to_closed_latency_seconds.average)} detail={sampleLabel(landing.landing_start_to_closed_latency_seconds)} />
-        <MetricRow label="Failed landing waste" value={formatDurationSeconds(waste.failed_or_cancelled_landing_workflow_seconds)} detail={`${waste.failed_or_cancelled_landing_workflow_count} workflows`} />
+        <MetricRow
+          label="Landing occupied"
+          value={formatDurationSeconds(landing.landing_start_to_closed_latency_seconds.average)}
+          detail={sampleLabel(landing.landing_start_to_closed_latency_seconds)}
+        />
+        <MetricRow
+          label="Failed landing waste"
+          value={formatDurationSeconds(waste.failed_or_cancelled_landing_workflow_seconds)}
+          detail={`${waste.failed_or_cancelled_landing_workflow_count} workflows`}
+        />
         <MetricRow label="Rebase churn" value={formatDurationSeconds(waste.rebase_churn_seconds)} detail={`${waste.rebase_churn_workflow_count} workflows`} />
         <MetricRow label="Blocking rebases" value={waste.landing_blocking_rebase_count} />
         <MetricRow label="Base moved regrades" value={landing.base_moved_regrade_count} />
@@ -145,10 +209,26 @@ function ThroughputLatency({ window }: { window: RepositoryThroughputWindow }) {
     <div>
       <SectionHeading as="h3">Latency and capacity</SectionHeading>
       <dl className="mt-3 space-y-2 text-sm">
-        <MetricRow label="Approval latency" value={formatDurationSeconds(funnel.approval_latency_seconds.average)} detail={sampleLabel(funnel.approval_latency_seconds)} />
-        <MetricRow label="Feedback addressed" value={formatDurationSeconds(funnel.feedback_to_addressed_seconds.average)} detail={sampleLabel(funnel.feedback_to_addressed_seconds)} />
-        <MetricRow label="Approval to landing" value={formatDurationSeconds(funnel.approval_to_landing_latency_seconds.average)} detail={sampleLabel(funnel.approval_to_landing_latency_seconds)} />
-        <MetricRow label="Optimistic capacity" value={`${formatNumber(capacity.estimated_landing_units_per_hour)}/h`} detail={`${formatNumber(capacity.estimated_jobs_landed_per_hour)} jobs/h, n=${capacity.sample_count} ${capacity.confidence}`} />
+        <MetricRow
+          label="Approval latency"
+          value={formatDurationSeconds(funnel.approval_latency_seconds.average)}
+          detail={sampleLabel(funnel.approval_latency_seconds)}
+        />
+        <MetricRow
+          label="Feedback addressed"
+          value={formatDurationSeconds(funnel.feedback_to_addressed_seconds.average)}
+          detail={sampleLabel(funnel.feedback_to_addressed_seconds)}
+        />
+        <MetricRow
+          label="Approval to landing"
+          value={formatDurationSeconds(funnel.approval_to_landing_latency_seconds.average)}
+          detail={sampleLabel(funnel.approval_to_landing_latency_seconds)}
+        />
+        <MetricRow
+          label="Optimistic capacity"
+          value={`${formatNumber(capacity.estimated_landing_units_per_hour)}/h`}
+          detail={`${formatNumber(capacity.estimated_jobs_landed_per_hour)} jobs/h, n=${capacity.sample_count} ${capacity.confidence}`}
+        />
         <MetricRow label="Samples" value={`${window.samples.jobs_seen} jobs`} detail={`${window.samples.feedback_comments} feedback comments`} />
       </dl>
     </div>

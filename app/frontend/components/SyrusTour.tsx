@@ -21,7 +21,7 @@ export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
       onEvent={onEvent}
       options={{
         buttons: ["back", "skip", "primary"],
-        primaryColor,
+        primaryColor
       }}
       locale={{
         back: t("back"),
@@ -29,38 +29,38 @@ export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
         last: t("last"),
         next: t("next"),
         open: t("open"),
-        skip: t("skip"),
+        skip: t("skip")
       }}
       run={run}
       steps={steps}
       styles={{
         tooltip: {
           borderRadius: "6px",
-          padding: "20px",
+          padding: "20px"
         },
         tooltipContainer: {
-          textAlign: "left",
+          textAlign: "left"
         },
         buttonPrimary: {
           backgroundColor: primaryColor,
           borderRadius: "4px",
           color: "#ffffff",
-          fontWeight: "500",
+          fontWeight: "500"
         },
         buttonBack: {
           color: backColor,
-          marginRight: "8px",
+          marginRight: "8px"
         },
         buttonSkip: {
-          color: skipColor,
+          color: skipColor
         },
         beaconInner: {
-          backgroundColor: primaryColor,
+          backgroundColor: primaryColor
         },
         beaconOuter: {
           borderColor: primaryColor,
-          backgroundColor: `${primaryColor}33`,
-        },
+          backgroundColor: `${primaryColor}33`
+        }
       }}
     />
   )

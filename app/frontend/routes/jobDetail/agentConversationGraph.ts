@@ -41,12 +41,7 @@ export function buildConversationRows(nodes: AgentConversationNode[], edges: Age
     const group = [node]
     const groupKey = sortedKey(predecessorsOf.get(node.id))
     let next = index + 1
-    while (
-      groupKey &&
-      next < nodes.length &&
-      nodes[next].kind === "deterministic_check" &&
-      sortedKey(predecessorsOf.get(nodes[next].id)) === groupKey
-    ) {
+    while (groupKey && next < nodes.length && nodes[next].kind === "deterministic_check" && sortedKey(predecessorsOf.get(nodes[next].id)) === groupKey) {
       group.push(nodes[next])
       next += 1
     }
@@ -153,7 +148,9 @@ export function externalTriggerContent(node: AgentConversationNode): string | nu
   }
 
   if (node.trigger_kind === "ci_failure") {
-    const names = detailArray(node, "failed_checks").map((check) => detailString(check, "name")).filter((name): name is string => Boolean(name))
+    const names = detailArray(node, "failed_checks")
+      .map((check) => detailString(check, "name"))
+      .filter((name): name is string => Boolean(name))
     return names.length > 0 ? `Failing checks: ${names.join(", ")}` : node.summary
   }
 

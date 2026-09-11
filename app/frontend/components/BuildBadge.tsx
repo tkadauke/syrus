@@ -24,15 +24,7 @@ function builtTooltip(label: string, timestamp: string | null | undefined): stri
 // diverged pair is older. The container stays pointer-events-none so the
 // badge never eats a click; only the text glyphs themselves re-enable
 // pointer events, purely to receive hover for the native title tooltip.
-export function BuildBadge({
-  revision,
-  version,
-  builtAt
-}: {
-  revision?: string | null
-  version?: string | null
-  builtAt?: string | null
-}) {
+export function BuildBadge({ revision, version, builtAt }: { revision?: string | null; version?: string | null; builtAt?: string | null }) {
   const appBuild = desktopBuildSha()
   const backend = version || (revision && revision !== "dev" ? revision : null)
   if (!appBuild && !backend) return null

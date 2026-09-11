@@ -21,7 +21,14 @@ function renderPicker(props: React.ComponentProps<typeof JobEpicPickerPopup>) {
 const sampleJobs = {
   count: 2,
   jobs: [
-    { id: 101, title: "Fix authentication bug", issue_title: "Fix authentication bug", state: "open", repository_slug: "acme/repo", pr_url: "https://github.com/acme/repo/pull/5" },
+    {
+      id: 101,
+      title: "Fix authentication bug",
+      issue_title: "Fix authentication bug",
+      state: "open",
+      repository_slug: "acme/repo",
+      pr_url: "https://github.com/acme/repo/pull/5"
+    },
     { id: 202, title: "Add dark mode", issue_title: "Add dark mode", state: "open", repository_slug: "acme/repo", pr_url: null }
   ]
 }
@@ -123,12 +130,8 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     renderPicker({ kind: "job", repositorySlug: "acme/repo", onSelect: vi.fn(), onCancel: vi.fn() })
 
     await waitFor(() => {
-      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
-        expect.objectContaining({ repo: "acme/repo" })
-      )
-      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(
-        expect.objectContaining({ state: expect.anything() })
-      )
+      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(expect.objectContaining({ repo: "acme/repo" }))
+      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(expect.objectContaining({ state: expect.anything() }))
     })
   })
 
@@ -136,12 +139,8 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     renderPicker({ kind: "job", repositorySlug: null, onSelect: vi.fn(), onCancel: vi.fn() })
 
     await waitFor(() => {
-      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
-        expect.objectContaining({ repo: undefined })
-      )
-      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(
-        expect.objectContaining({ state: expect.anything() })
-      )
+      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(expect.objectContaining({ repo: undefined }))
+      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(expect.objectContaining({ state: expect.anything() }))
     })
   })
 
@@ -171,9 +170,7 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     renderPicker({ kind: "job", repositorySlug: "acme/repo", jobState: "implemented", onSelect: vi.fn(), onCancel: vi.fn() })
 
     await waitFor(() => {
-      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
-        expect.objectContaining({ state: "implemented", repo: "acme/repo" })
-      )
+      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(expect.objectContaining({ state: "implemented", repo: "acme/repo" }))
     })
   })
 })

@@ -18,14 +18,7 @@ export type GitHistoryCommit = {
   short_sha: string
   subject: string
   authored_at: string | null
-  classification:
-    | "syrus_landed"
-    | "epic_landed"
-    | "epic_reconciliation"
-    | "bundle_landed"
-    | "bundle_reconciliation"
-    | "external_pr"
-    | "external_push"
+  classification: "syrus_landed" | "epic_landed" | "epic_reconciliation" | "bundle_landed" | "bundle_reconciliation" | "external_pr" | "external_push"
   job?: GitHistoryJobRef
   jobs?: GitHistoryJobRef[]
   epic?: GitHistoryEpicRef | null

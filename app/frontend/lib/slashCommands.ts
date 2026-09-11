@@ -65,11 +65,19 @@ export const slashCommands = [
   { name: "/settings", kind: "system", args: [], description: "Open chat settings." },
   { name: "/copy", kind: "system", args: [], description: "Copy last response to clipboard" },
   { name: "/search", kind: "system", args: [{ name: "query", required: false }], description: "Find and open another chat" },
-  { name: "/pin", kind: "system", args: [], description: (context) => context.chat?.pinned ? "Unpin this chat" : "Pin this chat to the top of the sidebar" },
+  { name: "/pin", kind: "system", args: [], description: (context) => (context.chat?.pinned ? "Unpin this chat" : "Pin this chat to the top of the sidebar") },
   { name: "/report", kind: "system", args: [], description: "File a GitHub issue about Syrus" },
   { name: "/scratch", kind: "system", args: [{ name: "text", required: false }], description: "Stash text to the scratch pad, or open the scratch pad panel." },
   { name: "/share", kind: "system", args: [], description: "Copy a shareable link to this chat" },
-  { name: "/schedule", kind: "system", args: [{ name: "time", required: false }, { name: "message", required: false }], description: "Schedule a chat message to send later." },
+  {
+    name: "/schedule",
+    kind: "system",
+    args: [
+      { name: "time", required: false },
+      { name: "message", required: false }
+    ],
+    description: "Schedule a chat message to send later."
+  },
   { name: "/goal", kind: "system", args: [{ name: "action/objective", required: false }], description: "Start, edit, pause, resume, or stop the active goal." },
   {
     name: "/jobs",
@@ -130,7 +138,13 @@ export const slashCommands = [
   { name: "/retry", kind: "system", args: [{ name: "id", required: false }], description: "Retry failed work.", requiresConfirmation: true },
   { name: "/review", kind: "system", args: [{ name: "id", required: false }], description: "Open a Job's pull request in a new tab." },
   { name: "/approve", kind: "system", args: [{ name: "id", required: false }], description: "Approve a Job for landing.", requiresConfirmation: true },
-  { name: "/feedback", kind: "skill", args: [{ name: "id", required: false }], description: "Send feedback for the agent to address.", requiresConfirmation: true },
+  {
+    name: "/feedback",
+    kind: "skill",
+    args: [{ name: "id", required: false }],
+    description: "Send feedback for the agent to address.",
+    requiresConfirmation: true
+  },
   {
     name: "/propose",
     kind: "skill",
@@ -155,14 +169,15 @@ export const slashCommands = [
     kind: "skill",
     args: [{ name: "message", required: false }],
     description: "Ask the agent to set a reminder.",
-    toPrompt: (args) => `The operator wants to set a reminder${args.trim() ? `: ${args.trim()}` : "."} Use the schedule_wakeup MCP tool to schedule a wakeup at the time they specify. If no time is specified, ask for one before calling the tool. Confirm the wakeup time back to the operator after scheduling.`
+    toPrompt: (args) =>
+      `The operator wants to set a reminder${args.trim() ? `: ${args.trim()}` : "."} Use the schedule_wakeup MCP tool to schedule a wakeup at the time they specify. If no time is specified, ask for one before calling the tool. Confirm the wakeup time back to the operator after scheduling.`
   }
 ] as const satisfies readonly SlashCommand[]
 
 export const slashCommandPattern = /^\s*(\/[a-z]+(?:-[a-z]+)*)\b/i
 
 export function slashCommandSignature(command: SlashCommand) {
-  return command.args.map((arg) => arg.required ? `<${arg.name}>` : `[${arg.name}]`).join(" ")
+  return command.args.map((arg) => (arg.required ? `<${arg.name}>` : `[${arg.name}]`)).join(" ")
 }
 
 export function slashCommandDescription(command: SlashCommand, context: SlashCommandContext = {}) {
@@ -205,24 +220,14 @@ export function slashCommandPrompt(text: string, context: SlashCommandContext = 
 }
 
 function commandsForContext(context: SlashCommandContext) {
-  const base = context.chat?.system_kind !== "supervisor"
-    ? slashCommands
-    : slashCommands.filter((command) => !supervisorHiddenCommands.has(command.name))
+  const base = context.chat?.system_kind !== "supervisor" ? slashCommands : slashCommands.filter((command) => !supervisorHiddenCommands.has(command.name))
 
-  const dynamic = (context.dynamicCommands ?? []).filter(
-    (command) => !base.some((existing) => existing.name === command.name)
-  )
+  const dynamic = (context.dynamicCommands ?? []).filter((command) => !base.some((existing) => existing.name === command.name))
 
-  return dynamic.length > 0 ? [ ...base, ...dynamic ] : base
+  return dynamic.length > 0 ? [...base, ...dynamic] : base
 }
 
-const supervisorHiddenCommands = new Set<SlashCommand["name"]>([
-  "/attach",
-  "/proposals",
-  "/discard",
-  "/feedback",
-  "/propose"
-])
+const supervisorHiddenCommands = new Set<SlashCommand["name"]>(["/attach", "/proposals", "/discard", "/feedback", "/propose"])
 
 function commandMatchRank(commandName: string, query: string) {
   if (commandName === query) return 0
@@ -236,9 +241,7 @@ function quotedArg(value: string) {
 
 function proposeWizardPrompt(args: string) {
   const trimmed = args.trim()
-  const initialContext = trimmed.length > 0
-    ? `\n\nThe operator included this initial context after the command:\n${trimmed}`
-    : ""
+  const initialContext = trimmed.length > 0 ? `\n\nThe operator included this initial context after the command:\n${trimmed}` : ""
 
   return `Start the guided Job proposal wizard.
 

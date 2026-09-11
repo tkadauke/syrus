@@ -39,7 +39,11 @@ function renderExpanded(context: ToolCardContext) {
       ) : (
         <Disclosure label="File content">
           <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
-          {truncated ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {PREVIEW_LINE_LIMIT} of {totalLines} lines.</div> : null}
+          {truncated ? (
+            <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">
+              Showing first {PREVIEW_LINE_LIMIT} of {totalLines} lines.
+            </div>
+          ) : null}
         </Disclosure>
       )}
     </CardShell>

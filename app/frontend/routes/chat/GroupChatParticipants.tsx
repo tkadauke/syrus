@@ -17,7 +17,17 @@ import { ParticipantPickerModal } from "./ParticipantPicker"
 // "Leave" and, on success, navigates the leaving user away from a chat they
 // can no longer access (accessible_chat_sessions is derived from
 // chat_participants server-side).
-export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+export function GroupChatParticipants({
+  payload,
+  prefix,
+  queryKey,
+  onNotice
+}: {
+  payload: ChatPayload
+  prefix: string
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -30,10 +40,14 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
   const [pendingRemovalId, setPendingRemovalId] = useState<number | null>(null)
 
   function applyParticipants(next: ChatParticipant[]) {
-    queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => current ? {
-      ...current,
-      chat: { ...current.chat, participants: next }
-    } : current)
+    queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) =>
+      current
+        ? {
+            ...current,
+            chat: { ...current.chat, participants: next }
+          }
+        : current
+    )
   }
 
   async function handleAddParticipants(userIds: number[]) {
@@ -78,7 +92,10 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
         const isSelf = participant.id === currentUserId
         const actionLabel = isSelf ? t("leave_chat") : t("remove_participant", { name: participant.name })
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pl-1 pr-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" key={participant.id}>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pl-1 pr-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            key={participant.id}
+          >
             <Avatar avatarUrl={participant.avatar_url} name={participant.name} size="xs" />
             <span className="max-w-[8rem] truncate">{participant.name}</span>
             <button
@@ -96,7 +113,10 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
       })}
       <button
         className="rounded-full border border-dashed border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-        onClick={() => { setPickerError(null); setPickerOpen(true) }}
+        onClick={() => {
+          setPickerError(null)
+          setPickerOpen(true)
+        }}
         type="button"
       >
         + {t("add_participant")}

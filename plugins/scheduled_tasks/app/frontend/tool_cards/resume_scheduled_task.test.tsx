@@ -21,9 +21,7 @@ describe("resume_scheduled_task tool card", () => {
   })
 
   it("summarizes the collapsed row with the resumed label and id", () => {
-    expect(resumeScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: resumed }))).toBe(
-      "Resumed 'Nightly main-branch health check' (#12)"
-    )
+    expect(resumeScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: resumed }))).toBe("Resumed 'Nightly main-branch health check' (#12)")
   })
 
   it("renders the resumed outcome", () => {

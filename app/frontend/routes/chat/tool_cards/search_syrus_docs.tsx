@@ -105,7 +105,8 @@ function ResultList({ results }: { results: SyrusDocsResult[] }) {
             <span className="shrink-0 font-mono text-2xs text-gray-500 dark:text-gray-400">#{result.rank}</span>
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium text-gray-900 dark:text-gray-100" title={[result.title, result.heading].filter(Boolean).join(" > ")}>
-                {result.title}{result.heading && result.heading !== result.title ? ` > ${result.heading}` : ""}
+                {result.title}
+                {result.heading && result.heading !== result.title ? ` > ${result.heading}` : ""}
               </div>
             </div>
           </div>

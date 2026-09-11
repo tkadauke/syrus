@@ -13,11 +13,7 @@ const EXEMPT_BASENAMES = ["Button.tsx", "Card.tsx", "Input.tsx", "Select.tsx", "
 // Documented exceptions called out in the epic scan: these render
 // user-facing color *pickers*, where "blue" is a literal color choice being
 // offered to the user, not a design-system styling decision.
-const EXEMPT_FILES = [
-  "app/frontend/components/ImageAnnotationModal.tsx",
-  "app/frontend/lib/syntaxHighlight.tsx",
-  "app/frontend/routes/Tags.tsx"
-]
+const EXEMPT_FILES = ["app/frontend/components/ImageAnnotationModal.tsx", "app/frontend/lib/syntaxHighlight.tsx", "app/frontend/routes/Tags.tsx"]
 
 // JSX checks are scoped to className/class only (never SVG presentation
 // attributes like fill/stroke, and never plain-JS objects like the xterm
@@ -28,8 +24,7 @@ const LEGACY_TOKEN_PATTERN = /\b(?:blue|terracotta)-\d{2,3}\b/
 const CLASS_HELPER_PATTERN = /(?:Class|Classes)$/
 
 function reportsClassHelperStrings(relative) {
-  return /^app\/frontend\/routes\//.test(relative) ||
-    /^app\/frontend\/lib\//.test(relative)
+  return /^app\/frontend\/routes\//.test(relative) || /^app\/frontend\/lib\//.test(relative)
 }
 
 function exportedFunctionName(node) {
@@ -63,7 +58,7 @@ module.exports = {
     },
     schema: [],
     messages: {
-      forbidden: "Use a semantic color token (e.g. bg-brand, text-text-secondary, border-border) instead of the legacy \"{{token}}\" utility."
+      forbidden: 'Use a semantic color token (e.g. bg-brand, text-text-secondary, border-border) instead of the legacy "{{token}}" utility.'
     }
   },
   create(context) {

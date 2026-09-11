@@ -100,32 +100,46 @@ export function diffLine(kind: DiffLineKind, code: string, oldLine: number | nul
 
 export function diffLineClass(kind: DiffLineKind) {
   switch (kind) {
-    case "add": return "bg-green-50 dark:bg-green-950/40"
-    case "delete": return "bg-red-50 dark:bg-red-950/40"
-    case "hunk": return "bg-info/10 text-info"
-    case "file": return "bg-gray-100 font-semibold dark:bg-gray-800 dark:text-gray-100"
-    case "meta": return "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400"
-    default: return "bg-white dark:bg-gray-950"
+    case "add":
+      return "bg-green-50 dark:bg-green-950/40"
+    case "delete":
+      return "bg-red-50 dark:bg-red-950/40"
+    case "hunk":
+      return "bg-info/10 text-info"
+    case "file":
+      return "bg-gray-100 font-semibold dark:bg-gray-800 dark:text-gray-100"
+    case "meta":
+      return "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400"
+    default:
+      return "bg-white dark:bg-gray-950"
   }
 }
 
 export function diffGutterClass(kind: DiffLineKind) {
   const base = "w-12 select-none border-r px-2 py-0.5 text-right text-gray-400"
   switch (kind) {
-    case "add": return `${base} border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/60 dark:text-green-300`
-    case "delete": return `${base} border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300`
-    case "hunk": return `${base} border-info/30 bg-info/10 text-info`
-    default: return `${base} border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-500`
+    case "add":
+      return `${base} border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/60 dark:text-green-300`
+    case "delete":
+      return `${base} border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300`
+    case "hunk":
+      return `${base} border-info/30 bg-info/10 text-info`
+    default:
+      return `${base} border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-500`
   }
 }
 
 export function diffMarkerClass(kind: DiffLineKind) {
   const base = "w-6 select-none px-2 py-0.5 text-center"
   switch (kind) {
-    case "add": return `${base} text-green-700`
-    case "delete": return `${base} text-red-700`
-    case "hunk": return `${base} text-info`
-    default: return `${base} text-gray-300`
+    case "add":
+      return `${base} text-green-700`
+    case "delete":
+      return `${base} text-red-700`
+    case "hunk":
+      return `${base} text-info`
+    default:
+      return `${base} text-gray-300`
   }
 }
 
@@ -200,8 +214,8 @@ export function contextGapsForHunks(hunks: HunkMeta[], totalFileLines: number | 
     const prev = hunks[i - 1]
     const next = hunks[i]
     const startNew = prev ? prev.newStart + prev.newLines : 1
-    const offset = prev ? (prev.newStart + prev.newLines) - (prev.oldStart + prev.oldLines) : 0
-    const endNew = next ? next.newStart - 1 : (totalFileLines != null ? totalFileLines : Number.POSITIVE_INFINITY)
+    const offset = prev ? prev.newStart + prev.newLines - (prev.oldStart + prev.oldLines) : 0
+    const endNew = next ? next.newStart - 1 : totalFileLines != null ? totalFileLines : Number.POSITIVE_INFINITY
     gaps.push({ startNew, endNew, offset })
   }
   return gaps
@@ -223,7 +237,12 @@ export function remainingInGap(gap: ContextGap, state: GapRevealState | undefine
 // content) around each hunk. Existing hunk lines are never touched or
 // renumbered, so line-comment anchors (keyed by old/new line number) keep
 // pointing at the right row after expansion.
-export function mergeContextIntoLines(lines: DiffLine[], gaps: ContextGap[], gapStates: Array<GapRevealState | undefined>, fileLines: string[] | null): DiffLine[] {
+export function mergeContextIntoLines(
+  lines: DiffLine[],
+  gaps: ContextGap[],
+  gapStates: Array<GapRevealState | undefined>,
+  fileLines: string[] | null
+): DiffLine[] {
   if (!fileLines || fileLines.length === 0) return lines
 
   const resolvedFileLines = fileLines

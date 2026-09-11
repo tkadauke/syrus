@@ -62,27 +62,26 @@ export function DesignSystemRoute() {
     : undefined
 
   const liveTokenValues = useColorTokens(TOKEN_SPECS.map((spec) => spec.cssVar))
-  const tokenValues = previewTokens
-    ? TOKEN_SPECS.map((spec) => previewTokens[spec.key] ?? "")
-    : liveTokenValues
+  const tokenValues = previewTokens ? TOKEN_SPECS.map((spec) => previewTokens[spec.key] ?? "") : liveTokenValues
 
   const [checked, setChecked] = useState(true)
   const [toggleOn, setToggleOn] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
 
   return (
-    <main aria-label={t("aria_design_system")} className="mx-auto max-w-5xl space-y-10 p-6" data-design-system-preview={previewTheme?.slug} style={previewStyle}>
+    <main
+      aria-label={t("aria_design_system")}
+      className="mx-auto max-w-5xl space-y-10 p-6"
+      data-design-system-preview={previewTheme?.slug}
+      style={previewStyle}
+    >
       <header>
         <PageHeading>{t("design_system.heading")}</PageHeading>
         <p className="mt-1 text-sm text-text-secondary">{t("design_system.description")}</p>
       </header>
 
-      {themeId != null && previewTheme ? (
-        <PanelMessage tone="success">{t("design_system.preview_banner", { name: previewTheme.name })}</PanelMessage>
-      ) : null}
-      {themeId != null && previewQuery.isError ? (
-        <PanelMessage tone="error">{t("design_system.preview_not_found")}</PanelMessage>
-      ) : null}
+      {themeId != null && previewTheme ? <PanelMessage tone="success">{t("design_system.preview_banner", { name: previewTheme.name })}</PanelMessage> : null}
+      {themeId != null && previewQuery.isError ? <PanelMessage tone="error">{t("design_system.preview_not_found")}</PanelMessage> : null}
       {themeId != null && previewTheme && contrastWarnings.length > 0 ? (
         <PanelMessage tone="warning">
           <p className="font-medium">{t("design_system.preview_contrast_warnings_heading")}</p>
@@ -141,15 +140,26 @@ function ButtonsSection() {
         <Button variant="success">{t("design_system.buttons.success")}</Button>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button size="sm" variant="primary">{t("design_system.buttons.primary")}</Button>
-        <Button size="sm" variant="secondary">{t("design_system.buttons.secondary")}</Button>
-        <Button disabled variant="primary">{t("design_system.buttons.disabled")}</Button>
+        <Button size="sm" variant="primary">
+          {t("design_system.buttons.primary")}
+        </Button>
+        <Button size="sm" variant="secondary">
+          {t("design_system.buttons.secondary")}
+        </Button>
+        <Button disabled variant="primary">
+          {t("design_system.buttons.disabled")}
+        </Button>
       </div>
     </section>
   )
 }
 
-function FormControlsSection({ checked, onCheckedChange, toggleOn, onToggleChange }: {
+function FormControlsSection({
+  checked,
+  onCheckedChange,
+  toggleOn,
+  onToggleChange
+}: {
   checked: boolean
   onCheckedChange: (checked: boolean) => void
   toggleOn: boolean
@@ -232,7 +242,9 @@ function ModalSection({ open, onOpen, onClose }: { open: boolean; onOpen: () => 
         <SectionHeading as="h3">{t("design_system.modal.title")}</SectionHeading>
         <p className="mt-2 text-sm text-text-secondary">{t("design_system.modal.body")}</p>
         <div className="mt-4 flex justify-end">
-          <Button onClick={onClose} variant="secondary">{t("design_system.modal.close")}</Button>
+          <Button onClick={onClose} variant="secondary">
+            {t("design_system.modal.close")}
+          </Button>
         </div>
       </Modal>
     </section>
@@ -247,13 +259,19 @@ function StatusPillsSection() {
     <section>
       <SectionHeading>{t("design_system.status.heading")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("design_system.status.description")}</p>
-      <SectionHeading as="h3" className="mt-4 text-sm">{t("design_system.status.tones_heading")}</SectionHeading>
+      <SectionHeading as="h3" className="mt-4 text-sm">
+        {t("design_system.status.tones_heading")}
+      </SectionHeading>
       <div className="mt-2 flex flex-wrap gap-2">
         {tones.map((tone) => (
-          <TonePill key={tone} tone={tone}>{tone}</TonePill>
+          <TonePill key={tone} tone={tone}>
+            {tone}
+          </TonePill>
         ))}
       </div>
-      <SectionHeading as="h3" className="mt-4 text-sm">{t("design_system.status.states_heading")}</SectionHeading>
+      <SectionHeading as="h3" className="mt-4 text-sm">
+        {t("design_system.status.states_heading")}
+      </SectionHeading>
       <div className="mt-2 flex flex-wrap gap-2">
         {STATUS_PILL_EXAMPLE_STATES.map((state) => (
           <StatusPill key={state} state={state} />

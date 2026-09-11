@@ -68,8 +68,7 @@ describe("nativeNotificationTitle", () => {
 
 describe("nativeNotificationClickUrl", () => {
   it("prefers the PR url when present", () => {
-    expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "https://github.com/o/r/pull/1" }))
-      .toBe("https://github.com/o/r/pull/1")
+    expect(nativeNotificationClickUrl({ jobId: 7, prUrl: "https://github.com/o/r/pull/1" })).toBe("https://github.com/o/r/pull/1")
   })
 
   it("falls back to a job path scoped to the current route prefix", () => {
@@ -148,7 +147,13 @@ describe("dispatchNativeNotification", () => {
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "granted"
     const assign = vi.fn()
-    vi.stubGlobal("location", { ...window.location, pathname: "/dashboard", set href(value: string) { assign(value) } })
+    vi.stubGlobal("location", {
+      ...window.location,
+      pathname: "/dashboard",
+      set href(value: string) {
+        assign(value)
+      }
+    })
     const focus = vi.spyOn(window, "focus").mockImplementation(() => {})
 
     const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null })

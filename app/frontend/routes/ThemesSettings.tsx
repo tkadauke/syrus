@@ -74,11 +74,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
     setOrderedThemes(customThemes)
     orderedThemesRef.current = customThemes
 
-    const selected = (
-      selectedId
-        ? customThemes.find((theme) => theme.id === selectedId)
-        : undefined
-    ) ?? customThemes[0]
+    const selected = (selectedId ? customThemes.find((theme) => theme.id === selectedId) : undefined) ?? customThemes[0]
     setSelectedId(selected?.id ?? null)
     setDraft(selected ? draftFromTheme(selected) : null)
     setContrastIssues([])
@@ -122,9 +118,13 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
     mutationFn: (theme: ColorTheme) => deleteTheme(theme.id),
     onSuccess: (payload) => {
       const nextCustomThemes = customThemes.filter((theme) => theme.id !== payload.deleted_theme_id)
-      queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => current ? {
-        themes: current.themes.filter((theme) => theme.id !== payload.deleted_theme_id)
-      } : current)
+      queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) =>
+        current
+          ? {
+              themes: current.themes.filter((theme) => theme.id !== payload.deleted_theme_id)
+            }
+          : current
+      )
       setSelectedId(nextCustomThemes[0]?.id ?? null)
       const fallback = payload.fallback_theme_id ? allThemes.find((theme) => theme.id === payload.fallback_theme_id) : null
       if (fallback) void setColorTheme(fallback)
@@ -136,7 +136,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   const reorderMutation = useMutation({
     mutationFn: (themes: ColorTheme[]) => reorderThemes(themes.map((theme) => theme.id)),
     onSuccess: (payload) => {
-      queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => current ? mergeCustomThemes(current, payload.themes) : current)
+      queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => (current ? mergeCustomThemes(current, payload.themes) : current))
       onNotice("Theme order saved.")
     },
     onError: () => {
@@ -206,7 +206,9 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
       <section aria-label="Custom themes" className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <SectionHeading>Custom Themes</SectionHeading>
-          <Button disabled={createMutation.isPending || allThemes.length === 0} onClick={() => createMutation.mutate()} size="sm">New</Button>
+          <Button disabled={createMutation.isPending || allThemes.length === 0} onClick={() => createMutation.mutate()} size="sm">
+            New
+          </Button>
         </div>
         {createMutation.isError ? <PanelMessage tone="error">{errorMessage(createMutation.error, "Unable to create theme.")}</PanelMessage> : null}
         {reorderMutation.isError ? <PanelMessage tone="error">{errorMessage(reorderMutation.error, "Unable to save theme order.")}</PanelMessage> : null}
@@ -216,9 +218,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
               <button
                 aria-current={theme.id === selectedId ? "true" : undefined}
                 className={`group relative flex w-full items-center gap-3 rounded border px-3 py-2 text-left text-sm ${
-                  theme.id === selectedId
-                    ? "border-brand bg-brand/10 text-brand"
-                    : "border-border bg-surface text-text-primary hover:bg-surface-raised"
+                  theme.id === selectedId ? "border-brand bg-brand/10 text-brand" : "border-border bg-surface text-text-primary hover:bg-surface-raised"
                 }`}
                 draggable={!reorderMutation.isPending}
                 key={theme.id}
@@ -226,14 +226,20 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
                   setSelectedId(theme.id)
                   void setColorTheme(theme)
                 }}
-                onDragEnd={() => { dragIndex.current = null }}
+                onDragEnd={() => {
+                  dragIndex.current = null
+                }}
                 onDragOver={(event) => dragOver(index, event)}
                 onDragStart={(event) => startDrag(index, event)}
                 onDrop={drop}
                 type="button"
               >
                 <DragHandle />
-                <span aria-hidden="true" className="h-5 w-5 shrink-0 rounded border border-black/10 dark:border-white/20" style={{ backgroundColor: theme.tokens.light.brand }} />
+                <span
+                  aria-hidden="true"
+                  className="h-5 w-5 shrink-0 rounded border border-black/10 dark:border-white/20"
+                  style={{ backgroundColor: theme.tokens.light.brand }}
+                />
                 <span className="min-w-0 flex-1 truncate">{theme.name}</span>
               </button>
             ))}
@@ -290,7 +296,7 @@ function ThemeEditor({
   onTokenChange: (mode: "light" | "dark", key: string, value: string) => void
   saveError: string | null
   saving: boolean
-  }) {
+}) {
   const hasInvalidTokens = !draftTokensValid(draft)
 
   return (
@@ -301,8 +307,12 @@ function ThemeEditor({
           <Input id="theme-name" maxLength={120} onChange={(event) => onNameChange(event.target.value)} required value={draft.name} />
         </label>
         <div className="flex gap-2">
-          <Button disabled={saving || deleting || !draft.name.trim() || hasInvalidTokens} onClick={onSave}>{saving ? "Saving..." : "Save"}</Button>
-          <Button disabled={saving || deleting} onClick={onDelete} variant="danger">{deleting ? "Deleting..." : "Delete"}</Button>
+          <Button disabled={saving || deleting || !draft.name.trim() || hasInvalidTokens} onClick={onSave}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+          <Button disabled={saving || deleting} onClick={onDelete} variant="danger">
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
         </div>
       </div>
 
@@ -323,7 +333,9 @@ function ThemeEditor({
                     const inputId = `${mode}-${key}`
                     return (
                       <div className="space-y-1" key={inputId}>
-                        <label className="block text-xs font-medium text-text-primary" htmlFor={inputId}>{tokenLabel(mode, key)}</label>
+                        <label className="block text-xs font-medium text-text-primary" htmlFor={inputId}>
+                          {tokenLabel(mode, key)}
+                        </label>
                         <div className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-2">
                           <Input
                             aria-label={`${tokenLabel(mode, key)} swatch`}
@@ -342,9 +354,15 @@ function ThemeEditor({
                             value={value}
                           />
                         </div>
-                        {invalidHex ? <p className="text-xs text-danger" role="alert">Use a 6-digit hex color like #1d4ed8.</p> : null}
+                        {invalidHex ? (
+                          <p className="text-xs text-danger" role="alert">
+                            Use a 6-digit hex color like #1d4ed8.
+                          </p>
+                        ) : null}
                         {fieldIssues.map((issue) => (
-                          <p className="text-xs text-danger" key={`${issue.mode}-${issue.foreground}-${issue.background}-${issue.message}`} role="alert">{issue.message}</p>
+                          <p className="text-xs text-danger" key={`${issue.mode}-${issue.foreground}-${issue.background}-${issue.message}`} role="alert">
+                            {issue.message}
+                          </p>
                         ))}
                       </div>
                     )
@@ -362,7 +380,9 @@ function ThemeEditor({
 function DragHandle() {
   return (
     <span aria-hidden="true" className="grid h-5 w-3 shrink-0 grid-cols-2 gap-0.5 text-text-secondary">
-      {Array.from({ length: 6 }).map((_, index) => <span className="h-1 w-1 rounded-full bg-current" key={index} />)}
+      {Array.from({ length: 6 }).map((_, index) => (
+        <span className="h-1 w-1 rounded-full bg-current" key={index} />
+      ))}
     </span>
   )
 }
@@ -400,11 +420,7 @@ function mergeCustomTheme(current: ThemesPayload | undefined, theme: ColorTheme)
 
   const insertAfterIndex = insertionIndexForCustomTheme(current.themes, theme)
   return {
-    themes: [
-      ...current.themes.slice(0, insertAfterIndex),
-      theme,
-      ...current.themes.slice(insertAfterIndex)
-    ]
+    themes: [...current.themes.slice(0, insertAfterIndex), theme, ...current.themes.slice(insertAfterIndex)]
   }
 }
 

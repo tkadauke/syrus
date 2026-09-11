@@ -182,8 +182,7 @@ export type KubernetesNodeMetricRow = { name: string; cpu_millicores: number; me
 export type KubernetesPodMetricRow = { name: string; namespace: string; cpu_millicores: number; memory_bytes: number }
 
 export type KubernetesMetricsSection<TRow> =
-  | { available: true; items: TRow[]; total_cpu_millicores: number; total_memory_bytes: number }
-  | { available: false; reason: string; message: string }
+  { available: true; items: TRow[]; total_cpu_millicores: number; total_memory_bytes: number } | { available: false; reason: string; message: string }
 
 export type KubernetesOverviewResponse = {
   generated_at: string
@@ -211,19 +210,12 @@ export function fetchKubernetesPods(clusterId: number, namespace?: string | null
   return getJson<KubernetesPodsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods`, namespace))
 }
 
-export function fetchKubernetesPodLogs(
-  clusterId: number,
-  namespace: string,
-  name: string,
-  options: { container?: string | null; tail_lines?: number } = {}
-) {
+export function fetchKubernetesPodLogs(clusterId: number, namespace: string, name: string, options: { container?: string | null; tail_lines?: number } = {}) {
   const search = new URLSearchParams({ namespace })
   if (options.container) search.set("container", options.container)
   if (options.tail_lines) search.set("tail_lines", String(options.tail_lines))
 
-  return getJson<KubernetesPodLogsResponse>(
-    `/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods/${encodeURIComponent(name)}/logs?${search.toString()}`
-  )
+  return getJson<KubernetesPodLogsResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods/${encodeURIComponent(name)}/logs?${search.toString()}`)
 }
 
 export function fetchKubernetesDeployments(clusterId: number, namespace?: string | null) {

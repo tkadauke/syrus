@@ -33,13 +33,7 @@ export type AdminConsolePayload = {
   message?: string
 }
 
-export type ConsoleCommand =
-  | "pause_polling"
-  | "unpause_polling"
-  | "pause_runs"
-  | "unpause_runs"
-  | "enable_merge_train"
-  | "disable_merge_train"
+export type ConsoleCommand = "pause_polling" | "unpause_polling" | "pause_runs" | "unpause_runs" | "enable_merge_train" | "disable_merge_train"
 
 export function fetchAdminConsole() {
   return getJson<AdminConsolePayload>("/api/v1/app/admin/console")

@@ -9,9 +9,9 @@ import type { JobDetailPayload, JobPrLink, JobPrLinkRole } from "../../api/jobs"
 // a header action (see JobHeader.tsx's headerActions) — this panel only
 // surfaces why it's unavailable, when it is.
 
-const ROLE_ORDER: JobPrLinkRole[] = [ "local", "upstream_export", "promotion", "hotfix_sync", "external_ingest" ]
+const ROLE_ORDER: JobPrLinkRole[] = ["local", "upstream_export", "promotion", "hotfix_sync", "external_ingest"]
 
-const UPSTREAM_ROLES = new Set<JobPrLinkRole>([ "promotion", "upstream_export" ])
+const UPSTREAM_ROLES = new Set<JobPrLinkRole>(["promotion", "upstream_export"])
 
 // The two states every job without delivery config resolves to; skip
 // rendering the panel entirely unless there's something beyond that to
@@ -46,7 +46,9 @@ export function DeliveryPanel({ payload }: { payload: JobDetailPayload }) {
           <TonePill tone={deliveryStatusTone(job.delivery_status)}>{deliveryStatusText(t, job.delivery_status, pr_links)}</TonePill>
         </div>
         {payload.actions.send_job_upstream_blocked_reason ? (
-          <p className="text-xs text-gray-400 dark:text-gray-500">{t("delivery.send_upstream_blocked", { reason: payload.actions.send_job_upstream_blocked_reason })}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            {t("delivery.send_upstream_blocked", { reason: payload.actions.send_job_upstream_blocked_reason })}
+          </p>
         ) : null}
         <PrLinksList prLinks={pr_links} />
       </div>
@@ -58,7 +60,7 @@ function PrLinksList({ prLinks }: { prLinks: JobPrLink[] }) {
   const { t } = useT("jobs")
   if (prLinks.length === 0) return null
 
-  const byRole = new Map(prLinks.map((link) => [ link.role, link ]))
+  const byRole = new Map(prLinks.map((link) => [link.role, link]))
   const ordered = ROLE_ORDER.map((role) => byRole.get(role)).filter((link): link is JobPrLink => Boolean(link))
 
   return (
@@ -69,7 +71,8 @@ function PrLinksList({ prLinks }: { prLinks: JobPrLink[] }) {
           <li className="flex flex-wrap items-center justify-between gap-1 py-1.5 text-xs" key={link.id}>
             <span className="text-gray-700 dark:text-gray-300">{t(`delivery.role_${link.role}`)}</span>
             <span className="font-mono text-gray-500 dark:text-gray-400">
-              {link.source_ref} &rarr; {link.target_repository_slug ? `${link.target_repository_slug}:` : ""}{link.target_ref}
+              {link.source_ref} &rarr; {link.target_repository_slug ? `${link.target_repository_slug}:` : ""}
+              {link.target_ref}
             </span>
             {link.pr_number ? (
               link.pr_url ? (

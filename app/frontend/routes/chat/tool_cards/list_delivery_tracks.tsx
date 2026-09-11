@@ -50,17 +50,28 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Track</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Branch</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Review phase</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Landing phase</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Track
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Branch
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Review phase
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Landing phase
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((row) => (
             <tr key={row.name}>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-800 dark:text-gray-200">
-                <span className="flex items-center gap-1">{row.name}{row.isDefault ? <Badge>default</Badge> : null}</span>
+                <span className="flex items-center gap-1">
+                  {row.name}
+                  {row.isDefault ? <Badge>default</Badge> : null}
+                </span>
               </td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.branch || "—"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.reviewGradePhase || "—"}</td>

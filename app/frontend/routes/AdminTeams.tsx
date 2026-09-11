@@ -65,7 +65,9 @@ export function AdminTeamsIndex() {
       {teams.isSuccess ? (
         <AdminFiltersLayout>
           <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{t("teams.matching", { count: teams.data.teams.length })}</div>
+            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+              {t("teams.matching", { count: teams.data.teams.length })}
+            </div>
             <TeamsTable teams={teams.data.teams} />
           </section>
 
@@ -98,7 +100,9 @@ function TeamsTable({ teams }: { teams: AdminTeamRow[] }) {
           {teams.map((team) => (
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-800" key={team.id}>
               <td className="px-4 py-2">
-                <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={`/admin/teams/${team.id}`}>{team.name}</Link>
+                <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={`/admin/teams/${team.id}`}>
+                  {team.name}
+                </Link>
               </td>
               <td className="px-4 py-2">{team.member_count}</td>
               <td className="px-4 py-2">{team.repository_count}</td>
@@ -124,18 +128,16 @@ function CreateTeamForm({ onSubmit, pending, error }: { onSubmit: (name: string)
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <SectionHeading>{t("teams.create_team")}</SectionHeading>
-      {error ? <div className="mt-2"><PanelMessage tone="error">{error}</PanelMessage></div> : null}
+      {error ? (
+        <div className="mt-2">
+          <PanelMessage tone="error">{error}</PanelMessage>
+        </div>
+      ) : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("teams.name_label")}
           <div className="mt-1">
-            <Input
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("teams.name_placeholder")}
-              required
-              type="text"
-              value={name}
-            />
+            <Input onChange={(event) => setName(event.target.value)} placeholder={t("teams.name_placeholder")} required type="text" value={name} />
           </div>
         </label>
         <Button disabled={pending} type="submit">
@@ -159,7 +161,9 @@ export function AdminTeamDetailRoute() {
   return (
     <main aria-label={t("teams.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to="/admin/teams">{t("teams.heading")}</Link>
+        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to="/admin/teams">
+          {t("teams.heading")}
+        </Link>
         <PageHeading className="mt-2">{team.data?.team.name || `Team #${id}`}</PageHeading>
       </header>
 
@@ -276,8 +280,16 @@ function TeamMembers({ teamId, memberships, canManage }: { teamId: number; membe
         <SectionHeading>{t("teams.members")}</SectionHeading>
       </div>
 
-      {updateRole.isError ? <div className="m-4"><PanelMessage tone="error">{errorMessage(updateRole.error, t("teams.error_update_role"))}</PanelMessage></div> : null}
-      {destroy.isError ? <div className="m-4"><PanelMessage tone="error">{errorMessage(destroy.error, t("teams.error_remove_member"))}</PanelMessage></div> : null}
+      {updateRole.isError ? (
+        <div className="m-4">
+          <PanelMessage tone="error">{errorMessage(updateRole.error, t("teams.error_update_role"))}</PanelMessage>
+        </div>
+      ) : null}
+      {destroy.isError ? (
+        <div className="m-4">
+          <PanelMessage tone="error">{errorMessage(destroy.error, t("teams.error_remove_member"))}</PanelMessage>
+        </div>
+      ) : null}
 
       {memberships.length === 0 ? (
         <div className="m-4 rounded border border-dashed border-gray-300 dark:border-gray-600 px-4 py-8 text-center text-sm text-gray-600 dark:text-gray-400">
@@ -331,12 +343,7 @@ function TeamMembers({ teamId, memberships, canManage }: { teamId: number; membe
 function TeamRoleSelect({ value, onChange, disabled }: { value: TeamMembershipRole; onChange: (role: TeamMembershipRole) => void; disabled: boolean }) {
   const { t } = useT("admin")
   return (
-    <Select
-      disabled={disabled}
-      fullWidth={false}
-      onChange={(event) => onChange(event.target.value as TeamMembershipRole)}
-      value={value}
-    >
+    <Select disabled={disabled} fullWidth={false} onChange={(event) => onChange(event.target.value as TeamMembershipRole)} value={value}>
       {TEAM_MEMBERSHIP_ROLES.map((role) => (
         <option key={role} value={role}>
           {t(`teams.role_${role}`)}
@@ -370,18 +377,16 @@ function AddMemberForm({ teamId }: { teamId: number }) {
   return (
     <div className="border-t border-gray-100 dark:border-gray-800 p-4">
       <SectionHeading as="h3">{t("teams.add_member")}</SectionHeading>
-      {create.isError ? <div className="mt-2"><PanelMessage tone="error">{errorMessage(create.error, t("teams.error_add_member"))}</PanelMessage></div> : null}
+      {create.isError ? (
+        <div className="mt-2">
+          <PanelMessage tone="error">{errorMessage(create.error, t("teams.error_add_member"))}</PanelMessage>
+        </div>
+      ) : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("teams.email_label")}
           <div className="mt-1">
-            <Input
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder={t("teams.email_placeholder")}
-              required
-              type="email"
-              value={email}
-            />
+            <Input onChange={(event) => setEmail(event.target.value)} placeholder={t("teams.email_placeholder")} required type="email" value={email} />
           </div>
         </label>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">

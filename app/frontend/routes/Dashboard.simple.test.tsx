@@ -220,8 +220,26 @@ function simpleDashboardPayload(): DashboardPayload {
     total: 2,
     total_pages: 1,
     counts: { jobs: 2, epics: 1, workflows: 1 },
-    preferences: { sort: { column: "created_at", direction: "desc" }, visible_columns: [], kanban_lanes: [], ownership_scope: "team", owner_user_id: null, owner_id: null, raw: {} },
-    controls: { views: ["list"], ownership_scopes: [], owners: [], sort_columns: ["created_at"], sort_directions: ["asc", "desc"], columns: { required: [], optional: [] }, kanban_lanes: [], filter_schema: [], filter_suggestions: [] },
+    preferences: {
+      sort: { column: "created_at", direction: "desc" },
+      visible_columns: [],
+      kanban_lanes: [],
+      ownership_scope: "team",
+      owner_user_id: null,
+      owner_id: null,
+      raw: {}
+    },
+    controls: {
+      views: ["list"],
+      ownership_scopes: [],
+      owners: [],
+      sort_columns: ["created_at"],
+      sort_directions: ["asc", "desc"],
+      columns: { required: [], optional: [] },
+      kanban_lanes: [],
+      filter_schema: [],
+      filter_suggestions: []
+    },
     landing_queue: { visible: false, paused: false, toggle_path: "" },
     ownership_scope: { scope: "team", owner_user_id: null, owner_user: null },
     ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false },
@@ -233,7 +251,15 @@ function simpleDashboardPayload(): DashboardPayload {
     ],
     lanes: [],
     kanban_limit: null,
-    paths: { dashboard_path: "/dashboard/jobs", dashboard_jobs_path: "/dashboard/jobs", dashboard_epics_path: "/dashboard/epics", dashboard_workflows_path: "/dashboard/workflows", new_epic_path: "/epics/new", new_job_path: "/jobs/new", app_dashboard_path: "/api/v1/app/dashboard" }
+    paths: {
+      dashboard_path: "/dashboard/jobs",
+      dashboard_jobs_path: "/dashboard/jobs",
+      dashboard_epics_path: "/dashboard/epics",
+      dashboard_workflows_path: "/dashboard/workflows",
+      new_epic_path: "/epics/new",
+      new_job_path: "/jobs/new",
+      app_dashboard_path: "/api/v1/app/dashboard"
+    }
   }
 }
 

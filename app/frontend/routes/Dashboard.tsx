@@ -2,7 +2,18 @@ import { useMediaQuery } from "./dashboard/components"
 import { DashboardKanban } from "./dashboard/KanbanBoard"
 import { JobsDashboardTable, SimpleJobsTable } from "./dashboard/JobsTable"
 import { EpicsTable, SimpleFeaturesTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
-import { dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, epicTableColumns, pageLink, sortValue, sortableColumnFor, subjectLabel, uniqueValue, withRoutePrefix } from "./dashboard/helpers"
+import {
+  dashboardEmptyState,
+  dashboardLinkFromSearch,
+  dashboardVisibleColumns,
+  epicTableColumns,
+  pageLink,
+  sortValue,
+  sortableColumnFor,
+  subjectLabel,
+  uniqueValue,
+  withRoutePrefix
+} from "./dashboard/helpers"
 import type { DashboardSortState } from "./dashboard/helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -23,7 +34,26 @@ import { FilterBar } from "../components/FilterBar"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useTour } from "../hooks/useTour"
-import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardUntaggedIssues, type DashboardWorkflowItem } from "../api/dashboard"
+import {
+  dashboardApiSearch,
+  dashboardChromeSearch,
+  dashboardSubjectFromPath,
+  fetchDashboardChromeWithMeta,
+  fetchDashboardRowsWithMeta,
+  fetchEpicsGraph,
+  fetchJobsGraph,
+  mergeDashboardPayload,
+  recordDashboardFilterUsage,
+  requestDashboardMainBranchRepair,
+  updateDashboardPreferences,
+  type DashboardHealthBlockedRepository,
+  type DashboardEpicItem,
+  type DashboardJobItem,
+  type DashboardPayload,
+  type DashboardSubject,
+  type DashboardUntaggedIssues,
+  type DashboardWorkflowItem
+} from "../api/dashboard"
 import type { JsonResponseMeta } from "../api/client"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { errorMessage } from "../lib/errorMessage"
@@ -89,42 +119,79 @@ export function DashboardRoute() {
     })
   }, [dashboardChrome.data, dashboardRows.data, payload, queryClient, traceKey])
 
-  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending)) return <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
+  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending))
+    return (
+      <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">
+        {t("loading")}
+      </main>
+    )
   if (dashboardChrome.isError) return <DashboardError error={dashboardChrome.error} />
   if (dashboardRows.isError) return <DashboardError error={dashboardRows.error} />
-  if (!payload) return <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
+  if (!payload)
+    return (
+      <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">
+        {t("loading")}
+      </main>
+    )
 
   return <DashboardView pathname={location.pathname} search={location.search} payload={payload} />
 }
 
-function recordDashboardBrowserTrace({ chromeMeta, loggingEnabled, payload, rowsMeta, startedAt, traceId, tracePath }: { chromeMeta: JsonResponseMeta | null; loggingEnabled: boolean; payload: DashboardPayload; rowsMeta: JsonResponseMeta | null; startedAt: number; traceId: string; tracePath: string }) {
+function recordDashboardBrowserTrace({
+  chromeMeta,
+  loggingEnabled,
+  payload,
+  rowsMeta,
+  startedAt,
+  traceId,
+  tracePath
+}: {
+  chromeMeta: JsonResponseMeta | null
+  loggingEnabled: boolean
+  payload: DashboardPayload
+  rowsMeta: JsonResponseMeta | null
+  startedAt: number
+  traceId: string
+  tracePath: string
+}) {
   const totalDuration = Math.max(0, performance.now() - startedAt)
   const apiRequests = [
     apiRequestTrace("dashboard.chrome", sanitizedDashboardRequestMeta(chromeMeta)),
     apiRequestTrace("dashboard.rows", sanitizedDashboardRequestMeta(rowsMeta))
   ].filter((request): request is NonNullable<typeof request> => request != null)
   const apiDuration = apiRequests.reduce((sum, request) => sum + request.duration_ms, 0)
-  recordBrowserTrace({
-    trace_id: traceId,
-    name: "dashboard.route",
-    path: tracePath,
-    duration_ms: totalDuration,
-    visibility_state: document.visibilityState || "unknown",
-    metadata: {
-      subject: payload.subject,
-      view: payload.view,
-      page: payload.page,
-      rows_count: payload.items?.length ?? 0,
-      total: payload.total,
-      total_estimated: payload.total_estimated === true,
-      smart_folder_id: payload.active_smart_folder_id
+  recordBrowserTrace(
+    {
+      trace_id: traceId,
+      name: "dashboard.route",
+      path: tracePath,
+      duration_ms: totalDuration,
+      visibility_state: document.visibilityState || "unknown",
+      metadata: {
+        subject: payload.subject,
+        view: payload.view,
+        page: payload.page,
+        rows_count: payload.items?.length ?? 0,
+        total: payload.total,
+        total_estimated: payload.total_estimated === true,
+        smart_folder_id: payload.active_smart_folder_id
+      },
+      api_requests: apiRequests,
+      spans: dashboardTraceSpans({ apiRequests, apiDuration, totalDuration })
     },
-    api_requests: apiRequests,
-    spans: dashboardTraceSpans({ apiRequests, apiDuration, totalDuration })
-  }, { enabled: loggingEnabled })
+    { enabled: loggingEnabled }
+  )
 }
 
-function dashboardTraceSpans({ apiDuration, apiRequests, totalDuration }: { apiDuration: number; apiRequests: Array<{ name: string; duration_ms: number }>; totalDuration: number }): BrowserTraceSpan[] {
+function dashboardTraceSpans({
+  apiDuration,
+  apiRequests,
+  totalDuration
+}: {
+  apiDuration: number
+  apiRequests: Array<{ name: string; duration_ms: number }>
+  totalDuration: number
+}): BrowserTraceSpan[] {
   const spans: BrowserTraceSpan[] = apiRequests.map((request) => ({
     name: `api.${request.name}`,
     duration_ms: request.duration_ms
@@ -180,12 +247,18 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
     <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 px-0 py-4 sm:p-6">
       <header className="flex flex-wrap items-center gap-3 px-4 sm:px-0">
         <PageHeading className="flex-1">{isLegacyEpicsView ? t("legacy_epics_title") : payload.simple_mode ? t("simple_title") : t("title")}</PageHeading>
-        {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
+        {isDesktop && !payload.simple_mode ? (
+          <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} />
+        ) : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
       {isLegacyEpicsView ? <LegacyEpicsBanner className="mx-4 sm:mx-0" /> : null}
       <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
-      <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
+      <RepositoryHealthBanners
+        className="mx-4 sm:mx-0"
+        prefix={prefix}
+        repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []}
+      />
       <UntaggedIssuesBanner className="mx-4 sm:mx-0" prefix={prefix} untaggedIssues={payload.untagged_issues} />
 
       {isDesktop ? (
@@ -217,33 +290,41 @@ export function DashboardTour({ simpleMode = false }: { simpleMode?: boolean }) 
             title: t("dashboard.filter_chips_title"),
             content: t("dashboard.filter_chips_content"),
             placement: "bottom" as const,
-            disableBeacon: true,
+            disableBeacon: true
           }
         ]),
     {
       target: "[data-tour='dashboard-view-switcher']",
       title: t("dashboard.view_switcher_title"),
       content: t("dashboard.view_switcher_content"),
-      placement: "bottom-end" as const,
+      placement: "bottom-end" as const
     },
     {
       target: "[data-tour='dashboard-create-actions']",
       title: simpleMode ? t("dashboard.create_actions_title_simple") : t("dashboard.create_actions_title"),
       content: simpleMode ? t("dashboard.create_actions_content_simple") : t("dashboard.create_actions_content"),
-      placement: "bottom-end" as const,
+      placement: "bottom-end" as const
     },
     {
       target: "[data-tour='dashboard-table']",
       title: simpleMode ? t("dashboard.job_row_title_simple") : t("dashboard.job_row_title"),
       content: simpleMode ? t("dashboard.job_row_content_simple") : t("dashboard.job_row_content"),
-      placement: "top" as const,
-    },
+      placement: "top" as const
+    }
   ]
 
   return <SyrusTour run={run} steps={steps} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-export function ReadinessPanel({ className = "", prefix, readiness }: { className?: string; prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
+export function ReadinessPanel({
+  className = "",
+  prefix,
+  readiness
+}: {
+  className?: string
+  prefix: string
+  readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]>
+}) {
   const { t } = useT("dashboard")
   // While the desktop shell's backend update has the containers down,
   // readiness checks fail because the backend is deliberately unreachable —
@@ -259,13 +340,19 @@ export function ReadinessPanel({ className = "", prefix, readiness }: { classNam
   if (failingChecks.length === 0) return null
 
   return (
-    <section aria-label={t("system_readiness")} className={`${className} rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40`}>
+    <section
+      aria-label={t("system_readiness")}
+      className={`${className} rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">{t("readiness_title")}</h2>
           <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">{t("readiness_description")}</p>
         </div>
-        <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900" to={`${prefix}/credentials`}>
+        <Link
+          className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
+          to={`${prefix}/credentials`}
+        >
           {t("open_settings")}
         </Link>
       </div>
@@ -310,7 +397,15 @@ function writeHealthBannerDismissals(dismissals: Record<string, string>): void {
   }
 }
 
-export function RepositoryHealthBanners({ className = "", prefix, repositories }: { className?: string; prefix: string; repositories: DashboardHealthBlockedRepository[] }) {
+export function RepositoryHealthBanners({
+  className = "",
+  prefix,
+  repositories
+}: {
+  className?: string
+  prefix: string
+  repositories: DashboardHealthBlockedRepository[]
+}) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [dismissals, setDismissals] = useState<Record<string, string>>(() => readHealthBannerDismissals())
@@ -331,25 +426,42 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
         const blockingJob = repair?.blocking_job
         const failedJobs = repair?.failed_jobs ?? []
         const isStartingRepair = requestRepair.isPending && requestRepair.variables === repo.repair_path
-        const repairError = requestRepair.isError && requestRepair.variables === repo.repair_path
-          ? (requestRepair.error instanceof Error ? requestRepair.error.message : t("broken_main_repair_start_failed"))
-          : null
+        const repairError =
+          requestRepair.isError && requestRepair.variables === repo.repair_path
+            ? requestRepair.error instanceof Error
+              ? requestRepair.error.message
+              : t("broken_main_repair_start_failed")
+            : null
 
         return (
-          <div className="flex flex-col gap-2 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/40 sm:flex-row sm:items-center sm:justify-between" key={repo.id} role="alert">
+          <div
+            className="flex flex-col gap-2 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/40 sm:flex-row sm:items-center sm:justify-between"
+            key={repo.id}
+            role="alert"
+          >
             <div className="min-w-0">
               <span className="text-red-800 dark:text-red-200">
                 <span className="font-mono font-medium">{repo.slug}</span>
-                {" — "}{t(repo.main_health === "inconclusive"
-                  ? "main_health_inconclusive_banner_not_held"
-                  : (repo.landing_paused && repo.main_branch_repair_blocks_work ? "broken_main_banner" : "broken_main_banner_not_held")
+                {" — "}
+                {t(
+                  repo.main_health === "inconclusive"
+                    ? "main_health_inconclusive_banner_not_held"
+                    : repo.landing_paused && repo.main_branch_repair_blocks_work
+                      ? "broken_main_banner"
+                      : "broken_main_banner_not_held"
                 )}
               </span>
               {repair ? (
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-red-700 dark:text-red-200">
                   {blockingJob ? (
                     <span>
-                      {t(repair.blocked_reason === "active" ? "broken_main_repair_active" : repair.blocked_reason === "landing" ? "broken_main_repair_landing" : "broken_main_repair_waiting")}{" "}
+                      {t(
+                        repair.blocked_reason === "active"
+                          ? "broken_main_repair_active"
+                          : repair.blocked_reason === "landing"
+                            ? "broken_main_repair_landing"
+                            : "broken_main_repair_waiting"
+                      )}{" "}
                       <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(blockingJob.job_path, prefix)}>
                         {blockingJob.slug}
                       </Link>
@@ -394,11 +506,13 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
               <button
                 aria-label={t("broken_main_dismiss")}
                 className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
-                onClick={() => setDismissals((prev) => {
-                  const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
-                  writeHealthBannerDismissals(next)
-                  return next
-                })}
+                onClick={() =>
+                  setDismissals((prev) => {
+                    const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
+                    writeHealthBannerDismissals(next)
+                    return next
+                  })
+                }
                 type="button"
               >
                 <CloseIcon />
@@ -443,7 +557,15 @@ export function LegacyEpicsBanner({ className = "" }: { className?: string }) {
   )
 }
 
-export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }: { className?: string; prefix: string; untaggedIssues?: DashboardUntaggedIssues }) {
+export function UntaggedIssuesBanner({
+  className = "",
+  prefix,
+  untaggedIssues
+}: {
+  className?: string
+  prefix: string
+  untaggedIssues?: DashboardUntaggedIssues
+}) {
   const { t } = useT("dashboard")
   const [dismissedToken, setDismissedToken] = useState<string | null>(() => readUntaggedIssuesDismissal())
 
@@ -453,11 +575,13 @@ export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }:
   if (dismissedToken === token) return null
 
   return (
-    <div className={`${className} flex flex-col gap-2 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40 sm:flex-row sm:items-center sm:justify-between`} role="status">
+    <div
+      className={`${className} flex flex-col gap-2 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40 sm:flex-row sm:items-center sm:justify-between`}
+      role="status"
+    >
       <div className="min-w-0 text-amber-900 dark:text-amber-200">
         <span>
-          {t("untagged_issues_summary", { count: untaggedIssues.total })}{" "}
-          {t("untagged_issues_repo_count", { count: untaggedIssues.repositories.length })}
+          {t("untagged_issues_summary", { count: untaggedIssues.total })} {t("untagged_issues_repo_count", { count: untaggedIssues.repositories.length })}
         </span>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           {untaggedIssues.repositories.map((repo, index) => (
@@ -486,7 +610,11 @@ export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }:
 }
 
 function DesktopDashboardControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  return <div data-tour="dashboard-filter-bar"><DashboardFilterBar pathname={pathname} search={search} payload={payload} /></div>
+  return (
+    <div data-tour="dashboard-filter-bar">
+      <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
+    </div>
+  )
 }
 
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
@@ -495,7 +623,12 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
     <div className="space-y-3 px-4 sm:px-0">
       <div aria-label={t("controls_label")} className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
-          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" pathname={pathname} payload={payload} prefix={prefix} />
+          <SubjectTabs
+            className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900"
+            pathname={pathname}
+            payload={payload}
+            prefix={prefix}
+          />
         </div>
         <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={false} isDesktop={false} />
       </div>
@@ -506,7 +639,9 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
           <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("hide")}</span>
         </summary>
         <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
-          <div data-tour="dashboard-filter-bar"><DashboardFilterBar pathname={pathname} search={search} payload={payload} /></div>
+          <div data-tour="dashboard-filter-bar">
+            <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
+          </div>
           <DashboardSmartFolderNav payload={payload} prefix={prefix} search={search} />
         </div>
       </details>
@@ -532,14 +667,13 @@ export function DashboardContent({ payload, pathname, prefix, search }: { payloa
     if (!isDesktop) {
       return (
         <section className="min-w-0 space-y-4">
-          <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">{t("dependencies_mobile_unavailable")}</div>
+          <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">
+            {t("dependencies_mobile_unavailable")}
+          </div>
         </section>
       )
     }
-    const graphSearch = graphSearchWithSmartFolder(
-      dashboardApiSearch(pathname, search),
-      payload.active_smart_folder_id
-    )
+    const graphSearch = graphSearchWithSmartFolder(dashboardApiSearch(pathname, search), payload.active_smart_folder_id)
     return (
       <section className="min-w-0 space-y-4">
         <DashboardDependencyView payload={payload} graphSearch={graphSearch} />
@@ -561,8 +695,7 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
 
   const graphQuery = useQuery({
     queryKey: ["dashboard", "graph", subject, graphSearch],
-    queryFn: ({ signal }) =>
-      subject === "job" ? fetchJobsGraph(graphSearch, { signal }) : fetchEpicsGraph(graphSearch, { signal }),
+    queryFn: ({ signal }) => (subject === "job" ? fetchJobsGraph(graphSearch, { signal }) : fetchEpicsGraph(graphSearch, { signal })),
     enabled: subject === "job" || subject === "epic",
     placeholderData: (previousData) => previousData
   })
@@ -570,24 +703,34 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
   if (subject === "workflow") return null
 
   if (graphQuery.isPending) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("loading")}</div>
+    return (
+      <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+        {t("loading")}
+      </div>
+    )
   }
 
   if (graphQuery.isError) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-red-700 dark:border-gray-700 dark:bg-gray-900 dark:text-red-300" role="alert">{t("load_error")}</div>
+    return (
+      <div className="rounded border border-gray-200 bg-white p-6 text-sm text-red-700 dark:border-gray-700 dark:bg-gray-900 dark:text-red-300" role="alert">
+        {t("load_error")}
+      </div>
+    )
   }
 
   const { nodes, edges } = graphQuery.data ?? { nodes: [], edges: [] }
 
   if (nodes.length === 0) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_match", { subject: subjectLabel(subject, 2) })}</div>
+    return (
+      <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+        {t("no_match", { subject: subjectLabel(subject, 2) })}
+      </div>
+    )
   }
 
   return (
     <div className="overflow-x-auto rounded border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
-      {edges.length === 0 && (
-        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("no_dependency_edges")}</p>
-      )}
+      {edges.length === 0 && <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("no_dependency_edges")}</p>}
       <TopoDepGraph nodes={nodes} edges={edges} />
     </div>
   )
@@ -597,13 +740,29 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   const { t } = useT("dashboard")
   return (
     <div className="flex flex-wrap gap-2" data-tour="dashboard-create-actions">
-      <Link className={buttonClasses()} to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{payload.simple_mode ? t("new_feature") : t("new_epic")}</Link>
-      {payload.simple_mode ? null : <Link className={buttonClasses("success")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>}
+      <Link className={buttonClasses()} to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>
+        {payload.simple_mode ? t("new_feature") : t("new_epic")}
+      </Link>
+      {payload.simple_mode ? null : (
+        <Link className={buttonClasses("success")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>
+          {t("new_job")}
+        </Link>
+      )}
     </div>
   )
 }
 
-function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" }: { pathname: string; payload: DashboardPayload; prefix: string; className?: string }) {
+function SubjectTabs({
+  pathname,
+  payload,
+  prefix,
+  className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900"
+}: {
+  pathname: string
+  payload: DashboardPayload
+  prefix: string
+  className?: string
+}) {
   const { t } = useT("dashboard")
   const activeSubject = dashboardSubjectFromPath(pathname) ?? payload.subject
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
@@ -627,7 +786,19 @@ function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max
   )
 }
 
-export function DashboardToolbar({ payload, pathname, search, showConfiguration = true, isDesktop = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean; isDesktop?: boolean }) {
+export function DashboardToolbar({
+  payload,
+  pathname,
+  search,
+  showConfiguration = true,
+  isDesktop = true
+}: {
+  payload: DashboardPayload
+  pathname: string
+  search: string
+  showConfiguration?: boolean
+  isDesktop?: boolean
+}) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -643,7 +814,7 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
 
   function updateLane(lane: string, checked: boolean) {
     const current = payload.preferences.kanban_lanes
-    const next = checked ? [ ...current, lane ].filter(uniqueValue) : current.filter((value) => value !== lane)
+    const next = checked ? [...current, lane].filter(uniqueValue) : current.filter((value) => value !== lane)
     updatePreferences.mutate({
       subject: payload.subject,
       kanban_lanes: next
@@ -681,7 +852,11 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
               <ColumnsIcon />
             </Button>
             {columnsOpen ? (
-              <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-columns-menu" role="menu">
+              <div
+                className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                id="dashboard-columns-menu"
+                role="menu"
+              >
                 <fieldset className="space-y-2">
                   <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("visible_columns")}</legend>
                   {payload.controls.columns.optional.map((column) => (
@@ -714,7 +889,11 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
               <ColumnsIcon />
             </Button>
             {lanesOpen ? (
-              <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-kanban-lanes-menu" role="menu">
+              <div
+                className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                id="dashboard-kanban-lanes-menu"
+                role="menu"
+              >
                 <fieldset className="space-y-2">
                   <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("kanban_lanes")}</legend>
                   {payload.controls.kanban_lanes.map((lane) => (
@@ -732,7 +911,10 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
             ) : null}
           </div>
         ) : null}
-        <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
+        <nav
+          aria-label={t("view_label")}
+          className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900"
+        >
           {viewTabs.map((view) => (
             <Link
               className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
@@ -751,7 +933,11 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
           ))}
         </nav>
       </div>
-      {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("preferences_error"))}</p> : null}
+      {updatePreferences.isError ? (
+        <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(updatePreferences.error, t("preferences_error"))}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -793,7 +979,19 @@ function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardP
 
 const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
-export function DashboardTable({ payload, pathname = "", prefix, search = "", setupStatus }: { payload: DashboardPayload; pathname?: string; prefix: string; search?: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+export function DashboardTable({
+  payload,
+  pathname = "",
+  prefix,
+  search = "",
+  setupStatus
+}: {
+  payload: DashboardPayload
+  pathname?: string
+  prefix: string
+  search?: string
+  setupStatus: ReturnType<typeof useSetupStatus>
+}) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const updateSort = useMutation({
@@ -804,9 +1002,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
   })
   const storedSortColumn = sortValue(payload.preferences.sort, "column")
   const storedSortDirection = sortValue(payload.preferences.sort, "direction")
-  const isOnLandingQueueFolder = payload.smart_folders.some(
-    (f) => f.id === payload.active_smart_folder_id && f.attention_preset === "landing_queue"
-  )
+  const isOnLandingQueueFolder = payload.smart_folders.some((f) => f.id === payload.active_smart_folder_id && f.attention_preset === "landing_queue")
   const queueSortOutsideLanding = payload.subject === "job" && storedSortColumn === "landing_queue_position" && !isOnLandingQueueFolder
   const effectiveSortColumn = queueSortOutsideLanding ? "created_at" : storedSortColumn
   const effectiveSortDirection = queueSortOutsideLanding ? "desc" : storedSortDirection
@@ -850,10 +1046,15 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
   }
 
   if (payload.rows_current_for_search === false) {
-    return <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">{t("loading")}</div>
+    return (
+      <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">
+        {t("loading")}
+      </div>
+    )
   }
 
-  if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
+  if (payload.view === "kanban")
+    return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
 
   if ((payload.items ?? []).length === 0) {
     if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
@@ -870,12 +1071,17 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
       )
     }
 
-    return <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</div>
+    return (
+      <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">
+        {t("no_match", { subject: subjectLabel(payload.subject, 2) })}
+      </div>
+    )
   }
 
   const columns = dashboardVisibleColumns(payload)
   const items = payload.items ?? []
-  if (payload.simple_mode && payload.subject === "epic") return <SimpleFeaturesTable items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} />
+  if (payload.simple_mode && payload.subject === "epic")
+    return <SimpleFeaturesTable items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} />
   if (payload.simple_mode) return <SimpleJobsTable items={items.filter((item): item is DashboardJobItem => item.type === "job")} />
   if (payload.subject === "job") {
     return (
@@ -891,9 +1097,24 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
       />
     )
   }
-  if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
+  if (payload.subject === "workflow")
+    return (
+      <WorkflowsTable
+        columns={columns}
+        items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")}
+        prefix={prefix}
+        sortState={sortState}
+      />
+    )
 
-  return <EpicsTable columns={epicTableColumns(columns)} items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
+  return (
+    <EpicsTable
+      columns={epicTableColumns(columns)}
+      items={items.filter((item): item is DashboardEpicItem => item.type === "epic")}
+      prefix={prefix}
+      sortState={sortState}
+    />
+  )
 }
 
 function Pagination({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
@@ -905,15 +1126,29 @@ function Pagination({ payload, pathname, search }: { payload: DashboardPayload; 
 
   return (
     <div className="mx-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300 sm:mx-0">
-      <span>{payload.total_estimated ? t("showing_pagination_estimated", { first: firstItem, last: lastItem }) : t("showing_pagination", { first: firstItem, last: lastItem, total: payload.total })}</span>
+      <span>
+        {payload.total_estimated
+          ? t("showing_pagination_estimated", { first: firstItem, last: lastItem })
+          : t("showing_pagination", { first: firstItem, last: lastItem, total: payload.total })}
+      </span>
       <div className="flex gap-2">
         {payload.page > 1 ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page - 1)}>{t("previous")}</Link>
+          <Link
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            to={pageLink(pathname, search, payload.page - 1)}
+          >
+            {t("previous")}
+          </Link>
         ) : (
           <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("previous")}</span>
         )}
         {payload.page < payload.total_pages ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" to={pageLink(pathname, search, payload.page + 1)}>{t("next")}</Link>
+          <Link
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            to={pageLink(pathname, search, payload.page + 1)}
+          >
+            {t("next")}
+          </Link>
         ) : (
           <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("next")}</span>
         )}

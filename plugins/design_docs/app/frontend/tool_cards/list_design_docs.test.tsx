@@ -19,16 +19,19 @@ describe("list_design_docs tool card", () => {
   })
 
   it("summarizes the collapsed row with a doc count", () => {
-    const parsedResult = { design_docs: [{ id: 1, doc_ref: "DOC-1", title: "A" }, { id: 2, doc_ref: "DOC-2", title: "B" }] }
+    const parsedResult = {
+      design_docs: [
+        { id: 1, doc_ref: "DOC-1", title: "A" },
+        { id: 2, doc_ref: "DOC-2", title: "B" }
+      ]
+    }
 
     expect(listDesignDocsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 design docs")
   })
 
   it("renders a row per design doc with its doc ref, title, and state", () => {
     const parsedResult = {
-      design_docs: [
-        { id: 1, doc_ref: "DOC-20", title: "Target Graphs for Project-Aware Workflows", state: "draft" }
-      ]
+      design_docs: [{ id: 1, doc_ref: "DOC-20", title: "Target Graphs for Project-Aware Workflows", state: "draft" }]
     }
 
     render(<>{listDesignDocsToolCard.renderExpanded(context({ parsedResult }))}</>)

@@ -13,7 +13,7 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
   const [selectedContainer, setSelectedContainer] = useState<string | null>(null)
 
   const pods = useQuery({
-    queryKey: [ "k8s_cluster", "pods", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "pods", clusterId, namespace],
     queryFn: () => fetchKubernetesPods(clusterId, namespace)
   })
 
@@ -31,7 +31,7 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
   }, [selectedPod?.namespace, selectedPod?.name])
 
   const logs = useQuery({
-    queryKey: [ "k8s_cluster", "pod_logs", clusterId, selectedPod?.namespace, selectedPod?.name, selectedContainer ],
+    queryKey: ["k8s_cluster", "pod_logs", clusterId, selectedPod?.namespace, selectedPod?.name, selectedContainer],
     queryFn: () => fetchKubernetesPodLogs(clusterId, selectedPod!.namespace, selectedPod!.name, { container: selectedContainer }),
     enabled: !!selectedPod
   })
@@ -57,12 +57,7 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
           value={selectedPodKey ?? ""}
         />
         {selectedPod && selectedPod.container_names.length > 1 ? (
-          <Dropdown
-            ariaLabel={t("logs_container_label")}
-            onChange={setSelectedContainer}
-            options={containerOptions}
-            value={selectedContainer ?? ""}
-          />
+          <Dropdown ariaLabel={t("logs_container_label")} onChange={setSelectedContainer} options={containerOptions} value={selectedContainer ?? ""} />
         ) : null}
         {selectedPod ? (
           <Button onClick={() => void logs.refetch()} size="sm" variant="secondary">

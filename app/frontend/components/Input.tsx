@@ -14,10 +14,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 // generated stylesheet orders "w-full" after "w-auto", so an appended
 // "w-auto" loses the specificity tie and the element silently stays full
 // width.
-export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { invalid = false, fullWidth = true, className = "", ...props },
-  ref
-) {
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ invalid = false, fullWidth = true, className = "", ...props }, ref) {
   return (
     <input
       aria-invalid={invalid || undefined}

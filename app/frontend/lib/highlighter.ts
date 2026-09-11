@@ -7,20 +7,7 @@ import type { HighlighterCore, LanguageInput, ThemedToken } from "@shikijs/core"
 // straight through to loadLanguage()/codeToTokensBase() with no translation
 // layer.
 export type HighlighterLanguageId =
-  | "ruby"
-  | "javascript"
-  | "typescript"
-  | "tsx"
-  | "jsx"
-  | "json"
-  | "yaml"
-  | "sql"
-  | "shellscript"
-  | "erb"
-  | "html"
-  | "css"
-  | "markdown"
-  | "dockerfile"
+  "ruby" | "javascript" | "typescript" | "tsx" | "jsx" | "json" | "yaml" | "sql" | "shellscript" | "erb" | "html" | "css" | "markdown" | "dockerfile"
 
 // One dynamic import() per language, spelled out as literal string
 // specifiers so Vite/Rollup can statically discover each as its own
@@ -67,7 +54,7 @@ let highlighterPromise: Promise<HighlighterCore> | null = null
 function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighterCore({
-      themes: [ cssVariablesTheme ],
+      themes: [cssVariablesTheme],
       langs: [],
       engine: createOnigurumaEngine(() => import("@shikijs/engine-oniguruma/wasm-inlined"))
     })

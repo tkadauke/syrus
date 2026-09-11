@@ -105,7 +105,7 @@ function terminalSessionFixture(overrides: Partial<RuntimeSession> = {}): Runtim
   return sessionFixture({
     provider_key: "cli_tui",
     display_name: "Terminal",
-    capabilities: { input: [ "keyboard", "stdin", "resize" ] },
+    capabilities: { input: ["keyboard", "stdin", "resize"] },
     metadata: { terminal_session_id: 404 },
     ...overrides
   })
@@ -184,7 +184,7 @@ describe("RuntimePanel session detail", () => {
   it("renders the session state, provider metadata, and empty logs", async () => {
     mockFetch((url) => {
       if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
-      return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      return jsonResponse({ runtime_sessions: [sessionFixture()] })
     })
 
     renderPanel()
@@ -201,7 +201,7 @@ describe("RuntimePanel session detail", () => {
     mockFetch((url) => {
       if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
       return jsonResponse({
-        runtime_sessions: [ sessionFixture({ latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame", latest_frame_at: "2026-01-01T00:00:00Z" }) ]
+        runtime_sessions: [sessionFixture({ latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame", latest_frame_at: "2026-01-01T00:00:00Z" })]
       })
     })
 
@@ -217,10 +217,10 @@ describe("RuntimePanel session detail", () => {
       if (url.includes("/logs")) {
         logCalls += 1
         const cursor = new URL(url, "http://localhost").searchParams.get("cursor")
-        if (cursor === "0" || cursor === null) return jsonResponse({ entries: [ "line-1" ], cursor: 1 })
+        if (cursor === "0" || cursor === null) return jsonResponse({ entries: ["line-1"], cursor: 1 })
         return jsonResponse({ entries: [], cursor: 1 })
       }
-      return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      return jsonResponse({ runtime_sessions: [sessionFixture()] })
     })
 
     renderPanel()
@@ -239,7 +239,7 @@ describe("RuntimePanel capture action", () => {
           runtime_session: sessionFixture({ latest_frame_url: "/api/v1/app/chats/8/runtime_sessions/101/frame", latest_frame_at: "2026-01-01T00:05:00Z" })
         })
       }
-      return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      return jsonResponse({ runtime_sessions: [sessionFixture()] })
     })
 
     const client = renderPanel()
@@ -259,8 +259,8 @@ describe("RuntimePanel terminal live view", () => {
     actionCable.createSubscription.mockReturnValue(subscription)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = String(input)
-      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: [ "should-not-poll" ], cursor: 1 }))
-      return Promise.resolve(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: ["should-not-poll"], cursor: 1 }))
+      return Promise.resolve(jsonResponse({ runtime_sessions: [terminalSessionFixture()] }))
     })
 
     renderPanel()
@@ -272,12 +272,11 @@ describe("RuntimePanel terminal live view", () => {
         expect.objectContaining({ connected: expect.any(Function), received: expect.any(Function) })
       )
     })
-    expect(fetchSpy.mock.calls.some(([ input ]) => String(input).includes("/logs"))).toBe(false)
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/logs"))).toBe(false)
 
-    const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [
-      unknown,
-      { connected(): void; received(data: { type: string; data?: string }): void }
-    ])[1]
+    const mixin = (
+      actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { connected(): void; received(data: { type: string; data?: string }): void }]
+    )[1]
     mixin.connected()
     expect(subscription.perform).toHaveBeenCalledWith("receive", { type: "resize", cols: 132, rows: 43 })
 
@@ -291,7 +290,7 @@ describe("RuntimePanel terminal live view", () => {
 
   it("handles terminal relay disconnects gracefully", async () => {
     actionCable.createSubscription.mockReturnValue({ perform: vi.fn(), unsubscribe: vi.fn() })
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ runtime_sessions: [terminalSessionFixture()] }))
 
     renderPanel()
 
@@ -327,7 +326,7 @@ describe("RuntimePanel terminal live view", () => {
           })
         )
       }
-      return Promise.resolve(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+      return Promise.resolve(jsonResponse({ runtime_sessions: [terminalSessionFixture()] }))
     })
 
     renderPanel()
@@ -376,9 +375,9 @@ describe("RuntimePanel control ownership: starting -> running -> agent takes lea
       if (url.endsWith("/runtime_sessions") && method === "GET") {
         sessionCalls += 1
         if (sessionCalls === 1) {
-          return jsonResponse({ runtime_sessions: [ sessionFixture({ state: "starting", active_agent_input_lease: null }) ] })
+          return jsonResponse({ runtime_sessions: [sessionFixture({ state: "starting", active_agent_input_lease: null })] })
         }
-        return jsonResponse({ runtime_sessions: [ sessionFixture({ state: "running", active_agent_input_lease: agentLease() }) ] })
+        return jsonResponse({ runtime_sessions: [sessionFixture({ state: "running", active_agent_input_lease: agentLease() })] })
       }
       return jsonResponse({})
     })
@@ -439,7 +438,7 @@ describe("RuntimePanel control lease heartbeat", () => {
           lease: operatorLeaseFixture({ expires_at: "2026-01-01T00:01:50.000Z" })
         })
       }
-      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [sessionFixture()] })
       return jsonResponse({})
     })
 
@@ -473,7 +472,7 @@ describe("RuntimePanel control lease heartbeat", () => {
       if (url.includes("/renew_control") && method === "POST") {
         return jsonResponse({ error: { code: "validation_failed", message: "lease already lapsed" } }, 422)
       }
-      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [sessionFixture()] })
       return jsonResponse({})
     })
 

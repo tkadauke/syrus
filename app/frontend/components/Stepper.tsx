@@ -21,7 +21,11 @@ export function Stepper({ steps, active }: { steps: StepperStep[]; active: strin
             <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${tone}`}>
               <span>{step.done ? "✓" : index + 1}</span> {step.label}
             </span>
-            {index < steps.length - 1 ? <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">→</span> : null}
+            {index < steps.length - 1 ? (
+              <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">
+                →
+              </span>
+            ) : null}
           </li>
         )
       })}

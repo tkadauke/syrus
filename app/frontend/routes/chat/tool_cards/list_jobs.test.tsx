@@ -19,7 +19,12 @@ describe("list_jobs tool card", () => {
   })
 
   it("summarizes the collapsed row with a Job count", () => {
-    const parsedResult = { jobs: [{ id: 1, state: "open" }, { id: 2, state: "closed" }] }
+    const parsedResult = {
+      jobs: [
+        { id: 1, state: "open" },
+        { id: 2, state: "closed" }
+      ]
+    }
     expect(listJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 Jobs")
   })
 

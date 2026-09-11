@@ -5,7 +5,13 @@ import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { FilterBar } from "@app/components/FilterBar"
 import { fetchMysqlTableDetail, fetchMysqlTables, type MysqlColumn, type MysqlForeignKey } from "../api/mysqlSchema"
-import { fetchMysqlQueryBuilderResult, type MysqlBuilderAggregation, type MysqlBuilderJoin, type MysqlBuilderSort, type MysqlQueryBuilderSpec } from "../api/mysqlQuery"
+import {
+  fetchMysqlQueryBuilderResult,
+  type MysqlBuilderAggregation,
+  type MysqlBuilderJoin,
+  type MysqlBuilderSort,
+  type MysqlQueryBuilderSpec
+} from "../api/mysqlQuery"
 import { MysqlPickerDropdown, type MysqlPickerOption } from "./MysqlPickerDropdown"
 import { MysqlResultsGrid } from "./MysqlResultsGrid"
 import { MysqlQueryErrorPanel } from "./MysqlQueryResultPanel"
@@ -104,9 +110,7 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
   }, [builderTable, mode, columns, aggregations, groupBy, join, sort, limit])
 
   const specValid =
-    Boolean(builderTable) &&
-    (mode !== "summarize" || aggregations.length > 0) &&
-    (!join || Boolean(join.table && join.from_column && join.to_column))
+    Boolean(builderTable) && (mode !== "summarize" || aggregations.length > 0) && (!join || Boolean(join.table && join.from_column && join.to_column))
 
   const result = useQuery({
     queryKey: ["mysql_db_browser", "query_builder", connectionId, database, JSON.stringify(spec), filterQ],
@@ -158,14 +162,22 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
       </BuilderStep>
 
       {baseDetail.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("builder_loading_columns")}</p> : null}
-      {baseDetail.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(baseDetail.error, t("builder_error_loading_columns"))}</p> : null}
+      {baseDetail.isError ? (
+        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(baseDetail.error, t("builder_error_loading_columns"))}
+        </p>
+      ) : null}
 
       {baseDetail.isSuccess ? (
         <>
           <BuilderStep heading={t("builder_step_mode")}>
             <div className="flex gap-2">
-              <ModeButton active={mode === "columns"} onClick={() => setMode("columns")}>{t("builder_mode_columns")}</ModeButton>
-              <ModeButton active={mode === "summarize"} onClick={() => setMode("summarize")}>{t("builder_mode_summarize")}</ModeButton>
+              <ModeButton active={mode === "columns"} onClick={() => setMode("columns")}>
+                {t("builder_mode_columns")}
+              </ModeButton>
+              <ModeButton active={mode === "summarize"} onClick={() => setMode("summarize")}>
+                {t("builder_mode_summarize")}
+              </ModeButton>
             </div>
           </BuilderStep>
 
@@ -196,9 +208,7 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
                         ariaLabel={t("builder_aggregation_column_label")}
                         onChange={(value) => updateAggregation(index, { column: value })}
                         options={
-                          aggregation.function === "count"
-                            ? [{ value: "*", label: t("builder_aggregation_all_rows") }, ...columnOptions]
-                            : columnOptions
+                          aggregation.function === "count" ? [{ value: "*", label: t("builder_aggregation_all_rows") }, ...columnOptions] : columnOptions
                         }
                         placeholder={t("builder_aggregation_column_label")}
                         value={aggregation.column || null}
@@ -210,11 +220,7 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
                         type="text"
                         value={aggregation.alias ?? ""}
                       />
-                      <button
-                        className="text-xs text-red-700 hover:underline dark:text-red-300"
-                        onClick={() => removeAggregation(index)}
-                        type="button"
-                      >
+                      <button className="text-xs text-red-700 hover:underline dark:text-red-300" onClick={() => removeAggregation(index)} type="button">
                         {t("builder_remove_aggregation")}
                       </button>
                     </div>
@@ -249,16 +255,34 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
                 }}
                 options={[
                   { value: "", label: t("builder_join_none") },
-                  ...relevantForeignKeys.map((fk, index) => ({ value: String(index), label: `${fk.from_table}.${fk.from_column} → ${fk.to_table}.${fk.to_column}` }))
+                  ...relevantForeignKeys.map((fk, index) => ({
+                    value: String(index),
+                    label: `${fk.from_table}.${fk.from_column} → ${fk.to_table}.${fk.to_column}`
+                  }))
                 ]}
                 placeholder={t("builder_join_none")}
-                value={join ? String(relevantForeignKeys.findIndex((fk) => joinFromForeignKey(builderTable, fk).table === join.table && joinFromForeignKey(builderTable, fk).from_column === join.from_column && joinFromForeignKey(builderTable, fk).to_column === join.to_column)) : ""}
+                value={
+                  join
+                    ? String(
+                        relevantForeignKeys.findIndex(
+                          (fk) =>
+                            joinFromForeignKey(builderTable, fk).table === join.table &&
+                            joinFromForeignKey(builderTable, fk).from_column === join.from_column &&
+                            joinFromForeignKey(builderTable, fk).to_column === join.to_column
+                        )
+                      )
+                    : ""
+                }
               />
               {relevantForeignKeys.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("builder_no_foreign_keys")}</p> : null}
               {join ? (
                 <>
-                  <ModeButton active={join.type === "left"} onClick={() => setJoin({ ...join, type: "left" })}>{t("builder_join_type_left")}</ModeButton>
-                  <ModeButton active={join.type === "inner"} onClick={() => setJoin({ ...join, type: "inner" })}>{t("builder_join_type_inner")}</ModeButton>
+                  <ModeButton active={join.type === "left"} onClick={() => setJoin({ ...join, type: "left" })}>
+                    {t("builder_join_type_left")}
+                  </ModeButton>
+                  <ModeButton active={join.type === "inner"} onClick={() => setJoin({ ...join, type: "inner" })}>
+                    {t("builder_join_type_inner")}
+                  </ModeButton>
                   <button className="text-xs text-red-700 hover:underline dark:text-red-300" onClick={() => setJoin(null)} type="button">
                     {t("builder_remove_join")}
                   </button>
@@ -287,8 +311,12 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
               />
               {sort ? (
                 <>
-                  <ModeButton active={sort.direction === "asc"} onClick={() => setSort({ ...sort, direction: "asc" })}>{t("builder_sort_direction_asc")}</ModeButton>
-                  <ModeButton active={sort.direction === "desc"} onClick={() => setSort({ ...sort, direction: "desc" })}>{t("builder_sort_direction_desc")}</ModeButton>
+                  <ModeButton active={sort.direction === "asc"} onClick={() => setSort({ ...sort, direction: "asc" })}>
+                    {t("builder_sort_direction_asc")}
+                  </ModeButton>
+                  <ModeButton active={sort.direction === "desc"} onClick={() => setSort({ ...sort, direction: "desc" })}>
+                    {t("builder_sort_direction_desc")}
+                  </ModeButton>
                 </>
               ) : null}
             </div>
@@ -314,11 +342,13 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
             </div>
           ) : null}
 
-          {result.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(result.error, t("query_error_fallback"))}</p> : null}
-          {result.data && !result.data.available ? <MysqlQueryErrorPanel error={result.data.error} /> : null}
-          {result.data?.available ? (
-            <MysqlResultsGrid columns={result.data.columns} rows={result.data.rows} />
+          {result.isError ? (
+            <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+              {errorMessage(result.error, t("query_error_fallback"))}
+            </p>
           ) : null}
+          {result.data && !result.data.available ? <MysqlQueryErrorPanel error={result.data.error} /> : null}
+          {result.data?.available ? <MysqlResultsGrid columns={result.data.columns} rows={result.data.rows} /> : null}
         </>
       ) : null}
     </section>

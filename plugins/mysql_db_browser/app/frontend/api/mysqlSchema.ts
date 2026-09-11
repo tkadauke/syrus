@@ -78,15 +78,14 @@ export type MysqlForeignKey = {
 }
 
 export type MysqlSection<TRow> =
-  | { available: true; truncated: boolean; rows: TRow[] }
-  | { available: false; error: { class: string; message: string; hint?: string } }
+  { available: true; truncated: boolean; rows: TRow[] } | { available: false; error: { class: string; message: string; hint?: string } }
 
 export type MysqlTableDetailResponse = {
   database: string
   table: string
   system_schema: boolean
   generated_at: string
-  info: { available: true } & MysqlTableInfo | { available: false; error: { class: string; message: string; hint?: string } }
+  info: ({ available: true } & MysqlTableInfo) | { available: false; error: { class: string; message: string; hint?: string } }
   columns: MysqlSection<MysqlColumn>
   indexes: MysqlSection<MysqlIndex>
   foreign_keys: MysqlSection<MysqlForeignKey>

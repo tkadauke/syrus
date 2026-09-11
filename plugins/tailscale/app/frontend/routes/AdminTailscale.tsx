@@ -12,7 +12,7 @@ export function AdminTailscale() {
   const { t } = useT("tailscale")
   usePageTitle(t("page_title"))
   const status = useQuery({
-    queryKey: [ "admin", "tailscale", "status" ],
+    queryKey: ["admin", "tailscale", "status"],
     queryFn: fetchAdminTailscaleStatus
   })
 
@@ -42,7 +42,9 @@ function StatusView({ payload }: { payload: AdminTailscaleStatus }) {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t("status_heading")}</h2>
-            <div className="mt-2"><StatusBadge state={state} /></div>
+            <div className="mt-2">
+              <StatusBadge state={state} />
+            </div>
           </div>
           {payload.tailscale_url ? (
             <div className="text-right">
@@ -79,11 +81,12 @@ function connectionState(payload: AdminTailscaleStatus): ConnectionState {
 
 function StatusBadge({ state }: { state: ConnectionState }) {
   const { t } = useT("tailscale")
-  const toneClass = state === "connected"
-    ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
-    : state === "connecting"
-      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+  const toneClass =
+    state === "connected"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+      : state === "connecting"
+        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
   const label = state === "connected" ? t("status_connected") : state === "connecting" ? t("status_connecting") : t("status_not_configured")
 
   return <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium ${toneClass}`}>{label}</span>
@@ -115,5 +118,11 @@ function ChecklistIcon({ done }: { done: boolean }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`rounded border p-4 text-sm ${tone === "error" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>{children}</div>
+  return (
+    <div
+      className={`rounded border p-4 text-sm ${tone === "error" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}
+    >
+      {children}
+    </div>
+  )
 }

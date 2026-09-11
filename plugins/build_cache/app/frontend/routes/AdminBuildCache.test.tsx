@@ -76,10 +76,7 @@ describe("AdminBuildCache", () => {
       await screen.findByTestId("build-cache-clear-form")
       fireEvent.change(screen.getByLabelText(/Reason/i), { target: { value: "cleanup" } })
 
-      expect(fetchSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining("/clear_requests"),
-        expect.anything()
-      )
+      expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/clear_requests"), expect.anything())
     })
 
     it("disables the request button until a reason is entered", async () => {
@@ -108,10 +105,7 @@ describe("AdminBuildCache", () => {
       fireEvent.click(screen.getByRole("button", { name: /Request clear/i }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/admin/build_cache/clear_requests",
-          expect.objectContaining({ method: "POST" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/build_cache/clear_requests", expect.objectContaining({ method: "POST" }))
       })
       expect(await screen.findByTestId("build-cache-pending-request")).toBeInTheDocument()
       // Creating the request must never itself hit a confirm/execute endpoint.
@@ -142,9 +136,13 @@ describe("AdminBuildCache", () => {
       const fetchSpy = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
         if (url === "/api/v1/app/admin/build_cache/clear_requests/7/confirm" && init?.method === "POST") {
-          return Promise.resolve(jsonResponse(buildCachePayload({
-            recent_requests: [ pendingRequestPayload({ state: "confirmed", result: { deleted_count: 3, bytes_freed: 300, truncated: false } }) ]
-          })))
+          return Promise.resolve(
+            jsonResponse(
+              buildCachePayload({
+                recent_requests: [pendingRequestPayload({ state: "confirmed", result: { deleted_count: 3, bytes_freed: 300, truncated: false } })]
+              })
+            )
+          )
         }
         return Promise.resolve(jsonResponse(buildCachePayload({ pending_request: pendingRequestPayload() })))
       })
@@ -154,10 +152,7 @@ describe("AdminBuildCache", () => {
       fireEvent.click(confirmButton)
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/admin/build_cache/clear_requests/7/confirm",
-          expect.objectContaining({ method: "POST" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/build_cache/clear_requests/7/confirm", expect.objectContaining({ method: "POST" }))
       })
       expect(await screen.findByText(/Cleared/i)).toBeInTheDocument()
     })
@@ -170,7 +165,9 @@ describe("AdminBuildCache", () => {
       const confirmButton = await screen.findByRole("button", { name: /Confirm and clear/i })
       fireEvent.click(confirmButton)
 
-      await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
+      await waitFor(() => {
+        expect(mockConfirm).toHaveBeenCalled()
+      })
       expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/confirm"), expect.anything())
     })
   })

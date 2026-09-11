@@ -93,10 +93,7 @@ describe("PersonalDocumentsRoute delete", () => {
     fireEvent.click(deleteButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/credentials/documents/30",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/documents/30", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -107,13 +104,14 @@ describe("PersonalDocumentsRoute delete", () => {
     renderRoute()
 
     const deleteButton = await screen.findByRole("button", { name: "Delete" })
-    await act(async () => { fireEvent.click(deleteButton) })
+    await act(async () => {
+      fireEvent.click(deleteButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/credentials/documents/30",
-      expect.objectContaining({ method: "DELETE" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials/documents/30", expect.objectContaining({ method: "DELETE" }))
   })
 })
 
@@ -121,18 +119,21 @@ describe("PersonalDocumentsRoute preview", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("opens a preview modal with rendered markdown for a markdown document", async () => {
-    renderRouteWithDocuments([
-      {
-        id: 31,
-        kind: "file",
-        google_doc_url: null,
-        filename: "notes.md",
-        content_type: "text/markdown",
-        byte_size: 12,
-        created_at: "2026-01-01T00:00:00Z",
-        file_path: "/api/v1/app/credentials/documents/31/file"
-      }
-    ], { "31": "# Hello there" })
+    renderRouteWithDocuments(
+      [
+        {
+          id: 31,
+          kind: "file",
+          google_doc_url: null,
+          filename: "notes.md",
+          content_type: "text/markdown",
+          byte_size: 12,
+          created_at: "2026-01-01T00:00:00Z",
+          file_path: "/api/v1/app/credentials/documents/31/file"
+        }
+      ],
+      { "31": "# Hello there" }
+    )
 
     fireEvent.click(await screen.findByRole("button", { name: /notes\.md/ }))
 

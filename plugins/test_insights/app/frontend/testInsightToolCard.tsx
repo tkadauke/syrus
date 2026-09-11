@@ -62,7 +62,10 @@ export function ReasonBadges({ reasons }: { reasons: string[] }) {
   return (
     <div className="flex flex-wrap gap-1">
       {reasons.map((reason) => (
-        <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${REASON_CLASSES[reason] ?? "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`} key={reason}>
+        <span
+          className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${REASON_CLASSES[reason] ?? "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}
+          key={reason}
+        >
           {reason}
         </span>
       ))}

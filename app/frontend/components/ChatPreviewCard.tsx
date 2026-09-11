@@ -12,7 +12,7 @@ export function ChatPreviewCard({ id, compact = false }: { id: number; compact?:
   const { data, isPending } = useQuery({
     queryKey: ["chats", "preview", String(id)],
     queryFn: () => fetchChatPreview(String(id)),
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   if (isPending) return <ChatPreviewSkeleton compact={compact} />
@@ -25,9 +25,7 @@ export function ChatPreviewCard({ id, compact = false }: { id: number; compact?:
     <Card compact={compact} variant="preview">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <CopyableSlug className="text-xs" slug={data.chat_slug} />
-        {pendingCount > 0 && (
-          <TonePill tone="amber">{t("card_preview_pending", { count: pendingCount })}</TonePill>
-        )}
+        {pendingCount > 0 && <TonePill tone="amber">{t("card_preview_pending", { count: pendingCount })}</TonePill>}
       </div>
       {title && (
         <Link

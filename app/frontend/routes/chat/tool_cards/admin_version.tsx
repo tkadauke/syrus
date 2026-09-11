@@ -52,7 +52,10 @@ function parseVersionCard(context: ToolCardContext): VersionCard | null {
     requestHandlerHostname: displayValue(parsed.request_handler.hostname),
     requestHandlerRole: displayValue(parsed.request_handler.role),
     requestHandlerVersion: displayValue(parsed.request_handler.version),
-    instances: parsed.instances.flatMap((instance, index) => { const row = parseInstanceRow(instance, index); return row ? [row] : [] }),
+    instances: parsed.instances.flatMap((instance, index) => {
+      const row = parseInstanceRow(instance, index)
+      return row ? [row] : []
+    }),
     workerHealth: parseWorkerHealthCounts(parsed.worker_health)
   }
 }
@@ -81,7 +84,9 @@ function renderExpanded(context: ToolCardContext) {
         <div className="flex items-center gap-2">
           <SectionLabel>Worker health</SectionLabel>
           <HealthPill level={card.workerHealth.worst} />
-          <span className="text-gray-600 dark:text-gray-300">{card.workerHealth.total} worker{card.workerHealth.total === 1 ? "" : "s"}</span>
+          <span className="text-gray-600 dark:text-gray-300">
+            {card.workerHealth.total} worker{card.workerHealth.total === 1 ? "" : "s"}
+          </span>
         </div>
       ) : null}
       {card.instances.length === 0 ? (
@@ -103,7 +108,9 @@ function renderExpanded(context: ToolCardContext) {
                       <HealthPill level={parseHealthLevel(instance.diskLevel)} />
                       {instance.diskUsedPercent != null ? <span className="font-mono">{instance.diskUsedPercent.toFixed(1)}%</span> : null}
                     </span>
-                  ) : "—"}
+                  ) : (
+                    "—"
+                  )}
                 </Td>
               </tr>
             ))}

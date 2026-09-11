@@ -56,9 +56,8 @@ function AppErrorFallback({ error, componentStack, fingerprint: fp, alreadyRepor
     try {
       const title = ("Frontend error: " + error.message).slice(0, 200)
       const description = `${componentStack}\n\n${error.stack ?? ""}`
-      const result = browserEventId != null
-        ? await fileEventJob({ event_type: "browser_error", event_id: browserEventId })
-        : await createBugReport({ title, description })
+      const result =
+        browserEventId != null ? await fileEventJob({ event_type: "browser_error", event_id: browserEventId }) : await createBugReport({ title, description })
       markFingerprint(fp)
       setJobId(result.job_id ?? null)
       setReportState("success")
@@ -72,17 +71,13 @@ function AppErrorFallback({ error, componentStack, fingerprint: fp, alreadyRepor
       <div className="w-full max-w-lg rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
         <h1 className="text-xl font-semibold text-gray-900">{t("app_name")}</h1>
         <p className="mt-1 text-sm text-gray-600">{t("errorBoundary.appCrashHeading")}</p>
-        <code className="mt-4 block break-all rounded border border-red-100 bg-red-50 p-3 text-xs text-red-700">
-          {error.message}
-        </code>
+        <code className="mt-4 block break-all rounded border border-red-100 bg-red-50 p-3 text-xs text-red-700">{error.message}</code>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button onClick={() => window.location.reload()} variant="secondary">
             {t("route_error.reload_page")}
           </Button>
           {reportState === "success" ? (
-            <span className="text-sm text-gray-500">
-              {jobId != null ? t("route_error.reported_as", { job_id: jobId }) : t("route_error.already_reported")}
-            </span>
+            <span className="text-sm text-gray-500">{jobId != null ? t("route_error.reported_as", { job_id: jobId }) : t("route_error.already_reported")}</span>
           ) : reportState === "error" ? (
             <span className="text-sm text-red-600">{t("route_error.report_failed")}</span>
           ) : alreadyReported ? (
@@ -137,15 +132,19 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, Boundar
       if (!prev.hasError) return prev
       return { ...prev, componentStack: info.componentStack ?? "" }
     })
-    void recordBrowserError(buildBrowserErrorPayload(error, {
-      boundary: "app",
-      componentStack: info.componentStack ?? "",
-      fingerprint: computeFingerprint(error)
-    })).then((result) => {
-      this.setState((prev) => prev.hasError ? { ...prev, browserEventId: result.id } : prev)
-    }).catch(() => {
-      // The boundary itself must stay usable even if diagnostics fail.
-    })
+    void recordBrowserError(
+      buildBrowserErrorPayload(error, {
+        boundary: "app",
+        componentStack: info.componentStack ?? "",
+        fingerprint: computeFingerprint(error)
+      })
+    )
+      .then((result) => {
+        this.setState((prev) => (prev.hasError ? { ...prev, browserEventId: result.id } : prev))
+      })
+      .catch(() => {
+        // The boundary itself must stay usable even if diagnostics fail.
+      })
   }
 
   render() {

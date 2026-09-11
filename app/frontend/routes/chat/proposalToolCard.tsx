@@ -83,7 +83,9 @@ function MaterializedOutcomeDetail({ materialized }: { materialized: Materialize
   if (materialized.kind === "job") {
     return (
       <div className="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
-        <span>Materialized as <span className="font-mono font-medium">JOB-{materialized.jobId}</span></span>
+        <span>
+          Materialized as <span className="font-mono font-medium">JOB-{materialized.jobId}</span>
+        </span>
         {materialized.jobState ? <StatePill state={materialized.jobState} /> : null}
       </div>
     )

@@ -1,6 +1,18 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
-import { explainSql, fetchAdminPerformance, type AdminPerformancePayload, type BrowserTraceSummary, type PerformanceComparison, type PerformanceEvent, type SlowJobSummary, type SlowPhaseSummary, type SlowRequestSummary, type SqlExplainResult, type SqlFingerprintSummary } from "../api/adminPerformance"
+import {
+  explainSql,
+  fetchAdminPerformance,
+  type AdminPerformancePayload,
+  type BrowserTraceSummary,
+  type PerformanceComparison,
+  type PerformanceEvent,
+  type SlowJobSummary,
+  type SlowPhaseSummary,
+  type SlowRequestSummary,
+  type SqlExplainResult,
+  type SqlFingerprintSummary
+} from "../api/adminPerformance"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -31,9 +43,17 @@ export function AdminPerformance() {
           <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("performance.heading")}</h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <div className="inline-flex rounded border border-gray-300 bg-white p-0.5 text-sm dark:border-gray-600 dark:bg-gray-900" role="group" aria-label={t("performance.revision_filter")}>
-            <button className={scopeButtonClass(revisionScope === "current")} onClick={() => setRevisionScope("current")} type="button">{t("performance.current_revision")}</button>
-            <button className={scopeButtonClass(revisionScope === "all")} onClick={() => setRevisionScope("all")} type="button">{t("performance.all_revisions")}</button>
+          <div
+            className="inline-flex rounded border border-gray-300 bg-white p-0.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+            role="group"
+            aria-label={t("performance.revision_filter")}
+          >
+            <button className={scopeButtonClass(revisionScope === "current")} onClick={() => setRevisionScope("current")} type="button">
+              {t("performance.current_revision")}
+            </button>
+            <button className={scopeButtonClass(revisionScope === "all")} onClick={() => setRevisionScope("all")} type="button">
+              {t("performance.all_revisions")}
+            </button>
           </div>
           <button
             className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
@@ -73,19 +93,32 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
       <section aria-label={t("performance.aria_summary")} className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Metric title={t("performance.enabled")} value={payload.enabled ? t("performance.yes") : t("performance.no")} tone={payload.enabled ? "ok" : "warn"} />
         <Metric title={t("performance.events")} value={eventCount} context={t("performance.events_context", { max: payload.storage.max_events })} />
-        <Metric title={t("performance.revision")} value={payload.revision_scope === "all" ? t("performance.all_revisions_short") : shortRevision(payload.current_revision)} context={payload.revision_scope === "all" ? t("performance.all_revisions_context") : t("performance.current_revision_context")} />
-        <Metric title={t("performance.storage")} value={payload.storage.kind} context={t("performance.retention", { hours: Math.round(payload.storage.expires_in_seconds / 3600) })} />
-        <Metric title={t("performance.thresholds")} value={formatMs(payload.thresholds.slow_request_ms)} context={t("performance.threshold_context", { job: formatMs(payload.thresholds.slow_job_ms), phase: formatMs(payload.thresholds.slow_phase_ms), sql: formatMs(payload.thresholds.slow_sql_ms), request_sql: formatMs(payload.thresholds.request_sql_duration_ms), request_sql_count: payload.thresholds.request_sql_count_threshold })} />
+        <Metric
+          title={t("performance.revision")}
+          value={payload.revision_scope === "all" ? t("performance.all_revisions_short") : shortRevision(payload.current_revision)}
+          context={payload.revision_scope === "all" ? t("performance.all_revisions_context") : t("performance.current_revision_context")}
+        />
+        <Metric
+          title={t("performance.storage")}
+          value={payload.storage.kind}
+          context={t("performance.retention", { hours: Math.round(payload.storage.expires_in_seconds / 3600) })}
+        />
+        <Metric
+          title={t("performance.thresholds")}
+          value={formatMs(payload.thresholds.slow_request_ms)}
+          context={t("performance.threshold_context", {
+            job: formatMs(payload.thresholds.slow_job_ms),
+            phase: formatMs(payload.thresholds.slow_phase_ms),
+            sql: formatMs(payload.thresholds.slow_sql_ms),
+            request_sql: formatMs(payload.thresholds.request_sql_duration_ms),
+            request_sql_count: payload.thresholds.request_sql_count_threshold
+          })}
+        />
       </section>
 
       <nav aria-label={t("performance.tabs_aria")} className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700">
         {PERFORMANCE_TABS.map((tab) => (
-          <button
-            className={tabButtonClass(activeTab === tab)}
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            type="button"
-          >
+          <button className={tabButtonClass(activeTab === tab)} key={tab} onClick={() => setActiveTab(tab)} type="button">
             {t(`performance.tab_${tab}`)}
           </button>
         ))}
@@ -107,7 +140,9 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
       {activeTab === "sql" ? <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints} /> : null}
       {activeTab === "phases" ? <SlowPhasesTable rows={payload.summaries.slow_phases} /> : null}
       {activeTab === "events" ? <EventsTable rows={payload.events} /> : null}
-      {requestDetail ? <SlowRequestSqlModal events={payload.events} onClose={() => setRequestDetail(null)} onExplain={openExplain} request={requestDetail} /> : null}
+      {requestDetail ? (
+        <SlowRequestSqlModal events={payload.events} onClose={() => setRequestDetail(null)} onExplain={openExplain} request={requestDetail} />
+      ) : null}
       {browserDetail ? <BrowserTraceModal events={payload.events} onClose={() => setBrowserDetail(null)} trace={browserDetail} /> : null}
       {explainSqlText ? <SqlExplainModal initialSql={explainSqlText} onClose={() => setExplainSqlText(null)} /> : null}
     </div>
@@ -122,7 +157,9 @@ function RegressionTable({ payload }: { payload: AdminPerformancePayload }) {
     ...comparisonRows(t("performance.slow_phases"), payload.baseline?.comparisons?.slow_phases ?? []),
     ...comparisonRows(t("performance.browser_traces"), payload.baseline?.comparisons?.browser_traces ?? []),
     ...comparisonRows(t("performance.sql_fingerprints"), payload.baseline?.comparisons?.sql_fingerprints ?? [])
-  ].filter((row) => row.status !== "unchanged").slice(0, 20)
+  ]
+    .filter((row) => row.status !== "unchanged")
+    .slice(0, 20)
 
   const title = payload.baseline?.revision
     ? t("performance.regressions_with_baseline", { revision: shortRevision(payload.baseline.revision) })
@@ -147,7 +184,9 @@ function RegressionTable({ payload }: { payload: AdminPerformancePayload }) {
             <tr key={`${row.kind}-${row.key}`}>
               <td className="whitespace-nowrap px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300">{row.kind}</td>
               <td className="max-w-3xl px-4 py-2 font-mono text-xs text-gray-900 dark:text-gray-100">
-                <div className="truncate" title={row.label}>{row.label}</div>
+                <div className="truncate" title={row.label}>
+                  {row.label}
+                </div>
               </td>
               <td className="whitespace-nowrap px-4 py-2 text-xs">
                 <span className={comparisonPillClass(row.status)}>{row.status}</span>
@@ -171,7 +210,8 @@ function comparisonRows(kind: string, rows: PerformanceComparison[]) {
 function comparisonPillClass(status: PerformanceComparison["status"]) {
   const base = "inline-flex rounded-full px-2 py-0.5 font-medium"
   if (status === "regressed") return `${base} bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-800`
-  if (status === "improved") return `${base} bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800`
+  if (status === "improved")
+    return `${base} bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800`
   if (status === "new") return `${base} bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800`
   return `${base} bg-gray-100 text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700`
 }
@@ -197,8 +237,12 @@ function SlowRequestsTable({ onInspect, rows }: { onInspect: (row: SlowRequestSu
           {rows.map((row) => (
             <tr key={`${row.method}-${row.path}-${row.controller}-${row.action}`}>
               <td className="max-w-xl px-4 py-2">
-                <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.method} {row.path}</div>
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{row.controller}#{row.action}</div>
+                <div className="font-mono text-xs text-gray-900 dark:text-gray-100">
+                  {row.method} {row.path}
+                </div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {row.controller}#{row.action}
+                </div>
               </td>
               <NumberCell value={row.count} />
               <NumberCell value={formatMs(row.total_duration_ms)} />
@@ -242,7 +286,11 @@ function SlowJobsTable({ rows }: { rows: SlowJobSummary[] }) {
             <tr key={`${row.job_class}-${row.queue_name}`}>
               <td className="max-w-xl px-4 py-2">
                 <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.job_class ?? "-"}</div>
-                {row.recent_trigger_reasons?.length ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("performance.triggered_by", { reasons: row.recent_trigger_reasons.join(", ") })}</div> : null}
+                {row.recent_trigger_reasons?.length ? (
+                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {t("performance.triggered_by", { reasons: row.recent_trigger_reasons.join(", ") })}
+                  </div>
+                ) : null}
               </td>
               <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{row.queue_name ?? "-"}</td>
               <NumberCell value={row.count} />
@@ -260,11 +308,23 @@ function SlowJobsTable({ rows }: { rows: SlowJobSummary[] }) {
   )
 }
 
-function SlowRequestSqlModal({ events, onClose, onExplain, request }: { events: PerformanceEvent[]; onClose: () => void; onExplain: (sql: string) => void; request: SlowRequestSummary }) {
+function SlowRequestSqlModal({
+  events,
+  onClose,
+  onExplain,
+  request
+}: {
+  events: PerformanceEvent[]
+  onClose: () => void
+  onExplain: (sql: string) => void
+  request: SlowRequestSummary
+}) {
   const { t } = useT("syrus_dev")
   const requestEvents = events
     .filter((event) => event.event === "syrus.performance.slow_request")
-    .filter((event) => event.method === request.method && event.path === request.path && event.controller === request.controller && event.action === request.action)
+    .filter(
+      (event) => event.method === request.method && event.path === request.path && event.controller === request.controller && event.action === request.action
+    )
     .sort((a, b) => (b.occurred_at ?? "").localeCompare(a.occurred_at ?? ""))
   const phasesByRequestId = events
     .filter((event) => event.event === "syrus.performance.slow_phase" && event.request_id)
@@ -277,13 +337,22 @@ function SlowRequestSqlModal({ events, onClose, onExplain, request }: { events: 
     }, {})
 
   return (
-    <div aria-label={t("performance.request_sql_modal_aria")} aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
+    <div
+      aria-label={t("performance.request_sql_modal_aria")}
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+    >
       <section className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-950">
         <header className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("performance.request_sql_heading")}</h2>
-            <p className="mt-1 truncate font-mono text-sm text-gray-600 dark:text-gray-300" title={`${request.method} ${request.path}`}>{request.method} {request.path}</p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{request.controller}#{request.action}</p>
+            <p className="mt-1 truncate font-mono text-sm text-gray-600 dark:text-gray-300" title={`${request.method} ${request.path}`}>
+              {request.method} {request.path}
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {request.controller}#{request.action}
+            </p>
           </div>
           <button className={secondaryActionClass()} onClick={onClose} type="button">
             {t("performance.close")}
@@ -293,21 +362,32 @@ function SlowRequestSqlModal({ events, onClose, onExplain, request }: { events: 
           {t("performance.request_sql_help")}
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-auto p-5">
-          {requestEvents.length > 0 ? requestEvents.map((event, index) => (
-            <article className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={`${event.request_id ?? event.occurred_at}-${index}`}>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                <div className="font-mono">{event.request_id || t("performance.request_without_id")}</div>
-                <div>{formatDate(event.occurred_at)} · {formatMs(event.duration_ms)} · {t("performance.sql_context", { count: event.sql_count ?? 0, duration: formatMs(event.sql_duration_ms) })} · {(event.trigger_reasons ?? []).join(", ") || "-"}</div>
-              </div>
-              <div className="space-y-4 p-4">
-                <RequestPhasesTable onExplain={onExplain} phases={event.request_id ? phasesByRequestId[event.request_id] ?? [] : []} />
-                <div>
-                  <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("performance.request_sql_queries")}</h3>
-                  <RequestSqlTable fingerprints={event.top_sql_fingerprints ?? []} onExplain={onExplain} />
+          {requestEvents.length > 0 ? (
+            requestEvents.map((event, index) => (
+              <article
+                className="overflow-hidden rounded border border-gray-200 dark:border-gray-700"
+                key={`${event.request_id ?? event.occurred_at}-${index}`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                  <div className="font-mono">{event.request_id || t("performance.request_without_id")}</div>
+                  <div>
+                    {formatDate(event.occurred_at)} · {formatMs(event.duration_ms)} ·{" "}
+                    {t("performance.sql_context", { count: event.sql_count ?? 0, duration: formatMs(event.sql_duration_ms) })} ·{" "}
+                    {(event.trigger_reasons ?? []).join(", ") || "-"}
+                  </div>
                 </div>
-              </div>
-            </article>
-          )) : <PanelMessage>{t("performance.request_sql_no_events")}</PanelMessage>}
+                <div className="space-y-4 p-4">
+                  <RequestPhasesTable onExplain={onExplain} phases={event.request_id ? (phasesByRequestId[event.request_id] ?? []) : []} />
+                  <div>
+                    <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("performance.request_sql_queries")}</h3>
+                    <RequestSqlTable fingerprints={event.top_sql_fingerprints ?? []} onExplain={onExplain} />
+                  </div>
+                </div>
+              </article>
+            ))
+          ) : (
+            <PanelMessage>{t("performance.request_sql_no_events")}</PanelMessage>
+          )}
         </div>
       </section>
     </div>
@@ -327,14 +407,28 @@ function RequestPhasesTable({ onExplain, phases }: { onExplain: (sql: string) =>
           <article className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={`${phase.phase}-${phase.occurred_at}-${index}`}>
             <div className="grid gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
               <div className="min-w-0">
-                <div className="truncate font-mono text-gray-900 dark:text-gray-100" title={phase.phase ?? undefined}>{phase.phase ?? "-"}</div>
-                <div className="mt-1 truncate" title={compactJson(phase.metadata)}>{compactJson(phase.metadata)}</div>
+                <div className="truncate font-mono text-gray-900 dark:text-gray-100" title={phase.phase ?? undefined}>
+                  {phase.phase ?? "-"}
+                </div>
+                <div className="mt-1 truncate" title={compactJson(phase.metadata)}>
+                  {compactJson(phase.metadata)}
+                </div>
               </div>
               <div className="font-mono">{formatMs(phase.duration_ms)}</div>
-              <div className="font-mono">{t("performance.phase_sql_context", { total_count: phase.sql_count ?? 0, total_duration: formatMs(phase.sql_duration_ms), self_count: phase.self_sql_count ?? 0, self_duration: formatMs(phase.self_sql_duration_ms) })}</div>
+              <div className="font-mono">
+                {t("performance.phase_sql_context", {
+                  total_count: phase.sql_count ?? 0,
+                  total_duration: formatMs(phase.sql_duration_ms),
+                  self_count: phase.self_sql_count ?? 0,
+                  self_duration: formatMs(phase.self_sql_duration_ms)
+                })}
+              </div>
               <div className="font-mono">{formatDate(phase.occurred_at)}</div>
             </div>
-            <RequestSqlTable fingerprints={(phase.self_top_sql_fingerprints?.length ? phase.self_top_sql_fingerprints : phase.top_sql_fingerprints) ?? []} onExplain={onExplain} />
+            <RequestSqlTable
+              fingerprints={(phase.self_top_sql_fingerprints?.length ? phase.self_top_sql_fingerprints : phase.top_sql_fingerprints) ?? []}
+              onExplain={onExplain}
+            />
           </article>
         ))}
       </div>
@@ -342,7 +436,13 @@ function RequestPhasesTable({ onExplain, phases }: { onExplain: (sql: string) =>
   )
 }
 
-function RequestSqlTable({ fingerprints, onExplain }: { fingerprints: NonNullable<PerformanceEvent["top_sql_fingerprints"]>; onExplain: (sql: string) => void }) {
+function RequestSqlTable({
+  fingerprints,
+  onExplain
+}: {
+  fingerprints: NonNullable<PerformanceEvent["top_sql_fingerprints"]>
+  onExplain: (sql: string) => void
+}) {
   const { t } = useT("syrus_dev")
   if (fingerprints.length === 0) return <PanelMessage>{t("performance.request_sql_no_fingerprints")}</PanelMessage>
 
@@ -367,7 +467,9 @@ function RequestSqlTable({ fingerprints, onExplain }: { fingerprints: NonNullabl
             <tr key={`${row.fingerprint}-${index}`}>
               <td className="max-w-4xl px-4 py-2">
                 <div className="text-xs font-medium text-gray-700 dark:text-gray-200">{row.name || t("performance.sql_unknown")}</div>
-                <div className="mt-1 max-h-20 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">{row.sample_sql || row.fingerprint}</div>
+                <div className="mt-1 max-h-20 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">
+                  {row.sample_sql || row.fingerprint}
+                </div>
               </td>
               <NumberCell value={count || "-"} />
               <NumberCell value={formatMs(total)} />
@@ -413,7 +515,9 @@ function SlowPhasesTable({ rows }: { rows: SlowPhaseSummary[] }) {
                 <NumberCell value={formatMs(row.average_duration_ms)} />
                 <NumberCell value={formatMs(row.max_duration_ms)} />
                 <td className="max-w-md overflow-hidden px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">
-                  <div className="truncate" title={metadata !== "-" ? metadata : undefined}>{metadata}</div>
+                  <div className="truncate" title={metadata !== "-" ? metadata : undefined}>
+                    {metadata}
+                  </div>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
               </tr>
@@ -450,21 +554,32 @@ function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTrace
             <tr key={`${row.name}-${row.path}`}>
               <td className="max-w-xl px-4 py-2">
                 <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.name}</div>
-                <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400" title={row.path ?? undefined}>{row.path ?? "-"}</div>
+                <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400" title={row.path ?? undefined}>
+                  {row.path ?? "-"}
+                </div>
               </td>
               <NumberCell value={row.count} />
               <NumberCell value={formatMs(row.total_duration_ms)} />
               <NumberCell value={formatMs(row.average_duration_ms)} />
               <NumberCell value={formatMs(row.max_duration_ms)} />
               <NumberCell value={`${formatMs(row.average_api_duration_ms)} / ${formatMs(row.max_api_duration_ms)}`} />
-              <NumberCell value={`${formatMs(frontendOverhead(row.average_duration_ms, row.average_api_duration_ms))} / ${formatMs(frontendOverhead(row.max_duration_ms, row.max_api_duration_ms))}`} />
+              <NumberCell
+                value={`${formatMs(frontendOverhead(row.average_duration_ms, row.average_api_duration_ms))} / ${formatMs(frontendOverhead(row.max_duration_ms, row.max_api_duration_ms))}`}
+              />
               <NumberCell value={`${formatMs(row.average_span_duration_ms)} / ${formatMs(row.max_span_duration_ms)}`} />
               <td className="max-w-md px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">
-                <div className="truncate" title={row.recent_api_request_ids.join(", ")}>{row.recent_api_request_ids.join(", ") || "-"}</div>
+                <div className="truncate" title={row.recent_api_request_ids.join(", ")}>
+                  {row.recent_api_request_ids.join(", ") || "-"}
+                </div>
               </td>
               <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
               <td className="whitespace-nowrap px-4 py-2 text-right">
-                <button aria-label={t("performance.browser_trace_details_action", { name: row.name })} className={smallActionClass()} onClick={() => onInspect(row)} type="button">
+                <button
+                  aria-label={t("performance.browser_trace_details_action", { name: row.name })}
+                  className={smallActionClass()}
+                  onClick={() => onInspect(row)}
+                  type="button"
+                >
                   {t("performance.details")}
                 </button>
               </td>
@@ -484,12 +599,19 @@ function BrowserTraceModal({ events, onClose, trace }: { events: PerformanceEven
     .sort((a, b) => (b.occurred_at ?? "").localeCompare(a.occurred_at ?? ""))
 
   return (
-    <div aria-label={t("performance.browser_trace_modal_aria")} aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
+    <div
+      aria-label={t("performance.browser_trace_modal_aria")}
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+    >
       <section className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-950">
         <header className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("performance.browser_trace_heading")}</h2>
-            <p className="mt-1 truncate font-mono text-sm text-gray-600 dark:text-gray-300" title={trace.path ?? undefined}>{trace.name} · {trace.path ?? "-"}</p>
+            <p className="mt-1 truncate font-mono text-sm text-gray-600 dark:text-gray-300" title={trace.path ?? undefined}>
+              {trace.name} · {trace.path ?? "-"}
+            </p>
           </div>
           <button className={secondaryActionClass()} onClick={onClose} type="button">
             {t("performance.close")}
@@ -499,15 +621,21 @@ function BrowserTraceModal({ events, onClose, trace }: { events: PerformanceEven
           {t("performance.browser_trace_help")}
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-auto p-5">
-          {traceEvents.length > 0 ? traceEvents.map((event, index) => (
-            <article className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={`${event.trace_id ?? event.occurred_at}-${index}`}>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                <div className="font-mono">{event.trace_id || t("performance.trace_without_id")}</div>
-                <div>{formatDate(event.occurred_at)} · {formatMs(event.duration_ms)}</div>
-              </div>
-              <BrowserTraceDetailTables event={event} />
-            </article>
-          )) : <PanelMessage>{t("performance.browser_trace_no_events")}</PanelMessage>}
+          {traceEvents.length > 0 ? (
+            traceEvents.map((event, index) => (
+              <article className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={`${event.trace_id ?? event.occurred_at}-${index}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                  <div className="font-mono">{event.trace_id || t("performance.trace_without_id")}</div>
+                  <div>
+                    {formatDate(event.occurred_at)} · {formatMs(event.duration_ms)}
+                  </div>
+                </div>
+                <BrowserTraceDetailTables event={event} />
+              </article>
+            ))
+          ) : (
+            <PanelMessage>{t("performance.browser_trace_no_events")}</PanelMessage>
+          )}
         </div>
       </section>
     </div>
@@ -571,7 +699,9 @@ function SqlFingerprintsTable({ onExplain, rows }: { onExplain: (sql: string) =>
             <tr key={row.fingerprint}>
               <td className="max-w-4xl px-4 py-2">
                 <div className="text-xs font-medium text-gray-700 dark:text-gray-200">{row.name || t("performance.sql_unknown")}</div>
-                <div className="mt-1 max-h-16 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">{row.sample_sql || row.fingerprint}</div>
+                <div className="mt-1 max-h-16 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">
+                  {row.sample_sql || row.fingerprint}
+                </div>
               </td>
               <NumberCell value={row.count} />
               <NumberCell value={formatMs(row.total_duration_ms)} />
@@ -613,7 +743,7 @@ function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose:
   const isLoading = mutation.isPending
   const analyzeSafe = explainResult?.analyze_safe === true || resultsByMode.analyze?.analyze_safe === true
   const analyzeDisabled = isLoading || explainResult == null || !analyzeSafe
-  const warning = result?.placeholder_substituted ? [t("performance.explain_placeholder_warning"), ...result.warnings] : result?.warnings ?? []
+  const warning = result?.placeholder_substituted ? [t("performance.explain_placeholder_warning"), ...result.warnings] : (result?.warnings ?? [])
   const showOrRun = (mode: ExplainMode) => {
     if (resultsByMode[mode]) {
       mutation.reset()
@@ -625,14 +755,23 @@ function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose:
   }
 
   return (
-    <div aria-label={t("performance.explain_modal_aria")} aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
+    <div
+      aria-label={t("performance.explain_modal_aria")}
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+    >
       <section className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-950">
         <header className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("performance.explain_heading")}</h2>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t("performance.explain_help")}</p>
           </div>
-          <button className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" onClick={onClose} type="button">
+          <button
+            className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            onClick={onClose}
+            type="button"
+          >
             {t("performance.close")}
           </button>
         </header>
@@ -641,7 +780,13 @@ function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose:
             <button className={primaryActionClass()} disabled={isLoading} onClick={() => showOrRun("explain")} type="button">
               {isLoading ? t("performance.explain_running") : t("performance.run_explain")}
             </button>
-            <button className={secondaryActionClass()} disabled={analyzeDisabled} onClick={() => showOrRun("analyze")} type="button" title={explainResult && !analyzeSafe ? explainResult.analyze_safety_reason : t("performance.run_analyze_title")}>
+            <button
+              className={secondaryActionClass()}
+              disabled={analyzeDisabled}
+              onClick={() => showOrRun("analyze")}
+              type="button"
+              title={explainResult && !analyzeSafe ? explainResult.analyze_safety_reason : t("performance.run_analyze_title")}
+            >
               {t("performance.run_analyze")}
             </button>
           </div>
@@ -652,7 +797,9 @@ function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose:
         {mutation.isError ? <PanelMessage tone="error">{errorMessage(mutation.error, t("performance.explain_error"))}</PanelMessage> : null}
         {warning.length > 0 ? (
           <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-            {warning.map((item) => <div key={item}>{item}</div>)}
+            {warning.map((item) => (
+              <div key={item}>{item}</div>
+            ))}
           </div>
         ) : null}
         {result ? (
@@ -704,10 +851,25 @@ function EventsTable({ rows }: { rows: PerformanceEvent[] }) {
               <NumberCell value={formatMs(row.duration_ms)} />
               <td className="max-w-4xl px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
                 <div className="font-mono">{row.phase || row.path || row.job_class || row.name || row.fingerprint || "-"}</div>
-                {row.queue_name ? <div className="mt-1">{t("performance.job_context", { queue: row.queue_name, active_job_id: row.active_job_id || "-" })}</div> : null}
+                {row.queue_name ? (
+                  <div className="mt-1">{t("performance.job_context", { queue: row.queue_name, active_job_id: row.active_job_id || "-" })}</div>
+                ) : null}
                 {row.trigger_reasons?.length ? <div className="mt-1">{t("performance.triggered_by", { reasons: row.trigger_reasons.join(", ") })}</div> : null}
-                {row.sql_count != null ? <div className="mt-1">{t("performance.sql_context", { count: row.sql_count, duration: formatMs(row.sql_duration_ms) })}</div> : null}
-                {row.api_requests?.length ? <div className="mt-1">{t("performance.browser_api_context", { count: row.api_requests.length, ids: row.api_requests.map((request) => request.request_id).filter(Boolean).join(", ") || "-" })}</div> : null}
+                {row.sql_count != null ? (
+                  <div className="mt-1">{t("performance.sql_context", { count: row.sql_count, duration: formatMs(row.sql_duration_ms) })}</div>
+                ) : null}
+                {row.api_requests?.length ? (
+                  <div className="mt-1">
+                    {t("performance.browser_api_context", {
+                      count: row.api_requests.length,
+                      ids:
+                        row.api_requests
+                          .map((request) => request.request_id)
+                          .filter(Boolean)
+                          .join(", ") || "-"
+                    })}
+                  </div>
+                ) : null}
               </td>
             </tr>
           ))}
@@ -734,11 +896,11 @@ function VisualPlan({ result }: { result: SqlExplainResult }) {
 
   return (
     <div className="space-y-3">
-      {result.mode === "analyze" ? (
-        <PanelMessage>{t("performance.analyze_notice", { timeout: result.timeout_ms ?? "-" })}</PanelMessage>
-      ) : null}
+      {result.mode === "analyze" ? <PanelMessage>{t("performance.analyze_notice", { timeout: result.timeout_ms ?? "-" })}</PanelMessage> : null}
       <div className="space-y-3">
-        {nodes.map((node, index) => <PlanNodeCard key={`${node.title}-${index}`} node={node} />)}
+        {nodes.map((node, index) => (
+          <PlanNodeCard key={`${node.title}-${index}`} node={node} />
+        ))}
       </div>
     </div>
   )
@@ -768,7 +930,9 @@ function PlanNodeCard({ depth = 0, node }: { depth?: number; node: PlanNode }) {
       </article>
       {node.children.length > 0 ? (
         <div className="mt-3 space-y-3">
-          {node.children.map((child, index) => <PlanNodeCard depth={depth + 1} key={`${child.title}-${index}`} node={child} />)}
+          {node.children.map((child, index) => (
+            <PlanNodeCard depth={depth + 1} key={`${child.title}-${index}`} node={child} />
+          ))}
         </div>
       ) : null}
     </div>
@@ -784,12 +948,22 @@ function ExplainRowsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
     <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table className="min-w-full divide-y divide-gray-200 text-xs dark:divide-gray-700">
         <thead className="bg-gray-50 text-left font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>{columns.map((column) => <th className="px-3 py-2" key={column}>{column}</th>)}</tr>
+          <tr>
+            {columns.map((column) => (
+              <th className="px-3 py-2" key={column}>
+                {column}
+              </th>
+            ))}
+          </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {rows.map((row, index) => (
             <tr key={index}>
-              {columns.map((column) => <td className="max-w-xl whitespace-pre-wrap break-words px-3 py-2 font-mono text-gray-700 dark:text-gray-200" key={column}>{stringValue(row[column])}</td>)}
+              {columns.map((column) => (
+                <td className="max-w-xl whitespace-pre-wrap break-words px-3 py-2 font-mono text-gray-700 dark:text-gray-200" key={column}>
+                  {stringValue(row[column])}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
@@ -799,11 +973,19 @@ function ExplainRowsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
 }
 
 function JsonBlock({ value }: { value: unknown }) {
-  return <pre className="max-h-[60vh] overflow-auto rounded border border-gray-200 bg-gray-50 p-4 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{JSON.stringify(value, null, 2)}</pre>
+  return (
+    <pre className="max-h-[60vh] overflow-auto rounded border border-gray-200 bg-gray-50 p-4 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+      {JSON.stringify(value, null, 2)}
+    </pre>
+  )
 }
 
 function SqlBlock({ sql }: { sql: string }) {
-  return <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{sql}</pre>
+  return (
+    <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+      {sql}
+    </pre>
+  )
 }
 
 function planNodes(result: SqlExplainResult): PlanNode[] {
@@ -812,7 +994,9 @@ function planNodes(result: SqlExplainResult): PlanNode[] {
     return result.rows.map((row) => nodeFromExplainRow(row))
   }
   return result.rows.map((row, index) => {
-    const text = Object.values(row).map((value) => stringValue(value)).join(" ")
+    const text = Object.values(row)
+      .map((value) => stringValue(value))
+      .join(" ")
     return {
       title: `Step ${index + 1}`,
       subtitle: text,
@@ -832,7 +1016,15 @@ function nodesFromJsonPlan(plan: Record<string, unknown>): PlanNode[] {
 function nodeFromJsonRecord(label: string, record: Record<string, unknown>): PlanNode {
   if (isRecord(record.table)) return tableNode(record.table)
   const children: PlanNode[] = []
-  for (const key of [ "nested_loop", "query_block", "ordering_operation", "grouping_operation", "duplicates_removal", "attached_subqueries", "materialized_from_subquery" ]) {
+  for (const key of [
+    "nested_loop",
+    "query_block",
+    "ordering_operation",
+    "grouping_operation",
+    "duplicates_removal",
+    "attached_subqueries",
+    "materialized_from_subquery"
+  ]) {
     const value = record[key]
     if (Array.isArray(value)) {
       value.forEach((item, index) => {
@@ -846,7 +1038,7 @@ function nodeFromJsonRecord(label: string, record: Record<string, unknown>): Pla
   return {
     title: humanPlanLabel(label),
     risk: "neutral",
-    metrics: compactMetrics(record, [ "select_id", "cost_info", "used_columns" ]),
+    metrics: compactMetrics(record, ["select_id", "cost_info", "used_columns"]),
     children
   }
 }
@@ -861,12 +1053,12 @@ function tableNode(table: Record<string, unknown>): PlanNode {
     subtitle: accessType ? `access: ${accessType}` : undefined,
     risk: accessRisk(accessType),
     metrics: [
-      [ "access", accessType || "-" ],
-      [ "key", stringValue(key) || "-" ],
-      [ "rows", stringValue(rowsExamined) || "-" ],
-      [ "filtered", stringValue(table.filtered) || "-" ],
-      [ "cost", costSummary(table.cost_info) || "-" ],
-      [ "condition", stringValue(table.attached_condition) || "-" ]
+      ["access", accessType || "-"],
+      ["key", stringValue(key) || "-"],
+      ["rows", stringValue(rowsExamined) || "-"],
+      ["filtered", stringValue(table.filtered) || "-"],
+      ["cost", costSummary(table.cost_info) || "-"],
+      ["condition", stringValue(table.attached_condition) || "-"]
     ],
     children: isRecord(table.materialized_from_subquery) ? [nodeFromJsonRecord("materialized_from_subquery", table.materialized_from_subquery)] : []
   }
@@ -879,12 +1071,12 @@ function nodeFromExplainRow(row: Record<string, unknown>): PlanNode {
     subtitle: row.select_type ? stringValue(row.select_type) : undefined,
     risk: accessRisk(accessType),
     metrics: [
-      [ "access", accessType || "-" ],
-      [ "key", stringValue(row.key) || "-" ],
-      [ "possible keys", stringValue(row.possible_keys) || "-" ],
-      [ "rows", stringValue(row.rows) || "-" ],
-      [ "filtered", stringValue(row.filtered) || "-" ],
-      [ "extra", stringValue(row.Extra ?? row.extra) || "-" ]
+      ["access", accessType || "-"],
+      ["key", stringValue(row.key) || "-"],
+      ["possible keys", stringValue(row.possible_keys) || "-"],
+      ["rows", stringValue(row.rows) || "-"],
+      ["filtered", stringValue(row.filtered) || "-"],
+      ["extra", stringValue(row.Extra ?? row.extra) || "-"]
     ],
     children: []
   }
@@ -897,8 +1089,8 @@ function compactMetrics(record: Record<string, unknown>, keys: string[]): Array<
 function accessRisk(accessType: string) {
   const normalized = accessType.toLowerCase()
   if (normalized === "all") return "high"
-  if ([ "index", "range", "index_merge" ].includes(normalized)) return "medium"
-  if ([ "system", "const", "eq_ref", "ref" ].includes(normalized)) return "low"
+  if (["index", "range", "index_merge"].includes(normalized)) return "medium"
+  if (["system", "const", "eq_ref", "ref"].includes(normalized)) return "low"
   return "neutral"
 }
 
@@ -970,12 +1162,22 @@ function SimpleRowsTable({ empty, rows }: { empty: string; rows: Array<Record<st
     <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
         <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>{columns.map((column) => <th className="px-4 py-2" key={column}>{column}</th>)}</tr>
+          <tr>
+            {columns.map((column) => (
+              <th className="px-4 py-2" key={column}>
+                {column}
+              </th>
+            ))}
+          </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {rows.map((row, index) => (
             <tr key={index}>
-              {columns.map((column) => <td className="max-w-3xl break-words px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200" key={column}>{row[column]}</td>)}
+              {columns.map((column) => (
+                <td className="max-w-3xl break-words px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200" key={column}>
+                  {row[column]}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
@@ -985,11 +1187,12 @@ function SimpleRowsTable({ empty, rows }: { empty: string; rows: Array<Record<st
 }
 
 function Metric({ context, title, tone = "idle", value }: { context?: string; title: string; tone?: "idle" | "ok" | "warn"; value: ReactNode }) {
-  const toneClass = tone === "ok"
-    ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
-    : tone === "warn"
-      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+  const toneClass =
+    tone === "ok"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
 
   return (
     <article className={`rounded border px-4 py-3 ${toneClass}`}>
@@ -1005,7 +1208,13 @@ function NumberCell({ value }: { value: ReactNode }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`rounded border p-4 text-sm ${tone === "error" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>{children}</div>
+  return (
+    <div
+      className={`rounded border p-4 text-sm ${tone === "error" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}
+    >
+      {children}
+    </div>
+  )
 }
 
 function formatMs(value: number | null | undefined) {

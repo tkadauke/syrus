@@ -54,8 +54,7 @@ function publish(next: SyrusBackendUpdate | null) {
     }, BACKEND_UPDATE_STALE_MS)
   }
 
-  const changed =
-    next?.phase !== snapshot?.phase || next?.percent !== snapshot?.percent || next?.outage !== snapshot?.outage
+  const changed = next?.phase !== snapshot?.phase || next?.percent !== snapshot?.percent || next?.outage !== snapshot?.outage
   if (!changed) return
 
   snapshot = next

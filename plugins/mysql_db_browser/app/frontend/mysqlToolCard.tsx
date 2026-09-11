@@ -224,7 +224,10 @@ export function parseSection<T>(value: unknown, parseRow: (row: unknown, index: 
   if (value.available !== true) return { available: false, error: parseMysqlError(value.error) }
 
   const rows = Array.isArray(value.rows)
-    ? value.rows.flatMap((row, index) => { const parsed = parseRow(row, index); return parsed ? [parsed] : [] })
+    ? value.rows.flatMap((row, index) => {
+        const parsed = parseRow(row, index)
+        return parsed ? [parsed] : []
+      })
     : []
 
   return { available: true, truncated: value.truncated === true, rows }

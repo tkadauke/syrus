@@ -17,7 +17,11 @@ export function diffStats(diff: string): DiffStats {
 export function DiffStatBadges({ stats }: { stats: DiffStats }) {
   return (
     <div className="flex flex-wrap items-center gap-2 font-mono text-2xs">
-      {stats.fileCount > 0 ? <span className="text-gray-600 dark:text-gray-300">{stats.fileCount} file{stats.fileCount === 1 ? "" : "s"}</span> : null}
+      {stats.fileCount > 0 ? (
+        <span className="text-gray-600 dark:text-gray-300">
+          {stats.fileCount} file{stats.fileCount === 1 ? "" : "s"}
+        </span>
+      ) : null}
       <span className="text-emerald-700 dark:text-emerald-300">+{stats.additions}</span>
       <span className="text-red-700 dark:text-red-300">-{stats.deletions}</span>
     </div>

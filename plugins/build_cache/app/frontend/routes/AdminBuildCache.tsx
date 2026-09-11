@@ -55,11 +55,7 @@ function BuildCacheContent({ payload }: { payload: AdminBuildCachePayload }) {
   return (
     <>
       <StatsCard payload={payload} />
-      {payload.pending_request ? (
-        <PendingRequestCard request={payload.pending_request} />
-      ) : (
-        <ClearRequestForm />
-      )}
+      {payload.pending_request ? <PendingRequestCard request={payload.pending_request} /> : <ClearRequestForm />}
       <RecentRequestsCard requests={payload.recent_requests} />
     </>
   )
@@ -89,9 +85,7 @@ function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
               value={stats.newest_object ? <RelativeTimestamp value={stats.newest_object.last_modified} /> : "—"}
             />
           </dl>
-          {stats.truncated ? (
-            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{t("build_cache.stats_truncated")}</p>
-          ) : null}
+          {stats.truncated ? <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{t("build_cache.stats_truncated")}</p> : null}
         </>
       ) : (
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("build_cache.stats_unavailable")}</p>
@@ -117,11 +111,12 @@ function ClearRequestForm() {
   const [reason, setReason] = useState("")
 
   const create = useMutation({
-    mutationFn: () => createBuildCacheClearRequest({
-      scope,
-      older_than_days: scope === "partial" ? Number(olderThanDays) : null,
-      reason
-    }),
+    mutationFn: () =>
+      createBuildCacheClearRequest({
+        scope,
+        older_than_days: scope === "partial" ? Number(olderThanDays) : null,
+        reason
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(QUERY_KEY, updated)
       setReason("")
@@ -135,7 +130,11 @@ function ClearRequestForm() {
   }
 
   return (
-    <form className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submit} data-testid="build-cache-clear-form">
+    <form
+      className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4"
+      onSubmit={submit}
+      data-testid="build-cache-clear-form"
+    >
       <SectionHeading>{t("build_cache.request_heading")}</SectionHeading>
 
       <fieldset className="space-y-2">
@@ -197,9 +196,7 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
   })
 
   async function onConfirmClick() {
-    const message = request.scope === "full"
-      ? t("build_cache.confirm_full")
-      : t("build_cache.confirm_partial", { days: request.older_than_days })
+    const message = request.scope === "full" ? t("build_cache.confirm_full") : t("build_cache.confirm_partial", { days: request.older_than_days })
     if (await confirm({ message, destructive: true, confirmLabel: t("build_cache.confirm_button") })) {
       confirmMutation.mutate()
     }
@@ -215,11 +212,15 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
         <dt className="text-amber-700 dark:text-amber-300">{t("build_cache.pending_reason")}</dt>
         <dd className="whitespace-pre-wrap">{request.reason}</dd>
         <dt className="text-amber-700 dark:text-amber-300">{t("build_cache.pending_requested_by")}</dt>
-        <dd>{request.requested_by ?? "—"} · <RelativeTimestamp value={request.created_at} /></dd>
+        <dd>
+          {request.requested_by ?? "—"} · <RelativeTimestamp value={request.created_at} />
+        </dd>
       </dl>
 
       {confirmMutation.isError ? (
-        <p className="mt-2 text-sm text-red-700 dark:text-red-300">{confirmMutation.error instanceof ApiError ? confirmMutation.error.message : t("build_cache.error_generic")}</p>
+        <p className="mt-2 text-sm text-red-700 dark:text-red-300">
+          {confirmMutation.error instanceof ApiError ? confirmMutation.error.message : t("build_cache.error_generic")}
+        </p>
       ) : null}
 
       <div className="mt-3 flex gap-2">
@@ -270,15 +271,12 @@ function RecentRequestsCard({ requests }: { requests: BuildCacheClearRequest[] }
 
 function RequestStateBadge({ state }: { state: BuildCacheClearRequest["state"] }) {
   const { t } = useT("build_cache")
-  const classes = state === "confirmed"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
-    : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
+  const classes =
+    state === "confirmed"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
+      : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
 
-  return (
-    <span className={`rounded border px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`build_cache.state_${state}`)}
-    </span>
-  )
+  return <span className={`rounded border px-2 py-0.5 text-xs font-medium ${classes}`}>{t(`build_cache.state_${state}`)}</span>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {

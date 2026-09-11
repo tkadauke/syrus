@@ -527,8 +527,6 @@ export type RepositoryNeedsTriageJob = {
   created_at: string
 }
 
-
-
 export type CoverageTrendPoint = {
   date: string
   lines_pct: number | null
@@ -554,11 +552,6 @@ export function fetchRepositories() {
 export function fetchRepositoryDetail(id: string, search = "") {
   return getJson<RepositoryDetailPayload>(`/api/v1/app/repositories/${id}${search}`)
 }
-
-
-
-
-
 
 export function pollRepositoryDetail(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
@@ -641,14 +634,6 @@ export type RepositoryFlakyTestsPayload = {
 export function fetchRepositoryFlakyTests(path: string) {
   return getJson<RepositoryFlakyTestsPayload>(path)
 }
-
-
-
-
-
-
-
-
 
 export function updateRepository(id: number, values: RepositoryInput) {
   return patchJson<RepositorySavedPayload>(`/api/v1/app/repositories/${id}`, { repository: values })
@@ -736,8 +721,5 @@ export function fetchInsightScheduleConfig(id: number | string) {
 }
 
 export function updateInsightScheduleConfig(id: number | string, values: InsightScheduleConfigInput) {
-  return patchJson<{ message: string; config: InsightScheduleConfigRecord }>(
-    `/api/v1/app/repositories/${id}/insight_schedule_config`,
-    values
-  )
+  return patchJson<{ message: string; config: InsightScheduleConfigRecord }>(`/api/v1/app/repositories/${id}/insight_schedule_config`, values)
 }

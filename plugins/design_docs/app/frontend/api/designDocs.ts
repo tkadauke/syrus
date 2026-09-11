@@ -233,11 +233,25 @@ export function updateDesignDoc(id: string | number, input: DesignDocInput) {
   return patchJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}`, { design_doc: input })
 }
 
-export function createDesignDocComment(id: string | number, input: { body: string; start_offset?: number; end_offset?: number; selected_markdown?: string; selected_text?: string; thread_id?: number }) {
+export function createDesignDocComment(
+  id: string | number,
+  input: { body: string; start_offset?: number; end_offset?: number; selected_markdown?: string; selected_text?: string; thread_id?: number }
+) {
   return postJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}/comments`, { comment: input })
 }
 
-export function createDesignDocSuggestion(id: string | number, input: { start_offset: number; end_offset: number; original_markdown: string; proposed_markdown: string; change_summary?: string; selected_text?: string; autosave?: boolean }) {
+export function createDesignDocSuggestion(
+  id: string | number,
+  input: {
+    start_offset: number
+    end_offset: number
+    original_markdown: string
+    proposed_markdown: string
+    change_summary?: string
+    selected_text?: string
+    autosave?: boolean
+  }
+) {
   return postJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}/suggestions`, { suggestion: { ...input, change_type: "replace" } })
 }
 

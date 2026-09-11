@@ -11,11 +11,13 @@ import { AppChromeV2 } from "./AppChromeV2"
 import { adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
 import { buildAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 
-const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
-  toBlob(callback: (blob: Blob | null) => void) {
-    callback(new Blob(["screenshot"], { type: "image/png" }))
-  }
-})))
+const html2canvasMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    toBlob(callback: (blob: Blob | null) => void) {
+      callback(new Blob(["screenshot"], { type: "image/png" }))
+    }
+  }))
+)
 
 vi.mock("html2canvas-pro", () => ({
   default: html2canvasMock
@@ -148,10 +150,13 @@ describe("AppChromeV2", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dark" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ theme: "dark" })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/theme",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ theme: "dark" })
+        })
+      )
     })
     expect(document.documentElement.classList.contains("dark")).toBe(true)
   })
@@ -173,10 +178,13 @@ describe("AppChromeV2", () => {
       fireEvent.click(screen.getByRole("button", { name: "System" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
-          method: "PATCH",
-          body: JSON.stringify({ theme: "system" })
-        }))
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/theme",
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ theme: "system" })
+          })
+        )
       })
       expect(document.documentElement.classList.contains("dark")).toBe(true)
     } finally {
@@ -232,7 +240,8 @@ describe("AppChromeV2", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/themes") return Promise.resolve(jsonResponse({ themes: [oceanColorTheme(), forestColorTheme()] }))
-      if (path === "/api/v1/app/theme") return Promise.resolve(jsonResponse({ theme: "light", color_theme_id: forestColorTheme().id, color_theme: forestColorTheme() }))
+      if (path === "/api/v1/app/theme")
+        return Promise.resolve(jsonResponse({ theme: "light", color_theme_id: forestColorTheme().id, color_theme: forestColorTheme() }))
 
       return Promise.resolve(jsonResponse({}))
     })
@@ -249,10 +258,13 @@ describe("AppChromeV2", () => {
     fireEvent.click(screen.getByRole("button", { name: "Forest" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ color_theme_id: forestColorTheme().id })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/theme",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ color_theme_id: forestColorTheme().id })
+        })
+      )
     })
     expect(document.documentElement.getAttribute("data-theme")).toBe("forest")
   })
@@ -336,63 +348,65 @@ describe("AppChromeV2", () => {
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("section") === "chrome") {
         expect(url.searchParams.has("smart_folder_id")).toBe(false)
-        return Promise.resolve(jsonResponse({
-          subject: "job",
-          view: "list",
-          page: 1,
-          per_page: 25,
-          counts: { jobs: 1, epics: 0, workflows: 0 },
-          preferences: {
-            sort: { column: "created_at", direction: "desc" },
-            visible_columns: [],
-            kanban_lanes: [],
-            ownership_scope: "team",
-            owner_user_id: null,
-            owner_id: null,
-            raw: {}
-          },
-          controls: {
-            views: ["list"],
-            ownership_scopes: [],
-            owners: [],
-            sort_columns: [],
-            sort_directions: [],
-            columns: { required: [], optional: [] },
-            kanban_lanes: [],
-            filter_schema: [],
-            filter_suggestions: []
-          },
-          filter: chromeFilter,
-          landing_queue: { visible: false, paused: false, toggle_path: "/api/v1/app/dashboard/landing_pause" },
-          ownership_scope: { scope: "team", owner_user_id: null, owner_user: null },
-          ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false },
-          smart_folders: [
-            {
-              id: 7,
-              name: "My work",
-              key: null,
-              kind: "user_defined",
-              subject_type: "job",
-              visibility: "user_defined",
-              position: 2,
-              count: 1,
-              active: false,
-              filter: savedFilter,
-              path: "/dashboard/jobs?smart_folder_id=7"
+        return Promise.resolve(
+          jsonResponse({
+            subject: "job",
+            view: "list",
+            page: 1,
+            per_page: 25,
+            counts: { jobs: 1, epics: 0, workflows: 0 },
+            preferences: {
+              sort: { column: "created_at", direction: "desc" },
+              visible_columns: [],
+              kanban_lanes: [],
+              ownership_scope: "team",
+              owner_user_id: null,
+              owner_id: null,
+              raw: {}
+            },
+            controls: {
+              views: ["list"],
+              ownership_scopes: [],
+              owners: [],
+              sort_columns: [],
+              sort_directions: [],
+              columns: { required: [], optional: [] },
+              kanban_lanes: [],
+              filter_schema: [],
+              filter_suggestions: []
+            },
+            filter: chromeFilter,
+            landing_queue: { visible: false, paused: false, toggle_path: "/api/v1/app/dashboard/landing_pause" },
+            ownership_scope: { scope: "team", owner_user_id: null, owner_user: null },
+            ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false },
+            smart_folders: [
+              {
+                id: 7,
+                name: "My work",
+                key: null,
+                kind: "user_defined",
+                subject_type: "job",
+                visibility: "user_defined",
+                position: 2,
+                count: 1,
+                active: false,
+                filter: savedFilter,
+                path: "/dashboard/jobs?smart_folder_id=7"
+              }
+            ],
+            active_smart_folder_id: null,
+            setup: null,
+            paths: {
+              dashboard_path: "/dashboard",
+              dashboard_jobs_path: "/dashboard/jobs",
+              dashboard_epics_path: "/dashboard/epics",
+              dashboard_workflows_path: "/dashboard/workflows",
+              new_epic_path: "/epics/new",
+              new_job_path: "/jobs/new",
+              app_dashboard_path: "/api/v1/app/dashboard"
             }
-          ],
-          active_smart_folder_id: null,
-          setup: null,
-          paths: {
-            dashboard_path: "/dashboard",
-            dashboard_jobs_path: "/dashboard/jobs",
-            dashboard_epics_path: "/dashboard/epics",
-            dashboard_workflows_path: "/dashboard/workflows",
-            new_epic_path: "/epics/new",
-            new_job_path: "/jobs/new",
-            app_dashboard_path: "/api/v1/app/dashboard"
-          }
-        }))
+          })
+        )
       }
 
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
@@ -420,56 +434,62 @@ describe("AppChromeV2", () => {
 
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "design_docs",
-            label: "Design Docs",
-            label_key: null,
-            path: "/design_docs",
-            paths: ["/design_docs"],
-            order: 25,
-            component: "DesignDocs",
-            icon: "document",
-            smart_folder_api_path: "/api/v1/app/design_docs",
-            smart_folder_subject: "design_doc"
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "design_docs",
+                label: "Design Docs",
+                label_key: null,
+                path: "/design_docs",
+                paths: ["/design_docs"],
+                order: 25,
+                component: "DesignDocs",
+                icon: "document",
+                smart_folder_api_path: "/api/v1/app/design_docs",
+                smart_folder_subject: "design_doc"
+              }
+            ]
+          })
+        )
       }
 
       if (url.pathname === "/api/v1/app/design_docs") {
         expect(url.searchParams.get("smart_folder_id")).toBe("21")
-        return Promise.resolve(jsonResponse({
-          active_smart_folder_id: 21,
-          filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
-          smart_folders: [
-            {
-              id: 11,
-              name: "Open comments",
-              key: "design_docs_open_comments",
-              kind: "builtin",
-              subject_type: "design_doc",
-              visibility: "when_present",
-              position: 2,
-              count: 3,
-              active: false,
-              filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
-              path: "/design_docs?smart_folder_id=11"
-            },
-            {
-              id: 21,
-              name: "Team docs",
-              key: null,
-              kind: "user_defined",
-              subject_type: "design_doc",
-              visibility: "user_defined",
-              position: 1,
-              count: 4,
-              active: true,
-              filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
-              path: "/design_docs?smart_folder_id=21"
-            }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            active_smart_folder_id: 21,
+            filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
+            smart_folders: [
+              {
+                id: 11,
+                name: "Open comments",
+                key: "design_docs_open_comments",
+                kind: "builtin",
+                subject_type: "design_doc",
+                visibility: "when_present",
+                position: 2,
+                count: 3,
+                active: false,
+                filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
+                path: "/design_docs?smart_folder_id=11"
+              },
+              {
+                id: 21,
+                name: "Team docs",
+                key: null,
+                kind: "user_defined",
+                subject_type: "design_doc",
+                visibility: "user_defined",
+                position: 1,
+                count: 4,
+                active: true,
+                filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
+                path: "/design_docs?smart_folder_id=21"
+              }
+            ]
+          })
+        )
       }
 
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
@@ -502,20 +522,24 @@ describe("AppChromeV2", () => {
 
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "design_docs",
-            label: "Design Docs",
-            label_key: null,
-            path: "/design_docs",
-            paths: ["/design_docs"],
-            order: 25,
-            component: "DesignDocs",
-            icon: "document",
-            smart_folder_api_path: "/api/v1/app/design_docs",
-            smart_folder_subject: "design_doc"
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "design_docs",
+                label: "Design Docs",
+                label_key: null,
+                path: "/design_docs",
+                paths: ["/design_docs"],
+                order: 25,
+                component: "DesignDocs",
+                icon: "document",
+                smart_folder_api_path: "/api/v1/app/design_docs",
+                smart_folder_subject: "design_doc"
+              }
+            ]
+          })
+        )
       }
 
       if (url.pathname === "/api/v1/app/design_docs") {
@@ -544,20 +568,24 @@ describe("AppChromeV2", () => {
 
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "design_docs",
-            label: "Design Docs",
-            label_key: null,
-            path: "/design_docs",
-            paths: ["/design_docs"],
-            order: 25,
-            component: "DesignDocs",
-            icon: "document",
-            smart_folder_api_path: "/api/v1/app/design_docs",
-            smart_folder_subject: "design_doc"
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "design_docs",
+                label: "Design Docs",
+                label_key: null,
+                path: "/design_docs",
+                paths: ["/design_docs"],
+                order: 25,
+                component: "DesignDocs",
+                icon: "document",
+                smart_folder_api_path: "/api/v1/app/design_docs",
+                smart_folder_subject: "design_doc"
+              }
+            ]
+          })
+        )
       }
 
       if (url.pathname === "/api/v1/app/design_docs") {
@@ -597,7 +625,9 @@ describe("AppChromeV2", () => {
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("section") === "chrome") {
         if (url.searchParams.get("subject") === "epic") {
-          return new Promise((resolve) => { resolveEpicsFetch = resolve })
+          return new Promise((resolve) => {
+            resolveEpicsFetch = resolve
+          })
         }
         return Promise.resolve(jsonResponse(dashboardChromePayload({ subject: "job" })))
       }
@@ -713,7 +743,9 @@ describe("AppChromeV2", () => {
   it("disables New Chat while a creation request is in flight and ignores a rapid second click", async () => {
     let resolveFetchNewChat: (value: { default_repository_id: number }) => void = () => {}
     vi.spyOn(chatsApi, "fetchNewChat").mockReturnValue(
-      new Promise((resolve) => { resolveFetchNewChat = resolve })
+      new Promise((resolve) => {
+        resolveFetchNewChat = resolve
+      })
     )
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
       message: "Chat created.",
@@ -1085,12 +1117,14 @@ describe("AppChromeV2 primary nav reordering", () => {
 
   it("applies the operator's saved order, appending items missing from it at the end", () => {
     const bootstrap = bootstrapPayload({ team_user_count: 2 })
-    bootstrap.current_user = { ...bootstrap.current_user!, sidebar_nav_order: [ "dashboard" ] }
+    bootstrap.current_user = { ...bootstrap.current_user!, sidebar_nav_order: ["dashboard"] }
 
     renderAppChrome(<div>Dashboard</div>, { initialEntries: ["/repositories"], bootstrap })
 
     const primaryNav = screen.getByRole("navigation", { name: "Primary" })
-    const labels = within(primaryNav).getAllByRole("link").map((link) => link.textContent)
+    const labels = within(primaryNav)
+      .getAllByRole("link")
+      .map((link) => link.textContent)
 
     // "dashboard" follows the saved order; "repositories" is absent from it,
     // so it's appended at the end.
@@ -1125,16 +1159,23 @@ describe("AppChromeV2 primary nav reordering", () => {
     fireEvent.dragEnd(repositoriesRow)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ order: ["repositories", "dashboard"] })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/sidebar_nav_order",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ order: ["repositories", "dashboard"] })
+        })
+      )
     })
   })
 
   it("keeps the live reorder intact when an unrelated query update re-renders the sidebar mid-drag", async () => {
     const badgedPage = {
-      id: "badged.page", label: "Badged", path: "/badged", paths: ["/badged"], order: 40,
+      id: "badged.page",
+      label: "Badged",
+      path: "/badged",
+      paths: ["/badged"],
+      order: 40,
       badge_api_path: "/api/v1/app/badged/count"
     }
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -1147,7 +1188,7 @@ describe("AppChromeV2 primary nav reordering", () => {
         return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2 })))
       }
       if (path === "/api/v1/app/sidebar_pages") {
-        return Promise.resolve(jsonResponse({ pages: [ badgedPage ] }))
+        return Promise.resolve(jsonResponse({ pages: [badgedPage] }))
       }
       if (path === "/api/v1/app/badged/count") {
         return Promise.resolve(jsonResponse({ count: 0 }))
@@ -1187,16 +1228,21 @@ describe("AppChromeV2 primary nav reordering", () => {
     // Flush react-query's notifyManager-scheduled re-render so the update
     // above has definitely propagated through AppChromeV2 (and, pre-fix,
     // through the resync effect) before we drop.
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
 
     fireEvent.drop(dashboardRow)
     fireEvent.dragEnd(scheduleRow)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ order: ["repositories", "dashboard", "badged.page"] })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/sidebar_nav_order",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ order: ["repositories", "dashboard", "badged.page"] })
+        })
+      )
     })
   })
 
@@ -1231,27 +1277,35 @@ describe("AppChromeV2 recent chats", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/chats") {
-        return Promise.resolve(jsonResponse(chatsIndexPayload({
-          groups: [
-            chatGroup({
-              chats: [
-                chatNav({ id: 3, title: "Newest", last_message_at: "2026-06-27T12:02:00Z" }),
-                chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" })
-              ],
-              has_more: true
+        return Promise.resolve(
+          jsonResponse(
+            chatsIndexPayload({
+              groups: [
+                chatGroup({
+                  chats: [
+                    chatNav({ id: 3, title: "Newest", last_message_at: "2026-06-27T12:02:00Z" }),
+                    chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" })
+                  ],
+                  has_more: true
+                })
+              ]
             })
-          ]
-        })))
+          )
+        )
       }
 
       if (path === "/api/v1/app/chats/more?repository_id=general&before_id=2") {
-        return Promise.resolve(jsonResponse(moreChatsPayload({
-          chats: [
-            chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" }),
-            chatNav({ id: 1, title: "Older loaded chat", last_message_at: "2026-06-27T12:00:00Z" })
-          ],
-          has_more: false
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            moreChatsPayload({
+              chats: [
+                chatNav({ id: 2, title: "Main query overlap", last_message_at: "2026-06-27T12:01:00Z" }),
+                chatNav({ id: 1, title: "Older loaded chat", last_message_at: "2026-06-27T12:00:00Z" })
+              ],
+              has_more: false
+            })
+          )
+        )
       }
 
       return Promise.resolve(jsonResponse({}))
@@ -1270,16 +1324,20 @@ describe("AppChromeV2 recent chats", () => {
   it("renders pinned chats before unpinned chats in the sidebar", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/chats") {
-        return Promise.resolve(jsonResponse(chatsIndexPayload({
-          groups: [
-            chatGroup({
-              chats: [
-                chatNav({ id: 1, title: "Recent unpinned", pinned: false, last_message_at: "2026-06-27T12:02:00Z" }),
-                chatNav({ id: 2, title: "Older pinned", pinned: true, last_message_at: "2026-06-27T12:00:00Z" })
+        return Promise.resolve(
+          jsonResponse(
+            chatsIndexPayload({
+              groups: [
+                chatGroup({
+                  chats: [
+                    chatNav({ id: 1, title: "Recent unpinned", pinned: false, last_message_at: "2026-06-27T12:02:00Z" }),
+                    chatNav({ id: 2, title: "Older pinned", pinned: true, last_message_at: "2026-06-27T12:00:00Z" })
+                  ]
+                })
               ]
             })
-          ]
-        })))
+          )
+        )
       }
 
       return Promise.resolve(jsonResponse({}))
@@ -1302,16 +1360,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Unpinned chat", pinned: false }),
-            chatNav({ id: 2, title: "Pinned chat", pinned: true })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Unpinned chat", pinned: false }), chatNav({ id: 2, title: "Pinned chat", pinned: true })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1342,15 +1400,16 @@ describe("AppChromeV2 recent chats", () => {
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Unpinned chat", pinned: false })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Unpinned chat", pinned: false })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1358,10 +1417,13 @@ describe("AppChromeV2 recent chats", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Pin chat" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ chat: { pinned: true } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ chat: { pinned: true } })
+        })
+      )
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
     })
   })
@@ -1375,16 +1437,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Unread chat", unread: true }),
-            chatNav({ id: 2, title: "Read chat", unread: false })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Unread chat", unread: true }), chatNav({ id: 2, title: "Read chat", unread: false })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1410,13 +1472,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [chatNav({ id: 1, title: "Unread chat", unread: true })]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Unread chat", unread: true })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1444,13 +1509,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [chatNav({ id: 1, title: "Read chat", unread: false })]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Read chat", unread: false })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1473,15 +1541,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Menu order chat", pinned: false })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Menu order chat", pinned: false })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1511,15 +1580,16 @@ describe("AppChromeV2 recent chats", () => {
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Old name" })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Old name" })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1539,10 +1609,13 @@ describe("AppChromeV2 recent chats", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1/rename", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ chat: { title: "New name" } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/chats/1/rename",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ chat: { title: "New name" } })
+        })
+      )
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
     })
   })
@@ -1565,15 +1638,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Doomed chat" })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Doomed chat" })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1602,9 +1676,14 @@ describe("AppChromeV2 recent chats", () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1" && init?.method === "DELETE") {
-        return Promise.resolve(new Response(JSON.stringify({
-          error: { code: "turn_in_flight", message: "Cannot delete this chat while a turn is in progress. Stop the turn first." }
-        }), { status: 409, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error: { code: "turn_in_flight", message: "Cannot delete this chat while a turn is in progress. Stop the turn first." }
+            }),
+            { status: 409, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
 
       if (path === "/api/v1/app/chats/1") {
@@ -1618,15 +1697,16 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [
-        chatGroup({
-          chats: [
-            chatNav({ id: 1, title: "Busy chat" })
-          ]
-        })
-      ]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [
+          chatGroup({
+            chats: [chatNav({ id: 1, title: "Busy chat" })]
+          })
+        ]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1729,9 +1809,12 @@ describe("chat row mode icons", () => {
 
   it("shows planning icon by default when chat has no mode set", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Planning chat" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Planning chat" })] })]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1741,9 +1824,12 @@ describe("chat row mode icons", () => {
 
   it("shows coding icon when coding_mode feature is enabled and chat mode is coding", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
+      })
+    )
 
     renderAppChrome(undefined, {
       queryClient,
@@ -1757,9 +1843,12 @@ describe("chat row mode icons", () => {
 
   it("falls back to planning icon when coding_mode flag is disabled even if chat mode is coding", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
+      })
+    )
 
     renderAppChrome(undefined, {
       queryClient,
@@ -1773,9 +1862,12 @@ describe("chat row mode icons", () => {
 
   it("shows local icon when local_mode feature is enabled and chat mode is local", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
+      })
+    )
 
     renderAppChrome(undefined, {
       queryClient,
@@ -1789,9 +1881,12 @@ describe("chat row mode icons", () => {
 
   it("falls back to planning icon when local_mode flag is disabled even if chat mode is local", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
+      })
+    )
 
     renderAppChrome(undefined, {
       queryClient,
@@ -1805,9 +1900,12 @@ describe("chat row mode icons", () => {
 
   it("wraps status dots in a group-hover:hidden container so they hide when the action menu appears", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Active chat", turn_in_flight: true })] })]
-    }))
+    queryClient.setQueryData(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Active chat", turn_in_flight: true })] })]
+      })
+    )
 
     renderAppChrome(undefined, { queryClient })
 
@@ -1859,17 +1957,21 @@ describe("AdminNav grouped navigation", () => {
   it("places plugin pages with a known group_id into the matching section", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/admin/plugin_pages") {
-        return Promise.resolve(jsonResponse({
-          pages: [{
-            id: "test.perf",
-            label: "Performance",
-            label_key: null,
-            path: "/admin/performance",
-            paths: ["/admin/performance"],
-            order: 10,
-            group_id: "observability"
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            pages: [
+              {
+                id: "test.perf",
+                label: "Performance",
+                label_key: null,
+                path: "/admin/performance",
+                paths: ["/admin/performance"],
+                order: 10,
+                group_id: "observability"
+              }
+            ]
+          })
+        )
       }
       return Promise.resolve(jsonResponse({}))
     })
@@ -1951,54 +2053,78 @@ describe("buildAdminNavItems", () => {
   })
 
   it("places plugin pages with known group_id into the correct group", () => {
-    const { groups } = buildAdminNavItems({}, [{
-      id: "test.logs",
-      label: "Logs",
-      path: "/admin/logs",
-      paths: ["/admin/logs"],
-      order: 50,
-      group_id: "observability"
-    }], translate)
+    const { groups } = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "test.logs",
+          label: "Logs",
+          path: "/admin/logs",
+          paths: ["/admin/logs"],
+          order: 50,
+          group_id: "observability"
+        }
+      ],
+      translate
+    )
 
     const observabilityGroup = groups.find(({ group }) => group.id === "observability")
     expect(observabilityGroup?.items.map((i) => i.id)).toContain("test.logs")
   })
 
   it("puts plugin pages with unknown group_id in ungroupedExtensions", () => {
-    const { ungroupedExtensions } = buildAdminNavItems({}, [{
-      id: "test.custom",
-      label: "Custom Page",
-      path: "/admin/custom",
-      paths: ["/admin/custom"],
-      order: 10,
-      group_id: "unknown_group"
-    }], translate)
+    const { ungroupedExtensions } = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "test.custom",
+          label: "Custom Page",
+          path: "/admin/custom",
+          paths: ["/admin/custom"],
+          order: 10,
+          group_id: "unknown_group"
+        }
+      ],
+      translate
+    )
 
     expect(ungroupedExtensions.map((i) => i.id)).toContain("test.custom")
   })
 
   it("puts plugin pages without group_id in ungroupedExtensions", () => {
-    const { ungroupedExtensions } = buildAdminNavItems({}, [{
-      id: "test.legacy",
-      label: "Legacy",
-      path: "/admin/legacy",
-      paths: ["/admin/legacy"],
-      order: 10
-    }], translate)
+    const { ungroupedExtensions } = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "test.legacy",
+          label: "Legacy",
+          path: "/admin/legacy",
+          paths: ["/admin/legacy"],
+          order: 10
+        }
+      ],
+      translate
+    )
 
     expect(ungroupedExtensions.map((i) => i.id)).toContain("test.legacy")
   })
 
   it("does not duplicate a plugin's admin page nav entry (agent_insights)", () => {
-    const { groups } = buildAdminNavItems({}, [{
-      id: "agent_insights.admin",
-      label: "Insights",
-      label_key: "agent_insights:nav_insights",
-      path: "/admin/insights",
-      paths: ["/admin/insights"],
-      order: 20,
-      group_id: "product_data"
-    }], translate)
+    const { groups } = buildAdminNavItems(
+      {},
+      [
+        {
+          id: "agent_insights.admin",
+          label: "Insights",
+          label_key: "agent_insights:nav_insights",
+          path: "/admin/insights",
+          paths: ["/admin/insights"],
+          order: 20,
+          group_id: "product_data"
+        }
+      ],
+      translate
+    )
 
     const productDataGroup = groups.find(({ group }) => group.id === "product_data")
     const insightsItems = productDataGroup?.items.filter((i) => i.label === "Insights") ?? []
@@ -2006,10 +2132,14 @@ describe("buildAdminNavItems", () => {
   })
 
   it("sorts group items by order then label", () => {
-    const { groups } = buildAdminNavItems({}, [
-      { id: "p.b", label: "B Plugin", path: "/admin/b", paths: ["/admin/b"], order: 10, group_id: "operations" },
-      { id: "p.a", label: "A Plugin", path: "/admin/a", paths: ["/admin/a"], order: 10, group_id: "operations" }
-    ], translate)
+    const { groups } = buildAdminNavItems(
+      {},
+      [
+        { id: "p.b", label: "B Plugin", path: "/admin/b", paths: ["/admin/b"], order: 10, group_id: "operations" },
+        { id: "p.a", label: "A Plugin", path: "/admin/a", paths: ["/admin/a"], order: 10, group_id: "operations" }
+      ],
+      translate
+    )
 
     const opItems = groups.find(({ group }) => group.id === "operations")?.items.map((i) => i.id) ?? []
     const aIndex = opItems.indexOf("p.a")
@@ -2018,13 +2148,7 @@ describe("buildAdminNavItems", () => {
   })
 
   it("preserves all five stable group ids in order", () => {
-    expect(ADMIN_NAV_GROUPS.map((g) => g.id)).toEqual([
-      "operations",
-      "observability",
-      "users_access",
-      "system",
-      "product_data"
-    ])
+    expect(ADMIN_NAV_GROUPS.map((g) => g.id)).toEqual(["operations", "observability", "users_access", "system", "product_data"])
   })
 
   it("includes scoped_chat_events in the product_data group", () => {
@@ -2113,11 +2237,7 @@ function renderAppChrome(
   } = {}
 ) {
   const queryClient = options.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const chrome = (
-    <AppChromeV2 initialBootstrap={options.bootstrap ?? bootstrapPayload()}>
-      {ui}
-    </AppChromeV2>
-  )
+  const chrome = <AppChromeV2 initialBootstrap={options.bootstrap ?? bootstrapPayload()}>{ui}</AppChromeV2>
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -2126,7 +2246,9 @@ function renderAppChrome(
           <Routes>
             <Route element={chrome} path="*" />
           </Routes>
-        ) : chrome}
+        ) : (
+          chrome
+        )}
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -2134,7 +2256,12 @@ function renderAppChrome(
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}{location.search}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {

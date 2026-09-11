@@ -70,22 +70,42 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Job</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Kind</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Attention</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Detail</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Step</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Age</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Next action</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Job
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Kind
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Attention
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Detail
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Step
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Age
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Next action
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((row) => (
             <tr key={row.key}>
-              <td className="max-w-[14rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200"><JobCell row={row} /></td>
-              <td className="whitespace-nowrap px-2 py-1"><Badge>{row.kind.replace(/_/g, " ")}</Badge></td>
+              <td className="max-w-[14rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200">
+                <JobCell row={row} />
+              </td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <Badge>{row.kind.replace(/_/g, " ")}</Badge>
+              </td>
               <td className="whitespace-nowrap px-2 py-1">{row.attentionState ? <StatePill state={row.attentionState} /> : "—"}</td>
-              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={row.detail ?? undefined}>{row.detail || "—"}</td>
+              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={row.detail ?? undefined}>
+                {row.detail || "—"}
+              </td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.stepKind || "—"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.ageLabel || "—"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.repairAction ? row.repairAction.replace(/_/g, " ") : "—"}</td>

@@ -46,7 +46,8 @@ function mockRoutes(over: { owners?: () => Response; create?: () => Response; de
     const url = String(input)
     if (url.includes("/repositories/new")) return jsonResponse(newFormPayload)
     if (url.includes("/repositories/owners")) return over.owners?.() ?? jsonResponse({ user: "octocat", orgs: ["acme"] })
-    if (url.includes("/repositories/repos")) return over.repos?.() ?? jsonResponse({ repos: [{ name: "hello-world", github_repository_id: 7, github_owner_id: 3 }] })
+    if (url.includes("/repositories/repos"))
+      return over.repos?.() ?? jsonResponse({ repos: [{ name: "hello-world", github_repository_id: 7, github_owner_id: 3 }] })
     if (url.includes("/repositories/branches")) return jsonResponse({ branches: ["main", "dev"], default_branch: "main" })
     if (url.endsWith("/admin/github_app/sync_installations")) return jsonResponse({ enqueued: true })
     if (/\/api\/v1\/app\/repositories\/\d+$/.test(url) && init?.method !== "POST") {
@@ -150,12 +151,13 @@ describe("AddRepositoryModal", () => {
 
   it("re-offers the account-wide install alongside the pre-scoped one", async () => {
     mockRoutes({
-      create: () => jsonResponse({
-        message: "Saved",
-        redirect_to: "/repositories/1",
-        repository: savedRepository,
-        credential_status: credentialStatus("pat")
-      })
+      create: () =>
+        jsonResponse({
+          message: "Saved",
+          redirect_to: "/repositories/1",
+          repository: savedRepository,
+          credential_status: credentialStatus("pat")
+        })
     })
     const openSpy = vi.spyOn(window, "open").mockReturnValue({ opener: null } as unknown as Window)
     renderModal()
@@ -170,12 +172,13 @@ describe("AddRepositoryModal", () => {
 
   it("offers the pre-scoped App install after adding a PAT-fallback repository, and detects the install", async () => {
     mockRoutes({
-      create: () => jsonResponse({
-        message: "Saved",
-        redirect_to: "/repositories/1",
-        repository: savedRepository,
-        credential_status: credentialStatus("pat")
-      }),
+      create: () =>
+        jsonResponse({
+          message: "Saved",
+          redirect_to: "/repositories/1",
+          repository: savedRepository,
+          credential_status: credentialStatus("pat")
+        }),
       detail: () => jsonResponse({ credential_status: credentialStatus("app") })
     })
     const opened = { opener: {} as unknown }
@@ -203,12 +206,13 @@ describe("AddRepositoryModal", () => {
 
   it("closes immediately when the owner's installation already covers the new repository", async () => {
     mockRoutes({
-      create: () => jsonResponse({
-        message: "Saved",
-        redirect_to: "/repositories/1",
-        repository: savedRepository,
-        credential_status: credentialStatus("app")
-      })
+      create: () =>
+        jsonResponse({
+          message: "Saved",
+          redirect_to: "/repositories/1",
+          repository: savedRepository,
+          credential_status: credentialStatus("app")
+        })
     })
     const onSaved = vi.fn()
     const onClose = vi.fn()
@@ -223,11 +227,12 @@ describe("AddRepositoryModal", () => {
 
   it("pre-fills and shows editable upstream fields when the selected repository is a fork", async () => {
     const fetchSpy = mockRoutes({
-      repos: () => jsonResponse({
-        repos: [
-          { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
-        ]
-      })
+      repos: () =>
+        jsonResponse({
+          repos: [
+            { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
+          ]
+        })
     })
     renderModal()
 
@@ -259,11 +264,12 @@ describe("AddRepositoryModal", () => {
 
   it("lets the user edit or clear detected upstream fields, and submits what they typed", async () => {
     const fetchSpy = mockRoutes({
-      repos: () => jsonResponse({
-        repos: [
-          { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
-        ]
-      })
+      repos: () =>
+        jsonResponse({
+          repos: [
+            { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
+          ]
+        })
     })
     renderModal()
 

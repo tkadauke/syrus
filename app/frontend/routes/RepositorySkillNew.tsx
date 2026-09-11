@@ -6,13 +6,7 @@ import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
-import {
-  createSkillJob,
-  fetchRepositorySkills,
-  type RepositorySkillsPayload,
-  type SkillParameterField,
-  type SkillSummary
-} from "../api/skills"
+import { createSkillJob, fetchRepositorySkills, type RepositorySkillsPayload, type SkillParameterField, type SkillSummary } from "../api/skills"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
@@ -45,15 +39,7 @@ export function RepositorySkillNewRoute() {
   )
 }
 
-function SkillLaunchForm({
-  payload,
-  prefix,
-  repositoryId
-}: {
-  payload: RepositorySkillsPayload
-  prefix: string
-  repositoryId: string
-}) {
+function SkillLaunchForm({ payload, prefix, repositoryId }: { payload: RepositorySkillsPayload; prefix: string; repositoryId: string }) {
   const navigate = useNavigate()
   const { t } = useT("jobs")
   const [selectedName, setSelectedName] = useState<string>(payload.skills[0]?.name || "")
@@ -94,12 +80,7 @@ function SkillLaunchForm({
         <SectionHeading>{t("skill_job_section_pick")}</SectionHeading>
         <div className="space-y-2">
           {payload.skills.map((skill) => (
-            <SkillOption
-              key={skill.name}
-              onSelect={() => setSelectedName(skill.name)}
-              selected={skill.name === selectedName}
-              skill={skill}
-            />
+            <SkillOption key={skill.name} onSelect={() => setSelectedName(skill.name)} selected={skill.name === selectedName} skill={skill} />
           ))}
         </div>
       </section>
@@ -128,9 +109,13 @@ function SkillLaunchForm({
           {payload.configured_agent_providers.length > 1 ? (
             <Field label={t("skill_job_agent_label")}>
               <Select onChange={(event) => setAgentProvider(event.target.value)} value={agentProvider}>
-                <option value="">{t("skill_job_agent_repository_default")} ({payload.repository.default_agent_provider_label})</option>
+                <option value="">
+                  {t("skill_job_agent_repository_default")} ({payload.repository.default_agent_provider_label})
+                </option>
                 {payload.configured_agent_providers.map((provider) => (
-                  <option key={provider.value} value={provider.value}>{provider.label}</option>
+                  <option key={provider.value} value={provider.value}>
+                    {provider.label}
+                  </option>
                 ))}
               </Select>
             </Field>
@@ -138,16 +123,14 @@ function SkillLaunchForm({
           <Field label={t("skill_job_priority_label")}>
             <Select onChange={(event) => setPriority(event.target.value)} value={priority}>
               {payload.priorities.map((value) => (
-                <option key={value} value={value}>{value}</option>
+                <option key={value} value={value}>
+                  {value}
+                </option>
               ))}
             </Select>
           </Field>
         </div>
-        <Button
-          disabled={!selectedSkill || create.isPending}
-          type="submit"
-          variant="primary"
-        >
+        <Button disabled={!selectedSkill || create.isPending} type="submit" variant="primary">
           {create.isPending ? t("skill_job_submitting") : t("skill_job_submit")}
         </Button>
       </section>
@@ -173,9 +156,7 @@ export function SkillOption({ skill, selected, onSelect }: { skill: SkillSummary
             <SourceBadge shadowsBuiltIn={skill.shadows_built_in} source={skill.source} />
           </div>
           <p className="mt-0.5 text-gray-600 dark:text-gray-400">{skill.description}</p>
-          {skill.shadows_built_in ? (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("skill_job_shadows_built_in")}</p>
-          ) : null}
+          {skill.shadows_built_in ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("skill_job_shadows_built_in")}</p> : null}
           {skill.resolved_path ? (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("skill_job_resolved_path", { path: skill.resolved_path })}</p>
           ) : null}
@@ -210,26 +191,18 @@ export function SkillParameterInput({
   onChange: (value: string | boolean) => void
 }) {
   if (field.type === "boolean") {
-    return (
-      <Checkbox
-        checked={Boolean(value)}
-        label={field.label}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-    )
+    return <Checkbox checked={Boolean(value)} label={field.label} onChange={(event) => onChange(event.target.checked)} />
   }
 
   if (field.type === "select") {
     return (
       <Field label={field.label}>
-        <Select
-          onChange={(event) => onChange(event.target.value)}
-          required={field.required}
-          value={typeof value === "string" ? value : ""}
-        >
+        <Select onChange={(event) => onChange(event.target.value)} required={field.required} value={typeof value === "string" ? value : ""}>
           <option value="">{field.label}</option>
           {(field.options || []).map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option} value={option}>
+              {option}
+            </option>
           ))}
         </Select>
       </Field>

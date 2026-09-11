@@ -11,12 +11,14 @@ type PluginModule = {
 const routeModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/routes/*.tsx")
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(routeModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType>()
@@ -58,9 +60,7 @@ export function usePluginSidebarPaths({ enabled }: { enabled: boolean }) {
     enabled
   })
 
-  return (pages.data?.pages ?? []).flatMap((page) =>
-    Array.from(page.paths ?? []).map((path) => ({ path, section: page.section }))
-  )
+  return (pages.data?.pages ?? []).flatMap((page) => Array.from(page.paths ?? []).map((path) => ({ path, section: page.section })))
 }
 
 export function usePluginSidebarPage() {
@@ -75,9 +75,7 @@ export function usePluginSidebarPage() {
   // `pages?.` and not just `data?.`: a response without the key at all must
   // read as "no plugin claims this URL", not throw inside the catch-all and
   // take the whole shell down with it.
-  const page = pages.data?.pages?.find((candidate) =>
-    candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null)
-  )
+  const page = pages.data?.pages?.find((candidate) => candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null))
 
   return { isPending: pages.isPending, page, Component: pluginSidebarComponentFor(page?.component) }
 }

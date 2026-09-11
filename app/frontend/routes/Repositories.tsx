@@ -8,13 +8,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
-import {
-  archiveRepository,
-  fetchRepositories,
-  type RepositoriesPayload,
-  type RepositoryRow,
-  unarchiveRepository
-} from "../api/repositories"
+import { archiveRepository, fetchRepositories, type RepositoriesPayload, type RepositoryRow, unarchiveRepository } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { useConfirm } from "../hooks/useConfirm"
@@ -38,11 +32,7 @@ export function RepositoriesIndex() {
 
   return (
     <main aria-label={t("aria_repositories")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {repositories.isPending ? (
-        <PanelMessage>
-          {t('repositories.loading')}
-        </PanelMessage>
-      ) : null}
+      {repositories.isPending ? <PanelMessage>{t("repositories.loading")}</PanelMessage> : null}
       {repositories.isError ? <PanelMessage tone="error">{errorMessage(repositories.error, "Unable to load repositories.")}</PanelMessage> : null}
       {repositories.isSuccess ? <RepositoriesView payload={repositories.data} prefix={prefix} /> : null}
     </main>
@@ -68,7 +58,11 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
 
   async function runAction(action: RepositoryAction, repository?: RepositoryRow) {
     setNotice(null)
-    if (action.kind === "archive" && repository && !await confirm({ message: t("repositories.confirm_archive", { slug: repository.slug }), destructive: true })) {
+    if (
+      action.kind === "archive" &&
+      repository &&
+      !(await confirm({ message: t("repositories.confirm_archive", { slug: repository.slug }), destructive: true }))
+    ) {
       return
     }
     command.mutate(action)
@@ -77,10 +71,10 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
   return (
     <>
       <header className="flex items-center justify-between gap-3">
-        <PageHeading>
-          {t('repositories.heading')}
-        </PageHeading>
-        <Link className={buttonClasses("primary")} to={withRoutePrefix(payload.new_repository_path, prefix)}>{t('repositories.add')}</Link>
+        <PageHeading>{t("repositories.heading")}</PageHeading>
+        <Link className={buttonClasses("primary")} to={withRoutePrefix(payload.new_repository_path, prefix)}>
+          {t("repositories.add")}
+        </Link>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -88,12 +82,7 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
 
       {payload.active_repositories.length > 0 ? (
         <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-          <RepositoryTable
-            disabled={command.isPending}
-            onAction={runAction}
-            prefix={prefix}
-            repositories={payload.active_repositories}
-          />
+          <RepositoryTable disabled={command.isPending} onAction={runAction} prefix={prefix} repositories={payload.active_repositories} />
         </section>
       ) : (
         <OnboardingEmptyState
@@ -109,7 +98,7 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
       {payload.archived_repositories.length > 0 ? (
         <section className="space-y-2">
           <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            {t('repositories.archived_count', { count: payload.archived_repositories.length })}
+            {t("repositories.archived_count", { count: payload.archived_repositories.length })}
           </h2>
           <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 opacity-75">
             <ArchivedRepositories
@@ -141,16 +130,12 @@ function RepositoryTable({
     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
       <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
         <tr>
-          <th className="px-4 py-2">
-            {t('repositories.col_working_repo')}
-          </th>
+          <th className="px-4 py-2">{t("repositories.col_working_repo")}</th>
+          <th className="hidden px-4 py-2 sm:table-cell">{t("repositories.col_polling")}</th>
+          <th className="hidden px-4 py-2 sm:table-cell">{t("repositories.col_last_poll")}</th>
           <th className="hidden px-4 py-2 sm:table-cell">
-            {t('repositories.col_polling')}
+            <span className="sr-only">Actions</span>
           </th>
-          <th className="hidden px-4 py-2 sm:table-cell">
-            {t('repositories.col_last_poll')}
-          </th>
-          <th className="hidden px-4 py-2 sm:table-cell"><span className="sr-only">Actions</span></th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -158,23 +143,25 @@ function RepositoryTable({
           <tr key={repository.id}>
             <td className="px-4 py-3">
               <div className="font-mono">
-                <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
+                <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(repository.repository_path, prefix)}>
+                  {repository.slug}
+                </Link>
               </div>
               {repository.upstream_slug ? (
                 <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {t('repositories.upstream')} <span className="font-mono">{repository.upstream_slug}</span>
+                  {t("repositories.upstream")} <span className="font-mono">{repository.upstream_slug}</span>
                   {repository.upstream_default_branch ? <span className="font-mono">:{repository.upstream_default_branch}</span> : null}
                 </div>
               ) : null}
               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                {t('repositories.syrus_owner')} {repository.owner_user.email_address}
+                {t("repositories.syrus_owner")} {repository.owner_user.email_address}
               </div>
               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 <span className="font-mono">{repository.default_branch}</span>
                 <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
-                {t('repositories.label')} <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{repository.trigger_label}</code>
+                {t("repositories.label")} <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{repository.trigger_label}</code>
                 <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
-                {t('repositories.agent')} {repository.agent_provider_label}
+                {t("repositories.agent")} {repository.agent_provider_label}
               </div>
             </td>
             <td className="hidden px-4 py-3 sm:table-cell">
@@ -185,14 +172,16 @@ function RepositoryTable({
             </td>
             <td className="hidden px-4 py-3 text-right sm:table-cell">
               <div className="flex items-center justify-end gap-2">
-                <Link className={buttonClass("gray")} to={withRoutePrefix(repository.edit_repository_path, prefix)}>{t('repositories.edit')}</Link>
+                <Link className={buttonClass("gray")} to={withRoutePrefix(repository.edit_repository_path, prefix)}>
+                  {t("repositories.edit")}
+                </Link>
                 <button
                   className={buttonClass("amber")}
                   disabled={disabled}
                   onClick={() => onAction({ id: repository.id, kind: "archive" }, repository)}
                   type="button"
                 >
-                  {t('repositories.archive')}
+                  {t("repositories.archive")}
                 </button>
               </div>
             </td>
@@ -221,7 +210,7 @@ function ArchivedRepositories({
             <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
               <div className="font-mono">{repository.slug}</div>
               <div className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                {t('repositories.archived')} <RelativeTimestamp value={repository.archived_at} />
+                {t("repositories.archived")} <RelativeTimestamp value={repository.archived_at} />
               </div>
             </td>
             <td className="px-4 py-3 text-right">
@@ -231,7 +220,7 @@ function ArchivedRepositories({
                 onClick={() => onUnarchive(repository)}
                 type="button"
               >
-                {t('repositories.unarchive')}
+                {t("repositories.unarchive")}
               </button>
             </td>
           </tr>
@@ -246,13 +235,13 @@ function PollingPill({ enabled }: { enabled: boolean }) {
   if (enabled) {
     return (
       <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">
-        {t('repositories.polling_enabled')}
+        {t("repositories.polling_enabled")}
       </span>
     )
   }
   return (
     <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">
-      {t('repositories.polling_paused')}
+      {t("repositories.polling_paused")}
     </span>
   )
 }
@@ -262,11 +251,15 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
   if (repository.last_poll_status === "failed") {
     return (
       <div>
-        <span className="font-medium text-red-600 dark:text-red-300">
-          {t('repositories.poll_failed')}
+        <span className="font-medium text-red-600 dark:text-red-300">{t("repositories.poll_failed")}</span>
+        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+          <RelativeTimestamp value={repository.last_poll_started_at} />
         </span>
-        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={repository.last_poll_started_at} /></span>
-        {repository.last_poll_error ? <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-red-500 dark:text-red-300" title={repository.last_poll_error}>{repository.last_poll_error}</div> : null}
+        {repository.last_poll_error ? (
+          <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-red-500 dark:text-red-300" title={repository.last_poll_error}>
+            {repository.last_poll_error}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -274,15 +267,13 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
   if (repository.last_poll_status === "ok") {
     return (
       <div>
-        <span className="text-green-700 dark:text-green-300">
-          {t('repositories.poll_ok')}
+        <span className="text-green-700 dark:text-green-300">{t("repositories.poll_ok")}</span>
+        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+          <RelativeTimestamp value={repository.last_poll_started_at} />
         </span>
-        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={repository.last_poll_started_at} /></span>
       </div>
     )
   }
 
   return <span className="text-gray-400 dark:text-gray-500">-</span>
 }
-
-

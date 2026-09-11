@@ -46,7 +46,7 @@ export function AdminSettings() {
 }
 
 function SettingsView({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
-  const otherSecrets = payload.settings.clearable_secrets.filter(s => s.key !== "telegram_bot_token" && s.key !== "discord_bot_token")
+  const otherSecrets = payload.settings.clearable_secrets.filter((s) => s.key !== "telegram_bot_token" && s.key !== "discord_bot_token")
   return (
     <>
       <TelegramSection onNotice={onNotice} payload={payload} />
@@ -100,7 +100,11 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
           {clearSecret.isPending ? t("settings.clearing") : t("settings.clear")}
         </button>
       ) : null}
-      {clearSecret.isError ? <div className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearSecret.error, t("settings.error_clear"))}</div> : null}
+      {clearSecret.isError ? (
+        <div className="text-xs text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(clearSecret.error, t("settings.error_clear"))}
+        </div>
+      ) : null}
       {dialog}
     </div>
   )
@@ -121,18 +125,19 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [workflowAdmissionPolicy, setWorkflowAdmissionPolicy] = useState<"whole_workflow" | "phase_aware">(payload.settings.workflow_admission_policy)
   const [mode, setMode] = useState<"advanced" | "simple">(payload.settings.mode)
   const update = useMutation({
-    mutationFn: () => updateAdminSettings({
-      signups_open: signupsOpen,
-      video_retention_days: Number(videoRetentionDays),
-      video_storage_budget_mb: Number(videoBudgetMb),
-      max_concurrent_agent_runs: Number(maxConcurrentAgentRuns),
-      proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
-      show_work_unit_debug: showWorkUnitDebug,
-      rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
-      workflow_admission_control_enabled: workflowAdmissionControlEnabled,
-      workflow_admission_policy: workflowAdmissionPolicy,
-      mode
-    }),
+    mutationFn: () =>
+      updateAdminSettings({
+        signups_open: signupsOpen,
+        video_retention_days: Number(videoRetentionDays),
+        video_storage_budget_mb: Number(videoBudgetMb),
+        max_concurrent_agent_runs: Number(maxConcurrentAgentRuns),
+        proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
+        show_work_unit_debug: showWorkUnitDebug,
+        rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
+        workflow_admission_control_enabled: workflowAdmissionControlEnabled,
+        workflow_admission_policy: workflowAdmissionPolicy,
+        mode
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || t("settings.settings_updated"))
@@ -151,7 +156,18 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
     setMode(payload.settings.mode)
-  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.mode])
+  }, [
+    payload.settings.signups_open,
+    payload.settings.video_retention_days,
+    payload.settings.video_storage_budget_mb,
+    payload.settings.max_concurrent_agent_runs,
+    payload.settings.proactive_rebase_commit_threshold,
+    payload.settings.show_work_unit_debug,
+    payload.settings.rebase_failure_cooldown_minutes,
+    payload.settings.workflow_admission_control_enabled,
+    payload.settings.workflow_admission_policy,
+    payload.settings.mode
+  ])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -181,7 +197,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-retention">{t("settings.video_retention_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-retention">
+          {t("settings.video_retention_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.video_retention_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -195,7 +213,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-budget">{t("settings.video_budget_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-budget">
+          {t("settings.video_budget_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.video_budget_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -209,7 +229,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-agent-runs">{t("settings.max_concurrent_agent_runs_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-agent-runs">
+          {t("settings.max_concurrent_agent_runs_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.max_concurrent_agent_runs_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -223,7 +245,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-proactive-rebase-threshold">{t("settings.proactive_rebase_commit_threshold_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-proactive-rebase-threshold">
+          {t("settings.proactive_rebase_commit_threshold_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.proactive_rebase_commit_threshold_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -249,7 +273,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-rebase-failure-cooldown">{t("settings.rebase_failure_cooldown_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-rebase-failure-cooldown">
+          {t("settings.rebase_failure_cooldown_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.rebase_failure_cooldown_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -262,7 +288,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         />
       </div>
 
-      <div className={`rounded border px-3 py-3 ${workflowAdmissionControlEnabled ? "border-gray-200 dark:border-gray-700" : "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"}`}>
+      <div
+        className={`rounded border px-3 py-3 ${workflowAdmissionControlEnabled ? "border-gray-200 dark:border-gray-700" : "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"}`}
+      >
         <Checkbox
           checked={workflowAdmissionControlEnabled}
           className="mt-1"
@@ -270,12 +298,17 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
             <>
               <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">{t("settings.workflow_admission_control_label")}</span>
               <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_control_help")}</span>
-              {!workflowAdmissionControlEnabled ? <span className="mt-2 block text-xs font-medium text-amber-800 dark:text-amber-200">{t("settings.workflow_admission_control_warning")}</span> : null}
+              {!workflowAdmissionControlEnabled ? (
+                <span className="mt-2 block text-xs font-medium text-amber-800 dark:text-amber-200">{t("settings.workflow_admission_control_warning")}</span>
+              ) : null}
               {payload.settings.workflow_admission_control_changed_at ? (
                 <span className="mt-2 block text-xs text-gray-500 dark:text-gray-400">
                   {t("settings.workflow_admission_control_changed", {
                     at: payload.settings.workflow_admission_control_changed_at,
-                    actor: payload.settings.workflow_admission_control_changed_by?.display_name || payload.settings.workflow_admission_control_changed_by?.email_address || t("settings.workflow_admission_control_unknown_actor")
+                    actor:
+                      payload.settings.workflow_admission_control_changed_by?.display_name ||
+                      payload.settings.workflow_admission_control_changed_by?.email_address ||
+                      t("settings.workflow_admission_control_unknown_actor")
                   })}
                 </span>
               ) : null}
@@ -284,7 +317,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setWorkflowAdmissionControlEnabled(event.target.checked)}
         />
         <div className="mt-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-admission-policy">{t("settings.workflow_admission_policy_label")}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-admission-policy">
+            {t("settings.workflow_admission_policy_label")}
+          </label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_policy_help")}</span>
           <Select
             className="mt-2"
@@ -300,7 +335,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-mode">{t("settings.mode_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-mode">
+          {t("settings.mode_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.mode_help")}</span>
         <Select
           className="mt-1"
@@ -314,13 +351,14 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         </Select>
       </div>
 
-      <Button
-        disabled={update.isPending}
-        type="submit"
-      >
+      <Button disabled={update.isPending} type="submit">
         {update.isPending ? t("settings.saving") : t("settings.save")}
       </Button>
-      {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("settings.error_update"))}</p> : null}
+      {update.isError ? (
+        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(update.error, t("settings.error_update"))}
+        </p>
+      ) : null}
       {dialog}
     </form>
   )
@@ -331,7 +369,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
   const queryClient = useQueryClient()
   const [tokenInput, setTokenInput] = useState("")
 
-  const telegramSecret = payload.settings.clearable_secrets.find(s => s.key === "telegram_bot_token")
+  const telegramSecret = payload.settings.clearable_secrets.find((s) => s.key === "telegram_bot_token")
   const tokenSet = telegramSecret?.set ?? false
 
   const saveToken = useMutation({
@@ -362,9 +400,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
       <SectionHeading>{t("settings.telegram_heading")}</SectionHeading>
 
-      <div className="text-xs text-gray-500 dark:text-gray-400">
-        {tokenSet ? t("settings.currently_set") : t("settings.not_set")}
-      </div>
+      <div className="text-xs text-gray-500 dark:text-gray-400">{tokenSet ? t("settings.currently_set") : t("settings.not_set")}</div>
 
       <div className="flex flex-wrap gap-2">
         <Input
@@ -378,7 +414,10 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
         />
         <Button
           disabled={saveToken.isPending || !tokenInput.trim()}
-          onClick={() => { onNotice(null); saveToken.mutate() }}
+          onClick={() => {
+            onNotice(null)
+            saveToken.mutate()
+          }}
         >
           {saveToken.isPending ? t("settings.saving") : t("settings.telegram_save_token")}
         </Button>
@@ -402,15 +441,30 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
       <button
         className="rounded bg-gray-100 dark:bg-gray-700 px-3.5 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={startPolling.isPending || !tokenSet}
-        onClick={() => { onNotice(null); startPolling.mutate() }}
+        onClick={() => {
+          onNotice(null)
+          startPolling.mutate()
+        }}
         type="button"
       >
         {startPolling.isPending ? t("settings.telegram_polling_starting") : t("settings.telegram_start_polling")}
       </button>
 
-      {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
-      {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
-      {startPolling.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("settings.telegram_polling_error")}</p> : null}
+      {saveToken.isError ? (
+        <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(saveToken.error, t("settings.error_update"))}
+        </p>
+      ) : null}
+      {clearToken.isError ? (
+        <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(clearToken.error, t("settings.error_clear"))}
+        </p>
+      ) : null}
+      {startPolling.isError ? (
+        <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+          {t("settings.telegram_polling_error")}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -420,7 +474,7 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
   const queryClient = useQueryClient()
   const [tokenInput, setTokenInput] = useState("")
 
-  const discordSecret = payload.settings.clearable_secrets.find(s => s.key === "discord_bot_token")
+  const discordSecret = payload.settings.clearable_secrets.find((s) => s.key === "discord_bot_token")
   const tokenSet = discordSecret?.set ?? false
 
   const saveToken = useMutation({
@@ -444,9 +498,7 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
       <SectionHeading>{t("settings.discord_heading")}</SectionHeading>
 
-      <div className="text-xs text-gray-500 dark:text-gray-400">
-        {tokenSet ? t("settings.currently_set") : t("settings.not_set")}
-      </div>
+      <div className="text-xs text-gray-500 dark:text-gray-400">{tokenSet ? t("settings.currently_set") : t("settings.not_set")}</div>
 
       <div className="flex flex-wrap gap-2">
         <Input
@@ -460,7 +512,10 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
         />
         <Button
           disabled={saveToken.isPending || !tokenInput.trim()}
-          onClick={() => { onNotice(null); saveToken.mutate() }}
+          onClick={() => {
+            onNotice(null)
+            saveToken.mutate()
+          }}
         >
           {saveToken.isPending ? t("settings.saving") : t("settings.discord_save_token")}
         </Button>
@@ -481,8 +536,16 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
         )}
       </div>
 
-      {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
-      {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
+      {saveToken.isError ? (
+        <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(saveToken.error, t("settings.error_update"))}
+        </p>
+      ) : null}
+      {clearToken.isError ? (
+        <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(clearToken.error, t("settings.error_clear"))}
+        </p>
+      ) : null}
     </section>
   )
 }

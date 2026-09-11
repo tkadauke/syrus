@@ -717,11 +717,24 @@ export type JobRun = {
   rate_limited: boolean
   failure_classification?: RunFailureClassification | null
   run_diagnostic: { id: number; present: boolean; created_at: string | null; error_class?: string; error_message?: string } | null
-  health_snapshots: Array<{ id: number; health_status: string | null; hint: string | null; run_state: string | null; last_log_preview: string | null; created_at: string | null }>
+  health_snapshots: Array<{
+    id: number
+    health_status: string | null
+    hint: string | null
+    run_state: string | null
+    last_log_preview: string | null
+    created_at: string | null
+  }>
   active_process?: JobRunActiveProcess | null
   command_spans?: JobCommandSpan[]
   worker_health_correlation?: RunWorkerHealthCorrelation | null
-  agent_session: { session_id: string; provider: string | null; transcript_pruned: boolean; transcript_bytes: number | null; transcript_lines: number | null } | null
+  agent_session: {
+    session_id: string
+    provider: string | null
+    transcript_pruned: boolean
+    transcript_bytes: number | null
+    transcript_lines: number | null
+  } | null
   can_stop: boolean
   can_diagnose: boolean
   can_resume: boolean
@@ -812,10 +825,6 @@ export type JobRetryAction = {
   step_kind?: string
   step_label?: string
 }
-
-
-
-
 
 export type JobPrLinkRole = "local" | "upstream_export" | "promotion" | "hotfix_sync" | "external_ingest"
 
@@ -992,7 +1001,10 @@ export type JobDeploymentStage = {
   tag_sha: string | null
 }
 
-export type JobWorkflowsPayload = Pick<JobDetailPayload, "current_intent" | "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths">
+export type JobWorkflowsPayload = Pick<
+  JobDetailPayload,
+  "current_intent" | "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths"
+>
 
 export type JobTimelinePayload = {
   job_id: number
@@ -1370,7 +1382,6 @@ function diffReviewCommentPath(jobId: string | number, commentId: number, diffRe
 export function fetchJobGradeLog(path: string) {
   return getJson<JobGradeLogPayload>(path)
 }
-
 
 export function fetchJobRunArtifacts(path: string) {
   return getJson<JobRunArtifactsPayload>(path)

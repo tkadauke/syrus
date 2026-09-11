@@ -6,9 +6,7 @@ import { ChatTour } from "./Chat"
 import type { BootstrapPayload } from "../api/bootstrap"
 
 vi.mock("../components/SyrusTour", () => ({
-  SyrusTour: ({ run, steps }: { run: boolean; steps: Step[] }) => (
-    <div data-testid="syrus-tour" data-run={String(run)} data-step-count={String(steps.length)} />
-  )
+  SyrusTour: ({ run, steps }: { run: boolean; steps: Step[] }) => <div data-testid="syrus-tour" data-run={String(run)} data-step-count={String(steps.length)} />
 }))
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {

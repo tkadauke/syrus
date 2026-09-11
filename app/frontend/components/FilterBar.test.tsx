@@ -96,12 +96,7 @@ describe("FilterBar", () => {
   it("applies chip editor value changes immediately", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is", value: "open" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
         <LocationProbe />
       </MemoryRouter>
     )
@@ -119,12 +114,7 @@ describe("FilterBar", () => {
   it("renders dark-mode classes on chips, menus, and editors", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is", value: "open" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -142,12 +132,7 @@ describe("FilterBar", () => {
   it("keeps a single chip's field, operator, and value on one line", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is", value: "open" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -266,7 +251,10 @@ describe("FilterBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
 
     expect(screen.getByText("Suggested")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "State is Closed" }).compareDocumentPosition(screen.getByRole("button", { name: "State list" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "State is Closed" }).compareDocumentPosition(screen.getByRole("button", { name: "State list" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "State is Closed" }))
 
@@ -292,16 +280,18 @@ describe("FilterBar", () => {
       expect(url.searchParams.get("q")).toBe("sy")
       expect(url.searchParams.has("active_q")).toBe(false)
 
-      return Promise.resolve(jsonResponse({
-        suggestions: [
-          {
-            id: "value-repository",
-            label: "Repository is tkadauke/syrus",
-            filter: { field: "repository_id", op: "is", value: 2 },
-            source: "value"
-          }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          suggestions: [
+            {
+              id: "value-repository",
+              label: "Repository is tkadauke/syrus",
+              filter: { field: "repository_id", op: "is", value: 2 },
+              source: "value"
+            }
+          ]
+        })
+      )
     })
 
     render(
@@ -342,12 +332,7 @@ describe("FilterBar", () => {
   it("does not show a value placeholder for predicate filters", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "has_parent", op: "is_true", value: null }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "has_parent", op: "is_true", value: null }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -360,12 +345,7 @@ describe("FilterBar", () => {
   it("renders multi-value selections as compact removable tokens", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is_none_of", value: ["open"] }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is_none_of", value: ["open"] }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
         <LocationProbe />
       </MemoryRouter>
     )
@@ -401,12 +381,7 @@ describe("FilterBar", () => {
   it("buffers text filter value edits until blur", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "job_class", op: "contains", value: "Run" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "job_class", op: "contains", value: "Run" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
         <LocationProbe />
       </MemoryRouter>
     )
@@ -431,12 +406,7 @@ describe("FilterBar", () => {
   it("commits text filter value edits on Enter", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "job_class", op: "contains", value: "Run" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "job_class", op: "contains", value: "Run" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
         <LocationProbe />
       </MemoryRouter>
     )
@@ -732,12 +702,7 @@ describe("FilterBar", () => {
   it("opens the filter menu before adding OR alternatives", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is", value: "open" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
         <LocationProbe />
       </MemoryRouter>
     )
@@ -775,12 +740,7 @@ describe("FilterBar", () => {
   it("renders operators and unset placeholder using translation keys", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -790,12 +750,7 @@ describe("FilterBar", () => {
   it("renders translated bucket labels in the add-filter menu", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={null}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={null} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -808,12 +763,7 @@ describe("FilterBar", () => {
   it("closes an open chip editor with Escape or an outside click", () => {
     const { rerender } = render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is", value: "open" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -824,12 +774,7 @@ describe("FilterBar", () => {
 
     rerender(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is", value: "open" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
     fireEvent.click(screen.getByRole("button", { name: "State is Open" }))
@@ -849,12 +794,7 @@ describe("FilterBar keyboard navigation", () => {
     it("highlights the first item on ArrowDown from the input, including a single-result menu", () => {
       render(
         <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-          <FilterBar
-            filter={null}
-            filterSchema={[filterSchema[1]]}
-            pathname="/dashboard/jobs"
-            search=""
-          />
+          <FilterBar filter={null} filterSchema={[filterSchema[1]]} pathname="/dashboard/jobs" search="" />
         </MemoryRouter>
       )
 
@@ -867,12 +807,7 @@ describe("FilterBar keyboard navigation", () => {
     it("highlights the last (bottommost) item on ArrowUp from the input", () => {
       render(
         <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-          <FilterBar
-            filter={null}
-            filterSchema={filterSchema}
-            pathname="/dashboard/jobs"
-            search=""
-          />
+          <FilterBar filter={null} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
         </MemoryRouter>
       )
 
@@ -918,12 +853,7 @@ describe("FilterBar keyboard navigation", () => {
     it("resets the highlight when the query text changes", () => {
       render(
         <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-          <FilterBar
-            filter={null}
-            filterSchema={filterSchema}
-            pathname="/dashboard/jobs"
-            search=""
-          />
+          <FilterBar filter={null} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
         </MemoryRouter>
       )
 
@@ -941,12 +871,7 @@ describe("FilterBar keyboard navigation", () => {
     it("no-ops on arrow keys when the filtered list is empty", () => {
       render(
         <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-          <FilterBar
-            filter={null}
-            filterSchema={filterSchema}
-            pathname="/dashboard/jobs"
-            search=""
-          />
+          <FilterBar filter={null} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
         </MemoryRouter>
       )
 
@@ -1005,7 +930,11 @@ describe("FilterBar keyboard navigation", () => {
 
     it("highlights the last (bottommost) item on ArrowUp from the input", async () => {
       mockFkOptionsFetch({
-        a: [{ value: 1, label: "alpha" }, { value: 2, label: "bravo" }, { value: 3, label: "gamma" }]
+        a: [
+          { value: 1, label: "alpha" },
+          { value: 2, label: "bravo" },
+          { value: 3, label: "gamma" }
+        ]
       })
       const searchInput = renderTypeahead()
 
@@ -1070,12 +999,7 @@ describe("FilterBar keyboard navigation", () => {
     function renderMulti() {
       render(
         <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-          <FilterBar
-            filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }}
-            filterSchema={filterSchema}
-            pathname="/dashboard/jobs"
-            search=""
-          />
+          <FilterBar filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
           <LocationProbe />
         </MemoryRouter>
       )
@@ -1148,12 +1072,7 @@ describe("FilterBar keyboard navigation", () => {
 
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={null}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={null} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -1175,12 +1094,7 @@ describe("FilterBar German locale", () => {
 
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is", value: "open" }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -1192,12 +1106,7 @@ describe("FilterBar German locale", () => {
 
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 
@@ -1241,12 +1150,7 @@ describe("FilterBar German locale", () => {
 
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>
-        <FilterBar
-          filter={null}
-          filterSchema={filterSchema}
-          pathname="/dashboard/jobs"
-          search=""
-        />
+        <FilterBar filter={null} filterSchema={filterSchema} pathname="/dashboard/jobs" search="" />
       </MemoryRouter>
     )
 

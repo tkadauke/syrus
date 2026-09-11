@@ -41,7 +41,7 @@ function isTestFile(relative) {
 }
 
 function endsWithAny(relative, basenames) {
-  return basenames.some(basename => relative.endsWith(`/${basename}`) || relative === basename)
+  return basenames.some((basename) => relative.endsWith(`/${basename}`) || relative === basename)
 }
 
 // Collects every string a JSX className/class attribute could resolve to at
@@ -78,7 +78,7 @@ function collectStringLiterals(node, out = []) {
 
 function classNameCandidates(jsxOpeningElement) {
   const attribute = jsxOpeningElement.attributes.find(
-    attr => attr.type === "JSXAttribute" && attr.name && (attr.name.name === "className" || attr.name.name === "class")
+    (attr) => attr.type === "JSXAttribute" && attr.name && (attr.name.name === "className" || attr.name.name === "class")
   )
   if (!attribute || !attribute.value) return []
   if (attribute.value.type === "Literal" && typeof attribute.value.value === "string") return [attribute.value.value]

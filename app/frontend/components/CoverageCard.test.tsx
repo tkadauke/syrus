@@ -72,16 +72,20 @@ describe("CoverageCard", () => {
   })
 
   it("shows threshold detail rows when threshold_miss_details is present", () => {
-    render(<CoverageCard coverage={{
-      ...fullCoverage,
-      threshold_miss: true,
-      threshold_miss_details: {
-        lines_pct: 75.0,
-        threshold_lines: 80,
-        pr_delta_pct: null,
-        threshold_pr_lines: null
-      }
-    }} />)
+    render(
+      <CoverageCard
+        coverage={{
+          ...fullCoverage,
+          threshold_miss: true,
+          threshold_miss_details: {
+            lines_pct: 75.0,
+            threshold_lines: 80,
+            pr_delta_pct: null,
+            threshold_pr_lines: null
+          }
+        }}
+      />
+    )
 
     expect(screen.getByTestId("coverage-threshold-status")).toHaveTextContent("75.0%")
     expect(screen.getByTestId("coverage-threshold-status")).toHaveTextContent("threshold: 80%")

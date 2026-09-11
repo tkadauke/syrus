@@ -50,10 +50,7 @@ describe("show_preview tool card", () => {
 
     render(<>{showPreviewToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByRole("link", { name: "https://panel.example.test" })).toHaveAttribute(
-      "href",
-      "https://panel.example.test"
-    )
+    expect(screen.getByRole("link", { name: "https://panel.example.test" })).toHaveAttribute("href", "https://panel.example.test")
   })
 
   it("falls back to null for a malformed payload (missing panel_id)", () => {

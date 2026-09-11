@@ -2,16 +2,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
-import { addChatAttachment, deleteChatAttachment, fetchChatContext, type ChatAttachmentResult, type ChatAttachmentRow, type ChatContextPayload, type ChatPayload } from "../../api/chats"
+import {
+  addChatAttachment,
+  deleteChatAttachment,
+  fetchChatContext,
+  type ChatAttachmentResult,
+  type ChatAttachmentRow,
+  type ChatContextPayload,
+  type ChatPayload
+} from "../../api/chats"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { appendSearch, isSupervisorChat, withRoutePrefix } from "./utils"
-
-
-
 
 // Attachment UI extracted from Chat.tsx: the workspace attachment list
 // (Attachments + AttachmentGroup) and the AddAttachment picker/popover.
@@ -23,7 +28,16 @@ const DEFAULT_ATTACHMENT_TYPES = ["Repository", "Epic", "Job", "Document"] as co
 const SUPERVISOR_ATTACHMENT_TYPES = ["Document"] as const
 const EMPTY_ATTACHMENT_GROUPS = { repositories: [], epics: [], jobs: [], documents: [] } satisfies NonNullable<ChatPayload["attachment_groups"]>
 
-export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+export function Attachments({
+  payload,
+  queryKey,
+  onNotice
+}: {
+  payload: ChatPayload
+  prefix: string
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const contextPayload = useChatContextPayload(payload, queryKey)
   const supervisorChat = isSupervisorChat(payload)
@@ -54,7 +68,9 @@ export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayl
               </div>
             ))}
           </div>
-        ) : <div className="text-xs text-gray-400 dark:text-gray-500">No documents in scope.</div>}
+        ) : (
+          <div className="text-xs text-gray-400 dark:text-gray-500">No documents in scope.</div>
+        )}
       </section>
     </>
   )
@@ -66,32 +82,40 @@ function useChatContextPayload(payload: ChatPayload, queryKey: ChatQueryKey): Ch
   const context = useQuery({
     queryKey: ["chat-context", String(payload.chat.id), queryKey[2]],
     queryFn: ({ signal }) => fetchChatContext(appendSearch(contextPath, queryKey[2]), { signal }),
-    initialData: hasContextPayload(payload) ? {
-      attachment_groups: payload.attachment_groups ?? EMPTY_ATTACHMENT_GROUPS,
-      documents_in_scope: payload.documents_in_scope ?? [],
-      attachment_results: payload.attachment_results ?? []
-    } : undefined
+    initialData: hasContextPayload(payload)
+      ? {
+          attachment_groups: payload.attachment_groups ?? EMPTY_ATTACHMENT_GROUPS,
+          documents_in_scope: payload.documents_in_scope ?? [],
+          attachment_results: payload.attachment_results ?? []
+        }
+      : undefined
   })
 
   useEffect(() => {
     const data = context.data
     if (!data) return
 
-    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(payload.chat.id)] }, (current) => current ? {
-      ...current,
-      attachment_groups: data.attachment_groups,
-      documents_in_scope: data.documents_in_scope,
-      attachment_results: data.attachment_results
-    } : current)
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(payload.chat.id)] }, (current) =>
+      current
+        ? {
+            ...current,
+            attachment_groups: data.attachment_groups,
+            documents_in_scope: data.documents_in_scope,
+            attachment_results: data.attachment_results
+          }
+        : current
+    )
   }, [context.data, payload.chat.id, queryClient])
 
   return context.data ?? emptyContextPayload()
 }
 
 function hasContextPayload(payload: ChatPayload) {
-  return (payload.documents_in_scope ?? []).length > 0 ||
+  return (
+    (payload.documents_in_scope ?? []).length > 0 ||
     (payload.attachment_results ?? []).length > 0 ||
     Object.values(payload.attachment_groups ?? EMPTY_ATTACHMENT_GROUPS).some((rows) => rows.length > 0)
+  )
 }
 
 function emptyContextPayload(): ChatContextPayload {
@@ -102,7 +126,17 @@ function emptyContextPayload(): ChatContextPayload {
   }
 }
 
-function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; rows: ChatAttachmentRow[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function AttachmentGroup({
+  label,
+  rows,
+  queryKey,
+  onNotice
+}: {
+  label: string
+  rows: ChatAttachmentRow[]
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const [pendingDetachId, setPendingDetachId] = useState<string | null>(null)
@@ -142,12 +176,7 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
                   {pending ? `Detach ${row.label}?` : row.label}
                 </Button>
                 {pending ? (
-                  <Button
-                    disabled={detach.isPending}
-                    onClick={() => setPendingDetachId(null)}
-                    size="sm"
-                    variant="secondary"
-                  >
+                  <Button disabled={detach.isPending} onClick={() => setPendingDetachId(null)} size="sm" variant="secondary">
                     Cancel
                   </Button>
                 ) : null}
@@ -155,20 +184,34 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
             )
           })}
         </div>
-      ) : <div className="text-xs text-gray-400 dark:text-gray-500">None</div>}
+      ) : (
+        <div className="text-xs text-gray-400 dark:text-gray-500">None</div>
+      )}
       {detach.isError ? <div className="mt-1 text-xs text-red-700 dark:text-red-300">{errorMessage(detach.error, "Detach failed.")}</div> : null}
     </section>
   )
 }
 
-export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onAttached?: () => void; onNotice: (message: string | null) => void }) {
+export function AddAttachment({
+  payload,
+  prefix,
+  queryKey,
+  onAttached,
+  onNotice
+}: {
+  payload: ChatPayload
+  prefix: string
+  queryKey: ChatQueryKey
+  onAttached?: () => void
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
   const attachmentTypes = isSupervisorChat(payload) ? SUPERVISOR_ATTACHMENT_TYPES : DEFAULT_ATTACHMENT_TYPES
-  type AttachmentType = typeof attachmentTypes[number]
+  type AttachmentType = (typeof attachmentTypes)[number]
   const initialType = normalizeAttachmentType(params.get("attachment_type"), attachmentTypes)
   const [type, setType] = useState<AttachmentType>(initialType)
   const [query, setQuery] = useState(params.get("attachment_query") || "")
@@ -184,7 +227,9 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
     queryFn: ({ signal }) => fetchChatContext(appendSearch(contextPath, contextSearch), { signal }),
     enabled: true
   })
-  const attachmentResults = (context.data?.attachment_results ?? payload.attachment_results ?? []).filter((record) => attachmentTypes.some((attachmentType) => attachmentType === record.type))
+  const attachmentResults = (context.data?.attachment_results ?? payload.attachment_results ?? []).filter((record) =>
+    attachmentTypes.some((attachmentType) => attachmentType === record.type)
+  )
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const submitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const add = useMutation({
@@ -276,17 +321,21 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
         </div>
       </div>
       <div className="space-y-0 border-t border-gray-100 dark:border-gray-800">
-        {attachmentResults.length > 0 ? attachmentResults.map((record) => (
-          <button
-            className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-brand/10 hover:text-brand disabled:text-gray-300 dark:text-gray-300 dark:hover:bg-brand/10 dark:hover:text-brand-emphasis dark:disabled:text-gray-600"
-            disabled={add.isPending}
-            key={`${record.type}-${record.id}`}
-            onClick={() => add.mutate(record)}
-            type="button"
-          >
-            {record.label}
-          </button>
-        )) : <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No matches.</div>}
+        {attachmentResults.length > 0 ? (
+          attachmentResults.map((record) => (
+            <button
+              className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-brand/10 hover:text-brand disabled:text-gray-300 dark:text-gray-300 dark:hover:bg-brand/10 dark:hover:text-brand-emphasis dark:disabled:text-gray-600"
+              disabled={add.isPending}
+              key={`${record.type}-${record.id}`}
+              onClick={() => add.mutate(record)}
+              type="button"
+            >
+              {record.label}
+            </button>
+          ))
+        ) : (
+          <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No matches.</div>
+        )}
         {add.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(add.error, "Attachment failed.")}</div> : null}
       </div>
     </div>
@@ -298,5 +347,5 @@ function chatContextPath(payload: ChatPayload) {
 }
 
 function normalizeAttachmentType<T extends readonly string[]>(candidate: string | null, allowed: T): T[number] {
-  return allowed.includes(candidate || "") ? candidate as T[number] : allowed[0]
+  return allowed.includes(candidate || "") ? (candidate as T[number]) : allowed[0]
 }

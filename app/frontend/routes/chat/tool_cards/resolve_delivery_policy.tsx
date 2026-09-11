@@ -71,7 +71,9 @@ function collapsedSummary(context: ToolCardContext) {
 function ToggleBadge({ label, toggle }: { label: string; toggle: ToggleRow | null }) {
   if (!toggle) return null
   return (
-    <Badge>{label}: {toggle.enabled ? (toggle.mode ? `on (${toggle.mode})` : "on") : "off"}</Badge>
+    <Badge>
+      {label}: {toggle.enabled ? (toggle.mode ? `on (${toggle.mode})` : "on") : "off"}
+    </Badge>
   )
 }
 
@@ -108,7 +110,10 @@ function renderExpanded(context: ToolCardContext) {
             {result.refMovementActions.map((action) => (
               <div key={action.name}>
                 <SectionLabel>{action.name}</SectionLabel>
-                <div>{action.enabled ? (action.mode ? `enabled (${action.mode})` : "enabled") : "disabled"}{action.gradePhases.length > 0 ? ` · ${action.gradePhases.join(", ")}` : ""}</div>
+                <div>
+                  {action.enabled ? (action.mode ? `enabled (${action.mode})` : "enabled") : "disabled"}
+                  {action.gradePhases.length > 0 ? ` · ${action.gradePhases.join(", ")}` : ""}
+                </div>
               </div>
             ))}
           </div>

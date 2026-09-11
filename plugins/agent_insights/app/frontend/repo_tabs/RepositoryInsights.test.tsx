@@ -77,16 +77,22 @@ function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
   renderRepositoryInsightsRoute()
 }
 
-function renderRouteByState(responses: Partial<Record<StateFilter, { suggestions: unknown[]; meta?: Record<string, unknown>; counts?: Record<StateFilter, number> }>>) {
+function renderRouteByState(
+  responses: Partial<Record<StateFilter, { suggestions: unknown[]; meta?: Record<string, unknown>; counts?: Record<StateFilter, number> }>>
+) {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = new URL(String(input), "http://example.test")
     const state = (url.searchParams.get("state") || "all") as StateFilter
     const response = responses[state] || responses.all || responses.pending || { suggestions: [] }
-    return Promise.resolve(jsonResponse(payload(
-      response.suggestions,
-      response.meta ? makeMeta(response.meta) : makeMeta({ total: response.suggestions.length }),
-      response.counts || makeCounts(response.suggestions)
-    )))
+    return Promise.resolve(
+      jsonResponse(
+        payload(
+          response.suggestions,
+          response.meta ? makeMeta(response.meta) : makeMeta({ total: response.suggestions.length }),
+          response.counts || makeCounts(response.suggestions)
+        )
+      )
+    )
   })
   renderRepositoryInsightsRoute()
 }
@@ -153,9 +159,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(dismissBtn)
 
       await waitFor(() => {
-        expect(mockConfirm).toHaveBeenCalledWith(
-          expect.objectContaining({ destructive: true })
-        )
+        expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
       })
     })
 
@@ -173,10 +177,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(dismissBtn)
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
     })
 
@@ -186,13 +187,14 @@ describe("RepositoryInsightsRoute", () => {
 
       renderRoute()
       const dismissBtn = await screen.findByRole("button", { name: "Dismiss" })
-      await act(async () => { fireEvent.click(dismissBtn) })
+      await act(async () => {
+        fireEvent.click(dismissBtn)
+      })
 
-      await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-      expect(fetchSpy).not.toHaveBeenCalledWith(
-        "/api/v1/app/insight_suggestions/1",
-        expect.objectContaining({ method: "PATCH" })
-      )
+      await waitFor(() => {
+        expect(mockConfirm).toHaveBeenCalled()
+      })
+      expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
     })
   })
 
@@ -277,10 +279,7 @@ describe("RepositoryInsightsRoute", () => {
 
       await screen.findByText("Frequent prepare failures")
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("state=dismissed"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("state=dismissed"), expect.anything())
       })
     })
   })
@@ -354,7 +353,13 @@ describe("RepositoryInsightsRoute", () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
         const url = String(input)
         if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
-          return Promise.resolve(jsonResponse({ message: "Memory removed and suggestion accepted.", suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }), memory_id: 44 }))
+          return Promise.resolve(
+            jsonResponse({
+              message: "Memory removed and suggestion accepted.",
+              suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }),
+              memory_id: 44
+            })
+          )
         }
         return Promise.resolve(jsonResponse(payload([removeMemory])))
       })
@@ -367,10 +372,7 @@ describe("RepositoryInsightsRoute", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Remove memory" }))
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
     })
   })
@@ -407,10 +409,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Discuss in new chat" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1/discuss",
-          expect.objectContaining({ method: "POST" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1/discuss", expect.objectContaining({ method: "POST" }))
       })
       expect(openSpy).toHaveBeenCalledWith("/chats/42", "_blank")
     })
@@ -453,9 +452,7 @@ describe("RepositoryInsightsRoute", () => {
     it("does not render evidence links in the card header", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
-          ]
+          evidence: [{ job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }]
         })
       ])
 
@@ -467,9 +464,7 @@ describe("RepositoryInsightsRoute", () => {
     it("shows an Evidence toggle inside the expanded card but not the table yet", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
-          ]
+          evidence: [{ job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }]
         })
       ])
 
@@ -485,9 +480,7 @@ describe("RepositoryInsightsRoute", () => {
     it("reveals the evidence table with job, finding, and transcript columns on second expand", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
-          ]
+          evidence: [{ job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }]
         })
       ])
 
@@ -510,9 +503,7 @@ describe("RepositoryInsightsRoute", () => {
     it("collapses the evidence table when the card is collapsed", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
-          ]
+          evidence: [{ job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }]
         })
       ])
 
@@ -530,9 +521,7 @@ describe("RepositoryInsightsRoute", () => {
     it("handles evidence items without a job or transcript gracefully", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: null, run_id: null, kind: "anomaly detected", job_path: null, run_transcript_path: null }
-          ]
+          evidence: [{ job_id: null, run_id: null, kind: "anomaly detected", job_path: null, run_transcript_path: null }]
         })
       ])
 
@@ -589,10 +578,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(screen.getByRole("button", { name: "Save as memory" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
       expect(screen.getByText("Suggested prompt")).toBeInTheDocument()
     })
@@ -634,10 +620,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(undismissBtn)
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
     })
   })
@@ -662,10 +645,7 @@ describe("RepositoryInsightsRoute", () => {
 
       await screen.findByText("Frequent prepare failures")
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("state=retired"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("state=retired"), expect.anything())
       })
     })
 
@@ -702,9 +682,7 @@ describe("RepositoryInsightsRoute", () => {
     })
 
     it("renders pagination controls when total_pages > 1", async () => {
-      const suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
-      )
+      const suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` }))
       renderRoute(suggestions, makeMeta({ total: 25, page: 1, per_page: 20, total_pages: 2 }))
 
       await screen.findByText("Showing 1–20 of 25")
@@ -713,9 +691,7 @@ describe("RepositoryInsightsRoute", () => {
     })
 
     it("Previous is disabled (not a button) on page 1", async () => {
-      const suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
-      )
+      const suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` }))
       renderRoute(suggestions, makeMeta({ total: 25, page: 1, per_page: 20, total_pages: 2 }))
 
       await screen.findByText("Showing 1–20 of 25")
@@ -725,9 +701,7 @@ describe("RepositoryInsightsRoute", () => {
     })
 
     it("clicking Next re-fetches with page=2", async () => {
-      const page1Suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
-      )
+      const page1Suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` }))
       const page2Suggestions = [makeSuggestion({ id: 21, title: "Suggestion 21" })]
 
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -756,20 +730,13 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(screen.getByRole("button", { name: "Next" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("page=2"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("page=2"), expect.anything())
       })
     })
 
     it("fetches and paginates the selected state tab", async () => {
-      const pendingSuggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Pending ${i + 1}`, state: "pending" })
-      )
-      const acceptedSuggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 101, title: `Accepted ${i + 1}`, state: "accepted" })
-      )
+      const pendingSuggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Pending ${i + 1}`, state: "pending" }))
+      const acceptedSuggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 101, title: `Accepted ${i + 1}`, state: "accepted" }))
       const counts = { pending: 20, accepted: 25, dismissed: 2, retired: 0, all: 47 }
 
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -801,10 +768,7 @@ describe("RepositoryInsightsRoute", () => {
       await screen.findByText("Accepted 1")
       expect(screen.getByText("Showing 1–20 of 25")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument()
-      expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining("state=accepted"),
-        expect.anything()
-      )
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("state=accepted"), expect.anything())
     })
   })
 })

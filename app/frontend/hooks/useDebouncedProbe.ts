@@ -4,11 +4,7 @@ import type { CredentialTestResult } from "../api/credentials"
 // Live-validation state for a pasted-but-unsaved credential. Extracted from
 // GithubTokenModal's TokenStep so every credential surface can probe before
 // saving instead of demanding a blind save-then-test.
-export type ProbeState =
-  | { status: "idle" }
-  | { status: "testing" }
-  | { status: "done"; result: CredentialTestResult }
-  | { status: "error"; message: string }
+export type ProbeState = { status: "idle" } | { status: "testing" } | { status: "done"; result: CredentialTestResult } | { status: "error"; message: string }
 
 // Debounce keystrokes, then probe the trimmed value. A monotonically
 // increasing sequence guards against stale results: when the value changes

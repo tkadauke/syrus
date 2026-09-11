@@ -74,10 +74,14 @@ describe("RouteErrorBoundary", () => {
       </RouteErrorBoundary>
     )
 
-    await waitFor(() => expect(mockRecordBrowserError).toHaveBeenCalledWith(expect.objectContaining({
-      message: "Test explosion",
-      metadata: { boundary: "route" }
-    })))
+    await waitFor(() =>
+      expect(mockRecordBrowserError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "Test explosion",
+          metadata: { boundary: "route" }
+        })
+      )
+    )
     expect(await screen.findByRole("link", { name: "Browser error #123 captured" })).toHaveAttribute("href", "/admin/browser_errors?id=123&revision_scope=all")
   })
 
@@ -91,9 +95,7 @@ describe("RouteErrorBoundary", () => {
     await screen.findByRole("link", { name: "Browser error #123 captured" })
     fireEvent.click(screen.getByRole("button", { name: "Send error report" }))
 
-    await waitFor(() =>
-      expect(mockFileEventJob).toHaveBeenCalledWith({ event_type: "browser_error", event_id: 123 })
-    )
+    await waitFor(() => expect(mockFileEventJob).toHaveBeenCalledWith({ event_type: "browser_error", event_id: 123 }))
     expect(mockCreateBugReport).not.toHaveBeenCalled()
   })
 
@@ -127,9 +129,7 @@ describe("RouteErrorBoundary", () => {
     await screen.findByRole("link", { name: "Browser error #123 captured" })
     fireEvent.click(screen.getByRole("button", { name: "Send error report" }))
 
-    await waitFor(() =>
-      expect(screen.getByText("Could not send report — try refreshing")).toBeInTheDocument()
-    )
+    await waitFor(() => expect(screen.getByText("Could not send report — try refreshing")).toBeInTheDocument())
     expect(screen.queryByRole("button", { name: "Send error report" })).not.toBeInTheDocument()
   })
 

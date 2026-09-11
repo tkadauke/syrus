@@ -14,14 +14,7 @@ function renderExpanded(context: ToolCardContext) {
   const outcome = parseScheduledTaskOutcome(context.parsedResult)
   if (!outcome) return null
 
-  return (
-    <ScheduledTaskOutcomeCard
-      detail="This task will not fire again until it is resumed."
-      outcome={outcome}
-      pill="paused"
-      tone="warning"
-    />
-  )
+  return <ScheduledTaskOutcomeCard detail="This task will not fire again until it is resumed." outcome={outcome} pill="paused" tone="warning" />
 }
 
 const pauseScheduledTaskToolCard: ToolCardRenderer = {

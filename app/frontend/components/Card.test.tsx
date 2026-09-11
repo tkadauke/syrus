@@ -14,7 +14,11 @@ describe("Card", () => {
   })
 
   it("applies the preview variant's popover styling", () => {
-    render(<Card data-testid="card" variant="preview">Content</Card>)
+    render(
+      <Card data-testid="card" variant="preview">
+        Content
+      </Card>
+    )
     const card = screen.getByTestId("card")
     expect(card.className).toContain("w-80")
     expect(card.className).toContain("shadow-lg")
@@ -55,7 +59,11 @@ describe("Card", () => {
   })
 
   it("forwards other div props such as onClick", () => {
-    render(<Card data-testid="card" role="button">Content</Card>)
+    render(
+      <Card data-testid="card" role="button">
+        Content
+      </Card>
+    )
     expect(screen.getByTestId("card")).toHaveAttribute("role", "button")
   })
 })

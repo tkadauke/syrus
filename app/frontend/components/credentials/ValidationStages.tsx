@@ -48,20 +48,24 @@ export function ValidationStages<K extends string>({
 
 export function StageIcon({ status }: { status: StageStatus }) {
   if (status === "running") {
-    return (
-      <span aria-hidden="true" className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-    )
+    return <span aria-hidden="true" className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
   }
   if (status === "ok") {
     return (
-      <span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-2xs font-bold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+      <span
+        aria-hidden="true"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-2xs font-bold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+      >
         ✓
       </span>
     )
   }
   if (status === "failed") {
     return (
-      <span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-100 text-2xs font-bold text-red-700 dark:bg-red-900 dark:text-red-300">
+      <span
+        aria-hidden="true"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-100 text-2xs font-bold text-red-700 dark:bg-red-900 dark:text-red-300"
+      >
         ✕
       </span>
     )

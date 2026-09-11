@@ -35,7 +35,8 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   icon: "p-1"
 }
 
-const BASE_CLASSES = "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-gray-950"
+const BASE_CLASSES =
+  "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-gray-950"
 
 // Exposed so elements that can't render as an actual <button> (e.g. a
 // react-router `Link`, which must stay an <a> for correct navigation/keyboard
@@ -53,13 +54,5 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { variant = "primary", size = "md", type = "button", className = "", disabled, ...props },
   ref
 ) {
-  return (
-    <button
-      className={buttonClasses(variant, size, className)}
-      disabled={disabled}
-      ref={ref}
-      type={type}
-      {...props}
-    />
-  )
+  return <button className={buttonClasses(variant, size, className)} disabled={disabled} ref={ref} type={type} {...props} />
 })

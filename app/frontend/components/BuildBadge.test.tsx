@@ -51,8 +51,7 @@ describe("BuildBadge", () => {
 
   // Formats through the same Intl path as the component so the expectation
   // doesn't hardcode a locale or the test machine's timezone.
-  const formatted = (iso: string) =>
-    new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso))
+  const formatted = (iso: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso))
 
   it("shows the backend build time as a hover tooltip", () => {
     render(<BuildBadge builtAt="2026-07-05T08:15:00Z" revision="439245a" version="0.1.2" />)
@@ -67,9 +66,7 @@ describe("BuildBadge", () => {
       "Mozilla/5.0 Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.2 SyrusDesktopBuild/0.1.2 SyrusDesktopBuiltAt/20260707T143200Z Safari/537.36"
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue(releaseUa)
     render(<BuildBadge builtAt="2026-07-05T08:15:00Z" revision="439245a" version="0.1.2" />)
-    expect(screen.getByText("app 0.1.2").getAttribute("title")).toBe(
-      `app 0.1.2 — built ${formatted("2026-07-07T14:32:00Z")}`
-    )
+    expect(screen.getByText("app 0.1.2").getAttribute("title")).toBe(`app 0.1.2 — built ${formatted("2026-07-07T14:32:00Z")}`)
     expect(screen.getByTestId("build-badge").textContent).toBe("app 0.1.2 · backend 0.1.2")
   })
 

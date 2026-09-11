@@ -56,9 +56,8 @@ function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyRep
     try {
       const title = ("Frontend error: " + error.message).slice(0, 200)
       const description = `${componentStack}\n\n${error.stack ?? ""}`
-      const result = browserEventId != null
-        ? await fileEventJob({ event_type: "browser_error", event_id: browserEventId })
-        : await createBugReport({ title, description })
+      const result =
+        browserEventId != null ? await fileEventJob({ event_type: "browser_error", event_id: browserEventId }) : await createBugReport({ title, description })
       markFingerprint(fp)
       setJobId(result.job_id ?? null)
       setReportState("success")
@@ -68,25 +67,14 @@ function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyRep
   }
 
   return (
-    <div
-      className="m-4 rounded border border-red-200 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-950/40"
-      role="alert"
-    >
+    <div className="m-4 rounded border border-red-200 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-950/40" role="alert">
       <p className="font-medium text-red-800 dark:text-red-200">{t("route_error.heading")}</p>
       <code className="mt-2 block break-all text-xs text-red-700 dark:text-red-300">{error.message}</code>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => window.history.back()}
-        >
+        <Button variant="secondary" size="sm" onClick={() => window.history.back()}>
           {t("route_error.go_back")}
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => window.location.reload()}
-        >
+        <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>
           {t("route_error.reload_page")}
         </Button>
         {reportState === "success" ? (
@@ -98,16 +86,15 @@ function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyRep
         ) : alreadyReported ? (
           <span className="text-xs text-gray-500 dark:text-gray-400">{t("route_error.already_reported")}</span>
         ) : (
-          <Button
-            size="sm"
-            disabled={reportState === "loading"}
-            onClick={() => void sendReport()}
-          >
+          <Button size="sm" disabled={reportState === "loading"} onClick={() => void sendReport()}>
             {t("route_error.send_report")}
           </Button>
         )}
         {browserEventId != null ? (
-          <a className="text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" href={`/admin/browser_errors?id=${browserEventId}&revision_scope=all`}>
+          <a
+            className="text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            href={`/admin/browser_errors?id=${browserEventId}&revision_scope=all`}
+          >
             {t("route_error.browser_event_reported", { id: browserEventId })}
           </a>
         ) : null}
@@ -150,15 +137,19 @@ export class RouteErrorBoundary extends Component<{ children: ReactNode }, Bound
       if (!prev.hasError) return prev
       return { ...prev, componentStack: info.componentStack ?? "" }
     })
-    void recordBrowserError(buildBrowserErrorPayload(error, {
-      boundary: "route",
-      componentStack: info.componentStack ?? "",
-      fingerprint: computeFingerprint(error)
-    })).then((result) => {
-      this.setState((prev) => prev.hasError ? { ...prev, browserEventId: result.id } : prev)
-    }).catch(() => {
-      // The boundary itself must stay usable even if diagnostics fail.
-    })
+    void recordBrowserError(
+      buildBrowserErrorPayload(error, {
+        boundary: "route",
+        componentStack: info.componentStack ?? "",
+        fingerprint: computeFingerprint(error)
+      })
+    )
+      .then((result) => {
+        this.setState((prev) => (prev.hasError ? { ...prev, browserEventId: result.id } : prev))
+      })
+      .catch(() => {
+        // The boundary itself must stay usable even if diagnostics fail.
+      })
   }
 
   render() {

@@ -46,8 +46,12 @@ describe("skillInvocationFromContent", () => {
   })
 
   it("returns a warning-toned message for unknown_skill and invalid_args markers", () => {
-    expect(skillInvocationFromContent({ skill_invocation: { status: "unknown_skill" } }, "No skill named `/dead-code-sweep`.")).toMatchObject({ tone: "warning" })
-    expect(skillInvocationFromContent({ skill_invocation: { status: "invalid_args" } }, "`/investigate` needs valid arguments.")).toMatchObject({ tone: "warning" })
+    expect(skillInvocationFromContent({ skill_invocation: { status: "unknown_skill" } }, "No skill named `/dead-code-sweep`.")).toMatchObject({
+      tone: "warning"
+    })
+    expect(skillInvocationFromContent({ skill_invocation: { status: "invalid_args" } }, "`/investigate` needs valid arguments.")).toMatchObject({
+      tone: "warning"
+    })
   })
 })
 

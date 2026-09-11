@@ -17,7 +17,9 @@ const HEALTHY_SNAPSHOT = {
   active_workers: {
     count: 1,
     queues: ["runs"],
-    workers: [{ hostname: "worker-1", pid: 42, queues: ["runs", "chat"], threads: 3, last_heartbeat_at: "2026-01-01T00:00:00Z", stale: false, status: "current" }]
+    workers: [
+      { hostname: "worker-1", pid: 42, queues: ["runs", "chat"], threads: 3, last_heartbeat_at: "2026-01-01T00:00:00Z", stale: false, status: "current" }
+    ]
   },
   pending_jobs: { runs: 2, merges: 0, chat: 1, videos: 0, control_plane: 0, polling: 0, indexing: 0, cleanup: 0, low_priority_maintenance: 0 },
   failed_jobs: { count: 1 },

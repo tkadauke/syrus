@@ -10,11 +10,7 @@ interface PrHoverCardProps {
 }
 
 function detectPointerFine(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(hover: hover) and (pointer: fine)").matches
-  )
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(hover: hover) and (pointer: fine)").matches
 }
 
 export function PrHoverCard({ jobId, prNumber, prUrl, children }: PrHoverCardProps) {
@@ -25,7 +21,7 @@ export function PrHoverCard({ jobId, prNumber, prUrl, children }: PrHoverCardPro
   const canHover = useRef(detectPointerFine())
 
   const { refs, floatingStyles } = useFloating({
-    middleware: [offset(8), flip(), autoPlacement()],
+    middleware: [offset(8), flip(), autoPlacement()]
   })
 
   const handleReferenceEnter = useCallback(() => {
@@ -51,22 +47,12 @@ export function PrHoverCard({ jobId, prNumber, prUrl, children }: PrHoverCardPro
 
   return (
     <>
-      <span
-        onMouseEnter={handleReferenceEnter}
-        onMouseLeave={handleReferenceLeave}
-        ref={refs.setReference}
-        style={{ display: "inline" }}
-      >
+      <span onMouseEnter={handleReferenceEnter} onMouseLeave={handleReferenceLeave} ref={refs.setReference} style={{ display: "inline" }}>
         {children}
       </span>
       {isOpen && (
         <FloatingPortal>
-          <div
-            onMouseEnter={handleFloatingEnter}
-            onMouseLeave={handleFloatingLeave}
-            ref={refs.setFloating}
-            style={{ ...floatingStyles, zIndex: 50 }}
-          >
+          <div onMouseEnter={handleFloatingEnter} onMouseLeave={handleFloatingLeave} ref={refs.setFloating} style={{ ...floatingStyles, zIndex: 50 }}>
             <PrPreviewCard jobId={jobId} prNumber={prNumber} prUrl={prUrl} />
           </div>
         </FloatingPortal>

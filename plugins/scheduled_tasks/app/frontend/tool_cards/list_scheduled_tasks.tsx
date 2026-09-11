@@ -33,12 +33,24 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Task</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Kind</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Cadence</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Next fire</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Health</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Task
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              State
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Kind
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Cadence
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Next fire
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Health
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -47,9 +59,13 @@ function renderExpanded(context: ToolCardContext) {
               <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={task.label}>
                 <span className="font-mono text-gray-500 dark:text-gray-400">#{task.id}</span> {task.label}
               </td>
-              <td className="whitespace-nowrap px-2 py-1"><StatePill state={task.state} /></td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <StatePill state={task.state} />
+              </td>
               <td className="whitespace-nowrap px-2 py-1">{task.kind ? <Badge>{task.kind.replace(/_/g, " ")}</Badge> : "—"}</td>
-              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={task.cadence ?? undefined}>{task.cadence || "—"}</td>
+              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={task.cadence ?? undefined}>
+                {task.cadence || "—"}
+              </td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{task.nextFireAt || task.fireAt || "—"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">
                 {task.consecutiveFailureCount > 0 ? <FailureBadge count={task.consecutiveFailureCount} /> : "—"}

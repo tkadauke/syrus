@@ -8,15 +8,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
 import { PageHeading, SectionHeading } from "../components/Heading"
-import {
-  createTag,
-  deleteTag,
-  fetchTags,
-  updateTag,
-  type TagPaletteColor,
-  type TagRow,
-  type TagsPayload
-} from "../api/tags"
+import { createTag, deleteTag, fetchTags, updateTag, type TagPaletteColor, type TagRow, type TagsPayload } from "../api/tags"
 import { errorMessage } from "../lib/errorMessage"
 
 const queryKey = ["tags"] as const
@@ -33,12 +25,12 @@ export function Tags() {
   return (
     <main aria-label={t("aria_tags")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header>
-        <PageHeading>{t('tags.heading')}</PageHeading>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('tags.description')}</p>
+        <PageHeading>{t("tags.heading")}</PageHeading>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("tags.description")}</p>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {tags.isPending ? <PanelMessage>{t('tags.loading')}</PanelMessage> : null}
+      {tags.isPending ? <PanelMessage>{t("tags.loading")}</PanelMessage> : null}
       {tags.isError ? <TagsError error={tags.error} /> : null}
       {tags.isSuccess ? <TagsView onNotice={setNotice} payload={tags.data} /> : null}
     </main>
@@ -66,7 +58,7 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
       queryClient.setQueryData(queryKey, payload)
       setName("")
       setColor("gray")
-      onNotice(payload.message || t('tags.created'))
+      onNotice(payload.message || t("tags.created"))
     }
   })
 
@@ -78,10 +70,10 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <SectionHeading>{t('tags.create')}</SectionHeading>
+      <SectionHeading>{t("tags.create")}</SectionHeading>
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-name">
-          {t('tags.field_name')}
+          {t("tags.field_name")}
           <Input
             id="new-tag-name"
             className="mt-1 normal-case"
@@ -93,16 +85,12 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
           />
         </label>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-color">
-          {t('tags.field_color')}
-          <Select
-            id="new-tag-color"
-            className="mt-1 normal-case"
-            fullWidth={false}
-            onChange={(event) => setColor(event.target.value)}
-            value={color}
-          >
+          {t("tags.field_color")}
+          <Select id="new-tag-color" className="mt-1 normal-case" fullWidth={false} onChange={(event) => setColor(event.target.value)} value={color}>
             {palette.map((option) => (
-              <option key={option.key} value={option.key}>{option.label}</option>
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
             ))}
           </Select>
         </label>
@@ -111,10 +99,14 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
           disabled={create.isPending}
           type="submit"
         >
-          {create.isPending ? t('tags.creating') : t('tags.create_btn')}
+          {create.isPending ? t("tags.creating") : t("tags.create_btn")}
         </button>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, "Unable to create tag.")}</p> : null}
+      {create.isError ? (
+        <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(create.error, "Unable to create tag.")}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -126,18 +118,24 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2">{t('tags.col_tag')}</th>
-            <th className="px-4 py-2">{t('tags.col_jobs')}</th>
-            <th className="px-4 py-2">{t('tags.col_rename')}</th>
-            <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
+            <th className="px-4 py-2">{t("tags.col_tag")}</th>
+            <th className="px-4 py-2">{t("tags.col_jobs")}</th>
+            <th className="px-4 py-2">{t("tags.col_rename")}</th>
+            <th className="px-4 py-2">
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
           {tags.length === 0 ? (
-            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={4}>{t('tags.empty')}</td></tr>
-          ) : tags.map((tag) => (
-            <TagTableRow key={tag.id} onNotice={onNotice} palette={palette} tag={tag} />
-          ))}
+            <tr>
+              <td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={4}>
+                {t("tags.empty")}
+              </td>
+            </tr>
+          ) : (
+            tags.map((tag) => <TagTableRow key={tag.id} onNotice={onNotice} palette={palette} tag={tag} />)
+          )}
         </tbody>
       </table>
     </section>
@@ -153,14 +151,14 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
     mutationFn: () => updateTag(tag.id, { name, color }),
     onSuccess: (payload) => {
       queryClient.setQueryData(queryKey, payload)
-      onNotice(payload.message || t('tags.tag_updated'))
+      onNotice(payload.message || t("tags.tag_updated"))
     }
   })
   const destroy = useMutation({
     mutationFn: () => deleteTag(tag.id),
     onSuccess: (payload) => {
       queryClient.setQueryData(queryKey, payload)
-      onNotice(payload.message || t('tags.deleted'))
+      onNotice(payload.message || t("tags.deleted"))
     }
   })
 
@@ -172,27 +170,20 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
 
   return (
     <tr>
-      <td className="px-4 py-3"><TagChip palette={palette} tag={tag} /></td>
+      <td className="px-4 py-3">
+        <TagChip palette={palette} tag={tag} />
+      </td>
       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{tag.jobs_count}</td>
       <td className="px-4 py-3">
         <form className="flex flex-wrap items-center gap-2" onSubmit={submit}>
           <div className="w-48">
-            <Input
-              aria-label={t('tags.name_for', { name: tag.name })}
-              onChange={(event) => setName(event.target.value)}
-              required
-              type="text"
-              value={name}
-            />
+            <Input aria-label={t("tags.name_for", { name: tag.name })} onChange={(event) => setName(event.target.value)} required type="text" value={name} />
           </div>
-          <Select
-            aria-label={t('tags.color_for', { name: tag.name })}
-            fullWidth={false}
-            onChange={(event) => setColor(event.target.value)}
-            value={color}
-          >
+          <Select aria-label={t("tags.color_for", { name: tag.name })} fullWidth={false} onChange={(event) => setColor(event.target.value)} value={color}>
             {palette.map((option) => (
-              <option key={option.key} value={option.key}>{option.label}</option>
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
             ))}
           </Select>
           <button
@@ -200,26 +191,34 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
             disabled={update.isPending}
             type="submit"
           >
-            {update.isPending ? t('tags.saving') : t('tags.save')}
+            {update.isPending ? t("tags.saving") : t("tags.save")}
           </button>
         </form>
-        {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, "Unable to update tag.")}</p> : null}
+        {update.isError ? (
+          <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">
+            {errorMessage(update.error, "Unable to update tag.")}
+          </p>
+        ) : null}
       </td>
       <td className="px-4 py-3 text-right">
         <button
           className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
           disabled={destroy.isPending}
           onClick={() => {
-            if (window.confirm(t('tags.confirm_delete', { name: tag.name }))) {
+            if (window.confirm(t("tags.confirm_delete", { name: tag.name }))) {
               onNotice(null)
               destroy.mutate()
             }
           }}
           type="button"
         >
-          {destroy.isPending ? t('tags.deleting') : t('tags.delete')}
+          {destroy.isPending ? t("tags.deleting") : t("tags.delete")}
         </button>
-        {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete tag.")}</p> : null}
+        {destroy.isError ? (
+          <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">
+            {errorMessage(destroy.error, "Unable to delete tag.")}
+          </p>
+        ) : null}
       </td>
     </tr>
   )
@@ -262,4 +261,3 @@ function readableTextColor(hex: string) {
   const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255
   return luminance > 0.62 ? "#111827" : "#ffffff"
 }
-

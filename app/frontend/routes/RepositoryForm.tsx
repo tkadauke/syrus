@@ -27,11 +27,7 @@ import {
   updateInsightScheduleConfig,
   updateRepository
 } from "../api/repositories"
-import {
-  createRepositoryFinalApprover,
-  deleteRepositoryFinalApprover,
-  fetchRepositoryFinalApprovers
-} from "../api/repositoryFinalApprovers"
+import { createRepositoryFinalApprover, deleteRepositoryFinalApprover, fetchRepositoryFinalApprovers } from "../api/repositoryFinalApprovers"
 import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -55,14 +51,14 @@ export function RepositoryFormRoute({ mode }: { mode: "new" | "edit" }) {
   const prefix = routePrefix(location.pathname)
   const form = useQuery({
     queryKey: ["repositories", mode, id],
-    queryFn: () => mode === "new" ? fetchNewRepositoryForm() : fetchEditRepositoryForm(id),
+    queryFn: () => (mode === "new" ? fetchNewRepositoryForm() : fetchEditRepositoryForm(id)),
     enabled: mode === "new" || id.length > 0
   })
 
   return (
-    <main aria-label={mode === "new" ? t('repository_form.aria_new') : t('repository_form.aria_edit')} className="mx-auto max-w-3xl space-y-6 p-6">
-      {form.isPending ? <PanelMessage>{t('repository_form.loading')}</PanelMessage> : null}
-      {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, t('repository_form.error_load'))}</PanelMessage> : null}
+    <main aria-label={mode === "new" ? t("repository_form.aria_new") : t("repository_form.aria_edit")} className="mx-auto max-w-3xl space-y-6 p-6">
+      {form.isPending ? <PanelMessage>{t("repository_form.loading")}</PanelMessage> : null}
+      {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, t("repository_form.error_load"))}</PanelMessage> : null}
       {form.isSuccess ? <RepositoryForm mode={mode} payload={form.data} prefix={prefix} /> : null}
     </main>
   )
@@ -100,9 +96,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
     staleTime: 60_000
   })
 
-  const selectedOwnerType = useMemo(() => (
-    ownerOptions.find((owner) => owner.login === values.owner)?.type || "org"
-  ), [ownerOptions, values.owner])
+  const selectedOwnerType = useMemo(() => ownerOptions.find((owner) => owner.login === values.owner)?.type || "org", [ownerOptions, values.owner])
 
   useEffect(() => {
     setValues(inputFromPayload(payload))
@@ -141,32 +135,40 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
     if (ownerMode !== "select" || !values.owner) return
 
     let active = true
-    fetchRepositoryOptions(values.owner, selectedOwnerType).then((data) => {
-      if (!active) return
-      if (data.error) {
-        setRepoNotice(repoErrorMessage(t, data.error))
+    fetchRepositoryOptions(values.owner, selectedOwnerType)
+      .then((data) => {
+        if (!active) return
+        if (data.error) {
+          setRepoNotice(repoErrorMessage(t, data.error))
+          setRepoMode("manual")
+          setRepoOptions([])
+          return
+        }
+
+        const options = (data.repos || []).map((repo) =>
+          typeof repo === "string"
+            ? {
+                name: repo,
+                github_owner_id: null,
+                github_repository_id: null
+              }
+            : repo
+        )
+
+        setRepoOptions(options)
+        setRepoNotice(null)
+        if (options.length > 0) setRepoMode("select")
+      })
+      .catch(() => {
+        if (!active) return
+        setRepoNotice({ text: t("repository_form.repo_err_generic"), tone: "muted" })
         setRepoMode("manual")
         setRepoOptions([])
-        return
-      }
+      })
 
-      const options = (data.repos || []).map((repo) => typeof repo === "string" ? {
-        name: repo,
-        github_owner_id: null,
-        github_repository_id: null
-      } : repo)
-
-      setRepoOptions(options)
-      setRepoNotice(null)
-      if (options.length > 0) setRepoMode("select")
-    }).catch(() => {
-      if (!active) return
-      setRepoNotice({ text: t('repository_form.repo_err_generic'), tone: "muted" })
-      setRepoMode("manual")
-      setRepoOptions([])
-    })
-
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [ownerMode, selectedOwnerType, values.owner])
 
   useEffect(() => {
@@ -174,29 +176,31 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
     let active = true
     const timer = window.setTimeout(() => {
-      fetchRepositoryBranches(values.owner, values.name).then((data) => {
-        if (!active) return
-        if (data.error) {
-          if (data.error === "not_found") setRepoNotice({ text: t('repository_form.repo_branch_not_found'), tone: "error" })
+      fetchRepositoryBranches(values.owner, values.name)
+        .then((data) => {
+          if (!active) return
+          if (data.error) {
+            if (data.error === "not_found") setRepoNotice({ text: t("repository_form.repo_branch_not_found"), tone: "error" })
+            setBranchMode("manual")
+            setBranchOptions([])
+            return
+          }
+
+          setRepoNotice(null)
+          setBranchOptions(data.branches || [])
+          if ((data.branches || []).length > 0) {
+            setBranchMode("select")
+            setValues((current) => ({
+              ...current,
+              default_branch: current.default_branch || data.default_branch || data.branches?.[0] || "main"
+            }))
+          }
+        })
+        .catch(() => {
+          if (!active) return
           setBranchMode("manual")
           setBranchOptions([])
-          return
-        }
-
-        setRepoNotice(null)
-        setBranchOptions(data.branches || [])
-        if ((data.branches || []).length > 0) {
-          setBranchMode("select")
-          setValues((current) => ({
-            ...current,
-            default_branch: current.default_branch || data.default_branch || data.branches?.[0] || "main"
-          }))
-        }
-      }).catch(() => {
-        if (!active) return
-        setBranchMode("manual")
-        setBranchOptions([])
-      })
+        })
     }, 350)
 
     return () => {
@@ -244,50 +248,54 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
     setValues(next)
   }
 
-  const title = mode === "new"
-    ? t('repository_form.heading_new')
-    : t('repository_form.heading_edit', { slug: payload.repository.slug || `${payload.repository.owner}/${payload.repository.name}` })
+  const title =
+    mode === "new"
+      ? t("repository_form.heading_new")
+      : t("repository_form.heading_edit", { slug: payload.repository.slug || `${payload.repository.owner}/${payload.repository.name}` })
 
   return (
     <>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <PageHeading className="break-words">{title}</PageHeading>
-        {mode === "edit" && payload.repository.repository_path ? <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
-          {t('repository_form.back')}
-        </Link> : null}
+        {mode === "edit" && payload.repository.repository_path ? (
+          <Link
+            className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline"
+            to={withRoutePrefix(payload.repository.repository_path, prefix)}
+          >
+            {t("repository_form.back")}
+          </Link>
+        ) : null}
       </header>
 
-      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t('repository_form.error_save'))}</PanelMessage> : null}
+      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("repository_form.error_save"))}</PanelMessage> : null}
       {ownerNotice ? <PanelMessage>{ownerNotice}</PanelMessage> : null}
       {repoNotice ? <PanelMessage tone={repoNotice.tone}>{repoNotice.text}</PanelMessage> : null}
 
       <form className="space-y-5" onSubmit={submit}>
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <div>
-            <SectionHeading>
-              {t('repository_form.working_section')}
-            </SectionHeading>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.working_description')}
-            </p>
+            <SectionHeading>{t("repository_form.working_section")}</SectionHeading>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.working_description")}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('repository_form.label_working_owner')}>
+            <Field label={t("repository_form.label_working_owner")}>
               {ownerMode === "select" && ownerOptions.length > 0 ? (
                 <SelectWithManual
-                  label={t('repository_form.label_working_owner')}
+                  label={t("repository_form.label_working_owner")}
                   onManual={() => setOwnerMode("manual")}
                   onChange={chooseOwner}
                   value={values.owner}
                 >
-                  <option value="">
-                    {t('repository_form.select_owner')}
-                  </option>
-                  {ownerOptions.map((owner) => <option key={owner.login} value={owner.login}>{owner.login}</option>)}
+                  <option value="">{t("repository_form.select_owner")}</option>
+                  {ownerOptions.map((owner) => (
+                    <option key={owner.login} value={owner.login}>
+                      {owner.login}
+                    </option>
+                  ))}
                 </SelectWithManual>
               ) : (
                 <Input
-                  aria-label={t('repository_form.label_working_owner')}
+                  aria-label={t("repository_form.label_working_owner")}
                   className="font-mono"
                   onChange={(event) => {
                     setValues({ ...values, owner: event.target.value, github_owner_id: "", github_repository_id: "" })
@@ -300,10 +308,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               )}
             </Field>
 
-            <Field label={t('repository_form.label_working_name')}>
+            <Field label={t("repository_form.label_working_name")}>
               {repoMode === "select" && repoOptions.length > 0 ? (
                 <SelectWithManual
-                  label={t('repository_form.label_working_name')}
+                  label={t("repository_form.label_working_name")}
                   onManual={() => {
                     setRepoMode("manual")
                     setValues({ ...values, github_owner_id: "", github_repository_id: "" })
@@ -311,14 +319,16 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                   onChange={chooseRepository}
                   value={values.name}
                 >
-                  <option value="">
-                    {t('repository_form.select_repo')}
-                  </option>
-                  {repoOptions.map((repo) => <option key={repo.name} value={repo.name}>{repo.name}</option>)}
+                  <option value="">{t("repository_form.select_repo")}</option>
+                  {repoOptions.map((repo) => (
+                    <option key={repo.name} value={repo.name}>
+                      {repo.name}
+                    </option>
+                  ))}
                 </SelectWithManual>
               ) : (
                 <Input
-                  aria-label={t('repository_form.label_working_name')}
+                  aria-label={t("repository_form.label_working_name")}
                   className="font-mono"
                   onChange={(event) => setValues({ ...values, name: event.target.value, github_owner_id: "", github_repository_id: "" })}
                   required
@@ -329,20 +339,24 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </Field>
           </div>
 
-          <Field label={t('repository_form.label_default_branch')}>
+          <Field label={t("repository_form.label_default_branch")}>
             {branchMode === "select" && branchOptions.length > 0 ? (
               <Select
-                aria-label={t('repository_form.label_default_branch')}
+                aria-label={t("repository_form.label_default_branch")}
                 className="font-mono"
                 onChange={(event) => setValues({ ...values, default_branch: event.target.value })}
                 required
                 value={values.default_branch}
               >
-                {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                {branchOptions.map((branch) => (
+                  <option key={branch} value={branch}>
+                    {branch}
+                  </option>
+                ))}
               </Select>
             ) : (
               <Input
-                aria-label={t('repository_form.label_default_branch')}
+                aria-label={t("repository_form.label_default_branch")}
                 className="font-mono"
                 onChange={(event) => setValues({ ...values, default_branch: event.target.value })}
                 required
@@ -352,34 +366,28 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             )}
           </Field>
 
-          <Field label={t('repository_form.label_trigger')}>
+          <Field label={t("repository_form.label_trigger")}>
             <Input
-              aria-label={t('repository_form.label_trigger')}
+              aria-label={t("repository_form.label_trigger")}
               className="font-mono"
               onChange={(event) => setValues({ ...values, trigger_label: event.target.value })}
               required
               type="text"
               value={values.trigger_label}
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.trigger_hint')}
-            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.trigger_hint")}</p>
           </Field>
         </section>
 
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <div>
-            <SectionHeading>
-              {t('repository_form.upstream_section')}
-            </SectionHeading>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.upstream_description')}
-            </p>
+            <SectionHeading>{t("repository_form.upstream_section")}</SectionHeading>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.upstream_description")}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('repository_form.label_upstream_owner')}>
+            <Field label={t("repository_form.label_upstream_owner")}>
               <Input
-                aria-label={t('repository_form.label_upstream_owner')}
+                aria-label={t("repository_form.label_upstream_owner")}
                 className="font-mono"
                 onChange={(event) => updateUpstream("upstream_owner", event.target.value)}
                 type="text"
@@ -387,9 +395,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               />
             </Field>
 
-            <Field label={t('repository_form.label_upstream_name')}>
+            <Field label={t("repository_form.label_upstream_name")}>
               <Input
-                aria-label={t('repository_form.label_upstream_name')}
+                aria-label={t("repository_form.label_upstream_name")}
                 className="font-mono"
                 onChange={(event) => updateUpstream("upstream_name", event.target.value)}
                 type="text"
@@ -398,9 +406,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </Field>
           </div>
 
-          <Field label={t('repository_form.label_upstream_branch')}>
+          <Field label={t("repository_form.label_upstream_branch")}>
             <Input
-              aria-label={t('repository_form.label_upstream_branch')}
+              aria-label={t("repository_form.label_upstream_branch")}
               className="font-mono"
               onChange={(event) => updateUpstream("upstream_default_branch", event.target.value)}
               type="text"
@@ -410,86 +418,131 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         </section>
 
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-          <SectionHeading>
-            {t('repository_form.automation_section')}
-          </SectionHeading>
-          <Field label={t('repository_form.label_default_agent')}>
+          <SectionHeading>{t("repository_form.automation_section")}</SectionHeading>
+          <Field label={t("repository_form.label_default_agent")}>
             <Select
-              aria-label={t('repository_form.label_default_agent')}
+              aria-label={t("repository_form.label_default_agent")}
               onChange={(event) => setValues({ ...values, agent_provider: event.target.value })}
               value={values.agent_provider}
             >
-              <option value="">
-                {t('repository_form.agent_default', { provider: payload.user_agent_provider_label })}
-              </option>
+              <option value="">{t("repository_form.agent_default", { provider: payload.user_agent_provider_label })}</option>
               {payload.configured_agent_providers.map((provider) => (
-                <option key={provider.value} value={provider.value}>{provider.label}</option>
+                <option key={provider.value} value={provider.value}>
+                  {provider.label}
+                </option>
               ))}
             </Select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.agent_hint')}
-            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.agent_hint")}</p>
           </Field>
 
-          <Field label={t('repository_form.label_auto_approve')}>
+          <Field label={t("repository_form.label_auto_approve")}>
             <Select
-              aria-label={t('repository_form.label_auto_approve')}
+              aria-label={t("repository_form.label_auto_approve")}
               onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })}
               value={values.auto_approve_mode}
             >
               {payload.auto_approve_modes.map((modeOption) => (
-                <option key={modeOption.value} value={modeOption.value}>{modeOption.label}</option>
+                <option key={modeOption.value} value={modeOption.value}>
+                  {modeOption.label}
+                </option>
               ))}
             </Select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{payload.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)?.preview}</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {payload.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)?.preview}
+            </p>
           </Field>
 
-          <Checkbox label={t('repository_form.check_polling')} onChange={(checked) => setValues({ ...values, polling_enabled: checked })} value={values.polling_enabled} />
-          <Checkbox label={t('repository_form.check_prepare')} onChange={(checked) => setValues({ ...values, prepare_enabled: checked })} value={values.prepare_enabled} />
-          <Checkbox label={t('repository_form.check_cost_footer')} onChange={(checked) => setValues({ ...values, pr_cost_footer_enabled: checked })} value={values.pr_cost_footer_enabled} />
-          <Checkbox id="auto-merge" label={t('repository_form.check_auto_merge')} onChange={(checked) => setValues({ ...values, auto_merge_enabled: checked })} value={values.auto_merge_enabled} />
-          <Checkbox label={t('repository_form.check_trust_rebase')} onChange={(checked) => setValues({ ...values, trust_clean_rebase_grade: checked })} value={values.trust_clean_rebase_grade} />
-          <Checkbox label={t('repository_form.check_land_inherited_failure')} onChange={(checked) => setValues({ ...values, land_on_inherited_check_failure: checked })} value={values.land_on_inherited_check_failure} />
-          <Checkbox label={t('repository_form.check_main_health')} onChange={(checked) => setValues({
-            ...values,
-            main_branch_health_enabled: checked,
-            main_branch_repair_enabled: checked ? values.main_branch_repair_enabled : false,
-            main_branch_repair_blocks_work: checked ? values.main_branch_repair_blocks_work : false,
-            main_branch_repair_auto_approve: checked ? values.main_branch_repair_auto_approve : false
-          })} value={values.main_branch_health_enabled} />
-          <Checkbox label={t('repository_form.check_main_repair')} onChange={(checked) => {
-            setRepairTouched(true)
-            setValues({
-              ...values,
-              main_branch_health_enabled: checked ? true : values.main_branch_health_enabled,
-              main_branch_repair_enabled: checked,
-              main_branch_repair_auto_approve: checked ? values.main_branch_repair_auto_approve : false
-            })
-          }} value={values.main_branch_health_enabled && values.main_branch_repair_enabled} />
-          <Checkbox label={t('repository_form.check_main_repair_blocks_work')} onChange={(checked) => setValues({ ...values, main_branch_health_enabled: checked ? true : values.main_branch_health_enabled, main_branch_repair_blocks_work: checked })} value={values.main_branch_repair_blocks_work} />
-          <Checkbox label={t('repository_form.check_repair_auto_approve')} onChange={(checked) => setValues({
-            ...values,
-            main_branch_health_enabled: checked ? true : values.main_branch_health_enabled,
-            main_branch_repair_enabled: checked ? true : values.main_branch_repair_enabled,
-            main_branch_repair_auto_approve: checked
-          })} value={values.main_branch_health_enabled && values.main_branch_repair_enabled && values.main_branch_repair_auto_approve} />
           <Checkbox
-            label={t('repository_form.check_timeout_failures')}
+            label={t("repository_form.check_polling")}
+            onChange={(checked) => setValues({ ...values, polling_enabled: checked })}
+            value={values.polling_enabled}
+          />
+          <Checkbox
+            label={t("repository_form.check_prepare")}
+            onChange={(checked) => setValues({ ...values, prepare_enabled: checked })}
+            value={values.prepare_enabled}
+          />
+          <Checkbox
+            label={t("repository_form.check_cost_footer")}
+            onChange={(checked) => setValues({ ...values, pr_cost_footer_enabled: checked })}
+            value={values.pr_cost_footer_enabled}
+          />
+          <Checkbox
+            id="auto-merge"
+            label={t("repository_form.check_auto_merge")}
+            onChange={(checked) => setValues({ ...values, auto_merge_enabled: checked })}
+            value={values.auto_merge_enabled}
+          />
+          <Checkbox
+            label={t("repository_form.check_trust_rebase")}
+            onChange={(checked) => setValues({ ...values, trust_clean_rebase_grade: checked })}
+            value={values.trust_clean_rebase_grade}
+          />
+          <Checkbox
+            label={t("repository_form.check_land_inherited_failure")}
+            onChange={(checked) => setValues({ ...values, land_on_inherited_check_failure: checked })}
+            value={values.land_on_inherited_check_failure}
+          />
+          <Checkbox
+            label={t("repository_form.check_main_health")}
+            onChange={(checked) =>
+              setValues({
+                ...values,
+                main_branch_health_enabled: checked,
+                main_branch_repair_enabled: checked ? values.main_branch_repair_enabled : false,
+                main_branch_repair_blocks_work: checked ? values.main_branch_repair_blocks_work : false,
+                main_branch_repair_auto_approve: checked ? values.main_branch_repair_auto_approve : false
+              })
+            }
+            value={values.main_branch_health_enabled}
+          />
+          <Checkbox
+            label={t("repository_form.check_main_repair")}
+            onChange={(checked) => {
+              setRepairTouched(true)
+              setValues({
+                ...values,
+                main_branch_health_enabled: checked ? true : values.main_branch_health_enabled,
+                main_branch_repair_enabled: checked,
+                main_branch_repair_auto_approve: checked ? values.main_branch_repair_auto_approve : false
+              })
+            }}
+            value={values.main_branch_health_enabled && values.main_branch_repair_enabled}
+          />
+          <Checkbox
+            label={t("repository_form.check_main_repair_blocks_work")}
+            onChange={(checked) =>
+              setValues({ ...values, main_branch_health_enabled: checked ? true : values.main_branch_health_enabled, main_branch_repair_blocks_work: checked })
+            }
+            value={values.main_branch_repair_blocks_work}
+          />
+          <Checkbox
+            label={t("repository_form.check_repair_auto_approve")}
+            onChange={(checked) =>
+              setValues({
+                ...values,
+                main_branch_health_enabled: checked ? true : values.main_branch_health_enabled,
+                main_branch_repair_enabled: checked ? true : values.main_branch_repair_enabled,
+                main_branch_repair_auto_approve: checked
+              })
+            }
+            value={values.main_branch_health_enabled && values.main_branch_repair_enabled && values.main_branch_repair_auto_approve}
+          />
+          <Checkbox
+            label={t("repository_form.check_timeout_failures")}
             onChange={(checked) => setValues({ ...values, treat_grader_timeouts_as_failures: checked })}
             value={values.treat_grader_timeouts_as_failures}
           />
-          <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {t('repository_form.timeout_hint')}
-          </p>
+          <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.timeout_hint")}</p>
 
           {mode === "edit" && payload.repository.fork_syncable ? (
             <div className="space-y-2 rounded border border-gray-200 dark:border-gray-700 p-3">
               <Checkbox
-                label={t('repository_form.fork_auto_sync_label')}
+                label={t("repository_form.fork_auto_sync_label")}
                 onChange={(checked) => setValues({ ...values, fork_auto_sync_enabled: checked })}
                 value={values.fork_auto_sync_enabled}
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('repository_form.fork_auto_sync_hint')}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t("repository_form.fork_auto_sync_hint")}</p>
               <div className="flex items-center gap-3">
                 <button
                   className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-800"
@@ -497,81 +550,74 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                   onClick={() => syncNow.mutate()}
                   type="button"
                 >
-                  {syncNow.isPending ? t('repository_form.fork_sync_syncing') : t('repository_form.fork_sync_now')}
+                  {syncNow.isPending ? t("repository_form.fork_sync_syncing") : t("repository_form.fork_sync_now")}
                 </button>
                 {syncNow.isSuccess ? (
-                  <span className="text-xs text-emerald-600 dark:text-emerald-400">{syncNow.data?.message || t('repository_form.fork_sync_started')}</span>
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400">{syncNow.data?.message || t("repository_form.fork_sync_started")}</span>
                 ) : null}
-                {syncNow.isError ? (
-                  <span className="text-xs text-red-600 dark:text-red-400">{t('repository_form.fork_sync_failed')}</span>
-                ) : null}
+                {syncNow.isError ? <span className="text-xs text-red-600 dark:text-red-400">{t("repository_form.fork_sync_failed")}</span> : null}
               </div>
             </div>
           ) : null}
 
-          <Checkbox label={t('repository_form.check_external_pr_ingestion')} onChange={(checked) => setValues({ ...values, external_pr_ingestion_enabled: checked })} value={values.external_pr_ingestion_enabled} />
+          <Checkbox
+            label={t("repository_form.check_external_pr_ingestion")}
+            onChange={(checked) => setValues({ ...values, external_pr_ingestion_enabled: checked })}
+            value={values.external_pr_ingestion_enabled}
+          />
 
-          <Field label={t('repository_form.label_feedback_policy')}>
+          <Field label={t("repository_form.label_feedback_policy")}>
             <Select
-              aria-label={t('repository_form.label_feedback_policy')}
+              aria-label={t("repository_form.label_feedback_policy")}
               onChange={(event) => setValues({ ...values, feedback_policy: event.target.value })}
               value={values.feedback_policy}
             >
-              <option value="confirm">{t('repository_form.feedback_confirm')}</option>
-              <option value="auto">{t('repository_form.feedback_auto')}</option>
+              <option value="confirm">{t("repository_form.feedback_confirm")}</option>
+              <option value="auto">{t("repository_form.feedback_auto")}</option>
             </Select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.feedback_hint')}
-            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.feedback_hint")}</p>
           </Field>
 
-          <Field label={t('repository_form.label_review_policy')}>
+          <Field label={t("repository_form.label_review_policy")}>
             <Select
-              aria-label={t('repository_form.label_review_policy')}
+              aria-label={t("repository_form.label_review_policy")}
               onChange={(event) => setValues({ ...values, review_policy: event.target.value as RepositoryReviewPolicy })}
               value={values.review_policy}
             >
-              <option value="self">{t('repository_form.review_policy_self')}</option>
-              <option value="two_person">{t('repository_form.review_policy_two_person')}</option>
-              <option value="final_say">{t('repository_form.review_policy_final_say')}</option>
+              <option value="self">{t("repository_form.review_policy_self")}</option>
+              <option value="two_person">{t("repository_form.review_policy_two_person")}</option>
+              <option value="final_say">{t("repository_form.review_policy_final_say")}</option>
             </Select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.review_policy_hint')}
-            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.review_policy_hint")}</p>
           </Field>
-
         </section>
 
         <section className="space-y-3">
-          <SectionHeading>
-            {t('repository_form.credential_section')}
-          </SectionHeading>
+          <SectionHeading>{t("repository_form.credential_section")}</SectionHeading>
           <CredentialModeComparison />
         </section>
 
         <div className="flex items-center gap-3">
           <Button disabled={save.isPending} type="submit" variant="primary">
-            {save.isPending ? t('repository_form.saving') : mode === "new" ? t('repository_form.create') : t('repository_form.save')}
+            {save.isPending ? t("repository_form.saving") : mode === "new" ? t("repository_form.create") : t("repository_form.save")}
           </Button>
-          <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={withRoutePrefix(payload.repositories_path, prefix)}>
-            {t('repository_form.cancel')}
+          <Link
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+            to={withRoutePrefix(payload.repositories_path, prefix)}
+          >
+            {t("repository_form.cancel")}
           </Link>
         </div>
       </form>
 
-      {mode === "edit" && payload.repository.id && values.review_policy === "final_say" ? (
-        <FinalApproversSection repositoryId={payload.repository.id} />
-      ) : null}
+      {mode === "edit" && payload.repository.id && values.review_policy === "final_say" ? <FinalApproversSection repositoryId={payload.repository.id} /> : null}
 
-      {mode === "edit" && payload.repository.id ? (payload.input_source_types || []).map((sourceType) => (
-        <InputSourceSection key={sourceType.type} sourceType={sourceType} />
-      )) : null}
+      {mode === "edit" && payload.repository.id
+        ? (payload.input_source_types || []).map((sourceType) => <InputSourceSection key={sourceType.type} sourceType={sourceType} />)
+        : null}
 
       {mode === "edit" && payload.agent_insights_enabled && payload.insight_schedule_config && payload.repository.id ? (
-        <InsightSchedulingSection
-          repositoryId={payload.repository.id}
-          initialConfig={payload.insight_schedule_config}
-        />
+        <InsightSchedulingSection repositoryId={payload.repository.id} initialConfig={payload.insight_schedule_config} />
       ) : null}
     </>
   )
@@ -616,23 +662,21 @@ function FinalApproversSection({ repositoryId }: { repositoryId: number }) {
   return (
     <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div>
-        <SectionHeading>
-          {t('repository_form.final_approvers_heading')}
-        </SectionHeading>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {t('repository_form.final_approvers_description')}
-        </p>
+        <SectionHeading>{t("repository_form.final_approvers_heading")}</SectionHeading>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.final_approvers_description")}</p>
       </div>
 
       {notice ? <PanelMessage>{notice}</PanelMessage> : null}
-      {approvers.isError ? <PanelMessage tone="error">{errorMessage(approvers.error, t('repository_form.final_approvers_unable_to_load'))}</PanelMessage> : null}
-      {create.isError ? <PanelMessage tone="error">{errorMessage(create.error, t('repository_form.final_approvers_unable_to_load'))}</PanelMessage> : null}
-      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t('repository_form.final_approvers_unable_to_load'))}</PanelMessage> : null}
+      {approvers.isError ? (
+        <PanelMessage tone="error">{errorMessage(approvers.error, t("repository_form.final_approvers_unable_to_load"))}</PanelMessage>
+      ) : null}
+      {create.isError ? <PanelMessage tone="error">{errorMessage(create.error, t("repository_form.final_approvers_unable_to_load"))}</PanelMessage> : null}
+      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("repository_form.final_approvers_unable_to_load"))}</PanelMessage> : null}
 
       {approvers.isPending ? (
-        <p className="text-sm text-gray-600 dark:text-gray-400">{t('repository_form.final_approvers_loading')}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t("repository_form.final_approvers_loading")}</p>
       ) : approvers.data && approvers.data.final_approvers.length === 0 ? (
-        <p className="text-sm text-gray-600 dark:text-gray-400">{t('repository_form.final_approvers_empty')}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t("repository_form.final_approvers_empty")}</p>
       ) : approvers.data ? (
         <ul className="divide-y divide-gray-100 dark:divide-gray-800">
           {approvers.data.final_approvers.map((approver) => (
@@ -645,13 +689,15 @@ function FinalApproversSection({ repositoryId }: { repositoryId: number }) {
                 className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
                 disabled={destroy.isPending}
                 onClick={async () => {
-                  if (await confirm({ message: t('repository_form.final_approvers_confirm_remove', { email: approver.user.email_address }), destructive: true })) {
+                  if (
+                    await confirm({ message: t("repository_form.final_approvers_confirm_remove", { email: approver.user.email_address }), destructive: true })
+                  ) {
                     destroy.mutate(approver.id)
                   }
                 }}
                 type="button"
               >
-                {t('repository_form.final_approvers_remove')}
+                {t("repository_form.final_approvers_remove")}
               </button>
             </li>
           ))}
@@ -660,11 +706,11 @@ function FinalApproversSection({ repositoryId }: { repositoryId: number }) {
 
       <form className="flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">
-          {t('repository_form.final_approvers_email_label')}
+          {t("repository_form.final_approvers_email_label")}
           <div className="mt-1">
             <Input
               onChange={(event) => setEmail(event.target.value)}
-              placeholder={t('repository_form.final_approvers_email_placeholder')}
+              placeholder={t("repository_form.final_approvers_email_placeholder")}
               required
               type="email"
               value={email}
@@ -672,7 +718,7 @@ function FinalApproversSection({ repositoryId }: { repositoryId: number }) {
           </div>
         </label>
         <Button disabled={create.isPending} type="submit" variant="primary">
-          {create.isPending ? t('repository_form.final_approvers_adding') : t('repository_form.final_approvers_add_btn')}
+          {create.isPending ? t("repository_form.final_approvers_adding") : t("repository_form.final_approvers_add_btn")}
         </Button>
       </form>
       {dialog}
@@ -707,7 +753,7 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
     event.preventDefault()
     setValidationError(null)
     if (config.enabled && config.min_jobs_since_last_run >= config.max_jobs_since_last_run) {
-      setValidationError(t('repository_form.insight_scheduling_min_max_error'))
+      setValidationError(t("repository_form.insight_scheduling_min_max_error"))
       return
     }
     save.mutate()
@@ -722,69 +768,64 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
   return (
     <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div>
-        <SectionHeading>
-          {t('repository_form.insight_scheduling_section')}
-        </SectionHeading>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {t('repository_form.insight_scheduling_description')}
-        </p>
+        <SectionHeading>{t("repository_form.insight_scheduling_section")}</SectionHeading>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository_form.insight_scheduling_description")}</p>
       </div>
 
       <form className="space-y-4" onSubmit={handleSubmit}>
         {validationError ? <PanelMessage tone="error">{validationError}</PanelMessage> : null}
-        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t('repository_form.insight_scheduling_save_error'))}</PanelMessage> : null}
-        {save.isSuccess ? <PanelMessage>{t('repository_form.insight_scheduling_saved')}</PanelMessage> : null}
+        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("repository_form.insight_scheduling_save_error"))}</PanelMessage> : null}
+        {save.isSuccess ? <PanelMessage>{t("repository_form.insight_scheduling_saved")}</PanelMessage> : null}
 
         <Checkbox
-          label={t('repository_form.insight_scheduling_enable')}
-          onChange={(checked) => { setConfig({ ...config, enabled: checked }); save.reset() }}
+          label={t("repository_form.insight_scheduling_enable")}
+          onChange={(checked) => {
+            setConfig({ ...config, enabled: checked })
+            save.reset()
+          }}
           value={config.enabled}
         />
 
         {config.enabled ? (
           <div className="space-y-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
-            <Field label={t('repository_form.insight_scheduling_min_jobs')}>
+            <Field label={t("repository_form.insight_scheduling_min_jobs")}>
               <Input
-                aria-label={t('repository_form.insight_scheduling_min_jobs')}
+                aria-label={t("repository_form.insight_scheduling_min_jobs")}
                 min={1}
-                onChange={(e) => { setConfig({ ...config, min_jobs_since_last_run: parseInt(e.target.value, 10) || 1 }); save.reset() }}
+                onChange={(e) => {
+                  setConfig({ ...config, min_jobs_since_last_run: parseInt(e.target.value, 10) || 1 })
+                  save.reset()
+                }}
                 required
                 type="number"
                 value={config.min_jobs_since_last_run}
               />
             </Field>
 
-            <Field label={t('repository_form.insight_scheduling_max_jobs')}>
+            <Field label={t("repository_form.insight_scheduling_max_jobs")}>
               <Input
-                aria-label={t('repository_form.insight_scheduling_max_jobs')}
+                aria-label={t("repository_form.insight_scheduling_max_jobs")}
                 min={2}
-                onChange={(e) => { setConfig({ ...config, max_jobs_since_last_run: parseInt(e.target.value, 10) || 2 }); save.reset() }}
+                onChange={(e) => {
+                  setConfig({ ...config, max_jobs_since_last_run: parseInt(e.target.value, 10) || 2 })
+                  save.reset()
+                }}
                 required
                 type="number"
                 value={config.max_jobs_since_last_run}
               />
             </Field>
 
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.insight_scheduling_thresholds_hint')}
-            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t("repository_form.insight_scheduling_thresholds_hint")}</p>
           </div>
         ) : null}
 
         <div className="flex items-center gap-3">
-          <Button
-            disabled={save.isPending}
-            type="submit"
-            variant="primary"
-          >
-            {save.isPending ? t('repository_form.insight_scheduling_saving') : t('repository_form.insight_scheduling_save')}
+          <Button disabled={save.isPending} type="submit" variant="primary">
+            {save.isPending ? t("repository_form.insight_scheduling_saving") : t("repository_form.insight_scheduling_save")}
           </Button>
-          <button
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-            onClick={handleDiscard}
-            type="button"
-          >
-            {t('repository_form.insight_scheduling_discard')}
+          <button className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" onClick={handleDiscard} type="button">
+            {t("repository_form.insight_scheduling_discard")}
           </button>
         </div>
       </form>
@@ -811,7 +852,8 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     main_branch_health_enabled: mainBranchHealthEnabled,
     main_branch_repair_enabled: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled,
     main_branch_repair_blocks_work: mainBranchHealthEnabled && payload.repository.main_branch_repair_blocks_work,
-    main_branch_repair_auto_approve: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled && payload.repository.main_branch_repair_auto_approve,
+    main_branch_repair_auto_approve:
+      mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled && payload.repository.main_branch_repair_auto_approve,
     treat_grader_timeouts_as_failures: payload.repository.treat_grader_timeouts_as_failures,
     fork_auto_sync_enabled: payload.repository.fork_auto_sync_enabled,
     external_pr_ingestion_enabled: payload.repository.external_pr_ingestion_enabled,
@@ -846,7 +888,7 @@ function SelectWithManual({
         {children}
       </Select>
       <button className="mt-1 text-xs text-gray-500 dark:text-gray-400 underline hover:no-underline" onClick={onManual} type="button">
-        {t('repository_form.enter_manually')}
+        {t("repository_form.enter_manually")}
       </button>
     </div>
   )
@@ -857,9 +899,7 @@ function SelectWithManual({
 // primitive's native `checked`/`onChange(event)`) so none of the ~14 call
 // sites below need to change.
 function Checkbox({ id, label, onChange, value }: { id?: string; label: string; onChange: (checked: boolean) => void; value: boolean }) {
-  return (
-    <CheckboxPrimitive checked={value} id={id} label={label} onChange={(event) => onChange(event.target.checked)} />
-  )
+  return <CheckboxPrimitive checked={value} id={id} label={label} onChange={(event) => onChange(event.target.checked)} />
 }
 
 function CredentialModeComparison() {
@@ -876,12 +916,8 @@ function CredentialModeComparison() {
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2 text-left">
-              {t('repository_form.pat_only')}
-            </th>
-            <th className="px-4 py-2 text-left">
-              {t('repository_form.app_installed')}
-            </th>
+            <th className="px-4 py-2 text-left">{t("repository_form.pat_only")}</th>
+            <th className="px-4 py-2 text-left">{t("repository_form.app_installed")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -950,12 +986,8 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
   return (
     <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div>
-        <SectionHeading>
-          {sourceType.label}
-        </SectionHeading>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {t("input_sources.section_description")}
-        </p>
+        <SectionHeading>{sourceType.label}</SectionHeading>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("input_sources.section_description")}</p>
       </div>
 
       {currentSource ? (
@@ -967,8 +999,16 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
         </div>
       ) : null}
 
-      {message ? <div className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-3 text-sm text-green-700 dark:text-green-300">{message}</div> : null}
-      {errorMsg ? <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300">{errorMsg}</div> : null}
+      {message ? (
+        <div className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-3 text-sm text-green-700 dark:text-green-300">
+          {message}
+        </div>
+      ) : null}
+      {errorMsg ? (
+        <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300">
+          {errorMsg}
+        </div>
+      ) : null}
 
       <div className="space-y-4">
         {sourceType.schema.map((field) => (
@@ -984,11 +1024,7 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
           />
         ))}
 
-        <Checkbox
-          label={t("input_sources.polling_enabled_label")}
-          onChange={setPollingEnabled}
-          value={pollingEnabled}
-        />
+        <Checkbox label={t("input_sources.polling_enabled_label")} onChange={setPollingEnabled} value={pollingEnabled} />
 
         <Button
           disabled={save.isPending}
@@ -1041,16 +1077,12 @@ function InputSourceField({
             value={value}
           />
         ) : (
-          <Select
-            aria-label={field.label}
-            className="cursor-pointer"
-            onChange={(e) => onChange(e.target.value)}
-            required={field.required}
-            value={value}
-          >
+          <Select aria-label={field.label} className="cursor-pointer" onChange={(e) => onChange(e.target.value)} required={field.required} value={value}>
             <option value="">{t("input_sources.team_placeholder")}</option>
             {teams.map((team) => (
-              <option key={team.id} value={team.id}>{team.name}</option>
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
             ))}
           </Select>
         )}
@@ -1093,16 +1125,16 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function ownerErrorMessage(t: TFunction, error: string) {
-  if (error === "no_token") return t('repository_form.owner_err_no_token')
-  if (error === "unauthorized") return t('repository_form.owner_err_unauthorized')
-  return t('repository_form.owner_err_generic')
+  if (error === "no_token") return t("repository_form.owner_err_no_token")
+  if (error === "unauthorized") return t("repository_form.owner_err_unauthorized")
+  return t("repository_form.owner_err_generic")
 }
 
 // Returns text + tone so the caller never has to infer severity by
 // substring-matching the (now translated) message. "not found" is the
 // only hard error (red); other notices are informational (muted).
 function repoErrorMessage(t: TFunction, error: string): { text: string; tone: "error" | "muted" } {
-  if (error === "no_token") return { text: t('repository_form.repo_err_no_token'), tone: "muted" }
-  if (error === "not_found") return { text: t('repository_form.repo_err_not_found'), tone: "error" }
-  return { text: t('repository_form.repo_err_generic'), tone: "muted" }
+  if (error === "no_token") return { text: t("repository_form.repo_err_no_token"), tone: "muted" }
+  if (error === "not_found") return { text: t("repository_form.repo_err_not_found"), tone: "error" }
+  return { text: t("repository_form.repo_err_generic"), tone: "muted" }
 }

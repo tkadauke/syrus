@@ -9,7 +9,7 @@ import { StatusBadge } from "../StatusBadge"
 export function StorageTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const pvcs = useQuery({
-    queryKey: [ "k8s_cluster", "pvcs", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "pvcs", clusterId, namespace],
     queryFn: () => fetchKubernetesPersistentVolumeClaims(clusterId, namespace)
   })
 

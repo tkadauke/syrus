@@ -111,10 +111,7 @@ describe("DashboardDependencyView", () => {
   })
 
   it("renders graph nodes with caption hint when nodes exist but edges array is empty", async () => {
-    const nodes = [
-      graphNode("job_1", "job", "JOB-1 First job"),
-      graphNode("job_2", "job", "JOB-2 Second job")
-    ]
+    const nodes = [graphNode("job_1", "job", "JOB-1 First job"), graphNode("job_2", "job", "JOB-2 Second job")]
     mockFetchJobsGraph.mockResolvedValue({ nodes, edges: [] })
 
     renderDependencyView(buildJobPayload())
@@ -129,10 +126,7 @@ describe("DashboardDependencyView", () => {
 
   it("renders the graph when edges are present for jobs", async () => {
     // JobCompactCard parses "slug title" format — the ID becomes the slug rendered in the card
-    const nodes = [
-      graphNode("job_1", "job", "JOB-1 First job"),
-      graphNode("job_2", "job", "JOB-2 Second job")
-    ]
+    const nodes = [graphNode("job_1", "job", "JOB-1 First job"), graphNode("job_2", "job", "JOB-2 Second job")]
     const edges = [{ from_id: "job_2", to_id: "job_1" }]
     mockFetchJobsGraph.mockResolvedValue({ nodes, edges })
 
@@ -228,7 +222,9 @@ describe("graphSearchWithSmartFolder", () => {
 
 describe("dashboardChromeSearch", () => {
   it("keeps chrome stable across smart folder and page changes", () => {
-    expect(dashboardApi.dashboardChromeSearch("/dashboard/jobs", "?smart_folder_id=8&page=3&view=list&ownership_scope=team")).toBe("?view=list&ownership_scope=team&subject=job")
+    expect(dashboardApi.dashboardChromeSearch("/dashboard/jobs", "?smart_folder_id=8&page=3&view=list&ownership_scope=team")).toBe(
+      "?view=list&ownership_scope=team&subject=job"
+    )
   })
 
   it("keeps filter params because they change filter chrome", () => {

@@ -107,12 +107,14 @@ function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNod
 function safeMarkdownPreview(text: string) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n")
   let truncated = false
-  const preview = lines.map((line) => {
-    if (line.length <= MARKDOWN_SAFE_LINE_CHARS) return line
+  const preview = lines
+    .map((line) => {
+      if (line.length <= MARKDOWN_SAFE_LINE_CHARS) return line
 
-    truncated = true
-    return line.slice(0, MARKDOWN_SAFE_LINE_CHARS)
-  }).join("\n")
+      truncated = true
+      return line.slice(0, MARKDOWN_SAFE_LINE_CHARS)
+    })
+    .join("\n")
 
   return truncated ? `${preview}\n\n_One or more lines were truncated because they are too long to render safely._` : preview
 }
@@ -260,24 +262,37 @@ function renderTable(lines: string[], index: number, key: number, options: Rende
   return {
     nextIndex: index,
     node: (
-      <div key={`block-${key}`} className="overflow-x-auto"><table>
-        <thead>
-          <tr>{headers.map((header, cellIndex) => <th key={cellIndex}>{renderInline(header, options)}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {headers.map((_header, cellIndex) => <td key={cellIndex}>{renderInline(row[cellIndex] || "", options)}</td>)}
+      <div key={`block-${key}`} className="overflow-x-auto">
+        <table>
+          <thead>
+            <tr>
+              {headers.map((header, cellIndex) => (
+                <th key={cellIndex}>{renderInline(header, options)}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table></div>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {headers.map((_header, cellIndex) => (
+                  <td key={cellIndex}>{renderInline(row[cellIndex] || "", options)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     )
   }
 }
 
 function splitTableRow(line: string) {
-  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim())
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim())
 }
 
 function renderInline(text: string, options: RenderInlineOptions = {}): InlineToken[] {
@@ -405,7 +420,13 @@ function renderInlineToken(token: string, key: number, options: RenderInlineOpti
     const href = safeHref(link[2])
     if (href) {
       return (
-        <a href={href} key={key} onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined} rel="noreferrer" target={externalHref(href) ? "_blank" : undefined}>
+        <a
+          href={href}
+          key={key}
+          onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined}
+          rel="noreferrer"
+          target={externalHref(href) ? "_blank" : undefined}
+        >
           {renderInline(link[1], { ...options, linkifySlugs: false, renderMath: false })}
         </a>
       )

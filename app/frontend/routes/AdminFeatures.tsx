@@ -2,12 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { Toggle } from "../components/Toggle"
 import type { ReactNode } from "react"
-import {
-  fetchAdminFeatures,
-  updateAdminFeature,
-  type AdminFeature,
-  type AdminFeaturesPayload
-} from "../api/adminFeatures"
+import { fetchAdminFeatures, updateAdminFeature, type AdminFeature, type AdminFeaturesPayload } from "../api/adminFeatures"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
@@ -59,7 +54,9 @@ function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
           <section aria-label={categoryLabel} className="space-y-3" key={category.category}>
             <SectionHeading>{categoryLabel}</SectionHeading>
             <div className="grid gap-3 md:grid-cols-2">
-              {category.features.map((feature) => <FeatureCard feature={feature} key={feature.slug} />)}
+              {category.features.map((feature) => (
+                <FeatureCard feature={feature} key={feature.slug} />
+              ))}
             </div>
           </section>
         )
@@ -91,9 +88,7 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
   })
 
   const featureName = feature.name_i18n_key ? t(feature.name_i18n_key, { defaultValue: feature.name }) : feature.name
-  const featureDescription = feature.description_i18n_key
-    ? t(feature.description_i18n_key, { defaultValue: feature.description ?? "" })
-    : feature.description
+  const featureDescription = feature.description_i18n_key ? t(feature.description_i18n_key, { defaultValue: feature.description ?? "" }) : feature.description
 
   return (
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -111,7 +106,11 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
         />
       </div>
       {featureDescription ? <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{featureDescription}</p> : null}
-      {toggleFeature.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(toggleFeature.error, t("features.error_update"))}</p> : null}
+      {toggleFeature.isError ? (
+        <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(toggleFeature.error, t("features.error_update"))}
+        </p>
+      ) : null}
     </article>
   )
 }
@@ -123,7 +122,7 @@ function updateCachedFeature(payload: AdminFeaturesPayload | undefined, slug: st
     ...payload,
     categories: payload.categories.map((category) => ({
       ...category,
-      features: category.features.map((feature) => feature.slug === slug ? { ...feature, enabled } : feature)
+      features: category.features.map((feature) => (feature.slug === slug ? { ...feature, enabled } : feature))
     }))
   }
 }

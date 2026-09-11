@@ -25,9 +25,7 @@ function payload(overrides: Partial<RepositorySkillsPayload> = {}): RepositorySk
         resolved_path: null,
         resolved_class: "Skills::Investigate",
         shadows_built_in: false,
-        parameters: [
-          { key: "question", type: "string", required: true, label: "Question", options: null, default: null, depends_on: null }
-        ]
+        parameters: [{ key: "question", type: "string", required: true, label: "Question", options: null, default: null, depends_on: null }]
       },
       {
         name: "deploy",
@@ -37,7 +35,7 @@ function payload(overrides: Partial<RepositorySkillsPayload> = {}): RepositorySk
         resolved_class: null,
         shadows_built_in: false,
         parameters: [
-          { key: "environment", type: "select", required: true, label: "Environment", options: [ "staging", "production" ], default: null, depends_on: null },
+          { key: "environment", type: "select", required: true, label: "Environment", options: ["staging", "production"], default: null, depends_on: null },
           { key: "notes", type: "text", required: false, label: "Notes", options: null, default: null, depends_on: null },
           { key: "dry_run", type: "boolean", required: false, label: "Dry run", options: null, default: true, depends_on: null },
           { key: "retries", type: "integer", required: false, label: "Retries", options: null, default: 3, depends_on: null }
@@ -45,19 +43,22 @@ function payload(overrides: Partial<RepositorySkillsPayload> = {}): RepositorySk
       }
     ],
     configured_agent_providers: [],
-    priorities: [ "urgent", "high", "medium", "low" ],
+    priorities: ["urgent", "high", "medium", "low"],
     ...overrides
   }
 }
 
 function renderRoute(initialPayload = payload(), fetchImpl?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
-  vi.spyOn(window, "fetch").mockImplementation(fetchImpl || ((input, init) => {
-    const url = String(input)
-    if (url === SKILLS_PATH && (!init || init.method === undefined || init.method === "GET")) {
-      return Promise.resolve(jsonResponse(initialPayload))
-    }
-    return Promise.resolve(jsonResponse({ error: { code: "not_found", message: "unhandled" } }, 404))
-  }))
+  vi.spyOn(window, "fetch").mockImplementation(
+    fetchImpl ||
+      ((input, init) => {
+        const url = String(input)
+        if (url === SKILLS_PATH && (!init || init.method === undefined || init.method === "GET")) {
+          return Promise.resolve(jsonResponse(initialPayload))
+        }
+        return Promise.resolve(jsonResponse({ error: { code: "not_found", message: "unhandled" } }, 404))
+      })
+  )
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -91,19 +92,21 @@ describe("RepositorySkillNewRoute", () => {
   })
 
   it("flags a repo-local skill that shadows a built-in", async () => {
-    renderRoute(payload({
-      skills: [
-        {
-          name: "investigate",
-          description: "Repo override of investigate.",
-          source: "repo_override",
-          resolved_path: ".syrus/skills/investigate/SKILL.md",
-          resolved_class: null,
-          shadows_built_in: true,
-          parameters: []
-        }
-      ]
-    }))
+    renderRoute(
+      payload({
+        skills: [
+          {
+            name: "investigate",
+            description: "Repo override of investigate.",
+            source: "repo_override",
+            resolved_path: ".syrus/skills/investigate/SKILL.md",
+            resolved_class: null,
+            shadows_built_in: true,
+            parameters: []
+          }
+        ]
+      })
+    )
 
     expect(await screen.findByText("investigate")).toBeInTheDocument()
     expect(screen.getByText("Overrides the built-in skill of the same name.")).toBeInTheDocument()
@@ -128,11 +131,16 @@ describe("RepositorySkillNewRoute", () => {
       const url = String(input)
       if (url === SKILLS_PATH && init?.method === "POST") {
         postedBody = JSON.parse(String(init.body))
-        return Promise.resolve(jsonResponse({
-          message: "Skill job created.",
-          redirect_to: "/jobs/42",
-          job: { id: 42, title: "Skill: investigate", state: "queued", skill_name: "investigate", job_path: "/jobs/42" }
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              message: "Skill job created.",
+              redirect_to: "/jobs/42",
+              job: { id: 42, title: "Skill: investigate", state: "queued", skill_name: "investigate", job_path: "/jobs/42" }
+            },
+            201
+          )
+        )
       }
       if (url === SKILLS_PATH) {
         return Promise.resolve(jsonResponse(payload()))

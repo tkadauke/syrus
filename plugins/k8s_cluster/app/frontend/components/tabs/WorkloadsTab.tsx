@@ -3,11 +3,7 @@ import { useState } from "react"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
-import {
-  fetchKubernetesCronJobs,
-  fetchKubernetesDeployments,
-  fetchKubernetesPods
-} from "../../api/kubernetesResources"
+import { fetchKubernetesCronJobs, fetchKubernetesDeployments, fetchKubernetesPods } from "../../api/kubernetesResources"
 import { explainCronSchedule, formatAge, type CronScheduleExplanation } from "../../lib/k8sFormat"
 import { Dropdown } from "../Dropdown"
 import { StatusBadge } from "../StatusBadge"
@@ -37,7 +33,7 @@ export function WorkloadsTab({ clusterId, namespace }: { clusterId: number; name
 function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const pods = useQuery({
-    queryKey: [ "k8s_cluster", "pods", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "pods", clusterId, namespace],
     queryFn: () => fetchKubernetesPods(clusterId, namespace)
   })
 
@@ -80,7 +76,7 @@ function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: str
 function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const deployments = useQuery({
-    queryKey: [ "k8s_cluster", "deployments", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "deployments", clusterId, namespace],
     queryFn: () => fetchKubernetesDeployments(clusterId, namespace)
   })
 
@@ -106,7 +102,9 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
             <tr key={`${deployment.namespace}/${deployment.name}`}>
               <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{deployment.name}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{deployment.namespace}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{deployment.ready_replicas}/{deployment.replicas ?? "-"}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                {deployment.ready_replicas}/{deployment.replicas ?? "-"}
+              </td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{deployment.available_replicas}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{deployment.updated_replicas}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{formatAge(deployment.created_at)}</td>
@@ -121,7 +119,7 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
 function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const cronJobs = useQuery({
-    queryKey: [ "k8s_cluster", "cronjobs", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "cronjobs", clusterId, namespace],
     queryFn: () => fetchKubernetesCronJobs(clusterId, namespace)
   })
 
@@ -151,9 +149,7 @@ function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace:
                 <CronSchedule schedule={cronJob.schedule} />
               </td>
               <td className="px-4 py-2">
-                <StatusBadge tone={cronJob.suspended ? "warning" : "success"}>
-                  {cronJob.suspended ? t("yes") : t("no")}
-                </StatusBadge>
+                <StatusBadge tone={cronJob.suspended ? "warning" : "success"}>{cronJob.suspended ? t("yes") : t("no")}</StatusBadge>
               </td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{cronJob.active_count}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{formatAge(cronJob.created_at)}</td>
@@ -171,7 +167,13 @@ function CronSchedule({ schedule }: { schedule: string | null }) {
   const label = schedule || "-"
   const title = explanation ? cronScheduleTitle(explanation, t) : null
 
-  return title ? <span className="cursor-help" title={title}>{label}</span> : <span>{label}</span>
+  return title ? (
+    <span className="cursor-help" title={title}>
+      {label}
+    </span>
+  ) : (
+    <span>{label}</span>
+  )
 }
 
 function cronScheduleTitle(explanation: CronScheduleExplanation, t: (key: string, options?: Record<string, unknown>) => string) {

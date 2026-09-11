@@ -6,7 +6,9 @@ import { resetBackendUpdateStoreForTests, useBackendOutage } from "@app/hooks/us
 import { ClaudeConnect } from "./ClaudeConnect"
 import type { CredentialTestResult } from "@app/api/credentials"
 
-function renderConnect(props: { onConnected?: (result: CredentialTestResult) => void; onPreflight?: (ready: boolean) => void; secondaryAction?: React.ReactNode } = {}) {
+function renderConnect(
+  props: { onConnected?: (result: CredentialTestResult) => void; onPreflight?: (ready: boolean) => void; secondaryAction?: React.ReactNode } = {}
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>

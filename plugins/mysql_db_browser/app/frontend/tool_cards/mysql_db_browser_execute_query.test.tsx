@@ -15,8 +15,11 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 
 const selectResult = {
   available: true,
-  columns: [ "id", "state" ],
-  rows: [ { id: 1, state: "queued" }, { id: 2, state: null } ],
+  columns: ["id", "state"],
+  rows: [
+    { id: 1, state: "queued" },
+    { id: 2, state: null }
+  ],
   row_count: 2,
   truncated: false,
   statement: "SELECT id, state FROM jobs LIMIT 2",
@@ -27,8 +30,8 @@ const selectResult = {
 
 const wideSelectResult = {
   available: true,
-  columns: [ "a", "b", "c", "d", "e", "f", "g", "h" ],
-  rows: [ { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 } ],
+  columns: ["a", "b", "c", "d", "e", "f", "g", "h"],
+  rows: [{ a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 }],
   row_count: 1,
   truncated: false,
   statement: "SELECT * FROM wide_table",
@@ -73,7 +76,9 @@ describe("mysql_db_browser_execute_query tool card", () => {
   })
 
   it("summarizes a failed query with the error message", () => {
-    expect(executeQueryToolCard.collapsedSummary?.(context({ parsedResult: errorResult, resultError: true }))).toBe("Query failed: Table 'syrus_production.nope' doesn't exist")
+    expect(executeQueryToolCard.collapsedSummary?.(context({ parsedResult: errorResult, resultError: true }))).toBe(
+      "Query failed: Table 'syrus_production.nope' doesn't exist"
+    )
   })
 
   it("renders a tabular SELECT result including a NULL cell", () => {

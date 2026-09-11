@@ -26,7 +26,16 @@ function buildHistory(records: RepositoryHealthCheckRecord[] = []): RepositoryHe
     current_health_pending: false,
     current_ci_failed_checks: [],
     current_grader_failed_names: [],
-    main_branch_repair: { enabled: false, failed_open_jobs_count: 0, max_open_failed_jobs: 3, blocked_reason: null, can_request: false, can_spawn: false, blocking_job: null, failed_jobs: [] },
+    main_branch_repair: {
+      enabled: false,
+      failed_open_jobs_count: 0,
+      max_open_failed_jobs: 3,
+      blocked_reason: null,
+      can_request: false,
+      can_spawn: false,
+      blocking_job: null,
+      failed_jobs: []
+    },
     records
   }
 }
@@ -78,7 +87,16 @@ function buildPayload(): RepositoryDetailPayload {
     can_release_triage_jobs: false,
     needs_triage_count: 0,
     needs_triage_jobs: [],
-    credential_status: { mode: "app", label: "GitHub App", installation_account: null, github_app_registered: true, install_url: null, register_path: null, previous_installation_removed: false, missing_github_ids: false },
+    credential_status: {
+      mode: "app",
+      label: "GitHub App",
+      installation_account: null,
+      github_app_registered: true,
+      install_url: null,
+      register_path: null,
+      previous_installation_removed: false,
+      missing_github_ids: false
+    },
     jobs: [],
     pagination: { page: 1, per_page: 20, total_jobs: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
     preview: null,
@@ -110,13 +128,7 @@ function renderSection(history = buildHistory(), payload = buildPayload()) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <MainBranchHealthSection
-          history={history}
-          onNotice={vi.fn()}
-          payload={payload}
-          prefix="/app-shell"
-          queryKey={queryKey}
-        />
+        <MainBranchHealthSection history={history} onNotice={vi.fn()} payload={payload} prefix="/app-shell" queryKey={queryKey} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -132,7 +144,7 @@ function buildHealthRecord(overrides: Partial<RepositoryHealthCheckRecord> = {})
     grader_health: "broken",
     source: "grader_workflow",
     ci_failed_checks: [],
-    grader_failed_names: [ "rspec" ],
+    grader_failed_names: ["rspec"],
     workflow_path: "/admin/workflows/12",
     ...overrides
   }
@@ -168,9 +180,7 @@ describe("MainBranchHealthSection resume landing", () => {
     fireEvent.click(resumeButton)
 
     await waitFor(() => {
-      expect(mockConfirm).toHaveBeenCalledWith(
-        expect.not.objectContaining({ destructive: true })
-      )
+      expect(mockConfirm).toHaveBeenCalledWith(expect.not.objectContaining({ destructive: true }))
     })
   })
 
@@ -182,10 +192,7 @@ describe("MainBranchHealthSection resume landing", () => {
     fireEvent.click(resumeButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        RESUME_PATH,
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith(RESUME_PATH, expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -195,9 +202,13 @@ describe("MainBranchHealthSection resume landing", () => {
     renderSection()
 
     const resumeButton = await screen.findByRole("button", { name: "Resume work anyway" })
-    await act(async () => { fireEvent.click(resumeButton) })
+    await act(async () => {
+      fireEvent.click(resumeButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
     expect(fetchSpy).not.toHaveBeenCalledWith(RESUME_PATH, expect.anything())
   })
 
@@ -298,19 +309,19 @@ describe("MainBranchHealthSection blocking repair job", () => {
 
 describe("MainBranchHealthSection health history", () => {
   it("renders localized source badges for history rows", () => {
-    const { container } = renderSection(buildHistory([
-      buildHealthRecord({ id: 1, source: "grader_workflow" }),
-      buildHealthRecord({ id: 2, source: "ci_poll", sha: "def456a", grader_failed_names: [] })
-    ]))
+    const { container } = renderSection(
+      buildHistory([
+        buildHealthRecord({ id: 1, source: "grader_workflow" }),
+        buildHealthRecord({ id: 2, source: "ci_poll", sha: "def456a", grader_failed_names: [] })
+      ])
+    )
 
     expect(container.querySelector('[data-source="grader_workflow"]')).toHaveTextContent("Graders")
     expect(container.querySelector('[data-source="ci_poll"]')).toHaveTextContent("CI")
   })
 
   it("renders concern quorum rows with the amber source variant", () => {
-    renderSection(buildHistory([
-      buildHealthRecord({ source: "concern_quorum", workflow_path: null })
-    ]))
+    renderSection(buildHistory([buildHealthRecord({ source: "concern_quorum", workflow_path: null })]))
 
     const badge = screen.getByText("Quorum")
     expect(badge).toBeInTheDocument()
@@ -323,9 +334,9 @@ describe("MainBranchHealthSection health history", () => {
       buildHealthRecord({
         sha: "old1234",
         ci_health: "broken",
-        ci_failed_checks: [ { name: "rspec", url: "https://github.com/acme/widgets/actions/runs/1" } ],
+        ci_failed_checks: [{ name: "rspec", url: "https://github.com/acme/widgets/actions/runs/1" }],
         grader_health: "broken",
-        grader_failed_names: [ "rspec" ]
+        grader_failed_names: ["rspec"]
       })
     ])
     history.ci_health = "unknown"

@@ -1,4 +1,3 @@
-
 // App-chrome nav/settings icons extracted from AppChromeV2.tsx.
 
 export function MenuIcon() {
@@ -19,7 +18,12 @@ export function PlusIcon() {
 
 export function SearchIcon() {
   return (
-    <svg aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
       <path d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
     </svg>
   )
@@ -28,7 +32,13 @@ export function SearchIcon() {
 export function SetupIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M12 4.75 5.25 8.5v7L12 19.25l6.75-3.75v-7L12 4.75Zm0 0v7.5m6.75-3.75L12 12.25 5.25 8.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path
+        d="M12 4.75 5.25 8.5v7L12 19.25l6.75-3.75v-7L12 4.75Zm0 0v7.5m6.75-3.75L12 12.25 5.25 8.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
     </svg>
   )
 }
@@ -44,7 +54,13 @@ export function DashboardIcon() {
 export function SpendingIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M12 4.75v14.5m3.25-10.5a3 3 0 0 0-3-2h-1a2.5 2.5 0 0 0 0 5h1.5a2.5 2.5 0 0 1 0 5H11a3 3 0 0 1-3-2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path
+        d="M12 4.75v14.5m3.25-10.5a3 3 0 0 0-3-2h-1a2.5 2.5 0 0 0 0 5h1.5a2.5 2.5 0 0 1 0 5H11a3 3 0 0 1-3-2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
     </svg>
   )
 }
@@ -52,7 +68,13 @@ export function SpendingIcon() {
 export function DatabaseIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M12 7.25c3.73 0 6.75-1.01 6.75-2.25S15.73 2.75 12 2.75 5.25 3.76 5.25 5s3.02 2.25 6.75 2.25Zm6.75-2.25V19c0 1.24-3.02 2.25-6.75 2.25S5.25 20.24 5.25 19V5m13.5 4.67c0 1.24-3.02 2.25-6.75 2.25S5.25 10.91 5.25 9.67m13.5 4.66c0 1.24-3.02 2.25-6.75 2.25s-6.75-1.01-6.75-2.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path
+        d="M12 7.25c3.73 0 6.75-1.01 6.75-2.25S15.73 2.75 12 2.75 5.25 3.76 5.25 5s3.02 2.25 6.75 2.25Zm6.75-2.25V19c0 1.24-3.02 2.25-6.75 2.25S5.25 20.24 5.25 19V5m13.5 4.67c0 1.24-3.02 2.25-6.75 2.25S5.25 10.91 5.25 9.67m13.5 4.66c0 1.24-3.02 2.25-6.75 2.25s-6.75-1.01-6.75-2.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
     </svg>
   )
 }
@@ -60,7 +82,13 @@ export function DatabaseIcon() {
 export function RepositoryIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M6.75 4.75h8.5L19.25 9v10.25H6.75A2 2 0 0 1 4.75 17V6.75a2 2 0 0 1 2-2Zm8.5 0V9h4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path
+        d="M6.75 4.75h8.5L19.25 9v10.25H6.75A2 2 0 0 1 4.75 17V6.75a2 2 0 0 1 2-2Zm8.5 0V9h4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
     </svg>
   )
 }
@@ -68,7 +96,13 @@ export function RepositoryIcon() {
 export function DocumentIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M7.25 4.75h7.25l4.25 4.25v10.25H7.25a2 2 0 0 1-2-2V6.75a2 2 0 0 1 2-2Zm7.25 0V9h4.25M8.75 12.25h6.5m-6.5 3h6.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path
+        d="M7.25 4.75h7.25l4.25 4.25v10.25H7.25a2 2 0 0 1-2-2V6.75a2 2 0 0 1 2-2Zm7.25 0V9h4.25M8.75 12.25h6.5m-6.5 3h6.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
     </svg>
   )
 }
@@ -94,7 +128,13 @@ export function EpicIcon() {
 export function ScheduleIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M7.75 4v3M16.25 4v3M5.25 8.75h13.5M6.75 5.75h10.5a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H6.75a2 2 0 0 1-2-2v-9.5a2 2 0 0 1 2-2Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path
+        d="M7.75 4v3M16.25 4v3M5.25 8.75h13.5M6.75 5.75h10.5a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H6.75a2 2 0 0 1-2-2v-9.5a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
     </svg>
   )
 }
@@ -126,7 +166,13 @@ export function ActivityIcon() {
 export function TeamIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
-      <path d="M9.25 11.25a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 8a5 5 0 0 1 10 0m1.25-8.5a2.5 2.5 0 1 0 0-5m.75 13.5h3.5a4.25 4.25 0 0 0-4.25-4.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path
+        d="M9.25 11.25a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 8a5 5 0 0 1 10 0m1.25-8.5a2.5 2.5 0 1 0 0-5m.75 13.5h3.5a4.25 4.25 0 0 0-4.25-4.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
     </svg>
   )
 }
@@ -144,7 +190,13 @@ export function TargetIcon({ className = "h-4 w-4 shrink-0" }: { className?: str
 export function UserIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.75 20.25a7.25 7.25 0 0 1 14.5 0" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path
+        d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.75 20.25a7.25 7.25 0 0 1 14.5 0"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
     </svg>
   )
 }
@@ -152,7 +204,11 @@ export function UserIcon() {
 export function ChevronDownIcon({ className = "" }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={`h-3 w-3 shrink-0 ${className}`} fill="currentColor" viewBox="0 0 20 20">
-      <path clipRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" fillRule="evenodd" />
+      <path
+        clipRule="evenodd"
+        d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+        fillRule="evenodd"
+      />
     </svg>
   )
 }
@@ -160,7 +216,13 @@ export function ChevronDownIcon({ className = "" }: { className?: string }) {
 export function MoonIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M21 14.25A8.25 8.25 0 0 1 9.75 3a8.25 8.25 0 1 0 11.25 11.25Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
+      <path
+        d="M21 14.25A8.25 8.25 0 0 1 9.75 3a8.25 8.25 0 1 0 11.25 11.25Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.9"
+      />
     </svg>
   )
 }
@@ -168,7 +230,13 @@ export function MoonIcon() {
 export function SunIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M12 4.75V3m0 18v-1.75M4.75 12H3m18 0h-1.75M6.87 6.87 5.64 5.64m12.72 12.72-1.23-1.23m0-10.26 1.23-1.23M5.64 18.36l1.23-1.23M15.25 12a3.25 3.25 0 1 1-6.5 0 3.25 3.25 0 0 1 6.5 0Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" />
+      <path
+        d="M12 4.75V3m0 18v-1.75M4.75 12H3m18 0h-1.75M6.87 6.87 5.64 5.64m12.72 12.72-1.23-1.23m0-10.26 1.23-1.23M5.64 18.36l1.23-1.23M15.25 12a3.25 3.25 0 1 1-6.5 0 3.25 3.25 0 0 1 6.5 0Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.9"
+      />
     </svg>
   )
 }
@@ -176,7 +244,13 @@ export function SunIcon() {
 export function SystemThemeIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M4.75 5.75h14.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4.75a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1ZM9 20.25h6M12 16.75v3.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path
+        d="M4.75 5.75h14.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4.75a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1ZM9 20.25h6M12 16.75v3.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
     </svg>
   )
 }
@@ -184,7 +258,13 @@ export function SystemThemeIcon() {
 export function HideIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-      <path d="M4.75 7.75h14.5M9.75 7.75V5.5h4.5v2.25m-7.5 0 .75 11h9l.75-11M10.5 11v4.5m3-4.5v4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path
+        d="M4.75 7.75h14.5M9.75 7.75V5.5h4.5v2.25m-7.5 0 .75 11h9l.75-11M10.5 11v4.5m3-4.5v4.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
     </svg>
   )
 }
@@ -194,7 +274,12 @@ export function HideIcon() {
 // so it doesn't push the icon/label/badge layout around.
 export function GripIcon() {
   return (
-    <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500" fill="none" viewBox="0 0 16 16">
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
       <circle cx="6" cy="4" fill="currentColor" r="1" />
       <circle cx="10" cy="4" fill="currentColor" r="1" />
       <circle cx="6" cy="8" fill="currentColor" r="1" />
@@ -221,7 +306,12 @@ export function ServerIcon() {
 export function PluginIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-      <path d="M12 4.75a2 2 0 0 1 2 2v.5h1.25a2 2 0 0 1 2 2V11h.5a2 2 0 1 1 0 4h-.5v1.75a2 2 0 0 1-2 2H13.5v-.5a1.5 1.5 0 1 0-3 0v.5H8.75a2 2 0 0 1-2-2V15H6a2 2 0 1 1 0-4h.75V9.25a2 2 0 0 1 2-2H10v-.5a2 2 0 0 1 2-2Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
+      <path
+        d="M12 4.75a2 2 0 0 1 2 2v.5h1.25a2 2 0 0 1 2 2V11h.5a2 2 0 1 1 0 4h-.5v1.75a2 2 0 0 1-2 2H13.5v-.5a1.5 1.5 0 1 0-3 0v.5H8.75a2 2 0 0 1-2-2V15H6a2 2 0 1 1 0-4h.75V9.25a2 2 0 0 1 2-2H10v-.5a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
     </svg>
   )
 }

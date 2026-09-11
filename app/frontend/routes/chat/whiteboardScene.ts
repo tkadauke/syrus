@@ -23,7 +23,7 @@ export function normalizeWhiteboardScene(scene: Partial<ChatWhiteboardScene> | n
   return {
     elements: Array.isArray(scene?.elements) ? scene.elements : [],
     appState: cleanWhiteboardAppState(scene?.appState),
-    files: isPlainObject(scene?.files) ? scene.files as ChatWhiteboardScene["files"] : {}
+    files: isPlainObject(scene?.files) ? (scene.files as ChatWhiteboardScene["files"]) : {}
   }
 }
 
@@ -52,9 +52,7 @@ export function replaceElementIdReferences(value: unknown, idMap: Map<string, st
   if (Array.isArray(value)) return value.map((item) => replaceElementIdReferences(item, idMap))
   if (!isPlainObject(value)) return value
 
-  return Object.fromEntries(
-    Object.entries(value).map(([key, child]) => [key, replaceElementIdReferences(child, idMap)])
-  )
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, replaceElementIdReferences(child, idMap)]))
 }
 
 export function newElementId() {
@@ -68,14 +66,23 @@ export function signatureForScene(scene: ChatWhiteboardScene) {
 }
 
 export const VALID_EXCALIDRAW_TYPES = new Set([
-  "selection", "rectangle", "diamond", "ellipse", "embeddable", "iframe",
-  "image", "frame", "magicframe", "text", "line", "arrow", "freedraw"
+  "selection",
+  "rectangle",
+  "diamond",
+  "ellipse",
+  "embeddable",
+  "iframe",
+  "image",
+  "frame",
+  "magicframe",
+  "text",
+  "line",
+  "arrow",
+  "freedraw"
 ])
 
 export function asExcalidrawElements(elements: readonly ChatWhiteboardElement[]) {
-  return elements.filter(
-    el => VALID_EXCALIDRAW_TYPES.has((el as { type?: string }).type ?? "")
-  ) as unknown as readonly ExcalidrawElement[]
+  return elements.filter((el) => VALID_EXCALIDRAW_TYPES.has((el as { type?: string }).type ?? "")) as unknown as readonly ExcalidrawElement[]
 }
 
 export function asExcalidrawFiles(files: ChatWhiteboardScene["files"]) {
@@ -99,9 +106,7 @@ export function cleanWhiteboardAppState(value: unknown): ChatWhiteboardScene["ap
 
 export function cleanWhiteboardFiles(value: unknown): ChatWhiteboardScene["files"] {
   const files = safeJsonObject(value)
-  return Object.fromEntries(
-    Object.entries(files).filter(([, file]) => isPlainObject(file))
-  ) as ChatWhiteboardScene["files"]
+  return Object.fromEntries(Object.entries(files).filter(([, file]) => isPlainObject(file))) as ChatWhiteboardScene["files"]
 }
 
 export function safeJsonObject(value: unknown): Record<string, unknown> {

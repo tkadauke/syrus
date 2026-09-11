@@ -23,8 +23,7 @@ export function initErrorRingBuffer() {
     recordError(event.message || "Unknown error", event.filename || "unknown")
   }
   rejectionHandler = (event: PromiseRejectionEvent) => {
-    const message =
-      event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unhandled rejection")
+    const message = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unhandled rejection")
     recordError(message, "promise")
   }
 

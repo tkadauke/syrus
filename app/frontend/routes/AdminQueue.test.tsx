@@ -67,12 +67,12 @@ describe("AdminQueue worker health charts", () => {
     fireEvent.click(within(form).getByRole("button", { name: "Apply" }))
 
     await waitFor(() => {
-      expect(fetchSpy.mock.calls.some((call) => {
-        const url = String(call[0])
-        return url.includes("since=") &&
-          url.includes("until=") &&
-          url.includes("minute_bucket_window_minutes=120")
-      })).toBe(true)
+      expect(
+        fetchSpy.mock.calls.some((call) => {
+          const url = String(call[0])
+          return url.includes("since=") && url.includes("until=") && url.includes("minute_bucket_window_minutes=120")
+        })
+      ).toBe(true)
     })
   })
 

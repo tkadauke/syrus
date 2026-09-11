@@ -41,7 +41,7 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
   const rawUrl = chatPreviewPanelFileUrl(panel.app_file_base_path, entryPath, versionId, true)
 
   const accessToken = usePanelAccessToken(panel, isHtml)
-  const token = panel.visibility === "public" ? null : accessToken.data?.token ?? null
+  const token = panel.visibility === "public" ? null : (accessToken.data?.token ?? null)
   const canRender = !isHtml || panel.visibility === "public" || !!token
 
   // Markdown and anything unrecognised render as text, which is also how an
@@ -72,10 +72,7 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
           </select>
         ) : null}
         <span className="truncate font-mono text-xs text-gray-500 dark:text-gray-400">{entryPath}</span>
-        <a
-          className="ml-auto text-xs text-brand underline hover:no-underline"
-          href={panel.app_export_path}
-        >
+        <a className="ml-auto text-xs text-brand underline hover:no-underline" href={panel.app_export_path}>
           {t("download")}
         </a>
       </div>
@@ -103,9 +100,7 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
           ) : textQuery.isError ? (
             <PanelMessage>{t("preview_unavailable")}</PanelMessage>
           ) : (
-            <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs text-gray-700 dark:text-gray-300">
-              {textQuery.data?.content ?? ""}
-            </pre>
+            <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs text-gray-700 dark:text-gray-300">{textQuery.data?.content ?? ""}</pre>
           )}
         </div>
       )}

@@ -55,7 +55,17 @@ export function MysqlPickerDropdown({
         type="button"
       >
         <span className="max-w-[12rem] truncate">{currentLabel}</span>
-        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          aria-hidden="true"
+          className="h-3 w-3 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>

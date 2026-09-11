@@ -38,7 +38,10 @@ function runRows(context: ToolCardContext): RunRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.runs)) return null
 
-  return parsed.runs.flatMap((run, index) => { const row = parseRow(run, index); return row ? [row] : [] })
+  return parsed.runs.flatMap((run, index) => {
+    const row = parseRow(run, index)
+    return row ? [row] : []
+  })
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -61,7 +64,9 @@ function renderExpanded(context: ToolCardContext) {
           {rows.map((row) => (
             <tr key={row.key}>
               <Td mono>RUN-{row.id}</Td>
-              <Td><JobRefLink jobId={row.jobId} /></Td>
+              <Td>
+                <JobRefLink jobId={row.jobId} />
+              </Td>
               <Td mono>{row.workflowId ? `WF-${row.workflowId}` : "—"}</Td>
               <Td>{row.state ? <StatePill state={row.state} /> : "—"}</Td>
               <Td>{row.triggerKind ? <Badge>{row.triggerKind}</Badge> : "—"}</Td>

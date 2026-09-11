@@ -17,10 +17,16 @@ describe("write_file tool card", () => {
   })
 
   it("renders the path and line count from the tool call input", () => {
-    render(<>{writeFileToolCard.renderExpanded(context({
-      parsedResult: { success: true },
-      input: { path: "app/models/job.rb", content: "line1\nline2\nline3" }
-    }))}</>)
+    render(
+      <>
+        {writeFileToolCard.renderExpanded(
+          context({
+            parsedResult: { success: true },
+            input: { path: "app/models/job.rb", content: "line1\nline2\nline3" }
+          })
+        )}
+      </>
+    )
 
     expect(screen.getByText("app/models/job.rb")).toBeInTheDocument()
     expect(screen.getByText("3")).toBeInTheDocument()

@@ -47,7 +47,12 @@ describe("useDebouncedProbe", () => {
     let resolveFirst: (result: CredentialTestResult) => void = () => {}
     const probe = vi
       .fn()
-      .mockImplementationOnce(() => new Promise<CredentialTestResult>((resolve) => { resolveFirst = resolve }))
+      .mockImplementationOnce(
+        () =>
+          new Promise<CredentialTestResult>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
       .mockResolvedValueOnce(okResult)
 
     const { result, rerender } = renderHook(({ value }) => useDebouncedProbe(value, probe, OPTIONS), {
@@ -68,7 +73,12 @@ describe("useDebouncedProbe", () => {
 
   it("stays idle when the value is cleared while a probe is in flight", async () => {
     let resolveProbe: (result: CredentialTestResult) => void = () => {}
-    const probe = vi.fn(() => new Promise<CredentialTestResult>((resolve) => { resolveProbe = resolve }))
+    const probe = vi.fn(
+      () =>
+        new Promise<CredentialTestResult>((resolve) => {
+          resolveProbe = resolve
+        })
+    )
     const { result, rerender } = renderHook(({ value }) => useDebouncedProbe(value, probe, OPTIONS), {
       initialProps: { value: "ghp_token" }
     })

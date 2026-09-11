@@ -31,7 +31,11 @@ export function useHighlightedLines(code: string, lang: HighlighterLanguageId | 
 export function renderCodeLine(tokens: ThemedToken[] | undefined, fallback: string): ReactNode {
   if (!tokens) return fallback
 
-  return tokens.map((token, index) => <span key={index} style={{ color: token.color }}>{token.content}</span>)
+  return tokens.map((token, index) => (
+    <span key={index} style={{ color: token.color }}>
+      {token.content}
+    </span>
+  ))
 }
 
 // Shared `<pre><code>` code block, built on the Shiki core highlighter.

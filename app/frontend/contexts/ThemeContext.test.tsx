@@ -14,12 +14,24 @@ function Probe() {
       <span data-testid="theme">{theme}</span>
       <span data-testid="resolved">{resolvedTheme}</span>
       <span data-testid="colorTheme">{colorTheme?.slug ?? "none"}</span>
-      <button onClick={() => setTheme("light")} type="button">light</button>
-      <button onClick={() => setTheme("dark")} type="button">dark</button>
-      <button onClick={() => setTheme("system")} type="button">system</button>
-      <button onClick={() => setColorTheme(oceanColorTheme())} type="button">ocean</button>
-      <button onClick={() => setColorTheme(customColorTheme())} type="button">custom</button>
-      <button onClick={() => previewColorTheme(customColorTheme())} type="button">preview custom</button>
+      <button onClick={() => setTheme("light")} type="button">
+        light
+      </button>
+      <button onClick={() => setTheme("dark")} type="button">
+        dark
+      </button>
+      <button onClick={() => setTheme("system")} type="button">
+        system
+      </button>
+      <button onClick={() => setColorTheme(oceanColorTheme())} type="button">
+        ocean
+      </button>
+      <button onClick={() => setColorTheme(customColorTheme())} type="button">
+        custom
+      </button>
+      <button onClick={() => previewColorTheme(customColorTheme())} type="button">
+        preview custom
+      </button>
     </div>
   )
 }
@@ -138,10 +150,13 @@ describe("ThemeContext", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ theme: "dark" })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/theme",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ theme: "dark" })
+        })
+      )
     })
     await waitFor(() => {
       expect(queryClient.getQueryData<BootstrapPayload>(["bootstrap"])?.current_user?.theme).toBe("dark")
@@ -209,10 +224,13 @@ describe("ThemeContext", () => {
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("#abcdef")
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ color_theme_id: 9 })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/theme",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ color_theme_id: 9 })
+        })
+      )
     })
     await waitFor(() => {
       expect(queryClient.getQueryData<BootstrapPayload>(["bootstrap"])?.current_user?.color_theme?.slug).toBe("my-custom")

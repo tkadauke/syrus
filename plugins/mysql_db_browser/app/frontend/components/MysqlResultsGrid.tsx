@@ -30,7 +30,11 @@ export function MysqlResultsGrid({
         <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900 text-left uppercase text-gray-500 dark:text-gray-400">
           <tr>
             {columns.map((column) => (
-              <th aria-sort={sort?.column === column ? (sort.direction === "asc" ? "ascending" : "descending") : undefined} className="whitespace-nowrap px-3 py-2 font-semibold" key={column}>
+              <th
+                aria-sort={sort?.column === column ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
+                className="whitespace-nowrap px-3 py-2 font-semibold"
+                key={column}
+              >
                 <MysqlSortableHeader column={column} onSort={onSort} sort={sort ?? null} />
               </th>
             ))}
@@ -39,7 +43,9 @@ export function MysqlResultsGrid({
         <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
           {rows.length === 0 ? (
             <tr>
-              <td className="px-3 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={columns.length}>{t("grid_no_rows")}</td>
+              <td className="px-3 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={columns.length}>
+                {t("grid_no_rows")}
+              </td>
             </tr>
           ) : (
             rows.map((row, index) => (
@@ -77,7 +83,11 @@ function MysqlSortableHeader({ column, onSort, sort }: { column: string; onSort?
       type="button"
     >
       <span>{column}</span>
-      {active ? <span aria-hidden="true" className="text-[10px] leading-none text-gray-700 dark:text-gray-300">{sort.direction === "asc" ? "↑" : "↓"}</span> : null}
+      {active ? (
+        <span aria-hidden="true" className="text-[10px] leading-none text-gray-700 dark:text-gray-300">
+          {sort.direction === "asc" ? "↑" : "↓"}
+        </span>
+      ) : null}
     </button>
   )
 }

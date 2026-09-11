@@ -31,7 +31,8 @@ const EMPTY_FORM: KubernetesClusterInput = {
   kubeconfig: ""
 }
 
-const INPUT_CLASSES = "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
+const INPUT_CLASSES =
+  "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
 const TEXTAREA_CLASSES = `${INPUT_CLASSES} font-mono text-xs`
 
 export function KubernetesClusters() {
@@ -112,7 +113,11 @@ function ClusterCreateForm({ onNotice }: { onNotice: (message: string | null) =>
           <TestButton onTest={() => testDraftKubernetesCluster(values)} />
         </div>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
+      {create.isError ? (
+        <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(create.error, t("create_error_fallback"))}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -141,31 +146,39 @@ function ClustersTable({
               <th className="px-4 py-2">{t("col_agentic_access")}</th>
               <th className="px-4 py-2">{t("col_allow_writes")}</th>
               <th className="px-4 py-2">{t("col_insecure_skip_tls_verify")}</th>
-              <th className="px-4 py-2"><span className="sr-only">{t("col_actions")}</span></th>
+              <th className="px-4 py-2">
+                <span className="sr-only">{t("col_actions")}</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
             {clusters.length === 0 ? (
-              <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={7}>{t("empty")}</td></tr>
-            ) : clusters.map((cluster) => (
-              editingId === cluster.id ? (
-                <ClusterEditRow
-                  cluster={cluster}
-                  key={cluster.id}
-                  onCancel={() => setEditingId(null)}
-                  onNotice={onNotice}
-                  onSaved={() => setEditingId(null)}
-                />
-              ) : (
-                <ClusterRow
-                  cluster={cluster}
-                  key={cluster.id}
-                  onBrowse={() => onBrowse(cluster)}
-                  onEdit={() => setEditingId(cluster.id)}
-                  onNotice={onNotice}
-                />
+              <tr>
+                <td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
+                  {t("empty")}
+                </td>
+              </tr>
+            ) : (
+              clusters.map((cluster) =>
+                editingId === cluster.id ? (
+                  <ClusterEditRow
+                    cluster={cluster}
+                    key={cluster.id}
+                    onCancel={() => setEditingId(null)}
+                    onNotice={onNotice}
+                    onSaved={() => setEditingId(null)}
+                  />
+                ) : (
+                  <ClusterRow
+                    cluster={cluster}
+                    key={cluster.id}
+                    onBrowse={() => onBrowse(cluster)}
+                    onEdit={() => setEditingId(cluster.id)}
+                    onNotice={onNotice}
+                  />
+                )
               )
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -243,11 +256,7 @@ function ClusterActions({
   return (
     <div>
       <div className="flex flex-wrap items-start justify-end gap-2">
-        <button
-          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90"
-          onClick={onBrowse}
-          type="button"
-        >
+        <button className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90" onClick={onBrowse} type="button">
           {t("browse_button")}
         </button>
         <TestButton onTest={() => testKubernetesCluster(cluster.id)} />
@@ -321,12 +330,7 @@ function ClusterEditRow({
       <td className="px-4 py-4" colSpan={7}>
         <form className="space-y-3" onSubmit={submit}>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
-          <ClusterFieldsGrid
-            idPrefix={`edit-cluster-${cluster.id}`}
-            kubeconfigHint={t("field_kubeconfig_hint_edit")}
-            onChange={setValues}
-            values={values}
-          />
+          <ClusterFieldsGrid idPrefix={`edit-cluster-${cluster.id}`} kubeconfigHint={t("field_kubeconfig_hint_edit")} onChange={setValues} values={values} />
           <div className="flex flex-wrap items-center gap-3">
             <button
               className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -344,7 +348,11 @@ function ClusterEditRow({
             </button>
             <TestButton onTest={() => testKubernetesCluster(cluster.id, values.kubeconfig || undefined)} />
           </div>
-          {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
+          {update.isError ? (
+            <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+              {errorMessage(update.error, t("update_error_fallback"))}
+            </p>
+          ) : null}
         </form>
       </td>
     </tr>

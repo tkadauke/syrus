@@ -33,10 +33,13 @@ describe("ThemesSettingsRoute", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/themes/2", expect.objectContaining({
-        method: "PATCH",
-        body: expect.stringContaining("Solar Edited")
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/themes/2",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining("Solar Edited")
+        })
+      )
     })
     const updateCall = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/themes/2" && call[1]?.method === "PATCH")
     expect(JSON.parse(String(updateCall?.[1]?.body)).theme.tokens.light.brand).toBe("#0f766e")
@@ -63,10 +66,13 @@ describe("ThemesSettingsRoute", () => {
     fireEvent.click(await screen.findByRole("button", { name: "New" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/themes", expect.objectContaining({
-        method: "POST",
-        body: expect.stringContaining("Custom Theme 3")
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/themes",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("Custom Theme 3")
+        })
+      )
     })
     const createCall = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/themes" && call[1]?.method === "POST")
     expect(JSON.parse(String(createCall?.[1]?.body)).theme.tokens.light.brand).toBe("#b6492e")
@@ -92,20 +98,24 @@ describe("ThemesSettingsRoute", () => {
 
   it("shows contrast errors beside every affected token field", async () => {
     mockFetch({
-      update: () => jsonResponse({
-        error: {
-          code: "contrast_check_failed",
-          message: "Contrast check failed.",
-          issues: [
-            {
-              mode: "light",
-              foreground: "text-primary",
-              background: "surface",
-              message: "light text-primary (#ffffff) on surface (#ffffff) has contrast 1:1, needs at least 4.5:1 for WCAG AA"
+      update: () =>
+        jsonResponse(
+          {
+            error: {
+              code: "contrast_check_failed",
+              message: "Contrast check failed.",
+              issues: [
+                {
+                  mode: "light",
+                  foreground: "text-primary",
+                  background: "surface",
+                  message: "light text-primary (#ffffff) on surface (#ffffff) has contrast 1:1, needs at least 4.5:1 for WCAG AA"
+                }
+              ]
             }
-          ]
-        }
-      }, 422)
+          },
+          422
+        )
     })
     renderRoute()
 
@@ -145,10 +155,13 @@ describe("ThemesSettingsRoute", () => {
     fireEvent.drop(solar, { dataTransfer })
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/themes/reorder", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ ids: [3, 2] })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/themes/reorder",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ ids: [3, 2] })
+        })
+      )
     })
   })
 })
@@ -167,11 +180,15 @@ function mockFetch(overrides: { update?: () => Response } = {}) {
   return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
     const path = String(input)
     if (path === "/api/v1/app/themes" && init?.method == null) return Promise.resolve(jsonResponse({ themes: [terracottaTheme(), solarTheme(), nightTheme()] }))
-    if (path === "/api/v1/app/themes" && init?.method === "POST") return Promise.resolve(jsonResponse({ theme: customTheme({ id: 4, slug: "custom-theme-3", name: "Custom Theme 3", position: 2 }) }, 201))
-    if (path === "/api/v1/app/themes/2" && init?.method === "PATCH") return Promise.resolve(overrides.update?.() ?? jsonResponse({ theme: solarThemeFromBody(init.body) }))
+    if (path === "/api/v1/app/themes" && init?.method === "POST")
+      return Promise.resolve(jsonResponse({ theme: customTheme({ id: 4, slug: "custom-theme-3", name: "Custom Theme 3", position: 2 }) }, 201))
+    if (path === "/api/v1/app/themes/2" && init?.method === "PATCH")
+      return Promise.resolve(overrides.update?.() ?? jsonResponse({ theme: solarThemeFromBody(init.body) }))
     if (path === "/api/v1/app/themes/2" && init?.method === "DELETE") return Promise.resolve(jsonResponse({ deleted_theme_id: 2, fallback_theme_id: null }))
-    if (path === "/api/v1/app/themes/reorder" && init?.method === "PATCH") return Promise.resolve(jsonResponse({ themes: [nightTheme({ position: 0 }), solarTheme({ position: 1 })] }))
-    if (path === "/api/v1/app/theme" && init?.method === "PATCH") return Promise.resolve(jsonResponse({ color_theme: solarTheme(), color_theme_id: 2, theme: "light" }))
+    if (path === "/api/v1/app/themes/reorder" && init?.method === "PATCH")
+      return Promise.resolve(jsonResponse({ themes: [nightTheme({ position: 0 }), solarTheme({ position: 1 })] }))
+    if (path === "/api/v1/app/theme" && init?.method === "PATCH")
+      return Promise.resolve(jsonResponse({ color_theme: solarTheme(), color_theme_id: 2, theme: "light" }))
 
     return Promise.resolve(jsonResponse({}))
   })

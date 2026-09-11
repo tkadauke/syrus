@@ -30,9 +30,15 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Database</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Character set</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Collation</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Database
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Character set
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Collation
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">

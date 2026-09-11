@@ -1,7 +1,11 @@
 {
+  "no-legacy-color-tokens": {
+    "app/frontend/routes/AdminPlugins.tsx": 1
+  },
   "no-raw-button-classes": {
     "plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx": 2,
     "plugins/git_history/app/frontend/repo_tabs/GitHistory.tsx": 1,
+    "plugins/k8s_cluster/app/frontend/routes/KubernetesClusters.tsx": 3,
     "plugins/mysql_db_browser/app/frontend/components/MysqlLiveTab.tsx": 1,
     "plugins/mysql_db_browser/app/frontend/components/MysqlPickerDropdown.tsx": 1,
     "plugins/mysql_db_browser/app/frontend/components/MysqlQueryBuilderTab.tsx": 2,
@@ -11,10 +15,13 @@
     "plugins/whiteboard/app/frontend/workspaceTabs/WhiteboardTab.tsx": 1
   },
   "no-raw-form-elements": {
+    "app/frontend/routes/chat/ProposalCards.tsx": 2,
+    "app/frontend/routes/dashboard/JobsTable.tsx": 2,
     "plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx": 1,
     "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx": 1,
+    "plugins/k8s_cluster/app/frontend/routes/KubernetesClusters.tsx": 4,
+    "plugins/mockups/app/frontend/routes/MockupPreviewPanel.tsx": 1,
     "plugins/mysql_db_browser/app/frontend/components/MysqlQueryBuilderTab.tsx": 3,
-    "plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx": 8,
-    "plugins/spending_insights/app/frontend/routes/SpendingInsights.tsx": 3
+    "plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx": 8
   }
 }

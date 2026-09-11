@@ -62,7 +62,7 @@ export function createTerminalSession(input: CreateTerminalSessionInput) {
   return postJson<TerminalSessionPayload>("/api/v1/app/terminal_sessions", {
     terminal_session: {
       candidate_key: "kind" in input ? input.key : undefined,
-      workflow_id: "kind" in input ? (input.kind === "workflow" ? input.workflow_id ?? input.id : null) : input.workflow_id,
+      workflow_id: "kind" in input ? (input.kind === "workflow" ? (input.workflow_id ?? input.id) : null) : input.workflow_id,
       working_directory: input.working_directory,
       name: "kind" in input ? input.label : input.name
     }

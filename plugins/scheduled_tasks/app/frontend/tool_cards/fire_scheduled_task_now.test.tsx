@@ -26,9 +26,7 @@ describe("fire_scheduled_task_now tool card", () => {
   })
 
   it("summarizes the collapsed row with the pending action id and state", () => {
-    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult: pendingAction }))).toBe(
-      "Fire now requested (#501, pending)"
-    )
+    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult: pendingAction }))).toBe("Fire now requested (#501, pending)")
   })
 
   it("renders the state, message, and pending action id", () => {
@@ -50,9 +48,7 @@ describe("fire_scheduled_task_now tool card", () => {
   it("renders from pending_confirmation_id alone when pending_action_id is absent", () => {
     const parsedResult = { pending_confirmation_id: 777, state: "pending" }
 
-    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "Fire now requested (#777, pending)"
-    )
+    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Fire now requested (#777, pending)")
   })
 
   it("falls back to null when the state is missing", () => {

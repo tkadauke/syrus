@@ -63,10 +63,16 @@ function parseOverview(context: ToolCardContext): OverviewCard | null {
   const overview = isPlainObject(parsed.overview) ? parsed.overview : {}
   const rateLimits = Array.isArray(overview.github_rate_limits) ? overview.github_rate_limits : []
   const blockedUsers = Array.isArray(overview.github_api_blocked_users)
-    ? overview.github_api_blocked_users.flatMap((user, index) => { const row = parseBlockedUser(user, index); return row ? [row] : [] })
+    ? overview.github_api_blocked_users.flatMap((user, index) => {
+        const row = parseBlockedUser(user, index)
+        return row ? [row] : []
+      })
     : []
   const openProviderCircuits = Array.isArray(overview.provider_circuits)
-    ? overview.provider_circuits.flatMap((circuit, index) => { const row = parseProviderCircuit(circuit, index); return row ? [row] : [] })
+    ? overview.provider_circuits.flatMap((circuit, index) => {
+        const row = parseProviderCircuit(circuit, index)
+        return row ? [row] : []
+      })
     : []
 
   return {
@@ -108,7 +114,11 @@ function renderExpanded(context: ToolCardContext) {
   const card = parseOverview(context)
   if (!card) return null
 
-  const hasNotable = card.openProviderCircuits.length > 0 || card.blockedUsers.length > 0 || card.lowRateLimitCount > 0 || (card.workerHealth && card.workerHealth.worst !== "ok")
+  const hasNotable =
+    card.openProviderCircuits.length > 0 ||
+    card.blockedUsers.length > 0 ||
+    card.lowRateLimitCount > 0 ||
+    (card.workerHealth && card.workerHealth.worst !== "ok")
 
   return (
     <CardShell>
@@ -163,7 +173,9 @@ function renderExpanded(context: ToolCardContext) {
             </div>
           ) : null}
           {card.lowRateLimitCount > 0 ? (
-            <div className="text-gray-600 dark:text-gray-300">{card.lowRateLimitCount} user{card.lowRateLimitCount === 1 ? "" : "s"} under 10% GitHub rate limit</div>
+            <div className="text-gray-600 dark:text-gray-300">
+              {card.lowRateLimitCount} user{card.lowRateLimitCount === 1 ? "" : "s"} under 10% GitHub rate limit
+            </div>
           ) : null}
         </div>
       ) : null}

@@ -68,12 +68,31 @@ export function FilePreviewModal({
         </div>
         {markdown ? (
           <div className="flex rounded border border-gray-200 p-0.5 text-xs dark:border-gray-700">
-            <button className={`rounded px-2 py-1 ${mode === "preview" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("preview")} type="button">{t("file_preview.mode_preview")}</button>
-            <button className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("source")} type="button">{t("file_preview.mode_source")}</button>
+            <button
+              className={`rounded px-2 py-1 ${mode === "preview" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`}
+              onClick={() => setMode("preview")}
+              type="button"
+            >
+              {t("file_preview.mode_preview")}
+            </button>
+            <button
+              className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`}
+              onClick={() => setMode("source")}
+              type="button"
+            >
+              {t("file_preview.mode_source")}
+            </button>
           </div>
         ) : null}
-        <a className={buttonClasses("secondary", "sm")} href={rawHref} rel="noreferrer" target="_blank">{t("file_preview.open_raw")}</a>
-        <button aria-label={t("file_preview.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white" onClick={onClose} type="button">
+        <a className={buttonClasses("secondary", "sm")} href={rawHref} rel="noreferrer" target="_blank">
+          {t("file_preview.open_raw")}
+        </a>
+        <button
+          aria-label={t("file_preview.close")}
+          className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white"
+          onClick={onClose}
+          type="button"
+        >
           <CloseIcon className="h-4 w-4" />
         </button>
       </header>
@@ -101,10 +120,26 @@ export function FilePreviewModal({
 }
 
 function FilePreviewState({ message, tone = "neutral" }: { message: string; tone?: "neutral" | "error" }) {
-  return <div className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>{message}</div>
+  return (
+    <div
+      className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}
+    >
+      {message}
+    </div>
+  )
 }
 
-export function SourceCodeTable({ content, path, targetLine, testId = "source-preview-code" }: { content: string; path: string; targetLine: number | null; testId?: string }) {
+export function SourceCodeTable({
+  content,
+  path,
+  targetLine,
+  testId = "source-preview-code"
+}: {
+  content: string
+  path: string
+  targetLine: number | null
+  testId?: string
+}) {
   const language = detectHighlighterLanguage(path)
   const lines = content.split("\n")
   const tokenLines = useHighlightedLines(content, language)
@@ -117,7 +152,9 @@ export function SourceCodeTable({ content, path, targetLine, testId = "source-pr
           const targeted = targetLine === lineNum
           return (
             <tr className={targeted ? "bg-yellow-100 dark:bg-yellow-950/50" : "bg-white dark:bg-gray-950"} data-source-line={lineNum} key={lineNum}>
-              <td className="w-12 select-none border-r border-gray-100 px-2 py-0.5 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-600">{lineNum}</td>
+              <td className="w-12 select-none border-r border-gray-100 px-2 py-0.5 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-600">
+                {lineNum}
+              </td>
               <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
                 {renderCodeLine(tokenLines?.[index], line || " ")}
               </td>

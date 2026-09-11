@@ -154,7 +154,8 @@ describe("PreviewPanel", () => {
         state: "failed",
         url: null,
         expires_at: null,
-        error_message: "preview process is healthy on 127.0.0.1:28009 but is not reachable at syrus-preview:28009; configure the preview start command to bind to 0.0.0.0",
+        error_message:
+          "preview process is healthy on 127.0.0.1:28009 but is not reachable at syrus-preview:28009; configure the preview start command to bind to 0.0.0.0",
         error_reason: "not_reachable"
       })
     })
@@ -163,12 +164,15 @@ describe("PreviewPanel", () => {
 
   it("creates a direct job scoped to the repository and navigates there when Fix preview is clicked", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({
-        message: "Direct job created.",
-        create_more: false,
-        redirect_to: "/jobs/99",
-        job: { id: 99, title: "Fix preview", state: "queued", repository: { id: 7 }, job_path: "/jobs/99" }
-      }, 201)
+      jsonResponse(
+        {
+          message: "Direct job created.",
+          create_more: false,
+          redirect_to: "/jobs/99",
+          job: { id: 99, title: "Fix preview", state: "queued", repository: { id: 7 }, job_path: "/jobs/99" }
+        },
+        201
+      )
     )
 
     renderPanel({
@@ -177,7 +181,8 @@ describe("PreviewPanel", () => {
         state: "failed",
         url: null,
         expires_at: null,
-        error_message: "preview process is healthy on 127.0.0.1:28009 but is not reachable at syrus-preview:28009; configure the preview start command to bind to 0.0.0.0",
+        error_message:
+          "preview process is healthy on 127.0.0.1:28009 but is not reachable at syrus-preview:28009; configure the preview start command to bind to 0.0.0.0",
         error_reason: "not_reachable"
       })
     })
@@ -185,10 +190,7 @@ describe("PreviewPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fix preview" }))
 
     await waitFor(() => {
-      expect(window.fetch).toHaveBeenCalledWith(
-        "/api/v1/app/jobs",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/jobs", expect.objectContaining({ method: "POST" }))
     })
 
     const call = (window.fetch as ReturnType<typeof vi.fn>).mock.calls.find(([input]) => String(input) === "/api/v1/app/jobs")
@@ -201,13 +203,15 @@ describe("PreviewPanel", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path.endsWith("/preview/logs")) {
-        return Promise.resolve(jsonResponse({
-          preview: preview({ state: "running" }),
-          logs: [
-            { path: "log/development.log", content: "Started POST /signup\nCompleted 500", missing: false },
-            { path: "log/vite.log", content: "", missing: true }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            preview: preview({ state: "running" }),
+            logs: [
+              { path: "log/development.log", content: "Started POST /signup\nCompleted 500", missing: false },
+              { path: "log/vite.log", content: "", missing: true }
+            ]
+          })
+        )
       }
       return Promise.resolve(jsonResponse({ preview: preview({ state: "running" }) }))
     })
@@ -218,10 +222,7 @@ describe("PreviewPanel", () => {
 
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     await waitFor(() => {
-      expect(window.fetch).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/preview/logs",
-        expect.objectContaining({ credentials: "same-origin" })
-      )
+      expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/jobs/42/preview/logs", expect.objectContaining({ credentials: "same-origin" }))
     })
     const dialog = screen.getByRole("dialog")
     expect(await within(dialog).findByText(/Started POST \/signup/)).toBeInTheDocument()
@@ -307,10 +308,7 @@ describe("PreviewPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Preview" }))
 
     await waitFor(() => {
-      expect(window.fetch).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/preview",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/jobs/42/preview", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -323,17 +321,12 @@ describe("PreviewPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop Preview" }))
 
     await waitFor(() => {
-      expect(window.fetch).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/preview",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/jobs/42/preview", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
   it("shows fetch error message when start fails", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ error: { code: "validation_failed", message: "Job not implemented." } }, 422)
-    )
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { code: "validation_failed", message: "Job not implemented." } }, 422))
 
     renderPanel({ canStart: true, initialPreview: null })
     fireEvent.click(screen.getByRole("button", { name: "Start Preview" }))
@@ -428,7 +421,7 @@ describe("PreviewPanel Deploy controls", () => {
     expect(screen.getByRole("button", { name: "Deploy again" })).toBeInTheDocument()
   })
 
-  it("shows a failed status and a Deploy again button when the deploy failed" , () => {
+  it("shows a failed status and a Deploy again button when the deploy failed", () => {
     renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: deploy({ state: "failed", failure_reason: "boom" }) })
     expect(screen.getByText("Deploy failed")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Deploy again" })).toBeInTheDocument()
@@ -454,18 +447,13 @@ describe("PreviewPanel Deploy controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Deploy" }))
 
     await waitFor(() => {
-      expect(window.fetch).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/deploy",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/jobs/42/deploy", expect.objectContaining({ method: "POST" }))
     })
     expect(await screen.findByText("Deploy queued…")).toBeInTheDocument()
   })
 
-  it("shows an error message when starting a deploy fails" , async () => {
-    vi.spyOn(window, "fetch").mockImplementation(() =>
-      Promise.resolve(jsonResponse({ error: { code: "forbidden", message: "Approve the Job first." } }, 403))
-    )
+  it("shows an error message when starting a deploy fails", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({ error: { code: "forbidden", message: "Approve the Job first." } }, 403)))
 
     renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: null })
     fireEvent.click(screen.getByRole("button", { name: "Deploy" }))
@@ -480,12 +468,7 @@ describe("PreviewStopModal", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders the modal with title and action buttons", () => {
-    render(
-      <PreviewStopModal
-        onStop={vi.fn()}
-        onKeepRunning={vi.fn()}
-      />
-    )
+    render(<PreviewStopModal onStop={vi.fn()} onKeepRunning={vi.fn()} />)
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(screen.getByText("A preview environment is running")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Yes, stop it" })).toBeInTheDocument()

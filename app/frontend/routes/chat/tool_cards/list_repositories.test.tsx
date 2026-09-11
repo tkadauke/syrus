@@ -30,9 +30,7 @@ describe("list_repositories tool card", () => {
 
   it("renders a table row per repository and the pagination footer", () => {
     const parsedResult = {
-      repositories: [
-        { id: 1, slug: "tkadauke/syrus", owner: "tkadauke", name: "syrus", default_branch: "main", epic_dependency_policy: "linear" }
-      ],
+      repositories: [{ id: 1, slug: "tkadauke/syrus", owner: "tkadauke", name: "syrus", default_branch: "main", epic_dependency_policy: "linear" }],
       pagination: { page: 2, per_page: 20, total_count: 21, total_pages: 2, has_next_page: false }
     }
 

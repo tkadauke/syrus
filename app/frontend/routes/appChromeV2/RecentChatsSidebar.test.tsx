@@ -12,13 +12,22 @@ function LocationProbe() {
 
 function renderSidebar(
   chats: ChatNavRecord[],
-  options: { featureFlags?: Record<string, boolean>; prefix?: string; onCloseDrawer?: () => void; renderOptions?: Parameters<typeof render>[1]; supervisorChat?: ChatNavRecord | null } = {}
+  options: {
+    featureFlags?: Record<string, boolean>
+    prefix?: string
+    onCloseDrawer?: () => void
+    renderOptions?: Parameters<typeof render>[1]
+    supervisorChat?: ChatNavRecord | null
+  } = {}
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-    supervisor_chat: options.supervisorChat,
-    groups: [chatGroup({ chats })]
-  }))
+  queryClient.setQueryData<ChatsIndexPayload>(
+    ["chats", "recent"],
+    chatsIndexPayload({
+      supervisor_chat: options.supervisorChat,
+      groups: [chatGroup({ chats })]
+    })
+  )
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -105,20 +114,17 @@ describe("RecentChatsSidebar active chat highlighting", () => {
 
   it("highlights a chat as active when the URL matches /chats/:id", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Active Chat", chat_path: "/chats/42" })] })]
-    }))
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Active Chat", chat_path: "/chats/42" })] })]
+      })
+    )
 
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/chats/42"]}>
-          <RecentChatsSidebar
-            featureFlags={{}}
-            onCloseDrawer={() => {}}
-            onNotice={() => {}}
-            prefix=""
-            userPresent
-          />
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -166,20 +172,17 @@ describe("RecentChatsSidebar goal marker", () => {
 
 describe("RecentChatsSidebar supervisor chat", () => {
   it("renders supervisor above ordinary chat groups with unread severity count", () => {
-    renderSidebar(
-      [chatNav({ id: 2, title: "Planning" })],
-      {
-        featureFlags: { admin_supervisor_chat: true },
-        supervisorChat: chatNav({
-          id: 1,
-          title: "Supervisor",
-          system_kind: "supervisor",
-          unread: true,
-          supervisor_unread_count: 4,
-          supervisor_unread_severity: "critical"
-        })
-      }
-    )
+    renderSidebar([chatNav({ id: 2, title: "Planning" })], {
+      featureFlags: { admin_supervisor_chat: true },
+      supervisorChat: chatNav({
+        id: 1,
+        title: "Supervisor",
+        system_kind: "supervisor",
+        unread: true,
+        supervisor_unread_count: 4,
+        supervisor_unread_severity: "critical"
+      })
+    })
 
     const links = screen.getAllByRole("link")
     expect(links[0]).toHaveTextContent("Supervisor")
@@ -189,33 +192,24 @@ describe("RecentChatsSidebar supervisor chat", () => {
   })
 
   it("hides supervisor when the feature flag is off", () => {
-    renderSidebar(
-      [chatNav({ id: 2, title: "Planning" })],
-      {
-        featureFlags: { admin_supervisor_chat: false },
-        supervisorChat: chatNav({ id: 1, title: "Supervisor", system_kind: "supervisor" })
-      }
-    )
+    renderSidebar([chatNav({ id: 2, title: "Planning" })], {
+      featureFlags: { admin_supervisor_chat: false },
+      supervisorChat: chatNav({ id: 1, title: "Supervisor", system_kind: "supervisor" })
+    })
 
     expect(screen.queryByRole("link", { name: /Supervisor/ })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument()
   })
 
   it("hides supervisor for non-admin payloads even when the feature flag is on", () => {
-    renderSidebar(
-      [chatNav({ id: 2, title: "Planning" })],
-      { featureFlags: { admin_supervisor_chat: true }, supervisorChat: null }
-    )
+    renderSidebar([chatNav({ id: 2, title: "Planning" })], { featureFlags: { admin_supervisor_chat: true }, supervisorChat: null })
 
     expect(screen.queryByRole("link", { name: /Supervisor/ })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument()
   })
 
   it("does not render supervisor chats from ordinary groups", () => {
-    renderSidebar([
-      chatNav({ id: 1, title: "Supervisor", system_kind: "supervisor" }),
-      chatNav({ id: 2, title: "Planning" })
-    ])
+    renderSidebar([chatNav({ id: 1, title: "Supervisor", system_kind: "supervisor" }), chatNav({ id: 2, title: "Planning" })])
 
     expect(screen.queryByRole("link", { name: /Supervisor/ })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument()
@@ -248,7 +242,9 @@ describe("RecentChatsSidebar drag-over blink and navigate", () => {
     // Leave the row entirely (relatedTarget is null — cursor left the element)
     fireEvent.dragLeave(chatRow, { relatedTarget: null })
 
-    act(() => { vi.advanceTimersByTime(1000) })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
 
     // Location stays at "/" because navigation was cancelled
     expect(screen.getByTestId("location")).toHaveTextContent("/")
@@ -266,7 +262,9 @@ describe("RecentChatsSidebar drag-over blink and navigate", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent("/")
 
-    act(() => { vi.advanceTimersByTime(1000) })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
 
     expect(screen.getByTestId("location")).toHaveTextContent("/chats/1")
     expect(closeSpy).toHaveBeenCalledTimes(1)
@@ -288,8 +286,15 @@ describe("RecentChatsSidebar auto-scroll during drag", () => {
 
   it("dragover near the top triggers scrollBy upward", () => {
     vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
-      top: 0, bottom: 300, left: 0, right: 200, height: 300, width: 200,
-      x: 0, y: 0, toJSON: vi.fn()
+      top: 0,
+      bottom: 300,
+      left: 0,
+      right: 200,
+      height: 300,
+      width: 200,
+      x: 0,
+      y: 0,
+      toJSON: vi.fn()
     } as DOMRect)
     // JSDOM does not implement scrollBy as an own property; define it so it can be observed.
     const scrollBy = vi.fn()
@@ -302,23 +307,21 @@ describe("RecentChatsSidebar auto-scroll during drag", () => {
       return 1
     })
 
-    renderSidebar(
-      [chatNav({ id: 1, title: "Scroll Target" })],
-      { renderOptions: { container: scrollContainer } }
-    )
+    renderSidebar([chatNav({ id: 1, title: "Scroll Target" })], { renderOptions: { container: scrollContainer } })
 
     const nav = screen.getByRole("navigation", { name: "Recent chats" })
     // JSDOM does not implement DragEvent, so fireEvent.dragOver produces an event
     // whose clientY is undefined. Dispatch a MouseEvent (type "dragover") instead:
     // React's onDragOver intercepts it identically and MouseEvent correctly carries clientY.
     // clientY: 30 → relY = 30 - rect.top (0) = 30, which is < 60 (top edge zone)
-    nav.parentElement!.dispatchEvent(
-      new MouseEvent("dragover", { bubbles: true, cancelable: true, clientY: 30 })
-    )
+    nav.parentElement!.dispatchEvent(new MouseEvent("dragover", { bubbles: true, cancelable: true, clientY: 30 }))
 
     // Invoke the captured RAF callback once to trigger one scrollBy call
     expect(capturedCallback).not.toBeNull()
-    if (capturedCallback) act(() => { (capturedCallback as FrameRequestCallback)(0) })
+    if (capturedCallback)
+      act(() => {
+        ;(capturedCallback as FrameRequestCallback)(0)
+      })
 
     expect(scrollBy).toHaveBeenCalledWith(0, -8)
   })
@@ -345,21 +348,18 @@ describe("RecentChatsSidebar mark-as-read/unread label", () => {
 describe("RecentChatsSidebar bookmarks menu", () => {
   function renderWithBookmarks(bookmarks: ChatBookmark[], chatId = 1) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: chatId, title: "Chat With Bookmarks" })] })]
-    }))
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: chatId, title: "Chat With Bookmarks" })] })]
+      })
+    )
     queryClient.setQueryData(["chats", String(chatId), ""], { bookmarks } as unknown as ChatPayload)
 
     return render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/"]}>
-          <RecentChatsSidebar
-            featureFlags={{}}
-            onCloseDrawer={() => {}}
-            onNotice={() => {}}
-            prefix=""
-            userPresent
-          />
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -411,20 +411,17 @@ describe("RecentChatsSidebar overflow menu slug", () => {
     const fetchSpy = vi.spyOn(window, "fetch")
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Roadmap sync" })] })]
-    }))
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Roadmap sync" })] })]
+      })
+    )
 
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/"]}>
-          <RecentChatsSidebar
-            featureFlags={{}}
-            onCloseDrawer={() => {}}
-            onNotice={() => {}}
-            prefix=""
-            userPresent
-          />
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
         </MemoryRouter>
       </QueryClientProvider>
     )

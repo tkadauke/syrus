@@ -43,7 +43,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   if (!user || !setup) {
     return (
       <main aria-label={t("onboarding_aria")} className="mx-auto max-w-5xl p-6">
-        <p className="text-sm text-gray-600 dark:text-gray-400">{t('onboarding.loading')}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t("onboarding.loading")}</p>
       </main>
     )
   }
@@ -70,8 +70,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   }
 
   const chooseMode = useMutation({
-    mutationFn: (selectedMode: "advanced" | "simple") =>
-      updateAdminSettings({ mode: selectedMode }),
+    mutationFn: (selectedMode: "advanced" | "simple") => updateAdminSettings({ mode: selectedMode }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
   })
 
@@ -83,8 +82,8 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   return (
     <main aria-label={t("onboarding_aria")} className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-5">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t('onboarding.setup_label')}</p>
-        <PageHeading className="mt-2">{t('onboarding.heading')}</PageHeading>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("onboarding.setup_label")}</p>
+        <PageHeading className="mt-2">{t("onboarding.heading")}</PageHeading>
       </header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -102,7 +101,9 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
                   {step.complete ? (
-                    <span className="rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300">{t('onboarding.complete_badge')}</span>
+                    <span className="rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300">
+                      {t("onboarding.complete_badge")}
+                    </span>
                   ) : null}
                   {step.ctaAction === "choose_mode" ? (
                     <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
@@ -125,14 +126,23 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                     </div>
                   ) : step.complete && step.editPath ? (
                     <Link className={secondaryCtaClass()} to={withRoutePrefix(step.editPath, prefix)}>
-                      {step.editLabel ?? t('onboarding.edit_label')}
+                      {step.editLabel ?? t("onboarding.edit_label")}
                     </Link>
                   ) : step.ctaModal ? (
-                    <button className={step.complete ? secondaryCtaClass() : primaryCtaClass(current)} onClick={() => setOpenModal(step.ctaModal ?? null)} type="button">
-                      {step.complete ? (step.editLabel ?? t('onboarding.edit_label')) : step.ctaLabel}
+                    <button
+                      className={step.complete ? secondaryCtaClass() : primaryCtaClass(current)}
+                      onClick={() => setOpenModal(step.ctaModal ?? null)}
+                      type="button"
+                    >
+                      {step.complete ? (step.editLabel ?? t("onboarding.edit_label")) : step.ctaLabel}
                     </button>
                   ) : step.ctaAction === "start_chat" ? (
-                    <button className={step.complete ? secondaryCtaClass() : primaryCtaClass(current)} disabled={startingChat} onClick={launchChat} type="button">
+                    <button
+                      className={step.complete ? secondaryCtaClass() : primaryCtaClass(current)}
+                      disabled={startingChat}
+                      onClick={launchChat}
+                      type="button"
+                    >
                       {startingChat ? "Opening chat…" : step.ctaLabel}
                     </button>
                   ) : (
@@ -148,15 +158,23 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       </section>
 
       {chatError ? (
-        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">{chatError}</p>
+        <p
+          className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+          role="alert"
+        >
+          {chatError}
+        </p>
       ) : null}
 
       {complete ? (
         <section className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-4">
-          <h2 className="text-sm font-medium text-green-900 dark:text-green-100">{t('onboarding.ready_heading')}</h2>
-          <p className="mt-1 text-sm text-green-800 dark:text-green-200">{t('onboarding.ready_description')}</p>
-          <Link className="mt-3 inline-flex rounded bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800" to={withRoutePrefix(dashboardPath, prefix)}>
-            {t('onboarding.open_dashboard')}
+          <h2 className="text-sm font-medium text-green-900 dark:text-green-100">{t("onboarding.ready_heading")}</h2>
+          <p className="mt-1 text-sm text-green-800 dark:text-green-200">{t("onboarding.ready_description")}</p>
+          <Link
+            className="mt-3 inline-flex rounded bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800"
+            to={withRoutePrefix(dashboardPath, prefix)}
+          >
+            {t("onboarding.open_dashboard")}
           </Link>
         </section>
       ) : null}
@@ -202,7 +220,9 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
     {
       key: "agent",
       title: "Agent credentials and provider",
-      detail: setup.credential_status.agent ? `${providerLabel(setup.credential_status.active_agent_provider)} is ready for runs.` : "Choose a provider and add its credentials.",
+      detail: setup.credential_status.agent
+        ? `${providerLabel(setup.credential_status.active_agent_provider)} is ready for runs.`
+        : "Choose a provider and add its credentials.",
       complete: setup.credential_status.agent,
       ctaLabel: "Configure agent",
       ctaPath: "/credentials",
@@ -212,7 +232,9 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
     {
       key: "repository",
       title: "Repository",
-      detail: setup.repository_configured ? `${setup.counts.repositories} active repository${setup.counts.repositories === 1 ? "" : "ies"} configured.` : "Add the first repository Syrus should poll or run against.",
+      detail: setup.repository_configured
+        ? `${setup.counts.repositories} active repository${setup.counts.repositories === 1 ? "" : "ies"} configured.`
+        : "Add the first repository Syrus should poll or run against.",
       complete: setup.repository_configured,
       ctaLabel: "Add repository",
       ctaPath: "/repositories/new",
@@ -285,7 +307,9 @@ function checklistContentClass(current: boolean) {
 
 function primaryCtaClass(current: boolean) {
   const base = "inline-flex shrink-0 justify-center rounded px-3 py-2 text-sm font-medium"
-  return current ? buttonClasses("primary", "md", "min-w-48 shrink-0 justify-center") : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
+  return current
+    ? buttonClasses("primary", "md", "min-w-48 shrink-0 justify-center")
+    : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
 }
 
 // Small text-style action for revisiting an already-completed step, shown

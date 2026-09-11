@@ -45,10 +45,10 @@ const storedLocale = bootstrap?.current_user?.locale
 const browserLocale = navigator.language?.split("-")[0]
 const supportedLocales = ["en", "de", "la"]
 const detectedLocale = storedLocale ?? (supportedLocales.includes(browserLocale) ? browserLocale : undefined)
-const pluginLocaleModules = import.meta.glob<Record<string, unknown>>(
-  "../../../plugins/*/app/frontend/i18n/locales/*/*.json",
-  { eager: true, import: "default" }
-)
+const pluginLocaleModules = import.meta.glob<Record<string, unknown>>("../../../plugins/*/app/frontend/i18n/locales/*/*.json", {
+  eager: true,
+  import: "default"
+})
 const pluginNamespaces = new Set<string>()
 const resources: Resource = {
   en: {

@@ -75,10 +75,14 @@ describe("AppErrorBoundary", () => {
       </AppErrorBoundary>
     )
 
-    await waitFor(() => expect(mockRecordBrowserError).toHaveBeenCalledWith(expect.objectContaining({
-      message: "App tree explosion",
-      metadata: { boundary: "app" }
-    })))
+    await waitFor(() =>
+      expect(mockRecordBrowserError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "App tree explosion",
+          metadata: { boundary: "app" }
+        })
+      )
+    )
     expect(await screen.findByRole("link", { name: "Browser error #456 captured" })).toHaveAttribute("href", "/admin/browser_errors?id=456&revision_scope=all")
   })
 
@@ -92,9 +96,7 @@ describe("AppErrorBoundary", () => {
     await screen.findByRole("link", { name: "Browser error #456 captured" })
     fireEvent.click(screen.getByRole("button", { name: "Send error report" }))
 
-    await waitFor(() =>
-      expect(mockFileEventJob).toHaveBeenCalledWith({ event_type: "browser_error", event_id: 456 })
-    )
+    await waitFor(() => expect(mockFileEventJob).toHaveBeenCalledWith({ event_type: "browser_error", event_id: 456 }))
     expect(mockCreateBugReport).not.toHaveBeenCalled()
   })
 

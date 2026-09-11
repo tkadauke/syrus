@@ -29,10 +29,18 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Slug</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Kind</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Title</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Slug
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Kind
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              State
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Title
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -40,8 +48,12 @@ function renderExpanded(context: ToolCardContext) {
             <tr key={proposal.slug}>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-800 dark:text-gray-200">{proposal.slug}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{proposal.kind}</td>
-              <td className="whitespace-nowrap px-2 py-1"><StatePill state={proposal.state} /></td>
-              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={proposal.title ?? undefined}>{proposal.title || "—"}</td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <StatePill state={proposal.state} />
+              </td>
+              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={proposal.title ?? undefined}>
+                {proposal.title || "—"}
+              </td>
             </tr>
           ))}
         </tbody>

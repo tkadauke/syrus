@@ -8,7 +8,7 @@ import { StatusBadge } from "../StatusBadge"
 export function EventsTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const events = useQuery({
-    queryKey: [ "k8s_cluster", "events", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "events", clusterId, namespace],
     queryFn: () => fetchKubernetesEvents(clusterId, namespace)
   })
 
@@ -26,7 +26,10 @@ export function EventsTab({ clusterId, namespace }: { clusterId: number; namespa
                 <StatusBadge tone={event.type === "Warning" ? "warning" : "neutral"}>{event.type || "-"}</StatusBadge>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-gray-900 dark:text-gray-100">
-                    {event.reason} <span className="font-normal text-gray-500 dark:text-gray-400">({event.involved_object.kind} {event.involved_object.name})</span>
+                    {event.reason}{" "}
+                    <span className="font-normal text-gray-500 dark:text-gray-400">
+                      ({event.involved_object.kind} {event.involved_object.name})
+                    </span>
                   </p>
                   <p className="text-gray-700 dark:text-gray-300">{event.message}</p>
                 </div>

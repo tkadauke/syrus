@@ -113,10 +113,7 @@ describe("AccountSettings ApiTokenPanel", () => {
     fireEvent.click(rotateButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/credentials/rotate_api_token",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/rotate_api_token", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -135,10 +132,7 @@ describe("AccountSettings ApiTokenPanel", () => {
     fireEvent.click(revokeButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/credentials/revoke_api_token",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/revoke_api_token", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -149,13 +143,14 @@ describe("AccountSettings ApiTokenPanel", () => {
     renderRoute()
 
     const rotateButton = await screen.findByRole("button", { name: "Rotate token" })
-    await act(async () => { fireEvent.click(rotateButton) })
+    await act(async () => {
+      fireEvent.click(rotateButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/credentials/rotate_api_token",
-      expect.anything()
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials/rotate_api_token", expect.anything())
   })
 
   it("does not call the revoke API when the user cancels", async () => {
@@ -165,12 +160,13 @@ describe("AccountSettings ApiTokenPanel", () => {
     renderRoute()
 
     const revokeButton = await screen.findByRole("button", { name: "Revoke" })
-    await act(async () => { fireEvent.click(revokeButton) })
+    await act(async () => {
+      fireEvent.click(revokeButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/credentials/revoke_api_token",
-      expect.anything()
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials/revoke_api_token", expect.anything())
   })
 })

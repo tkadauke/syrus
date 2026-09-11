@@ -9,7 +9,14 @@ import { Table, TBody, Td, THead } from "../adminToolCard"
 // operator chasing a "why is this repo on PAT fallback" question needs.
 type GlobalState = { registered: boolean; jwtUsable: boolean; jwtErrorMessage: string | null }
 type LatestSync = { lastAttemptedAt: string | null; lastSuccessfulAt: string | null; errorClass: string | null; errorMessage: string | null }
-type InstallationRow = { key: string; accountLogin: string | null; githubInstallationId: string | null; installedAt: string | null; removedAt: string | null; active: boolean }
+type InstallationRow = {
+  key: string
+  accountLogin: string | null
+  githubInstallationId: string | null
+  installedAt: string | null
+  removedAt: string | null
+  active: boolean
+}
 type RepositoryRow = {
   key: string
   slug: string | null
@@ -82,8 +89,14 @@ function parseDiagnostic(context: ToolCardContext): DiagnosticCard | null {
   return {
     global,
     latestSync,
-    installations: parsed.installations.flatMap((installation, index) => { const row = parseInstallation(installation, index); return row ? [row] : [] }),
-    repositories: parsed.repositories.flatMap((repository, index) => { const row = parseRepository(repository, index); return row ? [row] : [] }),
+    installations: parsed.installations.flatMap((installation, index) => {
+      const row = parseInstallation(installation, index)
+      return row ? [row] : []
+    }),
+    repositories: parsed.repositories.flatMap((repository, index) => {
+      const row = parseRepository(repository, index)
+      return row ? [row] : []
+    }),
     recommendedNextAction: displayValue(parsed.recommended_next_action)
   }
 }
@@ -109,7 +122,9 @@ function renderExpanded(context: ToolCardContext) {
         {card.recommendedNextAction && card.recommendedNextAction !== "none" ? <Badge>next: {card.recommendedNextAction.replace(/_/g, " ")}</Badge> : null}
       </div>
       {card.global.jwtErrorMessage ? (
-        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{card.global.jwtErrorMessage}</div>
+        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {card.global.jwtErrorMessage}
+        </div>
       ) : null}
       <dl className="grid gap-1 sm:grid-cols-2">
         <Row label="Last sync attempt" value={card.latestSync.lastAttemptedAt ?? "—"} />
@@ -117,7 +132,8 @@ function renderExpanded(context: ToolCardContext) {
       </dl>
       {card.latestSync.errorMessage ? (
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {card.latestSync.errorClass ? `${card.latestSync.errorClass}: ` : ""}{card.latestSync.errorMessage}
+          {card.latestSync.errorClass ? `${card.latestSync.errorClass}: ` : ""}
+          {card.latestSync.errorMessage}
         </div>
       ) : null}
       <div>
@@ -133,8 +149,14 @@ function renderExpanded(context: ToolCardContext) {
                   <Td mono>{repository.slug || "—"}</Td>
                   <Td>{repository.credentialMode || "—"}</Td>
                   <Td>{repository.appCredentialActive ? <StatePill state="active" tone="success" /> : <StatePill state="inactive" tone="warning" />}</Td>
-                  <Td maxWidth title={repository.inactiveReason ?? undefined}>{repository.inactiveReason?.replace(/_/g, " ") || "—"}</Td>
-                  <Td maxWidth>{repository.recommendedNextAction && repository.recommendedNextAction !== "none" ? repository.recommendedNextAction.replace(/_/g, " ") : "—"}</Td>
+                  <Td maxWidth title={repository.inactiveReason ?? undefined}>
+                    {repository.inactiveReason?.replace(/_/g, " ") || "—"}
+                  </Td>
+                  <Td maxWidth>
+                    {repository.recommendedNextAction && repository.recommendedNextAction !== "none"
+                      ? repository.recommendedNextAction.replace(/_/g, " ")
+                      : "—"}
+                  </Td>
                 </tr>
               ))}
             </TBody>

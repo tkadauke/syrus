@@ -59,7 +59,12 @@ function parseStep(value: unknown): StepEntry | null {
   const state = displayValue(value.state)
   if (!id || !kind || !state) return null
 
-  const runs = Array.isArray(value.runs) ? value.runs.flatMap((run) => { const parsed = parseRun(run); return parsed ? [parsed] : [] }) : []
+  const runs = Array.isArray(value.runs)
+    ? value.runs.flatMap((run) => {
+        const parsed = parseRun(run)
+        return parsed ? [parsed] : []
+      })
+    : []
 
   return {
     key: id,
@@ -80,7 +85,12 @@ function parseWorkflow(context: ToolCardContext): WorkflowCard | null {
   const state = displayValue(workflow.state)
   if (!id || !state) return null
 
-  const steps = Array.isArray(workflow.steps) ? workflow.steps.flatMap((step) => { const parsed = parseStep(step); return parsed ? [parsed] : [] }) : []
+  const steps = Array.isArray(workflow.steps)
+    ? workflow.steps.flatMap((step) => {
+        const parsed = parseStep(step)
+        return parsed ? [parsed] : []
+      })
+    : []
 
   return {
     id,
@@ -141,7 +151,11 @@ function renderExpanded(context: ToolCardContext) {
                         {run.agentOutcome ? <Badge>{run.agentOutcome}</Badge> : null}
                         {run.cost ? <span>{run.cost}</span> : null}
                         {run.duration ? <span>{run.duration}</span> : null}
-                        {run.agentSummary ? <span className="truncate" title={run.agentSummary}>{run.agentSummary}</span> : null}
+                        {run.agentSummary ? (
+                          <span className="truncate" title={run.agentSummary}>
+                            {run.agentSummary}
+                          </span>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

@@ -6,22 +6,18 @@ import { ErdDiagramRenderer } from "./ErdDiagramRenderer"
 const usersTable: SchemaErdPayload["tables"][0] = {
   name: "users",
   columns: [
-    { name: "id",         type: "integer" },
-    { name: "email",      type: "string" },
+    { name: "id", type: "integer" },
+    { name: "email", type: "string" },
     { name: "account_id", type: "integer" }
   ],
-  indexes: [
-    { name: "index_users_on_email", columns: ["email"], unique: true }
-  ],
-  foreign_keys: [
-    { from_column: "account_id", to_table: "accounts", to_column: "id" }
-  ]
+  indexes: [{ name: "index_users_on_email", columns: ["email"], unique: true }],
+  foreign_keys: [{ from_column: "account_id", to_table: "accounts", to_column: "id" }]
 }
 
 const accountsTable: SchemaErdPayload["tables"][0] = {
   name: "accounts",
   columns: [
-    { name: "id",   type: "integer" },
+    { name: "id", type: "integer" },
     { name: "name", type: "string" }
   ],
   indexes: [],

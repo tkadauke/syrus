@@ -48,7 +48,11 @@ const fallbackOptions: ScheduledTaskOptions = {
   auto_approve_modes: [
     { value: "never", label: "Never", preview: "No direct rule; Jobs can still inherit a repository or user default." },
     { value: "if_graders_pass", label: "If graders pass", preview: "Jobs using this rule enter landing after repo-committed graders pass." },
-    { value: "if_graders_pass_and_tagged_safe", label: "If graders pass and tagged safe", preview: "Jobs using this rule also need the safe tag before landing." }
+    {
+      value: "if_graders_pass_and_tagged_safe",
+      label: "If graders pass and tagged safe",
+      preview: "Jobs using this rule also need the safe tag before landing."
+    }
   ]
 }
 
@@ -69,16 +73,36 @@ export function ScheduledTasksIndex() {
           <PageHeading>{t("scheduled_tasks.heading")}</PageHeading>
           <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("scheduled_tasks.description")}</p>
         </div>
-        <Link className={buttonClasses("primary")} to={`${tasksBase(location.pathname)}/new`}>{t("scheduled_tasks.new_task")}</Link>
+        <Link className={buttonClasses("primary")} to={`${tasksBase(location.pathname)}/new`}>
+          {t("scheduled_tasks.new_task")}
+        </Link>
       </header>
 
       {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
       {tasks.isError ? <ScheduledTasksError error={tasks.error} /> : null}
       {tasks.isSuccess ? (
         <>
-          <TaskSection basePath={tasksBase(location.pathname)} empty={t("scheduled_tasks.empty_active")} prefix={prefix} tasks={tasks.data.active_tasks} title={t("scheduled_tasks.section_active")} />
-          <TaskSection basePath={tasksBase(location.pathname)} empty={t("scheduled_tasks.empty_fired")} prefix={prefix} tasks={tasks.data.fired_one_shots} title={t("scheduled_tasks.section_fired")} />
-          <TaskSection basePath={tasksBase(location.pathname)} empty={t("scheduled_tasks.empty_archived")} prefix={prefix} tasks={tasks.data.archived_tasks} title={t("scheduled_tasks.section_archived")} />
+          <TaskSection
+            basePath={tasksBase(location.pathname)}
+            empty={t("scheduled_tasks.empty_active")}
+            prefix={prefix}
+            tasks={tasks.data.active_tasks}
+            title={t("scheduled_tasks.section_active")}
+          />
+          <TaskSection
+            basePath={tasksBase(location.pathname)}
+            empty={t("scheduled_tasks.empty_fired")}
+            prefix={prefix}
+            tasks={tasks.data.fired_one_shots}
+            title={t("scheduled_tasks.section_fired")}
+          />
+          <TaskSection
+            basePath={tasksBase(location.pathname)}
+            empty={t("scheduled_tasks.empty_archived")}
+            prefix={prefix}
+            tasks={tasks.data.archived_tasks}
+            title={t("scheduled_tasks.section_archived")}
+          />
         </>
       ) : null}
     </main>
@@ -149,9 +173,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
     <main aria-label={mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")} className="mx-auto max-w-3xl space-y-6 p-6">
       <header>
         <PageHeading>{mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")}</PageHeading>
-        {repository ? (
-          <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">{repository.slug}</p>
-        ) : null}
+        {repository ? <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">{repository.slug}</p> : null}
       </header>
 
       {showRepositoryPicker ? (
@@ -212,11 +234,15 @@ function RepositoryPicker({
         <Select onChange={(event) => setValue(event.target.value)} required value={value}>
           <option value="">{t("scheduled_tasks.repository_placeholder")}</option>
           {repositories.map((repository) => (
-            <option key={repository.id} value={repository.id}>{repository.slug}</option>
+            <option key={repository.id} value={repository.id}>
+              {repository.slug}
+            </option>
           ))}
         </Select>
       </Field>
-      <Button disabled={!value} type="submit" variant="primary">{t("scheduled_tasks.repository_continue")}</Button>
+      <Button disabled={!value} type="submit" variant="primary">
+        {t("scheduled_tasks.repository_continue")}
+      </Button>
     </form>
   )
 }
@@ -240,23 +266,38 @@ function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string;
                 <th className="px-4 py-2">{t("scheduled_tasks.schedule")}</th>
                 <th className="px-4 py-2">{t("scheduled_tasks.state")}</th>
                 <th className="px-4 py-2">{t("scheduled_tasks.col_last_fired")}</th>
-                <th className="px-4 py-2"><span className="sr-only">{t("scheduled_tasks.actions")}</span></th>
+                <th className="px-4 py-2">
+                  <span className="sr-only">{t("scheduled_tasks.actions")}</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
               {tasks.map((task) => (
                 <tr key={task.id}>
                   <td className="px-4 py-3 font-medium">
-                    <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>{task.name}</Link>
+                    <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>
+                      {task.name}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(task.repository.repository_path, prefix)}>{task.repository.slug}</Link>
+                    <Link
+                      className="text-brand underline hover:no-underline dark:text-brand-emphasis"
+                      to={withRoutePrefix(task.repository.repository_path, prefix)}
+                    >
+                      {task.repository.slug}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-xs">{task.schedule_label || t("scheduled_tasks.none")}</td>
-                  <td className="px-4 py-3"><StatePill state={task.state} /></td>
-                  <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp fallback={t("scheduled_tasks.never")} value={task.last_fired_at} /></td>
+                  <td className="px-4 py-3">
+                    <StatePill state={task.state} />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
+                    <RelativeTimestamp fallback={t("scheduled_tasks.never")} value={task.last_fired_at} />
+                  </td>
                   <td className="px-4 py-3 text-right">
-                    <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>{t("scheduled_tasks.open")}</Link>
+                    <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>
+                      {t("scheduled_tasks.open")}
+                    </Link>
                   </td>
                 </tr>
               ))}
@@ -303,7 +344,12 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
             <StatePill state={payload.task.state} />
           </div>
           <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">
-            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(payload.task.repository.repository_path, prefix)}>{payload.task.repository.slug}</Link>
+            <Link
+              className="text-brand underline hover:no-underline dark:text-brand-emphasis"
+              to={withRoutePrefix(payload.task.repository.repository_path, prefix)}
+            >
+              {payload.task.repository.slug}
+            </Link>
           </p>
         </div>
         <TaskActions archive={archive} basePath={basePath} command={command} task={payload.task} />
@@ -323,9 +369,13 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
           <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.cron_expression_label")}</dt>
           <dd className="font-mono text-xs">{payload.task.schedule_expression || payload.task.cron_expression || t("scheduled_tasks.none")}</dd>
           <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_fire_at")}</dt>
-          <dd><RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.fire_at} /></dd>
+          <dd>
+            <RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.fire_at} />
+          </dd>
           <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_next_fire")}</dt>
-          <dd><RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.next_fire_at} /></dd>
+          <dd>
+            <RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.next_fire_at} />
+          </dd>
           <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_pileup")}</dt>
           <dd>{payload.task.pr_pileup_policy}</dd>
           <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_auto_approve")}</dt>
@@ -347,7 +397,9 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
             ) : null}
           </div>
         ) : (
-          <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">{payload.task.prompt}</pre>
+          <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">
+            {payload.task.prompt}
+          </pre>
         )}
       </section>
 
@@ -371,15 +423,25 @@ function TaskActions({
   const { confirm, dialog } = useConfirm()
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {task.editable ? <Link className={buttonClasses("secondary")} to={`${basePath}/${task.id}/edit`}>{t("scheduled_tasks.action_edit")}</Link> : null}
+      {task.editable ? (
+        <Link className={buttonClasses("secondary")} to={`${basePath}/${task.id}/edit`}>
+          {t("scheduled_tasks.action_edit")}
+        </Link>
+      ) : null}
       {task.pausable ? (
-        <Button disabled={command.isPending} onClick={() => command.mutate("pause")} variant="secondary">{t("scheduled_tasks.action_pause")}</Button>
+        <Button disabled={command.isPending} onClick={() => command.mutate("pause")} variant="secondary">
+          {t("scheduled_tasks.action_pause")}
+        </Button>
       ) : null}
       {task.resumable ? (
-        <Button disabled={command.isPending} onClick={() => command.mutate("resume")} variant="secondary">{t("scheduled_tasks.action_resume")}</Button>
+        <Button disabled={command.isPending} onClick={() => command.mutate("resume")} variant="secondary">
+          {t("scheduled_tasks.action_resume")}
+        </Button>
       ) : null}
       {task.fireable ? (
-        <Button disabled={command.isPending} onClick={() => command.mutate("fire")} variant="secondary">{t("scheduled_tasks.action_fire")}</Button>
+        <Button disabled={command.isPending} onClick={() => command.mutate("fire")} variant="secondary">
+          {t("scheduled_tasks.action_fire")}
+        </Button>
       ) : null}
       {task.editable ? (
         <button
@@ -425,7 +487,9 @@ function RecentJobs({ jobs }: { jobs: ScheduledTaskDetailPayload["recent_jobs"] 
                 </td>
                 <td className="px-2 py-2">{job.closure_reason || job.state}</td>
                 <td className="px-2 py-2">{job.pr_number || job.external_pr_number || t("scheduled_tasks.none")}</td>
-                <td className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={job.created_at} /></td>
+                <td className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
+                  <RelativeTimestamp value={job.created_at} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -477,9 +541,10 @@ function ScheduledTaskForm({
   }
 
   const save = useMutation({
-    mutationFn: (structuredIntent: Record<string, unknown> | null) => mode === "new"
-      ? createScheduledTask(repositoryId, submitInput(values, structuredIntent), fromTemplate)
-      : updateScheduledTask(id, submitInput(values, structuredIntent)),
+    mutationFn: (structuredIntent: Record<string, unknown> | null) =>
+      mode === "new"
+        ? createScheduledTask(repositoryId, submitInput(values, structuredIntent), fromTemplate)
+        : updateScheduledTask(id, submitInput(values, structuredIntent)),
     onSuccess: (payload) => {
       queryClient.setQueryData(["scheduled_tasks", String(payload.task.id)], payload)
       void queryClient.invalidateQueries({ queryKey: ["scheduled_tasks"] })
@@ -513,7 +578,7 @@ function ScheduledTaskForm({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    save.mutate(previewMatchesInput ? preview.data?.structured_intent ?? null : null)
+    save.mutate(previewMatchesInput ? (preview.data?.structured_intent ?? null) : null)
   }
 
   const autoApproval = options.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)
@@ -526,7 +591,11 @@ function ScheduledTaskForm({
       </Field>
       <Field label={t("scheduled_tasks.field_kind")}>
         <Select onChange={(event) => setValues({ ...values, kind: event.target.value })} value={values.kind}>
-          {options.kinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+          {options.kinds.map((kind) => (
+            <option key={kind} value={kind}>
+              {kind}
+            </option>
+          ))}
         </Select>
       </Field>
       {values.kind === "one_shot" ? (
@@ -535,19 +604,32 @@ function ScheduledTaskForm({
         </Field>
       ) : (
         <Field label={t("scheduled_tasks.field_schedule")}>
-          <Input onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("scheduled_tasks.schedule_placeholder")} type="text" value={values.schedule_input} />
+          <Input
+            onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })}
+            placeholder={t("scheduled_tasks.schedule_placeholder")}
+            type="text"
+            value={values.schedule_input}
+          />
           <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.schedule_help")}</p>
         </Field>
       )}
       <Field label={t("scheduled_tasks.field_pileup")}>
         <Select onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
-          {options.pr_pileup_policies.map((policy) => <option key={policy} value={policy}>{policy}</option>)}
+          {options.pr_pileup_policies.map((policy) => (
+            <option key={policy} value={policy}>
+              {policy}
+            </option>
+          ))}
         </Select>
       </Field>
       <Field label={t("scheduled_tasks.field_auto_approve")}>
         <Select onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
-          {options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {options.auto_approve_modes.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </Select>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{autoApproval?.preview}</p>
       </Field>
@@ -565,7 +647,12 @@ function ScheduledTaskForm({
       </Field>
       {taskSource === "prompt" ? (
         <Field label={t("scheduled_tasks.prompt_heading")}>
-          <textarea className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
+          <textarea
+            className={`${inputClass()} font-mono`}
+            onChange={(event) => setValues({ ...values, prompt: event.target.value })}
+            rows={8}
+            value={values.prompt}
+          />
         </Field>
       ) : (
         <>
@@ -600,14 +687,15 @@ function ScheduledTaskForm({
         </>
       )}
       <div className="flex items-center gap-3">
-        <Button
-          disabled={save.isPending || (taskSource === "skill" && !values.skill_name)}
-          type="submit"
-          variant="primary"
-        >
+        <Button disabled={save.isPending || (taskSource === "skill" && !values.skill_name)} type="submit" variant="primary">
           {save.isPending ? t("scheduled_tasks.saving") : mode === "new" ? t("scheduled_tasks.create_task") : t("scheduled_tasks.save")}
         </Button>
-        <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={mode === "new" ? basePath : `${basePath}/${id}`}>{t("scheduled_tasks.cancel")}</Link>
+        <Link
+          className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+          to={mode === "new" ? basePath : `${basePath}/${id}`}
+        >
+          {t("scheduled_tasks.cancel")}
+        </Link>
       </div>
     </form>
   )
@@ -622,7 +710,17 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function SchedulePreviewState({ explanation, errors, loading, source }: { explanation?: string | null; errors: string[]; loading: boolean; source?: string | null }) {
+function SchedulePreviewState({
+  explanation,
+  errors,
+  loading,
+  source
+}: {
+  explanation?: string | null
+  errors: string[]
+  loading: boolean
+  source?: string | null
+}) {
   const { t } = useT("settings")
   if (loading) return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.preview_loading")}</p>
   if (errors.length > 0) return <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.join(", ")}</p>
@@ -644,14 +742,19 @@ function StatePill({ state }: { state: string }) {
     auto_paused: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300",
     fired: "bg-info/10 text-info"
   }
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}>{state}</span>
+  return (
+    <span
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}
+    >
+      {state}
+    </span>
+  )
 }
 
 function ScheduledTasksError({ error }: { error: Error }) {
   const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, t("scheduled_tasks.error_load"))}</PanelMessage>
 }
-
 
 function tasksBase(pathname: string) {
   return `${routePrefix(pathname)}/scheduled_tasks`

@@ -65,12 +65,7 @@ export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
       {panel.mockupSlug ? (
         <InternalLink href={`/mockups/${panel.mockupSlug}`}>Open mockup</InternalLink>
       ) : panel.url ? (
-        <a
-          className="block truncate font-mono text-xs text-brand hover:underline dark:text-brand-emphasis"
-          href={panel.url}
-          rel="noreferrer"
-          target="_blank"
-        >
+        <a className="block truncate font-mono text-xs text-brand hover:underline dark:text-brand-emphasis" href={panel.url} rel="noreferrer" target="_blank">
           {panel.url}
         </a>
       ) : null}

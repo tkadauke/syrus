@@ -39,9 +39,7 @@ describe("update_scheduled_task tool card", () => {
   it("summarizes the collapsed row as an update outcome", () => {
     const parsedResult = { scheduled_task: task }
 
-    expect(updateScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "Updated Nightly main-branch health check (#12)"
-    )
+    expect(updateScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Updated Nightly main-branch health check (#12)")
   })
 
   it("renders the post-update snapshot including the auto-paused state", () => {

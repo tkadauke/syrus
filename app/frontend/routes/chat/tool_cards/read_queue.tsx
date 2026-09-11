@@ -28,14 +28,22 @@ function parseWorker(value: unknown): Worker | null {
     key: `${hostname}-${pid}`,
     hostname,
     pid,
-    queues: Array.isArray(value.queues) ? value.queues.flatMap((queue) => { const name = displayValue(queue); return name ? [name] : [] }) : [],
+    queues: Array.isArray(value.queues)
+      ? value.queues.flatMap((queue) => {
+          const name = displayValue(queue)
+          return name ? [name] : []
+        })
+      : [],
     stale: value.stale === true
   }
 }
 
 function stringList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
-  return value.flatMap((item) => { const name = displayValue(item); return name ? [name] : [] })
+  return value.flatMap((item) => {
+    const name = displayValue(item)
+    return name ? [name] : []
+  })
 }
 
 function parseQueueCard(context: ToolCardContext): QueueCard | null {
@@ -54,7 +62,12 @@ function parseQueueCard(context: ToolCardContext): QueueCard | null {
     unavailable: parsed.unavailable === true,
     error: displayValue(parsed.error),
     workerCount: typeof activeWorkers.count === "number" ? activeWorkers.count : null,
-    workers: Array.isArray(activeWorkers.workers) ? activeWorkers.workers.flatMap((worker) => { const parsed = parseWorker(worker); return parsed ? [parsed] : [] }) : [],
+    workers: Array.isArray(activeWorkers.workers)
+      ? activeWorkers.workers.flatMap((worker) => {
+          const parsed = parseWorker(worker)
+          return parsed ? [parsed] : []
+        })
+      : [],
     pendingJobs,
     failedCount: isPlainObject(parsed.failed_jobs) && typeof parsed.failed_jobs.count === "number" ? parsed.failed_jobs.count : null,
     recurringCount: isPlainObject(parsed.recurring_tasks) && typeof parsed.recurring_tasks.count === "number" ? parsed.recurring_tasks.count : null,
@@ -97,7 +110,9 @@ function renderExpanded(context: ToolCardContext) {
           <SectionLabel>Pending jobs</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
             {card.pendingJobs.map(([queue, count]) => (
-              <Badge key={queue}>{queue}: {count}</Badge>
+              <Badge key={queue}>
+                {queue}: {count}
+              </Badge>
             ))}
           </div>
         </div>
@@ -108,7 +123,9 @@ function renderExpanded(context: ToolCardContext) {
             <div>
               <SectionLabel>Blocked queues</SectionLabel>
               <div className="mt-1 flex flex-wrap gap-1">
-                {card.blockedQueues.map((queue) => <StatePill key={queue} state={queue} tone="failure" />)}
+                {card.blockedQueues.map((queue) => (
+                  <StatePill key={queue} state={queue} tone="failure" />
+                ))}
               </div>
             </div>
           ) : null}
@@ -116,7 +133,9 @@ function renderExpanded(context: ToolCardContext) {
             <div>
               <SectionLabel>Paused queues</SectionLabel>
               <div className="mt-1 flex flex-wrap gap-1">
-                {card.pausedQueues.map((queue) => <StatePill key={queue} state={queue} tone="warning" />)}
+                {card.pausedQueues.map((queue) => (
+                  <StatePill key={queue} state={queue} tone="warning" />
+                ))}
               </div>
             </div>
           ) : null}
@@ -128,8 +147,12 @@ function renderExpanded(context: ToolCardContext) {
           <ul className="mt-1 space-y-1">
             {card.workers.map((worker) => (
               <li className="flex flex-wrap items-center gap-2" key={worker.key}>
-                <span className="font-mono text-gray-700 dark:text-gray-300">{worker.hostname}:{worker.pid}</span>
-                {worker.queues.map((queue) => <Badge key={queue}>{queue}</Badge>)}
+                <span className="font-mono text-gray-700 dark:text-gray-300">
+                  {worker.hostname}:{worker.pid}
+                </span>
+                {worker.queues.map((queue) => (
+                  <Badge key={queue}>{queue}</Badge>
+                ))}
                 {worker.stale ? <StatePill state="stale" tone="warning" /> : null}
               </li>
             ))}

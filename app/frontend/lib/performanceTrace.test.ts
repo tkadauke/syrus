@@ -13,30 +13,39 @@ describe("recordBrowserTrace", () => {
   it("sends when the caller has live enabled evidence even if initial bootstrap is absent", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
 
-    recordBrowserTrace({
-      trace_id: "trace-1",
-      name: "dashboard.route",
-      path: "/dashboard/jobs",
-      duration_ms: 100,
-      visibility_state: "visible"
-    }, { enabled: true })
+    recordBrowserTrace(
+      {
+        trace_id: "trace-1",
+        name: "dashboard.route",
+        path: "/dashboard/jobs",
+        duration_ms: 100,
+        visibility_state: "visible"
+      },
+      { enabled: true }
+    )
 
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/performance_events", expect.objectContaining({
-      method: "POST",
-      credentials: "same-origin"
-    }))
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/performance_events",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin"
+      })
+    )
   })
 
   it("does not send when the caller has live disabled evidence", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
 
-    recordBrowserTrace({
-      trace_id: "trace-1",
-      name: "dashboard.route",
-      path: "/dashboard/jobs",
-      duration_ms: 100,
-      visibility_state: "visible"
-    }, { enabled: false })
+    recordBrowserTrace(
+      {
+        trace_id: "trace-1",
+        name: "dashboard.route",
+        path: "/dashboard/jobs",
+        duration_ms: 100,
+        visibility_state: "visible"
+      },
+      { enabled: false }
+    )
 
     expect(fetchSpy).not.toHaveBeenCalled()
   })
@@ -45,7 +54,7 @@ describe("recordBrowserTrace", () => {
     const callbacks: Array<PerformanceObserverCallback> = []
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
     class FakePerformanceObserver {
-      static supportedEntryTypes = [ "longtask", "event" ]
+      static supportedEntryTypes = ["longtask", "event"]
 
       constructor(callback: PerformanceObserverCallback) {
         callbacks.push(callback)
@@ -57,13 +66,19 @@ describe("recordBrowserTrace", () => {
     vi.stubGlobal("PerformanceObserver", FakePerformanceObserver)
 
     startBrowserPerformanceObservers({ enabled: true })
-    callbacks[0]?.({
-      getEntries: () => [ { duration: 125.42, entryType: "longtask", name: "self", startTime: 12.34 } as PerformanceEntry ]
-    } as PerformanceObserverEntryList, {} as PerformanceObserver)
+    callbacks[0]?.(
+      {
+        getEntries: () => [{ duration: 125.42, entryType: "longtask", name: "self", startTime: 12.34 } as PerformanceEntry]
+      } as PerformanceObserverEntryList,
+      {} as PerformanceObserver
+    )
 
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/performance_events", expect.objectContaining({
-      body: expect.stringContaining("browser.long_task")
-    }))
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/performance_events",
+      expect.objectContaining({
+        body: expect.stringContaining("browser.long_task")
+      })
+    )
   })
 
   it("does not send an empty batch", () => {
@@ -77,10 +92,13 @@ describe("recordBrowserTrace", () => {
   it("posts a batch of traces in one request", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
 
-    postBrowserTraces([
-      { trace_id: "trace-1", name: "diff_review.parse_diff", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" },
-      { trace_id: "trace-2", name: "diff_review.syntax_highlight", path: "/jobs/1?tab=review", duration_ms: 40, visibility_state: "visible" }
-    ], { enabled: true })
+    postBrowserTraces(
+      [
+        { trace_id: "trace-1", name: "diff_review.parse_diff", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" },
+        { trace_id: "trace-2", name: "diff_review.syntax_highlight", path: "/jobs/1?tab=review", duration_ms: 40, visibility_state: "visible" }
+      ],
+      { enabled: true }
+    )
 
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body))
@@ -91,9 +109,10 @@ describe("recordBrowserTrace", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
     vi.stubGlobal("navigator", { ...navigator, sendBeacon: undefined })
 
-    postBrowserTraces([
-      { trace_id: "trace-1", name: "diff_review.anchor_scroll", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" }
-    ], { beacon: true, enabled: true })
+    postBrowserTraces([{ trace_id: "trace-1", name: "diff_review.anchor_scroll", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" }], {
+      beacon: true,
+      enabled: true
+    })
 
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
@@ -103,9 +122,10 @@ describe("recordBrowserTrace", () => {
     const sendBeacon = vi.fn().mockReturnValue(true)
     vi.stubGlobal("navigator", { ...navigator, sendBeacon })
 
-    postBrowserTraces([
-      { trace_id: "trace-1", name: "diff_review.anchor_scroll", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" }
-    ], { beacon: true, enabled: true })
+    postBrowserTraces([{ trace_id: "trace-1", name: "diff_review.anchor_scroll", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" }], {
+      beacon: true,
+      enabled: true
+    })
 
     expect(sendBeacon).toHaveBeenCalledTimes(1)
     expect(sendBeacon.mock.calls[0][0]).toBe("/api/v1/app/performance_events")
@@ -115,7 +135,7 @@ describe("recordBrowserTrace", () => {
   it("does not start browser observers when performance logging is disabled", () => {
     const observe = vi.fn()
     class FakePerformanceObserver {
-      static supportedEntryTypes = [ "longtask" ]
+      static supportedEntryTypes = ["longtask"]
 
       constructor(_callback: PerformanceObserverCallback) {}
 
@@ -196,7 +216,7 @@ describe("event loop lag sampling", () => {
     // Expected at 1000, arrived at 2500: the main thread was busy for 1.5s.
     tickAt(2_500)
 
-    expect(lagBodies(fetchSpy).map((body) => body.duration_ms)).toEqual([ 1_500 ])
+    expect(lagBodies(fetchSpy).map((body) => body.duration_ms)).toEqual([1_500])
   })
 
   it("does not report while the tab is hidden", () => {
@@ -230,7 +250,7 @@ describe("event loop lag sampling", () => {
 
     tickAt(123_500)
 
-    expect(lagBodies(fetchSpy).map((body) => body.duration_ms)).toEqual([ 1_500 ])
+    expect(lagBodies(fetchSpy).map((body) => body.duration_ms)).toEqual([1_500])
   })
 
   it("discards implausible lag from a clock discontinuity even when visible", () => {

@@ -155,7 +155,13 @@ function Snippet({ text }: { text: string }) {
           return null
         }
         if (!part) return null
-        return marked ? <mark className="rounded bg-amber-100 px-0.5 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" key={index}>{part}</mark> : <span key={index}>{part}</span>
+        return marked ? (
+          <mark className="rounded bg-amber-100 px-0.5 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" key={index}>
+            {part}
+          </mark>
+        ) : (
+          <span key={index}>{part}</span>
+        )
       })}
     </>
   )
@@ -205,10 +211,18 @@ export function ListChatsCard({ context }: { context: ToolCardContext }) {
                 </div>
                 <Metadata>
                   {chat.repository ? <Badge>{chat.repository}</Badge> : <span>No repository</span>}
-                  {chat.messageCount != null ? <span>{chat.messageCount} message{chat.messageCount === 1 ? "" : "s"}</span> : null}
+                  {chat.messageCount != null ? (
+                    <span>
+                      {chat.messageCount} message{chat.messageCount === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
                 </Metadata>
               </div>
-              {chat.updatedAt ? <time className="shrink-0 text-2xs text-gray-500 dark:text-gray-400" dateTime={chat.updatedAt} title={chat.updatedAt}>{timestamp(chat.updatedAt)}</time> : null}
+              {chat.updatedAt ? (
+                <time className="shrink-0 text-2xs text-gray-500 dark:text-gray-400" dateTime={chat.updatedAt} title={chat.updatedAt}>
+                  {timestamp(chat.updatedAt)}
+                </time>
+              ) : null}
             </div>
           </article>
         ))}
@@ -257,12 +271,22 @@ export function SearchChatsCard({ context }: { context: ToolCardContext }) {
                 <Metadata>
                   {hit.repository ? <Badge>{hit.repository}</Badge> : <span>No repository</span>}
                   {hit.role ? <Badge>{hit.role}</Badge> : null}
-                  <span>{matchCounts.get(hit.chatSessionId) ?? 1} match{(matchCounts.get(hit.chatSessionId) ?? 1) === 1 ? "" : "es"} in chat</span>
+                  <span>
+                    {matchCounts.get(hit.chatSessionId) ?? 1} match{(matchCounts.get(hit.chatSessionId) ?? 1) === 1 ? "" : "es"} in chat
+                  </span>
                 </Metadata>
               </div>
-              {hit.createdAt ? <time className="shrink-0 text-2xs text-gray-500 dark:text-gray-400" dateTime={hit.createdAt} title={hit.createdAt}>{timestamp(hit.createdAt)}</time> : null}
+              {hit.createdAt ? (
+                <time className="shrink-0 text-2xs text-gray-500 dark:text-gray-400" dateTime={hit.createdAt} title={hit.createdAt}>
+                  {timestamp(hit.createdAt)}
+                </time>
+              ) : null}
             </div>
-            {hit.snippet ? <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300"><Snippet text={hit.snippet} /></p> : null}
+            {hit.snippet ? (
+              <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">
+                <Snippet text={hit.snippet} />
+              </p>
+            ) : null}
           </article>
         ))}
       </div>
@@ -301,7 +325,11 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        {result.chatId && result.chatTitle ? <ChatTitle chatId={result.chatId} title={result.chatTitle} /> : <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>}
+        {result.chatId && result.chatTitle ? (
+          <ChatTitle chatId={result.chatId} title={result.chatTitle} />
+        ) : (
+          <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>
+        )}
         {result.page != null ? <Badge>page {result.page}</Badge> : null}
         {result.hasMore ? <Badge>more messages available</Badge> : null}
       </div>
@@ -316,8 +344,16 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
                 <Metadata>
                   {message.role ? <Badge>{message.role}</Badge> : null}
                   {message.sender ? <span>{message.sender}</span> : null}
-                  {message.createdAt ? <time dateTime={message.createdAt} title={message.createdAt}>{timestamp(message.createdAt)}</time> : null}
-                  {result.chatId ? <InternalLink href={messageHref(result.chatId, message.id)}>message {message.id}</InternalLink> : <span>message {message.id}</span>}
+                  {message.createdAt ? (
+                    <time dateTime={message.createdAt} title={message.createdAt}>
+                      {timestamp(message.createdAt)}
+                    </time>
+                  ) : null}
+                  {result.chatId ? (
+                    <InternalLink href={messageHref(result.chatId, message.id)}>message {message.id}</InternalLink>
+                  ) : (
+                    <span>message {message.id}</span>
+                  )}
                 </Metadata>
                 <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{message.content}</p>
               </li>

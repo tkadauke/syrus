@@ -26,10 +26,12 @@ export type PreviewTab = `preview:${number}`
 // message window is paginated, so an older image that scrolled out of the
 // loaded tail would otherwise hide the tab even though the chat has media.
 export function mediaTabVisible(payload: ChatPayload): boolean {
-  return (payload.chat.has_chat_images ?? false) ||
+  return (
+    (payload.chat.has_chat_images ?? false) ||
     (payload.video_walkthroughs?.length ?? 0) > 0 ||
     (payload.chat.whiteboard_snapshot_count ?? 0) > 0 ||
     (payload.chat.typed_artifact_count ?? 0) > 0
+  )
 }
 
 // Plugin-provided tabs (see Syrus::Plugin::WorkspaceTab / config/syrus_docs/plugins.md)
@@ -93,7 +95,12 @@ export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string,
   return t("tab_chat")
 }
 
-export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {
+export function mobileChatTabLabel(
+  tab: MobileChatTab,
+  t: (key: string) => string,
+  previewPanels: ChatPreviewPanel[] = [],
+  pluginTabs: ChatWorkspaceTab[] = []
+) {
   return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels, pluginTabs)
 }
 
@@ -125,16 +132,15 @@ export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): W
   const tabs = availableWorkspaceTabs(payload, simpleMode)
   const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
   const whiteboardTab = payload.workspace_tabs.find((tab) => tab.component === WHITEBOARD_TAB_COMPONENT)
-  const preferred = whiteboardLoaded && payload.whiteboard.elements.length > 0 && whiteboardTab
-    ? pluginTabId(whiteboardTab.id)
-    : "context"
+  const preferred = whiteboardLoaded && payload.whiteboard.elements.length > 0 && whiteboardTab ? pluginTabId(whiteboardTab.id) : "context"
   return tabs.includes(preferred) ? preferred : tabs[0]
 }
 
 export function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    if (value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" || value === "runtime") return value
+    if (value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" || value === "runtime")
+      return value
     // Plugin tabs (e.g. the whiteboard's "plugin:whiteboard.canvas")
     // are dynamic, so they can't be listed above -- match the "plugin:"
     // namespace instead. Preserves the pre-migration behavior where the

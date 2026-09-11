@@ -21,7 +21,9 @@ export function MysqlQueryTab({ connectionId }: { connectionId: number }) {
   return (
     <section aria-label={t("aria_query_tab")} className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
       <form className="shrink-0" onSubmit={submit}>
-        <label className="sr-only" htmlFor="mysql-query-sql">{t("query_sql_label")}</label>
+        <label className="sr-only" htmlFor="mysql-query-sql">
+          {t("query_sql_label")}
+        </label>
         <textarea
           className="block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 font-mono text-sm text-gray-900 dark:text-gray-100"
           id="mysql-query-sql"
@@ -42,7 +44,11 @@ export function MysqlQueryTab({ connectionId }: { connectionId: number }) {
         </div>
       </form>
 
-      {run.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(run.error, t("query_error_fallback"))}</p> : null}
+      {run.isError ? (
+        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(run.error, t("query_error_fallback"))}
+        </p>
+      ) : null}
       {run.data ? <MysqlQueryResultPanel result={run.data} /> : null}
     </section>
   )

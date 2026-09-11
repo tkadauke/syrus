@@ -2,7 +2,18 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import {
+  AdminEventFilterBar,
+  AdminEventLogTable,
+  type AdminEventLogTableColumn,
+  AdminEventPageShell,
+  AdminEventPagination,
+  AdminEventPanelMessage,
+  DetailBlock,
+  JsonBlock,
+  formatEventDate,
+  shortRevision
+} from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -30,12 +41,7 @@ export function AdminBrowserErrors() {
   return (
     <AdminEventPageShell
       actions={
-        <Button
-          className="w-fit"
-          disabled={errors.isFetching}
-          onClick={() => void errors.refetch()}
-          variant="secondary"
-        >
+        <Button className="w-fit" disabled={errors.isFetching} onClick={() => void errors.refetch()} variant="secondary">
           {errors.isFetching ? t("browser_errors.refreshing") : t("browser_errors.refresh")}
         </Button>
       }
@@ -51,29 +57,73 @@ export function AdminBrowserErrors() {
   )
 }
 
-function BrowserErrorFilters({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload?: BrowserErrorEventsPayload; search: string }) {
+function BrowserErrorFilters({
+  onNavigate,
+  payload,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  payload?: BrowserErrorEventsPayload
+  search: string
+}) {
   const { t } = useT("admin")
-  return <AdminEventFilterBar clearLabel={t("browser_errors.clear")} filter={payload?.filter} filterSchema={payload?.filter_schema} fields={[
-    { name: "query", label: t("browser_errors.query"), placeholder: t("browser_errors.query_placeholder") },
-    { name: "since", label: t("browser_errors.since"), defaultValue: "24h", placeholder: "24h" },
-    { name: "until", label: t("browser_errors.until"), placeholder: t("browser_errors.until_placeholder") },
-    { name: "id", label: t("browser_errors.id"), placeholder: "123", inputMode: "numeric" },
-    { name: "fingerprint", label: t("browser_errors.fingerprint"), placeholder: "sha..." },
-    { name: "path", label: t("browser_errors.path"), placeholder: "/jobs/3188" },
-    { name: "revision_scope", label: t("browser_errors.revision_scope"), defaultValue: "current", options: revisionScopes.map((scope) => ({ value: scope, label: t(`browser_errors.revision_${scope}`) })) },
-    { name: "per_page", label: t("browser_errors.per_page"), defaultValue: "50", options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) })) }
-  ]} search={search} searchLabel={t("browser_errors.search")} onNavigate={onNavigate} />
+  return (
+    <AdminEventFilterBar
+      clearLabel={t("browser_errors.clear")}
+      filter={payload?.filter}
+      filterSchema={payload?.filter_schema}
+      fields={[
+        { name: "query", label: t("browser_errors.query"), placeholder: t("browser_errors.query_placeholder") },
+        { name: "since", label: t("browser_errors.since"), defaultValue: "24h", placeholder: "24h" },
+        { name: "until", label: t("browser_errors.until"), placeholder: t("browser_errors.until_placeholder") },
+        { name: "id", label: t("browser_errors.id"), placeholder: "123", inputMode: "numeric" },
+        { name: "fingerprint", label: t("browser_errors.fingerprint"), placeholder: "sha..." },
+        { name: "path", label: t("browser_errors.path"), placeholder: "/jobs/3188" },
+        {
+          name: "revision_scope",
+          label: t("browser_errors.revision_scope"),
+          defaultValue: "current",
+          options: revisionScopes.map((scope) => ({ value: scope, label: t(`browser_errors.revision_${scope}`) }))
+        },
+        {
+          name: "per_page",
+          label: t("browser_errors.per_page"),
+          defaultValue: "50",
+          options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) }))
+        }
+      ]}
+      search={search}
+      searchLabel={t("browser_errors.search")}
+      onNavigate={onNavigate}
+    />
+  )
 }
 
-function BrowserErrorsView({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: BrowserErrorEventsPayload; search: string }) {
+function BrowserErrorsView({
+  onNavigate,
+  payload,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  payload: BrowserErrorEventsPayload
+  search: string
+}) {
   const { t } = useT("admin")
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between">
         <span>{t("browser_errors.showing", { count: payload.events.length, page: payload.pagination.page })}</span>
-        <span>{t("browser_errors.revision_hint", { revision: payload.revision_scope === "all" ? t("browser_errors.all_revisions") : shortRevision(payload.current_revision) })}</span>
+        <span>
+          {t("browser_errors.revision_hint", {
+            revision: payload.revision_scope === "all" ? t("browser_errors.all_revisions") : shortRevision(payload.current_revision)
+          })}
+        </span>
       </div>
-      {payload.events.length > 0 ? <BrowserErrorsTable revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} /> : <AdminEventPanelMessage>{t("browser_errors.empty")}</AdminEventPanelMessage>}
+      {payload.events.length > 0 ? (
+        <BrowserErrorsTable revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} />
+      ) : (
+        <AdminEventPanelMessage>{t("browser_errors.empty")}</AdminEventPanelMessage>
+      )}
       <AdminEventPagination
         label={t("browser_errors.page", { page: payload.pagination.page })}
         nextLabel={t("browser_errors.next")}
@@ -86,7 +136,17 @@ function BrowserErrorsView({ onNavigate, payload, search }: { onNavigate: (param
   )
 }
 
-function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; revisionScope: string; rows: BrowserErrorEventRow[]; search: string }) {
+function BrowserErrorsTable({
+  onNavigate,
+  revisionScope,
+  rows,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  revisionScope: string
+  rows: BrowserErrorEventRow[]
+  search: string
+}) {
   const { t } = useT("admin")
   const columns: Array<AdminEventLogTableColumn<BrowserErrorEventRow>> = [
     {
@@ -124,7 +184,9 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
       render: (row) => (
         <>
           <div className="break-words font-medium text-gray-900 dark:text-gray-100">{row.message}</div>
-          <div className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{row.name || "Error"} · {row.fingerprint}</div>
+          <div className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">
+            {row.name || "Error"} · {row.fingerprint}
+          </div>
         </>
       )
     },
@@ -147,7 +209,13 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
       header: t("browser_errors.col_actions"),
       key: "actions",
       render: (row, state) => (
-        <AdminEventActions actions={row.actions} eventId={row.id} eventType="browser_error" showDetailsLabel={state.expanded ? t("browser_errors.hide_details") : t("browser_errors.show_details")} onToggleDetails={state.toggleExpanded} />
+        <AdminEventActions
+          actions={row.actions}
+          eventId={row.id}
+          eventType="browser_error"
+          showDetailsLabel={state.expanded ? t("browser_errors.hide_details") : t("browser_errors.show_details")}
+          onToggleDetails={state.toggleExpanded}
+        />
       )
     }
   ]
@@ -165,7 +233,16 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
           <DetailBlock title={t("browser_errors.component_stack")} value={row.component_stack} />
           <JsonBlock title={t("browser_errors.recent_api_requests")} value={row.recent_api_requests || []} />
           <JsonBlock title={t("browser_errors.recent_errors")} value={row.recent_errors || []} />
-          <JsonBlock title={t("browser_errors.environment")} value={{ viewport: row.viewport || {}, feature_flags: row.feature_flags || {}, metadata: row.metadata || {}, route_params: row.route_params || {}, url: row.url }} />
+          <JsonBlock
+            title={t("browser_errors.environment")}
+            value={{
+              viewport: row.viewport || {},
+              feature_flags: row.feature_flags || {},
+              metadata: row.metadata || {},
+              route_params: row.route_params || {},
+              url: row.url
+            }}
+          />
         </div>
       )}
     />

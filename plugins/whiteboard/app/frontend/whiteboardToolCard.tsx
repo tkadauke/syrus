@@ -57,15 +57,7 @@ export function elementActionSummary(action: string, result: ElementResult, inpu
   return `${action}${type ? ` (${type})` : ""} · ${result.id}`
 }
 
-export function ElementActionCard({
-  action,
-  result,
-  input
-}: {
-  action: string
-  result: ElementResult
-  input?: Record<string, unknown>
-}) {
+export function ElementActionCard({ action, result, input }: { action: string; result: ElementResult; input?: Record<string, unknown> }) {
   const rows = inputRows(input)
 
   return (
@@ -125,8 +117,7 @@ export function SceneCountsCard({ counts, action }: { counts: SceneCounts; actio
 
 // save_canvas either records a snapshot or reports the canvas was empty.
 export type SaveCanvasResult =
-  | { saved: true; snapshotId: string | null; name: string | null; elementCount: number | null }
-  | { saved: false; reason: string | null }
+  { saved: true; snapshotId: string | null; name: string | null; elementCount: number | null } | { saved: false; reason: string | null }
 
 export function parseSaveCanvasResult(value: unknown): SaveCanvasResult | null {
   if (!isPlainObject(value) || typeof value.saved !== "boolean") return null

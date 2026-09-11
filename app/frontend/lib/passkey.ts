@@ -1,10 +1,13 @@
-import type { PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON, PublicKeyCredentialWithAssertionJSON, PublicKeyCredentialWithAttestationJSON } from "@github/webauthn-json"
+import type {
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  PublicKeyCredentialWithAssertionJSON,
+  PublicKeyCredentialWithAttestationJSON
+} from "@github/webauthn-json"
 import { create, get } from "@github/webauthn-json"
 
 export function isPasskeySupported(): boolean {
-  return typeof window !== "undefined" &&
-    !!window.PublicKeyCredential &&
-    typeof navigator.credentials?.get === "function"
+  return typeof window !== "undefined" && !!window.PublicKeyCredential && typeof navigator.credentials?.get === "function"
 }
 
 export async function registerNewPasskey(

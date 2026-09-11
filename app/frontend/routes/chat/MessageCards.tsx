@@ -4,7 +4,20 @@ import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatShellCommandResult, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
+import {
+  createChatBookmark,
+  createChatMessagePin,
+  deleteChatMessagePin,
+  fetchSourceFileContent,
+  sourceFileUrl,
+  type ChatMessageItem,
+  type ChatPayload,
+  type ChatRenderItem,
+  type ChatShellCommandResult,
+  type ChatStructuredTool,
+  type ChatSystemMessage,
+  type ChatToolGroupItem
+} from "../../api/chats"
 import { AnsiText } from "../../components/AnsiText"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
@@ -27,16 +40,37 @@ import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 
-
-
-
 // Message rendering extracted from Chat.tsx: a single chat message bubble and its
 // image/file attachments, the image lightbox, the bookmark control, and the tool-
 // group / structured-tool / system-message renderers. ChatMessage, ImageLightbox,
 // and ToolGroup are the entry points the message stream renders. Depends only on
 // leaf modules and shared UI imports; unused header imports were pruned.
 
-export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, payload, pendingActionIds, prefix, queryKey, readOnly = false, retryText = null, retrying = false, onNotice, onRetry }: { animateIn?: boolean; item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; readOnly?: boolean; retryText?: string | null; retrying?: boolean; onNotice: (message: string | null) => void; onRetry?: (text: string) => void }) {
+export const ChatMessage = memo(function ChatMessage({
+  animateIn = false,
+  item,
+  payload,
+  pendingActionIds,
+  prefix,
+  queryKey,
+  readOnly = false,
+  retryText = null,
+  retrying = false,
+  onNotice,
+  onRetry
+}: {
+  animateIn?: boolean
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  pendingActionIds: Set<number>
+  prefix: string
+  queryKey: ChatQueryKey
+  readOnly?: boolean
+  retryText?: string | null
+  retrying?: boolean
+  onNotice: (message: string | null) => void
+  onRetry?: (text: string) => void
+}) {
   const { t } = useT("chat")
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
@@ -69,9 +103,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             </div>
           ) : null}
           {item.chat_shell_command ? <ShellCommandCard shellCommand={item.chat_shell_command} /> : null}
-          {item.text.trim().length > 0 ? (
-            <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
-          ) : null}
+          {item.text.trim().length > 0 ? <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} /> : null}
           <MessageImageAttachments attachments={item.attachments} align="end" />
           <MessageFileAttachments attachments={item.attachments} align="end" />
         </div>
@@ -91,7 +123,9 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
           </div>
           <MessageImageAttachments attachments={item.attachments} />
           {!readOnly && item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
-          {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
+          {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? (
+            <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} />
+          ) : null}
         </div>
         {sourcePreview ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
       </article>
@@ -116,7 +150,8 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
 export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
   const base = "whitespace-pre-wrap break-words rounded px-4 py-2 text-sm leading-normal"
   const currentUserId = payload.chat.current_user_id
-  const isOtherGroupParticipant = payload.chat.conversation_kind === "group" && item.sender_user && currentUserId !== undefined && item.sender_user.id !== currentUserId
+  const isOtherGroupParticipant =
+    payload.chat.conversation_kind === "group" && item.sender_user && currentUserId !== undefined && item.sender_user.id !== currentUserId
 
   if (isOtherGroupParticipant) {
     return `${base} border border-gray-200 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100`
@@ -156,8 +191,8 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
           hasPrevious={lightboxImageIndex != null && lightboxImageIndex > 0}
           name={lightboxImage.name || "Image attachment"}
           onClose={() => setLightboxImageIndex(null)}
-          onNext={() => setLightboxImageIndex((index) => index == null ? index : Math.min(index + 1, images.length - 1))}
-          onPrevious={() => setLightboxImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
+          onNext={() => setLightboxImageIndex((index) => (index == null ? index : Math.min(index + 1, images.length - 1)))}
+          onPrevious={() => setLightboxImageIndex((index) => (index == null ? index : Math.max(index - 1, 0)))}
           src={attachmentDataUrl(lightboxImage)}
         />
       ) : null}
@@ -361,12 +396,21 @@ export function shouldAnimateMessageEntrance(messageId: number | null | undefine
   return messageId > initialMaxId
 }
 
-
 // Hover-revealed toolbar for a message bubble: timestamp, copy, pin toggle,
 // and the bookmark form. A single wrapper so the pin and bookmark controls
 // share one hover/visibility group instead of each managing its own
 // absolutely-positioned overlay (which would stack and overlap).
-function MessageActions({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function MessageActions({
+  item,
+  payload,
+  queryKey,
+  onNotice
+}: {
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const [bookmarkFormOpen, setBookmarkFormOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
 
@@ -387,16 +431,32 @@ function MessageActions({ item, payload, queryKey, onNotice }: { item: Extract<C
           {formatMessageTimestamp(item.created_at)}
         </time>
       ) : null}
-      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={handleCopy} type="button">
+      <button
+        className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        onClick={handleCopy}
+        type="button"
+      >
         {copied ? "Copied!" : "Copy"}
       </button>
       {item.pinnable ? <PinControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-      {item.bookmarkable ? <BookmarkControl item={item} payload={payload} queryKey={queryKey} open={bookmarkFormOpen} onOpenChange={setBookmarkFormOpen} onNotice={onNotice} /> : null}
+      {item.bookmarkable ? (
+        <BookmarkControl item={item} payload={payload} queryKey={queryKey} open={bookmarkFormOpen} onOpenChange={setBookmarkFormOpen} onNotice={onNotice} />
+      ) : null}
     </div>
   )
 }
 
-function PinControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function PinControl({
+  item,
+  payload,
+  queryKey,
+  onNotice
+}: {
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
@@ -406,7 +466,7 @@ function PinControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatR
   const pinned = pinsQuery.data?.pins.some((pin) => pin.chat_message_id === item.id) ?? false
 
   const togglePin = useMutation({
-    mutationFn: () => pinned ? deleteChatMessagePin(pinsPath, item.id) : createChatMessagePin(pinsPath, item.id),
+    mutationFn: () => (pinned ? deleteChatMessagePin(pinsPath, item.id) : createChatMessagePin(pinsPath, item.id)),
     onSuccess: () => {
       onNotice(null)
       void queryClient.invalidateQueries({ queryKey: pinsQueryKey })
@@ -429,7 +489,21 @@ function PinControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatR
   )
 }
 
-function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; open: boolean; onOpenChange: (open: boolean) => void; onNotice: (message: string | null) => void }) {
+function BookmarkControl({
+  item,
+  payload,
+  queryKey,
+  open,
+  onOpenChange,
+  onNotice
+}: {
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
@@ -452,19 +526,30 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
 
   return (
     <div className="relative" ref={menuRef}>
-      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => onOpenChange(!open)} type="button">
+      <button
+        className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        onClick={() => onOpenChange(!open)}
+        type="button"
+      >
         Bookmark
       </button>
       {open ? (
-        <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+        <form
+          className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          onSubmit={submit}
+        >
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
             Label
             <Input className="mt-1" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
           </label>
           {bookmark.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
           <div className="flex justify-end gap-2">
-            <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => onOpenChange(false)} type="button">{t("cancel")}</button>
-            <button className={primaryButton()} disabled={bookmark.isPending} type="submit">{t("save")}</button>
+            <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => onOpenChange(false)} type="button">
+              {t("cancel")}
+            </button>
+            <button className={primaryButton()} disabled={bookmark.isPending} type="submit">
+              {t("save")}
+            </button>
           </div>
         </form>
       ) : null}
@@ -492,10 +577,18 @@ function ShellCommandCard({ shellCommand }: { shellCommand: ChatShellCommandResu
   return (
     <div className="w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-950 text-gray-100 shadow-sm" data-testid="shell-command-card">
       <div className="flex items-center gap-2 border-b border-gray-800 bg-gray-900 px-3 py-1.5 text-xs">
-        <span aria-hidden="true" className="shrink-0 text-gray-500">$</span>
+        <span aria-hidden="true" className="shrink-0 text-gray-500">
+          $
+        </span>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-200">{shellCommand.command}</span>
-        {shellCommand.exit_status != null ? <span className="shrink-0 font-mono text-gray-500">{t("shell_command_exit_status", { code: shellCommand.exit_status })}</span> : null}
-        {shellCommand.outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 font-sans text-2xs font-medium ${outcomeTone}`}>{t(`shell_command_outcome_${shellCommand.outcome}`)}</span> : null}
+        {shellCommand.exit_status != null ? (
+          <span className="shrink-0 font-mono text-gray-500">{t("shell_command_exit_status", { code: shellCommand.exit_status })}</span>
+        ) : null}
+        {shellCommand.outcome ? (
+          <span className={`shrink-0 rounded-full px-2 py-0.5 font-sans text-2xs font-medium ${outcomeTone}`}>
+            {t(`shell_command_outcome_${shellCommand.outcome}`)}
+          </span>
+        ) : null}
       </div>
       <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-relaxed">
         {shellCommand.output ? <AnsiText text={shellCommand.output} /> : <span className="italic text-gray-500">{t("shell_command_no_output")}</span>}
@@ -511,7 +604,10 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     return (
       <div className="space-y-1">
         {item.calls.map((call) => (
-          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300" key={call.message_id}>
+          <div
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            key={call.message_id}
+          >
             <span aria-hidden="true" className={`h-2 w-2 rounded-full ${call.result_error ? "bg-amber-500" : "animate-pulse bg-info"}`} />
             <span>{call.result_error ? "Hit a snag" : call.progress_label}</span>
           </div>
@@ -520,23 +616,42 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     )
   }
 
-  const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const details = item.calls
+    .map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · "))
+    .filter(Boolean)
+    .join(", ")
   const summary = item.summary_label || item.tool
-  const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => call.result_body === "") ? "Running" : "Done")
+  const outcome =
+    item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => call.result_body === "") ? "Running" : "Done")
   const expanded = open
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
+      <summary
+        className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+        onClick={(event) => {
+          event.preventDefault()
+          setOpen((value) => !value)
+        }}
+      >
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
         <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Failed" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : outcome === "Running" ? "bg-info/10 text-info" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>{outcome}</span>
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Failed" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : outcome === "Running" ? "bg-info/10 text-info" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}
+        >
+          {outcome}
+        </span>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
-        {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
+        {item.calls.length > 1 ? (
+          <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span>
+        ) : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
           <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${call.detail})` : ""}</div>
+            <div className="break-words font-mono text-gray-700 dark:text-gray-300">
+              {call.display_label || item.tool}
+              {call.detail ? `(${call.detail})` : ""}
+            </div>
             {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
             {expanded && call.result_body ? <ToolResultBody call={call} /> : null}
             {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_body || null }} /> : null}
@@ -587,11 +702,7 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
 function TypedToolResultBody({ result }: { result: TypedToolResult }) {
   switch (result.type) {
     case "success_row":
-      return (
-        <div className="mt-1 rounded border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">
-          {result.label}
-        </div>
-      )
+      return <div className="mt-1 rounded border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">{result.label}</div>
   }
 }
 
@@ -600,7 +711,11 @@ function RawToolDetails({ payload }: { payload: unknown }) {
   return (
     <details className="mt-1" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300">Raw details</summary>
-      {open ? <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-gray-50 p-2 font-mono text-gray-600 dark:bg-gray-900 dark:text-gray-400">{JSON.stringify(payload, null, 2)}</pre> : null}
+      {open ? (
+        <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-gray-50 p-2 font-mono text-gray-600 dark:bg-gray-900 dark:text-gray-400">
+          {JSON.stringify(payload, null, 2)}
+        </pre>
+      ) : null}
     </details>
   )
 }
@@ -628,21 +743,57 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
   const outcome = tool?.result_kind === "error" ? "Failed" : tool?.result_summary ? "Done" : null
   const [open, setOpen] = useState(false)
   return (
-    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
+    <details
+      className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      open={open}
+    >
+      <summary
+        className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100"
+        onClick={(event) => {
+          event.preventDefault()
+          setOpen((value) => !value)
+        }}
+      >
         <span className="text-gray-400 dark:text-gray-500">▸</span>
         <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
-        {outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Failed" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>{outcome}</span> : null}
+        {outcome ? (
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Failed" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}
+          >
+            {outcome}
+          </span>
+        ) : null}
         {tool?.argument_summary ? <span className="min-w-0 truncate font-mono text-gray-600 dark:text-gray-400">{tool.argument_summary}</span> : null}
         {tool?.result_summary ? <span className="shrink-0 font-mono text-gray-500 dark:text-gray-400">{tool.result_summary}</span> : null}
-        {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
+        {tool?.proposal_id ? (
+          <span className="text-gray-600 dark:text-gray-400">
+            Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}
+          </span>
+        ) : null}
       </summary>
-      {open ? <pre className="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words dark:text-gray-300">{JSON.stringify(tool?.payload || fallback, null, 2)}</pre> : null}
+      {open ? (
+        <pre className="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words dark:text-gray-300">
+          {JSON.stringify(tool?.payload || fallback, null, 2)}
+        </pre>
+      ) : null}
     </details>
   )
 }
 
-function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: { item: ChatSystemMessage; prefix: string; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void }) {
+function SystemMessage({
+  item,
+  prefix,
+  retryText,
+  retrying = false,
+  onRetry
+}: {
+  item: ChatSystemMessage
+  prefix: string
+  retryText?: string | null
+  retrying?: boolean
+  onRetry?: (text: string) => void
+}) {
   const { t } = useT("chat")
   const [expanded, setExpanded] = useState(false)
   const canRetry = item.tone === "error" && Boolean(retryText) && Boolean(onRetry)
@@ -654,7 +805,10 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
   if (item.prominent) {
     return (
       <div className="flex justify-center">
-        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`} role={item.tone === "error" ? "alert" : "status"}>
+        <div
+          className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`}
+          role={item.tone === "error" ? "alert" : "status"}
+        >
           <div className="mb-1 text-xs font-semibold uppercase">{item.label}</div>
           <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
           <div className="mt-2 flex items-center gap-3">
@@ -664,7 +818,12 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
               </Link>
             ) : null}
             {canRetry ? (
-              <button className="inline-block font-medium underline hover:no-underline disabled:opacity-60" disabled={retrying} onClick={handleRetry} type="button">
+              <button
+                className="inline-block font-medium underline hover:no-underline disabled:opacity-60"
+                disabled={retrying}
+                onClick={handleRetry}
+                type="button"
+              >
                 {retrying ? t("system_message_retrying") : t("system_message_retry")}
               </button>
             ) : null}
@@ -678,7 +837,9 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
     <div className="flex flex-col items-center justify-center gap-1">
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${BANNER_TONE_CLASSES[item.tone]}`}>
         <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
-        <span className="min-w-0 truncate" data-testid="system-message-summary">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
+        <span className="min-w-0 truncate" data-testid="system-message-summary">
+          {linkifySlugs(item.body, { jobStyle: "copyable" })}
+        </span>
         {item.cta ? (
           <Link className="shrink-0 font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
             {item.cta.label}
@@ -700,7 +861,10 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
         </button>
       </div>
       {expanded ? (
-        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-left text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`} data-testid="system-message-details">
+        <div
+          className={`w-full max-w-3xl rounded border px-4 py-3 text-left text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`}
+          data-testid="system-message-details"
+        >
           <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
         </div>
       ) : null}

@@ -88,7 +88,10 @@ export function CredentialCard({
         <ConnectionPill connected={connected} />
       </div>
       {error ? (
-        <p className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">
+        <p
+          className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
@@ -111,13 +114,17 @@ function ConnectionPill({ connected }: { connected: boolean }) {
   return connected ? (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
       <svg aria-hidden="true" className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-        <path clipRule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 011.42-1.42l2.79 2.79 6.79-6.79a1 1 0 011.42 0z" fillRule="evenodd" />
+        <path
+          clipRule="evenodd"
+          d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 011.42-1.42l2.79 2.79 6.79-6.79a1 1 0 011.42 0z"
+          fillRule="evenodd"
+        />
       </svg>
-      {t('credential_cards.connected')}
+      {t("credential_cards.connected")}
     </span>
   ) : (
     <span className="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
-      {t('credential_cards.not_set')}
+      {t("credential_cards.not_set")}
     </span>
   )
 }
@@ -160,7 +167,7 @@ function useCredentialActions(onNotice: (message: string | null) => void, focusA
       setTestResult(payload.credential_test)
       onNotice(payload.message || null)
     },
-    onError: (err) => setError(errorMessage(err, t('credential_cards.test_error')))
+    onError: (err) => setError(errorMessage(err, t("credential_cards.test_error")))
   })
 
   const clear = useMutation({
@@ -173,7 +180,7 @@ function useCredentialActions(onNotice: (message: string | null) => void, focusA
       // The Clear button unmounts when the card flips to its not-set state.
       focusAfterClear?.()
     },
-    onError: (err) => setError(errorMessage(err, t('credential_cards.clear_error')))
+    onError: (err) => setError(errorMessage(err, t("credential_cards.clear_error")))
   })
 
   return { test, clear, testResult, setTestResult, error, setError }
@@ -183,7 +190,7 @@ function TestButton({ actions, credential }: { actions: ReturnType<typeof useCre
   const { t } = useT("settings")
   return (
     <button className={secondaryButtonClass()} disabled={actions.test.isPending} onClick={() => actions.test.mutate(credential)} type="button">
-      {actions.test.isPending ? t('credential_cards.testing') : t('credential_cards.test')}
+      {actions.test.isPending ? t("credential_cards.testing") : t("credential_cards.test")}
     </button>
   )
 }
@@ -197,7 +204,7 @@ function ClearButton({ actions, credential }: { actions: ReturnType<typeof useCr
       onClick={() => actions.clear.mutate(credential)}
       type="button"
     >
-      {t('credential_cards.clear')}
+      {t("credential_cards.clear")}
     </button>
   )
 }
@@ -209,7 +216,6 @@ function secondaryButtonClass() {
 function primaryButtonClass() {
   return "rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
 }
-
 
 // ---------- GitHub ----------
 
@@ -227,11 +233,11 @@ export function GithubCredentialCard({ payload, onNotice }: CardProps) {
   return (
     <CredentialCard
       connected={set}
-      description={t('account_settings.github_access_desc')}
+      description={t("account_settings.github_access_desc")}
       error={actions.error}
       headingRef={headingRef}
       testId="credential-card-github"
-      title={t('credential_cards.github_title')}
+      title={t("credential_cards.github_title")}
     >
       {showEditor ? (
         <div className="space-y-3">
@@ -242,10 +248,10 @@ export function GithubCredentialCard({ payload, onNotice }: CardProps) {
             onSaved={() => {
               setEditing(false)
               actions.setTestResult(undefined)
-              onNotice(t('credential_cards.github_saved_notice'))
+              onNotice(t("credential_cards.github_saved_notice"))
               focusHeading()
             }}
-            saveLabel={t('credential_cards.github_save_label')}
+            saveLabel={t("credential_cards.github_save_label")}
           />
           {set ? (
             <div className="flex justify-end">
@@ -257,20 +263,20 @@ export function GithubCredentialCard({ payload, onNotice }: CardProps) {
                 }}
                 type="button"
               >
-                {t('credential_cards.cancel')}
+                {t("credential_cards.cancel")}
               </button>
             </div>
           ) : null}
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.github_summary')}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{t("credential_cards.github_summary")}</p>
           <GithubRateLimitLine payload={payload} />
           <CredentialTestResultLine result={actions.testResult} />
           <div className="flex flex-wrap gap-2">
             <TestButton actions={actions} credential="github_token" />
             <button className={secondaryButtonClass()} onClick={() => setEditing(true)} type="button">
-              {t('credential_cards.replace')}
+              {t("credential_cards.replace")}
             </button>
             <ClearButton actions={actions} credential="github_token" />
           </div>
@@ -282,16 +288,16 @@ export function GithubCredentialCard({ payload, onNotice }: CardProps) {
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className={`flex items-center gap-1.5 ${appRegistered ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}>
               {appRegistered ? <CheckIcon /> : <WarnIcon />}
-              {appRegistered ? t('credential_cards.github_app_registered') : t('credential_cards.github_app_missing')}
+              {appRegistered ? t("credential_cards.github_app_registered") : t("credential_cards.github_app_missing")}
             </span>
             {payload.user.admin ? (
               <button className={secondaryButtonClass()} onClick={() => setAppPanelOpen((open) => !open)} type="button">
-                {appPanelOpen ? t('credential_cards.github_app_hide') : t('credential_cards.github_app_manage')}
+                {appPanelOpen ? t("credential_cards.github_app_hide") : t("credential_cards.github_app_manage")}
               </button>
             ) : null}
           </div>
           {!payload.user.admin && !appRegistered ? (
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('credential_cards.github_app_admin_only')}</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("credential_cards.github_app_admin_only")}</p>
           ) : null}
           {appPanelOpen ? (
             <div className="mt-3">
@@ -307,13 +313,13 @@ export function GithubCredentialCard({ payload, onNotice }: CardProps) {
 function GithubRateLimitLine({ payload }: { payload: CredentialsPayload }) {
   const { t } = useT("settings")
   if (!payload.github_rate_limit) {
-    return <p className="text-xs text-gray-400 dark:text-gray-500">{t('account_settings.github_quota_not_recorded')}</p>
+    return <p className="text-xs text-gray-400 dark:text-gray-500">{t("account_settings.github_quota_not_recorded")}</p>
   }
 
   return (
     <p className="text-xs text-gray-500 dark:text-gray-400">
-      {t('account_settings.github_quota_prefix')} <strong>{payload.github_rate_limit.remaining}</strong> / {payload.github_rate_limit.limit}{" "}
-      {t('account_settings.github_quota_suffix', { resource: payload.github_rate_limit.resource })}
+      {t("account_settings.github_quota_prefix")} <strong>{payload.github_rate_limit.remaining}</strong> / {payload.github_rate_limit.limit}{" "}
+      {t("account_settings.github_quota_suffix", { resource: payload.github_rate_limit.resource })}
     </p>
   )
 }
@@ -337,20 +343,20 @@ export function ClaudeCredentialCard({ payload, onNotice }: CardProps) {
       setManualToken("")
       setConnecting(false)
       actions.setTestResult(undefined)
-      onNotice(t('credential_cards.claude_saved_notice'))
+      onNotice(t("credential_cards.claude_saved_notice"))
       focusHeading()
     },
-    onError: (err) => actions.setError(errorMessage(err, t('credential_cards.save_error')))
+    onError: (err) => actions.setError(errorMessage(err, t("credential_cards.save_error")))
   })
 
   return (
     <CredentialCard
       connected={set}
-      description={t('credential_cards.claude_description')}
+      description={t("credential_cards.claude_description")}
       error={actions.error}
       headingRef={headingRef}
       testId="credential-card-claude"
-      title={t('credential_cards.claude_title')}
+      title={t("credential_cards.claude_title")}
     >
       {connecting ? (
         <div className="space-y-3">
@@ -362,7 +368,7 @@ export function ClaudeCredentialCard({ payload, onNotice }: CardProps) {
             onConnected={(result) => {
               setConnecting(false)
               actions.setTestResult(result)
-              onNotice(result.message || t('configure_agent.connected_default'))
+              onNotice(result.message || t("configure_agent.connected_default"))
               focusHeading()
             }}
             secondaryAction={
@@ -374,28 +380,28 @@ export function ClaudeCredentialCard({ payload, onNotice }: CardProps) {
                 }}
                 type="button"
               >
-                {t('credential_cards.cancel')}
+                {t("credential_cards.cancel")}
               </button>
             }
           />
           <details className="rounded border border-gray-200 dark:border-gray-700 p-3">
-            <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.claude_manual_summary')}</summary>
+            <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">{t("credential_cards.claude_manual_summary")}</summary>
             <div className="mt-3 space-y-2">
               <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
-                {t('account_settings.claude_token_help', { command: "claude setup-token", env: "CLAUDE_CODE_OAUTH_TOKEN" })}{" "}
+                {t("account_settings.claude_token_help", { command: "claude setup-token", env: "CLAUDE_CODE_OAUTH_TOKEN" })}{" "}
                 <a
                   className="font-medium text-brand-emphasis underline hover:text-brand dark:text-brand-emphasis"
                   href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token"
                   rel="noreferrer"
                   target="_blank"
                 >
-                  {t('account_settings.anthropic_docs')}
+                  {t("account_settings.anthropic_docs")}
                 </a>
                 .
               </p>
               <div className="flex gap-2">
                 <Input
-                  aria-label={t('credential_cards.claude_manual_label')}
+                  aria-label={t("credential_cards.claude_manual_label")}
                   autoComplete="off"
                   onChange={(event) => setManualToken(event.target.value)}
                   spellCheck={false}
@@ -408,7 +414,7 @@ export function ClaudeCredentialCard({ payload, onNotice }: CardProps) {
                   onClick={() => saveManual.mutate()}
                   type="button"
                 >
-                  {saveManual.isPending ? t('credential_cards.saving') : t('credential_cards.save')}
+                  {saveManual.isPending ? t("credential_cards.saving") : t("credential_cards.save")}
                 </button>
               </div>
             </div>
@@ -416,19 +422,19 @@ export function ClaudeCredentialCard({ payload, onNotice }: CardProps) {
         </div>
       ) : set ? (
         <div className="space-y-3">
-          <p className="text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.claude_summary')}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{t("credential_cards.claude_summary")}</p>
           <CredentialTestResultLine result={actions.testResult} />
           <div className="flex flex-wrap gap-2">
             <TestButton actions={actions} credential="claude_oauth_token" />
             <button className={secondaryButtonClass()} onClick={() => setConnecting(true)} type="button">
-              {t('credential_cards.replace')}
+              {t("credential_cards.replace")}
             </button>
             <ClearButton actions={actions} credential="claude_oauth_token" />
           </div>
         </div>
       ) : (
         <button className={primaryButtonClass()} onClick={() => setConnecting(true)} type="button">
-          {t('credential_cards.claude_set_up')}
+          {t("credential_cards.claude_set_up")}
         </button>
       )}
     </CredentialCard>
@@ -456,30 +462,25 @@ export function CodexCredentialCard({ payload, onNotice }: CardProps) {
     onMutate: () => actions.setError(null),
     onSuccess: (updated) => {
       cacheCredentials(queryClient, updated)
-      onNotice(t('credential_cards.codex_mode_saved_notice'))
+      onNotice(t("credential_cards.codex_mode_saved_notice"))
     },
-    onError: (err) => actions.setError(errorMessage(err, t('credential_cards.save_error')))
+    onError: (err) => actions.setError(errorMessage(err, t("credential_cards.save_error")))
   })
 
   return (
     <CredentialCard
       connected={connected}
-      description={t('credential_cards.codex_description')}
+      description={t("credential_cards.codex_description")}
       error={actions.error}
       headingRef={headingRef}
       testId="credential-card-codex"
-      title={t('credential_cards.codex_title')}
+      title={t("credential_cards.codex_title")}
     >
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        {t('credential_cards.codex_auth_mode')}
-        <Select
-          className="mt-2"
-          disabled={saveMode.isPending}
-          onChange={(event) => saveMode.mutate(event.target.value)}
-          value={mode}
-        >
-          <option value="api_key">{t('account_settings.codex_api_key')}</option>
-          <option value="chatgpt_login">{t('account_settings.codex_chatgpt_login')}</option>
+        {t("credential_cards.codex_auth_mode")}
+        <Select className="mt-2" disabled={saveMode.isPending} onChange={(event) => saveMode.mutate(event.target.value)} value={mode}>
+          <option value="api_key">{t("account_settings.codex_api_key")}</option>
+          <option value="chatgpt_login">{t("account_settings.codex_chatgpt_login")}</option>
         </Select>
       </label>
 
@@ -519,10 +520,10 @@ function CodexApiKeySection({
       setApiKey("")
       setEditing(false)
       actions.setTestResult(undefined)
-      onNotice(t('credential_cards.codex_saved_notice'))
+      onNotice(t("credential_cards.codex_saved_notice"))
       focusHeading()
     },
-    onError: (err) => actions.setError(errorMessage(err, t('credential_cards.save_error')))
+    onError: (err) => actions.setError(errorMessage(err, t("credential_cards.save_error")))
   })
 
   if (showEditor) {
@@ -530,7 +531,7 @@ function CodexApiKeySection({
       <div className="space-y-2">
         <div className="flex gap-2">
           <Input
-            aria-label={t('credential_cards.codex_api_key_label')}
+            aria-label={t("credential_cards.codex_api_key_label")}
             autoComplete="off"
             // Only focus when the editor was opened via Replace, not when it
             // renders because no key is saved yet (page load).
@@ -542,7 +543,7 @@ function CodexApiKeySection({
             value={apiKey}
           />
           <button className={secondaryButtonClass()} disabled={apiKey.trim().length === 0 || save.isPending} onClick={() => save.mutate()} type="button">
-            {save.isPending ? t('credential_cards.saving') : t('credential_cards.save')}
+            {save.isPending ? t("credential_cards.saving") : t("credential_cards.save")}
           </button>
           {set ? (
             <button
@@ -553,7 +554,7 @@ function CodexApiKeySection({
               }}
               type="button"
             >
-              {t('credential_cards.cancel')}
+              {t("credential_cards.cancel")}
             </button>
           ) : null}
         </div>
@@ -563,12 +564,12 @@ function CodexApiKeySection({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.codex_api_key_summary')}</p>
+      <p className="text-sm text-gray-700 dark:text-gray-300">{t("credential_cards.codex_api_key_summary")}</p>
       <CredentialTestResultLine result={actions.testResult} />
       <div className="flex flex-wrap gap-2">
         <TestButton actions={actions} credential="codex_api_key" />
         <button className={secondaryButtonClass()} onClick={() => setEditing(true)} type="button">
-          {t('credential_cards.replace')}
+          {t("credential_cards.replace")}
         </button>
         <ClearButton actions={actions} credential="codex_api_key" />
       </div>
@@ -596,7 +597,7 @@ function useCodexChatGptFlow(actions: ReturnType<typeof useCredentialActions>, o
       setPopupBlocked(openInNewTab(started.authorize_url) ? null : started.authorize_url)
       setAuthStarted(true)
     },
-    onError: (err) => actions.setError(errorMessage(err, t('credential_cards.save_error')))
+    onError: (err) => actions.setError(errorMessage(err, t("credential_cards.save_error")))
   })
 
   const exchange = useMutation({
@@ -611,11 +612,11 @@ function useCodexChatGptFlow(actions: ReturnType<typeof useCredentialActions>, o
       setAuthCode("")
       setAutoConnecting(false)
       setReauthorizing(false)
-      onNotice(updated.message || t('credential_cards.codex_saved_notice'))
+      onNotice(updated.message || t("credential_cards.codex_saved_notice"))
     },
     onError: (err) => {
       setAutoConnecting(false)
-      actions.setError(errorMessage(err, t('credential_cards.save_error')))
+      actions.setError(errorMessage(err, t("credential_cards.save_error")))
     }
   })
 
@@ -627,9 +628,9 @@ function useCodexChatGptFlow(actions: ReturnType<typeof useCredentialActions>, o
       setManualJson("")
       setReauthorizing(false)
       actions.setTestResult(undefined)
-      onNotice(t('credential_cards.codex_saved_notice'))
+      onNotice(t("credential_cards.codex_saved_notice"))
     },
-    onError: (err) => actions.setError(errorMessage(err, t('credential_cards.save_error')))
+    onError: (err) => actions.setError(errorMessage(err, t("credential_cards.save_error")))
   })
 
   // The desktop/browser callback listener broadcasts the OAuth code over the
@@ -698,12 +699,12 @@ function CodexChatGptSection({
   if (!showFlow) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.codex_auth_json_summary')}</p>
+        <p className="text-sm text-gray-700 dark:text-gray-300">{t("credential_cards.codex_auth_json_summary")}</p>
         <CredentialTestResultLine result={actions.testResult} />
         <div className="flex flex-wrap gap-2">
           <TestButton actions={actions} credential="codex_auth_json" />
           <button className={secondaryButtonClass()} onClick={() => flow.setReauthorizing(true)} type="button">
-            {t('credential_cards.reauthorize')}
+            {t("credential_cards.reauthorize")}
           </button>
           <ClearButton actions={actions} credential="codex_auth_json" />
         </div>
@@ -723,7 +724,7 @@ function CodexChatGptSection({
           onClick={() => flow.start.mutate()}
           type="button"
         >
-          {flow.start.isPending ? t('credential_cards.opening') : t('credential_cards.codex_authorize')}
+          {flow.start.isPending ? t("credential_cards.opening") : t("credential_cards.codex_authorize")}
         </button>
         {set ? (
           <button
@@ -734,26 +735,26 @@ function CodexChatGptSection({
             }}
             type="button"
           >
-            {t('credential_cards.cancel')}
+            {t("credential_cards.cancel")}
           </button>
         ) : null}
       </div>
       {flow.popupBlocked ? (
         <p className="text-xs text-amber-600 dark:text-amber-300">
-          {t('account_settings.codex_popup_blocked')}{" "}
+          {t("account_settings.codex_popup_blocked")}{" "}
           <a className="font-medium underline" href={flow.popupBlocked} rel="noreferrer" target="_blank">
-            {t('account_settings.codex_open_auth')}
+            {t("account_settings.codex_open_auth")}
           </a>
           .
         </p>
       ) : null}
-      {flow.autoConnecting ? <p className="text-xs text-gray-500 dark:text-gray-400">{t('account_settings.connecting')}</p> : null}
+      {flow.autoConnecting ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("account_settings.connecting")}</p> : null}
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
         <Input
-          aria-label={t('credential_cards.codex_code_label')}
+          aria-label={t("credential_cards.codex_code_label")}
           autoComplete="off"
           onChange={(event) => flow.setAuthCode(event.target.value)}
-          placeholder={flow.authStarted ? t('credential_cards.codex_code_placeholder') : t('credential_cards.codex_code_placeholder_disabled')}
+          placeholder={flow.authStarted ? t("credential_cards.codex_code_placeholder") : t("credential_cards.codex_code_placeholder_disabled")}
           type="text"
           value={flow.authCode}
         />
@@ -763,30 +764,30 @@ function CodexChatGptSection({
           onClick={() => flow.exchange.mutate(undefined)}
           type="button"
         >
-          {flow.exchange.isPending ? t('account_settings.connecting') : t('credential_cards.connect')}
+          {flow.exchange.isPending ? t("account_settings.connecting") : t("credential_cards.connect")}
         </button>
       </div>
       <CredentialTestResultLine result={actions.testResult} />
 
       <details className="rounded border border-gray-200 dark:border-gray-700 p-3">
-        <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">{t('account_settings.paste_auth_json')}</summary>
+        <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">{t("account_settings.paste_auth_json")}</summary>
         <div className="mt-3 space-y-2">
           <textarea
-            aria-label={t('credential_cards.codex_auth_json_label')}
+            aria-label={t("credential_cards.codex_auth_json_label")}
             className={`${inputClass()} font-mono text-xs`}
             onChange={(event) => flow.setManualJson(event.target.value)}
             rows={6}
             value={flow.manualJson}
           />
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('account_settings.auth_json_help')}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t("account_settings.auth_json_help")}</p>
             <button
               className={secondaryButtonClass()}
               disabled={flow.manualJson.trim().length === 0 || flow.saveManual.isPending}
               onClick={() => flow.saveManual.mutate()}
               type="button"
             >
-              {flow.saveManual.isPending ? t('credential_cards.saving') : t('credential_cards.save')}
+              {flow.saveManual.isPending ? t("credential_cards.saving") : t("credential_cards.save")}
             </button>
           </div>
         </div>
@@ -825,7 +826,7 @@ export function GeminiCredentialCard({ payload, onNotice }: CardProps) {
       connected={set}
       description={
         <>
-          {t('credential_cards.gemini_description')}{" "}
+          {t("credential_cards.gemini_description")}{" "}
           <a
             className="font-medium text-brand-emphasis underline hover:text-brand dark:text-brand-emphasis"
             href="https://aistudio.google.com/apikey"
@@ -834,29 +835,29 @@ export function GeminiCredentialCard({ payload, onNotice }: CardProps) {
           >
             aistudio.google.com/apikey
           </a>{" "}
-          {t('credential_cards.gemini_description_suffix')}
+          {t("credential_cards.gemini_description_suffix")}
         </>
       }
       error={actions.error}
       headingRef={headingRef}
       testId="credential-card-gemini"
-      title={t('credential_cards.gemini_title')}
+      title={t("credential_cards.gemini_title")}
     >
       {set ? (
         <div className="space-y-3">
-          <p className="text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.gemini_summary')}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{t("credential_cards.gemini_summary")}</p>
           <CredentialTestResultLine result={actions.testResult} />
           <div className="flex flex-wrap gap-2">
             <TestButton actions={actions} credential="gemini_api_key" />
             <button className={secondaryButtonClass()} onClick={() => setSheetOpen(true)} type="button">
-              {t('credential_cards.gemini_replace')}
+              {t("credential_cards.gemini_replace")}
             </button>
             <ClearButton actions={actions} credential="gemini_api_key" />
           </div>
         </div>
       ) : (
         <button className={primaryButtonClass()} onClick={() => setSheetOpen(true)} type="button">
-          {t('credential_cards.gemini_set_up')}
+          {t("credential_cards.gemini_set_up")}
         </button>
       )}
 

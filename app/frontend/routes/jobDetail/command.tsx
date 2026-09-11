@@ -17,7 +17,12 @@ export type CommandInput =
   | { method: "patch"; path: string; body?: unknown; confirm?: string }
   | { method: "delete"; path: string; confirm?: string }
 
-export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workflowsQueryKey: JobWorkflowsQueryKey | undefined, onNotice: (message: string | null) => void) {
+export function useJobCommand(
+  jobId: number,
+  queryKey: JobDetailQueryKey,
+  workflowsQueryKey: JobWorkflowsQueryKey | undefined,
+  onNotice: (message: string | null) => void
+) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { confirm, dialog } = useConfirm()
@@ -42,11 +47,15 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
       // Job's cache entry.
       const respondsForThisJob = payload.job === undefined || payload.job.id === jobId
       if (respondsForThisJob && (payload.job || payload.actions)) {
-        queryClient.setQueryData<JobDetailPayload>(queryKey, (old) => old && {
-          ...old,
-          job: payload.job ? { ...old.job, ...payload.job } : old.job,
-          actions: payload.actions ?? old.actions
-        })
+        queryClient.setQueryData<JobDetailPayload>(
+          queryKey,
+          (old) =>
+            old && {
+              ...old,
+              job: payload.job ? { ...old.job, ...payload.job } : old.job,
+              actions: payload.actions ?? old.actions
+            }
+        )
       }
       void queryClient.invalidateQueries({ queryKey })
       if (workflowsQueryKey) void queryClient.invalidateQueries({ queryKey: workflowsQueryKey })
@@ -59,7 +68,17 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
 
 export type JobCommand = ReturnType<typeof useJobCommand>
 
-export function CommandButton({ children, command, input, tone = "primary" }: { children: ReactNode; command: JobCommand; input: CommandInput; tone?: ButtonTone }) {
+export function CommandButton({
+  children,
+  command,
+  input,
+  tone = "primary"
+}: {
+  children: ReactNode
+  command: JobCommand
+  input: CommandInput
+  tone?: ButtonTone
+}) {
   return (
     <button className={buttonClass(tone)} disabled={command.isPending} onClick={() => command.mutate(input)} type="button">
       {children}

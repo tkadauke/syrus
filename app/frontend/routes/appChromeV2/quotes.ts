@@ -16,5 +16,5 @@ export const PUBLILIUS_SYRUS_QUOTES: { latin: string; english: string }[] = [
   { latin: "Dum differt vita transcurrit.", english: "While we delay, life passes by." },
   { latin: "Ex vitio alterius sapiens emendat suum.", english: "The wise man corrects his faults by observing those of others." },
   { latin: "Stultum est timere quod vitare non potes.", english: "It is foolish to fear what you cannot avoid." },
-  { latin: "Inopi beneficium bis dat qui dat celeriter.", english: "He who gives quickly gives the benefit twice to the needy." },
+  { latin: "Inopi beneficium bis dat qui dat celeriter.", english: "He who gives quickly gives the benefit twice to the needy." }
 ]

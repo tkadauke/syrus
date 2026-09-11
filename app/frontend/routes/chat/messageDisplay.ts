@@ -18,11 +18,13 @@ export function attachmentDataUrl(attachment: ChatMessageImageAttachment) {
 }
 
 export function isLowPrioritySystemMessage(item: ChatRenderItem) {
-  return item.type === "message" &&
+  return (
+    item.type === "message" &&
     item.role === "system" &&
     !isProposalOutcomeSystemMessage(item) &&
     !isGoalContinuationSystemMessage(item) &&
     ["neutral", "success"].includes(item.system?.tone || "neutral")
+  )
 }
 
 export function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {

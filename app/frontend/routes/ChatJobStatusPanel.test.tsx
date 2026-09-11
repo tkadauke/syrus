@@ -12,10 +12,7 @@ function renderPanel(chatId: number | string = 8) {
       <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
         <LocationProbe />
         <Routes>
-          <Route
-            element={<ChatJobStatusPanel chatId={chatId} />}
-            path="/app-shell/chats/:id"
-          />
+          <Route element={<ChatJobStatusPanel chatId={chatId} />} path="/app-shell/chats/:id" />
           <Route element={<div data-testid="job-detail" />} path="/jobs/:id" />
         </Routes>
       </MemoryRouter>
@@ -25,7 +22,12 @@ function renderPanel(chatId: number | string = 8) {
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}{location.search}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 function jobItem(overrides: Partial<ChatJobStatusItem & { kind: "job" }> = {}): ChatJobStatusItem {
@@ -110,9 +112,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("shows the workflow step when present", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ workflow_step: "implement" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ workflow_step: "implement" })]))
 
     renderPanel()
 
@@ -120,20 +120,22 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("renders an active queued feedback workflow instead of plain implemented review state", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({
-        state: "implemented",
-        workflow_step: "chat_feedback",
-        active_workflow: {
-          id: 15652,
-          slug: "WF-552",
-          state: "queued",
-          trigger_kind: "chat_feedback",
-          step: "chat_feedback"
-        },
-        blocker: null
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({
+          state: "implemented",
+          workflow_step: "chat_feedback",
+          active_workflow: {
+            id: 15652,
+            slug: "WF-552",
+            state: "queued",
+            trigger_kind: "chat_feedback",
+            step: "chat_feedback"
+          },
+          blocker: null
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -144,9 +146,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("shows a PR link when pr_number and pr_url are set", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ pr_number: 7, pr_url: "https://github.com/acme/widgets/pull/7" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ pr_number: 7, pr_url: "https://github.com/acme/widgets/pull/7" })]))
 
     renderPanel()
 
@@ -208,11 +208,13 @@ describe("ChatJobStatusPanel job cards", () => {
 
 describe("ChatJobStatusPanel blocker banner", () => {
   it("shows a red blocker banner when the job has a blocker", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({
-        blocker: { reason: "awaiting_review", description: "Waiting for PR review and approval" }
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({
+          blocker: { reason: "awaiting_review", description: "Waiting for PR review and approval" }
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -220,12 +222,14 @@ describe("ChatJobStatusPanel blocker banner", () => {
   })
 
   it("shows a landing failed banner for landing_failed blockers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({
-        state: "landing",
-        blocker: { reason: "landing_failed", description: "Auto-merge failed" }
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({
+          state: "landing",
+          blocker: { reason: "landing_failed", description: "Auto-merge failed" }
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -233,12 +237,14 @@ describe("ChatJobStatusPanel blocker banner", () => {
   })
 
   it("shows a dependency failed banner for dependency_failed blockers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({
-        state: "queued",
-        blocker: { reason: "dependency_failed", description: "A dependency failed" }
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({
+          state: "queued",
+          blocker: { reason: "dependency_failed", description: "A dependency failed" }
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -334,9 +340,7 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("does not show the hide-closed button when no jobs are closed", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ state: "running" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ state: "running" })]))
 
     renderPanel()
 
@@ -345,9 +349,7 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows the hide-closed button when at least one standalone job is closed", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ state: "closed" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ state: "closed" })]))
 
     renderPanel()
 
@@ -355,10 +357,12 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides closed standalone jobs when the toggle is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ job_id: 1, slug: "JOB-1", title: "Open job", state: "running" }),
-      jobItem({ job_id: 2, slug: "JOB-2", title: "Closed job", state: "closed" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({ job_id: 1, slug: "JOB-1", title: "Open job", state: "running" }),
+        jobItem({ job_id: 2, slug: "JOB-2", title: "Closed job", state: "closed" })
+      ])
+    )
 
     renderPanel()
 
@@ -372,9 +376,7 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows closed jobs again when the toggle is clicked a second time", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ job_id: 1, slug: "JOB-1", title: "Closed job", state: "closed" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ job_id: 1, slug: "JOB-1", title: "Closed job", state: "closed" })]))
 
     renderPanel()
 
@@ -387,14 +389,40 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides closed children inside an epic but keeps open children visible", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      epicItem({
-        children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Open child", state: "running", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" },
-          { kind: "job", job_id: 11, slug: "JOB-11", title: "Closed child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T11:00:00Z" }
-        ]
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        epicItem({
+          children: [
+            {
+              kind: "job",
+              job_id: 10,
+              slug: "JOB-10",
+              title: "Open child",
+              state: "running",
+              workflow_step: null,
+              active_workflow: null,
+              pr_number: null,
+              pr_url: null,
+              blocker: null,
+              updated_at: "2026-01-01T12:00:00Z"
+            },
+            {
+              kind: "job",
+              job_id: 11,
+              slug: "JOB-11",
+              title: "Closed child",
+              state: "closed",
+              workflow_step: null,
+              active_workflow: null,
+              pr_number: null,
+              pr_url: null,
+              blocker: null,
+              updated_at: "2026-01-01T11:00:00Z"
+            }
+          ]
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -409,13 +437,27 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides the entire epic when all its children are closed and hide is active", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      epicItem({
-        children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Done child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
-        ]
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        epicItem({
+          children: [
+            {
+              kind: "job",
+              job_id: 10,
+              slug: "JOB-10",
+              title: "Done child",
+              state: "closed",
+              workflow_step: null,
+              active_workflow: null,
+              pr_number: null,
+              pr_url: null,
+              blocker: null,
+              updated_at: "2026-01-01T12:00:00Z"
+            }
+          ]
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -427,13 +469,27 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows the hide-closed button when an epic has at least one closed child", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      epicItem({
-        children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Closed child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
-        ]
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        epicItem({
+          children: [
+            {
+              kind: "job",
+              job_id: 10,
+              slug: "JOB-10",
+              title: "Closed child",
+              state: "closed",
+              workflow_step: null,
+              active_workflow: null,
+              pr_number: null,
+              pr_url: null,
+              blocker: null,
+              updated_at: "2026-01-01T12:00:00Z"
+            }
+          ]
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -487,9 +543,11 @@ describe("ChatJobStatusPanel live updates", () => {
 
     expect(await screen.findByText("First load")).toBeInTheDocument()
 
-    window.dispatchEvent(new CustomEvent("syrus:job-status-changed", {
-      detail: { job_id: 42, chat_session_id: 8 }
-    }))
+    window.dispatchEvent(
+      new CustomEvent("syrus:job-status-changed", {
+        detail: { job_id: 42, chat_session_id: 8 }
+      })
+    )
 
     expect(await screen.findByText("After update")).toBeInTheDocument()
   })
@@ -506,9 +564,11 @@ describe("ChatJobStatusPanel live updates", () => {
     expect(await screen.findByText("Stable title")).toBeInTheDocument()
     const fetchCountBefore = callCount
 
-    window.dispatchEvent(new CustomEvent("syrus:job-status-changed", {
-      detail: { job_id: 42, chat_session_id: 99 }
-    }))
+    window.dispatchEvent(
+      new CustomEvent("syrus:job-status-changed", {
+        detail: { job_id: 42, chat_session_id: 99 }
+      })
+    )
 
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(callCount).toBe(fetchCountBefore)

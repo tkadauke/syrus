@@ -64,19 +64,17 @@ function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFilter
   if (plugins.length === 0) {
     return (
       <section className="rounded border border-dashed border-gray-300 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">
-        <SectionHeading>
-          {isFiltered ? t("plugins.no_results_heading") : t("plugins.no_plugins_heading")}
-        </SectionHeading>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-          {isFiltered ? t("plugins.no_results_body") : t("plugins.no_plugins_body")}
-        </p>
+        <SectionHeading>{isFiltered ? t("plugins.no_results_heading") : t("plugins.no_plugins_heading")}</SectionHeading>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{isFiltered ? t("plugins.no_results_body") : t("plugins.no_plugins_body")}</p>
       </section>
     )
   }
 
   return (
     <section aria-label={t("plugins.list_aria")} className="space-y-4">
-      {plugins.map((plugin) => <PluginCard key={plugin.name} plugin={plugin} />)}
+      {plugins.map((plugin) => (
+        <PluginCard key={plugin.name} plugin={plugin} />
+      ))}
     </section>
   )
 }
@@ -85,7 +83,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
   const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
   const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation, unknown, boolean | undefined>({
-    mutationFn: (confirmCascade) => plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name),
+    mutationFn: (confirmCascade) => (plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name)),
     onSuccess: (data) => {
       if ("requires_confirmation" in data && data.requires_confirmation) {
         setPendingCascade(data)
@@ -117,23 +115,40 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           <div className="flex flex-wrap items-center gap-2">
             {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-5 w-5 shrink-0" src={plugin.icon_url} /> : null}
             <SectionHeading className="break-words">{plugin.display_name || plugin.name}</SectionHeading>
-            {plugin.display_name && plugin.display_name !== plugin.name ? <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span> : null}
+            {plugin.display_name && plugin.display_name !== plugin.name ? (
+              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span>
+            ) : null}
             <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{plugin.version}</span>
             <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
           </div>
           {plugin.description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.description}</p> : null}
-          {plugin.long_description ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
+          {plugin.long_description ? (
+            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p>
+          ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            {plugin.category ? <span>{t("plugins.category")}: <span className="font-mono">{plugin.category_label || plugin.category}</span></span> : null}
-            <span>{t("plugins.default_state")}: {plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")}</span>
-            {dependsOn.length > 0 ? <span>{t("plugins.depends_on")}: <span className="font-mono">{dependsOn.join(", ")}</span></span> : null}
-            {dependents.length > 0 ? <span>{t("plugins.required_by")}: <span className="font-mono">{dependents.join(", ")}</span></span> : null}
+            {plugin.category ? (
+              <span>
+                {t("plugins.category")}: <span className="font-mono">{plugin.category_label || plugin.category}</span>
+              </span>
+            ) : null}
+            <span>
+              {t("plugins.default_state")}: {plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")}
+            </span>
+            {dependsOn.length > 0 ? (
+              <span>
+                {t("plugins.depends_on")}: <span className="font-mono">{dependsOn.join(", ")}</span>
+              </span>
+            ) : null}
+            {dependents.length > 0 ? (
+              <span>
+                {t("plugins.required_by")}: <span className="font-mono">{dependents.join(", ")}</span>
+              </span>
+            ) : null}
           </div>
           {plugin.recommendation ? (
             <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
-              <span className="font-medium">{t("plugins.suggested")}</span>{" "}
-              {plugin.recommendation.reason}{" "}
+              <span className="font-medium">{t("plugins.suggested")}</span> {plugin.recommendation.reason}{" "}
               <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
             </p>
           ) : null}
@@ -158,21 +173,15 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           <p className="font-medium text-amber-900 dark:text-amber-200">{t("plugins.cascade_confirm_heading")}</p>
           <p className="mt-1 text-amber-800 dark:text-amber-300">{t("plugins.cascade_confirm_body")}</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-800 dark:text-amber-300">
-            {pendingCascade.dependents.map((name) => <li key={name}>{name}</li>)}
+            {pendingCascade.dependents.map((name) => (
+              <li key={name}>{name}</li>
+            ))}
           </ul>
           <div className="mt-3 flex gap-2">
-            <Button
-              disabled={toggle.isPending}
-              onClick={() => toggle.mutate(true)}
-              variant="danger"
-            >
+            <Button disabled={toggle.isPending} onClick={() => toggle.mutate(true)} variant="danger">
               {toggle.isPending ? t("plugins.saving") : t("plugins.cascade_confirm_cta")}
             </Button>
-            <Button
-              disabled={toggle.isPending}
-              onClick={() => setPendingCascade(null)}
-              variant="secondary"
-            >
+            <Button disabled={toggle.isPending} onClick={() => setPendingCascade(null)} variant="secondary">
               {t("plugins.cascade_cancel")}
             </Button>
           </div>
@@ -185,7 +194,11 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             {t("plugins.usage_heading")}
           </summary>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-700 dark:text-amber-300">
-            {disableBlockers.map((blocker) => <li key={`${blocker.kind}-${blocker.label}`}>{blocker.label}: {blocker.count}</li>)}
+            {disableBlockers.map((blocker) => (
+              <li key={`${blocker.kind}-${blocker.label}`}>
+                {blocker.label}: {blocker.count}
+              </li>
+            ))}
           </ul>
         </details>
       ) : null}
@@ -205,7 +218,9 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {plugin.extension_points.map((extension) => <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />)}
+                {plugin.extension_points.map((extension) => (
+                  <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />
+                ))}
               </tbody>
             </table>
           </div>
@@ -219,10 +234,9 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
 
 function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
-  const rows = [
-    plugin.author ? [t("plugins.author"), plugin.author] : null,
-    plugin.homepage ? [t("plugins.homepage"), plugin.homepage] : null
-  ].filter(Boolean) as string[][]
+  const rows = [plugin.author ? [t("plugins.author"), plugin.author] : null, plugin.homepage ? [t("plugins.homepage"), plugin.homepage] : null].filter(
+    Boolean
+  ) as string[][]
 
   if (rows.length === 0) return null
 

@@ -14,7 +14,14 @@ function renderPanel(props: { onClose?: () => void; onSaved?: () => void; confir
 }
 
 const notRegistered = { registered: false, id: null, slug: null, registered_at: null, install_url: null, installations: [] }
-const registered = { registered: true, id: 42, slug: "operator-syrus", registered_at: "2026-06-20T00:00:00Z", install_url: "https://github.com/apps/operator-syrus/installations/new", installations: [] }
+const registered = {
+  registered: true,
+  id: 42,
+  slug: "operator-syrus",
+  registered_at: "2026-06-20T00:00:00Z",
+  install_url: "https://github.com/apps/operator-syrus/installations/new",
+  installations: []
+}
 const installed = { ...registered, installations: [{ account_login: "octocat", account_type: "User" }] }
 const bounceUrl = "http://localhost:3000/admin/github_app/manifest?state=abc&syrus_external=1"
 
@@ -22,11 +29,14 @@ function mockRoutes(over: { register?: () => Response; confirm?: () => Response;
   return vi.spyOn(window, "fetch").mockImplementation(async (input) => {
     const url = String(input)
     if (url.includes("/admin/github_app/register")) {
-      return over.register?.() ?? jsonResponse({
-        github_app: notRegistered,
-        bounce_url: bounceUrl,
-        submit_label: "Register GitHub App"
-      })
+      return (
+        over.register?.() ??
+        jsonResponse({
+          github_app: notRegistered,
+          bounce_url: bounceUrl,
+          submit_label: "Register GitHub App"
+        })
+      )
     }
     if (url.endsWith("/admin/github_app/confirm")) return over.confirm?.() ?? jsonResponse({ github_app: notRegistered })
     if (url.endsWith("/admin/github_app/sync_installations")) return over.sync?.() ?? jsonResponse({ enqueued: true })
@@ -70,9 +80,7 @@ describe("GithubAppPanel", () => {
 
     // The panel nudges the server-side installation sync while waiting.
     const fetchSpy = window.fetch as ReturnType<typeof vi.fn>
-    await waitFor(() =>
-      expect(fetchSpy.mock.calls.some(([u]) => String(u).endsWith("/admin/github_app/sync_installations"))).toBe(true)
-    )
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([u]) => String(u).endsWith("/admin/github_app/sync_installations"))).toBe(true))
 
     // Once the sync links the installation, the panel flips by itself.
     confirmedInstall = true

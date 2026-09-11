@@ -5,11 +5,12 @@ import type { FilterLinkUpdates } from "./filterBar/types"
 import { PageHeading } from "./Heading"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
-  const toneClass = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
-    : tone === "warn"
-      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+  const toneClass =
+    tone === "error"
+      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   return <div className={`rounded border p-4 text-sm ${toneClass}`}>{children}</div>
 }
 
@@ -70,9 +71,13 @@ export function AdminEventPagination({
 
   return (
     <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm dark:border-gray-700">
-      <button className={pageButtonClass()} disabled={!pagination.has_previous_page} onClick={() => go(pagination.previous_page)} type="button">{previousLabel}</button>
+      <button className={pageButtonClass()} disabled={!pagination.has_previous_page} onClick={() => go(pagination.previous_page)} type="button">
+        {previousLabel}
+      </button>
       <span className="text-gray-600 dark:text-gray-300">{label}</span>
-      <button className={pageButtonClass()} disabled={!pagination.has_next_page} onClick={() => go(pagination.next_page)} type="button">{nextLabel}</button>
+      <button className={pageButtonClass()} disabled={!pagination.has_next_page} onClick={() => go(pagination.next_page)} type="button">
+        {nextLabel}
+      </button>
     </div>
   )
 }
@@ -105,9 +110,15 @@ export function AdminEventSortableHeader({
 
   return (
     <th className={className}>
-      <button className="group inline-flex items-center gap-1 text-left font-medium uppercase hover:text-gray-900 dark:hover:text-gray-100" onClick={sort} type="button">
+      <button
+        className="group inline-flex items-center gap-1 text-left font-medium uppercase hover:text-gray-900 dark:hover:text-gray-100"
+        onClick={sort}
+        type="button"
+      >
         <span>{children}</span>
-        <span className={`text-2xs ${active ? "text-gray-700 dark:text-gray-200" : "text-gray-300 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-400"}`}>
+        <span
+          className={`text-2xs ${active ? "text-gray-700 dark:text-gray-200" : "text-gray-300 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-400"}`}
+        >
           {active ? (currentDirection === "asc" ? "↑" : "↓") : "↕"}
         </span>
       </button>
@@ -148,22 +159,30 @@ export function AdminEventLogTable<Row>({
       <table className={tableClassName}>
         <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
-            {columns.map((column) => (
+            {columns.map((column) =>
               column.sort && onNavigate ? (
-                <AdminEventSortableHeader className={column.headerClassName || column.className} column={column.sort} key={column.key} search={search || ""} onNavigate={onNavigate}>
+                <AdminEventSortableHeader
+                  className={column.headerClassName || column.className}
+                  column={column.sort}
+                  key={column.key}
+                  search={search || ""}
+                  onNavigate={onNavigate}
+                >
                   {column.header}
                 </AdminEventSortableHeader>
               ) : (
-                <th className={column.headerClassName || column.className} key={column.key}>{column.header}</th>
+                <th className={column.headerClassName || column.className} key={column.key}>
+                  {column.header}
+                </th>
               )
-            ))}
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {rows.map((row) => {
             const rowKey = getRowKey(row)
             const expanded = expandedKey === rowKey
-            const toggleExpanded = () => setExpandedKey((current) => current === rowKey ? null : rowKey)
+            const toggleExpanded = () => setExpandedKey((current) => (current === rowKey ? null : rowKey))
 
             return (
               <Fragment key={rowKey}>
@@ -246,9 +265,7 @@ export function AdminEventFilterBar({
 // so an omitted `q` caused the just-removed chip to reappear immediately. Keep
 // `q` present (encoding an empty filter tree) so the empty state sticks.
 function preserveExplicitEmptyFilter(pathname: string, search: string, updates: FilterLinkUpdates) {
-  const nextUpdates = "q" in updates && updates.q == null
-    ? { ...updates, q: encodeFilterTree({ and: [] }) }
-    : updates
+  const nextUpdates = "q" in updates && updates.q == null ? { ...updates, q: encodeFilterTree({ and: [] }) } : updates
   return linkFromSearch(pathname, search, nextUpdates)
 }
 
@@ -258,7 +275,7 @@ function adminEventFilterSchema(fields: AdminEventFilterField[]): FilterSchemaFi
     expansions: field.placeholder ? { placeholder: field.placeholder } : undefined,
     field: field.name,
     label: field.label,
-    operators: [ "is" ],
+    operators: ["is"],
     values: field.options
   }))
 }
@@ -267,7 +284,7 @@ function adminEventFilterTree(fields: AdminEventFilterField[], search: string): 
   const params = new URLSearchParams(search)
   const chips = fields.flatMap((field): FilterChip[] => {
     const value = params.get(field.name) || field.defaultValue || ""
-    return value ? [ { field: field.name, op: "is", value } ] : []
+    return value ? [{ field: field.name, op: "is", value }] : []
   })
   return { and: chips }
 }
@@ -321,7 +338,9 @@ export function DetailBlock({ title, value }: { title: string; value?: string | 
   return (
     <section>
       <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{title}</h3>
-      <pre className="mt-2 max-h-80 overflow-auto rounded border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{value || "-"}</pre>
+      <pre className="mt-2 max-h-80 overflow-auto rounded border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+        {value || "-"}
+      </pre>
     </section>
   )
 }

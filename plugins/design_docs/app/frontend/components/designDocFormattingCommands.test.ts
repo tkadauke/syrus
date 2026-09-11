@@ -47,15 +47,7 @@ describe("applyDesignDocFormattingCommand", () => {
   })
 
   it("leaves fenced code content unchanged for block formatting commands", () => {
-    const markdown = [
-      "Before",
-      "",
-      "```ts",
-      "const beta = true",
-      "```",
-      "",
-      "After"
-    ].join("\n")
+    const markdown = ["Before", "", "```ts", "const beta = true", "```", "", "After"].join("\n")
     const codeStart = markdown.indexOf("const beta")
     const codeEnd = codeStart + "const beta = true".length
 
@@ -76,13 +68,9 @@ describe("applyDesignDocFormattingCommand", () => {
   it("inserts fenced code blocks, horizontal rules, and editable table basics", () => {
     expect(applyDesignDocFormattingCommand("Alpha\nBeta", { start: 0, end: 10 }, "fenced_code").markdown).toBe("```\nAlpha\nBeta\n```")
     expect(applyDesignDocFormattingCommand("Alpha", { start: 5, end: 5 }, "horizontal_rule").markdown).toBe("Alpha\n\n---")
-    expect(applyDesignDocFormattingCommand("Alpha", { start: 5, end: 5 }, "table", { tableColumns: 3, tableRows: 1 }).markdown).toBe([
-      "Alpha",
-      "",
-      "| Column 1 | Column 2 | Column 3 |",
-      "| --- | --- | --- |",
-      "|  |  |  |"
-    ].join("\n"))
+    expect(applyDesignDocFormattingCommand("Alpha", { start: 5, end: 5 }, "table", { tableColumns: 3, tableRows: 1 }).markdown).toBe(
+      ["Alpha", "", "| Column 1 | Column 2 | Column 3 |", "| --- | --- | --- |", "|  |  |  |"].join("\n")
+    )
   })
 
   it("can be driven from the editor toolbar and posts suggest-mode mutations as suggestions", async () => {

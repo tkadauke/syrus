@@ -17,7 +17,7 @@ export function stringArray(value: unknown) {
 }
 
 export function contentRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null
 }
 
 export function contentInput(content: unknown) {
@@ -119,24 +119,15 @@ export function dayDividerLabel(date: Date) {
 }
 
 export function codingFilesTabVisible(payload: ChatPayload): boolean {
-  return Boolean(
-    payload.coding_mode_enabled &&
-    payload.chat.mode === "coding" &&
-    payload.chat.coding_checkout_branch
-  )
+  return Boolean(payload.coding_mode_enabled && payload.chat.mode === "coding" && payload.chat.coding_checkout_branch)
 }
 
 export function localDiffTabVisible(payload: ChatPayload): boolean {
-  return Boolean(
-    payload.local_mode_enabled &&
-    payload.chat.mode === "local" &&
-    payload.local_tunnel_connected
-  )
+  return Boolean(payload.local_mode_enabled && payload.chat.mode === "local" && payload.local_tunnel_connected)
 }
 
 export function jobsTabVisible(payload: ChatPayload): boolean {
-  return (payload.chat.confirmed_proposal_count ?? 0) > 0 ||
-    (payload.chat.linked_direct_job_count ?? 0) > 0
+  return (payload.chat.confirmed_proposal_count ?? 0) > 0 || (payload.chat.linked_direct_job_count ?? 0) > 0
 }
 
 // DOC-17 "Coding Mode Right Sidebar": the Runtime panel only appears once at
@@ -144,11 +135,7 @@ export function jobsTabVisible(payload: ChatPayload): boolean {
 // session" affordance in the panel itself yet (sessions are started by the
 // agent via runtime_start), so an empty tab would have nothing useful to show.
 export function runtimeTabVisible(payload: ChatPayload): boolean {
-  return Boolean(
-    payload.coding_mode_enabled &&
-    payload.chat.mode === "coding" &&
-    (payload.chat.runtime_session_count ?? 0) > 0
-  )
+  return Boolean(payload.coding_mode_enabled && payload.chat.mode === "coding" && (payload.chat.runtime_session_count ?? 0) > 0)
 }
 
 export function currentRecentChat(payload: ChatPayload) {

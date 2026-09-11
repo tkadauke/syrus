@@ -39,7 +39,12 @@ type LineRange = { start: number; end: number }
 
 const ANCHOR_MARKER_PATTERN = /<!--\s*syrus:(?:anchor|range-start|range-end)\s+id="[^"]+"\s*-->/g
 
-export function applyDesignDocFormattingCommand(markdown: string, selection: DesignDocFormattingSelection, command: DesignDocFormattingCommand, options: DesignDocFormattingOptions = {}): DesignDocFormattingResult {
+export function applyDesignDocFormattingCommand(
+  markdown: string,
+  selection: DesignDocFormattingSelection,
+  command: DesignDocFormattingCommand,
+  options: DesignDocFormattingOptions = {}
+): DesignDocFormattingResult {
   const source = markdown.replace(/\r\n?/g, "\n")
   const range = normalizeSelection(source, selection)
 
@@ -58,7 +63,12 @@ export function canApplyDesignDocFormattingCommand(markdown: string, selection: 
   return true
 }
 
-function applyInlineCommand(markdown: string, selection: DesignDocFormattingSelection, command: DesignDocFormattingCommand, options: DesignDocFormattingOptions): DesignDocFormattingResult {
+function applyInlineCommand(
+  markdown: string,
+  selection: DesignDocFormattingSelection,
+  command: DesignDocFormattingCommand,
+  options: DesignDocFormattingOptions
+): DesignDocFormattingResult {
   if (selectionTouchesProtectedMarkdown(markdown, selection)) {
     return unchanged(markdown, selection)
   }
@@ -82,10 +92,18 @@ function applyInlineCommand(markdown: string, selection: DesignDocFormattingSele
   })
 }
 
-function applyBlockCommand(markdown: string, selection: DesignDocFormattingSelection, command: DesignDocFormattingCommand, options: DesignDocFormattingOptions): DesignDocFormattingResult {
-  if (command === "horizontal_rule") return selectionTouchesBlockProtectedMarkdown(markdown, selection) ? unchanged(markdown, selection) : insertBlock(markdown, selection, "---")
-  if (command === "table") return selectionTouchesBlockProtectedMarkdown(markdown, selection) ? unchanged(markdown, selection) : insertTable(markdown, selection, options)
-  if (command === "fenced_code") return selectionTouchesBlockProtectedMarkdown(markdown, selection) ? unchanged(markdown, selection) : fenceSelection(markdown, selection)
+function applyBlockCommand(
+  markdown: string,
+  selection: DesignDocFormattingSelection,
+  command: DesignDocFormattingCommand,
+  options: DesignDocFormattingOptions
+): DesignDocFormattingResult {
+  if (command === "horizontal_rule")
+    return selectionTouchesBlockProtectedMarkdown(markdown, selection) ? unchanged(markdown, selection) : insertBlock(markdown, selection, "---")
+  if (command === "table")
+    return selectionTouchesBlockProtectedMarkdown(markdown, selection) ? unchanged(markdown, selection) : insertTable(markdown, selection, options)
+  if (command === "fenced_code")
+    return selectionTouchesBlockProtectedMarkdown(markdown, selection) ? unchanged(markdown, selection) : fenceSelection(markdown, selection)
 
   const lineRange = selectedLineRange(markdown, selection)
   const protectedRanges = blockProtectedSpans(markdown)
@@ -134,11 +152,7 @@ function insertTable(markdown: string, selection: DesignDocFormattingSelection, 
   const rows = Math.max(1, Math.min(20, Math.trunc(options.tableRows ?? 2)))
   const headers = Array.from({ length: columns }, (_value, index) => `Column ${index + 1}`)
   const body = Array.from({ length: rows }, () => Array.from({ length: columns }, () => ""))
-  const table = [
-    tableRow(headers),
-    tableRow(headers.map(() => "---")),
-    ...body.map((row) => tableRow(row))
-  ].join("\n")
+  const table = [tableRow(headers), tableRow(headers.map(() => "---")), ...body.map((row) => tableRow(row))].join("\n")
 
   return insertBlock(markdown, selection, table)
 }
@@ -255,10 +269,7 @@ function protectedSpans(markdown: string): ProtectedSpan[] {
 }
 
 function blockProtectedSpans(markdown: string) {
-  return [
-    ...regexSpans(markdown, ANCHOR_MARKER_PATTERN, "anchor"),
-    ...fencedCodeSpans(markdown)
-  ].sort((a, b) => a.start - b.start || a.end - b.end)
+  return [...regexSpans(markdown, ANCHOR_MARKER_PATTERN, "anchor"), ...fencedCodeSpans(markdown)].sort((a, b) => a.start - b.start || a.end - b.end)
 }
 
 function regexSpans(markdown: string, pattern: RegExp, kind: ProtectedSpan["kind"]): ProtectedSpan[] {

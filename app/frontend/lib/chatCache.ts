@@ -5,9 +5,8 @@ export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
-    const existing = current.supervisor_chat?.id === chat.id
-      ? current.supervisor_chat
-      : current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
+    const existing =
+      current.supervisor_chat?.id === chat.id ? current.supervisor_chat : current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
     const updated = recentChatRecord(chat, existing, options.occurredAt)
     if (updated.system_kind === "supervisor") {
       return {
@@ -24,13 +23,9 @@ export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord
     const groups = withoutChat(current.groups, chat.id)
     const targetIndex = groups.findIndex((group) => group.key === targetKey)
     const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
-    const nextChats = options.prepend || !existing
-      ? [updated, ...targetGroup.chats]
-      : replaceOrPrependChat(targetGroup.chats, updated)
+    const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
     const nextGroup = { ...targetGroup, chats: nextChats }
-    const nextGroups = targetIndex >= 0
-      ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)]
-      : [nextGroup, ...groups]
+    const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
 
     return { ...current, groups: nextGroups }
   })
@@ -48,7 +43,7 @@ export function updateChatUnread(queryClient: QueryClient, id: number, unread: b
       supervisor_chat: current.supervisor_chat?.id === id ? { ...current.supervisor_chat, unread } : current.supervisor_chat,
       groups: current.groups.map((group) => ({
         ...group,
-        chats: group.chats.map((chat) => chat.id === id ? { ...chat, unread } : chat)
+        chats: group.chats.map((chat) => (chat.id === id ? { ...chat, unread } : chat))
       }))
     }
   })
@@ -91,11 +86,7 @@ function replaceOrPrependChat(chats: ChatNavRecord[], chat: ChatNavRecord) {
   const index = chats.findIndex((item) => item.id === chat.id)
   if (index < 0) return [chat, ...chats]
 
-  return [
-    ...chats.slice(0, index),
-    chat,
-    ...chats.slice(index + 1)
-  ]
+  return [...chats.slice(0, index), chat, ...chats.slice(index + 1)]
 }
 
 export function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {

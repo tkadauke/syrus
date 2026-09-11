@@ -108,9 +108,7 @@ describe("DashboardTable landing queue sort race condition", () => {
     // navigated to another folder), but chrome still reports active_smart_folder_id
     // pointing to the LQ folder (stale). The bug fired a sort reset targeting the
     // LQ folder ID, corrupting its sort preference.
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "ok", dashboard_preferences: {} })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok", dashboard_preferences: {} }))
 
     const payload = buildPayload({
       // landing_queue.visible = false: rows response for the NEW folder
@@ -136,9 +134,7 @@ describe("DashboardTable landing queue sort race condition", () => {
     // This confirms the normal reset path: stored sort is landing_queue_position but the
     // active folder (from chrome) is a different one — no LQ folder in smart_folders
     // matches active_smart_folder_id.
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "ok", dashboard_preferences: {} })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok", dashboard_preferences: {} }))
 
     const payload = buildPayload({
       smart_folders: [

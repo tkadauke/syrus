@@ -14,10 +14,34 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 const HEALTHY_PAYLOAD = {
-  global: { app_id_present: true, slug_present: true, private_key_present: true, registered: true, jwt_usable: true, jwt_error_class: null, jwt_error_message: null },
-  latest_sync: { last_attempted_at: "2026-09-06T00:00:00Z", last_successful_at: "2026-09-06T00:00:00Z", duration_ms: 120, records_seen: 3, error_class: null, error_message: null },
+  global: {
+    app_id_present: true,
+    slug_present: true,
+    private_key_present: true,
+    registered: true,
+    jwt_usable: true,
+    jwt_error_class: null,
+    jwt_error_message: null
+  },
+  latest_sync: {
+    last_attempted_at: "2026-09-06T00:00:00Z",
+    last_successful_at: "2026-09-06T00:00:00Z",
+    duration_ms: 120,
+    records_seen: 3,
+    error_class: null,
+    error_message: null
+  },
   installations: [{ id: 1, account_login: "tkadauke", github_installation_id: 999, installed_at: "2026-01-01T00:00:00Z", removed_at: null, active: true }],
-  repositories: [{ id: 1, slug: "tkadauke/syrus", credential_mode: "app", app_credential_active: true, app_credential_inactive_reason: null, recommended_next_action: "none" }],
+  repositories: [
+    {
+      id: 1,
+      slug: "tkadauke/syrus",
+      credential_mode: "app",
+      app_credential_active: true,
+      app_credential_inactive_reason: null,
+      recommended_next_action: "none"
+    }
+  ],
   recommended_next_action: "none"
 }
 
@@ -54,7 +78,16 @@ describe("admin_github_app_installation_diagnostic tool card", () => {
       ...HEALTHY_PAYLOAD,
       global: { ...HEALTHY_PAYLOAD.global, jwt_usable: false, jwt_error_message: "invalid private key" },
       latest_sync: { ...HEALTHY_PAYLOAD.latest_sync, error_class: "Octokit::Unauthorized", error_message: "Bad credentials" },
-      repositories: [{ id: 1, slug: "tkadauke/syrus", credential_mode: "pat", app_credential_active: false, app_credential_inactive_reason: "linked_installation_removed", recommended_next_action: "reinstall_app_for_owner_or_repo" }]
+      repositories: [
+        {
+          id: 1,
+          slug: "tkadauke/syrus",
+          credential_mode: "pat",
+          app_credential_active: false,
+          app_credential_inactive_reason: "linked_installation_removed",
+          recommended_next_action: "reinstall_app_for_owner_or_repo"
+        }
+      ]
     }
 
     render(<>{adminGithubAppInstallationDiagnosticToolCard.renderExpanded(context({ parsedResult }))}</>)

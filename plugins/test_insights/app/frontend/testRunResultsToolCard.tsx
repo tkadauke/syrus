@@ -125,7 +125,9 @@ export function RunResultsBody({ payload }: { payload: RunResultsPayload }) {
         {payload.runId ? <span className="font-mono text-gray-600 dark:text-gray-300">RUN-{payload.runId}</span> : null}
         {payload.graderName ? <Badge>{payload.graderName}</Badge> : null}
       </div>
-      {payload.testRuns.map((testRun) => <TestRunSection key={testRun.id} testRun={testRun} />)}
+      {payload.testRuns.map((testRun) => (
+        <TestRunSection key={testRun.id} testRun={testRun} />
+      ))}
     </CardShell>
   )
 }
@@ -143,24 +145,41 @@ function TestRunSection({ testRun }: { testRun: TestRunRow }) {
       {testRun.failedErrorCases.length > 0 ? (
         <TestCaseTable cases={testRun.failedErrorCases} omitted={testRun.failedErrorCasesOmitted} showFailures title="Failed / error cases" />
       ) : null}
-      {testRun.slowCases.length > 0 ? (
-        <TestCaseTable cases={testRun.slowCases} omitted={testRun.slowCasesOmitted} title="Slow cases" />
-      ) : null}
+      {testRun.slowCases.length > 0 ? <TestCaseTable cases={testRun.slowCases} omitted={testRun.slowCasesOmitted} title="Slow cases" /> : null}
     </div>
   )
 }
 
-function TestCaseTable({ cases, omitted, showFailures = false, title }: { cases: TestCaseRow[]; omitted?: number | null; showFailures?: boolean; title: string }) {
+function TestCaseTable({
+  cases,
+  omitted,
+  showFailures = false,
+  title
+}: {
+  cases: TestCaseRow[]
+  omitted?: number | null
+  showFailures?: boolean
+  title: string
+}) {
   return (
     <div>
-      <SectionLabel>{title}{omitted ? ` (${omitted} more omitted)` : ""}</SectionLabel>
+      <SectionLabel>
+        {title}
+        {omitted ? ` (${omitted} more omitted)` : ""}
+      </SectionLabel>
       <TableShell>
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">Test</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Status</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Duration</th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Test
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Status
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Duration
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -170,12 +189,16 @@ function TestCaseTable({ cases, omitted, showFailures = false, title }: { cases:
                   <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={testCase.name}>
                     {testCase.name} <Flakiness flakiness={testCase.flakiness} />
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1"><TestStatusPill status={testCase.status} /></td>
+                  <td className="whitespace-nowrap px-2 py-1">
+                    <TestStatusPill status={testCase.status} />
+                  </td>
                   <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{formatMs(testCase.durationMs)}</td>
                 </tr>
                 {showFailures && testCase.failure ? (
                   <tr>
-                    <td className="px-2 py-1" colSpan={3}><FailureSnippet failure={testCase.failure} /></td>
+                    <td className="px-2 py-1" colSpan={3}>
+                      <FailureSnippet failure={testCase.failure} />
+                    </td>
                   </tr>
                 ) : null}
               </Fragment>

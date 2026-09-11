@@ -144,10 +144,12 @@ describe("ThroughputPanel", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString()
       if (url === THROUGHPUT_PATH) {
-        return Promise.resolve(new Response(JSON.stringify(throughputPayload()), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        }))
+        return Promise.resolve(
+          new Response(JSON.stringify(throughputPayload()), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
+        )
       }
       return Promise.reject(new Error(`unexpected fetch: ${url}`))
     })

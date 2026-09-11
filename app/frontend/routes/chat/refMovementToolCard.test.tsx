@@ -16,7 +16,7 @@ describe("parseRefMovementCore", () => {
       target_repository: "upstream/syrus",
       target_inferred: true,
       mode: "auto",
-      grade_phases: [ "review", "landing" ]
+      grade_phases: ["review", "landing"]
     })
 
     expect(core).toEqual({
@@ -31,7 +31,7 @@ describe("parseRefMovementCore", () => {
       targetRepository: "upstream/syrus",
       targetInferred: true,
       mode: "auto",
-      gradePhases: [ "review", "landing" ]
+      gradePhases: ["review", "landing"]
     })
   })
 
@@ -64,7 +64,7 @@ describe("RefMovementCoreFields", () => {
       target_kind: "branch",
       target_ref: "main",
       mode: "auto",
-      grade_phases: [ "review" ]
+      grade_phases: ["review"]
     })!
 
     render(<RefMovementCoreFields core={core} />)

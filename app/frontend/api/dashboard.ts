@@ -462,9 +462,13 @@ export type DashboardChromePayload = Omit<DashboardPayload, "total" | "total_pag
   kanban_limit?: number | null
 }
 
-export type DashboardRowsPayload = Pick<DashboardPayload, "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "landing_queue" | "items" | "lanes" | "kanban_limit"> & Partial<Pick<DashboardPayload, "active_smart_folder_id" | "filter" | "preferences">> & {
-  controls?: Partial<DashboardPayload["controls"]>
-}
+export type DashboardRowsPayload = Pick<
+  DashboardPayload,
+  "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "landing_queue" | "items" | "lanes" | "kanban_limit"
+> &
+  Partial<Pick<DashboardPayload, "active_smart_folder_id" | "filter" | "preferences">> & {
+    controls?: Partial<DashboardPayload["controls"]>
+  }
 
 export type DashboardPreferencesInput = {
   subject: DashboardSubject
@@ -482,7 +486,8 @@ export type DashboardPreferencesPayload = {
   dashboard_preferences: Record<string, unknown>
 }
 
-export type DashboardBulkJobAction = "retry" | "close" | "approve" | "claim" | "release_claim" | "release_from_backlog" | "move_to_backlog" | "assign_owner" | "set_priority" | "pause" | "unpause"
+export type DashboardBulkJobAction =
+  "retry" | "close" | "approve" | "claim" | "release_claim" | "release_from_backlog" | "move_to_backlog" | "assign_owner" | "set_priority" | "pause" | "unpause"
 export type DashboardBulkEpicAction = "start"
 
 export type DashboardBulkJobsInput = {
@@ -597,7 +602,11 @@ export type DashboardTimedPayload<T> = {
   meta: JsonResponseMeta
 }
 
-export function mergeDashboardPayload(chrome: DashboardChromePayload, rows: DashboardRowsPayload, options: { rowsCurrentForSearch?: boolean } = {}): DashboardPayload {
+export function mergeDashboardPayload(
+  chrome: DashboardChromePayload,
+  rows: DashboardRowsPayload,
+  options: { rowsCurrentForSearch?: boolean } = {}
+): DashboardPayload {
   const activeSmartFolderId = rows.active_smart_folder_id ?? chrome.active_smart_folder_id
   const rowControls = rows.controls ?? {}
 

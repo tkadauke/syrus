@@ -7,7 +7,33 @@ import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import {
+  chatPreviewPanelFileUrl,
+  closeChatPreviewPanel,
+  createWhiteboardSnapshot,
+  fetchChatMedia,
+  fetchChatPreviewPanelAccessToken,
+  fetchChatPreviewPanelFile,
+  fetchChatWhiteboard,
+  fetchWhiteboardSnapshot,
+  fetchWhiteboardSnapshots,
+  patchChatWhiteboard,
+  fetchCodingFileTree,
+  fetchCodingCommits,
+  fetchCodingFileContent,
+  fetchCodingDiff,
+  updateChatMode,
+  updateChatPreviewPanelVisibility,
+  switchChatProvider,
+  type ChatMediaImage,
+  type ChatMode,
+  type ChatPayload,
+  type ChatPreviewPanel,
+  type ChatPreviewPanelVersion,
+  type ChatPreviewPanelVisibility,
+  type ChatWhiteboardScene,
+  type WhiteboardSnapshot
+} from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Select } from "../../components/Select"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
@@ -22,7 +48,17 @@ import { SourceCodeTable } from "../../components/FilePreviewModal"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
-import { chatDisplayTitle, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
+import {
+  chatDisplayTitle,
+  snapshotKindLabel,
+  secondaryButton,
+  errorAsError,
+  formatCurrency,
+  formatTokenCount,
+  localDiffTabVisible,
+  truncateSnapshotName,
+  withRoutePrefix
+} from "./utils"
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
 import { PinIcon } from "../../components/PinIcon"
@@ -30,15 +66,20 @@ import { newestPins, useChatPins, useHasPins } from "./pins"
 import type { WorkspaceTab } from "./workspaceTabs"
 import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
-import { availableWorkspaceTabs, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import {
+  availableWorkspaceTabs,
+  defaultWorkspaceTab,
+  isPluginTab,
+  isPreviewTab,
+  pluginTabIdFromTab,
+  previewTabId,
+  workspaceTabClass,
+  workspaceTabLabel
+} from "./workspaceTabs"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { parseUnifiedDiff } from "../../components/diff/diffRendering"
 import { UnifiedDiffTable } from "../../components/diff/ReviewableDiff"
 import { Markdown } from "../../lib/Markdown"
-
-
-
-
 
 // Chat workspace panels extracted from Chat.tsx: the workspace tab shell
 // (ChatWorkspacePanel) and its panels — local diff, media gallery, settings
@@ -75,14 +116,15 @@ export function ChatWorkspacePanel({
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const [closedPluginTabs, setClosedPluginTabs] = useState<string[]>([])
   useEffect(() => setClosedPluginTabs([]), [payload.chat.id])
-  const visiblePayload = useMemo(() => ({
-    ...payload,
-    workspace_tabs: payload.workspace_tabs.filter((tab) => !closedPluginTabs.includes(tab.id))
-  }), [closedPluginTabs, payload])
+  const visiblePayload = useMemo(
+    () => ({
+      ...payload,
+      workspace_tabs: payload.workspace_tabs.filter((tab) => !closedPluginTabs.includes(tab.id))
+    }),
+    [closedPluginTabs, payload]
+  )
   const tabs = useMemo(() => availableWorkspaceTabs(visiblePayload, simpleMode, hasPins), [visiblePayload, simpleMode, hasPins])
-  const activePreviewPanel = isPreviewTab(activeTab)
-    ? payload.preview_panels.find((panel) => previewTabId(panel.id) === activeTab) ?? null
-    : null
+  const activePreviewPanel = isPreviewTab(activeTab) ? (payload.preview_panels.find((panel) => previewTabId(panel.id) === activeTab) ?? null) : null
   const closePreviewPanel = useMutation({
     mutationFn: (path: string) => closeChatPreviewPanel(path),
     onSuccess: (updated) => {
@@ -95,9 +137,15 @@ export function ChatWorkspacePanel({
   }, [activeTab, onSelectTab, payload, simpleMode, tabs])
 
   return (
-    <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <aside
+      aria-label={t("aria_chat_workspace")}
+      className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+    >
       {!showTabs ? null : (
-        <nav aria-label={t("aria_workspace_tabs")} className="flex min-w-0 items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
+        <nav
+          aria-label={t("aria_workspace_tabs")}
+          className="flex min-w-0 items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700"
+        >
           <div className="flex min-w-0 flex-1 overflow-x-auto">
             {tabs.map((tab) => {
               if (!isPreviewTab(tab)) {
@@ -115,7 +163,7 @@ export function ChatWorkspacePanel({
                         className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                         onClick={(event) => {
                           event.stopPropagation()
-                          setClosedPluginTabs((current) => tabId && !current.includes(tabId) ? [...current, tabId] : current)
+                          setClosedPluginTabs((current) => (tabId && !current.includes(tabId) ? [...current, tabId] : current))
                         }}
                         type="button"
                       >
@@ -126,12 +174,7 @@ export function ChatWorkspacePanel({
                 }
 
                 return (
-                  <button
-                    className={workspaceTabClass(activeTab === tab)}
-                    key={tab}
-                    onClick={() => onSelectTab(tab)}
-                    type="button"
-                  >
+                  <button className={workspaceTabClass(activeTab === tab)} key={tab} onClick={() => onSelectTab(tab)} type="button">
                     {workspaceTabLabel(tab, t, [], payload.workspace_tabs)}
                   </button>
                 )
@@ -169,7 +212,17 @@ export function ChatWorkspacePanel({
               title={t("aria_close_panel")}
               type="button"
             >
-              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg
+                aria-hidden="true"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
                 <rect height="18" rx="2" ry="2" width="18" x="3" y="3" />
                 <line x1="15" x2="15" y1="3" y2="21" />
                 <polyline points="18 9 15 12 18 15" />
@@ -302,9 +355,10 @@ function PreviewVersionSelector({
   if (panel.versions.length <= 1) return null
 
   const latestVersionId = panel.versions[0]?.id
-  const currentLabel = selectedVersionId === latestVersionId
-    ? t("preview_version_latest")
-    : t("preview_version_label", { index: panel.versions.findIndex((v) => v.id === selectedVersionId) + 1 })
+  const currentLabel =
+    selectedVersionId === latestVersionId
+      ? t("preview_version_latest")
+      : t("preview_version_label", { index: panel.versions.findIndex((v) => v.id === selectedVersionId) + 1 })
 
   return (
     <div className="relative">
@@ -319,7 +373,17 @@ function PreviewVersionSelector({
         variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
-        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          aria-hidden="true"
+          className="h-3 w-3 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </Button>
@@ -359,15 +423,7 @@ function PreviewVersionSelector({
 // control occupies the second toolbar position (after the version
 // selector), toggling PreviewPanel#visibility and, once public, surfacing a
 // copyable link that needs no access token to view.
-function PreviewShareControl({
-  panel,
-  queryKey,
-  onNotice
-}: {
-  panel: ChatPreviewPanel
-  queryKey: ChatQueryKey
-  onNotice: (message: string | null) => void
-}) {
+function PreviewShareControl({ panel, queryKey, onNotice }: { panel: ChatPreviewPanel; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -418,7 +474,17 @@ function PreviewShareControl({
       >
         {isPublic ? <GlobeIcon className="h-3 w-3" /> : <LockIcon className="h-3 w-3" />}
         <span>{isPublic ? t("preview_share_option_public") : t("preview_share_option_private")}</span>
-        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          aria-hidden="true"
+          className="h-3 w-3 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </Button>
@@ -441,7 +507,9 @@ function PreviewShareControl({
             <LockIcon className="h-3.5 w-3.5 shrink-0" />
             <span className="flex flex-col items-start">
               <span>{t("preview_share_option_private")}</span>
-              <span className={`text-xs font-normal ${!isPublic ? "text-on-brand/80" : "text-gray-400 dark:text-gray-500"}`}>{t("preview_share_option_private_hint")}</span>
+              <span className={`text-xs font-normal ${!isPublic ? "text-on-brand/80" : "text-gray-400 dark:text-gray-500"}`}>
+                {t("preview_share_option_private_hint")}
+              </span>
             </span>
           </button>
           <button
@@ -457,7 +525,9 @@ function PreviewShareControl({
             <GlobeIcon className="h-3.5 w-3.5 shrink-0" />
             <span className="flex flex-col items-start">
               <span>{t("preview_share_option_public")}</span>
-              <span className={`text-xs font-normal ${isPublic ? "text-on-brand/80" : "text-gray-400 dark:text-gray-500"}`}>{t("preview_share_option_public_hint")}</span>
+              <span className={`text-xs font-normal ${isPublic ? "text-on-brand/80" : "text-gray-400 dark:text-gray-500"}`}>
+                {t("preview_share_option_public_hint")}
+              </span>
             </span>
           </button>
           {isPublic ? (
@@ -504,15 +574,7 @@ function usePreviewPanelAccessToken(panel: ChatPreviewPanel, enabled = true) {
 // PreviewProxyMiddleware) is the real security boundary; sandbox is
 // defense-in-depth on top of it. Never add allow-same-origin — combined with
 // allow-scripts that would let framed content reach for the parent origin.
-function PreviewPanelFrame({
-  panel,
-  queryKey,
-  onNotice
-}: {
-  panel: ChatPreviewPanel
-  queryKey: ChatQueryKey
-  onNotice: (message: string | null) => void
-}) {
+function PreviewPanelFrame({ panel, queryKey, onNotice }: { panel: ChatPreviewPanel; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   const [selectedVersionId, setSelectedVersionId] = useState(panel.current_version_id)
   const lastCurrentVersionId = useRef(panel.current_version_id)
@@ -531,7 +593,7 @@ function PreviewPanelFrame({
   const htmlViewer = viewerKind === "html"
   const isPrivate = panel.visibility !== "public"
   const accessToken = usePreviewPanelAccessToken(panel, htmlViewer)
-  const token = isPrivate ? accessToken.data?.token ?? null : null
+  const token = isPrivate ? (accessToken.data?.token ?? null) : null
   const canRenderPreview = !htmlViewer || !isPrivate || !!token
 
   const versionedUrl = previewVersionUrl(panel, selectedVersionId, token)
@@ -651,13 +713,23 @@ function PreviewPanelNativeViewer({
         )}
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-3 py-2 dark:border-gray-700">
-        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">{t("preview_open_raw")}</a>
+        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">
+          {t("preview_open_raw")}
+        </a>
       </div>
     </div>
   )
 }
 
-function MarkdownPreviewPanel({ entryPath, query, rawEntryUrl }: { entryPath: string; query: UseQueryResult<Awaited<ReturnType<typeof fetchChatPreviewPanelFile>>>; rawEntryUrl: string }) {
+function MarkdownPreviewPanel({
+  entryPath,
+  query,
+  rawEntryUrl
+}: {
+  entryPath: string
+  query: UseQueryResult<Awaited<ReturnType<typeof fetchChatPreviewPanelFile>>>
+  rawEntryUrl: string
+}) {
   const { t } = useT("chat")
   const [mode, setMode] = useState<"preview" | "source">("preview")
 
@@ -666,10 +738,24 @@ function MarkdownPreviewPanel({ entryPath, query, rawEntryUrl }: { entryPath: st
       <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-600 dark:text-gray-300">{entryPath}</span>
         <div className="flex rounded border border-gray-200 p-0.5 text-xs dark:border-gray-700">
-          <button className={`rounded px-2 py-1 ${mode === "preview" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("preview")} type="button">{t("preview_mode_preview")}</button>
-          <button className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("source")} type="button">{t("preview_mode_source")}</button>
+          <button
+            className={`rounded px-2 py-1 ${mode === "preview" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`}
+            onClick={() => setMode("preview")}
+            type="button"
+          >
+            {t("preview_mode_preview")}
+          </button>
+          <button
+            className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`}
+            onClick={() => setMode("source")}
+            type="button"
+          >
+            {t("preview_mode_source")}
+          </button>
         </div>
-        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">{t("preview_open_raw")}</a>
+        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">
+          {t("preview_open_raw")}
+        </a>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {query.isPending ? (
@@ -689,7 +775,8 @@ function MarkdownPreviewPanel({ entryPath, query, rawEntryUrl }: { entryPath: st
 }
 
 const imageBackgroundClasses = {
-  checkerboard: "bg-[linear-gradient(45deg,#d1d5db_25%,transparent_25%),linear-gradient(-45deg,#d1d5db_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#d1d5db_75%),linear-gradient(-45deg,transparent_75%,#d1d5db_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0] bg-white dark:bg-gray-950",
+  checkerboard:
+    "bg-[linear-gradient(45deg,#d1d5db_25%,transparent_25%),linear-gradient(-45deg,#d1d5db_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#d1d5db_75%),linear-gradient(-45deg,transparent_75%,#d1d5db_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0] bg-white dark:bg-gray-950",
   white: "bg-white",
   dark: "bg-gray-950",
   neutral: "bg-amber-50 dark:bg-amber-100"
@@ -710,17 +797,40 @@ function ImagePreviewPanel({ entryPath, rawEntryUrl }: { entryPath: string; rawE
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-600 dark:text-gray-300">{entryPath}</span>
-        <button className={secondaryButton()} onClick={() => setFit(true)} type="button">{t("preview_image_fit")}</button>
-        <button aria-label={t("preview_image_zoom_out")} className={secondaryButton()} onClick={() => zoomBy(-0.25)} type="button">-</button>
-        <button aria-label={t("preview_image_zoom_in")} className={secondaryButton()} onClick={() => zoomBy(0.25)} type="button">+</button>
-        <button className={secondaryButton()} onClick={() => { setFit(false); setZoom(1) }} type="button">{t("preview_image_actual")}</button>
-        <Select aria-label={t("preview_image_background")} className="text-xs" fullWidth={false} value={background} onChange={(event) => setBackground(event.target.value as keyof typeof imageBackgroundClasses)}>
+        <button className={secondaryButton()} onClick={() => setFit(true)} type="button">
+          {t("preview_image_fit")}
+        </button>
+        <button aria-label={t("preview_image_zoom_out")} className={secondaryButton()} onClick={() => zoomBy(-0.25)} type="button">
+          -
+        </button>
+        <button aria-label={t("preview_image_zoom_in")} className={secondaryButton()} onClick={() => zoomBy(0.25)} type="button">
+          +
+        </button>
+        <button
+          className={secondaryButton()}
+          onClick={() => {
+            setFit(false)
+            setZoom(1)
+          }}
+          type="button"
+        >
+          {t("preview_image_actual")}
+        </button>
+        <Select
+          aria-label={t("preview_image_background")}
+          className="text-xs"
+          fullWidth={false}
+          value={background}
+          onChange={(event) => setBackground(event.target.value as keyof typeof imageBackgroundClasses)}
+        >
           <option value="checkerboard">{t("preview_image_background_checkerboard")}</option>
           <option value="white">{t("preview_image_background_white")}</option>
           <option value="dark">{t("preview_image_background_dark")}</option>
           <option value="neutral">{t("preview_image_background_neutral")}</option>
         </Select>
-        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">{t("preview_open_raw")}</a>
+        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">
+          {t("preview_open_raw")}
+        </a>
       </div>
       <div className={`min-h-0 flex-1 overflow-auto ${imageBackgroundClasses[background]}`}>
         <div className="flex min-h-full items-center justify-center p-4">
@@ -845,7 +955,17 @@ function LocalDiffPanel({ chatId }: { chatId: number }) {
           title={t("aria_refresh")}
           type="button"
         >
-          <svg aria-hidden="true" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <svg
+            aria-hidden="true"
+            className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <path d="M23 4v6h-6" />
             <path d="M1 20v-6h6" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -860,9 +980,7 @@ function LocalDiffPanel({ chatId }: { chatId: number }) {
           {error === "not_connected" ? t("local_diff_daemon_not_connected") : t("local_diff_error", { code: error })}
         </p>
       ) : isEmpty ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {mode === "staged" ? t("local_diff_no_staged") : t("local_diff_no_uncommitted")}
-        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{mode === "staged" ? t("local_diff_no_staged") : t("local_diff_no_uncommitted")}</p>
       ) : (
         <div className="overflow-x-auto rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
           <UnifiedDiffViewer diff={diff!} />
@@ -876,7 +994,14 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   const { t } = useT("chat")
   const walkthroughs = payload.video_walkthroughs || []
   const walkthroughStateLabel = (state: string) =>
-    ({ uploaded: t("walkthrough_state_uploaded"), analyzing: t("walkthrough_state_analyzing"), analyzed: t("walkthrough_state_analyzed"), failed: t("walkthrough_state_failed") } as Record<string, string>)[state] || state
+    (
+      ({
+        uploaded: t("walkthrough_state_uploaded"),
+        analyzing: t("walkthrough_state_analyzing"),
+        analyzed: t("walkthrough_state_analyzed"),
+        failed: t("walkthrough_state_failed")
+      }) as Record<string, string>
+    )[state] || state
   const [lightboxImageIndex, setLightboxImageIndex] = useState<number | null>(null)
   const [loadingSnapshotId, setLoadingSnapshotId] = useState<number | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
@@ -914,10 +1039,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
       const snapshotScene = cloneWhiteboardScene(normalizeWhiteboardScene(fullSnapshot.scene_json))
       const current = await fetchChatWhiteboard(payload.paths.app_whiteboard_path)
       const currentScene = cloneWhiteboardScene(normalizeWhiteboardScene(current.scene_json))
-      const nextElements = [
-        ...currentScene.elements,
-        ...withFreshElementIds(snapshotScene.elements)
-      ]
+      const nextElements = [...currentScene.elements, ...withFreshElementIds(snapshotScene.elements)]
 
       if (nextElements.length > WHITEBOARD_MAX_ELEMENTS) {
         throw new ApiError(`Loading this snapshot would exceed the ${WHITEBOARD_MAX_ELEMENTS} element limit.`, { status: 422 })
@@ -983,7 +1105,16 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
     onNotice(result.ok ? t("image_attached_notice") : t("media_attach_error"))
   }
 
-  if (images.length === 0 && snapshotItems.length === 0 && walkthroughs.length === 0 && artifactItems.length === 0 && !snapshots.isPending && !snapshots.isError && !media.isPending && !media.isError) {
+  if (
+    images.length === 0 &&
+    snapshotItems.length === 0 &&
+    walkthroughs.length === 0 &&
+    artifactItems.length === 0 &&
+    !snapshots.isPending &&
+    !snapshots.isError &&
+    !media.isPending &&
+    !media.isError
+  ) {
     return <PanelMessage>{t("media_empty")}</PanelMessage>
   }
 
@@ -993,7 +1124,11 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
       {snapshots.isError ? <PanelMessage tone="error">{errorMessage(snapshots.error, "Unable to load snapshots.")}</PanelMessage> : null}
       {snapshotError ? <PanelMessage tone="error">{snapshotError}</PanelMessage> : null}
       {media.isError ? <PanelMessage tone="error">{errorMessage(media.error, "Unable to load artifacts.")}</PanelMessage> : null}
-      {chatBusy ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">{t("chat_busy")}</div> : null}
+      {chatBusy ? (
+        <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+          {t("chat_busy")}
+        </div>
+      ) : null}
 
       {artifactItems.length > 0 ? (
         <section className="space-y-2">
@@ -1005,10 +1140,14 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                 <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={artifact.type}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={artifact.title}>{artifact.title}</div>
+                      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={artifact.title}>
+                        {artifact.title}
+                      </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                         <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{artifact.type}</span>
-                        <span><RelativeTimestamp value={artifact.created_at} /></span>
+                        <span>
+                          <RelativeTimestamp value={artifact.created_at} />
+                        </span>
                       </div>
                     </div>
                     <button
@@ -1039,11 +1178,19 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
               <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={snapshot.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={snapshot.name || "Snapshot"}>{truncateSnapshotName(snapshot.name || "Snapshot")}</div>
+                    <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={snapshot.name || "Snapshot"}>
+                      {truncateSnapshotName(snapshot.name || "Snapshot")}
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{snapshotKindLabel(snapshot.snapshot_kind)}</span>
-                      <span>{snapshot.element_count} {snapshot.element_count === 1 ? "element" : "elements"}</span>
-                      <span><RelativeTimestamp value={snapshot.created_at} /></span>
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                        {snapshotKindLabel(snapshot.snapshot_kind)}
+                      </span>
+                      <span>
+                        {snapshot.element_count} {snapshot.element_count === 1 ? "element" : "elements"}
+                      </span>
+                      <span>
+                        <RelativeTimestamp value={snapshot.created_at} />
+                      </span>
                     </div>
                   </div>
                   <button
@@ -1068,13 +1215,21 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
             {walkthroughs.map((walkthrough) => (
               <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={walkthrough.id}>
                 <div className="flex items-start gap-3">
-                  <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-lg dark:bg-gray-800">🎥</div>
+                  <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-lg dark:bg-gray-800">
+                    🎥
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={walkthrough.title}>{walkthrough.title}</div>
+                    <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={walkthrough.title}>
+                      {walkthrough.title}
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                       {walkthrough.duration_seconds != null ? <span className="tabular-nums">{formatClock(walkthrough.duration_seconds)}</span> : null}
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{walkthroughStateLabel(walkthrough.state)}</span>
-                      <span><RelativeTimestamp value={walkthrough.created_at} /></span>
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                        {walkthroughStateLabel(walkthrough.state)}
+                      </span>
+                      <span>
+                        <RelativeTimestamp value={walkthrough.created_at} />
+                      </span>
                     </div>
                     {walkthrough.state === "failed" && walkthrough.error_message ? (
                       <p className="mt-1 text-xs text-red-600 dark:text-red-400">{walkthrough.error_message}</p>
@@ -1127,7 +1282,9 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                       {t("image_attach_to_message")}
                     </button>
                   </div>
-                  <figcaption className="truncate text-xs text-gray-600 dark:text-gray-300" title={name}>{name}</figcaption>
+                  <figcaption className="truncate text-xs text-gray-600 dark:text-gray-300" title={name}>
+                    {name}
+                  </figcaption>
                 </figure>
               )
             })}
@@ -1141,8 +1298,8 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           hasPrevious={lightboxImageIndex != null && lightboxImageIndex > 0}
           name={lightboxImage.title || lightboxImage.filename || "Image attachment"}
           onClose={() => setLightboxImageIndex(null)}
-          onNext={() => setLightboxImageIndex((index) => index == null ? index : Math.min(index + 1, images.length - 1))}
-          onPrevious={() => setLightboxImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
+          onNext={() => setLightboxImageIndex((index) => (index == null ? index : Math.min(index + 1, images.length - 1)))}
+          onPrevious={() => setLightboxImageIndex((index) => (index == null ? index : Math.max(index - 1, 0)))}
           src={lightboxImage.image_url || lightboxImage.file_path || ""}
         />
       ) : null}
@@ -1150,7 +1307,17 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   )
 }
 
-export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onClose: () => void }) {
+export function ChatSettingsDialog({
+  payload,
+  prefix,
+  queryKey,
+  onClose
+}: {
+  payload: ChatPayload
+  prefix: string
+  queryKey: ChatQueryKey
+  onClose: () => void
+}) {
   const queryClient = useQueryClient()
   const { t } = useT("chat")
   const providerOptions = payload.chat.chat_provider_options || []
@@ -1170,7 +1337,7 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
     ...(payload.local_mode_enabled ? [{ value: "local" as ChatMode, label: t("mode_local") }] : [])
   ]
   const mode = useMutation({
-    mutationFn: (value: string) => updateChatMode(payload.chat.id, value as ChatMode || null),
+    mutationFn: (value: string) => updateChatMode(payload.chat.id, (value as ChatMode) || null),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       updateRecentChatCache(queryClient, updated.chat)
@@ -1179,13 +1346,25 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" role="presentation">
-      <section aria-modal="true" aria-labelledby="chat-settings-title" className="w-full max-w-md rounded border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="dialog">
+      <section
+        aria-modal="true"
+        aria-labelledby="chat-settings-title"
+        className="w-full max-w-md rounded border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+        role="dialog"
+      >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="chat-settings-title">{t("chat_settings")}</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="chat-settings-title">
+              {t("chat_settings")}
+            </h2>
             <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{chatDisplayTitle(payload.chat)}</p>
           </div>
-          <button aria-label={t("aria_close_settings")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+          <button
+            aria-label={t("aria_close_settings")}
+            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            onClick={onClose}
+            type="button"
+          >
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
@@ -1209,7 +1388,9 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
                 </Select>
               </div>
               <span className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                <span>{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
+                <span>
+                  {t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}
+                </span>
                 <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
               </span>
             </label>
@@ -1248,11 +1429,19 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
           </label>
           {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
           {payload.chat.repository?.repository_path ? (
-            <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200" onClick={onClose} to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}>
+            <Link
+              className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200"
+              onClick={onClose}
+              to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}
+            >
               {t("chat_settings_repo")}
             </Link>
           ) : null}
-          <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200" onClick={onClose} to={withRoutePrefix("/credentials", prefix)}>
+          <Link
+            className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200"
+            onClick={onClose}
+            to={withRoutePrefix("/credentials", prefix)}
+          >
             {t("chat_settings_credentials")}
           </Link>
         </div>
@@ -1264,7 +1453,8 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
 export function UsageOverlay({ payload }: { payload: ChatPayload }) {
   return (
     <p className="pointer-events-none absolute left-0 right-0 top-0 border-b border-gray-100 bg-white/95 px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950/95 dark:text-gray-400">
-      Tokens: {formatTokenCount(payload.chat.cumulative_input_tokens)} in / {formatTokenCount(payload.chat.cumulative_output_tokens)} out · {formatCurrency(payload.chat.cumulative_cost_usd)}
+      Tokens: {formatTokenCount(payload.chat.cumulative_input_tokens)} in / {formatTokenCount(payload.chat.cumulative_output_tokens)} out ·{" "}
+      {formatCurrency(payload.chat.cumulative_cost_usd)}
     </p>
   )
 }
@@ -1304,7 +1494,9 @@ function FileTreeEntry({
           style={{ paddingLeft: `${indent + 8}px` }}
           type="button"
         >
-          <span aria-hidden="true" className="shrink-0 font-mono text-gray-400 dark:text-gray-500">{open ? "▾" : "▸"}</span>
+          <span aria-hidden="true" className="shrink-0 font-mono text-gray-400 dark:text-gray-500">
+            {open ? "▾" : "▸"}
+          </span>
           <span className="truncate font-medium">{node.name}</span>
         </button>
         {open ? (
@@ -1459,7 +1651,9 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
             >
               {t("diff_tab_cumulative")}
             </button>
-            <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
+            <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">
+              ·
+            </span>
             <button
               className={`rounded px-2 py-1 text-xs ${diffMode === "turn" ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
               onClick={() => setDiffMode("turn")}
@@ -1564,7 +1758,9 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
                     <UnifiedDiffViewer diff={selectedDiff.patch} path={selectedDiff.path} testId="coding-diff-viewer" />
                   </>
                 ) : (
-                  <div className="flex h-full min-h-[16rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>
+                  <div className="flex h-full min-h-[16rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
+                    {t("source_select_diff_file")}
+                  </div>
                 )}
               </div>
             </div>

@@ -17,7 +17,7 @@ function bundledJob(id: number, bundleId: number): DashboardJobItem {
 
 describe("startsNewEpicGroup", () => {
   // Queue order: epic56, epic56, epic57, epicless, epicless, epic58
-  const items = [ job(1, 56), job(2, 56), job(3, 57), job(4, null), job(5, null), job(6, 58) ]
+  const items = [job(1, 56), job(2, 56), job(3, 57), job(4, null), job(5, null), job(6, 58)]
 
   it("never separates the first row", () => {
     expect(startsNewEpicGroup(items, 0, true)).toBe(false)
@@ -50,11 +50,7 @@ describe("startsNewEpicGroup", () => {
 
 describe("startsNewEpicGroup with job bundles", () => {
   // Queue order: bundle9, bundle9, standalone, standalone, epic56, bundle10
-  const items = [
-    bundledJob(1, 9), bundledJob(2, 9),
-    job(3, null, "job:3"), job(4, null, "job:4"),
-    job(5, 56), bundledJob(6, 10)
-  ]
+  const items = [bundledJob(1, 9), bundledJob(2, 9), job(3, null, "job:3"), job(4, null, "job:4"), job(5, 56), bundledJob(6, 10)]
 
   it("does not separate consecutive jobs of the same bundle", () => {
     expect(startsNewEpicGroup(items, 1, true)).toBe(false)

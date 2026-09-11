@@ -54,7 +54,11 @@ interface ParsedCombo {
 }
 
 function parseCombo(combo: string): ParsedCombo {
-  const parts = combo.toLowerCase().split("+").map((part) => part.trim()).filter(Boolean)
+  const parts = combo
+    .toLowerCase()
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean)
   return {
     mod: parts.includes("mod"),
     alt: parts.includes("alt"),

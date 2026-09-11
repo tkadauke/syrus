@@ -10,8 +10,25 @@ import { Table, TBody, Td, THead } from "../adminToolCard"
 type JobRow = { key: string; id: string; className: string | null; queueName: string | null; createdAt: string | null; claimedAt: string | null }
 type FailureRow = { key: string; id: string; createdAt: string | null; className: string | null; exceptionClass: string | null; message: string | null }
 type TaskRow = { key: string; taskKey: string; className: string | null; schedule: string | null; lastRunAt: string | null; lastFinishedAt: string | null }
-type WorkerRow = { key: string; hostname: string; pid: string | null; queues: string[]; threads: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null }
-type ProcessRow = { key: string; kind: string | null; hostname: string; pid: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null }
+type WorkerRow = {
+  key: string
+  hostname: string
+  pid: string | null
+  queues: string[]
+  threads: string | null
+  lastHeartbeatAt: string | null
+  stale: boolean
+  status: string | null
+}
+type ProcessRow = {
+  key: string
+  kind: string | null
+  hostname: string
+  pid: string | null
+  lastHeartbeatAt: string | null
+  stale: boolean
+  status: string | null
+}
 
 type QueueDetailCard =
   | { tab: "active"; jobs: JobRow[] }
@@ -22,7 +39,10 @@ type QueueDetailCard =
 
 function stringList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
-  return value.flatMap((item) => { const name = displayValue(item); return name ? [name] : [] })
+  return value.flatMap((item) => {
+    const name = displayValue(item)
+    return name ? [name] : []
+  })
 }
 
 function parseJobRow(value: unknown, index: number): JobRow | null {
@@ -111,22 +131,54 @@ function parseQueueDetail(context: ToolCardContext): QueueDetailCard | null {
   switch (tab) {
     case "active":
       if (!Array.isArray(parsed.jobs)) return null
-      return { tab: "active", jobs: parsed.jobs.flatMap((job, index) => { const row = parseJobRow(job, index); return row ? [row] : [] }) }
+      return {
+        tab: "active",
+        jobs: parsed.jobs.flatMap((job, index) => {
+          const row = parseJobRow(job, index)
+          return row ? [row] : []
+        })
+      }
     case "pending":
       if (!Array.isArray(parsed.jobs)) return null
-      return { tab: "pending", jobs: parsed.jobs.flatMap((job, index) => { const row = parseJobRow(job, index); return row ? [row] : [] }), total: numberValue(parsed.total) }
+      return {
+        tab: "pending",
+        jobs: parsed.jobs.flatMap((job, index) => {
+          const row = parseJobRow(job, index)
+          return row ? [row] : []
+        }),
+        total: numberValue(parsed.total)
+      }
     case "failed":
       if (!Array.isArray(parsed.failures)) return null
-      return { tab: "failed", failures: parsed.failures.flatMap((failure, index) => { const row = parseFailureRow(failure, index); return row ? [row] : [] }), since: displayValue(parsed.since) }
+      return {
+        tab: "failed",
+        failures: parsed.failures.flatMap((failure, index) => {
+          const row = parseFailureRow(failure, index)
+          return row ? [row] : []
+        }),
+        since: displayValue(parsed.since)
+      }
     case "recurring":
       if (!Array.isArray(parsed.tasks)) return null
-      return { tab: "recurring", tasks: parsed.tasks.flatMap((task, index) => { const row = parseTaskRow(task, index); return row ? [row] : [] }) }
+      return {
+        tab: "recurring",
+        tasks: parsed.tasks.flatMap((task, index) => {
+          const row = parseTaskRow(task, index)
+          return row ? [row] : []
+        })
+      }
     case "workers":
       if (!Array.isArray(parsed.workers) || !Array.isArray(parsed.all_processes)) return null
       return {
         tab: "workers",
-        workers: parsed.workers.flatMap((worker, index) => { const row = parseWorkerRow(worker, index); return row ? [row] : [] }),
-        processes: parsed.all_processes.flatMap((process, index) => { const row = parseProcessRow(process, index); return row ? [row] : [] })
+        workers: parsed.workers.flatMap((worker, index) => {
+          const row = parseWorkerRow(worker, index)
+          return row ? [row] : []
+        }),
+        processes: parsed.all_processes.flatMap((process, index) => {
+          const row = parseProcessRow(process, index)
+          return row ? [row] : []
+        })
       }
     default:
       return null
@@ -166,7 +218,9 @@ function JobsTable({ jobs }: { jobs: JobRow[] }) {
         {jobs.map((job) => (
           <tr key={job.key}>
             <Td mono>{job.id}</Td>
-            <Td maxWidth title={job.className ?? undefined}>{job.className || "—"}</Td>
+            <Td maxWidth title={job.className ?? undefined}>
+              {job.className || "—"}
+            </Td>
             <Td>{job.queueName || "—"}</Td>
             <Td mono>{job.createdAt || "—"}</Td>
             <Td mono>{job.claimedAt || "—"}</Td>
@@ -181,7 +235,12 @@ function renderExpanded(context: ToolCardContext) {
   const card = parseQueueDetail(context)
   if (!card) return null
 
-  if (card.tab === "active") return <CardShell><JobsTable jobs={card.jobs} /></CardShell>
+  if (card.tab === "active")
+    return (
+      <CardShell>
+        <JobsTable jobs={card.jobs} />
+      </CardShell>
+    )
 
   if (card.tab === "pending") {
     return (
@@ -205,9 +264,15 @@ function renderExpanded(context: ToolCardContext) {
               {card.failures.map((failure) => (
                 <tr key={failure.key}>
                   <Td mono>{failure.id}</Td>
-                  <Td maxWidth title={failure.className ?? undefined}>{failure.className || "—"}</Td>
-                  <Td maxWidth title={failure.exceptionClass ?? undefined}>{failure.exceptionClass || "—"}</Td>
-                  <Td maxWidth title={failure.message ?? undefined}>{failure.message || "—"}</Td>
+                  <Td maxWidth title={failure.className ?? undefined}>
+                    {failure.className || "—"}
+                  </Td>
+                  <Td maxWidth title={failure.exceptionClass ?? undefined}>
+                    {failure.exceptionClass || "—"}
+                  </Td>
+                  <Td maxWidth title={failure.message ?? undefined}>
+                    {failure.message || "—"}
+                  </Td>
                   <Td mono>{failure.createdAt || "—"}</Td>
                 </tr>
               ))}
@@ -230,7 +295,9 @@ function renderExpanded(context: ToolCardContext) {
               {card.tasks.map((task) => (
                 <tr key={task.key}>
                   <Td mono>{task.taskKey}</Td>
-                  <Td maxWidth title={task.className ?? undefined}>{task.className || "—"}</Td>
+                  <Td maxWidth title={task.className ?? undefined}>
+                    {task.className || "—"}
+                  </Td>
                   <Td mono>{task.schedule || "—"}</Td>
                   <Td mono>{task.lastRunAt || "—"}</Td>
                   <Td mono>{task.lastFinishedAt || "—"}</Td>
@@ -256,10 +323,14 @@ function renderExpanded(context: ToolCardContext) {
               <tr key={worker.key}>
                 <Td mono>{worker.hostname}</Td>
                 <Td mono>{worker.pid || "—"}</Td>
-                <Td maxWidth title={worker.queues.join(", ")}>{worker.queues.join(", ") || "—"}</Td>
+                <Td maxWidth title={worker.queues.join(", ")}>
+                  {worker.queues.join(", ") || "—"}
+                </Td>
                 <Td>{worker.threads || "—"}</Td>
                 <Td mono>{worker.lastHeartbeatAt || "—"}</Td>
-                <Td><StaleBadge stale={worker.stale} /></Td>
+                <Td>
+                  <StaleBadge stale={worker.stale} />
+                </Td>
               </tr>
             ))}
           </TBody>
@@ -278,7 +349,9 @@ function renderExpanded(context: ToolCardContext) {
                 <Td mono>{process.hostname}</Td>
                 <Td mono>{process.pid || "—"}</Td>
                 <Td mono>{process.lastHeartbeatAt || "—"}</Td>
-                <Td><StaleBadge stale={process.stale} /></Td>
+                <Td>
+                  <StaleBadge stale={process.stale} />
+                </Td>
               </tr>
             ))}
           </TBody>

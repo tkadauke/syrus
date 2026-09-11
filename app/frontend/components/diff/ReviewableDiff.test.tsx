@@ -11,14 +11,9 @@ const files = [
   {
     additions: 1,
     deletions: 1,
-    patch: [
-      "diff --git a/app/models/job.rb b/app/models/job.rb",
-      "--- a/app/models/job.rb",
-      "+++ b/app/models/job.rb",
-      "@@ -1,2 +1,2 @@",
-      "-old",
-      "+new"
-    ].join("\n"),
+    patch: ["diff --git a/app/models/job.rb b/app/models/job.rb", "--- a/app/models/job.rb", "+++ b/app/models/job.rb", "@@ -1,2 +1,2 @@", "-old", "+new"].join(
+      "\n"
+    ),
     path: "app/models/job.rb",
     status: "modified"
   },
@@ -57,14 +52,9 @@ function manyFiles(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     additions: 1,
     deletions: 0,
-    patch: [
-      `diff --git a/file${index}.rb b/file${index}.rb`,
-      `--- a/file${index}.rb`,
-      `+++ b/file${index}.rb`,
-      "@@ -1,1 +1,2 @@",
-      " keep",
-      "+added"
-    ].join("\n"),
+    patch: [`diff --git a/file${index}.rb b/file${index}.rb`, `--- a/file${index}.rb`, `+++ b/file${index}.rb`, "@@ -1,1 +1,2 @@", " keep", "+added"].join(
+      "\n"
+    ),
     path: `file${index}.rb`,
     status: "modified"
   }))
@@ -105,14 +95,7 @@ describe("ReviewableDiff", () => {
   })
 
   it("keeps coverage annotations attached to new-line coordinates", () => {
-    render(
-      <ReviewableDiff
-        annotations={{ "app/models/job.rb": { "1": "uncovered" } }}
-        files={files}
-        mode="single-file"
-        selectedPath="app/models/job.rb"
-      />
-    )
+    render(<ReviewableDiff annotations={{ "app/models/job.rb": { "1": "uncovered" } }} files={files} mode="single-file" selectedPath="app/models/job.rb" />)
 
     const row = screen.getByText("new").closest("tr")
     expect(row).toHaveAttribute("data-coverage", "uncovered")
@@ -643,14 +626,7 @@ describe("file-level virtualization", () => {
     function Controlled() {
       const [selectedPath, setSelectedPath] = useState<string | null>(null)
       return (
-        <ReviewableDiff
-          changedFilesPopup
-          files={manyFiles(60)}
-          mode="continuous"
-          onSelectFile={setSelectedPath}
-          selectedPath={selectedPath}
-          showFileHeaders
-        />
+        <ReviewableDiff changedFilesPopup files={manyFiles(60)} mode="continuous" onSelectFile={setSelectedPath} selectedPath={selectedPath} showFileHeaders />
       )
     }
     render(<Controlled />)
@@ -676,14 +652,7 @@ describe("hidden-context expansion", () => {
     return {
       additions: 1,
       deletions: 0,
-      patch: [
-        "diff --git a/f.rb b/f.rb",
-        "--- a/f.rb",
-        "+++ b/f.rb",
-        `@@ -${startLine},1 +${startLine},2 @@`,
-        " keep",
-        "+added"
-      ].join("\n"),
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", `@@ -${startLine},1 +${startLine},2 @@`, " keep", "+added"].join("\n"),
       path: "f.rb",
       status: "modified"
     }
@@ -734,26 +703,11 @@ describe("hidden-context expansion", () => {
     const twoHunkFile = {
       additions: 0,
       deletions: 0,
-      patch: [
-        "diff --git a/f.rb b/f.rb",
-        "--- a/f.rb",
-        "+++ b/f.rb",
-        "@@ -1,1 +1,1 @@",
-        " first",
-        "@@ -6,1 +6,1 @@",
-        " second"
-      ].join("\n"),
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -1,1 +1,1 @@", " first", "@@ -6,1 +6,1 @@", " second"].join("\n"),
       path: "f.rb",
       status: "modified"
     }
-    const onLoadFileContext = vi.fn().mockResolvedValue([
-      "first",
-      "between 2",
-      "between 3",
-      "between 4",
-      "between 5",
-      "second"
-    ].join("\n"))
+    const onLoadFileContext = vi.fn().mockResolvedValue(["first", "between 2", "between 3", "between 4", "between 5", "second"].join("\n"))
     render(<ReviewableDiff files={[twoHunkFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
 
     fireEvent.click(screen.getAllByLabelText("Load 20 more lines below")[0])
@@ -781,26 +735,13 @@ describe("hidden-context expansion", () => {
     const twoHunkFile = {
       additions: 0,
       deletions: 0,
-      patch: [
-        "diff --git a/f.rb b/f.rb",
-        "--- a/f.rb",
-        "+++ b/f.rb",
-        "@@ -1,1 +1,1 @@",
-        " class First; end",
-        "@@ -6,1 +6,1 @@",
-        " class Second; end"
-      ].join("\n"),
+      patch: ["diff --git a/f.rb b/f.rb", "--- a/f.rb", "+++ b/f.rb", "@@ -1,1 +1,1 @@", " class First; end", "@@ -6,1 +6,1 @@", " class Second; end"].join(
+        "\n"
+      ),
       path: "f.rb",
       status: "modified"
     }
-    const onLoadFileContext = vi.fn().mockResolvedValue([
-      "class First; end",
-      "def loaded_context",
-      "  true",
-      "end",
-      "",
-      "class Second; end"
-    ].join("\n"))
+    const onLoadFileContext = vi.fn().mockResolvedValue(["class First; end", "def loaded_context", "  true", "end", "", "class Second; end"].join("\n"))
     render(<ReviewableDiff files={[twoHunkFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
 
     fireEvent.click(screen.getAllByLabelText("Load 20 more lines below")[0])
@@ -876,12 +817,14 @@ describe("word-occurrence highlighting", () => {
   })
 
   it("never turns punctuation into a clickable highlight target", () => {
-    const punctFiles = [{
-      additions: 1,
-      deletions: 1,
-      patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+foo();"].join("\n"),
-      path: "a.rb"
-    }]
+    const punctFiles = [
+      {
+        additions: 1,
+        deletions: 1,
+        patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+foo();"].join("\n"),
+        path: "a.rb"
+      }
+    ]
     render(<ReviewableDiff files={punctFiles} mode="continuous" showFileHeaders />)
 
     expect(screen.getByText("(")).not.toHaveClass("cursor-pointer")
@@ -889,12 +832,14 @@ describe("word-occurrence highlighting", () => {
   })
 
   it("does not render a highlight note and clears when clicking non-identifier diff content", () => {
-    const punctFiles = [{
-      additions: 1,
-      deletions: 1,
-      patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+shared_token();"].join("\n"),
-      path: "a.rb"
-    }]
+    const punctFiles = [
+      {
+        additions: 1,
+        deletions: 1,
+        patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+shared_token();"].join("\n"),
+        path: "a.rb"
+      }
+    ]
     render(<ReviewableDiff files={punctFiles} mode="continuous" showFileHeaders />)
 
     fireEvent.click(screen.getByText("shared_token"))
@@ -982,19 +927,25 @@ describe("performance markers", () => {
 
     render(
       <ReviewableDiff
-        comments={{ "app/models/job.rb": { anchor: [ { author: "reviewer", body: "look here", id: 1, state: "draft" } ] } }}
+        comments={{ "app/models/job.rb": { anchor: [{ author: "reviewer", body: "look here", id: 1, state: "draft" }] } }}
         files={files}
         mode="continuous"
       />
     )
 
     expect(startMarkerSpy).toHaveBeenCalledWith("diff_review.parse_diff", expect.objectContaining({ maxPerSession: 300 }))
-    expect(recordCountSpy).toHaveBeenCalledWith("diff_review.viewport_render", expect.objectContaining({
-      metadata: expect.objectContaining({ total_files: files.length })
-    }))
-    expect(recordCountSpy).toHaveBeenCalledWith("diff_review.comment_threads_render", expect.objectContaining({
-      metadata: expect.objectContaining({ thread_count: 1 })
-    }))
+    expect(recordCountSpy).toHaveBeenCalledWith(
+      "diff_review.viewport_render",
+      expect.objectContaining({
+        metadata: expect.objectContaining({ total_files: files.length })
+      })
+    )
+    expect(recordCountSpy).toHaveBeenCalledWith(
+      "diff_review.comment_threads_render",
+      expect.objectContaining({
+        metadata: expect.objectContaining({ thread_count: 1 })
+      })
+    )
   })
 
   it("times the Files menu from open to render as one span", () => {

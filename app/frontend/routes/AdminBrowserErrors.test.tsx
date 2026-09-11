@@ -22,21 +22,23 @@ describe("AdminBrowserErrors", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders dashboard-style filter chips for browser error searches", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      current_revision: "abc123",
-      revision_scope: "current",
-      filters: {},
-      timeline: [],
-      pagination: {
-        page: 1,
-        per_page: 50,
-        has_next_page: false,
-        has_previous_page: false,
-        next_page: null,
-        previous_page: null
-      },
-      events: [browserErrorEvent()]
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        current_revision: "abc123",
+        revision_scope: "current",
+        filters: {},
+        timeline: [],
+        pagination: {
+          page: 1,
+          per_page: 50,
+          has_next_page: false,
+          has_previous_page: false,
+          next_page: null,
+          previous_page: null
+        },
+        events: [browserErrorEvent()]
+      })
+    )
 
     renderRoute()
 
@@ -50,21 +52,23 @@ describe("AdminBrowserErrors", () => {
   })
 
   it("sorts by a clicked column header and reverses direction on a second click", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      current_revision: "abc123",
-      revision_scope: "current",
-      filters: {},
-      timeline: [],
-      pagination: {
-        page: 1,
-        per_page: 50,
-        has_next_page: false,
-        has_previous_page: false,
-        next_page: null,
-        previous_page: null
-      },
-      events: [browserErrorEvent()]
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        current_revision: "abc123",
+        revision_scope: "current",
+        filters: {},
+        timeline: [],
+        pagination: {
+          page: 1,
+          per_page: 50,
+          has_next_page: false,
+          has_previous_page: false,
+          next_page: null,
+          previous_page: null
+        },
+        events: [browserErrorEvent()]
+      })
+    )
 
     renderRoute()
     await screen.findByText("undefined is not an object")

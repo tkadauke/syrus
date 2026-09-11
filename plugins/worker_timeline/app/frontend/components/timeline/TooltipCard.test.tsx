@@ -44,7 +44,15 @@ describe("TooltipCard", () => {
 
   function mockSize(width: number, height: number) {
     vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue({
-      width, height, top: 0, left: 0, right: width, bottom: height, x: 0, y: 0, toJSON: () => ({})
+      width,
+      height,
+      top: 0,
+      left: 0,
+      right: width,
+      bottom: height,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
   }
 
@@ -53,7 +61,11 @@ describe("TooltipCard", () => {
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     mockSize(320, 96)
 
-    render(<TooltipCard x={1000} y={100}>content</TooltipCard>)
+    render(
+      <TooltipCard x={1000} y={100}>
+        content
+      </TooltipCard>
+    )
 
     const tooltip = screen.getByRole("tooltip")
     const left = Number.parseFloat(tooltip.style.left)
@@ -65,7 +77,11 @@ describe("TooltipCard", () => {
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     mockSize(320, 96)
 
-    render(<TooltipCard x={1010} y={750}>content</TooltipCard>)
+    render(
+      <TooltipCard x={1010} y={750}>
+        content
+      </TooltipCard>
+    )
 
     const tooltip = screen.getByRole("tooltip")
     const left = Number.parseFloat(tooltip.style.left)
@@ -79,7 +95,11 @@ describe("TooltipCard", () => {
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     mockSize(320, 96)
 
-    render(<TooltipCard x={100} y={100}>content</TooltipCard>)
+    render(
+      <TooltipCard x={100} y={100}>
+        content
+      </TooltipCard>
+    )
 
     const tooltip = screen.getByRole("tooltip")
     expect(tooltip.style.left).toBe("112px")

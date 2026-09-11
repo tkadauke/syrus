@@ -144,20 +144,36 @@ export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; 
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Kind</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Scope</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Content</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Updated</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Kind
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Scope
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              State
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Content
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Updated
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((row) => (
             <tr key={row.id}>
-              <td className="whitespace-nowrap px-2 py-1"><KindBadge kind={row.kind} /></td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <KindBadge kind={row.kind} />
+              </td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{scopeText(row)}</td>
-              <td className="whitespace-nowrap px-2 py-1"><PublishedPill memory={row} /></td>
-              <td className="max-w-[24rem] px-2 py-1 text-gray-700 dark:text-gray-300"><ContentPreview content={row.content} maxLines={2} /></td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <PublishedPill memory={row} />
+              </td>
+              <td className="max-w-[24rem] px-2 py-1 text-gray-700 dark:text-gray-300">
+                <ContentPreview content={row.content} maxLines={2} />
+              </td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-500 dark:text-gray-400">{row.updatedAt ?? "—"}</td>
             </tr>
           ))}
@@ -205,7 +221,12 @@ export function parseAuditEvent(value: unknown, index: number): AuditEvent | nul
 export function AuditEventActor({ event }: { event: AuditEvent }) {
   if (!event.actorKind) return <span className="text-gray-400 dark:text-gray-500">—</span>
   const detail = event.actorUserId ? `user #${event.actorUserId}` : event.actorRunId ? `run #${event.actorRunId}` : null
-  return <span className="text-gray-600 dark:text-gray-300">{event.actorKind}{detail ? ` (${detail})` : ""}</span>
+  return (
+    <span className="text-gray-600 dark:text-gray-300">
+      {event.actorKind}
+      {detail ? ` (${detail})` : ""}
+    </span>
+  )
 }
 
 const EVENT_TONE: Record<string, "success" | "warning" | "failure" | "neutral"> = {
@@ -227,11 +248,21 @@ export function AuditEventChange({ event }: { event: AuditEvent }) {
 
   return (
     <div className="mt-1 space-y-1">
-      {kindChanged ? <div className="text-gray-500 dark:text-gray-400">kind: {event.previousKind ?? "—"} → {event.newKind ?? "—"}</div> : null}
-      {confidenceChanged ? <div className="text-gray-500 dark:text-gray-400">confidence: {event.previousConfidence ?? "—"} → {event.newConfidence ?? "—"}</div> : null}
+      {kindChanged ? (
+        <div className="text-gray-500 dark:text-gray-400">
+          kind: {event.previousKind ?? "—"} → {event.newKind ?? "—"}
+        </div>
+      ) : null}
+      {confidenceChanged ? (
+        <div className="text-gray-500 dark:text-gray-400">
+          confidence: {event.previousConfidence ?? "—"} → {event.newConfidence ?? "—"}
+        </div>
+      ) : null}
       {contentChanged ? (
         <Disclosure label="Content change">
-          {event.previousContent != null ? <div className="whitespace-pre-wrap break-words text-red-700 line-through dark:text-red-300">{event.previousContent}</div> : null}
+          {event.previousContent != null ? (
+            <div className="whitespace-pre-wrap break-words text-red-700 line-through dark:text-red-300">{event.previousContent}</div>
+          ) : null}
           {event.newContent != null ? <div className="whitespace-pre-wrap break-words text-emerald-700 dark:text-emerald-300">{event.newContent}</div> : null}
         </Disclosure>
       ) : null}

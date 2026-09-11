@@ -41,14 +41,20 @@ export function AdminMysql() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="mysql-limit">Rows</label>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="mysql-limit">
+            Rows
+          </label>
           <select
             className="rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             id="mysql-limit"
             onChange={(event) => setLimit(Number(event.target.value))}
             value={limit}
           >
-            {[25, 50, 100, 200].map((value) => <option key={value} value={value}>{value}</option>)}
+            {[25, 50, 100, 200].map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
           </select>
           <button
             className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
@@ -106,8 +112,16 @@ function MysqlDashboard({
     <div className="space-y-6">
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Threads running" value={formatValue(summary.threads_running)} detail={`${formatValue(summary.threads_connected)} connected`} />
-        <MetricCard label="Connections used" value={connectionPercent(summary)} detail={`${formatValue(summary.max_used_connections)} max seen / ${formatValue(summary.max_connections)} limit`} />
-        <MetricCard label="Sleeping connections" value={formatValue(summary.sleeping_connections)} detail={`wait timeout ${formatValue(summary.wait_timeout)}s`} />
+        <MetricCard
+          label="Connections used"
+          value={connectionPercent(summary)}
+          detail={`${formatValue(summary.max_used_connections)} max seen / ${formatValue(summary.max_connections)} limit`}
+        />
+        <MetricCard
+          label="Sleeping connections"
+          value={formatValue(summary.sleeping_connections)}
+          detail={`wait timeout ${formatValue(summary.wait_timeout)}s`}
+        />
         <MetricCard label="Buffer pool" value={formatBytes(Number(payload.variables.innodb_buffer_pool_size))} detail={`database ${payload.database}`} />
       </section>
 
@@ -149,11 +163,7 @@ function MysqlDashboard({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Process list</h2>
           <div className="flex flex-wrap items-center gap-3">
-            <Checkbox
-              checked={hideIdle}
-              label={`Hide idle threads${idleCount > 0 ? ` (${idleCount})` : ""}`}
-              onChange={onToggleHideIdle}
-            />
+            <Checkbox checked={hideIdle} label={`Hide idle threads${idleCount > 0 ? ` (${idleCount})` : ""}`} onChange={onToggleHideIdle} />
             <p className="text-xs text-gray-500 dark:text-gray-400">Generated {new Date(payload.generated_at).toLocaleString()}</p>
           </div>
         </div>
@@ -185,7 +195,9 @@ function MysqlDashboard({
                   <td className="px-4 py-2">{process.time_seconds}s</td>
                   <td className="px-4 py-2">{process.state || "-"}</td>
                   <td className="px-4 py-2 font-mono text-xs">{process.host}</td>
-                  <td className="max-w-2xl truncate px-4 py-2 font-mono text-xs" title={process.info || ""}>{process.info || "-"}</td>
+                  <td className="max-w-2xl truncate px-4 py-2 font-mono text-xs" title={process.info || ""}>
+                    {process.info || "-"}
+                  </td>
                   <td className="px-4 py-2">
                     {process.command && process.command !== "Sleep" ? (
                       <button
@@ -221,10 +233,7 @@ function StatementDigestPanel({ payload }: { payload: MysqlSnapshot }) {
         <p className="text-xs text-gray-500 dark:text-gray-400">Performance Schema summary ordered by total time.</p>
       </div>
       {!payload.statement_digests.available ? (
-        <UnavailablePanel
-          fallback="Performance Schema statement digests are unavailable."
-          error={payload.statement_digests.error}
-        />
+        <UnavailablePanel fallback="Performance Schema statement digests are unavailable." error={payload.statement_digests.error} />
       ) : (
         <div className="max-h-[32rem] overflow-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
@@ -242,7 +251,9 @@ function StatementDigestPanel({ payload }: { payload: MysqlSnapshot }) {
                   <td className="px-4 py-2">{formatSeconds(row.total_seconds)}</td>
                   <td className="px-4 py-2">{formatSeconds(row.max_seconds)}</td>
                   <td className="px-4 py-2">{row.count}</td>
-                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.digest_text || ""}>{row.digest_text || "-"}</td>
+                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.digest_text || ""}>
+                    {row.digest_text || "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -260,7 +271,8 @@ function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload }: { includeSlo
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Slow log</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")} · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
+            slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")}{" "}
+            · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
           </p>
         </div>
         <button
@@ -290,7 +302,9 @@ function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload }: { includeSlo
                   <td className="px-4 py-2">{row.start_time ? new Date(row.start_time).toLocaleString() : "-"}</td>
                   <td className="px-4 py-2">{row.query_time}</td>
                   <td className="px-4 py-2">{row.rows_examined}</td>
-                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.sql_text || ""}>{row.sql_text || "-"}</td>
+                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.sql_text || ""}>
+                    {row.sql_text || "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -346,11 +360,12 @@ function MetricCard({ detail, label, value }: { detail: string; label: string; v
 }
 
 function Panel({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "error" | "success" }) {
-  const classes = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
-    : tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-      : "border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
+  const classes =
+    tone === "error"
+      ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+      : tone === "success"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+        : "border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
   return <div className={`rounded border px-4 py-3 text-sm ${classes}`}>{children}</div>
 }
 

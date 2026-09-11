@@ -6,11 +6,14 @@ declare module "@rails/actioncable" {
 
   export type Consumer = {
     subscriptions: {
-      create(params: Record<string, string | number>, mixin: {
-        connected?(): void
-        disconnected?(event: { willAttemptReconnect: boolean }): void
-        received(data: unknown): void
-      }): Subscription
+      create(
+        params: Record<string, string | number>,
+        mixin: {
+          connected?(): void
+          disconnected?(event: { willAttemptReconnect: boolean }): void
+          received(data: unknown): void
+        }
+      ): Subscription
     }
   }
 
