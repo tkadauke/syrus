@@ -223,20 +223,25 @@ function SessionCard({ session }: { session: AgentActivitySession }) {
         <button className="truncate text-left text-sm text-gray-800 hover:underline dark:text-gray-200" onClick={() => setExpanded((current) => !current)} type="button">
           {session.outcome_summary || t("no_summary_submitted")}
         </button>
-        <button className="self-start text-xs font-medium text-brand hover:underline" onClick={() => setExpanded((current) => !current)} type="button">
-          {expanded ? t("transcript_hide") : t("transcript_heading")}
-        </button>
+        {session.transcript_path ? (
+          <button className="self-start text-xs font-medium text-brand hover:underline" onClick={() => setExpanded((current) => !current)} type="button">
+            {expanded ? t("transcript_hide") : t("transcript_heading")}
+          </button>
+        ) : null}
       </div>
-      {expanded ? <TranscriptDrawer session={session} /> : null}
+      {expanded && session.transcript_path ? <TranscriptDrawer session={session} /> : null}
     </li>
   )
 }
 
 function TranscriptDrawer({ session }: { session: AgentActivitySession }) {
+  if (!session.transcript_path) return null
+
   const { t } = useT("agent_activity")
+  const transcriptPath = session.transcript_path
   const transcript = useQuery({
-    queryKey: [ "agent_activity", "transcript", session.transcript_path ],
-    queryFn: () => fetchAgentActivityTranscript(session.transcript_path)
+    queryKey: [ "agent_activity", "transcript", transcriptPath ],
+    queryFn: () => fetchAgentActivityTranscript(transcriptPath)
   })
 
   return (

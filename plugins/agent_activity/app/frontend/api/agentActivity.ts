@@ -29,7 +29,7 @@ export type AgentActivitySession = {
   finished_at: string | null
   created_at: string | null
   duration_seconds: number | null
-  transcript_path: string
+  transcript_path: string | null
   job: AgentActivitySessionJob | null
   repository: AgentActivitySessionRepository | null
   workflow_id: number | null

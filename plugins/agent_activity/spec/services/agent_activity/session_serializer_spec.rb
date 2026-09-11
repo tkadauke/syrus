@@ -3,6 +3,22 @@ require "rails_helper"
 RSpec.describe AgentActivity::SessionSerializer do
   let(:repository) { Factories.repository(owner: "acme", name: "widgets") }
 
+  def agent_for_run(run, outcome: nil)
+    agent = Agent.find_or_create_for!(run)
+    SpawnedProcess.create!(
+      agent: agent,
+      run: run,
+      workflow: run.workflow,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "spec-host",
+      started_at: run.started_at || run.created_at,
+      finished_at: run.finished_at,
+      outcome: outcome || (run.state == "running" ? nil : run.state)
+    )
+    agent
+  end
+
   it "serializes role/label structurally from Step::Kind, not from transcript text" do
     job = Factories.job_with_run(
       repository: repository,
@@ -11,12 +27,13 @@ RSpec.describe AgentActivity::SessionSerializer do
       run_attrs: { state: "running", agent_provider: "claude", started_at: 5.minutes.ago }
     )
     run = job.runs.last
+    agent = agent_for_run(run)
 
-    payload = described_class.call(run, transcript_path: "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts")
+    payload = described_class.call(agent, transcript_path: "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts")
 
     expect(payload).to include(
-      id: run.id,
-      slug: "RUN-#{run.id}",
+      id: agent.id,
+      slug: "AGENT-#{agent.id}",
       state: "running",
       step_kind: "adversarial_review",
       role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
@@ -34,8 +51,9 @@ RSpec.describe AgentActivity::SessionSerializer do
       run_attrs: { state: "succeeded", started_at: 10.minutes.ago, finished_at: 4.minutes.ago }
     )
     run = job.runs.last
+    agent = agent_for_run(run)
 
-    payload = described_class.call(run, transcript_path: "x")
+    payload = described_class.call(agent, transcript_path: "x")
 
     expect(payload[:duration_seconds]).to be_within(2).of(6.minutes.to_i)
   end
@@ -47,9 +65,10 @@ RSpec.describe AgentActivity::SessionSerializer do
       run_attrs: { state: "succeeded" }
     )
     run = job.runs.last
+    agent = agent_for_run(run)
     run.workflow.set_artifact!("visual_review_iterations", [ { "iteration" => 1, "critique" => "Layout shifted.", "verdict" => "needs_work" } ])
 
-    payload = described_class.call(run, transcript_path: "x")
+    payload = described_class.call(agent, transcript_path: "x")
 
     expect(payload[:outcome_summary]).to eq("Layout shifted.")
     expect(payload[:outcome_verdict]).to eq("needs_work")
