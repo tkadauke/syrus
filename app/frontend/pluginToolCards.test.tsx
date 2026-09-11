@@ -29,6 +29,17 @@ describe("pluginToolCards", () => {
     expect(pluginToolCardRendererFor("list_design_docs")).not.toBeNull()
   })
 
+  it("discovers Browser plugin cards by directory convention", () => {
+    expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining([
+      "browser_navigate",
+      "browser_snapshot",
+      "browser_screenshot",
+      "browser_resize",
+      "browser_wait_for",
+      "browser_close"
+    ]))
+  })
+
   it("returns null for a tool no plugin or core card claims, so it keeps using the generic renderer", () => {
     expect(pluginToolCardRendererFor("totally_unknown_tool")).toBeNull()
     expect(pluginToolCardCollapsedSummary(context({ toolName: "totally_unknown_tool" }))).toBeNull()

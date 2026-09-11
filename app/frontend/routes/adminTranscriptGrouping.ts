@@ -5,7 +5,7 @@
 // re-rendering every tool_use/tool_result as its own unrelated flat card.
 import type { ChatToolGroupItem } from "../api/chats"
 import type { TranscriptEvent } from "../api/adminTranscript"
-import { fullResultBody, fullResultBodyUnbounded, parseJsonText, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./chat/toolRendering"
+import { fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResult, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./chat/toolRendering"
 import { stringValue } from "./chat/utils"
 
 export type AdminTranscriptToolGroupItem = ChatToolGroupItem & { key: string }
@@ -57,6 +57,7 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
         progress_label: simpleToolProgressLabel(name),
         raw_payload: presentation.raw_payload,
         result_body: "",
+        result_settled: false,
         result_error: false,
         result_kind: "unknown" as const,
         result_summary: ""
@@ -82,9 +83,18 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
         const unboundedBody = fullResultBodyUnbounded(data.content)
         const body = fullResultBody(data.content)
         open.call.result_body = body
-        open.call.result_json = parseJsonText(unboundedBody)
+        const parsedResult = parsedToolResult(data.content, unboundedBody)
+        open.call.result_json = parsedResult
+        open.call.result_settled = true
         open.call.result_error = data.error === true
-        const resultPresentation = toolResultPresentation(open.call.tool_name, body, open.call.result_error, unboundedBody, isRecord(open.call.raw_payload) ? open.call.raw_payload : {})
+        const resultPresentation = toolResultPresentation(
+          open.call.tool_name,
+          body,
+          open.call.result_error,
+          unboundedBody,
+          isPlainObject(open.call.raw_payload) ? open.call.raw_payload : {},
+          parsedResult
+        )
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata

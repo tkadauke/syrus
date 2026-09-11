@@ -181,6 +181,24 @@ describe("toolResultPresentation", () => {
 
     expect(result).toMatchObject({ kind: "text", summary: "Cancel requested · JOB-44 · pending #7" })
   })
+
+  it("passes tool inputs to plugin collapsed summaries for empty Browser results", () => {
+    const result = toolResultPresentation("browser_resize", "", false, "", { width: 390, height: 844 })
+
+    expect(result).toMatchObject({ kind: "text", summary: "Resize 390x844 · success" })
+  })
+
+  it("lets plugin collapsed summaries describe errored Browser results", () => {
+    const result = toolResultPresentation(
+      "browser_navigate",
+      "Error: Navigation to \"http://evil.example.com\" was blocked",
+      true,
+      "Error: Navigation to \"http://evil.example.com\" was blocked",
+      { url: "http://evil.example.com" }
+    )
+
+    expect(result).toMatchObject({ kind: "error", summary: "Navigate http://evil.example.com · failed" })
+  })
 })
 
 describe("typedToolResult", () => {
