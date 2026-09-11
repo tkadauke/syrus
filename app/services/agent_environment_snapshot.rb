@@ -319,6 +319,13 @@ class AgentEnvironmentSnapshot
         "- Repository checkout rule: the scoped Coding Mode checkout is writable. Other attached repository checkouts remain read-only.",
         "- Repository freshness: use `git fetch` inside the coding checkout when current remote state matters."
       ]
+    elsif chat_session&.local?
+      [
+        "- Tool availability: Local Mode tools can read and write the connected local repository. For new local implementation work, create a coding Job with `create_coding_job`, then implement via Local Mode tools.",
+        "- Repository checkout rule: the connected local repository is writable through Local Mode tools. Other attached repository checkouts remain read-only.",
+        "- Proposal rule: do not draft proposals for Local Mode work unless the operator explicitly asks for a proposal, draft, proposal card, or review-before-implementation artifact.",
+        "- Repository freshness: use `git_status`, `git_diff`, and local git commands through Local Mode tools when current local state matters."
+      ]
     else
       [
         "- Tool availability: no commit, push, or PR-opening tool is available in chat; draft proposals or schedules for operator confirmation.",
