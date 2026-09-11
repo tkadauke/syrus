@@ -418,6 +418,21 @@ opens a persistent reverse WebSocket tunnel from your checkout to the Syrus
 backend and reconnects automatically (with backoff) if the connection
 drops; press Ctrl+C to disconnect cleanly.
 
+While connected, the command prints concise activity for each tool call the
+chat agent runs locally, including start lines and short completion summaries
+without dumping full file contents, diffs, or command output:
+
+```text
+Connected to Syrus chat session #123 (acme/widget on feature-branch)
+› read_file(app/models/job.rb)
+  ⎿ read 4821 bytes
+› run_command(bin/rails test test/models/job_test.rb)
+  ⎿ exit 0 stdout: 12 runs, 31 assertions, 0 failures, 0 errors, 0 skips
+```
+
+Failed or cancelled command activity is marked with `⎿ ✗` and includes the
+exit code, killed state, and short stdout/stderr previews when available.
+
 Flags:
 
 | Flag | Description |
