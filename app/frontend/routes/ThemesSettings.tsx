@@ -80,8 +80,17 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
         ? customThemes.find((theme) => theme.id === selectedId)
         : undefined
     ) ?? customThemes[0]
-    const nextDraft = selected ? draftFromTheme(selected) : null
     setSelectedId(selected?.id ?? null)
+    if (!selected) {
+      draftRef.current = null
+      setDraft(null)
+      setContrastIssues([])
+      return
+    }
+
+    if (draftRef.current?.id === selected.id) return
+
+    const nextDraft = draftFromTheme(selected)
     draftRef.current = nextDraft
     setDraft(nextDraft)
     setContrastIssues([])
