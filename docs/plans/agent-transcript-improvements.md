@@ -301,7 +301,7 @@ chat turns. Include:
 
 Use it in:
 
-- `Prompts::Initial`,
+- `Prompts::Implement`,
 - `Prompts::PrFeedback`,
 - `Prompts::Rebase`,
 - `Prompts::DirectJob`,
