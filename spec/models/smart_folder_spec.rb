@@ -108,6 +108,80 @@ RSpec.describe SmartFolder do
     expect(described_class.builtins(:design_doc).pluck(:subject_type).uniq).to eq([ "design_doc" ])
   end
 
+  it "survives concurrent cold-cache reconciliation for the Agent Activity plugin subject", if: defined?(AgentActivity::SmartFolders) do
+    subject = AgentActivity::SmartFolders::SUBJECT
+    definitions = AgentActivity::SmartFolders::BUILTINS
+    cache_store = ActiveSupport::Cache::NullStore.new
+    original_canonical = described_class.method(:canonical_builtin_rows_by_name)
+    canonical_call_count = 0
+    canonical_call_mutex = Mutex.new
+    waiting = Queue.new
+    release = Queue.new
+
+    allow(Rails).to receive(:cache).and_return(cache_store)
+    allow(described_class).to receive(:canonical_builtin_rows_by_name) do |candidate_subject|
+      should_wait = canonical_call_mutex.synchronize do
+        canonical_call_count += 1 if candidate_subject.to_s == subject
+        candidate_subject.to_s == subject && canonical_call_count <= 2
+      end
+      if should_wait
+        waiting << true
+        release.pop
+      end
+      original_canonical.call(candidate_subject)
+    end
+
+    threads = 2.times.map do
+      Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          described_class.ensure_builtins_for_subject!(subject)
+        end
+      end
+    end
+    2.times { waiting.pop }
+    2.times { release << true }
+
+    expect { threads.each(&:value) }.not_to raise_error
+    expected_names = definitions.map { |definition| definition.fetch(:name) }
+    expect(described_class.builtins(subject).pluck(:name)).to eq(expected_names)
+    expect(described_class.where(user_id: nil, subject_type: subject).group(:name).count)
+      .to eq(expected_names.to_h { |name| [ name, 1 ] })
+  ensure
+    threads&.each(&:kill)
+    described_class.where(subject_type: subject).delete_all if defined?(subject) && subject
+  end
+
+  it "does not reconcile or cache success when the MySQL advisory lock is unavailable" do
+    teardown = described_class.register_subject!(
+      :lock_timeout_session,
+      builtins: [
+        { key: "running", name: "Running", visibility: :always, filter: { "and" => [] } }
+      ]
+    )
+    cache_store = ActiveSupport::Cache::MemoryStore.new
+    definitions = described_class.builtins_for_subject(:lock_timeout_session)
+    cache_key = [
+      "smart_folder/builtins_reconciled",
+      "lock_timeout_session",
+      Digest::SHA256.hexdigest(definitions.to_json)
+    ].join("/")
+    connection = described_class.connection
+
+    allow(Rails).to receive(:cache).and_return(cache_store)
+    allow(connection).to receive(:adapter_name).and_return("Mysql2")
+    allow(connection).to receive(:select_value).and_call_original
+    allow(connection).to receive(:select_value).with(/GET_LOCK/).and_return(0)
+    allow(described_class).to receive(:reconcile_builtin_set!).and_call_original
+
+    expect(described_class.ensure_builtins_for_subject!(:lock_timeout_session)).to be(false)
+    expect(described_class).not_to have_received(:reconcile_builtin_set!)
+    expect(cache_store.exist?(cache_key)).to be(false)
+    expect(described_class.builtins(:lock_timeout_session)).to be_empty
+  ensure
+    teardown&.call
+    described_class.where(subject_type: "lock_timeout_session").delete_all
+  end
+
   it "can ensure only one built-in subject" do
     expect { described_class.ensure_builtins_for_subject!(:job) }
       .to change(described_class, :count).by(described_class::JOB_BUILTINS.size)
