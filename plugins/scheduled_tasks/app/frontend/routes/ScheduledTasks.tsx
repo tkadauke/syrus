@@ -8,6 +8,7 @@ import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { buttonClass } from "@app/lib/buttonClasses"
 import { CopyableSlug } from "@app/components/CopyableSlug"
+import { Input } from "@app/components/Input"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
@@ -550,11 +551,11 @@ function ScheduledTaskForm({
         <legend className="text-sm font-medium text-text-primary">{t("scheduled_tasks.field_task_source")}</legend>
         <div className="flex gap-4 text-sm text-text-primary">
           <label className="flex items-center gap-2">
-            <input checked={taskSource === "prompt"} className="h-4 w-4 accent-brand" name="scheduled-task-source" onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
+            <Input checked={taskSource === "prompt"} fullWidth={false} name="scheduled-task-source" onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
             {t("scheduled_tasks.task_source_prompt")}
           </label>
           <label className="flex items-center gap-2">
-            <input checked={taskSource === "skill"} className="h-4 w-4 accent-brand" name="scheduled-task-source" onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
+            <Input checked={taskSource === "skill"} fullWidth={false} name="scheduled-task-source" onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
             {t("scheduled_tasks.task_source_skill")}
           </label>
         </div>
