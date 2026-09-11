@@ -205,13 +205,12 @@ module WorkEngine
       end
 
       def reconcile!(tick)
-        reconcile_result!(tick, WorkEngine::Reconciler.call(source: "simulation:#{scenario}:tick#{tick}", execute_repairs: true))
-        work_intent_ids.each do |intent_id|
+        job_ids.each do |id|
           reconcile_result!(
             tick,
             WorkEngine::Reconciler.call(
-              source: "simulation:#{scenario}:tick#{tick}:#{intent_id}",
-              work_intent_id: intent_id,
+              source: "simulation:#{scenario}:tick#{tick}:#{id}",
+              job_id: id,
               execute_repairs: true
             )
           )
