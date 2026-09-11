@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from "@playwright/test"
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
 
 const DATABASE_NAME = "app_production"
@@ -181,6 +181,9 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
   const connectionRow = page.getByRole("row", { name: new RegExp(connectionLabel) })
   await expect(connectionRow).toBeVisible()
   await expect(connectionRow.getByText("Read-only")).toBeVisible()
+  await expectDataTableWithOverflow(page.getByRole("table").first())
+  await expect(page.getByRole("columnheader", { name: "Label" })).toBeVisible()
+  await expect(page.getByRole("columnheader", { name: "Actions" })).toBeVisible()
 
   await connectionRow.getByRole("button", { name: "Connect" }).click()
   await expect(page.getByRole("heading", { name: `Browsing ${connectionLabel}` })).toBeVisible()
@@ -199,6 +202,8 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
   await expect(page.getByRole("button", { name: /insert row|delete row|update row|save changes/i })).toHaveCount(0)
 
   await page.getByRole("tab", { name: "Structure" }).click()
+  await expectDataTableWithOverflow(page.getByRole("table").first())
+  await expect(page.getByRole("columnheader", { name: "Name" })).toBeVisible()
   await expect(page.getByRole("cell", { name: "email", exact: true })).toBeVisible()
   await expect(page.getByRole("cell", { name: "UNI", exact: true })).toBeVisible()
   await expect(page.getByRole("button", { name: /insert row|delete row|update row|save changes/i })).toHaveCount(0)
@@ -220,3 +225,9 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
   await expect(page.getByRole("alert")).toHaveText("This connection is read-only. Enable write access on the connection to run non-SELECT statements.")
   await expect(page.getByRole("button", { name: /insert row|delete row|update row|save changes/i })).toHaveCount(0)
 })
+
+async function expectDataTableWithOverflow(table: Locator) {
+  await expect(table).toBeVisible()
+  await expect(table.locator("xpath=..")).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+  await expect(table.locator("xpath=..")).toHaveCSS("overflow-x", "auto")
+}
