@@ -202,7 +202,30 @@ describe("DashboardSmartFolderNav", () => {
     expect(savedRow).not.toBeNull()
     expect(savedLink.querySelector("svg")).toBeNull()
     expect(savedRow).toHaveClass("-ml-4", "pl-4")
+    expect(savedRow).toHaveClass("rounded")
+    expect(savedLink).toHaveClass("px-2", "py-1.5", "text-sm")
     expect(savedRow!.querySelector("svg")).toHaveClass("absolute", "left-0")
+  })
+
+  it("uses the shared compact spacing contract for saved folders", () => {
+    renderNav([folder({ active: true })], {
+      payload: { active_smart_folder_id: 101 },
+      search: "?smart_folder_id=101"
+    })
+
+    const panel = screen.getByLabelText("Dashboard smart folders panel")
+    const savedHeading = screen.getByRole("heading", { name: "Saved" })
+    const savedNav = screen.getByRole("navigation", { name: "Saved smart folders" })
+    const savedLink = within(savedNav).getByRole("link", { name: "Saved work 3" })
+    const countBadge = within(savedLink.parentElement!).getByText("3")
+
+    expect(panel.firstElementChild).toHaveClass("space-y-2")
+    expect(savedHeading.parentElement).toHaveClass("space-y-1", "pt-3")
+    expect(savedHeading).toHaveClass("px-2", "text-xs", "font-semibold", "uppercase")
+    expect(savedNav).toHaveClass("space-y-1")
+    expect(savedLink).toHaveClass("px-2", "py-1.5", "text-sm")
+    expect(savedLink.parentElement).toHaveClass("-ml-4", "pl-4", "bg-brand/10", "font-medium", "text-brand")
+    expect(countBadge).toHaveClass("min-w-6", "px-1.5", "py-0.5", "text-xs")
   })
 
   it("omits the count badge when a folder count was intentionally skipped", () => {
@@ -251,6 +274,16 @@ describe("DashboardSmartFolderNav", () => {
     expect(screen.queryByRole("button", { name: "Actions for Inbox" })).not.toBeInTheDocument()
   })
 
+  it("keeps normal built-in folders as full-row links", () => {
+    renderNav([folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", position: 0, path: "/dashboard/jobs?smart_folder_id=7" })])
+
+    const inboxLink = screen.getByRole("link", { name: "Inbox 3" })
+
+    expect(inboxLink.tagName).toBe("A")
+    expect(inboxLink).toHaveClass("flex", "min-w-0", "items-center", "justify-between", "gap-2", "rounded", "px-2", "py-1.5", "text-sm")
+    expect(inboxLink).toHaveAttribute("href", "/dashboard/jobs?smart_folder_id=7")
+  })
+
   it("links the queued blocked count to the blocked queued subset", () => {
     const { currentLocation } = renderNav([
       folder({ id: 7, name: "Queued", key: "queued", kind: "builtin", position: 0, count: 4, blocked_count: 2, path: "/dashboard/jobs?smart_folder_id=7" })
@@ -259,6 +292,16 @@ describe("DashboardSmartFolderNav", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show 2 blocked queued jobs" }))
 
     expect(currentLocation()).toBe("/dashboard/jobs?smart_folder_id=7&start_blocked=1")
+  })
+
+  it("keeps the dashboard blocked-count built-in row clickable outside the blocked badge", () => {
+    const { currentLocation } = renderNav([
+      folder({ id: 7, name: "Queued", key: "queued", kind: "builtin", position: 0, count: 4, blocked_count: 2, path: "/dashboard/jobs?smart_folder_id=7" })
+    ])
+
+    fireEvent.click(screen.getByRole("link", { name: "Queued 4" }))
+
+    expect(currentLocation()).toBe("/dashboard/jobs?smart_folder_id=7")
   })
 
   it("uses the folder name as fallback when no translation key is set on a builtin folder", () => {
