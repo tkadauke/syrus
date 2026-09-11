@@ -375,6 +375,53 @@ func TestExecuteLocalRunCommandCancelledByContext(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Local activity formatting
+// ---------------------------------------------------------------------------
+
+func TestLocalToolCallDisplayIncludesUsefulToolDetails(t *testing.T) {
+	input, _ := json.Marshal(readFileParams{Path: "app/models/job.rb"})
+	call := localToolCallMsg{Tool: "read_file", Input: input}
+
+	if got := localToolCallDisplay(call); got != "read_file(app/models/job.rb)" {
+		t.Fatalf("display = %q", got)
+	}
+
+	input, _ = json.Marshal(runCommandParams{Command: "bin/rails test test/models/job_test.rb"})
+	call = localToolCallMsg{Tool: "run_command", Input: input}
+
+	if got := localToolCallDisplay(call); got != "run_command(bin/rails test test/models/job_test.rb)" {
+		t.Fatalf("display = %q", got)
+	}
+}
+
+func TestLocalRunCommandSummaryIncludesExitAndShortOutput(t *testing.T) {
+	result := map[string]any{
+		"stdout":    "hello\nworld\n",
+		"stderr":    "warning\n",
+		"exit_code": 7,
+	}
+
+	got := localRunCommandSummary(result)
+
+	for _, want := range []string{"exit 7", "stdout: hello world", "stderr: warning"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("summary %q does not contain %q", got, want)
+		}
+	}
+}
+
+func TestLocalActivityTruncatesLongText(t *testing.T) {
+	got := truncateLocalActivity(strings.Repeat("x", localActivityPreviewRunes+20))
+
+	if len([]rune(got)) != localActivityPreviewRunes {
+		t.Fatalf("truncated length = %d", len([]rune(got)))
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Fatalf("expected ellipsis suffix, got %q", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Connection loop with mock WebSocket server
 // ---------------------------------------------------------------------------
 
@@ -583,10 +630,11 @@ func TestLocalConnectAndServeExecutesToolCallAndReturnsResult(t *testing.T) {
 		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	})
 
+	var out strings.Builder
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &out, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	// Give the goroutine a moment to deliver.
 	time.Sleep(100 * time.Millisecond)
@@ -603,6 +651,108 @@ func TestLocalConnectAndServeExecutesToolCallAndReturnsResult(t *testing.T) {
 	content, _ := toolResultReceived["content"].(map[string]any)
 	if content["content"] != "hi there" {
 		t.Fatalf("content = %v", content["content"])
+	}
+
+	gotOutput := out.String()
+	if !strings.Contains(gotOutput, "› read_file(hello.txt)") {
+		t.Fatalf("expected read_file start activity, got %q", gotOutput)
+	}
+	if !strings.Contains(gotOutput, "⎿ read 8 bytes") {
+		t.Fatalf("expected read_file completion activity, got %q", gotOutput)
+	}
+}
+
+func TestLocalConnectAndServePrintsRunCommandActivity(t *testing.T) {
+	root := t.TempDir()
+	var toolResultReceived map[string]any
+
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		conn.ReadMessage() //nolint:errcheck
+		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
+		conn.ReadMessage() // connect
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message":    map[string]any{"type": "connected"},
+		})
+
+		input, _ := json.Marshal(runCommandParams{Command: "printf hello"})
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message": map[string]any{
+				"type":        "tool_call",
+				"tool_use_id": "call-run-1",
+				"tool":        "run_command",
+				"input":       json.RawMessage(input),
+			},
+		})
+
+		_, raw, _ := conn.ReadMessage()
+		var envelope struct {
+			Data string `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err == nil {
+			json.Unmarshal([]byte(envelope.Data), &toolResultReceived)
+		}
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	})
+
+	var out strings.Builder
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	localConnectAndServe(ctx, &out, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+
+	if toolResultReceived == nil {
+		t.Fatal("did not receive tool result")
+	}
+
+	gotOutput := out.String()
+	if !strings.Contains(gotOutput, "› run_command(printf hello)") {
+		t.Fatalf("expected run_command start activity, got %q", gotOutput)
+	}
+	if !strings.Contains(gotOutput, "⎿ exit 0 stdout: hello") {
+		t.Fatalf("expected run_command completion activity, got %q", gotOutput)
+	}
+}
+
+func TestLocalConnectAndServePrintsFailureActivity(t *testing.T) {
+	root := t.TempDir()
+
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		conn.ReadMessage() //nolint:errcheck
+		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
+		conn.ReadMessage() // connect
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message":    map[string]any{"type": "connected"},
+		})
+
+		input, _ := json.Marshal(runCommandParams{Command: "echo nope >&2; exit 3"})
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message": map[string]any{
+				"type":        "tool_call",
+				"tool_use_id": "call-run-fail-1",
+				"tool":        "run_command",
+				"input":       json.RawMessage(input),
+			},
+		})
+
+		conn.ReadMessage() // tool_result
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	})
+
+	var out strings.Builder
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	localConnectAndServe(ctx, &out, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+
+	gotOutput := out.String()
+	if !strings.Contains(gotOutput, "⎿ ✗ exit 3 stderr: nope") {
+		t.Fatalf("expected failing run_command activity, got %q", gotOutput)
 	}
 }
 
@@ -657,11 +807,12 @@ func TestLocalConnectAndServeCancelsInFlightRunCommand(t *testing.T) {
 		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	})
 
+	var out strings.Builder
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
 	startedAt := time.Now()
-	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &out, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 	elapsed := time.Since(startedAt)
 
 	<-start
@@ -677,6 +828,14 @@ func TestLocalConnectAndServeCancelsInFlightRunCommand(t *testing.T) {
 	content, _ := toolResultReceived["content"].(map[string]any)
 	if content["killed"] != true {
 		t.Fatalf("content = %v", content)
+	}
+
+	gotOutput := out.String()
+	if !strings.Contains(gotOutput, "› run_command(sleep 60)") {
+		t.Fatalf("expected cancellation start activity, got %q", gotOutput)
+	}
+	if !strings.Contains(gotOutput, "⎿ ✗ exit") || !strings.Contains(gotOutput, "killed") {
+		t.Fatalf("expected cancellation completion activity, got %q", gotOutput)
 	}
 }
 
