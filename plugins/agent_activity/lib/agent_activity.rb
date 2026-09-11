@@ -13,7 +13,7 @@ module AgentActivity
   syrus_plugin "agent_activity" do
     display_name "Agent Activity"
     description "Live feed of agent sessions -- one card per agentic Run, headlined by what it actually decided."
-    long_description "Agent Activity surfaces every agentic Run (Step#kind in Step::AGENTIC_KINDS) as a session card: role and label come structurally from the Step::Kind registry, never from scanning transcript text, and each card's headline is the one-line outcome the session itself submitted (submit_summary, submit_adversarial_review, submit_visual_review). An operator-scoped page shows sessions across the repositories they can see; an admin-wide page shows every session on the instance. Both are live, sessions-only feeds -- no checks, no triggers -- click a card to open its transcript."
+    long_description "Agent Activity surfaces workflow, chat, and design-doc agents as session cards: role and label come structurally from each Agent's resumable, never from scanning transcript text, and each card's headline is the one-line outcome the session itself submitted. An operator-scoped page shows sessions across the repositories they can see; an admin-wide page shows every workflow/design-doc session on the instance while chat sessions stay self-scoped. Both are live, sessions-only feeds -- no checks, no triggers -- workflow cards open an inline transcript drawer, while chat cards link to the live chat."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/agent_activity.svg"
     author "Thomas Kadauke"
