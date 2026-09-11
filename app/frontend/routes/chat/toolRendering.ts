@@ -71,7 +71,7 @@ function toolIdentity(name: string) {
   }
 }
 
-function normalizedToolName(name: string) {
+export function normalizedToolName(name: string) {
   if (name.startsWith("mcp__")) {
     const parts = name.split("__")
     return parts.length >= 3 ? parts.slice(2).join("__") || name : name
@@ -111,6 +111,9 @@ export function toolDetail(name: string, input: Record<string, unknown>) {
 
 function toolArgumentSummary(name: string, input: Record<string, unknown>) {
   if (Object.keys(input).length === 0) return "No arguments"
+
+  const runtimeSummary = runtimeToolArgumentSummary(name, input)
+  if (runtimeSummary) return shortenWorkspacePaths(runtimeSummary)
 
   let detail = ""
 
@@ -162,6 +165,39 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
   }
 
   return shortenWorkspacePaths(detail)
+}
+
+function runtimeToolArgumentSummary(name: string, input: Record<string, unknown>) {
+  if (name === "runtime_input") return runtimeInputArgumentSummary(input)
+  if (name === "runtime_snapshot") return runtimeSnapshotArgumentSummary(input)
+  if (name === "runtime_capture_artifact") return runtimeCaptureArtifactArgumentSummary(input)
+  return ""
+}
+
+function runtimeInputArgumentSummary(input: Record<string, unknown>) {
+  const event = isPlainObject(input.event) ? input.event : {}
+  const type = stringValue(event.type) || "event"
+  const target = stringValue(event.target) || stringValue(event.element) || stringValue(event.selector)
+  return target ? `${type} on ${target}` : type
+}
+
+function runtimeSnapshotArgumentSummary(input: Record<string, unknown>) {
+  const options = isPlainObject(input.options) ? input.options : {}
+  const target = stringValue(options.target) || stringValue(options.element)
+  const session = stringValue(input.session_id)
+  if (target && session) return `target ${target}, session ${session}`
+  if (target) return `target ${target}`
+  if (session) return `session ${session}`
+  return "Snapshot"
+}
+
+function runtimeCaptureArtifactArgumentSummary(input: Record<string, unknown>) {
+  const artifactType = stringValue(input.artifact_type)
+  const session = stringValue(input.session_id)
+  if (artifactType && session) return `${artifactType}, session ${session}`
+  if (artifactType) return artifactType
+  if (session) return `session ${session}`
+  return "Artifact"
 }
 
 function defaultToolArgumentSummary(input: Record<string, unknown>) {
@@ -295,7 +331,9 @@ export function toolResultPresentation(name: string, body: string, error = false
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
-  // a handful of well-known array/count keys), so it takes priority.
+  // a handful of well-known array/count keys), so it takes priority. Run it
+  // before the error fallback too: MCP tools can report a plain-text or
+  // structured failure that still has a purpose-built card summary.
   const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: parsed })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: pluginSummary }
 

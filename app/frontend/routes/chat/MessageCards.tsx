@@ -20,8 +20,8 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
-import { pluginToolCardExpandedBody } from "../../pluginToolCards"
+import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
+import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -520,7 +520,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     )
   }
 
-  const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const details = item.calls.map((call) => [call.detail, toolCardAwareResultSummary(call)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
   const summary = item.summary_label || item.tool
   const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => call.result_body === "") ? "Running" : "Done")
   const expanded = open
@@ -537,7 +537,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
         {item.calls.map((call) => (
           <div key={call.message_id}>
             <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${call.detail})` : ""}</div>
-            {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
+            {toolCardAwareResultSummary(call) ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{toolCardAwareResultSummary(call)}</div> : null}
             {expanded && call.result_body ? <ToolResultBody call={call} /> : null}
             {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_body || null }} /> : null}
             {expanded && call.nested && call.nested.length > 0 ? (
@@ -573,7 +573,7 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
   const pluginBody = pluginToolCardExpandedBody({
-    toolName: call.tool_name,
+    toolName: toolCardName(call),
     input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
     resultBody: call.result_body,
     resultError: call.result_error,
@@ -582,6 +582,24 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   if (pluginBody != null) return <>{pluginBody}</>
 
   return <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} />
+}
+
+function toolCardName(call: ChatToolGroupItem["calls"][number]) {
+  return normalizedToolName(call.raw_name || call.tool_name)
+}
+
+function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
+  if (call.result_summary) return call.result_summary
+
+  const cardSummary = pluginToolCardCollapsedSummary({
+    toolName: toolCardName(call),
+    input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
+    resultBody: call.result_body,
+    resultError: call.result_error,
+    parsedResult: call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
+  })
+
+  return cardSummary || call.result_summary
 }
 
 function TypedToolResultBody({ result }: { result: TypedToolResult }) {

@@ -610,7 +610,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
         // keeps the default (pre-measurement, or composer shorter than
         // assumed) case unchanged.
       }
-      <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pt-12 pb-[max(7rem,calc(var(--chat-composer-height,0px)+1.5rem))] sm:p-4 sm:pt-12 sm:pb-[max(8rem,calc(var(--chat-composer-height,0px)+2rem))]" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
+      <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pt-12 pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))] sm:p-4 sm:pt-12 sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))]" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
         {hiddenSystemMessageCount > 0 ? (
