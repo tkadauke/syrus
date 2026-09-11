@@ -365,14 +365,15 @@ grade:
     description: |
       Runs only the Vitest tests related (via Vitest's native module-graph
       `related` resolution) to the diff so far, on every review-phase
-      grade iteration. Fast feedback loop — the full suite + typecheck
-      still run at landing/ci via the `react-tests` grader.
+      grade iteration. Fast feedback loop for small diffs; broad frontend
+      diffs can approach full-suite runtime, so it uses the same timeout as
+      the landing/ci `react-tests` grader.
     run: bin/test-react-focused
     phases: [review]
     when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx", "desktop/src/**/*.ts", "desktop/src/**/*.tsx"]
     junit_output: .syrus/grade-output/react-tests-focused-junit.xml
     failures: allow_inherited
-    timeout_minutes: 10
+    timeout_minutes: 20
 
   - name: website-build
     description: |
