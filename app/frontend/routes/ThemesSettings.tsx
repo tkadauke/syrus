@@ -73,7 +73,9 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   useEffect(() => {
     setOrderedThemes(customThemes)
     orderedThemesRef.current = customThemes
+  }, [customThemes])
 
+  useEffect(() => {
     const selected = (
       selectedId
         ? customThemes.find((theme) => theme.id === selectedId)

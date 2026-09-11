@@ -307,6 +307,7 @@ RSpec.describe "Mcp::Tools job control tools" do
 
     allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
     allow(client).to receive(:pull_request).with(repository.slug, 17, bypass_cache: false).and_return(pr)
+    allow(client).to receive(:clear_api_blocked!)
     allow(client).to receive(:pr_reviews).with(repository.slug, 17).and_return([ review ])
     allow(client).to receive(:pr_issue_comments).with(repository.slug, 17).and_return([])
     allow(client).to receive(:pr_commits).with(repository.slug, 17).and_return([])

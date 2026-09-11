@@ -4,9 +4,9 @@ class CreateGithubApiUsageRollups < ActiveRecord::Migration[8.1]
       t.datetime :bucket_started_at, null: false
       t.string :auth_source, null: false
       t.string :credential_key, null: false
-      t.references :installation, foreign_key: true
-      t.references :user, foreign_key: true
-      t.references :repository, foreign_key: true
+      t.references :installation
+      t.references :user
+      t.references :repository
       t.string :repository_key, null: false
       t.string :repo_slug
       t.string :operation, null: false

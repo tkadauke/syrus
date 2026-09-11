@@ -1,5 +1,6 @@
 {
   "tab_issues": "GitHub Issues",
+  "nav_api_usage": "GitHub-API-Nutzung",
   "repository": {
     "loading_issues": "GitHub-Issues werden geladen...",
     "trigger_label_prefix": "Trigger-Label:",
