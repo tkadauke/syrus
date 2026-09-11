@@ -102,6 +102,17 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(a.reload).to be_approved
     end
 
+    it "lets a GitHub rate limit defer rather than clear the member's approval" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, failure_reason: "Octokit::TooManyRequests: GitHub API rate limit exceeded")
+
+      described_class.call(workflow: workflow)
+
+      expect(LandingFailureHandler.transient_blocker?(train.reload.failure_reason)).to be(true)
+      expect(a.reload).to be_approved
+    end
+
     it "reverts members with no evidence of landing back to a re-landable state" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])

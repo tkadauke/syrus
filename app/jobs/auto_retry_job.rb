@@ -21,6 +21,7 @@ class AutoRetryJob < ApplicationJob
     end
 
     return if skip_if_default_provider_changed(attempt)
+    return if reschedule_if_provider_delay_not_due(attempt)
     return if skip_if_provider_delay_no_longer_matches(attempt)
     return if skip_if_failure_no_longer_retryable(attempt)
     return if reschedule_if_provider_blocked(attempt)
@@ -93,6 +94,15 @@ class AutoRetryJob < ApplicationJob
   rescue StandardError => e
     Rails.logger.warn("[AutoRetryJob] failed to refresh Run ##{attempt.run_id} failure classification: #{e.class}: #{e.message}")
     false
+  end
+
+  def reschedule_if_provider_delay_not_due(attempt)
+    return false unless PROVIDER_DELAYED_CLASSIFICATIONS.include?(attempt.failure_classification)
+    return false unless attempt.scheduled_at&.future?
+
+    AutoRetryJob.set(wait_until: attempt.scheduled_at, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
+    log(attempt, "auto-retry remains delayed until #{attempt.scheduled_at.iso8601}")
+    true
   end
 
   # This fires whenever the fresh classification is non-retryable, which is not
