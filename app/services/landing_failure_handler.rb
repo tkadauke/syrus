@@ -23,6 +23,8 @@ class LandingFailureHandler
     /No server is currently available to service your request/i,
     /\b50[0234]\b[^\n]*(?:Bad Gateway|Service Unavailable|Gateway Time-?out|Server Error)/i,
     /Octokit::(?:BadGateway|ServiceUnavailable|InternalServerError)/,
+    /Octokit::TooManyRequests/,
+    /(?:GitHub|API|installation).*rate limit/i,
     /\bmcp_sidecar_failed\b/i,
     /\bworker_died\b/i,
     /already owns lock\b/i,
