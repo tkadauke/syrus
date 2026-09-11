@@ -8,6 +8,7 @@ import { isPlainObject } from "../../toolCardParsing"
 import { contentRecord, firstLine, stringValue } from "./utils"
 import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
 import { pluginToolCardCollapsedSummary } from "../../pluginToolCards"
+import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 export { isPlainObject } from "../../toolCardParsing"
 
 const WORKSPACE_MARKER = "/.syrus/"
@@ -332,8 +333,14 @@ export function toolResultPresentation(name: string, body: string, error = false
   // a handful of well-known array/count keys), so it takes priority. Run it
   // before the error fallback too: MCP tools can report a plain-text or
   // structured failure that still has a purpose-built card summary.
-  const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, input, resultBody: body, resultError: error, parsedResult: parsed })
-  if (pluginSummary) return { kind: error ? "error" : "text", summary: pluginSummary }
+  const pluginSummary = pluginToolCardCollapsedSummary({
+    toolName: normalizedName,
+    input: redactToolCardValue(input) as Record<string, unknown>,
+    resultBody: redactToolCardText(body),
+    resultError: error,
+    parsedResult: redactToolCardValue(parsed)
+  })
+  if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
 
   if (error) return { kind: "error", summary: "" }
 
