@@ -104,6 +104,16 @@ describe("AdminSmartFolderNav", () => {
     expect(screen.queryByRole("link", { name: "Manage" })).not.toBeInTheDocument()
   })
 
+  it("keeps built-in smart folders as full-row links", () => {
+    renderNav()
+
+    const stuckLink = screen.getByRole("link", { name: "Stuck 2" })
+
+    expect(stuckLink.tagName).toBe("A")
+    expect(stuckLink).toHaveClass("flex", "min-w-0", "items-center", "justify-between", "gap-2", "rounded", "px-2", "py-1.5", "text-sm")
+    expect(stuckLink).toHaveAttribute("href", "/admin/queue/active?smart_folder_id=1")
+  })
+
   it("swaps saved folder counts for actions only on hover", () => {
     renderNav()
 
@@ -120,6 +130,28 @@ describe("AdminSmartFolderNav", () => {
 
     expect(screen.getByRole("button", { name: "Manage Saved queue" })).toBeInTheDocument()
     expect(within(savedRow!).queryByText("3")).not.toBeInTheDocument()
+  })
+
+  it("uses the shared compact spacing contract for plugin saved folders", () => {
+    renderNav({
+      activeFolderId: 10,
+      folders: smartFolders().map((folder) => folder.id === 10 ? { ...folder, active: true } : folder)
+    })
+
+    const sidebar = screen.getByRole("heading", { name: "Queues" }).parentElement
+    const savedHeading = screen.getByRole("heading", { name: "Saved" })
+    const savedNav = screen.getByRole("navigation", { name: "Admin queue smart folders saved" })
+    const savedLink = within(savedNav).getByRole("link", { name: "Saved queue 3" })
+    const countBadge = within(savedLink.parentElement!).getByText("3")
+
+    expect(sidebar).toHaveClass("space-y-2")
+    expect(savedHeading.parentElement).toHaveClass("space-y-1", "pt-3")
+    expect(savedHeading).toHaveClass("px-2", "text-xs", "font-semibold", "uppercase")
+    expect(savedNav).toHaveClass("space-y-1")
+    expect(savedLink).toHaveClass("px-2", "py-1.5", "text-sm")
+    expect(savedLink.parentElement).toHaveClass("-ml-4", "pl-4", "bg-brand/10", "font-medium", "text-brand")
+    expect(savedLink.parentElement).not.toHaveClass("dark:bg-gray-800")
+    expect(countBadge).toHaveClass("min-w-6", "px-1.5", "py-0.5", "text-xs")
   })
 
   it("translates builtin folder names using i18n_key", () => {
