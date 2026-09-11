@@ -28,7 +28,7 @@ import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
 import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetail/queryKeys"
-import { CommandButton, useJobCommand } from "./jobDetail/command"
+import { CommandButton, type JobCommand, useJobCommand } from "./jobDetail/command"
 import { TagsPanel, NeedsAttentionBanner, TriageDecisionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
 import { DeliveryPanel, deliveryPanelRelevant } from "./jobDetail/Delivery"
 import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel, RequestChangesPanel } from "./jobDetail/JobHeader"
@@ -962,7 +962,7 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
                 command={command}
                 input={{
                   method: "post",
-                  path: overridePath,
+                  path: overridePath!,
                   body: {
                     blocker_key: blockerKey!,
                     reason: t("pr_checks_override_reason")
