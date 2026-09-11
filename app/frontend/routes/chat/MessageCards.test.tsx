@@ -694,6 +694,16 @@ describe("tool result rendering", () => {
 
     expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file")
+    expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Next image" })).toBeEnabled()
+
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    expect(screen.getByRole("dialog", { name: "mobile.png" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous image" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous image" }))
+    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: "Escape" })
 

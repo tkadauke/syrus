@@ -75,6 +75,31 @@ describe("list_chat_media tool card", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
+  it("navigates between image previews with buttons and arrow keys", () => {
+    const parsedResult = {
+      snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
+      chat_images: [
+        { id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/desktop.png" },
+        { id: "chat_image:4", kind: "chat_image", filename: "mobile.png", content_type: "image/png", file_path: "/mobile.png" }
+      ]
+    }
+
+    render(<>{listChatMediaToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    fireEvent.click(screen.getByRole("button", { name: "Open desktop.png" }))
+    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Next image" })).toBeEnabled()
+
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    expect(screen.getByRole("dialog", { name: "mobile.png" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous image" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous image" }))
+    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
+  })
+
   it("is dark-mode safe (uses dark: utility classes on the gallery surfaces)", () => {
     const parsedResult = {
       snapshots: [],
