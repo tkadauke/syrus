@@ -8,6 +8,10 @@ import { useConfirm } from "@app/hooks/useConfirm"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
+import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
+import { CopyableSlug } from "@app/components/CopyableSlug"
+import { FilterBar } from "@app/components/FilterBar"
 import {
   acceptInsightSuggestion,
   acceptRemoveMemoryInsight,
@@ -17,13 +21,11 @@ import {
   fetchInsightSuggestions,
   saveInsightMemory,
   type InsightSuggestion,
+  type InsightSuggestionsPayload,
   type PaginationMeta
 } from "../api/insights"
 import { errorMessage } from "@app/lib/errorMessage"
 import { Button } from "@app/components/Button"
-import { Select } from "@app/components/Select"
-
-type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
 
 export function RepositoryInsightsRoute() {
   const { t } = useT("agent_insights")
@@ -31,20 +33,14 @@ export function RepositoryInsightsRoute() {
   const location = useLocation()
   const repositoryId = params.repositoryId || ""
   const prefix = routePrefix(location.pathname)
-  const [page, setPage] = useState(1)
-  const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
+  const page = pageFromSearch(location.search)
 
   const query = useQuery({
-    queryKey: ["repositories", repositoryId, "insight_suggestions", stateFilter, page],
-    queryFn: () => fetchInsightSuggestions(repositoryId, page, 20, stateFilter),
+    queryKey: ["repositories", repositoryId, "insight_suggestions", location.search],
+    queryFn: () => fetchInsightSuggestions(repositoryId, location.search, page, 20),
     enabled: repositoryId.length > 0
   })
   const payload = query.data
-
-  function handleFilterChange(filter: StateFilter) {
-    setStateFilter(filter)
-    setPage(1)
-  }
 
   return (
     <RepositoryPageShell
@@ -67,129 +63,141 @@ export function RepositoryInsightsRoute() {
           repositoryId={repositoryId}
           suggestions={payload.suggestions}
           meta={payload.meta}
-          page={page}
-          stateFilter={stateFilter}
-          onFilterChange={handleFilterChange}
-          onPageChange={setPage}
+          payload={payload}
+          pathname={location.pathname}
+          prefix={prefix}
+          search={location.search}
         />
       ) : null}
     </RepositoryPageShell>
   )
 }
 
+function pageFromSearch(search: string) {
+  const page = Number(new URLSearchParams(search).get("page") || "1")
+  return Number.isFinite(page) && page > 0 ? page : 1
+}
+
+function pageLink(pathname: string, search: string, page: number, prefix: string) {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+  params.set("page", String(page))
+  params.set("per_page", "20")
+  return withRoutePrefix(`${pathname}?${params.toString()}`, prefix)
+}
+
 function InsightSuggestionsList({
   repositoryId,
   suggestions,
   meta,
-  page,
-  onPageChange,
-  stateFilter,
-  onFilterChange
+  payload,
+  pathname,
+  prefix,
+  search
 }: {
   repositoryId: string
   suggestions: InsightSuggestion[]
   meta: PaginationMeta
-  page: number
-  onPageChange: (page: number) => void
-  stateFilter: StateFilter
-  onFilterChange: (filter: StateFilter) => void
+  payload: InsightSuggestionsPayload
+  pathname: string
+  prefix: string
+  search: string
 }) {
   const { t } = useT("agent_insights")
+  const queryClient = useQueryClient()
+  const smartFolders = payload.smart_folders.map((folder) => (
+    folder.i18n_key
+      ? { ...folder, i18n_key: null, name: t(`smart_folder_${folder.i18n_key}`, { defaultValue: folder.name }) }
+      : folder
+  ))
 
-  const filterTabs: Array<{ key: StateFilter; label: string; count: number }> = [
-    { key: "pending", label: t("filter_pending"), count: meta.counts.pending },
-    { key: "accepted", label: t("filter_accepted"), count: meta.counts.accepted },
-    { key: "dismissed", label: t("filter_dismissed"), count: meta.counts.dismissed },
-    { key: "retired", label: t("filter_retired"), count: meta.counts.retired },
-    { key: "all", label: t("filter_all"), count: meta.counts.all }
-  ]
-
-  const firstItem = meta.total === 0 ? 0 : (page - 1) * meta.per_page + 1
-  const lastItem = Math.min(page * meta.per_page, meta.total)
+  const firstItem = meta.total === 0 ? 0 : (meta.page - 1) * meta.per_page + 1
+  const lastItem = Math.min(meta.page * meta.per_page, meta.total)
+  const smartFolderNav = (
+    <AdminSmartFolderNav
+      activeFolderId={payload.active_smart_folder_id}
+      allLabel={t("filter_all")}
+      allPath={`/repositories/${repositoryId}/insights?smart_folder_id=`}
+      ariaLabel={t("smart_folders_aria")}
+      currentFilter={payload.filter}
+      folders={smartFolders}
+      heading={t("smart_folders_heading")}
+      onMutationSuccess={() => {
+        void queryClient.invalidateQueries({ queryKey: ["repositories", repositoryId, "insight_suggestions"] })
+      }}
+      prefix={prefix}
+      queryKey={["repositories", repositoryId, "insight_suggestions"]}
+      rewriteRedirectTo={(path) => path.replace(/^\/agent_insights(?=\?|$)/, `/repositories/${repositoryId}/insights`)}
+      subjectType="agent_insight"
+    />
+  )
+  const filterBar = (
+    <FilterBar
+      filter={payload.filter}
+      filterSchema={payload.filter_schema}
+      legacyFilterKeys={["state"]}
+      pathname={pathname}
+      search={search}
+      suggestionSearch={{ surface: "repository_insights", subject: "agent_insight" }}
+    />
+  )
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <SectionHeading>{t("suggestions_heading")}</SectionHeading>
-        <Select
-          aria-label={t("filter_aria")}
-          className="sm:hidden"
-          onChange={(event) => onFilterChange(event.target.value as StateFilter)}
-          value={stateFilter}
-        >
-          {filterTabs.map((tab) => (
-            <option key={tab.key} value={tab.key}>
-              {tab.label} ({tab.count})
-            </option>
-          ))}
-        </Select>
-        <nav aria-label={t("filter_aria")} className="hidden gap-1 sm:flex">
-          {filterTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              onClick={() => onFilterChange(tab.key)}
-              size="sm"
-              variant={stateFilter === tab.key ? "primary" : "secondary"}
-            >
-              {tab.label}
-              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                {tab.count}
-              </span>
-            </Button>
-          ))}
-        </nav>
-      </div>
-
-      {suggestions.length === 0 ? (
-        <div className="rounded border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-          {t("empty")}
+    <AdminFiltersLayout filterBar={filterBar} smartFolders={smartFolderNav}>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <SectionHeading>{t("suggestions_heading")}</SectionHeading>
+          <span className="text-sm text-gray-500 dark:text-gray-400">{t("insight_count", { count: meta.total })}</span>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {suggestions.map((suggestion) => (
-            <SuggestionCard
-              key={suggestion.id}
-              repositoryId={repositoryId}
-              suggestion={suggestion}
-            />
-          ))}
-        </div>
-      )}
 
-      {meta.total_pages > 1 && (
-        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-          <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: meta.total })}</span>
-          <div className="flex gap-2">
-            {page > 1 ? (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page - 1)}
-                type="button"
-              >
-                {t("pagination_previous")}
-              </button>
-            ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
-                {t("pagination_previous")}
-              </span>
-            )}
-            {page < meta.total_pages ? (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page + 1)}
-                type="button"
-              >
-                {t("pagination_next")}
-              </button>
-            ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
-                {t("pagination_next")}
-              </span>
-            )}
+        {suggestions.length === 0 ? (
+          <div className="rounded border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+            {t("empty")}
           </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="space-y-3">
+            {suggestions.map((suggestion) => (
+              <SuggestionCard
+                key={suggestion.id}
+                repositoryId={repositoryId}
+                suggestion={suggestion}
+              />
+            ))}
+          </div>
+        )}
+
+        {meta.total_pages > 1 && (
+          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+            <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: meta.total })}</span>
+            <div className="flex gap-2">
+              {meta.page > 1 ? (
+                <Link
+                  className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                  to={pageLink(pathname, search, meta.page - 1, prefix)}
+                >
+                  {t("pagination_previous")}
+                </Link>
+              ) : (
+                <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
+                  {t("pagination_previous")}
+                </span>
+              )}
+              {meta.page < meta.total_pages ? (
+                <Link
+                  className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                  to={pageLink(pathname, search, meta.page + 1, prefix)}
+                >
+                  {t("pagination_next")}
+                </Link>
+              ) : (
+                <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
+                  {t("pagination_next")}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </AdminFiltersLayout>
   )
 }
 
@@ -285,6 +293,7 @@ function SuggestionCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
+              <CopyableSlug className="font-semibold text-brand dark:text-brand-emphasis" slug={suggestion.slug} />
               <SeverityPill severity={suggestion.severity} />
               <ProposalPill proposalType={suggestion.proposal_type} />
               <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">

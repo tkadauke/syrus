@@ -1,4 +1,6 @@
 import { getJson, patchJson, postJson } from "@app/api/client"
+import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 import type { RepositoryTab } from "@app/api/repositories"
 
 export type InsightEvidenceItem = {
@@ -19,6 +21,7 @@ export type InsightJobSummary = {
 
 export type InsightSuggestion = {
   id: number
+  slug: string
   title: string
   category: string
   severity: "low" | "medium" | "high"
@@ -80,6 +83,10 @@ export type InsightSuggestionsPayload = {
   counts: InsightSuggestionCounts
   suggestions: InsightSuggestion[]
   meta: PaginationMeta
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
+  active_smart_folder_id: number | null
+  smart_folders: AdminSmartFolder[]
 }
 
 export type InsightSuggestionUpdatePayload = {
@@ -111,8 +118,10 @@ export type AdminInsightsPayload = {
   meta: PaginationMeta
 }
 
-export function fetchInsightSuggestions(repositoryId: string | number, page = 1, perPage = 20, state = "all") {
-  const params = new URLSearchParams({ page: String(page), per_page: String(perPage), state })
+export function fetchInsightSuggestions(repositoryId: string | number, search = "", page = 1, perPage = 20) {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+  params.set("page", String(page))
+  params.set("per_page", String(perPage))
   return getJson<InsightSuggestionsPayload>(
     `/api/v1/app/repositories/${repositoryId}/insight_suggestions?${params.toString()}`
   )

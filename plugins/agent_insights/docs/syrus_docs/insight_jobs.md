@@ -24,7 +24,7 @@ PluginRecord.find_by!(name: "agent_insights").update!(enabled: true)
 
 Once enabled, the following become active:
 - "Run insight analysis" button on repository pages
-- `/repositories/:id/plugin/insights` — per-repository suggestions list
+- `/repositories/:id/insights` — per-repository suggestions list
 - `/admin/insights` — cross-repository admin view
 - `POST /api/v1/app/repositories/:id/run_insight_analysis` API endpoint
 - `GET /api/v1/app/repositories/:id/insight_suggestions` API endpoint
@@ -69,7 +69,15 @@ Each `AgentInsights::Suggestion` captures:
 
 ## Reviewing Suggestions
 
-Navigate to `/repositories/:id/plugin/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Filter by state: Pending, Accepted, Dismissed, or All. Lists are paginated, and the state counts reflect all matching suggestions, not only the current page.
+Navigate to `/repositories/:id/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Each suggestion has a stable copyable slug, `INSIGHT-<id>`, shown on the card header; accepted suggestions keep their separate created-Job link when a Job was filed.
+
+The repository Insights page uses the shared Syrus smart-folder and FilterBar
+patterns. Built-in folders cover Pending, Accepted, Dismissed, Retired, and All
+views, with counts computed server-side. Additional filters are URL-addressable
+through the shared `q=` filter tree and include created-at date/range, state,
+severity, proposal type, category, confidence, and created-job presence. Changing
+folders or filters resets pagination, so copied URLs preserve the selected
+view without accidentally reopening a stale page number.
 
 Regular chat agents can inspect the same suggestions with `list_insights` and
 `read_insight`. Non-admin chat agents can only list/read suggestions for the
