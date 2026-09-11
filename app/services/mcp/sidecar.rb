@@ -6,11 +6,38 @@ module Mcp
     CHAT_DEFERRED_SERVER = "syrus-chat-deferred-sidecar"
     WORKFLOW_SERVER = "syrus-mcp-sidecar"
 
-    CHAT_ESSENTIAL_TOOLS = McpToolRegistry.tools(surface: :chat, tier: :essential).freeze
-    CHAT_DEFERRED_TOOLS = McpToolRegistry.tools(surface: :chat, tier: :deferred).freeze
-    CHAT_ADMIN_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.admin_only }.map(&:tool).freeze
-    CHAT_CODING_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_CODING) }.map(&:tool).freeze
-    CHAT_LOCAL_MODE_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_LOCAL) }.map(&:tool).freeze
+    class LazyToolList
+      include Enumerable
+
+      def initialize(&loader)
+        @loader = loader
+      end
+
+      def each(&block)
+        to_a.each(&block)
+      end
+
+      def to_a
+        @tools ||= @loader.call.freeze
+      end
+      alias to_ary to_a
+
+      def method_missing(name, ...)
+        return super unless to_a.respond_to?(name)
+
+        to_a.public_send(name, ...)
+      end
+
+      def respond_to_missing?(name, include_private = false)
+        to_a.respond_to?(name, include_private) || super
+      end
+    end
+
+    CHAT_ESSENTIAL_TOOLS = LazyToolList.new { chat_essential_tools }
+    CHAT_DEFERRED_TOOLS = LazyToolList.new { chat_deferred_tools }
+    CHAT_ADMIN_TOOLS = LazyToolList.new { chat_admin_tools }
+    CHAT_CODING_TOOLS = LazyToolList.new { chat_coding_tools }
+    CHAT_LOCAL_MODE_TOOLS = LazyToolList.new { chat_local_mode_tools }
 
     module StdioToolDispatch
       def call(*args, server_context: nil, **kwargs, &block)
@@ -70,6 +97,34 @@ module Mcp
 
       chat_tools_for(chat_session, tier: tier)
     end
+
+    def self.chat_essential_tools
+      @chat_essential_tools ||= McpToolRegistry.tools(surface: :chat, tier: :essential).freeze
+    end
+
+    def self.chat_deferred_tools
+      @chat_deferred_tools ||= McpToolRegistry.tools(surface: :chat, tier: :deferred).freeze
+    end
+
+    def self.chat_admin_tools
+      @chat_admin_tools ||= McpToolRegistry.entries(surface: :chat).select(&:admin_only).map(&:tool).freeze
+    end
+
+    def self.chat_coding_tools
+      @chat_coding_tools ||= chat_tools_for_role(AgentRole::CHAT_CODING)
+    end
+
+    def self.chat_local_mode_tools
+      @chat_local_mode_tools ||= chat_tools_for_role(AgentRole::CHAT_LOCAL)
+    end
+
+    def self.chat_tools_for_role(role)
+      McpToolRegistry.entries(surface: :chat)
+        .select { |entry| entry.required_roles.include?(role) }
+        .map(&:tool)
+        .freeze
+    end
+    private_class_method :chat_tools_for_role
 
     def self.chat_tools_for(chat_session, tier:)
       evaluator = tier.to_s == "evaluator"

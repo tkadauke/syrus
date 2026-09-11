@@ -196,21 +196,21 @@ class McpToolPolicy
   end
 
   def chat_base_tools
-    Mcp::Sidecar::CHAT_ESSENTIAL_TOOLS +
-      Mcp::Sidecar::CHAT_DEFERRED_TOOLS
+    Mcp::Sidecar.chat_essential_tools +
+      Mcp::Sidecar.chat_deferred_tools
   end
 
   def apply_admin_filter(tools)
     return tools if @context.user.admin?
 
-    tools.reject { |tool| Mcp::Sidecar::CHAT_ADMIN_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar.chat_admin_tools.include?(tool) }
   end
 
   def apply_coding_filter(tools)
     return tools if @context.role == AgentRole::CHAT_CODING && Feature.coding_mode_enabled?
 
     tools.reject do |tool|
-      Mcp::Sidecar::CHAT_CODING_TOOLS.include?(tool) &&
+      Mcp::Sidecar.chat_coding_tools.include?(tool) &&
         !role_specific_tool_allowed_for_current_context?(tool)
     end
   end
@@ -219,7 +219,7 @@ class McpToolPolicy
     return tools if @context.role == AgentRole::CHAT_LOCAL && Feature.local_mode_enabled?
 
     tools.reject do |tool|
-      Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS.include?(tool) &&
+      Mcp::Sidecar.chat_local_mode_tools.include?(tool) &&
         !role_specific_tool_allowed_for_current_context?(tool)
     end
   end

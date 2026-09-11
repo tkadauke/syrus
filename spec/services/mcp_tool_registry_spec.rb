@@ -61,6 +61,40 @@ RSpec.describe McpToolRegistry do
     end
   end
 
+  describe ".entries" do
+    around do |example|
+      cached_entries = described_class.instance_variable_get(:@entries)
+      cached_entries_by_surface = described_class.instance_variable_get(:@entries_by_surface)
+      described_class.remove_instance_variable(:@entries) if described_class.instance_variable_defined?(:@entries)
+      described_class.remove_instance_variable(:@entries_by_surface) if described_class.instance_variable_defined?(:@entries_by_surface)
+
+      example.run
+    ensure
+      described_class.remove_instance_variable(:@entries) if described_class.instance_variable_defined?(:@entries)
+      described_class.remove_instance_variable(:@entries_by_surface) if described_class.instance_variable_defined?(:@entries_by_surface)
+      described_class.instance_variable_set(:@entries, cached_entries) if defined?(cached_entries)
+      described_class.instance_variable_set(:@entries_by_surface, cached_entries_by_surface) if defined?(cached_entries_by_surface)
+    end
+
+    it "builds workflow entries without building chat entries" do
+      expect(described_class).not_to receive(:chat_entries)
+
+      expect(described_class.entries(surface: :workflow)).to all(have_attributes(surface: :workflow))
+    end
+
+    it "builds agent insight entries without building chat entries" do
+      expect(described_class).not_to receive(:chat_entries)
+
+      expect(described_class.entries(surface: :agent_insight)).to all(have_attributes(surface: :agent_insight))
+    end
+
+    it "still exposes all entries when no surface is requested" do
+      surfaces = described_class.entries.map(&:surface).uniq
+
+      expect(surfaces).to contain_exactly(:chat, :workflow, :agent_insight)
+    end
+  end
+
   describe ".tools_for_context" do
     it "keeps the planner chat tool set unchanged" do
       session = chat_session
