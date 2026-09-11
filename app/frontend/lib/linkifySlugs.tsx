@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 
-const slugPattern = /((?:JOB|EPIC|DOC|CHAT)-\d+)/
+const slugPattern = /([A-Z]{2,}(?:_[A-Z0-9]+)*-\d+)/
 const slugLinkClassName = "text-brand hover:underline dark:text-brand-emphasis"
 
 type LinkifySlugOptions = {
@@ -69,10 +69,14 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
       )
     }
 
+    if (slugStyle === "copyable" && /^([A-Z]{2,}(?:_[A-Z0-9]+)*-\d+)$/.test(part)) {
+      return <CopyableSlug className="text-xs normal-case" key={index} slug={part} />
+    }
+
     return part
   })
 }
 
 export function containsSlug(text: string) {
-  return /(?:JOB|EPIC|DOC|CHAT)-\d+/.test(text)
+  return /[A-Z]{2,}(?:_[A-Z0-9]+)*-\d+/.test(text)
 }
