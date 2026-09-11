@@ -24,6 +24,8 @@ import (
 const (
 	localInitialBackoff = 1 * time.Second
 	localMaxBackoff     = 60 * time.Second
+
+	localActivityPreviewRunes = 160
 )
 
 // Overridable for tests.
@@ -269,6 +271,7 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 		return fmt.Errorf("connection failed: %w", err)
 	}
 	defer conn.Close()
+	activity := newLocalActivityLogger(out)
 
 	identJSON, err := json.Marshal(map[string]any{
 		"channel":         "LocalTunnelChannel",
@@ -411,7 +414,7 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 
 		switch msgType {
 		case "connected":
-			fmt.Fprintf(out, "Connected to Syrus chat session #%d\n", chatSessionID)
+			activity.connected(chatSessionID, repoSlug, branch)
 
 		case "ping":
 			// Keepalive: LocalTunnelChannel disconnects the daemon session
@@ -445,7 +448,9 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 					activeCalls.Delete(c.ToolUseID)
 					cancelCall()
 				}()
+				activity.toolStart(c)
 				result := executeLocalToolCall(callCtx, repoRoot, c)
+				activity.toolFinish(c, result)
 				payload, err := json.Marshal(map[string]any{
 					"type":        "tool_result",
 					"tool_use_id": c.ToolUseID,
@@ -467,6 +472,173 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 			}
 		}
 	}
+}
+
+type localActivityLogger struct {
+	out io.Writer
+	mu  sync.Mutex
+}
+
+func newLocalActivityLogger(out io.Writer) *localActivityLogger {
+	return &localActivityLogger{out: out}
+}
+
+func (l *localActivityLogger) connected(chatSessionID int64, repoSlug, branch string) {
+	l.printf("Connected to Syrus chat session #%d (%s on %s)\n", chatSessionID, repoSlug, branch)
+}
+
+func (l *localActivityLogger) toolStart(call localToolCallMsg) {
+	l.printf("› %s\n", localToolCallDisplay(call))
+}
+
+func (l *localActivityLogger) toolFinish(call localToolCallMsg, result map[string]any) {
+	marker := "⎿"
+	summary := localToolResultSummary(call, result)
+	if localToolResultFailed(result) {
+		marker = "⎿ ✗"
+	}
+	l.printf("  %s %s\n", marker, summary)
+}
+
+func (l *localActivityLogger) printf(format string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	fmt.Fprintf(l.out, format, args...)
+}
+
+func localToolCallDisplay(call localToolCallMsg) string {
+	switch call.Tool {
+	case "read_file", "write_file", "list_files":
+		path := localInputString(call.Input, "path")
+		if path == "" && call.Tool == "list_files" {
+			path = "."
+		}
+		return fmt.Sprintf("%s(%s)", call.Tool, localDisplayArg(path))
+	case "run_command":
+		return fmt.Sprintf("run_command(%s)", localDisplayArg(localInputString(call.Input, "command")))
+	case "git_status", "git_diff", "git_diff_staged":
+		return call.Tool
+	default:
+		if call.Tool == "" {
+			return "tool"
+		}
+		return call.Tool
+	}
+}
+
+func localInputString(raw json.RawMessage, key string) string {
+	var params map[string]any
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return ""
+	}
+	value, _ := params[key].(string)
+	return value
+}
+
+func localDisplayArg(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = "."
+	}
+	return truncateLocalActivity(value)
+}
+
+func localToolResultSummary(call localToolCallMsg, result map[string]any) string {
+	if result == nil {
+		return "no result"
+	}
+	if errText, ok := result["error"].(string); ok && strings.TrimSpace(errText) != "" {
+		return truncateLocalActivity(errText)
+	}
+
+	switch call.Tool {
+	case "read_file":
+		if content, ok := result["content"].(string); ok {
+			return fmt.Sprintf("read %d bytes", len([]byte(content)))
+		}
+		return "read complete"
+	case "write_file":
+		if result["success"] == true {
+			return "wrote file"
+		}
+		return "write complete"
+	case "list_files":
+		if files, ok := result["files"].([]map[string]any); ok {
+			return fmt.Sprintf("%d entries", len(files))
+		}
+		if files, ok := result["files"].([]any); ok {
+			return fmt.Sprintf("%d entries", len(files))
+		}
+		return "listed files"
+	case "run_command":
+		return localRunCommandSummary(result)
+	case "git_status":
+		return localTextFieldSummary(result, "status", "clean", "status")
+	case "git_diff", "git_diff_staged":
+		return localTextFieldSummary(result, "diff", "no diff", "diff")
+	default:
+		return "complete"
+	}
+}
+
+func localToolResultFailed(result map[string]any) bool {
+	if result == nil {
+		return true
+	}
+	if errText, ok := result["error"].(string); ok && strings.TrimSpace(errText) != "" {
+		return true
+	}
+	if killed, ok := result["killed"].(bool); ok && killed {
+		return true
+	}
+	if exitCode, ok := result["exit_code"].(int); ok && exitCode != 0 {
+		return true
+	}
+	return false
+}
+
+func localRunCommandSummary(result map[string]any) string {
+	exitCode, ok := result["exit_code"].(int)
+	if !ok {
+		exitCode = 0
+	}
+	parts := []string{fmt.Sprintf("exit %d", exitCode)}
+	if killed, ok := result["killed"].(bool); ok && killed {
+		parts = append(parts, "killed")
+	}
+	if stdout, ok := result["stdout"].(string); ok {
+		if preview := localPreview(stdout); preview != "" {
+			parts = append(parts, "stdout: "+preview)
+		}
+	}
+	if stderr, ok := result["stderr"].(string); ok {
+		if preview := localPreview(stderr); preview != "" {
+			parts = append(parts, "stderr: "+preview)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func localTextFieldSummary(result map[string]any, key, emptySummary, label string) string {
+	text, _ := result[key].(string)
+	preview := localPreview(text)
+	if preview == "" {
+		return emptySummary
+	}
+	return label + ": " + preview
+}
+
+func localPreview(value string) string {
+	value = strings.Join(strings.Fields(value), " ")
+	return truncateLocalActivity(value)
+}
+
+func truncateLocalActivity(value string) string {
+	runes := []rune(value)
+	if len(runes) <= localActivityPreviewRunes {
+		return value
+	}
+	return string(runes[:localActivityPreviewRunes-1]) + "…"
 }
 
 // executeLocalToolCall dispatches to the right tool handler.
