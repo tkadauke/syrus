@@ -1563,6 +1563,64 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(summarize.runs.last.iteration).to eq(1)
     end
 
+    it "defers the next ci_failure retry iteration when the base becomes unhealthy mid-loop" do
+      base_sha = "base123456789000000000000000000000000000"
+      ci_job = Factories.job_record(
+        user: job.user,
+        repository: job.repository,
+        state: "running",
+        commits_behind_base: 0,
+        pr_number: 123,
+        pr_checks_state: "failing"
+      )
+      ci_job.repository.update!(
+        main_branch_health_enabled: true,
+        last_health_checked_sha: base_sha,
+        last_ci_evaluated_sha: base_sha,
+        last_graded_sha: base_sha,
+        ci_health: "healthy",
+        grader_health: "healthy"
+      )
+      ci_workflow = Workflows::CiFailure.instantiate(
+        job: ci_job,
+        artifacts: {
+          "base_sha" => base_sha,
+          "head_sha" => "head123456789000000000000000000000000000",
+          "failed_checks" => [ { "name" => "rspec-ci" } ]
+        }
+      )
+      ci_workflow.update!(state: "running", started_at: 1.minute.ago)
+      unit = attach_work_unit(ci_workflow, state: "running", kind: "ci_failure")
+      first_collect = ci_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+
+      ci_job.repository.update!(
+        last_health_checked_sha: "older",
+        last_ci_evaluated_sha: "older",
+        last_graded_sha: "older",
+        ci_health: "broken",
+        grader_health: "healthy"
+      )
+
+      expect {
+        described_class.fail_from(first_collect)
+      }.not_to change { Run.count }
+
+      second_analyze = ci_workflow.steps.find_by!(kind: "analyze_and_fix", iteration: 2)
+      expect(second_analyze).to be_present
+      expect(second_analyze.runs).to be_empty
+      expect(unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::CiRepairSafety::REASON
+      )
+      expect(unit.blocked_details).to include(
+        "kind" => "base_not_known_healthy",
+        "base_sha" => base_sha,
+        "phase_step_id" => second_analyze.id,
+        "phase_step_kind" => "analyze_and_fix"
+      )
+      expect(enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }).to be_present
+    end
+
     it "expands the merge_train_land failure branch when base moved" do
       try_workflow = workflow_with_try_merge_train_land_branch
       land = try_workflow.steps.find_by!(kind: "merge_train_land")
