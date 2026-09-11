@@ -65,6 +65,7 @@ class ChatSession < ApplicationRecord
   has_many :scheduled_messages, class_name: "ScheduledChatMessage", dependent: :destroy
   has_many :agent_questions, class_name: "ChatAgentQuestion", dependent: :destroy
   has_many :chat_goals, dependent: :destroy
+  has_one :agent, as: :resumable, dependent: :destroy
   has_one :active_goal,
           -> { non_terminal.order(created_at: :desc, id: :desc) },
           class_name: "ChatGoal",
