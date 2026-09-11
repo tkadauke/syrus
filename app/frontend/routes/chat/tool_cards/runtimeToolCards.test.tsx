@@ -235,7 +235,7 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Terminal scrollback is empty")).toBeInTheDocument()
   })
 
-  it("renders long Runtime logs as a collapsed preview with truncation details", () => {
+  it("renders long Runtime logs as a filterable collapsed preview with truncation details", () => {
     const entries = Array.from({ length: 45 }, (_, index) => `line ${index + 1}`)
     const parsedResult = { entries, cursor: 45 }
 
@@ -245,9 +245,13 @@ describe("Runtime tool cards", () => {
     const preview = screen.getByText("Log preview").closest("details")
     expect(preview).not.toBeNull()
     if (!preview) throw new Error("missing log preview")
-    expect(screen.getByText("Showing first 40 of 45 lines.")).toBeInTheDocument()
+    expect(screen.getByText("Showing 40 of 45 lines.")).toBeInTheDocument()
+    expect(screen.getByText("Show 5 more")).toBeInTheDocument()
     expect(within(preview).getByText(/line 1/)).toBeInTheDocument()
     expect(within(preview).queryByText(/line 45/)).not.toBeInTheDocument()
+    fireEvent.change(within(preview).getByLabelText("Filter log preview"), { target: { value: "line 45" } })
+    expect(within(preview).getByText(/line 45/)).toBeInTheDocument()
+    expect(screen.getByText("Showing 1 of 1 matching 45 lines.")).toBeInTheDocument()
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
   })
 

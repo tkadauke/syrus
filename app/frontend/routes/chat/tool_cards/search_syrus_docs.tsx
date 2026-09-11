@@ -1,7 +1,8 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, LargeResultList, numberValue, Row } from "../toolCardUi"
 
 const SNIPPET_CHARS = 360
+const RESULT_PREVIEW_LIMIT = 8
 
 type SyrusDocsResult = {
   key: string
@@ -96,11 +97,20 @@ function ResultReference({ result }: { result: SyrusDocsResult }) {
   )
 }
 
+function resultFilterText(result: SyrusDocsResult) {
+  return [result.rank, result.title, result.heading, result.path, result.source, result.reference, result.snippet].filter(Boolean).join(" ")
+}
+
 function ResultList({ results }: { results: SyrusDocsResult[] }) {
   return (
-    <ol className="space-y-2">
-      {results.map((result) => (
-        <li className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={result.key}>
+    <LargeResultList
+      filterPlaceholder="Filter docs results"
+      initialLimit={RESULT_PREVIEW_LIMIT}
+      itemText={resultFilterText}
+      items={results}
+      label="Ranked results"
+      renderItem={(result) => (
+        <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={result.key}>
           <div className="flex min-w-0 items-baseline gap-2">
             <span className="shrink-0 font-mono text-2xs text-gray-500 dark:text-gray-400">#{result.rank}</span>
             <div className="min-w-0 flex-1">
@@ -111,9 +121,9 @@ function ResultList({ results }: { results: SyrusDocsResult[] }) {
           </div>
           <ResultReference result={result} />
           {result.snippet ? <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{result.snippet}</p> : null}
-        </li>
-      ))}
-    </ol>
+        </div>
+      )}
+    />
   )
 }
 
@@ -149,10 +159,7 @@ function renderExpanded(context: ToolCardContext) {
       {card.results.length === 0 ? (
         <EmptyState>{card.message || "No matching documentation found."}</EmptyState>
       ) : (
-        <div className="space-y-1">
-          <SectionLabel>Ranked results</SectionLabel>
-          <ResultList results={card.results} />
-        </div>
+        <ResultList results={card.results} />
       )}
     </CardShell>
   )

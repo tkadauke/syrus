@@ -1,6 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, FilterableLinePreview, JsonDisclosure, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 type RuntimeLease = {
   id: string
@@ -647,11 +647,7 @@ function FieldRows({ rows }: { rows: Array<[string, string | null]> }) {
 }
 
 function RawRuntimeDetails({ value }: { value: unknown }) {
-  return (
-    <Disclosure label="Runtime JSON">
-      <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-2xs">{JSON.stringify(value, null, 2)}</pre>
-    </Disclosure>
-  )
+  return <JsonDisclosure label="Runtime JSON" value={value} />
 }
 
 function RuntimeErrorCard({ message }: { message: string }) {
@@ -708,9 +704,7 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
         </div>
       ) : null}
       {card.details ? (
-        <Disclosure label="Inspection details">
-          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{card.details}</pre>
-        </Disclosure>
+        <FilterableLinePreview label="Inspection details" lines={card.details.split("\n")} initialLimit={40} />
       ) : (
         <EmptyState>No detailed inspection output was returned.</EmptyState>
       )}
@@ -720,9 +714,6 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
 }
 
 function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }> }) {
-  const text = card.entries.join("\n")
-  const { preview, truncated, totalLines } = truncateLines(text, LOG_PREVIEW_LINE_LIMIT)
-
   return (
     <CardShell>
       <FieldRows rows={[
@@ -733,10 +724,7 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
       {card.entries.length === 0 ? (
         <EmptyState>No new Runtime log lines.</EmptyState>
       ) : (
-        <Disclosure label="Log preview">
-          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
-          {truncated ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {LOG_PREVIEW_LINE_LIMIT} of {totalLines} lines.</div> : null}
-        </Disclosure>
+        <FilterableLinePreview label="Log preview" lines={card.entries} initialLimit={LOG_PREVIEW_LINE_LIMIT} />
       )}
       <RawRuntimeDetails value={card.raw} />
     </CardShell>
@@ -764,9 +752,7 @@ function RuntimeInputCard({ card }: { card: Extract<RuntimeCard, { kind: "input"
         ["Value", card.event.valueSummary],
         ["Key", card.event.key]
       ]} />
-      <Disclosure label="Input event">
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{JSON.stringify(card.rawEvent, null, 2)}</pre>
-      </Disclosure>
+      <JsonDisclosure label="Input event" value={card.rawEvent} maxLines={40} />
       <RawRuntimeDetails value={card.raw} />
     </CardShell>
   )

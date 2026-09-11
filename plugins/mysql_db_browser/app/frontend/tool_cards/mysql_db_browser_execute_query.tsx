@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
-import { formatMs, MysqlErrorNotice, parseMysqlError, TableShell, TruncatedNotice, type MysqlError } from "../mysqlToolCard"
+import { CardShell, displayValue, EmptyState, LargeResultTable, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { formatMs, MysqlErrorNotice, parseMysqlError, TruncatedNotice, type MysqlError } from "../mysqlToolCard"
 
 // Plugin-owned tool card for mysql_db_browser_execute_query (the tool-card work).
 // Three distinct outcomes share this one payload shape (see
@@ -99,26 +99,13 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <div className="mt-1 space-y-1">
-      <TableShell>
-        <table className="w-full text-left text-xs">
-          <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-            <tr>
-              {outcome.columns.map((column) => (
-                <th className="whitespace-nowrap px-2 py-1 font-semibold" key={column} scope="col">{column}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-            {outcome.rows.map((row, index) => (
-              <tr key={index}>
-                {outcome.columns.map((column) => (
-                  <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-700 dark:text-gray-300" key={column}>{cellText(row[column])}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </TableShell>
+      <LargeResultTable
+        columns={outcome.columns}
+        filterPlaceholder="Filter query rows"
+        rowText={(row) => outcome.columns.map((column) => cellText(row[column])).join(" ")}
+        rows={outcome.rows}
+        renderCell={(row, column) => cellText(row[column])}
+      />
       <div className="flex items-center gap-2 text-2xs text-gray-500 dark:text-gray-400">
         <StatePill state={outcome.readOnly ? "read-only" : "read-write"} tone={outcome.readOnly ? "info" : "warning"} />
         {outcome.durationMs != null ? <span>{formatMs(outcome.durationMs)}</span> : null}

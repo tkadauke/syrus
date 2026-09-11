@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, Row, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, LargeResultList, Row, SectionLabel, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for read_job (the Tier 1 tool-card work). Shows the
 // canonical JOB id, title, state, PR, branch, priority, agent provider,
@@ -101,23 +101,25 @@ function renderExpanded(context: ToolCardContext) {
         </dl>
       ) : null}
       {job.dependencies.length > 0 ? (
-        <div>
-          <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">Dependencies</div>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {job.dependencies.map((dependency) => (
-              <span
-                className={`rounded-full px-2 py-0.5 text-2xs ${dependency.pending ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
-                key={dependency.key}
-              >
-                {dependency.label}{dependency.state ? ` · ${dependency.state}` : ""}
-              </span>
-            ))}
-          </div>
-        </div>
+        <LargeResultList
+          filterPlaceholder="Filter dependencies"
+          initialLimit={12}
+          itemText={(dependency) => [dependency.label, dependency.state].filter(Boolean).join(" ")}
+          items={job.dependencies}
+          label="Dependencies"
+          renderItem={(dependency) => (
+            <span
+              className={`rounded-full px-2 py-0.5 text-2xs ${dependency.pending ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
+              key={dependency.key}
+            >
+              {dependency.label}{dependency.state ? ` · ${dependency.state}` : ""}
+            </span>
+          )}
+        />
       ) : null}
       {job.deploymentStages.length > 0 ? (
         <div>
-          <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">Deployment stage</div>
+          <SectionLabel>Deployment stage</SectionLabel>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             {job.deploymentStages.map((stage, index) => (
               <span className="flex items-center gap-1" key={stage.name}>

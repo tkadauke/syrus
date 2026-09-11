@@ -1,11 +1,12 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, LargeResultList, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
 // Core-owned tool card for read_run_transcript (the Tier 1 tool-card work). Shows
 // pagination metadata, chunk count, error/failure highlights, a transcript
 // chunk preview, and the full agent diff section when present.
 const CHUNK_PREVIEW_CHARS = 400
+const CHUNK_PREVIEW_LIMIT = 6
 
 type Chunk = { key: string; sequence: number | null; kind: string | null; text: string }
 
@@ -91,11 +92,14 @@ function renderExpanded(context: ToolCardContext) {
         </dl>
       ) : null}
       {run.chunks.length > 0 ? (
-        <div>
-          <SectionLabel>Transcript preview</SectionLabel>
-          <ul className="mt-1 max-h-72 space-y-1 overflow-auto rounded border border-gray-200 bg-white p-2 font-mono text-2xs dark:border-gray-800 dark:bg-gray-950">
-            {run.chunks.map((chunk) => (
-              <li key={chunk.key}>
+        <LargeResultList
+          filterPlaceholder="Filter transcript chunks"
+          initialLimit={CHUNK_PREVIEW_LIMIT}
+          itemText={(chunk) => [chunk.sequence, chunk.kind, chunk.text].filter(Boolean).join(" ")}
+          items={run.chunks}
+          label="Transcript preview"
+          renderItem={(chunk) => (
+            <div className="rounded border border-gray-200 bg-white p-2 font-mono text-2xs dark:border-gray-800 dark:bg-gray-950" key={chunk.key}>
                 <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
                   {chunk.sequence != null ? <span>#{chunk.sequence}</span> : null}
                   {chunk.kind ? <Badge>{chunk.kind}</Badge> : null}
@@ -103,10 +107,9 @@ function renderExpanded(context: ToolCardContext) {
                 <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">
                   {chunk.text.length > CHUNK_PREVIEW_CHARS ? `${chunk.text.slice(0, CHUNK_PREVIEW_CHARS)}…` : chunk.text}
                 </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+            </div>
+          )}
+        />
       ) : null}
       {run.agentDiff ? (
         <div>

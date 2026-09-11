@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, Row } from "@app/routes/chat/toolCardUi"
+import { CardShell, FilterableLinePreview, Row } from "@app/routes/chat/toolCardUi"
 import { contentMetadata, DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
 
 // Plugin-owned tool card for read_design_doc (the pending-action tool-card work). Lives
@@ -30,6 +30,7 @@ function renderExpanded(context: ToolCardContext) {
   if (!doc) return null
 
   const metadata = contentMetadata(doc.markdown)
+  const markdown = typeof doc.markdown === "string" ? doc.markdown.trim() : ""
 
   return (
     <CardShell>
@@ -42,6 +43,7 @@ function renderExpanded(context: ToolCardContext) {
         {doc.summary.openThreadsCount != null ? <Row label="Open threads" value={String(doc.summary.openThreadsCount)} /> : null}
         {metadata ? <Row label="Content" value={metadata} /> : null}
       </dl>
+      {markdown ? <FilterableLinePreview label="Content preview" lines={markdown.split("\n")} initialLimit={24} /> : null}
     </CardShell>
   )
 }

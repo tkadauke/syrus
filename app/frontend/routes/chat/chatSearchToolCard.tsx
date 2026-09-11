@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, InternalLink, numberValue, Row, SectionLabel } from "./toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, InternalLink, LargeResultList, numberValue, Row } from "./toolCardUi"
 
 const SNIPPET_CHARS = 280
 const MESSAGE_CHARS = 520
@@ -308,22 +308,24 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
       {result.messages.length === 0 ? (
         <EmptyState>No messages on this page.</EmptyState>
       ) : (
-        <div>
-          <SectionLabel>Transcript excerpt</SectionLabel>
-          <ol className="mt-1 max-h-80 space-y-1 overflow-auto rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950">
-            {result.messages.map((message) => (
-              <li className="rounded border border-gray-100 p-2 dark:border-gray-800" key={message.id}>
-                <Metadata>
-                  {message.role ? <Badge>{message.role}</Badge> : null}
-                  {message.sender ? <span>{message.sender}</span> : null}
-                  {message.createdAt ? <time dateTime={message.createdAt} title={message.createdAt}>{timestamp(message.createdAt)}</time> : null}
-                  {result.chatId ? <InternalLink href={messageHref(result.chatId, message.id)}>message {message.id}</InternalLink> : <span>message {message.id}</span>}
-                </Metadata>
-                <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{message.content}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
+        <LargeResultList
+          filterPlaceholder="Filter transcript excerpt"
+          initialLimit={8}
+          itemText={(message) => [message.role, message.sender, message.createdAt, message.content].filter(Boolean).join(" ")}
+          items={result.messages}
+          label="Transcript excerpt"
+          renderItem={(message) => (
+            <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={message.id}>
+              <Metadata>
+                {message.role ? <Badge>{message.role}</Badge> : null}
+                {message.sender ? <span>{message.sender}</span> : null}
+                {message.createdAt ? <time dateTime={message.createdAt} title={message.createdAt}>{timestamp(message.createdAt)}</time> : null}
+                {result.chatId ? <InternalLink href={messageHref(result.chatId, message.id)}>message {message.id}</InternalLink> : <span>message {message.id}</span>}
+              </Metadata>
+              <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{message.content}</p>
+            </div>
+          )}
+        />
       )}
       {result.hasMore && result.nextPage != null ? <div className="text-2xs text-gray-500 dark:text-gray-400">Next page: {result.nextPage}</div> : null}
     </CardShell>

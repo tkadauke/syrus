@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import { CardShell, displayValue, FilterableLinePreview, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
 // Core-owned tool card for read_pr (the Tier 1 tool-card work). Shows PR title,
@@ -68,7 +68,7 @@ function renderExpanded(context: ToolCardContext) {
         <StatePill state={pr.state} />
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{pr.title}</div>
-      {pr.body ? <div className="whitespace-pre-wrap text-gray-600 dark:text-gray-300">{pr.body}</div> : null}
+      {pr.body ? <FilterableLinePreview label="PR body" lines={pr.body.split("\n")} initialLimit={24} /> : null}
       {pr.diff ? (
         <div>
           <SectionLabel>Diff</SectionLabel>

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 
@@ -117,4 +117,220 @@ export function truncateLines(text: string, maxLines: number): LinePreview {
   const lines = text.split("\n")
   if (lines.length <= maxLines) return { preview: text, truncated: false, totalLines: lines.length }
   return { preview: lines.slice(0, maxLines).join("\n"), truncated: true, totalLines: lines.length }
+}
+
+function includesQuery(text: string, query: string) {
+  return text.toLowerCase().includes(query.trim().toLowerCase())
+}
+
+function SearchInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <input
+      aria-label={placeholder}
+      className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 shadow-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+      onChange={(event) => onChange(event.currentTarget.value)}
+      placeholder={placeholder}
+      type="search"
+      value={value}
+    />
+  )
+}
+
+export function LargeResultList<T>({
+  emptyLabel = "No results.",
+  filteredEmptyLabel = "No results match the filter.",
+  filterPlaceholder,
+  initialLimit = 10,
+  itemText,
+  items,
+  label,
+  renderItem
+}: {
+  emptyLabel?: string
+  filteredEmptyLabel?: string
+  filterPlaceholder?: string
+  initialLimit?: number
+  itemText: (item: T) => string
+  items: T[]
+  label: string
+  renderItem: (item: T, index: number) => ReactNode
+}) {
+  const [query, setQuery] = useState("")
+  const [expanded, setExpanded] = useState(false)
+  const normalizedLimit = Math.max(1, initialLimit)
+  const filterable = items.length > normalizedLimit
+  const filteredItems = useMemo(
+    () => query.trim() ? items.filter((item) => includesQuery(itemText(item), query)) : items,
+    [itemText, items, query]
+  )
+  const visibleItems = expanded ? filteredItems : filteredItems.slice(0, normalizedLimit)
+  const hiddenCount = filteredItems.length - visibleItems.length
+
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SectionLabel>{label}</SectionLabel>
+        <span className="text-2xs text-gray-500 dark:text-gray-400">
+          Showing {visibleItems.length} of {filteredItems.length}{filteredItems.length !== items.length ? ` matching ${items.length}` : ""}.
+        </span>
+      </div>
+      {filterable ? <SearchInput placeholder={filterPlaceholder ?? `Filter ${label.toLowerCase()}`} value={query} onChange={setQuery} /> : null}
+      {items.length === 0 ? (
+        <EmptyState>{emptyLabel}</EmptyState>
+      ) : filteredItems.length === 0 ? (
+        <EmptyState>{filteredEmptyLabel}</EmptyState>
+      ) : (
+        <>
+          {visibleItems.map((item, index) => renderItem(item, index))}
+          {hiddenCount > 0 || expanded ? (
+            <button
+              className="text-2xs font-medium text-brand hover:underline dark:text-brand-emphasis"
+              onClick={() => setExpanded((current) => !current)}
+              type="button"
+            >
+              {expanded ? "Show fewer" : `Show ${hiddenCount} more`}
+            </button>
+          ) : null}
+        </>
+      )}
+    </div>
+  )
+}
+
+export function LargeResultTable<T>({
+  columns,
+  emptyLabel = "No rows returned.",
+  filterPlaceholder,
+  initialLimit = 25,
+  rowKey,
+  rowText,
+  rows,
+  renderCell
+}: {
+  columns: string[]
+  emptyLabel?: string
+  filterPlaceholder?: string
+  initialLimit?: number
+  rowKey?: (row: T, index: number) => string
+  rowText: (row: T) => string
+  rows: T[]
+  renderCell: (row: T, column: string) => ReactNode
+}) {
+  const [query, setQuery] = useState("")
+  const [expanded, setExpanded] = useState(false)
+  const normalizedLimit = Math.max(1, initialLimit)
+  const filteredRows = useMemo(
+    () => query.trim() ? rows.filter((row) => includesQuery(rowText(row), query)) : rows,
+    [rowText, rows, query]
+  )
+  const visibleRows = expanded ? filteredRows : filteredRows.slice(0, normalizedLimit)
+  const hiddenCount = filteredRows.length - visibleRows.length
+
+  if (rows.length === 0) return <EmptyState>{emptyLabel}</EmptyState>
+
+  return (
+    <div className="space-y-2">
+      {rows.length > normalizedLimit ? <SearchInput placeholder={filterPlaceholder ?? "Filter rows"} value={query} onChange={setQuery} /> : null}
+      {filteredRows.length === 0 ? (
+        <EmptyState>No rows match the filter.</EmptyState>
+      ) : (
+        <>
+          <div className="overflow-auto rounded border border-gray-200 dark:border-gray-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+                <tr>
+                  {columns.map((column) => (
+                    <th className="whitespace-nowrap px-2 py-1 font-semibold" key={column} scope="col">{column}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
+                {visibleRows.map((row, index) => (
+                  <tr key={rowKey ? rowKey(row, index) : index}>
+                    {columns.map((column) => (
+                      <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-700 dark:text-gray-300" key={column}>{renderCell(row, column)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-2xs text-gray-500 dark:text-gray-400">
+            <span>Showing {visibleRows.length} of {filteredRows.length}{filteredRows.length !== rows.length ? ` matching ${rows.length}` : ""} rows.</span>
+            {hiddenCount > 0 || expanded ? (
+              <button
+                className="font-medium text-brand hover:underline dark:text-brand-emphasis"
+                onClick={() => setExpanded((current) => !current)}
+                type="button"
+              >
+                {expanded ? "Show fewer" : `Show ${hiddenCount} more`}
+              </button>
+            ) : null}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function FilterableLinePreview({
+  emptyLabel = "No lines returned.",
+  initialLimit = 40,
+  label,
+  lines
+}: {
+  emptyLabel?: string
+  initialLimit?: number
+  label: string
+  lines: string[]
+}) {
+  const [query, setQuery] = useState("")
+  const [expanded, setExpanded] = useState(false)
+  const normalizedLimit = Math.max(1, initialLimit)
+  const filteredLines = useMemo(
+    () => query.trim() ? lines.filter((line) => includesQuery(line, query)) : lines,
+    [lines, query]
+  )
+  const visibleLines = expanded ? filteredLines : filteredLines.slice(0, normalizedLimit)
+  const hiddenCount = filteredLines.length - visibleLines.length
+
+  return (
+    <Disclosure label={label}>
+      <div className="space-y-2">
+        {lines.length > normalizedLimit ? <SearchInput placeholder={`Filter ${label.toLowerCase()}`} value={query} onChange={setQuery} /> : null}
+        {lines.length === 0 ? (
+          <EmptyState>{emptyLabel}</EmptyState>
+        ) : filteredLines.length === 0 ? (
+          <EmptyState>No lines match the filter.</EmptyState>
+        ) : (
+          <>
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{visibleLines.join("\n")}</pre>
+            <div className="flex flex-wrap items-center gap-2 text-2xs text-gray-500 dark:text-gray-400">
+              <span>Showing {visibleLines.length} of {filteredLines.length}{filteredLines.length !== lines.length ? ` matching ${lines.length}` : ""} lines.</span>
+              {hiddenCount > 0 || expanded ? (
+                <button
+                  className="font-medium text-brand hover:underline dark:text-brand-emphasis"
+                  onClick={() => setExpanded((current) => !current)}
+                  type="button"
+                >
+                  {expanded ? "Show fewer" : `Show ${hiddenCount} more`}
+                </button>
+              ) : null}
+            </div>
+          </>
+        )}
+      </div>
+    </Disclosure>
+  )
+}
+
+export function JsonDisclosure({ label, value, maxLines = 80 }: { label: string; value: unknown; maxLines?: number }) {
+  let json = ""
+  try {
+    json = JSON.stringify(value, null, 2)
+  } catch {
+    json = String(value)
+  }
+  const lines = json.split("\n")
+  return <FilterableLinePreview label={label} lines={lines} initialLimit={maxLines} emptyLabel="No details returned." />
 }
