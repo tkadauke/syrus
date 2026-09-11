@@ -28,7 +28,7 @@ describe("close_preview tool card", () => {
     render(<>{closePreviewToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("Panel #7")).toBeInTheDocument()
-    expect(screen.getByText("closed")).toBeInTheDocument()
+    expect(screen.getAllByText("closed").length).toBeGreaterThan(0)
   })
 
   it("falls back to null for a malformed payload", () => {

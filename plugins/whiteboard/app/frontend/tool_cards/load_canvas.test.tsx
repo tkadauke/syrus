@@ -25,7 +25,7 @@ describe("load_canvas tool card", () => {
     render(<>{loadCanvasToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getByText("Loaded snapshot")).toBeInTheDocument()
     expect(screen.getByText("#8")).toBeInTheDocument()
-    expect(screen.getByText("merge")).toBeInTheDocument()
+    expect(screen.getAllByText("merge").length).toBeGreaterThan(0)
     expect(screen.getByText("6")).toBeInTheDocument()
   })
 

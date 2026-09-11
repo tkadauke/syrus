@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 
 type RuntimeLease = {
@@ -781,10 +782,30 @@ function RuntimeSnapshotCard({ card }: { card: Extract<RuntimeCard, { kind: "sna
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{snapshot.error}</div>
       ) : null}
       {imageUrl ? (
-        <a className="block w-56 max-w-full overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950" href={imageUrl}>
-          <img alt="Runtime snapshot preview" className="aspect-video w-full object-contain" src={imageUrl} />
-          <span className="block px-2 py-1 text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">Open preview</span>
-        </a>
+        <MediaPreviewShell
+          item={{
+            title: snapshot.title ?? "Runtime snapshot",
+            subtitle: snapshot.pageUrl ?? snapshot.target,
+            src: imageUrl,
+            alt: "Runtime snapshot preview",
+            badge: snapshot.mimeType?.split("/").pop()?.toUpperCase() ?? "image",
+            actions: [
+              { label: "Open", href: imageUrl },
+              { label: "Copy link", copyValue: imageUrl },
+              snapshot.pageUrl ? { label: "Copy page", copyValue: snapshot.pageUrl } : null
+            ].filter(Boolean) as MediaPreviewAction[],
+            meta: [
+              { label: "Page", value: snapshot.pageUrl, copyValue: snapshot.pageUrl },
+              { label: "Title", value: snapshot.title },
+              { label: "Viewport", value: snapshot.viewport },
+              { label: "Target", value: snapshot.target },
+              { label: "Type", value: snapshot.mimeType },
+              { label: "Captured", value: snapshot.createdAt },
+              { label: "Source", value: imageUrl, copyValue: imageUrl }
+            ]
+          }}
+          modalLabel="Runtime snapshot preview"
+        />
       ) : (
         <EmptyState>No snapshot preview was returned.</EmptyState>
       )}
@@ -806,6 +827,7 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
   const previewUrl = safeImageUrl(artifact.previewUrl)
   const downloadUrl = artifact.downloadUrl ? safeRuntimeUrl(artifact.downloadUrl) : null
   const link = artifact.link ? safeRuntimeUrl(artifact.link) : null
+  const artifactTitle = artifact.name ?? artifact.id ?? "Runtime artifact"
 
   return (
     <CardShell>
@@ -821,10 +843,30 @@ function RuntimeArtifactCard({ card }: { card: Extract<RuntimeCard, { kind: "art
         </div>
       )}
       {previewUrl ? (
-        <a className="block w-56 max-w-full overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950" href={previewUrl}>
-          <img alt={artifact.name ?? artifact.id ?? "Runtime artifact preview"} className="aspect-video w-full object-contain" src={previewUrl} />
-          <span className="block px-2 py-1 text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">Open preview</span>
-        </a>
+        <MediaPreviewShell
+          item={{
+            title: artifactTitle,
+            subtitle: artifact.path ?? artifact.type,
+            src: previewUrl,
+            alt: artifactTitle,
+            badge: artifact.type?.split("/").pop()?.toUpperCase() ?? null,
+            actions: [
+              link ? { label: "Open", href: link } : { label: "Open", href: previewUrl },
+              downloadUrl ? { label: "Download", href: downloadUrl, download: true } : null,
+              artifact.id ? { label: "Copy ID", copyValue: artifact.id } : null,
+              artifact.path ? { label: "Copy path", copyValue: artifact.path } : null
+            ].filter(Boolean) as MediaPreviewAction[],
+            meta: [
+              { label: "ID", value: artifact.id, copyValue: artifact.id },
+              { label: "Name", value: artifact.name },
+              { label: "Type", value: artifact.type },
+              { label: "Path", value: artifact.path, copyValue: artifact.path },
+              { label: "Link", value: link, copyValue: link },
+              { label: "Download", value: downloadUrl, copyValue: downloadUrl }
+            ]
+          }}
+          modalLabel="Runtime artifact preview"
+        />
       ) : null}
       <FieldRows rows={[
         ["ID", artifact.id],

@@ -1,4 +1,5 @@
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
 import { Badge, CardShell, Disclosure, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 export type BrowserAction =
@@ -160,21 +161,27 @@ function BrowserPreviewPanel({ preview }: { preview: BrowserPreview }) {
   }
 
   return (
-    <figure className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <a href={preview.src} rel="noreferrer" target="_blank">
-        <img
-          alt={preview.label}
-          className="max-h-80 w-full bg-white object-contain dark:bg-gray-950"
-          loading="lazy"
-          src={preview.src}
-        />
-      </a>
-      <figcaption className="flex flex-wrap gap-2 border-t border-gray-200 px-2 py-1 text-2xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-        <span>{preview.label}</span>
-        {preview.mimeType ? <span>{preview.mimeType}</span> : null}
-        {preview.byteSize != null ? <span>{formatBytes(preview.byteSize)}</span> : null}
-      </figcaption>
-    </figure>
+    <MediaPreviewShell
+      item={{
+        title: preview.label,
+        subtitle: [preview.mimeType, preview.byteSize != null ? formatBytes(preview.byteSize) : null].filter(Boolean).join(" · "),
+        src: preview.src,
+        alt: preview.label,
+        badge: preview.mimeType?.split("/").pop()?.toUpperCase() ?? null,
+        actions: [
+          { label: "Open", href: preview.src },
+          { label: "Copy link", copyValue: preview.src }
+        ],
+        meta: [
+          { label: "Label", value: preview.label },
+          { label: "Type", value: preview.mimeType },
+          { label: "Size", value: preview.byteSize != null ? formatBytes(preview.byteSize) : null },
+          { label: "Source", value: preview.src, copyValue: preview.src }
+        ]
+      }}
+      modalLabel={preview.label}
+      thumbnailClassName="w-full"
+    />
   )
 }
 
