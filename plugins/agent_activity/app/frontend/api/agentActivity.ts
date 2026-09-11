@@ -30,6 +30,7 @@ export type AgentActivitySession = {
   created_at: string | null
   duration_seconds: number | null
   transcript_path: string | null
+  chat_path: string | null
   job: AgentActivitySessionJob | null
   repository: AgentActivitySessionRepository | null
   workflow_id: number | null

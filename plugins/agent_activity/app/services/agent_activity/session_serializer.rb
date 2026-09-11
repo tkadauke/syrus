@@ -3,13 +3,14 @@ module AgentActivity
   # Step::Kind for workflow Runs, ChatSession#mode for chats, and the
   # design-doc/thread pair for design-doc agents.
   class SessionSerializer
-    def self.call(agent, transcript_path: nil)
-      new(agent, transcript_path: transcript_path).call
+    def self.call(agent, transcript_path: nil, scope: :mine)
+      new(agent, transcript_path: transcript_path, scope: scope).call
     end
 
-    def initialize(agent, transcript_path: nil)
+    def initialize(agent, transcript_path: nil, scope: :mine)
       @agent = agent
       @transcript_path = transcript_path
+      @scope = scope
       @context = SessionContext.for(agent)
     end
 
@@ -29,7 +30,8 @@ module AgentActivity
         finished_at: latest_process&.finished_at&.iso8601,
         created_at: @agent.created_at&.iso8601,
         duration_seconds: duration_seconds,
-        transcript_path: @transcript_path,
+        transcript_path: @transcript_path || @context.transcript_path(scope: @scope),
+        chat_path: @context.chat_path,
         job: @context.job_payload,
         repository: @context.repository_payload,
         workflow_id: @context.workflow_id,
@@ -101,6 +103,8 @@ module AgentActivity
     def repository_payload = nil
     def workflow_id = nil
     def trigger_kind = nil
+    def transcript_path(scope:) = nil
+    def chat_path = nil
   end
 
   class RunSessionContext < SessionContext
@@ -113,6 +117,14 @@ module AgentActivity
     def state = @resumable.state
     def workflow_id = step&.workflow_id
     def trigger_kind = step&.workflow&.trigger_kind
+
+    def transcript_path(scope:)
+      if scope == :admin
+        "/api/v1/app/admin/agent_activity/sessions/#{@resumable.id}/artifacts"
+      else
+        "/api/v1/app/jobs/#{@resumable.job_id}/runs/#{@resumable.id}/artifacts"
+      end
+    end
 
     def outcome_summary
       OutcomeSummary.for(@resumable)[:text]
@@ -168,6 +180,7 @@ module AgentActivity
     def role = ROLE_BY_MODE.fetch(@resumable.mode, AgentRole::CHAT_PLANNER)
     def role_label = @resumable.mode&.humanize || "Chat"
     def agent_provider = @resumable.chat_provider
+    def chat_path = "/chats/#{@resumable.id}"
 
     def repository_payload
       repository = @resumable.repository
