@@ -59,12 +59,13 @@ RSpec.describe RepoGradeLoopPlan do
               - "plugins/*/app/frontend/**/*.tsx"
               - "eslint.config.js"
               - "eslint-rules/**/*.js"
-          - command: npm run format:frontend
+          - command: npm run format:frontend:changed
             files:
               - "app/frontend/**/*.{ts,tsx,js,jsx,json,css,md,yml,yaml}"
               - "plugins/*/app/frontend/**/*.{ts,tsx,js,jsx,json,css,md,yml,yaml}"
               - "eslint-rules/**/*.js"
               - "package.json"
+              - "package-lock.json"
               - "tsconfig.json"
               - "vite.config.ts"
       YAML
