@@ -157,7 +157,7 @@ module AgentActivity
       offset = (@page - 1) * @per
 
       rows = filtered
-        .includes(:resumable)
+        .includes(:resumable, :spawned_processes)
         .order(Arel.sql("#{self.class.latest_process_started_sql} DESC"), id: :desc)
         .offset(offset)
         .limit(@per + 1)
@@ -165,6 +165,7 @@ module AgentActivity
       has_more = rows.length > @per
       rows = rows.first(@per)
       total = total_for(filtered, offset: offset, rows_count: rows.length, has_more: has_more)
+      preload_resumable_context(rows)
 
       {
         rows: rows,
@@ -225,5 +226,19 @@ module AgentActivity
 
       offset + rows_count + (has_more ? 1 : 0)
     end
+
+    def preload_resumable_context(agents)
+      resumables_by_type = agents.group_by(&:resumable_type).transform_values { |rows| rows.map(&:resumable).compact }
+      preload(resumables_by_type["Run"], [ { job: :repository }, { step: :workflow } ])
+      preload(resumables_by_type["ChatSession"], [ { repository_attachments: :attachable } ])
+      preload(resumables_by_type["DesignDocs::DesignDocAgentRun"], [ { design_doc: :repositories }, :thread ])
+    end
+
+    def preload(records, associations)
+      return if records.blank?
+
+      ActiveRecord::Associations::Preloader.new(records: records, associations: associations).call
+    end
+
   end
 end

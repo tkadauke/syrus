@@ -40,14 +40,24 @@ module AgentActivity
     private
 
     def latest_process
-      @latest_process ||= @agent.spawned_processes
-        .where(kind: "agent")
-        .order(started_at: :desc, id: :desc)
-        .first
+      @latest_process ||= if @agent.association(:spawned_processes).loaded?
+        @agent.spawned_processes
+          .select { |process| process.kind == "agent" }
+          .max_by { |process| [ process.started_at || Time.at(0), process.id || 0 ] }
+      else
+        @agent.spawned_processes
+          .where(kind: "agent")
+          .order(started_at: :desc, id: :desc)
+          .first
+      end
     end
 
     def running_process?
-      @running_process ||= @agent.spawned_processes.where(kind: "agent", finished_at: nil).exists?
+      @running_process ||= if @agent.association(:spawned_processes).loaded?
+        @agent.spawned_processes.any? { |process| process.kind == "agent" && process.finished_at.nil? }
+      else
+        @agent.spawned_processes.where(kind: "agent", finished_at: nil).exists?
+      end
     end
 
     def state

@@ -1,78 +1,87 @@
 # Agent Activity
 
 The `agent_activity` plugin (`plugins/agent_activity/`) is a live feed of
-agent **sessions** -- one card per `Run` whose `Step#kind` is agentic
-(`Step::AGENTIC_KINDS`), headlined by what that session actually decided, not
-a scheduling/timeline view. It is a self-contained Rails engine plugin,
-installed and enabled by default (category `observability`; unlike
-`worker_timeline`/`mysql_db_browser` it has no separate feature gate --
-`PluginRecord.enabled` is the only toggle). It replaces an earlier
-time-scaled Gantt/waterfall design for this data (that metaphor belongs to
-`worker_timeline`, which visualizes scheduling/overlap, not session
-content).
+agent **sessions** -- one card per `Agent` with at least one
+`SpawnedProcess(kind: "agent")`, headlined by what that session actually
+decided, not a scheduling/timeline view. Workflow-backed cards still represent
+agentic Runs (`Step::AGENTIC_KINDS`); chat-backed cards represent a whole
+`ChatSession` and collapse multiple turns into one card via the shared
+`agent_id`; design-doc-backed cards represent one `DesignDocs::DesignDocAgentRun`.
+It is a self-contained Rails engine plugin, installed and enabled by default
+(category `observability`; unlike `worker_timeline`/`mysql_db_browser` it has
+no separate feature gate -- `PluginRecord.enabled` is the only toggle).
+It replaces an earlier time-scaled Gantt/waterfall design for this data (that
+metaphor belongs to `worker_timeline`, which visualizes scheduling/overlap,
+not session content).
 
-Sessions only, deliberately: no checks (graders/format/generate) and no
-external triggers (chat/PR feedback, CI failures) appear here -- those are
-covered by a separate per-Job "Agent Conversation" causal graph from the
-same Epic , not by this feed. See `agent_conversation.md`.
+Agent processes only, deliberately: no checks (graders/format/generate) and no
+non-agent subprocesses appear here. Workflow PR feedback and CI repair appear
+only when they launch an agentic Run; chat turns and design-doc mentions appear
+through their own Agent records. The per-Job "Agent Conversation" causal graph
+remains separate. See `agent_conversation.md`.
 
 ## Role and outcome, never inferred from transcript text
 
-- **Role/label** come structurally from the `Step::Kind` registry
-  (`app/models/step/kind.rb`): `AgentRole.for_step_kind(step.kind)` (shared
-  with `McpToolContext.from_run`, which uses the same derivation to pick an
-  agent's MCP role) and `Step::Kind.label_for(step.kind)`. A plugin-owned
-  agentic step kind that declares `agent_role:` on its `Step::Kind` entry
-  (e.g. `agent_insights`' `agent_insight_run`) is honored the same way core
-  kinds are.
+- **Role/label** come structurally from the Agent's resumable:
+  `Step::Kind`/`AgentRole.for_step_kind` for workflow Runs,
+  `ChatSession#mode` for chat sessions, and design-doc/thread context for
+  design-doc agent runs. A plugin-owned agentic workflow step kind that
+  declares `agent_role:` on its `Step::Kind` entry is honored the same way
+  core kinds are.
 - **Outcome summary** (`AgentActivity::OutcomeSummary`) is whatever that
-  specific session actually submitted: `submit_summary` lands directly on
+  workflow session actually submitted: `submit_summary` lands directly on
   the `Run` (`agent_summary`/`agent_pr_title`), read as-is.
   `submit_adversarial_review`/`submit_visual_review` land on the shared
   `Workflow#artifacts` iterations array, tagged with the submitting Step's
   `iteration` -- `OutcomeSummary` matches that back to the specific Run's own
   iteration (a Workflow can run several adversarial/visual review rounds,
-  one Run each) so a card never shows another iteration's verdict. A session
-  that submitted nothing yet (still running, or a plain `implement`/`respond`
-  step with no dedicated submit tool) shows no headline rather than a
-  fabricated one.
+  one Run each) so a card never shows another iteration's verdict. Chat cards
+  currently show no fabricated summary; design-doc cards show the document
+  identifier/title as their context.
 
 ## Visibility scopes
 
 `AgentActivity::SessionsQuery` takes a `scope:`:
 
-- `:mine` -- repositories the current user belongs to
-  (`Current.user.repositories.active`) plus Jobs they effectively own
-  (`Job.effectively_owned_by`, `app/models/job.rb`), unioned. Backs
-  `GET /api/v1/app/agent_activity/sessions`
+- `:mine` -- workflow-backed Agents whose Jobs are visible through
+  `Job.accessible_to(user)` or `Job.effectively_owned_by(user)`, chat-backed
+  Agents whose `ChatSession#user_id` is the current user, and design-doc
+  Agents whose document is visible through `DesignDocs::DesignDoc.visible_to`.
+  Backs `GET /api/v1/app/agent_activity/sessions`
   (`Api::V1::App::AgentActivityController`).
-- `:admin` -- every session on the instance, no repository restriction.
+- `:admin` -- every workflow-backed and design-doc-backed Agent on the
+  instance, but chat-backed Agents remain self-scoped to the requesting admin.
   Backs `GET /api/v1/app/admin/agent_activity/sessions`
   (`Api::V1::App::Admin::AgentActivityController`, inheriting
   `Api::V1::App::Admin::BaseController#require_admin`).
 
-"Active" means the `Run` is in the `running` AASM state, not `queued` --
+"Active" means the Agent has at least one unfinished
+`SpawnedProcess(kind: "agent")`; it is not a cached column on `agents`.
 `running_count` in both responses reflects that within the visibility scope,
-independent of whatever filter chips are currently applied (a "N running
-now" status indicator, not a filtered count).
+independent of whatever filter chips are currently applied. The built-in
+`Failed` SmartFolder is likewise process-derived: the Agent's most recent
+spawned agent process must have `outcome = "failed"`.
 
-Both endpoints paginate (`page`/`per`, default 25, max 100) and accept the
+Both endpoints paginate (`page`/`per`, default 20, max 100) and accept the
 same shared FilterBar `?q=<base64 filter tree>` wire format
 (`AgentActivity::Filter`, subject `:agent_activity`), compiled straight
 through the normal `Filters::Compiler` since the underlying query is a single
-`Run` relation (unlike `worker_timeline`'s hand-parsed fixed field set).
-Chips: `repository_id`/`job_id` (fk), `step_kind` (labeled "Role" in the UI,
-values are `Step::AGENTIC_KINDS`), `agent_provider` (enum, `User
-.agent_providers`), `status` (enum, Run states), `window` (date, `started_at`).
+`Agent` relation (unlike `worker_timeline`'s hand-parsed fixed field set).
+Chips: `repository_id` (workflow Job repository, chat attached repository, or
+design-doc linked repository), `job_id` (workflow-backed rows only),
+`step_kind` (labeled "Role" in the UI; workflow step kinds, chat modes, and
+`design_doc`), `agent_provider` (workflow/design-doc provider or chat
+provider), `status` (running/latest process outcome), `window` (latest
+spawned agent process start time).
 
 ## Transcript reuse
 
-Clicking a session card opens a transcript drawer that reuses the existing
-log-chunk transcript rendering (`RunTranscriptLogs`,
+Clicking a workflow-backed session card opens a transcript drawer that reuses
+the existing log-chunk transcript rendering (`RunTranscriptLogs`,
 `app/frontend/routes/jobDetail/components.tsx`) rather than duplicating
 `AdminTranscript.tsx`'s live-tail raw-event viewer (a different data shape
-meant for deep diagnostic drilling, not a session feed). Each session row
-carries its own `transcript_path`:
+meant for deep diagnostic drilling, not a session feed). Workflow rows carry
+their own `transcript_path`:
 
 - `:mine` sessions point at the existing repository-ownership-scoped
   `GET /api/v1/app/jobs/:job_id/runs/:run_id/artifacts` route -- no new
@@ -86,6 +95,9 @@ carries its own `transcript_path`:
   the payload shape (`job_id`, `workflow_id`, `run_id`, `base_ref`/
   `head_ref`, `agent_diff`, `logs`) can't drift between the two routes --
   only the authorization/lookup path differs.
+
+Chat and design-doc cards render without a transcript drawer until those
+surfaces have a native transcript/artifact route with an equivalent payload.
 
 ## Frontend
 
