@@ -111,6 +111,14 @@ describe("linkifySlugs", () => {
     expect(screen.queryAllByTestId("slug-hover-card")).toHaveLength(0)
   })
 
+  it("can render known slugs as copy-only controls without hover cards", () => {
+    render(<MemoryRouter>{linkifySlugs("Waiting for JOB-42 and EPIC-7", { hoverCards: false, slugStyle: "copyable" })}</MemoryRouter>)
+
+    expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryAllByTestId("slug-hover-card")).toHaveLength(0)
+  })
+
   it("leaves unknown uppercase Syrus-style slugs as plain text by default", () => {
     const { container } = render(<MemoryRouter>{linkifySlugs("Blocked by WF-10")}</MemoryRouter>)
 

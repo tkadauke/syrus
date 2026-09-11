@@ -884,6 +884,8 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           {job.state === "queued" && job.start_blocked_reason ? (
             <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
           ) : null}
+          <MobileJobQueueStatus job={job} />
+          {job.blocked_reason ? <span><CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /></span> : null}
         </MetadataLine>
         {job.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
@@ -971,42 +973,52 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
 }
 
 function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
+  return (
+    <td className="px-4 py-3">
+      <LandingQueueStatusContent job={job} showEmpty />
+    </td>
+  )
+}
+
+function MobileJobQueueStatus({ job }: { job: DashboardJobItem }) {
+  if (!job.landing_queue_blocked_reason && !job.landing_queue_wait_reason && !job.landing_blocker_override_requested_at) return null
+
+  return <LandingQueueStatusContent job={job} />
+}
+
+function LandingQueueStatusContent({ job, showEmpty = false }: { job: DashboardJobItem; showEmpty?: boolean }) {
   const { t } = useT("dashboard")
 
   if (job.landing_queue_blocked_reason) {
     return (
-      <td className="px-4 py-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <TonePill tone="red"><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
-          <LandingBlockerOverrideBadge job={job} />
-        </div>
-      </td>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <TonePill tone="red"><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
+        <LandingBlockerOverrideBadge job={job} />
+      </div>
     )
   }
 
   if (job.landing_queue_wait_reason) {
     return (
-      <td className="px-4 py-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <TonePill tone="gray"><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_wait_reason, t)} /></TonePill>
-          <LandingBlockerOverrideBadge job={job} />
-        </div>
-      </td>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <TonePill tone="gray"><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_wait_reason, t)} /></TonePill>
+        <LandingBlockerOverrideBadge job={job} />
+      </div>
     )
   }
 
+  if (!showEmpty) return <LandingBlockerOverrideBadge job={job} />
+
   return (
-    <td className="px-4 py-3">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
-        <LandingBlockerOverrideBadge job={job} />
-      </div>
-    </td>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+      <LandingBlockerOverrideBadge job={job} />
+    </div>
   )
 }
 
 function CopyableBlockedReason({ reason }: { reason: string }) {
-  return <>{linkifySlugs(reason, { slugStyle: "copyable" })}</>
+  return <>{linkifySlugs(reason, { hoverCards: false, slugStyle: "copyable" })}</>
 }
 
 function LandingBlockerOverrideBadge({ job }: { job: DashboardJobItem }) {
