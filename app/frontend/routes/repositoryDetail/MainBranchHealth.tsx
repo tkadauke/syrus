@@ -1,6 +1,7 @@
 import { appendSearch, buttonClass, PanelMessage, StatusPill, type RepositoryDetailQueryKey } from "./shared"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { CopyableSlug } from "../../components/CopyableSlug"
+import { DataTable } from "../../components/ui"
 import { withRoutePrefix } from "../../lib/routing"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
@@ -257,24 +258,22 @@ function HealthHistoryTable({ records, prefix, t }: { records: RepositoryHealthC
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">{t("repository.health_history_heading")}</h3>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-3 py-2">{t("repository.health_col_time")}</th>
-              <th className="px-3 py-2">{t("repository.health_col_sha")}</th>
-              <th className="px-3 py-2">{t("repository.health_col_ci")}</th>
-              <th className="px-3 py-2">{t("repository.health_col_graders")}</th>
-              <th className="px-3 py-2">{t("repository.health_col_failures")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <DataTable.Root>
+        <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("repository.health_col_time")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("repository.health_col_sha")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("repository.health_col_ci")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("repository.health_col_graders")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("repository.health_col_failures")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {records.map((record) => (
               <HealthHistoryRow key={record.id} prefix={prefix} record={record} t={t} />
             ))}
-          </tbody>
-        </table>
-      </div>
+          </DataTable.Body>
+        </DataTable.Root>
     </div>
   )
 }
@@ -286,26 +285,26 @@ function HealthHistoryRow({ prefix, record, t }: { prefix: string; record: Repos
   ]
   const graderPill = <StatusPill tone={healthTone(record.grader_health)}>{healthLabel(record.grader_health, t)}</StatusPill>
   return (
-    <tr>
-      <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap"><RelativeTimestamp value={record.checked_at} /></td>
-      <td className="px-3 py-2">
+    <DataTable.Row>
+      <DataTable.Cell className="whitespace-nowrap text-gray-500 dark:text-gray-400"><RelativeTimestamp value={record.checked_at} /></DataTable.Cell>
+      <DataTable.Cell>
         <a className="font-mono text-xs text-brand hover:underline" href={record.sha_url} rel="noopener" target="_blank">
           {record.sha}
         </a>
-      </td>
-      <td className="px-3 py-2"><StatusPill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</StatusPill></td>
-      <td className="px-3 py-2">
+      </DataTable.Cell>
+      <DataTable.Cell><StatusPill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</StatusPill></DataTable.Cell>
+      <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
           {record.workflow_path ? (
             <Link to={withRoutePrefix(record.workflow_path, prefix)}>{graderPill}</Link>
           ) : graderPill}
           <HealthSourceBadge source={record.source} t={t} />
         </div>
-      </td>
-      <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
+      </DataTable.Cell>
+      <DataTable.Cell className="text-xs text-gray-600 dark:text-gray-400">
         {failureNames.length > 0 ? failureNames.join(", ") : null}
-      </td>
-    </tr>
+      </DataTable.Cell>
+    </DataTable.Row>
   )
 }
 
