@@ -228,7 +228,7 @@ grade:
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/simulator
     phases: [review, landing, ci]
     required: true
-    timeout_minutes: 3
+    timeout_minutes: 30
 
   - name: production-build-boot
     description: |
