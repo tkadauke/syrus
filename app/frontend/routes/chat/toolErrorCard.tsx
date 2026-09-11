@@ -15,6 +15,7 @@ export type ToolErrorCardModel = {
   affectedEntityIds: string[]
   retryable: boolean | null
   sideEffectRisk: "low" | "medium" | "high"
+  recovery: string
   rawDetails: unknown
 }
 
@@ -97,6 +98,7 @@ const ENTITY_KEY_HINTS = new Set([
   "epics",
   "epic_id",
   "epic_ids",
+  "target_epic_id",
   "workflow",
   "workflows",
   "workflow_id",
@@ -132,6 +134,7 @@ export function buildToolErrorCardModel(call: ToolCall): ToolErrorCardModel {
   const retryable = retryableFrom(parsed, errorMessage)
   const redactedInput = redactToolCardValue(call.raw_payload)
   const redactedResult = redactToolCardValue(parsed ?? call.result_body)
+  const sideEffectRisk = sideEffectRiskFor(call.tool_name || identity.tool)
 
   return {
     toolLabel: redactToolCardText(call.display_label || call.tool_name),
@@ -142,7 +145,8 @@ export function buildToolErrorCardModel(call: ToolCall): ToolErrorCardModel {
     errorMessage: redactToolCardText(errorMessage),
     affectedEntityIds: affectedEntityIds(redactedInput, redactedResult),
     retryable,
-    sideEffectRisk: sideEffectRiskFor(call.tool_name || identity.tool),
+    sideEffectRisk,
+    recovery: recoveryAdvice({ retryable, sideEffectRisk }),
     rawDetails: {
       name: call.raw_name || call.tool_name,
       input: redactedInput,
@@ -177,6 +181,11 @@ export function ToolErrorCard({ call }: { call: ToolCall }) {
         {model.mcpServerId ? <Row label="MCP server" value={model.mcpServerId} /> : null}
         <Row label="Raw name" value={model.rawName} />
       </dl>
+
+      <div>
+        <SectionLabel>Recovery</SectionLabel>
+        <p className="mt-1 whitespace-normal break-words text-gray-700 dark:text-gray-300">{model.recovery}</p>
+      </div>
 
       {model.affectedEntityIds.length > 0 ? (
         <div>
@@ -235,6 +244,15 @@ function sideEffectRiskFor(toolName: string): ToolErrorCardModel["sideEffectRisk
   return "medium"
 }
 
+function recoveryAdvice({ retryable, sideEffectRisk }: { retryable: boolean | null; sideEffectRisk: ToolErrorCardModel["sideEffectRisk"] }) {
+  if (sideEffectRisk === "high") return "Inspect target state and raw details before retrying; this tool may have partially changed data."
+  if (retryable === false) return "Correct the input, permissions, or missing resource before trying again."
+  if (retryable === true && sideEffectRisk === "low") return "Safe to retry after the transient dependency recovers."
+  if (retryable === true) return "Check whether the action partially completed before retrying."
+  if (sideEffectRisk === "low") return "Review the error details, then retry if the dependency or access issue has cleared."
+  return "Review raw details and target state before retrying."
+}
+
 function affectedEntityIds(input: unknown, result: unknown): string[] {
   const seen = new Set<string>()
   collectEntityIds(input, [], seen)
@@ -271,7 +289,7 @@ function addEntityId(seen: Set<string>, label: string, value: unknown) {
 function entityLabelFor(path: string[]): string | null {
   const key = path.at(-1)?.toLowerCase() || ""
   const parent = path.at(-2)?.toLowerCase() || ""
-  const normalizedKey = key.replace(/_ids?$/, "").replace(/_number$/, "")
+  const normalizedKey = key.replace(/^target_/, "").replace(/_ids?$/, "").replace(/_number$/, "")
   const normalizedParent = parent.replace(/s$/, "")
 
   if (ENTITY_KEY_HINTS.has(key)) return normalizedKey || key
