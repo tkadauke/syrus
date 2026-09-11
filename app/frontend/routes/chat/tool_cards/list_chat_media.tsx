@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MediaPreviewShell, type MediaPreviewAction } from "../mediaPreviewShell"
 
@@ -99,6 +100,9 @@ function renderExpanded(context: ToolCardContext) {
 }
 
 function MediaGallery({ items, whiteboardElementCount }: { items: ChatMediaItem[]; whiteboardElementCount: number | null }) {
+  const imageItems = items.filter((item): item is ChatMediaImage => item.kind === "chat_image")
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null)
+
   return (
     <div className="mt-1 rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
@@ -106,13 +110,43 @@ function MediaGallery({ items, whiteboardElementCount }: { items: ChatMediaItem[
         {whiteboardElementCount != null ? <span>{whiteboardElementCount} whiteboard elements</span> : null}
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {items.map((item) => <MediaTile item={item} key={item.id} />)}
+        {items.map((item) => {
+          const imageIndex = item.kind === "chat_image" ? imageItems.findIndex((image) => image.id === item.id) : -1
+          return (
+            <MediaTile
+              hasNext={imageIndex >= 0 && imageIndex < imageItems.length - 1}
+              hasPrevious={imageIndex > 0}
+              item={item}
+              key={item.id}
+              onNext={imageIndex >= 0 ? () => setPreviewImageIndex((index) => index == null ? index : Math.min(index + 1, imageItems.length - 1)) : undefined}
+              onOpenChange={imageIndex >= 0 ? (open) => setPreviewImageIndex(open ? imageIndex : null) : undefined}
+              onPrevious={imageIndex >= 0 ? () => setPreviewImageIndex((index) => index == null ? index : Math.max(index - 1, 0)) : undefined}
+              open={imageIndex >= 0 ? previewImageIndex === imageIndex : undefined}
+            />
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function MediaTile({ item }: { item: ChatMediaItem }) {
+function MediaTile({
+  hasNext = false,
+  hasPrevious = false,
+  item,
+  onNext,
+  onOpenChange,
+  onPrevious,
+  open
+}: {
+  hasNext?: boolean
+  hasPrevious?: boolean
+  item: ChatMediaItem
+  onNext?: () => void
+  onOpenChange?: (open: boolean) => void
+  onPrevious?: () => void
+  open?: boolean
+}) {
   const thumbnailSrc = mediaThumbnailSrc(item)
   const actions: MediaPreviewAction[] = [{ label: "Copy ID", copyValue: item.id }]
   if (thumbnailSrc) {
@@ -123,6 +157,8 @@ function MediaTile({ item }: { item: ChatMediaItem }) {
 
   return (
     <MediaPreviewShell
+      hasNext={hasNext}
+      hasPrevious={hasPrevious}
       item={{
         title: mediaTitle(item),
         subtitle: item.kind === "chat_image" ? item.content_type : item.created_at,
@@ -139,6 +175,10 @@ function MediaTile({ item }: { item: ChatMediaItem }) {
         ]
       }}
       modalLabel={mediaTitle(item)}
+      onNext={onNext}
+      onOpenChange={onOpenChange}
+      onPrevious={onPrevious}
+      open={open}
       thumbnailClassName="w-full"
     />
   )
