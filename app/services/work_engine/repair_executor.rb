@@ -573,6 +573,39 @@ module WorkEngine
         end
       end
 
+      class ResumeReviewLoopRepair < Base
+        def perform
+          step = target_step
+          return skipped("Step no longer exists") unless step
+          return skipped("Step is #{step.state}, not succeeded") unless step.succeeded?
+          return skipped("Step has no loop id") unless step.loop_id.present?
+
+          gate = Step::Kind.review_gate_for(step.kind)
+          return skipped("Step is not a review loop Step") unless gate
+
+          workflow = step.workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
+          verdict = workflow.artifacts&.dig(gate.fetch(:artifact_key))&.last&.fetch("verdict", nil)
+          return skipped("Review verdict no longer requires repair") if verdict.blank? || gate.fetch(:exit_verdicts).include?(verdict)
+
+          if workflow.steps.where(loop_id: step.loop_id, iteration: step.iteration + 1).exists?
+            return skipped("Repair iteration already exists")
+          end
+
+          StepDispatcher.advance_from(step.reload)
+          repair = workflow.reload.steps
+            .where(loop_id: step.loop_id, iteration: step.iteration + 1)
+            .order(:position)
+            .first
+          return skipped("review loop repair remained deferred") unless repair
+
+          success("resumed review loop repair from #{step_label(step)} with #{step_label(repair)}")
+        rescue ArgumentError
+          skipped("Step kind does not declare a review gate")
+        end
+      end
+
       class StartWorkflow < Base
         def perform
           workflow = target_workflow
