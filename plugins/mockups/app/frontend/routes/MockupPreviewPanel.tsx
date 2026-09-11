@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { chatPreviewPanelFileUrl, fetchChatPreviewPanelFile } from "@app/api/chats"
 import { postJson } from "@app/api/client"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { Select } from "@app/components/Select"
 import { useT } from "@app/hooks/useT"
 import type { MockupPanel } from "../api/mockups"
 
@@ -41,7 +42,7 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
   const rawUrl = chatPreviewPanelFileUrl(panel.app_file_base_path, entryPath, versionId, true)
 
   const accessToken = usePanelAccessToken(panel, isHtml)
-  const token = panel.visibility === "public" ? null : accessToken.data?.token ?? null
+  const token = panel.visibility === "public" ? null : (accessToken.data?.token ?? null)
   const canRender = !isHtml || panel.visibility === "public" || !!token
 
   // Markdown and anything unrecognised render as text, which is also how an
@@ -58,9 +59,10 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
         {panel.versions.length > 1 ? (
-          <select
+          <Select
             aria-label={t("version")}
-            className="rounded border border-gray-300 bg-white px-1.5 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+            className="text-xs"
+            fullWidth={false}
             onChange={(event) => setVersionId(Number(event.target.value))}
             value={versionId ?? ""}
           >
@@ -69,13 +71,10 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
                 {new Date(entry.created_at).toLocaleString()}
               </option>
             ))}
-          </select>
+          </Select>
         ) : null}
         <span className="truncate font-mono text-xs text-gray-500 dark:text-gray-400">{entryPath}</span>
-        <a
-          className="ml-auto text-xs text-brand underline hover:no-underline"
-          href={panel.app_export_path}
-        >
+        <a className="ml-auto text-xs text-brand underline hover:no-underline" href={panel.app_export_path}>
           {t("download")}
         </a>
       </div>
@@ -103,9 +102,7 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
           ) : textQuery.isError ? (
             <PanelMessage>{t("preview_unavailable")}</PanelMessage>
           ) : (
-            <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs text-gray-700 dark:text-gray-300">
-              {textQuery.data?.content ?? ""}
-            </pre>
+            <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs text-gray-700 dark:text-gray-300">{textQuery.data?.content ?? ""}</pre>
           )}
         </div>
       )}
