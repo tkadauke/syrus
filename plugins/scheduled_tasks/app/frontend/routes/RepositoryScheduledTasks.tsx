@@ -20,6 +20,7 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { Button, buttonClasses } from "@app/components/Button"
+import { DataTable } from "@app/components/ui"
 
 export function RepositoryScheduledTasksRoute() {
   const { t } = useT("settings")
@@ -98,32 +99,32 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
           {t("scheduled_tasks.no_tasks")}
         </section>
       ) : (
-        <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-3">{t("scheduled_tasks.name")}</th>
-                <th className="px-4 py-3">{t("scheduled_tasks.schedule")}</th>
-                <th className="px-4 py-3">{t("scheduled_tasks.next_window")}</th>
-                <th className="px-4 py-3">{t("scheduled_tasks.state")}</th>
-                <th className="px-4 py-3 text-right">{t("scheduled_tasks.actions")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        <section>
+          <DataTable.Root>
+            <DataTable.Header>
+              <DataTable.Row>
+                <DataTable.HeadCell>{t("scheduled_tasks.name")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("scheduled_tasks.schedule")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("scheduled_tasks.next_window")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("scheduled_tasks.state")}</DataTable.HeadCell>
+                <DataTable.HeadCell align="right">{t("scheduled_tasks.actions")}</DataTable.HeadCell>
+              </DataTable.Row>
+            </DataTable.Header>
+            <DataTable.Body>
               {payload.tasks.map((task) => (
-                <tr key={task.id}>
-                  <td className="px-4 py-3">
+                <DataTable.Row key={task.id}>
+                  <DataTable.Cell>
                     <Link className="font-medium text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
                     <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{task.schedule_label || t("scheduled_tasks.none")}</td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                  </DataTable.Cell>
+                  <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">{task.schedule_label || t("scheduled_tasks.none")}</DataTable.Cell>
+                  <DataTable.Cell className="text-gray-700 dark:text-gray-300">
                     {task.next_fire_at
                       ? <span title={toRomanDate(task.next_fire_at)}><RelativeTimestamp value={task.next_fire_at} /></span>
                       : t("scheduled_tasks.none")}
-                  </td>
-                  <td className="px-4 py-3"><StatePill state={task.state} /></td>
-                  <td className="px-4 py-3">
+                  </DataTable.Cell>
+                  <DataTable.Cell><StatePill state={task.state} /></DataTable.Cell>
+                  <DataTable.Cell>
                     <div className="flex justify-end gap-2">
                       <Button
                         disabled={toggle.isPending}
@@ -143,11 +144,11 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
                         {t("scheduled_tasks.delete")}
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </DataTable.Cell>
+                </DataTable.Row>
               ))}
-            </tbody>
-          </table>
+            </DataTable.Body>
+          </DataTable.Root>
         </section>
       )}
       {dialog}
@@ -169,5 +170,4 @@ function RepositoryScheduledTasksError({ error }: { error: Error }) {
   const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, t("scheduled_tasks.error_load"))}</PanelMessage>
 }
-
 

@@ -15,6 +15,7 @@ import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { Select } from "@app/components/Select"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
+import { DataTable, DescriptionList } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
@@ -231,38 +232,36 @@ function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string;
       {tasks.length === 0 ? (
         <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{empty}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2">{t("scheduled_tasks.col_task")}</th>
-                <th className="px-4 py-2">{t("scheduled_tasks.col_repository")}</th>
-                <th className="px-4 py-2">{t("scheduled_tasks.schedule")}</th>
-                <th className="px-4 py-2">{t("scheduled_tasks.state")}</th>
-                <th className="px-4 py-2">{t("scheduled_tasks.col_last_fired")}</th>
-                <th className="px-4 py-2"><span className="sr-only">{t("scheduled_tasks.actions")}</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+        <DataTable.Root wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("scheduled_tasks.col_task")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("scheduled_tasks.col_repository")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("scheduled_tasks.schedule")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("scheduled_tasks.state")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("scheduled_tasks.col_last_fired")}</DataTable.HeadCell>
+              <DataTable.HeadCell><span className="sr-only">{t("scheduled_tasks.actions")}</span></DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
               {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td className="px-4 py-3 font-medium">
+                <DataTable.Row key={task.id}>
+                  <DataTable.Cell className="font-medium">
                     <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>{task.name}</Link>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs">
+                  </DataTable.Cell>
+                  <DataTable.Cell className="font-mono">
                     <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(task.repository.repository_path, prefix)}>{task.repository.slug}</Link>
-                  </td>
-                  <td className="px-4 py-3 text-xs">{task.schedule_label || t("scheduled_tasks.none")}</td>
-                  <td className="px-4 py-3"><StatePill state={task.state} /></td>
-                  <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp fallback={t("scheduled_tasks.never")} value={task.last_fired_at} /></td>
-                  <td className="px-4 py-3 text-right">
+                  </DataTable.Cell>
+                  <DataTable.Cell>{task.schedule_label || t("scheduled_tasks.none")}</DataTable.Cell>
+                  <DataTable.Cell><StatePill state={task.state} /></DataTable.Cell>
+                  <DataTable.Cell className="text-gray-500 dark:text-gray-400"><RelativeTimestamp fallback={t("scheduled_tasks.never")} value={task.last_fired_at} /></DataTable.Cell>
+                  <DataTable.Cell align="right">
                     <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>{t("scheduled_tasks.open")}</Link>
-                  </td>
-                </tr>
+                  </DataTable.Cell>
+                </DataTable.Row>
               ))}
-            </tbody>
-          </table>
-        </div>
+          </DataTable.Body>
+        </DataTable.Root>
       )}
     </section>
   )
@@ -315,22 +314,15 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("scheduled_tasks.schedule")}</h2>
-        <dl className="grid gap-y-2 text-sm sm:grid-cols-2">
-          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_kind")}</dt>
-          <dd>{payload.task.kind}</dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_schedule")}</dt>
-          <dd>{payload.task.schedule_explanation || payload.task.cron_expression || t("scheduled_tasks.none")}</dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.cron_expression_label")}</dt>
-          <dd className="font-mono text-xs">{payload.task.schedule_expression || payload.task.cron_expression || t("scheduled_tasks.none")}</dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_fire_at")}</dt>
-          <dd><RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.fire_at} /></dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_next_fire")}</dt>
-          <dd><RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.next_fire_at} /></dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_pileup")}</dt>
-          <dd>{payload.task.pr_pileup_policy}</dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_auto_approve")}</dt>
-          <dd>{payload.task.auto_approve_preview}</dd>
-        </dl>
+        <DescriptionList.Root>
+          <DescriptionList.Item label={t("scheduled_tasks.field_kind")}>{payload.task.kind}</DescriptionList.Item>
+          <DescriptionList.Item label={t("scheduled_tasks.field_schedule")}>{payload.task.schedule_explanation || payload.task.cron_expression || t("scheduled_tasks.none")}</DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-xs" label={t("scheduled_tasks.cron_expression_label")}>{payload.task.schedule_expression || payload.task.cron_expression || t("scheduled_tasks.none")}</DescriptionList.Item>
+          <DescriptionList.Item label={t("scheduled_tasks.field_fire_at")}><RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.fire_at} /></DescriptionList.Item>
+          <DescriptionList.Item label={t("scheduled_tasks.field_next_fire")}><RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.next_fire_at} /></DescriptionList.Item>
+          <DescriptionList.Item label={t("scheduled_tasks.field_pileup")}>{payload.task.pr_pileup_policy}</DescriptionList.Item>
+          <DescriptionList.Item label={t("scheduled_tasks.field_auto_approve")}>{payload.task.auto_approve_preview}</DescriptionList.Item>
+        </DescriptionList.Root>
       </section>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
@@ -406,30 +398,30 @@ function RecentJobs({ jobs }: { jobs: ScheduledTaskDetailPayload["recent_jobs"] 
       {jobs.length === 0 ? (
         <p className="text-sm text-gray-600 dark:text-gray-400">{t("scheduled_tasks.no_jobs")}</p>
       ) : (
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-2 py-2">{t("scheduled_tasks.col_job")}</th>
-              <th className="px-2 py-2">{t("scheduled_tasks.state")}</th>
-              <th className="px-2 py-2">{t("scheduled_tasks.col_pr")}</th>
-              <th className="px-2 py-2">{t("scheduled_tasks.col_created")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+        <DataTable.Root density="compact" wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("scheduled_tasks.col_job")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("scheduled_tasks.state")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("scheduled_tasks.col_pr")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("scheduled_tasks.col_created")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {jobs.map((job) => (
-              <tr key={job.id}>
-                <td className="px-2 py-2">
+              <DataTable.Row key={job.id}>
+                <DataTable.Cell>
                   <SlugHoverCard id={job.id} kind="job">
                     <CopyableSlug slug={`JOB-${job.id}`} />
                   </SlugHoverCard>
-                </td>
-                <td className="px-2 py-2">{job.closure_reason || job.state}</td>
-                <td className="px-2 py-2">{job.pr_number || job.external_pr_number || t("scheduled_tasks.none")}</td>
-                <td className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={job.created_at} /></td>
-              </tr>
+                </DataTable.Cell>
+                <DataTable.Cell>{job.closure_reason || job.state}</DataTable.Cell>
+                <DataTable.Cell>{job.pr_number || job.external_pr_number || t("scheduled_tasks.none")}</DataTable.Cell>
+                <DataTable.Cell className="text-gray-500 dark:text-gray-400"><RelativeTimestamp value={job.created_at} /></DataTable.Cell>
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
+          </DataTable.Body>
+        </DataTable.Root>
       )}
     </section>
   )
