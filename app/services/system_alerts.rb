@@ -133,21 +133,33 @@ module SystemAlerts
       title: "#{label} sign-in expired.",
       message: "#{label} authentication failed for this account. Syrus cannot start #{label}-backed work until you reconnect it.#{evidence_text.join}",
       action_steps: [
-        "Open agent settings and reconnect #{ERB::Util.html_escape(label)}.",
+        "Reconnect #{ERB::Util.html_escape(label)} here or open agent settings.",
         "After reconnecting, recheck provider availability so queued work can resume."
       ],
       cta: { text: "Open agent settings", path: "/settings/agent" },
       actions: [
+        provider_reauthorize_action(provider, label),
         {
           text: "Recheck #{label}",
           method: "post",
           path: "/api/v1/app/credentials/recheck_provider_availability",
           params: { provider: provider.to_s }
         }
-      ]
+      ].compact
     )
   end
   private_class_method :provider_auth_alert
+
+  def self.provider_reauthorize_action(provider, label)
+    return nil unless provider.to_s.in?(%w[claude])
+
+    {
+      text: "Reauthorize #{label}",
+      kind: "reauthorize_provider",
+      provider: provider.to_s
+    }
+  end
+  private_class_method :provider_reauthorize_action
 
   def self.codex_usage(user, availability: App::ProviderAvailability.for_user(user, "codex"))
     return if availability&.dig(:state) == "auth_error"

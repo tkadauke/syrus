@@ -216,6 +216,43 @@ RSpec.describe SystemAlerts do
       expect(described_class.active_for(user: user).map(&:id)).not_to include("codex_usage:#{user.id}")
     end
 
+    it "adds a scoped reauthorization modal action for connectable providers" do
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      job = Factories.job(repository: repository, user: user, agent_provider: "claude")
+      run = Run.create!(
+        job: job,
+        user: user,
+        step: job.latest_workflow.first_step,
+        trigger_kind: "initial",
+        state: "failed",
+        agent_provider: "claude",
+        agent_outcome: "turn_failed",
+        finished_at: 2.minutes.ago
+      )
+      run.create_run_failure_classification!(
+        classification: "provider_auth_expired",
+        confidence: 0.95,
+        retryable: false,
+        reason: "expired auth",
+        classified_at: Time.current
+      )
+      ProviderAvailabilityEvidence.record_invocation_auth_error!(
+        run: run,
+        message: "HTTP 401 token_expired: Please sign in again.",
+        http_status: 401,
+        observed_at: 2.minutes.ago
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).find { |candidate| candidate.id == "provider_auth:claude:#{user.id}" }
+
+      expect(alert.actions).to include(
+        include(text: "Reauthorize Claude Code", kind: "reauthorize_provider", provider: "claude"),
+        include(text: "Recheck Claude Code", method: "post", path: "/api/v1/app/credentials/recheck_provider_availability")
+      )
+    end
+
     it "uses cached provider availability for Codex usage alerts" do
       user = Factories.user
       allow(App::ProviderAvailability).to receive(:for_user).and_return(nil)
