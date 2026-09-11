@@ -19,6 +19,7 @@ module DesignDocs
              chat_mcp_tool_set: "DesignDocs::ChatToolSet",
              mcp_tool_set: "DesignDocs::WorkflowToolSet"
     route :get, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#index"
+    route :patch, "/api/v1/app/design_docs/preferences", to: "api/v1/app/design_docs#preferences"
     route :post, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#create"
     route :get, "/api/v1/app/design_docs/:id", to: "api/v1/app/design_docs#show"
     route :get, "/api/v1/app/design_docs/:id/preview", to: "api/v1/app/design_docs#preview"

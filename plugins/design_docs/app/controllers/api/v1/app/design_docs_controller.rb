@@ -32,6 +32,23 @@ module Api
           render json: { design_doc: serializer.unavailable_preview(params[:id]) }
         end
 
+        def preferences
+          columns = normalize_design_doc_visible_columns_param(design_doc_visible_columns_param)
+          if columns
+            Current.user.update_dashboard_columns!(
+              subject: ::DesignDocs::SmartFolders::SUBJECT,
+              columns: columns
+            )
+          end
+
+          render json: {
+            message: "Design Docs preferences updated.",
+            preferences: design_doc_preferences
+          }
+        rescue ActionController::ParameterMissing, ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
+        end
+
         def create
           result = ::DesignDocs::Create.call(user: Current.user, attributes: design_doc_params.to_h.symbolize_keys)
           render json: { design_doc: serializer.detail(result.design_doc, user: Current.user), message: "Design doc created." }, status: :created
@@ -59,7 +76,7 @@ module Api
         end
 
         def versions
-          design_doc = find_design_doc
+          design_doc = find_design_doc_with_summary_associations
           render json: {
             design_doc: serializer.summary(design_doc),
             versions: design_doc.versions.includes(:actor_user).order(version_number: :desc).map { |version| serializer.version(version) }
@@ -67,7 +84,7 @@ module Api
         end
 
         def version_threads
-          design_doc = find_design_doc
+          design_doc = find_design_doc_with_summary_associations
           version = design_doc.versions.find(params[:version_id])
           anchor_ids = design_doc.anchors.active_as_of(version.version_number).select(:id)
 
@@ -180,7 +197,7 @@ module Api
 
         def scoped_design_docs
           default_list_scope(filtered_design_docs(policy_scope(DesignDoc)))
-            .includes(:owner_user, :current_version, :repositories)
+            .includes(:owner_user, :current_version, :repositories, :collaborator_users, threads: :comments)
             .newest_first
         end
 
@@ -192,6 +209,8 @@ module Api
             active_smart_folder_id: active_smart_folder&.id,
             filter: current_filter.to_h,
             filter_schema: ::Filters::Schema.for(subject: ::DesignDocs::SmartFolders::SUBJECT, user: Current.user),
+            preferences: design_doc_preferences,
+            controls: design_doc_controls,
             smart_folders: ::Admin::SmartFolderNavigation.new(
               subject: ::DesignDocs::SmartFolders::SUBJECT,
               user: Current.user,
@@ -201,6 +220,70 @@ module Api
             ).folders,
             design_docs: scope.map { |design_doc| serializer.summary(design_doc) }
           }
+        end
+
+        def design_doc_preferences
+          {
+            visible_columns: Current.user.dashboard_visible_columns(::DesignDocs::SmartFolders::SUBJECT),
+            raw: Current.user.dashboard_preferences.fetch("design_docs", {})
+          }
+        end
+
+        def design_doc_visible_columns_param
+          body = request.request_parameters
+          return body.dig("preferences", "visible_columns") if body.dig("preferences", "visible_columns")
+          return body["visible_columns"] if body["visible_columns"]
+          return params.dig(:preferences, :visible_columns) if params.dig(:preferences, :visible_columns)
+          return params[:visible_columns] if params.key?(:visible_columns)
+
+          nil
+        end
+
+        def normalize_design_doc_visible_columns_param(value)
+          case value
+          when ActionController::Parameters
+            return normalize_design_doc_visible_columns_param(value[:visible_columns]) if value.key?(:visible_columns)
+
+            hash = value.to_unsafe_h
+            return hash.sort_by { |key, _| key.to_i }.map(&:last) if hash.keys.all? { |key| key.to_s.match?(/\A\d+\z/) }
+
+            value
+          when Hash
+            return normalize_design_doc_visible_columns_param(value["visible_columns"] || value[:visible_columns]) if value.key?("visible_columns") || value.key?(:visible_columns)
+            return value.sort_by { |key, _| key.to_i }.map(&:last) if value.keys.all? { |key| key.to_s.match?(/\A\d+\z/) }
+
+            value
+          else
+            value
+          end
+        end
+
+        def design_doc_controls
+          {
+            columns: {
+              required: design_doc_column_options(User::DASHBOARD_REQUIRED_COLUMNS.fetch("design_docs")),
+              optional: design_doc_column_options(User::DASHBOARD_OPTIONAL_COLUMNS.fetch("design_docs"))
+            }
+          }
+        end
+
+        def design_doc_column_options(columns)
+          columns.map { |column| { key: column, title: design_doc_column_label(column) } }
+        end
+
+        def design_doc_column_label(column)
+          {
+            "title" => "Title",
+            "doc_slug" => "DOC",
+            "state" => "State",
+            "repository" => "Repository",
+            "owner" => "Owner",
+            "collaborators" => "Collaborators",
+            "comments" => "Comments",
+            "latest_version" => "Latest version",
+            "updated_at" => "Updated",
+            "actions" => "Actions"
+          }.fetch(column, column.to_s.humanize)
         end
 
         def filtered_design_docs(scope)
@@ -228,6 +311,12 @@ module Api
 
         def find_design_doc
           policy_scope(DesignDoc).find(params[:id])
+        end
+
+        def find_design_doc_with_summary_associations
+          policy_scope(DesignDoc)
+            .includes(:owner_user, :current_version, :repositories, :collaborator_users, threads: :comments)
+            .find(params[:id])
         end
 
         def serializer
