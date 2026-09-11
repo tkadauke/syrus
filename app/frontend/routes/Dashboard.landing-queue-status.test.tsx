@@ -176,6 +176,20 @@ describe("landing queue status column", () => {
     await waitFor(() => expect(button).toHaveAttribute("title", "Copied"))
   })
 
+  it("renders raw workflow and work-unit slugs in queue waits as copyable buttons", () => {
+    renderTable([
+      jobItem({
+        id: 1,
+        landing_queue_wait_reason: "active rebase workflow WF-10 and active work unit WU-22"
+      })
+    ])
+
+    expect(screen.getByRole("button", { name: "Copy WF-10 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy WU-22 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "WF-10" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "WU-22" })).not.toBeInTheDocument()
+  })
+
   it("renders true landing blockers with warning styling in the same column", () => {
     renderTable([
       jobItem({
