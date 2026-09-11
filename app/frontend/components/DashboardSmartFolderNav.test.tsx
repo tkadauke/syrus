@@ -202,7 +202,30 @@ describe("DashboardSmartFolderNav", () => {
     expect(savedRow).not.toBeNull()
     expect(savedLink.querySelector("svg")).toBeNull()
     expect(savedRow).toHaveClass("-ml-4", "pl-4")
+    expect(savedRow).toHaveClass("rounded")
+    expect(savedLink).toHaveClass("px-2", "py-1.5", "text-sm")
     expect(savedRow!.querySelector("svg")).toHaveClass("absolute", "left-0")
+  })
+
+  it("uses the shared compact spacing contract for saved folders", () => {
+    renderNav([folder({ active: true })], {
+      payload: { active_smart_folder_id: 101 },
+      search: "?smart_folder_id=101"
+    })
+
+    const panel = screen.getByLabelText("Dashboard smart folders panel")
+    const savedHeading = screen.getByRole("heading", { name: "Saved" })
+    const savedNav = screen.getByRole("navigation", { name: "Saved smart folders" })
+    const savedLink = within(savedNav).getByRole("link", { name: "Saved work 3" })
+    const countBadge = within(savedLink.parentElement!).getByText("3")
+
+    expect(panel.firstElementChild).toHaveClass("space-y-2")
+    expect(savedHeading.parentElement).toHaveClass("space-y-1", "pt-3")
+    expect(savedHeading).toHaveClass("px-2", "text-xs", "font-semibold", "uppercase")
+    expect(savedNav).toHaveClass("space-y-1")
+    expect(savedLink).toHaveClass("px-2", "py-1.5", "text-sm")
+    expect(savedLink.parentElement).toHaveClass("-ml-4", "pl-4", "bg-brand/10", "font-medium", "text-brand")
+    expect(countBadge).toHaveClass("min-w-6", "px-1.5", "py-0.5", "text-xs")
   })
 
   it("omits the count badge when a folder count was intentionally skipped", () => {

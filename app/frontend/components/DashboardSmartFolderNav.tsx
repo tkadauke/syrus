@@ -1,17 +1,17 @@
 import { withRoutePrefix } from "../lib/routing"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import type { DragEvent, FocusEvent, FormEvent, KeyboardEvent } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { createPortal } from "react-dom"
-import { Link, useNavigate } from "react-router-dom"
+import type { FormEvent } from "react"
+import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { createDashboardSmartFolder, toggleDashboardLandingPause, updateDashboardPreferences, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject } from "../api/dashboard"
-import { deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
+import { updateSmartFolder } from "../api/smartFolders"
 import { Button } from "./Button"
 import { Input } from "./Input"
-import { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren, type FilterNode, type FilterTree } from "./FilterBar"
+import { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren } from "./FilterBar"
 import { NoticeToast } from "./NoticeToast"
 import { errorMessage } from "../lib/errorMessage"
+import { SmartFolderNavigation } from "./SmartFolderNavigation"
 
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
@@ -22,29 +22,16 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [folderName, setFolderName] = useState("")
-  const builtinFolders = useMemo(() => payload.smart_folders.filter((folder) => folder.kind !== "user_defined"), [payload.smart_folders])
-  const primaryFolders = useMemo(() => builtinFolders.filter((folder) => folder.visibility !== "on_demand"), [builtinFolders])
-  const moreFolders = useMemo(() => builtinFolders.filter((folder) => folder.visibility === "on_demand"), [builtinFolders])
-  const savedFolders = useMemo(() => payload.smart_folders.filter((folder) => folder.kind === "user_defined"), [payload.smart_folders])
+  const savedFolders = payload.smart_folders.filter((folder) => folder.kind === "user_defined")
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id
   const activeFolder = savedFolders.find((folder) => folder.id === activeSmartFolderId)
-  const [orderedSavedFolders, setOrderedSavedFolders] = useState(savedFolders)
-  const [isReordering, setIsReordering] = useState(false)
-  const orderedSavedFoldersRef = useRef(savedFolders)
-  const dragIndex = useRef<number | null>(null)
-  const savedFolderPositions = useMemo(() => new Map(savedFolders.map((folder, index) => [folder.id, folder.position ?? index])), [savedFolders])
   const updatePreferences = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
-  const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view })
-  const allJobsLink = (
-    <Link className={folderClass(activeSmartFolderId == null)} onClick={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null })} to={allPath}>
-      {allSubjectLabel(payload.subject, t)}
-    </Link>
-  )
+  const allPath = dashboardLink(subjectPath(payload.subject), { view: payload.view })
   const appliedTree = filterTreeFromPayload(payload.filter)
   const hasAppliedFilter = topFilterChildren(appliedTree).length > 0
   const selectedFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
@@ -86,97 +73,37 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
     }
   })
 
-  useEffect(() => {
-    setOrderedSavedFolders(savedFolders)
-    orderedSavedFoldersRef.current = savedFolders
-  }, [savedFolders])
-
   function saveFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     createFolder.mutate()
   }
 
-  function startSavedFolderDrag(index: number, event: DragEvent<HTMLElement>) {
-    dragIndex.current = index
-    event.dataTransfer.effectAllowed = "move"
-  }
-
-  function dragOverSavedFolder(index: number, event: DragEvent<HTMLElement>) {
-    const sourceIndex = dragIndex.current
-    if (sourceIndex == null) return
-
-    event.preventDefault()
-    event.dataTransfer.dropEffect = "move"
-    if (sourceIndex === index) return
-
-    const nextFolders = reorderFolders(orderedSavedFoldersRef.current, sourceIndex, index)
-    orderedSavedFoldersRef.current = nextFolders
-    dragIndex.current = index
-    setOrderedSavedFolders(nextFolders)
-  }
-
-  async function dropSavedFolder(event: DragEvent<HTMLElement>) {
-    if (dragIndex.current == null) return
-
-    event.preventDefault()
-    const reorderedFolders = orderedSavedFoldersRef.current
-    clearSavedFolderDrag()
-    const changedFolders = reorderedFolders.filter((folder, index) => savedFolderPositions.get(folder.id) !== index)
-    if (changedFolders.length === 0) return
-
-    setIsReordering(true)
-    try {
-      await Promise.all(changedFolders.map((folder) => {
-        const position = reorderedFolders.findIndex((candidate) => candidate.id === folder.id)
-        return updateSmartFolder(folder.id, { name: folder.name, position })
-      }))
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-    } finally {
-      setIsReordering(false)
-    }
-  }
-
-  function clearSavedFolderDrag() {
-    dragIndex.current = null
-  }
-
   return (
     <aside aria-label={t("smart_folders_panel_aria")} className="space-y-2">
-      <nav aria-label={t("smart_folders_aria")} className="space-y-1">
-        {allSubjectLinkVisible(payload) ? allJobsLink : null}
-        {primaryFolders.map((folder) => <SmartFolderLink folder={folderWithActive(folder, activeSmartFolderId)} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
-        {moreFolders.length > 0 ? (
-          <details className="space-y-1" open={moreFolders.some((folder) => folder.id === activeSmartFolderId || folder.active) || undefined}>
-            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.more")}</summary>
-            <div className="space-y-1">
-              {moreFolders.map((folder) => <SmartFolderLink folder={folderWithActive(folder, activeSmartFolderId)} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
-            </div>
-          </details>
-        ) : null}
-      </nav>
-      <div className="space-y-1 pt-3">
-        <h3 className="px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.saved")}</h3>
-        {savedFolders.length > 0 ? (
-          <nav aria-label={t("saved_folders_aria")} className="space-y-1">
-            {orderedSavedFolders.map((folder, index) => (
-              <SmartFolderLink
-                draggable={!isReordering}
-                folder={folderWithActive(folder, activeSmartFolderId)}
-                key={folder.id}
-                onDragEnd={clearSavedFolderDrag}
-                onDragOver={(event) => dragOverSavedFolder(index, event)}
-                onDragStart={(event) => startSavedFolderDrag(index, event)}
-                onDrop={dropSavedFolder}
-                onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })}
-                prefix={prefix}
-                showDragHandle
-              />
-            ))}
-          </nav>
-        ) : (
-          <p className="px-2 py-1.5 text-sm text-gray-400 dark:text-gray-500">{t("smart_folder.no_saved_folders")}</p>
-        )}
-      </div>
+      <SmartFolderNavigation
+        actionLabel={(folder) => `Actions for ${folder.name}`}
+        allLink={allSubjectLinkVisible(payload) ? {
+          active: activeSmartFolderId == null,
+          label: allSubjectLabel(payload.subject, t),
+          onSelect: () => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null }),
+          path: allPath
+        } : null}
+        ariaLabel={t("smart_folders_aria")}
+        emptySavedMessage={t("smart_folder.no_saved_folders")}
+        folders={payload.smart_folders.map((folder) => folderWithActive(folder, activeSmartFolderId))}
+        getDisplayName={(folder) => (folder.kind !== "user_defined" && folder.key)
+          ? t(`smart_folder.names.${folder.key}`, { defaultValue: folder.name })
+          : folder.name}
+        moreLabel={t("smart_folder.more")}
+        onMutationSuccess={() => {
+          void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+        }}
+        onSelect={(folder) => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })}
+        prefix={prefix}
+        renderCountPrefix={(folder) => <BlockedCount folder={folder} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />}
+        savedAriaLabel={t("saved_folders_aria")}
+        savedHeading={t("smart_folder.saved")}
+      />
       {canUpdateFilter && activeFolder ? (
         <div className="space-y-2 px-2 pt-3">
           <button
@@ -227,312 +154,28 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   )
 }
 
-function SmartFolderLink({
-  draggable = false,
-  folder,
-  onDragEnd,
-  onDragOver,
-  onDragStart,
-  onDrop,
-  onSelect,
-  prefix,
-  showDragHandle = false
-}: {
-  draggable?: boolean
-  folder: DashboardSmartFolder
-  onDragEnd?: () => void
-  onDragOver?: (event: DragEvent<HTMLElement>) => void
-  onDragStart?: (event: DragEvent<HTMLElement>) => void
-  onDrop?: (event: DragEvent<HTMLElement>) => void
-  onSelect?: () => void
-  prefix: string
-  showDragHandle?: boolean
-}) {
-  const { t } = useT("nav")
-  const queryClient = useQueryClient()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [renaming, setRenaming] = useState(false)
-  const [name, setName] = useState(folder.name)
-  const [deleteArmed, setDeleteArmed] = useState(false)
-  const [actionsVisible, setActionsVisible] = useState(false)
-  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
-  const ignoreNextBlurRef = useRef(false)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const popupRef = useRef<HTMLDivElement>(null)
-
-  function closeMenu() {
-    setMenuOpen(false)
-    setDeleteArmed(false)
-    setMenuAnchor(null)
-  }
-
-  useEffect(() => {
-    if (!menuOpen) return
-
-    function closeOnEscape(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") closeMenu()
-    }
-
-    function closeOnOutsidePointer(event: PointerEvent) {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) return
-
-      closeMenu()
-    }
-
-    window.addEventListener("keydown", closeOnEscape)
-    window.addEventListener("pointerdown", closeOnOutsidePointer)
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape)
-      window.removeEventListener("pointerdown", closeOnOutsidePointer)
-    }
-  }, [menuOpen])
-  const update = useMutation({
-    mutationFn: () => updateSmartFolder(folder.id, { name, position: folder.position }),
-    onSuccess: () => {
-      setRenaming(false)
-      closeMenu()
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-    }
-  })
-  const destroy = useMutation({
-    mutationFn: () => deleteSmartFolder(folder.id),
-    onSuccess: () => {
-      closeMenu()
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-    }
-  })
-
-  function startRename() {
-    setName(folder.name)
-    setRenaming(true)
-    closeMenu()
-    update.reset()
-  }
-
-  function confirmRename() {
-    if (update.isPending) return
-    update.mutate()
-  }
-
-  function cancelRename() {
-    setName(folder.name)
-    setRenaming(false)
-    update.reset()
-  }
-
-  function handleRenameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault()
-      confirmRename()
-    } else if (event.key === "Escape") {
-      event.preventDefault()
-      ignoreNextBlurRef.current = true
-      cancelRename()
-    }
-  }
-
-  function handleBlur(event: FocusEvent<HTMLDivElement>) {
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      setActionsVisible(false)
-    }
-  }
-
-  function toggleMenu() {
-    destroy.reset()
-    setDeleteArmed(false)
-    setMenuOpen((open) => {
-      if (open) {
-        setMenuAnchor(null)
-        return false
-      }
-
-      const rect = buttonRef.current?.getBoundingClientRect()
-      if (rect) setMenuAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-      return true
-    })
-  }
-
-  const displayName = (folder.kind !== "user_defined" && folder.key)
-    ? t(`smart_folder.names.${folder.key}`, { defaultValue: folder.name })
-    : folder.name
-
-  if (folder.kind === "user_defined") {
-    const error = update.isError ? errorMessage(update.error, t("smart_folder.unable_to_rename")) : destroy.isError ? errorMessage(destroy.error, t("smart_folder.unable_to_delete")) : null
-    const showActions = actionsVisible || menuOpen
-
-    return (
-      <div className="space-y-1">
-        <div
-          ref={popupRef}
-          className={`relative flex min-w-0 items-center gap-1 rounded ${showDragHandle ? "group -ml-4 cursor-grab pl-4 active:cursor-grabbing" : ""} ${folder.active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
-          draggable={draggable}
-          onBlur={handleBlur}
-          onDragEnd={onDragEnd}
-          onDragOver={onDragOver}
-          onDragStart={onDragStart}
-          onDrop={onDrop}
-          onFocus={() => setActionsVisible(true)}
-          onMouseEnter={() => setActionsVisible(true)}
-          onMouseLeave={() => {
-            if (!menuOpen) setActionsVisible(false)
-          }}
-        >
-          {renaming ? (
-            <div className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-l px-2 py-1.5 text-sm">
-              <Input
-                aria-label={`Rename ${folder.name}`}
-                autoFocus
-                className="min-w-0 flex-1"
-                disabled={update.isPending}
-                maxLength={120}
-                onBlur={() => {
-                  if (ignoreNextBlurRef.current) {
-                    ignoreNextBlurRef.current = false
-                    return
-                  }
-                  confirmRename()
-                }}
-                onChange={(event) => setName(event.target.value)}
-                onKeyDown={handleRenameKeyDown}
-                value={name}
-              />
-            </div>
-          ) : (
-            <Link aria-label={smartFolderLabel(folder.name, folder.count)} className="flex min-w-0 flex-1 items-center gap-2 rounded-l px-2 py-1.5 text-sm" onClick={onSelect} to={withRoutePrefix(folder.path, prefix)}>
-              <span className="truncate">{folder.name}</span>
-            </Link>
-          )}
-          {showDragHandle ? <GripIcon floating /> : null}
-          <div className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center">
-            {showActions ? (
-              <button
-                ref={buttonRef}
-                aria-expanded={menuOpen}
-                aria-haspopup="menu"
-                aria-label={`Actions for ${folder.name}`}
-                className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  toggleMenu()
-                }}
-                type="button"
-              >
-                ...
-              </button>
-            ) : (
-              <FolderCount folder={folder} onSelect={onSelect} prefix={prefix} />
-            )}
-          </div>
-          {menuOpen && menuAnchor ? createPortal(
-            <div
-              ref={menuRef}
-              className="fixed z-50 min-w-36 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900"
-              role="menu"
-              style={{ top: menuAnchor.top, right: menuAnchor.right }}
-            >
-              <button className="block w-full px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800" onClick={startRename} role="menuitem" type="button">
-                {t("smart_folder.rename")}
-              </button>
-              <button
-                className="block w-full px-3 py-1.5 text-left text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950"
-                disabled={destroy.isPending}
-                onClick={() => {
-                  if (deleteArmed) {
-                    destroy.mutate()
-                  } else {
-                    setDeleteArmed(true)
-                  }
-                }}
-                role="menuitem"
-                type="button"
-              >
-                {deleteArmed ? t("smart_folder.confirm_delete") : t("smart_folder.delete")}
-              </button>
-            </div>,
-            document.body
-          ) : null}
-        </div>
-        {error ? <p className="px-2 text-xs text-red-700 dark:text-red-300" role="alert">{error}</p> : null}
-      </div>
-    )
-  }
-  return (
-    <div
-      className={folderClass(folder.active, showDragHandle)}
-      draggable={draggable}
-      onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
-      onDragStart={onDragStart}
-      onDrop={onDrop}
-    >
-      {showDragHandle ? <GripIcon /> : null}
-      <Link
-        aria-label={smartFolderLabel(displayName, folder.count)}
-        className="min-w-0 flex-1 truncate"
-        draggable={false}
-        onClick={onSelect}
-        to={withRoutePrefix(folder.path, prefix)}
-      >
-        {displayName}
-      </Link>
-      <FolderCount folder={folder} onSelect={onSelect} prefix={prefix} />
-    </div>
-  )
-}
-
-function FolderCount({ folder, onSelect, prefix }: { folder: DashboardSmartFolder; onSelect?: () => void; prefix: string }) {
+function BlockedCount({ folder, onSelect, prefix }: { folder: DashboardSmartFolder; onSelect?: () => void; prefix: string }) {
   const { t } = useT("nav")
   const navigate = useNavigate()
   const blockedCount = folder.blocked_count ?? 0
   const blockedPath = dashboardLinkFromExisting(folder.path, { start_blocked: "1", page: null })
+
+  if (blockedCount <= 0) return null
+
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-1">
-      {blockedCount > 0 ? (
-        <button
-          aria-label={t("smart_folder.queued_blocked_filter_aria", { count: blockedCount })}
-          className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:hover:bg-amber-800"
-          onClick={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            onSelect?.()
-            navigate(withRoutePrefix(blockedPath, prefix))
-          }}
-          type="button"
-        >
-          {t("smart_folder.queued_blocked_count", { count: blockedCount })}
-        </button>
-      ) : null}
-      {folder.count == null ? null : (
-        <span className={`inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${folder.active ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{folder.count}</span>
-      )}
-    </div>
-  )
-}
-
-function smartFolderLabel(name: string, count: number | null) {
-  return count == null ? name : `${name} ${count}`
-}
-
-function reorderFolders(folders: DashboardSmartFolder[], sourceIndex: number, targetIndex: number) {
-  const reordered = [...folders]
-  const [moved] = reordered.splice(sourceIndex, 1)
-  reordered.splice(targetIndex, 0, moved)
-  return reordered
-}
-
-function GripIcon({ floating = false }: { floating?: boolean }) {
-  return (
-    <svg aria-hidden="true" className={`${floating ? "pointer-events-none absolute left-0 top-1/2 -translate-y-1/2" : "-ml-1 shrink-0"} size-4 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500`} fill="none" viewBox="0 0 16 16">
-      <circle cx="6" cy="4" fill="currentColor" r="1" />
-      <circle cx="10" cy="4" fill="currentColor" r="1" />
-      <circle cx="6" cy="8" fill="currentColor" r="1" />
-      <circle cx="10" cy="8" fill="currentColor" r="1" />
-      <circle cx="6" cy="12" fill="currentColor" r="1" />
-      <circle cx="10" cy="12" fill="currentColor" r="1" />
-    </svg>
+    <button
+      aria-label={t("smart_folder.queued_blocked_filter_aria", { count: blockedCount })}
+      className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:hover:bg-amber-800"
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onSelect?.()
+        navigate(withRoutePrefix(blockedPath, prefix))
+      }}
+      type="button"
+    >
+      {t("smart_folder.queued_blocked_count", { count: blockedCount })}
+    </button>
   )
 }
 
@@ -601,17 +244,4 @@ export function smartFolderIdFromSearch(search: string) {
 
   const id = Number(value)
   return Number.isInteger(id) ? id : null
-}
-
-function mergeFilterTrees(baseTree: FilterTree, overrideTree: FilterTree): FilterTree {
-  const children: FilterNode[] = [
-    ...topFilterChildren(baseTree),
-    ...topFilterChildren(overrideTree)
-  ]
-
-  return { and: children }
-}
-
-function folderClass(active: boolean, withDragHandle = false) {
-  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${withDragHandle ? "group cursor-grab active:cursor-grabbing" : ""} ${active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`
 }
