@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_11_030419) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2328,6 +2328,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["state", "finished_at"], name: "idx_runs_state_finished_at"
     t.index ["state", "job_id", "updated_at"], name: "idx_runs_state_job_updated"
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
+    t.index ["state", "started_at", "id"], name: "idx_runs_state_started_id"
     t.index ["state", "step_id"], name: "idx_runs_state_step_id"
     t.index ["state", "updated_at", "id"], name: "idx_runs_state_updated_id"
     t.index ["step_id", "created_at", "id"], name: "idx_runs_step_created"
@@ -3199,5 +3200,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end
