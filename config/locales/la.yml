@@ -105,9 +105,16 @@ la:
       fork_sync_enqueued: "%{slug} cum fonte superiore synchronizatur."
       not_fork_syncable: "%{slug} non est furca cum fonte superiore in hac instantia."
       no_sha_to_grade: "Nullum SHA rami adhuc indagatum — prius repositorium interroga."
+      check_ci_now_enqueued: "Recognitio CI pro %{slug} in ordinem posita est."
+      ci_not_configured: "Nullae recognitiones CI pro %{slug} inventae sunt."
 
     input_sources:
       saved: "Fons %{source} servatus est."
+
+    platform_identities:
+      not_configured: "Integratio %{platform} in hac instantia nondum configurata est."
+      unlinked: "Ratio suggestus disiuncta est."
+      unsupported_platform: "Suggestus non sustentatus."
 
     job_pins:
       pinned: "Opus adfixa est."
@@ -144,6 +151,10 @@ la:
       start_blocked_by_dependencies: "Epos effectionem nondum incipere potest — Epica praerequisita exspectat: %{names}."
       start_children_unconfirmed: "Epos effectionem incipere non potest antequam opera filiorum confirmentur."
       start_claimed_by_other: "Epos ab alio usuario vindicatum est."
+      review_approved: "Facultas probata est."
+      feedback_job_created: "Responsum acceptum est — opus in ordinem positum est."
+      feedback_blank: "Responsum vacuum esse non potest."
+      review_not_ready: "Facultas nondum parata est ad recognitionem."
       access_forbidden: "Ad repositorium destinatum accessum non habes."
       owner_not_found: "Usor dominus non inventus est."
       already_assigned: "Epos iam %{email} assignatum est."

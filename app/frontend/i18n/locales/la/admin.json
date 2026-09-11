@@ -246,7 +246,10 @@
     "component_stack": "Component stack",
     "recent_api_requests": "Petitiones API recentes",
     "recent_errors": "Errores JS recentes",
-    "environment": "Ambitus"
+    "environment": "Ambitus",
+    "id": "ID",
+    "timeline": "Linea temporis",
+    "timeline_empty": "Nulli errores navigatoris in hac fenestra temporis filtrata."
   },
   "users": {
     "heading": "Utentes",
@@ -405,6 +408,10 @@
       "persistent_mcp_sidecar": {
         "name": "Adiutor MCP Persistens",
         "description": "Activat daemonem adiutoris MCP persistentis et loco laboris proprii, qui semel oriri potest et transportum MCP solum localem cum indicio salutis praebere potest. Vices colloquii vocationes instrumentorum MCP ad eum dirigere possunt, cum reditu automatico ad stdio; cursus agentis laboris eo nondum utuntur et adiutore stdio per cursum semper utuntur. Quo desactivato, omnes agentes solitis adiutoribus stdio per cursum vel sessionem utuntur."
+      },
+      "browser_error_auto_reports": {
+        "name": "Relationes automaticae errorum navigatoris",
+        "description": "Automatice unum opus relationis vitii pro quoque vestigio erroris navigatoris et revisione applicationis creat."
       }
     }
   },
@@ -478,7 +485,14 @@
       "agent_provider": "agent_provider",
       "mcp_tool_set": "mcp_tool_set",
       "input_source": "input_source"
-    }
+    },
+    "required": "Necessarium",
+    "enable": "Activa",
+    "disable": "Deactiva",
+    "saving": "Servatur...",
+    "error_toggle": "Plugin renovari non potuit.",
+    "category": "Categoria",
+    "default_state": "Praedefinitum"
   },
   "invitations": {
     "heading": "Invitationes",
@@ -560,7 +574,9 @@
     "discord_token_label": "Tessera automati Discord",
     "discord_token_placeholder": "Tesseram automati inserere…",
     "discord_token_clear_confirm": "Tesseram automati Discord delere?",
-    "discord_save_token": "Tesseram servare"
+    "discord_save_token": "Tesseram servare",
+    "show_work_unit_debug_label": "Tabulas debug WorkIntent et WorkUnit in tabulis cursus operis ostende",
+    "show_work_unit_debug_help": "Cum clausum est, interna WorkIntent et WorkUnit a paginis operum ordinariis celantur. Admin Work Units ad diagnosin manet."
   },
   "github_app": {
     "register_title": "Inscriptio Applicamenti GitHub",
@@ -932,5 +948,85 @@
   "aria_features": "Facultates administratoris",
   "aria_console": "Consolium administratoris",
   "aria_github_registration": "Inscriptio App GitHub",
-  "aria_github_registered": "App GitHub inscripta"
+  "aria_github_registered": "App GitHub inscripta",
+  "page_title_work_units": "Unitates Operis — Administratio",
+  "page_title_backend_exceptions": "Exceptiones Backend — Administratio",
+  "nav_work_units": "Unitates Operis",
+  "nav_backend_exceptions": "Exceptiones Backend",
+  "work_units": {
+    "heading": "Unitates Operis",
+    "aria": "Unitates operis administrationis",
+    "description": "Inspice opus desideratum a schedulatore possessum et conatus currendi per omnes utentes. Haec est facies diagnostica interna; paginae operum ordinariae has tabulas ostendunt solum cum optio debug activa est.",
+    "loading": "Unitates operis onerantur...",
+    "error_load": "Unitates operis onerari non potuerunt.",
+    "refresh": "Renova",
+    "refreshing": "Renovatur...",
+    "show_user_debug": "In paginis operum ostende",
+    "hide_user_debug": "In paginis operum cela",
+    "filter_intent_state": "Status intentionis",
+    "filter_intent_kind": "Genus intentionis",
+    "filter_unit_state": "Status unitatis",
+    "filter_unit_kind": "Genus unitatis",
+    "filter_scope": "Ambitus",
+    "filter_repository": "ID repositorii",
+    "filter_job": "ID operis",
+    "filter_workflow": "ID cursus",
+    "apply_filters": "Filtra applica",
+    "clear_filters": "Filtra dele",
+    "no_intents": "Nullae intentiones operis his filtris conveniunt.",
+    "showing": "Ostenduntur {{first}}-{{last}} ex {{total}} intentionibus",
+    "col_requested": "Petitio",
+    "col_intent": "Intentio",
+    "col_scope": "Ambitus",
+    "col_jobs": "Opera",
+    "col_units": "Unitates",
+    "aria_pagination": "Paginatio unitatum operis",
+    "page_of": "Pagina {{page}} ex {{total}}",
+    "previous": "Prior",
+    "next": "Proxima"
+  },
+  "backend_exceptions": {
+    "heading": "Exceptiones Backend",
+    "aria": "Exceptiones Backend",
+    "loading": "Exceptiones backend onerantur...",
+    "error_load": "Exceptiones backend onerari non potuerunt.",
+    "refresh": "Renova",
+    "refreshing": "Renovatur...",
+    "query": "Quaere",
+    "query_placeholder": "nuntium, classis, via, petitio, vel backtrace",
+    "since": "Ab",
+    "until": "Usque ad",
+    "until_placeholder": "optionale",
+    "fingerprint": "Vestigium",
+    "source": "Fons",
+    "all_sources": "Omnes fontes",
+    "exception_class": "Classis exceptionis",
+    "path": "Via",
+    "revision_scope": "Revisio",
+    "revision_current": "SHA praesens",
+    "revision_all": "Omnes SHA",
+    "per_page": "Per paginam",
+    "search": "Quaere",
+    "clear": "Dele",
+    "showing": "Ostenduntur {{count}} eventus in pagina {{page}}",
+    "revision_hint": "{{revision}}",
+    "all_revisions": "omnes revisiones",
+    "empty": "Nullae exceptiones backend relatae sunt.",
+    "timeline": "Linea temporis",
+    "timeline_empty": "Nullae exceptiones backend in hac fenestra temporis filtrata.",
+    "page": "Pagina {{page}}",
+    "previous": "Prior",
+    "next": "Proxima",
+    "col_time": "Tempus",
+    "col_context": "Contextus",
+    "col_error": "Error",
+    "col_runtime": "Tempus currendi",
+    "col_actions": "Actiones",
+    "show_details": "Singula",
+    "hide_details": "Cela",
+    "backtrace": "Backtrace",
+    "request_context": "Contextus petitionis",
+    "job_context": "Contextus operis",
+    "environment": "Ambitus"
+  }
 }
