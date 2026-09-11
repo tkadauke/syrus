@@ -510,7 +510,7 @@ describe("ReviewWorkspace", () => {
     vi.restoreAllMocks()
   })
 
-  it("renders a structured version range picker with labels, endpoint chips, metadata, and comment counts", async () => {
+  it("renders a structured version range picker with aligned endpoint buttons and compact row metadata", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
       versions: [
         version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1, created_at: "2026-05-01T12:00:00Z" }),
@@ -564,12 +564,18 @@ describe("ReviewWorkspace", () => {
     expect(listbox).toHaveClass("max-h-[min(22rem,70vh)]", "w-[min(100%,calc(100vw-2rem))]", "overflow-y-auto")
     const selectedRange = within(listbox).getByRole("option", { name: /v2 repair range - From refs\/heads\/main-with-a-very-long-name \(base-sh\) to syrus\/direct-42-with-a-very-long-branch-name \(head-sh\)/ })
     expect(selectedRange).toHaveAttribute("aria-selected", "true")
-    expect(within(selectedRange).getByText("From")).toBeInTheDocument()
-    expect(within(selectedRange).getByText("To")).toBeInTheDocument()
-    expect(within(selectedRange).getByText("RUN-34")).toBeInTheDocument()
-    expect(within(selectedRange).getByText(/v2 - WF-12 - RUN-34 - .* - 2 files - 2 comments/)).toBeInTheDocument()
-    expect(screen.getByTitle("refs/heads/main-with-a-very-long-name @ base-sha-1234567890")).toHaveTextContent("refs/hea...ong-name")
-    expect(screen.getByTitle("syrus/direct-42-with-a-very-long-branch-name @ head-sha-1234567890")).toHaveTextContent("syrus/di...nch-name")
+    const endpointButtons = within(selectedRange).getAllByRole("button")
+    expect(endpointButtons[0]).toHaveAccessibleName("From v2 RUN-34")
+    expect(endpointButtons[0]).toHaveClass("w-16", "border-brand")
+    expect(endpointButtons[1]).toHaveAccessibleName("To v2 RUN-34")
+    expect(endpointButtons[1]).toHaveClass("w-16", "border-brand")
+    expect(within(selectedRange).getByRole("button", { name: "v2 RUN-34" })).toHaveAttribute(
+      "title",
+      expect.stringMatching(/v2 - WF-12 - RUN-34 - .* - 2 files - 2 comments - From refs\/heads\/main-with-a-very-long-name/)
+    )
+    expect(within(selectedRange).queryByText("refs/hea...ong-name")).not.toBeInTheDocument()
+    expect(screen.getByTitle("refs/heads/main-with-a-very-long-name @ base-sha-1234567890")).toHaveTextContent("From")
+    expect(screen.getByTitle("syrus/direct-42-with-a-very-long-branch-name @ head-sha-1234567890")).toHaveTextContent("To")
     expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From refs\/heads\/main-with-a-very-long-name \(base-sh\) to syrus\/direct-42-with-a-very-long-branch-name \(head-sh\) - 2 files - 2 comments/)).toBeInTheDocument()
   })
 
@@ -616,14 +622,57 @@ describe("ReviewWorkspace", () => {
     expect(within(listbox).getAllByRole("option")[0]).toHaveTextContent("All changes")
     const allChanges = within(listbox).getByRole("option", { name: /All changes - From main \(branch-\) to syrus\/issue-42 \(branch-\)/ })
     expect(allChanges).toHaveAttribute("aria-selected", "true")
-    expect(within(allChanges).getByText("From")).toBeInTheDocument()
-    expect(within(allChanges).getByText("To")).toBeInTheDocument()
+    expect(within(allChanges).queryByText("From")).not.toBeInTheDocument()
+    expect(within(allChanges).queryByText("To")).not.toBeInTheDocument()
 
-    fireEvent.click(within(listbox).getByRole("option", { name: /Initial implementation - From main \(initial\) to syrus\/issue-42 \(branch-\)/ }))
+    const initialRange = within(listbox).getByRole("option", { name: /Initial implementation - From main \(initial\) to syrus\/issue-42 \(branch-\)/ })
+    fireEvent.click(within(initialRange).getByRole("button", { name: "v1 RUN-34" }))
 
     expect(await screen.findByTitle("db/migrate/repair.rb")).toBeInTheDocument()
     expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 100)
     expect(screen.queryByText("all-changes")).not.toBeInTheDocument()
+  })
+
+  it("selects independent From and To endpoints as an explicit review range", async () => {
+    const initial = sourceDiffPayload({
+      version: version({ id: 300, version_index: 3, base_sha: "branch-base", head_sha: "third-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
+      versions: [
+        version({ id: 100, version_index: 1, base_sha: "branch-base", head_sha: "first-head", label: "Initial implementation", run_id: 11 }),
+        version({ id: 200, version_index: 2, base_sha: "first-head", head_sha: "second-head", label: "Repair", run_id: 22 }),
+        version({ id: 300, version_index: 3, base_sha: "branch-base", head_sha: "third-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } })
+      ],
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/all_changes.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+all-changes"
+      }]
+    })
+    const explicit = sourceDiffPayload({
+      version: version({ id: 400, version_index: 4, base_sha: "first-head", head_sha: "third-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions: initial.versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/custom_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+custom-range"
+      }]
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(explicit)
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 300))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    fireEvent.click(selector)
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+    const repairRange = within(listbox).getByRole("option", { name: /Repair - From main \(first-h\) to syrus\/issue-42 \(second-\)/ })
+    fireEvent.click(within(repairRange).getByRole("button", { name: "From v2 RUN-22" }))
+
+    expect(await screen.findByTitle("app/models/custom_range.rb")).toBeInTheDocument()
+    expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=first-head&head=third-head")
   })
 
   it("prefers the All changes full range even when the embedded payload version is a narrower range", async () => {
