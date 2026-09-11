@@ -301,6 +301,49 @@ describe("RepositoryInsightsRoute", () => {
       expect(screen.getByRole("button", { name: "Save as memory" })).toBeInTheDocument()
     })
 
+    it("refreshes pending suggestions after saving a memory", async () => {
+      const pendingMemory = makeSuggestion({
+        proposal_type: "save_memory",
+        suggested_prompt: null,
+        memory_suggestion: "Always check the logs first",
+        has_memory_suggestion: true
+      })
+      let pendingListRequests = 0
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({
+            message: "Memory saved.",
+            suggestion: makeSuggestion({ ...pendingMemory, state: "accepted" }),
+            memory_id: 10
+          }))
+        }
+        if (url.includes("state=pending")) {
+          pendingListRequests += 1
+        }
+        if (url.includes("state=pending") && pendingListRequests > 1) {
+          return Promise.resolve(jsonResponse(payload([], makeMeta({
+            total: 0,
+            counts: { pending: 0, accepted: 1, dismissed: 0, retired: 0, all: 1 }
+          }))))
+        }
+        return Promise.resolve(jsonResponse(payload([pendingMemory])))
+      })
+
+      renderRoute([pendingMemory])
+      fireEvent.click(await screen.findByRole("button", { name: "Save as memory" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/insight_suggestions/1",
+          expect.objectContaining({ method: "PATCH" })
+        )
+      })
+      await waitFor(() => {
+        expect(screen.queryByText("Frequent prepare failures")).not.toBeInTheDocument()
+      })
+    })
+
     it("shows Save as memory button on accepted cards with a memory suggestion", async () => {
       const accepted = makeSuggestion({
         state: "accepted",
