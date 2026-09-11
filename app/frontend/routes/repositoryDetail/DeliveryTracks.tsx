@@ -1,5 +1,6 @@
 import { StatusPill } from "./shared"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
+import { DataTable } from "../../components/ui"
 import { Link } from "react-router-dom"
 import { withRoutePrefix } from "../../lib/routing"
 import { useT } from "../../hooks/useT"
@@ -41,45 +42,43 @@ function DeliveryTracksTable({ tracks }: { tracks: RepositoryDeliveryTrack[] }) 
   if (tracks.length === 0) return null
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-3 py-2">{t("delivery.col_track")}</th>
-            <th className="px-3 py-2">{t("delivery.col_branch")}</th>
-            <th className="px-3 py-2">{t("delivery.col_grade_phases")}</th>
-            <th className="px-3 py-2">{t("delivery.col_health")}</th>
-            <th className="px-3 py-2">{t("delivery.col_queue_length")}</th>
-            <th className="px-3 py-2">{t("delivery.col_last_promotion")}</th>
-            <th className="px-3 py-2">{t("delivery.col_last_hotfix_sync")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root>
+      <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("delivery.col_track")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("delivery.col_branch")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("delivery.col_grade_phases")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("delivery.col_health")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("delivery.col_queue_length")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("delivery.col_last_promotion")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("delivery.col_last_hotfix_sync")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {tracks.map((track) => (
-            <tr key={track.name}>
-              <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
+            <DataTable.Row key={track.name}>
+              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">
                 {track.name}
                 {track.is_default ? <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">{t("delivery.default_track_suffix")}</span> : null}
-              </td>
-              <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">{track.branch}</td>
-              <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
+              </DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs text-gray-700 dark:text-gray-300">{track.branch}</DataTable.Cell>
+              <DataTable.Cell className="text-xs text-gray-600 dark:text-gray-400">
                 {track.review_grade_phase} / {track.landing_grade_phase} / {track.branch_health_grade_phase}
-              </td>
-              <td className="px-3 py-2">
+              </DataTable.Cell>
+              <DataTable.Cell>
                 {track.health ? <StatusPill tone={healthTone(track.health)}>{track.health}</StatusPill> : <span className="text-xs text-gray-400 dark:text-gray-500">{t("delivery.health_not_tracked")}</span>}
-              </td>
-              <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{track.queue_length}</td>
-              <td className="px-3 py-2">
+              </DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-300">{track.queue_length}</DataTable.Cell>
+              <DataTable.Cell>
                 <RefMovementSummaryCell summary={track.last_promotion} />
-              </td>
-              <td className="px-3 py-2">
+              </DataTable.Cell>
+              <DataTable.Cell>
                 <RefMovementSummaryCell summary={track.last_hotfix_sync} />
-              </td>
-            </tr>
+              </DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 
@@ -125,37 +124,35 @@ function RecentRefMovementWorkflows({ workflows, prefix }: { workflows: Reposito
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">{t("delivery.recent_ref_movements_heading")}</h3>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-3 py-2">{t("delivery.col_kind")}</th>
-              <th className="px-3 py-2">{t("delivery.col_job")}</th>
-              <th className="px-3 py-2">{t("delivery.col_refs")}</th>
-              <th className="px-3 py-2">{t("delivery.col_state")}</th>
-              <th className="px-3 py-2">{t("delivery.col_when")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <DataTable.Root>
+        <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("delivery.col_kind")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("delivery.col_job")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("delivery.col_refs")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("delivery.col_state")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("delivery.col_when")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {workflows.map((workflow) => (
-              <tr key={workflow.id}>
-                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{workflow.trigger_kind}</td>
-                <td className="px-3 py-2">
+              <DataTable.Row key={workflow.id}>
+                <DataTable.Cell className="text-gray-700 dark:text-gray-300">{workflow.trigger_kind}</DataTable.Cell>
+                <DataTable.Cell>
                   <Link className="text-brand hover:underline" to={withRoutePrefix(workflow.workflow_path, prefix)}>{workflow.job_slug}</Link>
-                </td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-600 dark:text-gray-400">
+                </DataTable.Cell>
+                <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-400">
                   {workflow.source_ref} &rarr; {workflow.target_repository_slug ? `${workflow.target_repository_slug}:` : ""}{workflow.target_ref}
                   {workflow.pr_number ? <span className="ml-1 text-gray-400 dark:text-gray-500">PR #{workflow.pr_number}{workflow.pr_state ? ` (${workflow.pr_state})` : ""}</span> : null}
-                </td>
-                <td className="px-3 py-2"><StatusPill tone={workflowStateTone(workflow.state)}>{workflow.state}</StatusPill></td>
-                <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+                </DataTable.Cell>
+                <DataTable.Cell><StatusPill tone={workflowStateTone(workflow.state)}>{workflow.state}</StatusPill></DataTable.Cell>
+                <DataTable.Cell className="text-gray-500 dark:text-gray-400">
                   {workflow.finished_at ? <RelativeTimestamp value={workflow.finished_at} /> : workflow.created_at ? <RelativeTimestamp value={workflow.created_at} /> : null}
-                </td>
-              </tr>
+                </DataTable.Cell>
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </DataTable.Body>
+        </DataTable.Root>
     </div>
   )
 }
@@ -174,35 +171,33 @@ function RecentPrIngestions({ ingestions, prefix }: { ingestions: RepositoryDeli
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">{t("delivery.recent_pr_ingestions_heading")}</h3>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-3 py-2">{t("delivery.col_pr")}</th>
-              <th className="px-3 py-2">{t("delivery.col_job")}</th>
-              <th className="px-3 py-2">{t("delivery.col_classification")}</th>
-              <th className="px-3 py-2">{t("delivery.col_when")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <DataTable.Root>
+        <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("delivery.col_pr")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("delivery.col_job")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("delivery.col_classification")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("delivery.col_when")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {ingestions.map((ingestion) => (
-              <tr key={`${ingestion.job_id}-${ingestion.pr_number}`}>
-                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{ingestion.pr_number ? `#${ingestion.pr_number}` : "—"}</td>
-                <td className="px-3 py-2">
+              <DataTable.Row key={`${ingestion.job_id}-${ingestion.pr_number}`}>
+                <DataTable.Cell className="text-gray-700 dark:text-gray-300">{ingestion.pr_number ? `#${ingestion.pr_number}` : "—"}</DataTable.Cell>
+                <DataTable.Cell>
                   <Link className="text-brand hover:underline" to={withRoutePrefix(ingestion.job_path, prefix)}>{ingestion.job_slug}</Link>
-                </td>
-                <td className="px-3 py-2">
+                </DataTable.Cell>
+                <DataTable.Cell>
                   <StatusPill tone={ingestion.classification === "external_unknown" ? "gray" : "blue"}>{ingestion.classification}</StatusPill>
                   {ingestion.source_repo_slug ? <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{ingestion.source_repo_slug}</span> : null}
-                </td>
-                <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+                </DataTable.Cell>
+                <DataTable.Cell className="text-gray-500 dark:text-gray-400">
                   {ingestion.created_at ? <RelativeTimestamp value={ingestion.created_at} /> : null}
-                </td>
-              </tr>
+                </DataTable.Cell>
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </DataTable.Body>
+        </DataTable.Root>
     </div>
   )
 }
