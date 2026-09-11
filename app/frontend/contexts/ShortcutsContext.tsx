@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
 
 export interface ShortcutOptions {
   description: string
@@ -274,7 +274,7 @@ export function ShortcutLayer({ children, displayShortcutsFromParent = false }: 
   const layerIdRef = useRef<number | null>(null)
   if (layerIdRef.current == null) layerIdRef.current = nextLayerId++
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!context) return
     return context.registerLayer(layerIdRef.current!, { displayShortcutsFromParent })
   }, [context, displayShortcutsFromParent])
