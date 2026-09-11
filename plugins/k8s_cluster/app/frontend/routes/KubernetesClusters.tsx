@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
+import { Button } from "@app/components/Button"
+import { Checkbox } from "@app/components/Checkbox"
+import { Input } from "@app/components/Input"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { NoticeToast } from "@app/components/NoticeToast"
@@ -31,7 +34,8 @@ const EMPTY_FORM: KubernetesClusterInput = {
   kubeconfig: ""
 }
 
-const INPUT_CLASSES = "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
+const INPUT_CLASSES =
+  "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
 const TEXTAREA_CLASSES = `${INPUT_CLASSES} font-mono text-xs`
 
 export function KubernetesClusters() {
@@ -112,7 +116,11 @@ function ClusterCreateForm({ onNotice }: { onNotice: (message: string | null) =>
           <TestButton onTest={() => testDraftKubernetesCluster(values)} />
         </div>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
+      {create.isError ? (
+        <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(create.error, t("create_error_fallback"))}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -141,31 +149,39 @@ function ClustersTable({
               <th className="px-4 py-2">{t("col_agentic_access")}</th>
               <th className="px-4 py-2">{t("col_allow_writes")}</th>
               <th className="px-4 py-2">{t("col_insecure_skip_tls_verify")}</th>
-              <th className="px-4 py-2"><span className="sr-only">{t("col_actions")}</span></th>
+              <th className="px-4 py-2">
+                <span className="sr-only">{t("col_actions")}</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
             {clusters.length === 0 ? (
-              <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={7}>{t("empty")}</td></tr>
-            ) : clusters.map((cluster) => (
-              editingId === cluster.id ? (
-                <ClusterEditRow
-                  cluster={cluster}
-                  key={cluster.id}
-                  onCancel={() => setEditingId(null)}
-                  onNotice={onNotice}
-                  onSaved={() => setEditingId(null)}
-                />
-              ) : (
-                <ClusterRow
-                  cluster={cluster}
-                  key={cluster.id}
-                  onBrowse={() => onBrowse(cluster)}
-                  onEdit={() => setEditingId(cluster.id)}
-                  onNotice={onNotice}
-                />
+              <tr>
+                <td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
+                  {t("empty")}
+                </td>
+              </tr>
+            ) : (
+              clusters.map((cluster) =>
+                editingId === cluster.id ? (
+                  <ClusterEditRow
+                    cluster={cluster}
+                    key={cluster.id}
+                    onCancel={() => setEditingId(null)}
+                    onNotice={onNotice}
+                    onSaved={() => setEditingId(null)}
+                  />
+                ) : (
+                  <ClusterRow
+                    cluster={cluster}
+                    key={cluster.id}
+                    onBrowse={() => onBrowse(cluster)}
+                    onEdit={() => setEditingId(cluster.id)}
+                    onNotice={onNotice}
+                  />
+                )
               )
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -243,23 +259,14 @@ function ClusterActions({
   return (
     <div>
       <div className="flex flex-wrap items-start justify-end gap-2">
-        <button
-          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90"
-          onClick={onBrowse}
-          type="button"
-        >
+        <Button onClick={onBrowse} size="sm">
           {t("browse_button")}
-        </button>
+        </Button>
         <TestButton onTest={() => testKubernetesCluster(cluster.id)} />
-        <button
-          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          onClick={onEdit}
-          type="button"
-        >
+        <Button onClick={onEdit} size="sm" variant="secondary">
           {t("edit_button")}
-        </button>
-        <button
-          className="rounded border border-red-300 dark:border-red-900 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+        </Button>
+        <Button
           disabled={destroy.isPending}
           onClick={() => {
             if (window.confirm(t("confirm_delete", { label: cluster.label }))) {
@@ -267,10 +274,11 @@ function ClusterActions({
               destroy.mutate()
             }
           }}
-          type="button"
+          size="sm"
+          variant="danger"
         >
           {destroy.isPending ? t("deleting") : t("delete_button")}
-        </button>
+        </Button>
       </div>
       {destroy.isError ? (
         <p className="mt-2 text-right text-xs text-red-700 dark:text-red-300" role="alert">
@@ -321,30 +329,21 @@ function ClusterEditRow({
       <td className="px-4 py-4" colSpan={7}>
         <form className="space-y-3" onSubmit={submit}>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
-          <ClusterFieldsGrid
-            idPrefix={`edit-cluster-${cluster.id}`}
-            kubeconfigHint={t("field_kubeconfig_hint_edit")}
-            onChange={setValues}
-            values={values}
-          />
+          <ClusterFieldsGrid idPrefix={`edit-cluster-${cluster.id}`} kubeconfigHint={t("field_kubeconfig_hint_edit")} onChange={setValues} values={values} />
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={update.isPending}
-              type="submit"
-            >
+            <Button disabled={update.isPending} size="sm" type="submit">
               {update.isPending ? t("saving") : t("save_button")}
-            </button>
-            <button
-              className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-              onClick={onCancel}
-              type="button"
-            >
+            </Button>
+            <Button onClick={onCancel} size="sm" variant="secondary">
               {t("cancel_button")}
-            </button>
+            </Button>
             <TestButton onTest={() => testKubernetesCluster(cluster.id, values.kubeconfig || undefined)} />
           </div>
-          {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
+          {update.isError ? (
+            <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+              {errorMessage(update.error, t("update_error_fallback"))}
+            </p>
+          ) : null}
         </form>
       </td>
     </tr>
@@ -374,7 +373,7 @@ function ClusterFieldsGrid({
     <div className="grid gap-3">
       <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-label`}>
         {t("field_label")}
-        <input
+        <Input
           className={INPUT_CLASSES}
           id={`${idPrefix}-label`}
           onChange={(event) => set("label", event.target.value)}
@@ -397,12 +396,11 @@ function ClusterFieldsGrid({
         {kubeconfigHint ? <span className="mt-1 block text-xs normal-case text-gray-500 dark:text-gray-400">{kubeconfigHint}</span> : null}
       </label>
       <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300" htmlFor={`${idPrefix}-agentic-access`}>
-        <input
+        <Checkbox
           checked={values.agentic_access_enabled}
           className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
           id={`${idPrefix}-agentic-access`}
           onChange={(event) => set("agentic_access_enabled", event.target.checked)}
-          type="checkbox"
         />
         <span>
           {t("field_agentic_access")}
@@ -410,12 +408,11 @@ function ClusterFieldsGrid({
         </span>
       </label>
       <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300" htmlFor={`${idPrefix}-allow-writes`}>
-        <input
+        <Checkbox
           checked={values.allow_writes}
           className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
           id={`${idPrefix}-allow-writes`}
           onChange={(event) => set("allow_writes", event.target.checked)}
-          type="checkbox"
         />
         <span>
           {t("field_allow_writes")}
@@ -423,12 +420,11 @@ function ClusterFieldsGrid({
         </span>
       </label>
       <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300" htmlFor={`${idPrefix}-insecure`}>
-        <input
+        <Checkbox
           checked={values.insecure_skip_tls_verify}
           className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
           id={`${idPrefix}-insecure`}
           onChange={(event) => set("insecure_skip_tls_verify", event.target.checked)}
-          type="checkbox"
         />
         <span>
           {t("field_insecure_skip_tls_verify")}
@@ -445,14 +441,9 @@ function TestButton({ onTest }: { onTest: () => Promise<KubernetesClusterTestRes
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <button
-        className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={test.isPending}
-        onClick={() => test.mutate()}
-        type="button"
-      >
+      <Button disabled={test.isPending} onClick={() => test.mutate()} size="sm" variant="secondary">
         {test.isPending ? t("testing") : t("test_button")}
-      </button>
+      </Button>
       {test.isSuccess ? (
         test.data.success ? (
           <p className="text-xs text-emerald-700 dark:text-emerald-300">{t("test_success")}</p>
