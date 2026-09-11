@@ -172,6 +172,62 @@ RSpec.describe "App API insight suggestions", type: :request do
       )
     end
 
+    it "filters suggestions by created_at range and returns filter-aware counts" do
+      old = create_suggestion(title: "Old insight")
+      fresh = create_suggestion(title: "Fresh insight")
+      accepted_fresh = create_suggestion(title: "Accepted fresh")
+      accepted_fresh.accept!
+      old.update_column(:created_at, Time.zone.parse("2026-06-15T12:00:00Z"))
+      fresh.update_column(:created_at, Time.zone.parse("2026-07-10T12:00:00Z"))
+      accepted_fresh.update_column(:created_at, Time.zone.parse("2026-07-11T12:00:00Z"))
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "created_at", "op" => "between", "value" => [ "2026-07-01T00:00:00Z", "2026-07-31T23:59:59Z" ] }
+        ]
+      )
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: { q: q }
+
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to match_array([ fresh.id, accepted_fresh.id ])
+      expect(body["meta"]).to include("total" => 2, "state" => "all")
+      expect(body.dig("meta", "counts")).to include(
+        "pending" => 1,
+        "accepted" => 1,
+        "all" => 2
+      )
+    end
+
+    it "combines smart folders with explicit filters for suggestions and counts" do
+      AgentInsights::SmartFolders.default_folder
+      accepted_folder = SmartFolder.builtins(AgentInsights::SmartFolders::SUBJECT).find_by!(name: "Accepted")
+      pending_high = create_suggestion(title: "Pending high", severity: "high")
+      accepted_high = create_suggestion(title: "Accepted high", severity: "high")
+      accepted_low = create_suggestion(title: "Accepted low", severity: "low")
+      accepted_high.accept!
+      accepted_low.accept!
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "severity", "op" => "is", "value" => "high" }
+        ]
+      )
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions",
+          params: { smart_folder_id: accepted_folder.id, q: q }
+
+      body = parse_body
+      expect(body["active_smart_folder_id"]).to eq(accepted_folder.id)
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ accepted_high.id ])
+      expect(body.dig("meta", "counts")).to include(
+        "pending" => 1,
+        "accepted" => 1,
+        "all" => 2
+      )
+      accepted_nav = body["smart_folders"].find { |folder| folder["id"] == accepted_folder.id }
+      expect(accepted_nav).to include("count" => 1, "path" => "/repositories/#{repository.id}/plugin/insights?smart_folder_id=#{accepted_folder.id}")
+      expect(body["suggestions"].map { |s| s["id"] }).not_to include(pending_high.id, accepted_low.id)
+    end
+
     it "excludes retired suggestions from the pending state filter and includes them in retired/all" do
       pending_suggestion = create_suggestion(title: "Pending")
       retired = create_suggestion(title: "Stale")
@@ -294,6 +350,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
 
       suggestion = parse_body["suggestions"].first
+      expect(suggestion["slug"]).to eq("INSIGHT-#{suggestion["id"]}")
       expect(suggestion["title"]).to eq("Cache misses")
       expect(suggestion["category"]).to eq("inefficiency")
       expect(suggestion["severity"]).to eq("medium")

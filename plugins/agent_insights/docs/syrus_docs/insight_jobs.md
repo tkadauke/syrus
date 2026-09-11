@@ -69,7 +69,13 @@ Each `AgentInsights::Suggestion` captures:
 
 ## Reviewing Suggestions
 
-Navigate to `/repositories/:id/plugin/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Filter by state: Pending, Accepted, Dismissed, or All. Lists are paginated, and the state counts reflect all matching suggestions, not only the current page.
+Navigate to `/repositories/:id/plugin/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). The repository view uses the shared smart-folder and FilterBar controls:
+
+- Built-in folders cover Pending, Accepted, Dismissed, Retired, and All, with counts computed after any active FilterBar chips.
+- Filters are URL-addressable through the shared `q=` query parameter and support created date/range, state, severity, proposal type, category, confidence, and whether accepting the insight created a Job.
+- Changing folders or filters resets pagination, and copied URLs preserve the selected folder, filter chips, and page.
+
+Lists are paginated, and the visible counts reflect all matching suggestions, not only the current page.
 
 Regular chat agents can inspect the same suggestions with `list_insights` and
 `read_insight`. Non-admin chat agents can only list/read suggestions for the
@@ -81,6 +87,7 @@ agent insight workflows because that tool records against the anchor insight Job
 and its workflow artifacts.
 
 Each suggestion shows:
+- A stable copyable slug in the form `INSIGHT-<id>` for chat, docs, and operator references
 - Title, category tag, severity pill, confidence percentage, and age
 - Clickable evidence links to jobs and run transcripts
 - Expandable detail showing the suggested prompt and memory suggestion text

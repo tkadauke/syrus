@@ -94,6 +94,7 @@ module Api
           def admin_suggestion_json(suggestion)
             {
               id: suggestion.id,
+              slug: "INSIGHT-#{suggestion.id}",
               title: suggestion.redacted_title,
               category: suggestion.redacted_category,
               severity: suggestion.severity,
@@ -116,7 +117,7 @@ module Api
                 id: suggestion.repository.id,
                 slug: suggestion.repository.slug,
                 repository_path: repository_path(suggestion.repository),
-                insights_path: "/repositories/#{suggestion.repository.id}/insights"
+                insights_path: "/repositories/#{suggestion.repository.id}/plugin/insights"
               },
               user: {
                 id: suggestion.job.user_id,

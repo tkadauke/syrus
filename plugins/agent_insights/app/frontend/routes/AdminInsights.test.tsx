@@ -8,6 +8,7 @@ import { AdminInsightsRoute } from "./AdminInsights"
 function makeSuggestion(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
+    slug: "INSIGHT-1",
     title: "Cross-repo cache miss",
     category: "inefficiency",
     severity: "medium",
@@ -32,7 +33,7 @@ function makeSuggestion(overrides: Record<string, unknown> = {}) {
     retired_at: null,
     created_at: "2026-07-01T00:00:00Z",
     created_job: null,
-    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/insights" },
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/plugin/insights" },
     user: { id: 1, display_name: "Alice" },
     ...overrides
   }

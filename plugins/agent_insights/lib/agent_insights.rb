@@ -46,5 +46,10 @@ module AgentInsights
     always do |scope|
       AgentInsights::DataCleanup.install_into(scope)
     end
+
+    while_enabled do |scope|
+      AgentInsights::FilterSubject.install_into(scope)
+      AgentInsights::SmartFolders.install_into(scope)
+    end
   end
 end

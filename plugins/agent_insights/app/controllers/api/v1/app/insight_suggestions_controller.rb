@@ -48,13 +48,15 @@ module Api
 
           page     = page_param
           per_page = per_page_param
-          state    = state_param
+          active_folder = active_smart_folder
+          filter = current_filter(active_folder)
+          count_filter = current_filter(nil, count_filter_params)
 
           base_relation = AgentInsights::Suggestion.for_repository(repository)
             .includes(:job, :created_job)
             .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC"))
 
-          relation    = state == "all" ? base_relation : base_relation.where(state: state)
+          relation    = filter.apply(base_relation)
           total       = relation.count
           total_pages = [ (total.to_f / per_page).ceil, 1 ].max
           suggestions = relation.offset((page - 1) * per_page).limit(per_page)
@@ -63,14 +65,18 @@ module Api
             repository: repository_summary_json(repository),
             tabs: repository_tabs_json(repository),
             counts: suggestion_counts(repository),
+            filter: filter.to_h,
+            filter_schema: AgentInsights::Filter.schema(user: Current.user),
+            active_smart_folder_id: active_folder&.id,
+            smart_folders: smart_folders(repository, active_folder, count_filter),
             suggestions: suggestions.map { |s| suggestion_json(s) },
             meta: {
               total:       total,
               page:        page,
               per_page:    per_page,
               total_pages: total_pages,
-              state:       state,
-              counts:      state_counts(AgentInsights::Suggestion.for_repository(repository))
+              state:       meta_state(active_folder),
+              counts:      state_counts(count_filter.apply(AgentInsights::Suggestion.for_repository(repository)))
             }
           }
         end
@@ -144,6 +150,53 @@ module Api
 
         def suggestion_counts(repository)
           state_counts(AgentInsights::Suggestion.for_repository(repository)).transform_keys(&:to_s)
+        end
+
+        def active_smart_folder
+          if params.key?(:smart_folder_id)
+            ::Admin::SmartFolderNavigation.active_folder(
+              subject: AgentInsights::SmartFolders::SUBJECT,
+              user: Current.user,
+              params: params
+            )
+          elsif params[:q].present? || params.key?(:state)
+            nil
+          else
+            AgentInsights::SmartFolders.default_folder
+          end
+        end
+
+        def current_filter(active_folder, filter_params = params)
+          AgentInsights::Filter.from_params(filter_params, smart_folder: active_folder, user: Current.user)
+        end
+
+        def count_filter_params
+          params.except(:state, :smart_folder_id)
+        end
+
+        def legacy_state_filter?
+          params[:state].present? && params[:state] != "all"
+        end
+
+        def meta_state(active_folder)
+          return params[:state] if AgentInsights::Filter::STATES.include?(params[:state].to_s)
+
+          AgentInsights::SmartFolders::BUILTINS
+            .find { |definition| definition[:name] == active_folder&.name }
+            &.fetch(:filter, {})
+            &.dig("and", 0, "value") || "all"
+        end
+
+        def smart_folders(repository, active_folder, count_filter)
+          ::Admin::SmartFolderNavigation.new(
+            subject: AgentInsights::SmartFolders::SUBJECT,
+            user: Current.user,
+            active_folder: active_folder,
+            base_scope: count_filter.apply(AgentInsights::Suggestion.for_repository(repository)),
+            filter_class: AgentInsights::Filter
+          ).folders
+            .reject { |folder| folder[:i18n_key] == "agent_insights_all" }
+            .map { |folder| folder.merge(path: repository_insights_path(repository, smart_folder_id: folder[:id])) }
         end
 
         def require_agent_insights_feature
@@ -263,6 +316,7 @@ module Api
         def suggestion_json(suggestion)
           {
             id: suggestion.id,
+            slug: "INSIGHT-#{suggestion.id}",
             title: suggestion.redacted_title,
             category: suggestion.redacted_category,
             severity: suggestion.severity,
@@ -348,8 +402,14 @@ module Api
             id: repository.id,
             slug: repository.slug,
             repository_path: repository_path(repository),
-            insights_path: "/repositories/#{repository.id}/insights"
+            insights_path: repository_insights_path(repository)
           }
+        end
+
+        def repository_insights_path(repository, **query)
+          params = query.compact_blank
+          path = "/repositories/#{repository.id}/plugin/insights"
+          params.empty? ? path : "#{path}?#{params.to_query}"
         end
 
         def created_job_summary_json(job)

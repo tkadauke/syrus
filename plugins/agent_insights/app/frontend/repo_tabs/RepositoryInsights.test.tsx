@@ -2,7 +2,7 @@ import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { RepositoryInsightsRoute } from "./RepositoryInsights"
 import * as useConfirmModule from "@app/hooks/useConfirm"
@@ -11,6 +11,7 @@ import i18n from "@app/i18n"
 function makeSuggestion(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
+    slug: "INSIGHT-1",
     title: "Frequent prepare failures",
     category: "repeated_failure",
     severity: "high",
@@ -60,11 +61,37 @@ function makeCounts(suggestions: unknown[]) {
   return counts
 }
 
+function smartFolders(counts = { pending: 1, accepted: 0, dismissed: 0, retired: 0, all: 1 }, activeId: number | null = 11) {
+  return [
+    { id: 11, name: "Pending", i18n_key: "agent_insights_pending", position: 0, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.pending, active: activeId === 11, filter: { and: [{ field: "state", op: "is", value: "pending" }] }, path: "/repositories/1/plugin/insights?smart_folder_id=11" },
+    { id: 12, name: "Accepted", i18n_key: "agent_insights_accepted", position: 1, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.accepted, active: activeId === 12, filter: { and: [{ field: "state", op: "is", value: "accepted" }] }, path: "/repositories/1/plugin/insights?smart_folder_id=12" },
+    { id: 13, name: "Dismissed", i18n_key: "agent_insights_dismissed", position: 2, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.dismissed, active: activeId === 13, filter: { and: [{ field: "state", op: "is", value: "dismissed" }] }, path: "/repositories/1/plugin/insights?smart_folder_id=13" },
+    { id: 14, name: "Retired", i18n_key: "agent_insights_retired", position: 3, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.retired, active: activeId === 14, filter: { and: [{ field: "state", op: "is", value: "retired" }] }, path: "/repositories/1/plugin/insights?smart_folder_id=14" }
+  ]
+}
+
+function filterSchema() {
+  return [
+    { field: "created_at", label: "Created", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago"], values: [], date_precision: "datetime" },
+    { field: "state", label: "State", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset"], values: [{ value: "pending", label: "pending" }, { value: "accepted", label: "accepted" }, { value: "dismissed", label: "dismissed" }, { value: "retired", label: "retired" }] },
+    { field: "severity", label: "Severity", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset"], values: [{ value: "high", label: "high" }, { value: "medium", label: "medium" }, { value: "low", label: "low" }] },
+    { field: "proposal_type", label: "Proposal type", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset"], values: [{ value: "create_job", label: "create_job" }] },
+    { field: "category", label: "Category", bucket: "string", operators: ["contains", "equals"], values: [] },
+    { field: "confidence", label: "Confidence", bucket: "number", operators: ["equals", "greater_than", "less_than", "between"], values: [] },
+    { field: "created_job_present", label: "Created job", bucket: "boolean", operators: ["is_true", "is_false"], values: [] }
+  ]
+}
+
 function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ total: suggestions.length }), counts = makeCounts(suggestions)) {
+  const activeId = meta.state === "accepted" ? 12 : meta.state === "dismissed" ? 13 : meta.state === "retired" ? 14 : meta.state === "all" ? null : 11
   return {
-    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/insights" },
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/plugin/insights" },
     tabs: [],
     counts,
+    filter: { and: activeId ? [smartFolders(counts, activeId).find((folder) => folder.id === activeId)?.filter?.and?.[0]] : [] },
+    filter_schema: filterSchema(),
+    active_smart_folder_id: activeId,
+    smart_folders: smartFolders(counts, activeId),
     suggestions,
     meta
   }
@@ -80,11 +107,12 @@ function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
 function renderRouteByState(responses: Partial<Record<StateFilter, { suggestions: unknown[]; meta?: Record<string, unknown>; counts?: Record<StateFilter, number> }>>) {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = new URL(String(input), "http://example.test")
-    const state = (url.searchParams.get("state") || "all") as StateFilter
+    const folderState: Record<string, StateFilter> = { "11": "pending", "12": "accepted", "13": "dismissed", "14": "retired" }
+    const state = (folderState[url.searchParams.get("smart_folder_id") || "11"] || "all") as StateFilter
     const response = responses[state] || responses.all || responses.pending || { suggestions: [] }
     return Promise.resolve(jsonResponse(payload(
       response.suggestions,
-      response.meta ? makeMeta(response.meta) : makeMeta({ total: response.suggestions.length }),
+      response.meta ? makeMeta({ state, ...response.meta }) : makeMeta({ total: response.suggestions.length, state }),
       response.counts || makeCounts(response.suggestions)
     )))
   })
@@ -96,9 +124,9 @@ function renderRepositoryInsightsRoute() {
   render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1/plugin/insights"]}>
           <Routes>
-            <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/insights" />
+            <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/plugin/insights" />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
@@ -107,6 +135,23 @@ function renderRepositoryInsightsRoute() {
 }
 
 type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
+
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
+function decodedFilterFromLocation() {
+  const location = screen.getByTestId("location").textContent || ""
+  const query = location.split("?")[1] || ""
+  const q = new URLSearchParams(query).get("q")
+  if (!q) return null
+
+  const normalized = q.replace(/-/g, "+").replace(/_/g, "/")
+  const base64 = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+  const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+  return JSON.parse(new TextDecoder().decode(bytes))
+}
 
 describe("RepositoryInsightsRoute", () => {
   afterEach(async () => {
@@ -136,6 +181,92 @@ describe("RepositoryInsightsRoute", () => {
     expect(await screen.findByRole("heading", { level: 3, name: "Trim repeated setup retries" })).toBeInTheDocument()
     const confidence = screen.getByText(/40% confidence/)
     expect(within(confidence).getByText("2 hours ago")).toHaveAttribute("dateTime", "2026-06-25T10:00:00Z")
+  })
+
+  it("renders a copyable insight slug on suggestion cards", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    })
+
+    renderRoute()
+
+    const copyButton = await screen.findByRole("button", { name: "Copy INSIGHT-1 to clipboard" })
+    expect(copyButton).toHaveTextContent("INSIGHT-1")
+
+    fireEvent.click(copyButton)
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("INSIGHT-1")
+    })
+  })
+
+  it("submits created date filters through the URL and clears pagination", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/app-shell/repositories/1/plugin/insights?page=3"]}>
+            <Routes>
+              <Route element={<><RepositoryInsightsRoute /><LocationProbe /></>} path="/app-shell/repositories/:repositoryId/plugin/insights" />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </I18nextProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Created date" }))
+
+    await waitFor(() => {
+      expect(decodedFilterFromLocation()).toEqual(expect.objectContaining({
+        and: expect.arrayContaining([expect.objectContaining({ field: "created_at" })])
+      }))
+      expect(screen.getByTestId("location")).not.toHaveTextContent("page=3")
+    })
+  })
+
+  it("rewrites saved smart-folder redirects back to the repository plugin insights route", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = new URL(String(input), "http://example.test")
+      const method = init?.method
+      if (url.pathname === "/api/v1/app/smart_folders" && method === "POST") {
+        return Promise.resolve(jsonResponse({
+          redirect_to: "/agent_insights?smart_folder_id=22",
+          smart_folder: { id: 22, name: "High confidence", path: "/agent_insights?smart_folder_id=22" }
+        }))
+      }
+      return Promise.resolve(jsonResponse({
+        ...payload(),
+        active_smart_folder_id: null,
+        filter: { and: [{ field: "severity", op: "is", value: "high" }] }
+      }))
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/app-shell/repositories/1/plugin/insights?q=severity"]}>
+            <Routes>
+              <Route element={<><RepositoryInsightsRoute /><LocationProbe /></>} path="/app-shell/repositories/:repositoryId/plugin/insights" />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </I18nextProvider>
+    )
+
+    fireEvent.change(await screen.findByLabelText(/Folder name/), { target: { value: "High confidence" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/smart_folders",
+        expect.objectContaining({ method: "POST" })
+      )
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/repositories/1/plugin/insights?smart_folder_id=22")
+    })
   })
 
   describe("dismiss confirmation", () => {
@@ -253,7 +384,7 @@ describe("RepositoryInsightsRoute", () => {
       })
 
       // switch to Accepted tab
-      const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
+      const acceptedTab = await screen.findByRole("link", { name: /Accepted/ })
       fireEvent.click(acceptedTab)
 
       const link = await screen.findByRole("link", { name: "JOB-42" })
@@ -261,24 +392,28 @@ describe("RepositoryInsightsRoute", () => {
     })
   })
 
-  describe("state filter", () => {
-    it("supports changing state through the compact filter select", async () => {
+  describe("smart folders", () => {
+    it("supports changing state through smart-folder links", async () => {
       const dismissed = makeSuggestion({ state: "dismissed" })
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
-        const url = String(input)
-        const state = new URL(url, "http://example.test").searchParams.get("state")
-        return Promise.resolve(jsonResponse(payload(state === "dismissed" ? [dismissed] : [])))
+        const url = new URL(String(input), "http://example.test")
+        const selectedDismissed = url.searchParams.get("smart_folder_id") === "13"
+        return Promise.resolve(jsonResponse(payload(
+          selectedDismissed ? [dismissed] : [],
+          makeMeta({ state: selectedDismissed ? "dismissed" : "pending", total: selectedDismissed ? 1 : 0 })
+        )))
       })
 
       renderRepositoryInsightsRoute()
 
-      const compactFilter = await screen.findByRole("combobox", { name: "Filter by state" })
-      fireEvent.change(compactFilter, { target: { value: "dismissed" } })
+      const dismissedFolder = await screen.findByRole("link", { name: /Dismissed/ })
+      expect(dismissedFolder).toHaveAttribute("href", "/app-shell/repositories/1/plugin/insights?smart_folder_id=13")
+      fireEvent.click(dismissedFolder)
 
       await screen.findByText("Frequent prepare failures")
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("state=dismissed"),
+          expect.stringContaining("smart_folder_id=13"),
           expect.anything()
         )
       })
@@ -311,7 +446,7 @@ describe("RepositoryInsightsRoute", () => {
         accepted: { suggestions: [accepted] }
       })
 
-      const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
+      const acceptedTab = await screen.findByRole("link", { name: /Accepted/ })
       fireEvent.click(acceptedTab)
 
       expect(await screen.findByRole("button", { name: "Save as memory" })).toBeInTheDocument()
@@ -328,7 +463,7 @@ describe("RepositoryInsightsRoute", () => {
         accepted: { suggestions: [accepted] }
       })
 
-      const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
+      const acceptedTab = await screen.findByRole("link", { name: /Accepted/ })
       fireEvent.click(acceptedTab)
 
       await screen.findByText("Frequent prepare failures")
@@ -606,7 +741,7 @@ describe("RepositoryInsightsRoute", () => {
         dismissed: { suggestions: [dismissed] }
       })
 
-      const dismissedTab = await screen.findByRole("button", { name: /Dismissed/ })
+      const dismissedTab = await screen.findByRole("link", { name: /Dismissed/ })
       fireEvent.click(dismissedTab)
 
       expect(await screen.findByRole("button", { name: "Undismiss" })).toBeInTheDocument()
@@ -621,13 +756,16 @@ describe("RepositoryInsightsRoute", () => {
         if (url.includes("/insight_suggestions/1") && method === "PATCH") {
           return Promise.resolve(jsonResponse({ message: "Suggestion restored to pending.", suggestion: makeSuggestion({ state: "pending" }) }))
         }
-        const state = new URL(url, "http://example.test").searchParams.get("state")
-        return Promise.resolve(jsonResponse(payload(state === "dismissed" ? [dismissed] : [])))
+        const selectedDismissed = new URL(url, "http://example.test").searchParams.get("smart_folder_id") === "13"
+        return Promise.resolve(jsonResponse(payload(
+          selectedDismissed ? [dismissed] : [],
+          makeMeta({ state: selectedDismissed ? "dismissed" : "pending", total: selectedDismissed ? 1 : 0 })
+        )))
       })
 
       renderRepositoryInsightsRoute()
 
-      const dismissedTab = await screen.findByRole("button", { name: /Dismissed/ })
+      const dismissedTab = await screen.findByRole("link", { name: /Dismissed/ })
       fireEvent.click(dismissedTab)
 
       const undismissBtn = await screen.findByRole("button", { name: "Undismiss" })
@@ -643,27 +781,30 @@ describe("RepositoryInsightsRoute", () => {
   })
 
   describe("retired insights", () => {
-    it("shows a Retired tab and switching to it fetches state=retired", async () => {
+    it("shows a Retired folder and switching to it fetches that folder", async () => {
       const retired = makeSuggestion({
         state: "retired",
         retired_reason: "Folded into a newer finding.",
         superseded_by_insight_id: 7
       })
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
-        const url = String(input)
-        const state = new URL(url, "http://example.test").searchParams.get("state")
-        return Promise.resolve(jsonResponse(payload(state === "retired" ? [retired] : [])))
+        const url = new URL(String(input), "http://example.test")
+        const selectedRetired = url.searchParams.get("smart_folder_id") === "14"
+        return Promise.resolve(jsonResponse(payload(
+          selectedRetired ? [retired] : [],
+          makeMeta({ state: selectedRetired ? "retired" : "pending", total: selectedRetired ? 1 : 0 })
+        )))
       })
 
       renderRepositoryInsightsRoute()
 
-      const retiredTab = await screen.findByRole("button", { name: /Retired/ })
+      const retiredTab = await screen.findByRole("link", { name: /Retired/ })
       fireEvent.click(retiredTab)
 
       await screen.findByText("Frequent prepare failures")
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("state=retired"),
+          expect.stringContaining("smart_folder_id=14"),
           expect.anything()
         )
       })
@@ -680,7 +821,7 @@ describe("RepositoryInsightsRoute", () => {
         retired: { suggestions: [retired] }
       })
 
-      fireEvent.click(await screen.findByRole("button", { name: /Retired/ }))
+      fireEvent.click(await screen.findByRole("link", { name: /Retired/ }))
       fireEvent.click(await screen.findByRole("button", { name: "Expand" }))
 
       expect(screen.getAllByText("Retired").length).toBeGreaterThanOrEqual(2)
@@ -697,8 +838,8 @@ describe("RepositoryInsightsRoute", () => {
 
       await screen.findByText("Frequent prepare failures")
 
-      expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument()
-      expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "Next" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "Previous" })).not.toBeInTheDocument()
     })
 
     it("renders pagination controls when total_pages > 1", async () => {
@@ -709,7 +850,7 @@ describe("RepositoryInsightsRoute", () => {
 
       await screen.findByText("Showing 1–20 of 25")
 
-      expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Next" })).toBeInTheDocument()
     })
 
     it("Previous is disabled (not a button) on page 1", async () => {
@@ -720,47 +861,18 @@ describe("RepositoryInsightsRoute", () => {
 
       await screen.findByText("Showing 1–20 of 25")
 
-      expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "Previous" })).not.toBeInTheDocument()
       expect(screen.getByText("Previous")).toBeInTheDocument()
     })
 
-    it("clicking Next re-fetches with page=2", async () => {
+    it("links Next to the same repository plugin route with page=2", async () => {
       const page1Suggestions = Array.from({ length: 20 }, (_, i) =>
         makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
       )
-      const page2Suggestions = [makeSuggestion({ id: 21, title: "Suggestion 21" })]
+      renderRoute(page1Suggestions, { total: 21, page: 1, per_page: 20, total_pages: 2 })
 
-      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
-        const url = String(input)
-        if (url.includes("page=2")) {
-          return Promise.resolve(jsonResponse(payload(page2Suggestions, makeMeta({ total: 21, page: 2, per_page: 20, total_pages: 2 }))))
-        }
-        return Promise.resolve(jsonResponse(payload(page1Suggestions, makeMeta({ total: 21, page: 1, per_page: 20, total_pages: 2 }))))
-      })
-
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      render(
-        <I18nextProvider i18n={i18n}>
-          <QueryClientProvider client={client}>
-            <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
-              <Routes>
-                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/insights" />
-              </Routes>
-            </MemoryRouter>
-          </QueryClientProvider>
-        </I18nextProvider>
-      )
-
-      await screen.findByText("Showing 1–20 of 21")
-
-      fireEvent.click(screen.getByRole("button", { name: "Next" }))
-
-      await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("page=2"),
-          expect.anything()
-        )
-      })
+      const nextLink = await screen.findByRole("link", { name: "Next" })
+      expect(nextLink).toHaveAttribute("href", "/app-shell/repositories/1/plugin/insights?page=2")
     })
 
     it("fetches and paginates the selected state tab", async () => {
@@ -774,7 +886,7 @@ describe("RepositoryInsightsRoute", () => {
 
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
         const url = String(input)
-        if (url.includes("state=accepted")) {
+        if (url.includes("smart_folder_id=12")) {
           return Promise.resolve(jsonResponse(payload(acceptedSuggestions, makeMeta({ total: 25, page: 1, per_page: 20, total_pages: 2 }), counts)))
         }
         return Promise.resolve(jsonResponse(payload(pendingSuggestions, makeMeta({ total: 20, page: 1, per_page: 20, total_pages: 1 }), counts)))
@@ -784,9 +896,9 @@ describe("RepositoryInsightsRoute", () => {
       render(
         <I18nextProvider i18n={i18n}>
           <QueryClientProvider client={client}>
-            <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
+            <MemoryRouter initialEntries={["/app-shell/repositories/1/plugin/insights"]}>
               <Routes>
-                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/insights" />
+                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/plugin/insights" />
               </Routes>
             </MemoryRouter>
           </QueryClientProvider>
@@ -794,15 +906,15 @@ describe("RepositoryInsightsRoute", () => {
       )
 
       await screen.findByText("Pending 1")
-      expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "Next" })).not.toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole("button", { name: /Accepted/ }))
+      fireEvent.click(screen.getByRole("link", { name: /Accepted/ }))
 
       await screen.findByText("Accepted 1")
       expect(screen.getByText("Showing 1–20 of 25")).toBeInTheDocument()
-      expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Next" })).toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining("state=accepted"),
+        expect.stringContaining("smart_folder_id=12"),
         expect.anything()
       )
     })
