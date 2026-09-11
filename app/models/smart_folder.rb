@@ -287,22 +287,56 @@ class SmartFolder < ApplicationRecord
   # reconciliation through Rails.cache (solid_cache, shared across pods
   # in production).
   BUILTIN_RECONCILE_CACHE_TTL = 10.minutes
+  BUILTIN_RECONCILE_LOCK_TIMEOUT = 5
 
   def self.ensure_builtin_set!(subject, definitions)
     subject = subject.to_s
     cache_key = [ "smart_folder/builtins_reconciled", subject, Digest::SHA256.hexdigest(definitions.to_json) ].join("/")
+    return true if Rails.cache.read(cache_key)
 
-    Rails.cache.fetch(cache_key, expires_in: BUILTIN_RECONCILE_CACHE_TTL) do
+    reconciled = with_builtin_reconcile_lock(subject) do
       reconcile_builtin_set!(subject, definitions)
-      true
+      Rails.cache.write(cache_key, true, expires_in: BUILTIN_RECONCILE_CACHE_TTL)
     end
+
+    reconciled || builtin_set_reconciled?(subject, definitions)
+  end
+
+  def self.with_builtin_reconcile_lock(subject)
+    return yield unless connection.adapter_name.match?(/mysql/i)
+
+    lock_name = "syrus:smart_folder:#{Digest::SHA256.hexdigest(subject)[0, 40]}"
+    acquired = connection
+      .select_value("SELECT GET_LOCK(#{connection.quote(lock_name)}, #{BUILTIN_RECONCILE_LOCK_TIMEOUT})")
+      .to_i == 1
+    return false unless acquired
+
+    yield
+    true
+  ensure
+    connection.select_value("SELECT RELEASE_LOCK(#{connection.quote(lock_name)})") if acquired
   end
 
   def self.reconcile_builtin_set!(subject, definitions)
     existing_by_name = canonical_builtin_rows_by_name(subject)
 
     definitions.each_with_index do |definition, index|
-      folder = existing_by_name[definition.fetch(:name)] || new(user_id: nil, subject_type: subject, name: definition.fetch(:name))
+      name = definition.fetch(:name)
+      existing_by_name[name] = reconcile_builtin_definition!(subject, definition, index, existing_by_name[name])
+    end
+
+    # Sweep retired built-ins so they don't keep appearing in the
+    # sidebar after we remove or rename a definition. ("Awaiting your
+    # move" used to live here; its filter resolved to relation.none.)
+    builtin.where(user_id: nil, subject_type: subject).where.not(name: definitions.map { |d| d.fetch(:name) }).destroy_all
+  end
+
+  def self.reconcile_builtin_definition!(subject, definition, index, folder = nil)
+    name = definition.fetch(:name)
+    attempts = 0
+
+    begin
+      folder ||= new(user_id: nil, subject_type: subject, name: name)
       folder.assign_attributes(
         kind: "builtin",
         subject_type: subject,
@@ -310,12 +344,24 @@ class SmartFolder < ApplicationRecord
         position: index
       )
       folder.save! if folder.changed? || folder.new_record?
-    end
+      folder
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+      attempts += 1
+      raise if attempts > 3
 
-    # Sweep retired built-ins so they don't keep appearing in the
-    # sidebar after we remove or rename a definition. ("Awaiting your
-    # move" used to live here; its filter resolved to relation.none.)
-    builtin.where(user_id: nil, subject_type: subject).where.not(name: definitions.map { |d| d.fetch(:name) }).destroy_all
+      connection.clear_query_cache
+      folder = canonical_builtin_rows_by_name(subject)[name]
+      raise unless folder
+
+      retry
+    end
+  end
+
+  def self.builtin_set_reconciled?(subject, definitions)
+    expected_names = definitions.map { |definition| definition.fetch(:name) }
+    counts = builtin.where(user_id: nil, subject_type: subject, name: expected_names).group(:name).count
+
+    expected_names.all? { |name| counts[name] == 1 }
   end
 
   def self.canonical_builtin_rows_by_name(subject)
