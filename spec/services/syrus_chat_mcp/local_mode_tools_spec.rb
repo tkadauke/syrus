@@ -354,6 +354,11 @@ RSpec.describe "Local Mode MCP tools" do
 
     before { chat_session.chat_attachments.create!(attachable: repository) }
 
+    it "advertises natural-language Local Mode job triggers" do
+      expect(described_class.description_value).to include('"local job", "do a local job", "make a local job", "start a local job"')
+      expect(described_class.description_value).to include('"minimal local job"')
+    end
+
     it "creates a direct job in coding state linked to the chat" do
       server = server_with(described_class)
 
