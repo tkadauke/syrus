@@ -221,6 +221,7 @@ module WorkEngine
       issues.concat(classify_paused_queues)
       issues.concat(classify_running_runs)
       issues.concat(classify_active_steps_with_terminal_runs)
+      issues.concat(classify_succeeded_review_steps_without_required_repair)
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
       issues.concat(classify_waiting_work_intents_with_active_units)
@@ -780,6 +781,44 @@ module WorkEngine
             terminal_run_finished_at: terminal_run.finished_at&.iso8601
           ),
           explanation: "Step ##{step.id} is #{step.state} but all of its Runs are terminal, so no worker can advance it."
+        )
+      end
+    end
+
+    def classify_succeeded_review_steps_without_required_repair
+      steps.select(&:succeeded?).filter_map do |step|
+        workflow = step.workflow
+        next unless workflow&.running?
+        next unless step.loop_id.present?
+        next unless older_than?(step.finished_at || step.updated_at, ORPHAN_RUN_GRACE_PERIOD)
+
+        gate = review_gate_for_step(step)
+        next unless gate
+
+        verdict = workflow.artifacts&.dig(gate.fetch(:artifact_key))&.last&.fetch("verdict", nil)
+        next if verdict.blank? || gate.fetch(:exit_verdicts).include?(verdict)
+
+        next unless review_loop_node_for(step)
+        next if review_loop_successor_materialized?(workflow, step)
+
+        issue(
+          kind: :succeeded_review_loop_needs_work_without_repair,
+          severity: :critical,
+          affected_ids: ids_for(step).merge(run_ids: step.runs.pluck(:id)),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "resume_review_loop_repair",
+          evidence: workflow_evidence(workflow).merge(
+            step_id: step.id,
+            step_kind: step.kind,
+            step_state: step.state,
+            step_finished_at: step.finished_at&.iso8601,
+            loop_id: step.loop_id,
+            iteration: step.iteration,
+            verdict: verdict,
+            artifact_key: gate.fetch(:artifact_key),
+            next_iteration: step.iteration + 1
+          ),
+          explanation: "Review Step ##{step.id} recorded #{verdict.inspect}, but the required repair iteration was never materialized."
         )
       end
     end
@@ -2836,6 +2875,26 @@ module WorkEngine
 
       step_runs = runs.select { |run| run.step_id == step.id }
       step_runs.any? && step_runs.all?(&:terminal?)
+    end
+
+    def review_gate_for_step(step)
+      Step::Kind.review_gate_for(step.kind)
+    rescue ArgumentError
+      nil
+    end
+
+    def review_loop_node_for(step)
+      Array(step.workflow.chain_template).find do |node|
+        node["type"] == "loop" &&
+          Array(node["steps"]).map(&:to_s).last == step.kind
+      end
+    end
+
+    def review_loop_successor_materialized?(workflow, step)
+      workflow.steps.any? do |candidate|
+        candidate.loop_id == step.loop_id &&
+          candidate.iteration == step.iteration + 1
+      end
     end
 
     def start_blocked?(workflow)

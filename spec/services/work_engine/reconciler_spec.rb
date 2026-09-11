@@ -3452,6 +3452,101 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("resumed #{prepare.slug} with #{prepare.runs.last.slug}")
   end
 
+  it "materializes a mandatory adversarial review repair when success propagation was interrupted" do
+    review_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "running",
+      started_at: 30.minutes.ago
+    )
+    review_workflow = Workflow.create!(
+      job: review_job,
+      trigger_kind: "initial",
+      state: "running",
+      started_at: 30.minutes.ago,
+      chain_template: [
+        { "type" => "step", "kind" => "implement" },
+        { "type" => "loop", "max_iterations" => 2, "steps" => %w[ implement adversarial_review ] },
+        {
+          "type" => "retry_until",
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        }
+      ],
+      artifacts: {
+        "adversarial_review_iterations" => [
+          { "iteration" => 1, "critique" => "Missing edge-case coverage.", "verdict" => "needs_work" }
+        ]
+      }
+    )
+    initial_implement = Step.create!(
+      workflow: review_workflow,
+      kind: "implement",
+      position: 0,
+      state: "succeeded",
+      started_at: 30.minutes.ago,
+      finished_at: 29.minutes.ago
+    )
+    review = Step.create!(
+      workflow: review_workflow,
+      kind: "adversarial_review",
+      position: 1,
+      iteration: 1,
+      loop_id: "review-loop",
+      state: "succeeded",
+      started_at: 29.minutes.ago,
+      finished_at: 28.minutes.ago
+    )
+    grader_fanout = Step.create!(
+      workflow: review_workflow,
+      kind: "grader_fanout",
+      position: 2,
+      iteration: 1,
+      loop_id: "grade-loop",
+      created_at: 28.minutes.ago
+    )
+    grader_collect = Step.create!(
+      workflow: review_workflow,
+      kind: "grader_collect",
+      position: 3,
+      iteration: 1,
+      loop_id: "grade-loop",
+      created_at: 28.minutes.ago
+    )
+    initial_implement.update!(next_step: review)
+    review.update!(next_step: grader_fanout)
+    grader_fanout.update!(next_step: grader_collect)
+    review_run = review.runs.create!(
+      job: review_job,
+      trigger_kind: review_workflow.trigger_kind,
+      agent_provider: review_workflow.agent_provider,
+      state: "succeeded",
+      started_at: 29.minutes.ago,
+      finished_at: 28.minutes.ago
+    )
+
+    result = reconcile_and_execute(workflow_id: review_workflow.id)
+
+    expect(kind(result, :succeeded_review_loop_needs_work_without_repair)).to be_present
+    expect(plan(result, :resume_review_loop_repair)).to have_attributes(
+      auto_executable: true,
+      target_type: "Step",
+      target_id: review.id
+    )
+    repair = review_workflow.reload.steps.find_by!(kind: "implement", loop_id: "review-loop", iteration: 2)
+    expect(repair).to be_queued
+    expect(repair.runs.last).to have_attributes(state: "queued", job_id: review_job.id)
+    expect(review.reload.next_step).to eq(repair)
+    expect(repair.next_step).to eq(
+      review_workflow.steps.find_by!(kind: "adversarial_review", loop_id: "review-loop", iteration: 2)
+    )
+    expect(result.repair_executions.map(&:message)).to include(
+      "resumed review loop repair from #{review.slug} with #{repair.slug}"
+    )
+    expect(review_run.reload).to be_succeeded
+  end
+
   it "does not resume a queued step whose predecessor has not succeeded" do
     prepare = workflow.steps.order(:position).second
     step.update!(next_step: prepare)
