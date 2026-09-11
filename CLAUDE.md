@@ -149,7 +149,7 @@ rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 landing_validation: speculative_landing_build → prepare → graders
-merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
+merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → try(merge_train_land; base-moved fallback: merge_train_rebase → merge_train_agent_rebase → retry_until(graders, repair: landing_fix) → merge_train_land_after_rebase)
 merge_train_validation: speculative_merge_train_build → prepare → graders
 coding_handoff: prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(graders, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan
 local_mode_handoff: prepare → retry_until(graders, repair: local_mode_handoff_fix) → summarize/test_plan/pr_open or summarize_amend/try(push)
@@ -315,6 +315,18 @@ Key steps:
   train and rebuilding through `LandingRetrier` — the deciding factor is
   the failed step's `Step::Kind#repair_semantics` (`:agentic` steps resume in
   place; `:rebuild`/`:publication` steps force a full merge-train rebuild).
+- **`merge_train_rebase`** / **`merge_train_land_after_rebase`** — Base-moved
+  recovery for merge trains. If `merge_train_land` detects that the base branch
+  moved during grading or landing (`merge_train_base_moved`), the workflow's
+  `Try` node inserts `merge_train_rebase`, which incrementally rebases the
+  integration branch onto the new base tip, records the fresh base SHA, and can
+  carry forward a green grade when `Repository#trust_clean_rebase_grade?` allows
+  it. A clean mechanical rebase skips `merge_train_agent_rebase`; a conflicted
+  rebase leaves the in-progress rebase for that agentic step to finish. The
+  workflow then runs a fresh landing grader loop and finishes with
+  `merge_train_land_after_rebase`, a `MergeTrainLand` subclass that reuses the
+  same push, merge, member reconciliation, and cleanup behavior against the
+  updated integration branch.
 - **`adversarial_review`** — Independent critic agent that reads the issue
   and the diff from the preceding `implement` (or `respond`) step, then calls
   `submit_adversarial_review(verdict, critique)`. Verdict `approved` exits the
