@@ -49,10 +49,11 @@ browser SPA calls.
     `blocked`.
 - `GET /api/v1/admin/worker_timeline/workflow` — `?id=<workflow_id>`,
   `Timeline::WorkflowWaterfallQuery`. Returns the target Workflow (with
-  resolved `worker_storage_key`, `queue_role`, `hostname`, and `pid`) plus
-  its Steps, in order, each carrying the same worker attribution (Step/Run
-  have no host column of their own) and its Runs (`started_at`,
-  `finished_at`, `last_heartbeat_at`).
+  canonical `slug`, `job_slug`, `job_path`, `workflow_path`, and resolved
+  `worker_storage_key`, `queue_role`, `hostname`, and `pid`) plus its Steps,
+  in order, each carrying the same worker attribution (Step/Run have no host
+  column of their own) and its Runs (`started_at`, `finished_at`,
+  `last_heartbeat_at`).
 
 ## Non-admin session-authenticated waterfall endpoint
 
