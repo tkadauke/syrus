@@ -1104,8 +1104,10 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   `spec/config/queue_partitioning_spec.rb` guards both cases.
 - **Per-user max-turns** — `User#agent_max_turns` (default 200, range
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
-  per-run 30-minute timeout still bounds runaway loops). Threaded through
-  RunJob → AgentInvocation for both regular and rebase runs.
+  per-run 90-minute wall-clock timeout still bounds runaway loops). A
+  separate 20-minute no-output timeout treats a silent agent subprocess as
+  wedged rather than merely slow. Threaded through RunJob → AgentInvocation
+  for both regular and rebase runs.
 - **Plugin architecture** — Agent providers, chat providers, MCP tool sets,
   input sources, and source-control providers are registered as plugin gems
   via `Syrus::PluginRegistry`. Bundled plugins live under `plugins/` (e.g.
