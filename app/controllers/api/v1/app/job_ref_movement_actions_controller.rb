@@ -17,7 +17,7 @@ module Api
 
           action_name = params[:action_name].to_s
           unless ALLOWED_ACTIONS.include?(action_name)
-            render_error("validation_failed", "#{action_name.presence || "(blank)"} cannot be dispatched from a Job.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.job_ref_movement_actions.invalid_action", action: action_name.presence || I18n.t("api.job_ref_movement_actions.blank_action")), status: :unprocessable_content)
             return
           end
 
@@ -30,9 +30,9 @@ module Api
 
           if ref_movement_action.dispatched?
             broadcast_job_change(job.reload, [ "pr_links", "workflows", "runs" ])
-            render json: { message: "Sent upstream.", ref_movement_action_id: ref_movement_action.id }
+            render json: { message: I18n.t("api.job_ref_movement_actions.sent_upstream"), ref_movement_action_id: ref_movement_action.id }
           else
-            render_error("validation_failed", ref_movement_action.blocked_reason || "Ref-movement action blocked.", status: :unprocessable_content)
+            render_error("validation_failed", ref_movement_action.blocked_reason || I18n.t("api.job_ref_movement_actions.blocked"), status: :unprocessable_content)
           end
         end
 

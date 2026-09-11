@@ -72,6 +72,24 @@ en:
     admin_required: "Admin access required."
     chat_unavailable: "That chat is no longer available."
 
+  github_app:
+    manifest:
+      title: "Continuing to GitHub…"
+      heading: "Continuing to GitHub…"
+      body: "Sending the Syrus App manifest to GitHub. If nothing happens, use the button below."
+      button: "Continue to GitHub"
+    registered:
+      title: "GitHub App registered"
+      heading: "GitHub App registered"
+      body: "You can close this window and return to Syrus setup."
+    error:
+      title: "GitHub App registration"
+      body: "Return to Syrus and start the registration again."
+    errors:
+      missing_code: "GitHub did not return a manifest code."
+      registration_failed: "GitHub App registration failed: %{error}"
+      invalid_link: "This GitHub App registration link is invalid or has expired."
+
   # API messages
   api:
     base:
@@ -191,6 +209,10 @@ en:
     admin_queue:
       reap_ran: "ReapStaleRunsJob ran inline."
 
+    admin_github_app:
+      register: "Register GitHub App"
+      reregister: "Re-register GitHub App"
+
     admin_features:
       not_found: "Feature not found."
 
@@ -224,3 +246,118 @@ en:
       unlinked: "Platform account disconnected."
       unsupported_platform: "Unsupported platform."
       not_configured: "%{platform} integration is not yet configured on this instance."
+
+    preview:
+      logs_unavailable: "Preview logs are temporarily unavailable."
+      starting: "Preview environment starting."
+      stopping: "Preview environment stopping."
+
+    repository_preview:
+      not_found: "No preview environment found for this repository."
+      archived: "Preview is not available for archived repositories."
+      already_active: "A preview environment is already active for this repository."
+      active_not_found: "No active preview environment found for this repository."
+
+    job_preview:
+      not_found: "No preview environment found for this job."
+      not_previewable: "Preview is only available for implemented, approved, or landing jobs, or landed jobs."
+      already_active: "A preview environment is already active for this job."
+      active_not_found: "No active preview environment found for this job."
+
+    speech_to_text:
+      backend_batch_unavailable: "Backend batch transcription is not configured."
+      backend_streaming_unavailable: "Backend streaming transcription is not configured."
+      missing_file: "Attach an audio file."
+      transcription_failed: "Backend transcription failed."
+      disabled: "Chat speech-to-text is not enabled."
+      unsupported_content_type: "Upload a supported audio file."
+      audio_too_large: "Audio uploads must be 10 MB or smaller."
+      audio_too_long: "Audio uploads must be 120 seconds or shorter."
+
+    repository_documents:
+      added: "Document added."
+      removed: "Document removed."
+
+    skills:
+      agent_not_configured: "That agent is not configured."
+      created: "Skill job created."
+
+    repository_memberships:
+      invalid_role: "Role must be one of %{roles}."
+      user_not_found: "No user found with that email."
+      already_member: "%{email} is already a member of this repository."
+      added: "%{email} added as %{role}."
+      change_last_admin: "Cannot change the role of the last admin — promote another member to admin first."
+      role_updated: "Role updated to %{role}."
+      remove_last_admin: "Cannot remove the last admin — promote another member to admin first."
+      removed: "Member removed."
+
+    repository_team_grants:
+      invalid_role: "Role must be one of %{roles}."
+      team_not_found: "No team found with that name."
+      already_granted: "%{team} already has a grant on this repository."
+      added: "%{team} added as %{role}."
+      role_updated: "Role updated to %{role}."
+      removed: "%{team} removed."
+
+    job_ref_movement_actions:
+      invalid_action: "%{action} cannot be dispatched from a Job."
+      blank_action: "(blank)"
+      sent_upstream: "Sent upstream."
+      blocked: "Ref-movement action blocked."
+
+    plugins:
+      disabled: "The %{plugin} plugin is disabled."
+      route_not_found: "Plugin route not found."
+
+    job_lifecycle:
+      direct_only: "Only direct Jobs can be started manually."
+      thread_closed: "Thread is closed - reopen it before starting work."
+      backlogged: "Job is in backlog - release it before starting work."
+      run_active: "A Run is already in progress - wait for it to finish."
+      already_started: "This Job has already been started - use Retry instead."
+      initial_enqueued: "Initial workflow enqueued."
+      release_backlog_only: "Only backlogged Jobs can be released."
+      release_unavailable: "%{slug} is %{state} and cannot be released from backlog."
+      released_from_backlog: "Job released from backlog."
+      move_to_backlog_unavailable: "%{slug} cannot move to backlog after runtime work, review, landing, or PR creation has started."
+      moved_to_backlog: "Job moved to backlog."
+      not_awaiting_triage: "%{slug} is not awaiting triage."
+      accepted: "Job accepted."
+      rejected: "Job rejected."
+      retry_enqueued: "Retry workflow enqueued."
+      retry_enqueued_with_provider: "Retry workflow enqueued with %{provider}."
+      started_over: "Started over - new branch and PR will be created."
+      already_closed: "Job is already closed."
+      cancellation_requested: "Cancellation requested."
+      not_landing: "Job is not currently landing."
+      landing_stopped: "Landing stopped."
+      force_fail_unavailable: "%{slug} is %{state} and cannot be force-failed."
+      force_failed: "Job force-failed."
+      auto_merge_disabled: "Auto-merge is disabled for %{slug}; enable it in repository settings before approving."
+      approval_forbidden: "Only the job owner or other repository members can add approval — the job creator cannot approve unless they are also the owner."
+      landing_enqueued: "Landing workflow enqueued."
+      approved: "Job approved."
+      approval_recorded: "Approval recorded."
+      unapprove_unavailable: "Only approved Jobs that have not started landing can be unapproved."
+      unapproved: "Job unapproved."
+      not_closed: "Job isn't closed."
+      pause_closed: "Closed Jobs cannot be paused."
+      already_paused: "Job is already manually paused."
+      paused: "Job paused. Any active step will finish before Syrus stops advancing it."
+      not_paused: "Job is not manually paused."
+      unpaused: "Job unpaused. It will resume subject to admission control."
+      local_mode_disabled: "Local mode is not enabled."
+      local_mode_state_unavailable: "Only implemented or approved Jobs can be opened in local mode."
+      local_mode_already_linked: "Job is already linked to a local coding session."
+      local_mode_chat_missing: "No active Local Mode chat found. Start a chat in Local Mode first."
+      local_mode_opened: "Job opened in local mode. Continue in the linked chat."
+      not_coding: "Job is not in coding state."
+      local_mode_cancelled: "Local mode session cancelled."
+      start_blocked: "Blocked: %{reason} — see job card for details."
+      start_blocked_unknown: "Initial workflow could not be started right now. Refresh and check the job card for details."
+      reopened: "Thread reopened."
+      reopened_syrus_stop: "Heads up: the next poll will re-close it if the syrus-stop label is still on the PR."
+      reopened_pr_state: "Heads up: the next poll will check the PR state and may re-close it."
+      blocked_reasons:
+        admission_control: "workflow admission budget"

@@ -14,14 +14,14 @@ module Api
           job = find_job
           env = job.preview_environments.order(created_at: :desc).first
           unless env
-            render_error("not_found", "No preview environment found for this job.", status: :not_found)
+            render_error("not_found", I18n.t("api.job_preview.not_found"), status: :not_found)
             return
           end
 
           begin
             logs = PreviewLogClient.call(env, lines: params.fetch(:lines, PreviewLogReader::DEFAULT_LINES))
           rescue PreviewLogClient::Unavailable
-            render_error("preview_logs_unavailable", "Preview logs are temporarily unavailable.", status: :service_unavailable)
+            render_error("preview_logs_unavailable", I18n.t("api.preview.logs_unavailable"), status: :service_unavailable)
             return
           end
 
@@ -34,27 +34,27 @@ module Api
         def create
           job = find_job
           unless job.previewable?
-            render_error("validation_failed", "Preview is only available for implemented, approved, or landing jobs, or landed jobs.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.job_preview.not_previewable"), status: :unprocessable_content)
             return
           end
           if job.preview_environments.active.exists?
-            render_error("conflict", "A preview environment is already active for this job.", status: :conflict)
+            render_error("conflict", I18n.t("api.job_preview.already_active"), status: :conflict)
             return
           end
           env = job.preview_environments.create!(state: "starting")
-          render json: { preview: preview_json(env), message: "Preview environment starting." }, status: :created
+          render json: { preview: preview_json(env), message: I18n.t("api.preview.starting") }, status: :created
         end
 
         def destroy
           job = find_job
           env = job.preview_environments.active.first
           unless env
-            render_error("not_found", "No active preview environment found for this job.", status: :not_found)
+            render_error("not_found", I18n.t("api.job_preview.active_not_found"), status: :not_found)
             return
           end
           env.begin_stopping! if env.may_begin_stopping?
           env.save!
-          render json: { preview: preview_json(env.reload), message: "Preview environment stopping." }
+          render json: { preview: preview_json(env.reload), message: I18n.t("api.preview.stopping") }
         end
 
         private

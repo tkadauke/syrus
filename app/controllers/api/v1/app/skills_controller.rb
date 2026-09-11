@@ -16,7 +16,7 @@ module Api
 
           agent_provider = params[:agent_provider].to_s.presence
           if agent_provider.present? && !Current.user.agent_provider_configured?(agent_provider)
-            render_error("validation_failed", "That agent is not configured.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.skills.agent_not_configured"), status: :unprocessable_content)
             return
           end
 
@@ -36,7 +36,7 @@ module Api
           end
 
           render json: {
-            message: "Skill job created.",
+            message: I18n.t("api.skills.created"),
             redirect_to: job_path(result.job),
             job: job_json(result.job)
           }, status: :created

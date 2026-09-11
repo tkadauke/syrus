@@ -20,13 +20,13 @@ module Api
               fallback_mode: capability.browser_fallback_available? ? "browser" : "none",
               reason: capability.as_json.dig(:modes, :backend_batch, :unavailable_reason)
             )
-            render_error("speech_to_text_backend_unavailable", "Backend batch transcription is not configured.", status: :unprocessable_content)
+            render_error("speech_to_text_backend_unavailable", I18n.t("api.speech_to_text.backend_batch_unavailable"), status: :unprocessable_content)
             return
           end
 
           file = params[:file]
           unless file.respond_to?(:tempfile)
-            render_error("missing_file", "Attach an audio file.", status: :unprocessable_content)
+            render_error("missing_file", I18n.t("api.speech_to_text.missing_file"), status: :unprocessable_content)
             return
           end
           return unless validate_audio_file(file)
@@ -71,7 +71,7 @@ module Api
             duration_ms: started_at ? ChatSpeechToText::Telemetry.duration_ms(started_at) : nil,
             **ChatSpeechToText::Telemetry.safe_error(e)
           )
-          render_error("speech_to_text_transcription_failed", e.message.presence || "Backend transcription failed.", status: :bad_gateway)
+          render_error("speech_to_text_transcription_failed", e.message.presence || I18n.t("api.speech_to_text.transcription_failed"), status: :bad_gateway)
         end
 
         def stream
@@ -85,7 +85,7 @@ module Api
               fallback_mode: capability.backend_batch_available? ? "backend_batch" : (capability.browser_fallback_available? ? "browser" : "none"),
               reason: capability.as_json.dig(:modes, :backend_streaming, :unavailable_reason)
             )
-            render_error("speech_to_text_backend_unavailable", "Backend streaming transcription is not configured.", status: :unprocessable_content)
+            render_error("speech_to_text_backend_unavailable", I18n.t("api.speech_to_text.backend_streaming_unavailable"), status: :unprocessable_content)
             return
           end
 
@@ -115,23 +115,23 @@ module Api
         def require_speech_to_text_feature
           return if Feature.chat_speech_to_text_enabled?
 
-          render_error("speech_to_text_disabled", "Chat speech-to-text is not enabled.", status: :not_found)
+          render_error("speech_to_text_disabled", I18n.t("api.speech_to_text.disabled"), status: :not_found)
         end
 
         def validate_audio_file(file)
           unless allowed_audio_content_type?(file.content_type)
-            render_error("unsupported_content_type", "Upload a supported audio file.", status: :unprocessable_content)
+            render_error("unsupported_content_type", I18n.t("api.speech_to_text.unsupported_content_type"), status: :unprocessable_content)
             return false
           end
 
           if file.size.to_i > MAX_AUDIO_BYTES
-            render_error("audio_too_large", "Audio uploads must be 10 MB or smaller.", status: :content_too_large)
+            render_error("audio_too_large", I18n.t("api.speech_to_text.audio_too_large"), status: :content_too_large)
             return false
           end
 
           duration = duration_param
           if duration && duration > MAX_AUDIO_DURATION_SECONDS
-            render_error("audio_too_long", "Audio uploads must be 120 seconds or shorter.", status: :unprocessable_content)
+            render_error("audio_too_long", I18n.t("api.speech_to_text.audio_too_long"), status: :unprocessable_content)
             return false
           end
 

@@ -5,23 +5,23 @@ module Api
         def start
           job = find_job
           unless job.direct?
-            render_error("validation_failed", "Only direct Jobs can be started manually.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("direct_only"), status: :unprocessable_content)
             return
           end
           if job.closed?
-            render_error("validation_failed", "Thread is closed - reopen it before starting work.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("thread_closed"), status: :unprocessable_content)
             return
           end
           if job.backlog?
-            render_error("validation_failed", "Job is in backlog - release it before starting work.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("backlogged"), status: :unprocessable_content)
             return
           end
           if job.active_runtime_work?
-            render_error("validation_failed", "A Run is already in progress - wait for it to finish.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("run_active"), status: :unprocessable_content)
             return
           end
           if job.runs.exists?
-            render_error("validation_failed", "This Job has already been started - use Retry instead.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("already_started"), status: :unprocessable_content)
             return
           end
 
@@ -38,7 +38,7 @@ module Api
           run = result.run
 
           if run
-            render_job(job.reload, message: "Initial workflow enqueued.", changed: [ "workflows", "runs" ], tab: "workflows")
+            render_job(job.reload, message: lifecycle_t("initial_enqueued"), changed: [ "workflows", "runs" ], tab: "workflows")
           else
             render_error("validation_failed", start_blocked_message(workflow.reload), status: :unprocessable_content)
           end
@@ -49,20 +49,20 @@ module Api
           return unless authorize_job_mutation!(job)
 
           unless job.backlog?
-            render_error("validation_failed", "Only backlogged Jobs can be released.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("release_backlog_only"), status: :unprocessable_content)
             return
           end
           if job.active_runtime_work?
-            render_error("validation_failed", "A Run is already in progress - wait for it to finish.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("run_active"), status: :unprocessable_content)
             return
           end
           unless job.may_release_from_backlog?
-            render_error("validation_failed", "#{job.slug} is #{job.state} and cannot be released from backlog.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("release_unavailable", slug: job.slug, state: job.state), status: :unprocessable_content)
             return
           end
 
           job.release_from_backlog!
-          render_job(job.reload, message: "Job released from backlog.", changed: [ "state", "workflows", "runs" ], tab: "workflows")
+          render_job(job.reload, message: lifecycle_t("released_from_backlog"), changed: [ "state", "workflows", "runs" ], tab: "workflows")
         end
 
         def move_to_backlog
@@ -70,12 +70,12 @@ module Api
           return unless authorize_job_mutation!(job)
 
           unless job.may_move_to_backlog?
-            render_error("validation_failed", "#{job.slug} cannot move to backlog after runtime work, review, landing, or PR creation has started.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("move_to_backlog_unavailable", slug: job.slug), status: :unprocessable_content)
             return
           end
 
           job.move_to_backlog!
-          render_job(job.reload, message: "Job moved to backlog.", changed: [ "state" ])
+          render_job(job.reload, message: lifecycle_t("moved_to_backlog"), changed: [ "state" ])
         end
 
         # A Job the classifier could not place needs a person to say what it is.
@@ -86,12 +86,12 @@ module Api
           return unless authorize_job_mutation!(job)
 
           unless job.triaging? && job.triaging_reason_classifier_uncertain?
-            render_error("validation_failed", "#{job.slug} is not awaiting triage.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("not_awaiting_triage", slug: job.slug), status: :unprocessable_content)
             return
           end
 
           job.accept_triage!
-          render_job(job.reload, message: "Job accepted.", changed: [ "state", "runs" ])
+          render_job(job.reload, message: lifecycle_t("accepted"), changed: [ "state", "runs" ])
         end
 
         # And reject means "no". Closed as `cancelled` rather than one of the
@@ -101,12 +101,12 @@ module Api
           return unless authorize_job_mutation!(job)
 
           unless job.triaging? && job.triaging_reason_classifier_uncertain?
-            render_error("validation_failed", "#{job.slug} is not awaiting triage.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("not_awaiting_triage", slug: job.slug), status: :unprocessable_content)
             return
           end
 
           job.reject_triage!
-          render_job(job.reload, message: "Job rejected.", changed: [ "state" ])
+          render_job(job.reload, message: lifecycle_t("rejected"), changed: [ "state" ])
         end
 
         def run_again
@@ -129,7 +129,7 @@ module Api
             return
           end
 
-          notice = agent_provider.present? ? "Retry workflow enqueued with #{agent_provider.titleize}." : "Retry workflow enqueued."
+          notice = agent_provider.present? ? lifecycle_t("retry_enqueued_with_provider", provider: agent_provider.titleize) : lifecycle_t("retry_enqueued")
           render_job(job.reload, message: notice, changed: [ "workflows", "runs" ], tab: "workflows")
         end
 
@@ -168,7 +168,7 @@ module Api
 
             render json: job_payload(
               new_job,
-              message: "Started over - new branch and PR will be created.",
+              message: lifecycle_t("started_over"),
               tab: nil
             ).merge(
               old_job: job_json(job.reload),
@@ -182,12 +182,12 @@ module Api
           return unless authorize_job_mutation!(job)
 
           if job.closed?
-            render_error("validation_failed", "Job is already closed.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("already_closed"), status: :unprocessable_content)
             return
           end
 
           job.cancel_active_runs_and_close!("cancelled")
-          render_job(job.reload, message: "Cancellation requested.", changed: [ "state", "runs" ])
+          render_job(job.reload, message: lifecycle_t("cancellation_requested"), changed: [ "state", "runs" ])
         end
 
         def stop_landing
@@ -195,28 +195,28 @@ module Api
           return unless authorize_job_mutation!(job)
 
           unless job.landing?
-            render_error("validation_failed", "Job is not currently landing.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("not_landing"), status: :unprocessable_content)
             return
           end
 
           job.stop_landing!
-          render_job(job.reload, message: "Landing stopped.", changed: [ "state", "workflows", "runs" ])
+          render_job(job.reload, message: lifecycle_t("landing_stopped"), changed: [ "state", "workflows", "runs" ])
         end
 
         def force_fail
           unless Current.user.admin?
-            render_error("forbidden", "Admin access required.", status: :forbidden)
+            render_error("forbidden", I18n.t("api.base.admin_forbidden"), status: :forbidden)
             return
           end
 
           job = find_job
           unless job.may_force_fail?
-            render_error("validation_failed", "#{job.slug} is #{job.state} and cannot be force-failed.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("force_fail_unavailable", slug: job.slug, state: job.state), status: :unprocessable_content)
             return
           end
 
           job.force_fail!
-          render_job(job.reload, message: "Job force-failed.", changed: [ "state" ])
+          render_job(job.reload, message: lifecycle_t("force_failed"), changed: [ "state" ])
         end
 
         def approve
@@ -224,11 +224,11 @@ module Api
           return unless authorize_job_mutation!(job)
 
           unless job.auto_merge_enabled?
-            render_error("validation_failed", "Auto-merge is disabled for #{job.repository.slug}; enable it in repository settings before approving.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
             return
           end
           unless job.can_add_job_approval?(Current.user)
-            render_error("validation_failed", "Only the job owner or other repository members can add approval — the job creator cannot approve unless they are also the owner.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("approval_forbidden"), status: :unprocessable_content)
             return
           end
 
@@ -240,29 +240,29 @@ module Api
             job.approve!(via: "operator", by_user: Current.user)
             github_note = Job::ApprovalPropagator.approve(job, user: Current.user).message
             landing_workflow = LandingQueueProcessor.try_land!(job)
-            landing_note = landing_workflow ? "Landing workflow enqueued." : nil
+            landing_note = landing_workflow ? lifecycle_t("landing_enqueued") : nil
             changed = landing_workflow ? [ "state", "approval", "workflows", "runs" ] : [ "state", "approval" ]
-            render_job(job.reload, message: [ "Job approved.", github_note, landing_note ].compact.join(" "), changed: changed)
+            render_job(job.reload, message: [ lifecycle_t("approved"), github_note, landing_note ].compact.join(" "), changed: changed)
           else
-            render_job(job.reload, message: "Approval recorded.", changed: [ "approval" ])
+            render_job(job.reload, message: lifecycle_t("approval_recorded"), changed: [ "approval" ])
           end
         end
 
         def unapprove
           job = find_job
           unless job.may_unapprove?
-            render_error("validation_failed", "Only approved Jobs that have not started landing can be unapproved.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("unapprove_unavailable"), status: :unprocessable_content)
             return
           end
 
           github_note = Job::ApprovalUnapprover.call(job: job, user: Current.user).message
-          render_job(job.reload, message: [ "Job unapproved.", github_note ].compact.join(" "), changed: [ "state", "approval" ])
+          render_job(job.reload, message: [ lifecycle_t("unapproved"), github_note ].compact.join(" "), changed: [ "state", "approval" ])
         end
 
         def reopen
           job = find_job
           unless job.may_reopen?
-            render_error("validation_failed", "Job isn't closed.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("not_closed"), status: :unprocessable_content)
             return
           end
 
@@ -275,42 +275,42 @@ module Api
         def pause
           job = find_job
           if job.closed?
-            render_error("validation_failed", "Closed Jobs cannot be paused.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("pause_closed"), status: :unprocessable_content)
             return
           end
           if job.manual_paused?
-            render_job(job.reload, message: "Job is already manually paused.", changed: [ "manual_pause" ])
+            render_job(job.reload, message: lifecycle_t("already_paused"), changed: [ "manual_pause" ])
             return
           end
 
           JobManualPause.pause!(job, by_user: Current.user)
-          render_job(job.reload, message: "Job paused. Any active step will finish before Syrus stops advancing it.", changed: [ "manual_pause" ])
+          render_job(job.reload, message: lifecycle_t("paused"), changed: [ "manual_pause" ])
         end
 
         def unpause
           job = find_job
           unless job.manual_paused?
-            render_job(job.reload, message: "Job is not manually paused.", changed: [ "manual_pause" ])
+            render_job(job.reload, message: lifecycle_t("not_paused"), changed: [ "manual_pause" ])
             return
           end
 
           JobManualPause.unpause!(job)
-          render_job(job.reload, message: "Job unpaused. It will resume subject to admission control.", changed: [ "manual_pause", "workflows", "runs" ])
+          render_job(job.reload, message: lifecycle_t("unpaused"), changed: [ "manual_pause", "workflows", "runs" ])
         end
 
         def open_in_local_mode
           unless Feature.local_mode_enabled?
-            render_error("forbidden", "Local mode is not enabled.", status: :forbidden)
+            render_error("forbidden", lifecycle_t("local_mode_disabled"), status: :forbidden)
             return
           end
 
           job = find_job
           unless job.implemented? || job.approved?
-            render_error("validation_failed", "Only implemented or approved Jobs can be opened in local mode.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("local_mode_state_unavailable"), status: :unprocessable_content)
             return
           end
           if job.linked_chat_id.present?
-            render_error("validation_failed", "Job is already linked to a local coding session.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("local_mode_already_linked"), status: :unprocessable_content)
             return
           end
 
@@ -322,7 +322,7 @@ module Api
           end
 
           unless chat
-            render_error("validation_failed", "No active Local Mode chat found. Start a chat in Local Mode first.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("local_mode_chat_missing"), status: :unprocessable_content)
             return
           end
 
@@ -335,18 +335,18 @@ module Api
             job.save!
           end
 
-          render_job(job.reload, message: "Job opened in local mode. Continue in the linked chat.", changed: [ "state" ])
+          render_job(job.reload, message: lifecycle_t("local_mode_opened"), changed: [ "state" ])
         end
 
         def cancel_local_mode
           unless Feature.local_mode_enabled?
-            render_error("forbidden", "Local mode is not enabled.", status: :forbidden)
+            render_error("forbidden", lifecycle_t("local_mode_disabled"), status: :forbidden)
             return
           end
 
           job = find_job
           unless job.coding?
-            render_error("validation_failed", "Job is not in coding state.", status: :unprocessable_content)
+            render_error("validation_failed", lifecycle_t("not_coding"), status: :unprocessable_content)
             return
           end
 
@@ -361,7 +361,7 @@ module Api
             end
           end
 
-          render_job(job.reload, message: "Local mode session cancelled.", changed: [ "state" ])
+          render_job(job.reload, message: lifecycle_t("local_mode_cancelled"), changed: [ "state" ])
         end
 
         private
@@ -425,31 +425,35 @@ module Api
         def start_blocked_message(workflow)
           reason = WorkUnits::StartBlock.for(workflow).reason || workflow.artifact("start_cancelled_reason")
           if reason.present?
-            "Blocked: #{display_start_blocked_reason(reason)} — see job card for details."
+            lifecycle_t("start_blocked", reason: display_start_blocked_reason(reason))
           else
-            "Initial workflow could not be started right now. Refresh and check the job card for details."
+            lifecycle_t("start_blocked_unknown")
           end
         end
 
         def display_start_blocked_reason(reason)
           case reason.to_s
           when "admission_control", StepDispatcher::ADMISSION_BLOCK_REASON
-            "workflow admission budget"
+            lifecycle_t("blocked_reasons.admission_control")
           else
             reason.to_s.tr("_", " ")
           end
         end
 
         def reopen_notice(prior_reason)
-          base = "Thread reopened."
+          base = lifecycle_t("reopened")
           case prior_reason
           when "syrus_stop"
-            "#{base} Heads up: the next poll will re-close it if the syrus-stop label is still on the PR."
+            "#{base} #{lifecycle_t('reopened_syrus_stop')}"
           when "pr_merged", "pr_closed"
-            "#{base} Heads up: the next poll will check the PR state and may re-close it."
+            "#{base} #{lifecycle_t('reopened_pr_state')}"
           else
             base
           end
+        end
+
+        def lifecycle_t(key, **options)
+          I18n.t("api.job_lifecycle.#{key}", **options)
         end
       end
     end

@@ -40,6 +40,24 @@ de:
     admin_required: "Administrator-Zugriff erforderlich."
     chat_unavailable: "Dieser Chat ist nicht mehr verfügbar."
 
+  github_app:
+    manifest:
+      title: "Weiter zu GitHub…"
+      heading: "Weiter zu GitHub…"
+      body: "Das Syrus-App-Manifest wird an GitHub gesendet. Wenn nichts passiert, verwende die Schaltfläche unten."
+      button: "Weiter zu GitHub"
+    registered:
+      title: "GitHub App registriert"
+      heading: "GitHub App registriert"
+      body: "Du kannst dieses Fenster schließen und zur Syrus-Einrichtung zurückkehren."
+    error:
+      title: "GitHub-App-Registrierung"
+      body: "Kehre zu Syrus zurück und starte die Registrierung erneut."
+    errors:
+      missing_code: "GitHub hat keinen Manifest-Code zurückgegeben."
+      registration_failed: "GitHub-App-Registrierung fehlgeschlagen: %{error}"
+      invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
+
   api:
     base:
       unauthorized: "Bitte gib ein gültiges API-Token via `Authorization: Bearer <token>` an."
@@ -163,6 +181,10 @@ de:
     admin_queue:
       reap_ran: "ReapStaleRunsJob wurde inline ausgeführt."
 
+    admin_github_app:
+      register: "GitHub App registrieren"
+      reregister: "GitHub App erneut registrieren"
+
     admin_features:
       not_found: "Feature nicht gefunden."
 
@@ -191,3 +213,118 @@ de:
 
     admin_transcripts:
       no_session: "Keine Agent-Sitzung für Run #%{id} aufgezeichnet."
+
+    preview:
+      logs_unavailable: "Preview-Logs sind vorübergehend nicht verfügbar."
+      starting: "Preview-Umgebung wird gestartet."
+      stopping: "Preview-Umgebung wird gestoppt."
+
+    repository_preview:
+      not_found: "Keine Preview-Umgebung für dieses Repository gefunden."
+      archived: "Preview ist für archivierte Repositorys nicht verfügbar."
+      already_active: "Für dieses Repository ist bereits eine Preview-Umgebung aktiv."
+      active_not_found: "Keine aktive Preview-Umgebung für dieses Repository gefunden."
+
+    job_preview:
+      not_found: "Keine Preview-Umgebung für diese Aufgabe gefunden."
+      not_previewable: "Preview ist nur für implementierte, genehmigte, landende oder gelandete Aufgaben verfügbar."
+      already_active: "Für diese Aufgabe ist bereits eine Preview-Umgebung aktiv."
+      active_not_found: "Keine aktive Preview-Umgebung für diese Aufgabe gefunden."
+
+    speech_to_text:
+      backend_batch_unavailable: "Backend-Batch-Transkription ist nicht konfiguriert."
+      backend_streaming_unavailable: "Backend-Streaming-Transkription ist nicht konfiguriert."
+      missing_file: "Bitte füge eine Audiodatei an."
+      transcription_failed: "Backend-Transkription fehlgeschlagen."
+      disabled: "Chat-Spracheingabe ist nicht aktiviert."
+      unsupported_content_type: "Bitte lade eine unterstützte Audiodatei hoch."
+      audio_too_large: "Audio-Uploads dürfen höchstens 10 MB groß sein."
+      audio_too_long: "Audio-Uploads dürfen höchstens 120 Sekunden lang sein."
+
+    repository_documents:
+      added: "Dokument hinzugefügt."
+      removed: "Dokument entfernt."
+
+    skills:
+      agent_not_configured: "Dieser Agent ist nicht konfiguriert."
+      created: "Skill-Aufgabe erstellt."
+
+    repository_memberships:
+      invalid_role: "Rolle muss eine der folgenden sein: %{roles}."
+      user_not_found: "Kein Benutzer mit dieser E-Mail-Adresse gefunden."
+      already_member: "%{email} ist bereits Mitglied dieses Repositorys."
+      added: "%{email} als %{role} hinzugefügt."
+      change_last_admin: "Die Rolle des letzten Administrators kann nicht geändert werden — befördere zuerst ein anderes Mitglied zum Administrator."
+      role_updated: "Rolle auf %{role} aktualisiert."
+      remove_last_admin: "Der letzte Administrator kann nicht entfernt werden — befördere zuerst ein anderes Mitglied zum Administrator."
+      removed: "Mitglied entfernt."
+
+    repository_team_grants:
+      invalid_role: "Rolle muss eine der folgenden sein: %{roles}."
+      team_not_found: "Kein Team mit diesem Namen gefunden."
+      already_granted: "%{team} hat bereits eine Berechtigung für dieses Repository."
+      added: "%{team} als %{role} hinzugefügt."
+      role_updated: "Rolle auf %{role} aktualisiert."
+      removed: "%{team} entfernt."
+
+    job_ref_movement_actions:
+      invalid_action: "%{action} kann nicht von einer Aufgabe aus ausgeführt werden."
+      blank_action: "(leer)"
+      sent_upstream: "Upstream gesendet."
+      blocked: "Ref-Movement-Aktion blockiert."
+
+    plugins:
+      disabled: "Das Plugin %{plugin} ist deaktiviert."
+      route_not_found: "Plugin-Route nicht gefunden."
+
+    job_lifecycle:
+      direct_only: "Nur direkte Aufgaben können manuell gestartet werden."
+      thread_closed: "Thread ist geschlossen - öffne ihn erneut, bevor du die Arbeit startest."
+      backlogged: "Aufgabe ist im Backlog - gib sie frei, bevor du die Arbeit startest."
+      run_active: "Ein Run läuft bereits - warte, bis er abgeschlossen ist."
+      already_started: "Diese Aufgabe wurde bereits gestartet - verwende stattdessen Wiederholen."
+      initial_enqueued: "Initialer Workflow eingereiht."
+      release_backlog_only: "Nur Aufgaben im Backlog können freigegeben werden."
+      release_unavailable: "%{slug} ist %{state} und kann nicht aus dem Backlog freigegeben werden."
+      released_from_backlog: "Aufgabe aus dem Backlog freigegeben."
+      move_to_backlog_unavailable: "%{slug} kann nicht ins Backlog verschoben werden, nachdem Laufzeitarbeit, Review, Landing oder PR-Erstellung gestartet wurde."
+      moved_to_backlog: "Aufgabe ins Backlog verschoben."
+      not_awaiting_triage: "%{slug} wartet nicht auf Triage."
+      accepted: "Aufgabe akzeptiert."
+      rejected: "Aufgabe abgelehnt."
+      retry_enqueued: "Wiederholungs-Workflow eingereiht."
+      retry_enqueued_with_provider: "Wiederholungs-Workflow mit %{provider} eingereiht."
+      started_over: "Neu gestartet - ein neuer Branch und PR werden erstellt."
+      already_closed: "Aufgabe ist bereits geschlossen."
+      cancellation_requested: "Abbruch angefordert."
+      not_landing: "Aufgabe landet derzeit nicht."
+      landing_stopped: "Landing gestoppt."
+      force_fail_unavailable: "%{slug} ist %{state} und kann nicht zwangsweise als fehlgeschlagen markiert werden."
+      force_failed: "Aufgabe zwangsweise als fehlgeschlagen markiert."
+      auto_merge_disabled: "Auto-Merge ist für %{slug} deaktiviert; aktiviere es in den Repository-Einstellungen, bevor du genehmigst."
+      approval_forbidden: "Nur der Aufgabeneigentümer oder andere Repository-Mitglieder können genehmigen — der Aufgabenersteller kann nur genehmigen, wenn er auch Eigentümer ist."
+      landing_enqueued: "Landing-Workflow eingereiht."
+      approved: "Aufgabe genehmigt."
+      approval_recorded: "Genehmigung erfasst."
+      unapprove_unavailable: "Nur genehmigte Aufgaben, die noch nicht mit dem Landing begonnen haben, können zurückgenommen werden."
+      unapproved: "Aufgabengenehmigung zurückgenommen."
+      not_closed: "Aufgabe ist nicht geschlossen."
+      pause_closed: "Geschlossene Aufgaben können nicht pausiert werden."
+      already_paused: "Aufgabe ist bereits manuell pausiert."
+      paused: "Aufgabe pausiert. Aktive Schritte werden beendet, bevor Syrus nicht weiter fortfährt."
+      not_paused: "Aufgabe ist nicht manuell pausiert."
+      unpaused: "Aufgabenpause aufgehoben. Sie wird vorbehaltlich der Zulassungskontrolle fortgesetzt."
+      local_mode_disabled: "Local Mode ist nicht aktiviert."
+      local_mode_state_unavailable: "Nur implementierte oder genehmigte Aufgaben können im Local Mode geöffnet werden."
+      local_mode_already_linked: "Aufgabe ist bereits mit einer lokalen Coding-Sitzung verknüpft."
+      local_mode_chat_missing: "Kein aktiver Local-Mode-Chat gefunden. Starte zuerst einen Chat im Local Mode."
+      local_mode_opened: "Aufgabe im Local Mode geöffnet. Fahre im verknüpften Chat fort."
+      not_coding: "Aufgabe ist nicht im Coding-Zustand."
+      local_mode_cancelled: "Local-Mode-Sitzung abgebrochen."
+      start_blocked: "Blockiert: %{reason} — Details stehen auf der Aufgabenkarte."
+      start_blocked_unknown: "Initialer Workflow konnte gerade nicht gestartet werden. Aktualisiere und prüfe die Aufgabenkarte auf Details."
+      reopened: "Thread wieder geöffnet."
+      reopened_syrus_stop: "Hinweis: Die nächste Abfrage schließt ihn erneut, wenn das Label syrus-stop noch auf dem PR ist."
+      reopened_pr_state: "Hinweis: Die nächste Abfrage prüft den PR-Zustand und kann ihn erneut schließen."
+      blocked_reasons:
+        admission_control: "Workflow-Zulassungsbudget"
