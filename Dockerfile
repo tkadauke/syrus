@@ -34,8 +34,13 @@ WORKDIR /rails
 ARG NODE_MAJOR=22
 ARG CLAUDE_CODE_VERSION=2.1.251
 ARG CODEX_CLI_VERSION=0.151.0
+ARG ANTIGRAVITY_CLI_VERSION=1.2.1
+ARG ANTIGRAVITY_CLI_BUILD=5123043593420800
+ARG ANTIGRAVITY_CLI_LINUX_AMD64_SHA512=0629fe69e6949b35707935ef35da016074ea29a5d989a05f740713e0a9e927bf52ff1eada0204d3338779a469c938b6b7c5c44de2d296e5e8db255d26568de38
+ARG ANTIGRAVITY_CLI_LINUX_ARM64_SHA512=f6dd6057a82dcbc4ab0878d99c4b84cfc45c3e2f12647eaf435322ecdd18d0190620bca943185f542431b93f34f5ea19cf84e8fdb902e64529e110bfa0a5a46f
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eu; \
     apt-get update -qq && \
     apt-get install --no-install-recommends -y \
       ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips && \
@@ -43,6 +48,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
     apt-get install --no-install-recommends -y nodejs && \
     npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @openai/codex@${CODEX_CLI_VERSION} && \
+    case "$(dpkg --print-architecture)" in \
+      amd64) antigravity_dir=x64; antigravity_arch=x64; antigravity_sha512="${ANTIGRAVITY_CLI_LINUX_AMD64_SHA512}" ;; \
+      arm64) antigravity_dir=arm; antigravity_arch=arm64; antigravity_sha512="${ANTIGRAVITY_CLI_LINUX_ARM64_SHA512}" ;; \
+      *) echo "unsupported architecture for Antigravity CLI: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac && \
+    antigravity_tarball="/tmp/antigravity-cli.tar.gz" && \
+    curl -fsSL -o "${antigravity_tarball}" \
+      "https://storage.googleapis.com/antigravity-public/antigravity-cli/${ANTIGRAVITY_CLI_VERSION}-${ANTIGRAVITY_CLI_BUILD}/linux-${antigravity_dir}/cli_linux_${antigravity_arch}.tar.gz" && \
+    echo "${antigravity_sha512}  ${antigravity_tarball}" | sha512sum -c - && \
+    tar -xzf "${antigravity_tarball}" -C /tmp antigravity && \
+    install -m 0755 /tmp/antigravity /usr/local/bin/agy && \
+    rm -f "${antigravity_tarball}" /tmp/antigravity && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 

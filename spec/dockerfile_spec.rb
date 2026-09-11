@@ -48,6 +48,18 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).to include("@openai/codex@${CODEX_CLI_VERSION}")
   end
 
+  it "installs a pinned Antigravity CLI binary into the base image" do
+    expect(dockerfile).to include("ARG ANTIGRAVITY_CLI_VERSION=1.2.1")
+    expect(dockerfile).to include("ARG ANTIGRAVITY_CLI_BUILD=5123043593420800")
+    expect(dockerfile).to include("ARG ANTIGRAVITY_CLI_LINUX_AMD64_SHA512=0629fe69e6949b35707935ef35da016074ea29a5d989a05f740713e0a9e927bf52ff1eada0204d3338779a469c938b6b7c5c44de2d296e5e8db255d26568de38")
+    expect(dockerfile).to include("ARG ANTIGRAVITY_CLI_LINUX_ARM64_SHA512=f6dd6057a82dcbc4ab0878d99c4b84cfc45c3e2f12647eaf435322ecdd18d0190620bca943185f542431b93f34f5ea19cf84e8fdb902e64529e110bfa0a5a46f")
+    expect(dockerfile).to include("amd64) antigravity_dir=x64; antigravity_arch=x64;")
+    expect(dockerfile).to include("arm64) antigravity_dir=arm; antigravity_arch=arm64;")
+    expect(dockerfile).to include("linux-${antigravity_dir}/cli_linux_${antigravity_arch}.tar.gz")
+    expect(dockerfile).to include("sha512sum -c -")
+    expect(dockerfile).to include("install -m 0755 /tmp/antigravity /usr/local/bin/agy")
+  end
+
   it "keeps Ruby runtimes in their own exact-pinned cache stage, installed prebuilt" do
     ruby_stage = stage("runtime-ruby-cache")
     node_stage = stage("runtime-node-cache")
