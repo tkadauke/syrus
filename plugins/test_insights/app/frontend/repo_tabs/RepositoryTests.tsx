@@ -9,8 +9,11 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { useT } from "@app/hooks/useT"
+import type { TFunction } from "i18next"
 
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {
+  const { t } = useT("test_insights")
   const [query, setQuery] = useState("")
   const debouncedQuery = useDebouncedValue(query, 250)
   const [historyPage, setHistoryPage] = useState(1)
@@ -45,17 +48,17 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
       prefix={prefix}
       tabs={shell?.tabs ?? []}
     >
-      {tests.isPending && !shell ? <PanelMessage>Loading tests...</PanelMessage> : null}
-      {tests.isError && !tests.data ? <PanelMessage tone="error">{errorMessage(tests.error, "Unable to load tests.")}</PanelMessage> : null}
+      {tests.isPending && !shell ? <PanelMessage>{t("repo_loading_tests")}</PanelMessage> : null}
+      {tests.isError && !tests.data ? <PanelMessage tone="error">{errorMessage(tests.error, t("repo_error_load_tests"))}</PanelMessage> : null}
       {shell ? (
         <section className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <label className="block min-w-[18rem] flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-              Search tests
+              {t("repo_search_tests")}
               <Input
                 className="mt-1"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="name, suite, or file"
+                placeholder={t("repo_search_placeholder")}
                 value={query}
               />
             </label>
@@ -64,15 +67,15 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
                 onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))}
                 variant="secondary"
               >
-                Back to tests
+                {t("repo_back_to_tests")}
               </Button>
             ) : null}
           </div>
 
           {selectedTestId ? (
-            <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} />
+            <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} t={t} />
           ) : (
-            <TestList error={tests.error} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} query={debouncedQuery} />
+            <TestList error={tests.error} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} query={debouncedQuery} t={t} />
           )}
         </section>
       ) : null}
@@ -80,27 +83,27 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
   )
 }
 
-function TestList({ error, isError, isFetching, payload, prefix, query }: { error: unknown; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; query: string }) {
+function TestList({ error, isError, isFetching, payload, prefix, query, t }: { error: unknown; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; query: string; t: TFunction<"test_insights"> }) {
   if (!payload) return null
   if (payload.tests.length === 0) {
-    return <PanelMessage>{query ? "No tests match this search." : "No test history yet. Search by name once tests have been ingested."}</PanelMessage>
+    return <PanelMessage>{query ? t("repo_no_search_results") : t("repo_no_history")}</PanelMessage>
   }
 
   return (
     <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-        <span>{query ? "Search results" : "Interesting tests"}</span>
-        {isFetching ? <span>Updating results...</span> : null}
-        {isError ? <span className="text-red-600 dark:text-red-300">{errorMessage(error, "Unable to refresh results.")}</span> : null}
+        <span>{query ? t("repo_search_results") : t("repo_interesting_tests")}</span>
+        {isFetching ? <span>{t("repo_updating_results")}</span> : null}
+        {isError ? <span className="text-red-600 dark:text-red-300">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
       </div>
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2">Test</th>
-            <th className="hidden px-4 py-2 md:table-cell">Suite</th>
-            <th className="px-4 py-2">Recent failures</th>
-            <th className="hidden px-4 py-2 sm:table-cell">Duration</th>
-            <th className="hidden px-4 py-2 sm:table-cell">Last seen</th>
+            <th className="px-4 py-2">{t("repo_col_test")}</th>
+            <th className="hidden px-4 py-2 md:table-cell">{t("repo_col_suite")}</th>
+            <th className="px-4 py-2">{t("repo_col_recent_failures")}</th>
+            <th className="hidden px-4 py-2 sm:table-cell">{t("repo_col_duration")}</th>
+            <th className="hidden px-4 py-2 sm:table-cell">{t("repo_col_last_seen")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
@@ -143,9 +146,9 @@ function ReasonBadge({ reason }: { reason: string }) {
   return <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${classes}`}>{reason}</span>
 }
 
-function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string }) {
-  if (isPending) return <PanelMessage>Loading test history...</PanelMessage>
-  if (isError) return <PanelMessage tone="error">{errorMessage(error, "Unable to load test history.")}</PanelMessage>
+function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix, t }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string; t: TFunction<"test_insights"> }) {
+  if (isPending) return <PanelMessage>{t("repo_loading_history")}</PanelMessage>
+  if (isError) return <PanelMessage tone="error">{errorMessage(error, t("repo_error_load_history"))}</PanelMessage>
   if (!detail) return null
 
   return (
@@ -159,31 +162,31 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
           </div>
           <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">{detail.test.fingerprint.slice(0, 12)}</span>
         </div>
-        <DurationChart history={detail.history} points={detail.duration_points} prefix={prefix} />
+        <DurationChart history={detail.history} points={detail.duration_points} prefix={prefix} t={t} />
       </section>
 
       <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
             <tr>
-              <th className="px-4 py-2">Time</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="hidden px-4 py-2 sm:table-cell">Duration</th>
-              <th className="px-4 py-2">Run</th>
-              <th className="hidden px-4 py-2 lg:table-cell">Failure</th>
+              <th className="px-4 py-2">{t("repo_col_time")}</th>
+              <th className="px-4 py-2">{t("repo_col_status")}</th>
+              <th className="hidden px-4 py-2 sm:table-cell">{t("repo_col_duration")}</th>
+              <th className="px-4 py-2">{t("repo_col_run")}</th>
+              <th className="hidden px-4 py-2 lg:table-cell">{t("repo_col_failure")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
             {detail.history.map((item) => <HistoryRow item={item} key={item.id} prefix={prefix} />)}
           </tbody>
         </table>
-        <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} />
+        <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} t={t} />
       </section>
     </div>
   )
 }
 
-function HistoryPagination({ onPageChange, pagination }: { onPageChange: (page: number) => void; pagination: RepositoryTestHistoryPagination }) {
+function HistoryPagination({ onPageChange, pagination, t }: { onPageChange: (page: number) => void; pagination: RepositoryTestHistoryPagination; t: TFunction<"test_insights"> }) {
   if (pagination.total_pages <= 1) return null
 
   const firstItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.per_page + 1
@@ -191,14 +194,14 @@ function HistoryPagination({ onPageChange, pagination }: { onPageChange: (page: 
 
   return (
     <div className="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
-      <span>Showing {firstItem}–{lastItem} of {pagination.total}</span>
+      <span>{t("repo_showing", { first: firstItem, last: lastItem, total: pagination.total })}</span>
       <div className="flex gap-2">
         {pagination.page > 1 ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page - 1)} type="button">Previous</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Previous</span>}
+          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page - 1)} type="button">{t("repo_previous")}</button>
+        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("repo_previous")}</span>}
         {pagination.page < pagination.total_pages ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page + 1)} type="button">Next</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Next</span>}
+          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page + 1)} type="button">{t("repo_next")}</button>
+        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t("repo_next")}</span>}
       </div>
     </div>
   )
@@ -236,14 +239,14 @@ const STATUS_STYLE: Record<string, { dot: string; text: string; label: string; e
 type ChartDot = { key: number; x: number; y: number; status: RepositoryTestDurationPoint["status"]; source: RepositoryTestDurationPoint }
 type ActiveDot = { point: RepositoryTestDurationPoint; x: number; y: number }
 
-function DurationChart({ history, points, prefix }: { history: RepositoryTestHistoryItem[]; points: RepositoryTestDurationPoint[]; prefix: string }) {
+function DurationChart({ history, points, prefix, t }: { history: RepositoryTestHistoryItem[]; points: RepositoryTestDurationPoint[]; prefix: string; t: TFunction<"test_insights"> }) {
   const navigate = useNavigate()
   const historyById = useMemo(() => new Map(history.map((item) => [item.id, item])), [history])
   const chart = useMemo(() => buildChart(points), [points])
   const [active, setActive] = useState<ActiveDot | null>(null)
 
   if (!chart) {
-    return <div className="mt-4 rounded border border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">No duration samples yet.</div>
+    return <div className="mt-4 rounded border border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t("repo_no_duration_samples")}</div>
   }
 
   const latest = points.at(-1)
@@ -255,8 +258,8 @@ function DurationChart({ history, points, prefix }: { history: RepositoryTestHis
   return (
     <div className="mt-4">
       <div className="mb-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-        <span>Duration over time</span>
-        {latest ? <span className="font-medium text-gray-700 dark:text-gray-300">Latest: {formatDuration(latest.duration_ms)}</span> : null}
+        <span>{t("repo_duration_over_time")}</span>
+        {latest ? <span className="font-medium text-gray-700 dark:text-gray-300">{t("repo_latest_duration", { duration: formatDuration(latest.duration_ms) })}</span> : null}
       </div>
       <div className="relative">
         <svg className="h-44 w-full overflow-visible" onMouseLeave={() => setActive(null)} role="img" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
@@ -275,7 +278,7 @@ function DurationChart({ history, points, prefix }: { history: RepositoryTestHis
             return (
               <g key={dot.key}>
                 <circle
-                  aria-label={`${style.label}, ${formatDuration(dot.source.duration_ms)}`}
+                  aria-label={t(`repo_status_${dot.status}`, { defaultValue: style.label }) + `, ${formatDuration(dot.source.duration_ms)}`}
                   className="cursor-pointer fill-transparent"
                   cx={dot.x}
                   cy={dot.y}
@@ -299,13 +302,13 @@ function DurationChart({ history, points, prefix }: { history: RepositoryTestHis
           })}
         </svg>
 
-        {active ? <DurationTooltip historyItem={historyById.get(active.point.test_case_id)} point={active.point} x={active.x} y={active.y} /> : null}
+        {active ? <DurationTooltip historyItem={historyById.get(active.point.test_case_id)} point={active.point} t={t} x={active.x} y={active.y} /> : null}
       </div>
 
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
-        <LegendKey className="fill-green-500 dark:fill-green-400" label="Passed" />
-        <LegendKey className="fill-yellow-500 dark:fill-yellow-400" label="Inconclusive" />
-        <LegendKey className="fill-red-500 dark:fill-red-400" label="Failed" />
+        <LegendKey className="fill-green-500 dark:fill-green-400" label={t("repo_status_passed")} />
+        <LegendKey className="fill-yellow-500 dark:fill-yellow-400" label={t("repo_status_skipped")} />
+        <LegendKey className="fill-red-500 dark:fill-red-400" label={t("repo_status_failed")} />
       </div>
     </div>
   )
@@ -322,7 +325,7 @@ function LegendKey({ className, label }: { className: string; label: string }) {
   )
 }
 
-function DurationTooltip({ historyItem, point, x, y }: { historyItem?: RepositoryTestHistoryItem; point: RepositoryTestDurationPoint; x: number; y: number }) {
+function DurationTooltip({ historyItem, point, t, x, y }: { historyItem?: RepositoryTestHistoryItem; point: RepositoryTestDurationPoint; t: TFunction<"test_insights">; x: number; y: number }) {
   const style = STATUS_STYLE[point.status] ?? STATUS_STYLE.skipped
 
   return (
@@ -332,17 +335,17 @@ function DurationTooltip({ historyItem, point, x, y }: { historyItem?: Repositor
       style={{ left: `${(x / CHART_WIDTH) * 100}%`, marginTop: -10, top: `${(y / CHART_HEIGHT) * 100}%` }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className={`font-medium ${style.text}`}>{style.label}</span>
+        <span className={`font-medium ${style.text}`}>{t(`repo_status_${point.status}`, { defaultValue: style.label })}</span>
         <span className="font-mono text-gray-700 dark:text-gray-300">{formatExactDuration(point.duration_ms)}</span>
       </div>
-      <div className="mt-1 text-gray-500 dark:text-gray-400">{point.created_at ? new Date(point.created_at).toLocaleString() : "Unknown time"}</div>
+      <div className="mt-1 text-gray-500 dark:text-gray-400">{point.created_at ? new Date(point.created_at).toLocaleString() : t("repo_unknown_time")}</div>
       {historyItem ? (
         <div className="mt-1.5 border-t border-gray-100 pt-1.5 dark:border-gray-800">
           <div className="text-gray-500 dark:text-gray-400">{historyItem.job.slug} · {historyItem.grader_name}</div>
           {historyItem.failure_message ? (
             <div className="mt-1 truncate text-red-600 dark:text-red-300" title={historyItem.failure_message}>{historyItem.failure_message}</div>
           ) : null}
-          <div className="mt-1 font-medium text-brand-emphasis">Click to open {historyItem.run.slug} →</div>
+          <div className="mt-1 font-medium text-brand-emphasis">{t("repo_click_to_open", { slug: historyItem.run.slug })}</div>
         </div>
       ) : null}
     </div>

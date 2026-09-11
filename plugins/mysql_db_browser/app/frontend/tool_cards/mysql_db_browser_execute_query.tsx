@@ -1,3 +1,4 @@
+import i18n from "i18next"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { formatMs, MysqlErrorNotice, parseMysqlError, TableShell, TruncatedNotice, type MysqlError } from "../mysqlToolCard"
@@ -66,9 +67,13 @@ function collapsedSummary(context: ToolCardContext) {
   const outcome = parseOutcome(context)
   if (!outcome) return null
 
-  if (outcome.kind === "error") return `Query failed${outcome.error?.message ? `: ${outcome.error.message}` : ""}`
-  if (outcome.kind === "write") return `${outcome.affectedRows} row${outcome.affectedRows === 1 ? "" : "s"} affected`
-  return `${outcome.rowCount} row${outcome.rowCount === 1 ? "" : "s"}${outcome.truncated ? " (truncated)" : ""}`
+  if (outcome.kind === "error") return outcome.error?.message ? t("tool_query_failed_message", { message: outcome.error.message }) : t("tool_query_failed")
+  if (outcome.kind === "write") return t("tool_rows_affected", { count: outcome.affectedRows })
+  return outcome.truncated ? t("tool_rows_returned_truncated", { count: outcome.rowCount }) : t("tool_rows_returned", { count: outcome.rowCount })
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`mysql_db_browser:${key}`, options)
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -78,8 +83,8 @@ function renderExpanded(context: ToolCardContext) {
   if (outcome.kind === "error") {
     return (
       <CardShell>
-        {outcome.statement ? <Row label="Statement" value={outcome.statement} /> : null}
-        {outcome.error ? <MysqlErrorNotice error={outcome.error} /> : <div className="text-red-700 dark:text-red-300">Query failed.</div>}
+        {outcome.statement ? <Row label={t("tool_statement")} value={outcome.statement} /> : null}
+        {outcome.error ? <MysqlErrorNotice error={outcome.error} /> : <div className="text-red-700 dark:text-red-300">{t("tool_query_failed")}</div>}
       </CardShell>
     )
   }
@@ -87,15 +92,15 @@ function renderExpanded(context: ToolCardContext) {
   if (outcome.kind === "write") {
     return (
       <CardShell>
-        {outcome.statement ? <Row label="Statement" value={outcome.statement} /> : null}
-        <Row label="Read-only" value={outcome.readOnly ? "yes" : "no"} />
-        <Row label="Rows affected" value={String(outcome.affectedRows)} />
-        {outcome.durationMs != null ? <Row label="Duration" value={formatMs(outcome.durationMs)} /> : null}
+        {outcome.statement ? <Row label={t("tool_statement")} value={outcome.statement} /> : null}
+        <Row label={t("tool_read_only")} value={outcome.readOnly ? t("yes") : t("no")} />
+        <Row label={t("tool_rows_affected_label")} value={String(outcome.affectedRows)} />
+        {outcome.durationMs != null ? <Row label={t("tool_duration")} value={formatMs(outcome.durationMs)} /> : null}
       </CardShell>
     )
   }
 
-  if (outcome.rows.length === 0) return <EmptyState>Query returned no rows.</EmptyState>
+  if (outcome.rows.length === 0) return <EmptyState>{t("tool_query_no_rows")}</EmptyState>
 
   return (
     <div className="mt-1 space-y-1">
@@ -120,10 +125,10 @@ function renderExpanded(context: ToolCardContext) {
         </table>
       </TableShell>
       <div className="flex items-center gap-2 text-2xs text-gray-500 dark:text-gray-400">
-        <StatePill state={outcome.readOnly ? "read-only" : "read-write"} tone={outcome.readOnly ? "info" : "warning"} />
+        <StatePill state={outcome.readOnly ? t("allow_writes_disabled") : t("allow_writes_enabled")} tone={outcome.readOnly ? "info" : "warning"} />
         {outcome.durationMs != null ? <span>{formatMs(outcome.durationMs)}</span> : null}
       </div>
-      {outcome.truncated ? <TruncatedNotice label="Result set" /> : null}
+      {outcome.truncated ? <TruncatedNotice label={t("tool_result_set")} /> : null}
     </div>
   )
 }

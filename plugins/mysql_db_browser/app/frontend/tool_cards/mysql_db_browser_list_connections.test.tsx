@@ -37,8 +37,8 @@ describe("mysql_db_browser_list_connections tool card", () => {
 
     expect(screen.getByText("Primary reporting DB")).toBeInTheDocument()
     expect(screen.getByText("syrus_production")).toBeInTheDocument()
-    expect(screen.getByText("enabled")).toBeInTheDocument()
-    expect(screen.getByText("read-only")).toBeInTheDocument()
+    expect(screen.getByText("Enabled")).toBeInTheDocument()
+    expect(screen.getByText("Read-only")).toBeInTheDocument()
     expect(screen.queryByText(/password/i)).not.toBeInTheDocument()
   })
 

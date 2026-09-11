@@ -30,7 +30,7 @@ describe("mysql_db_browser_list_databases tool card", () => {
 
     expect(screen.getByText(/syrus_production/)).toBeInTheDocument()
     expect(screen.getByText("utf8mb4")).toBeInTheDocument()
-    expect(screen.getByText("system")).toBeInTheDocument()
+    expect(screen.getByText("System")).toBeInTheDocument()
   })
 
   it("renders a friendly empty state for no databases", () => {

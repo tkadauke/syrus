@@ -1,3 +1,4 @@
+import i18n from "i18next"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row, SectionLabel } from "@app/routes/chat/toolCardUi"
 import { formatBytes } from "@app/lib/format"
@@ -53,8 +54,12 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  const columnCount = card.columns.available ? `${card.columns.rows.length} columns` : "columns unavailable"
+  const columnCount = card.columns.available ? t("tool_columns_count", { count: card.columns.rows.length }) : t("tool_columns_unavailable")
   return `${card.database}.${card.table} (${columnCount})`
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`mysql_db_browser:${key}`, options)
 }
 
 function InfoSection({ section }: { section: MysqlInfoSection }) {
@@ -62,20 +67,20 @@ function InfoSection({ section }: { section: MysqlInfoSection }) {
 
   return (
     <dl className="grid gap-1 sm:grid-cols-2">
-      {section.info.type ? <Row label="Type" value={section.info.type} /> : null}
-      {section.info.engine ? <Row label="Engine" value={section.info.engine} /> : null}
-      {section.info.approxRowCount != null ? <Row label="Rows (approx)" value={section.info.approxRowCount.toLocaleString()} /> : null}
-      <Row label="Data size" value={formatBytes(section.info.dataLengthBytes)} />
-      <Row label="Index size" value={formatBytes(section.info.indexLengthBytes)} />
-      {section.info.autoIncrement != null ? <Row label="Auto increment" value={String(section.info.autoIncrement)} /> : null}
-      {section.info.collation ? <Row label="Collation" value={section.info.collation} /> : null}
+      {section.info.type ? <Row label={t("tool_type")} value={section.info.type} /> : null}
+      {section.info.engine ? <Row label={t("tool_engine")} value={section.info.engine} /> : null}
+      {section.info.approxRowCount != null ? <Row label={t("tool_rows_approx")} value={section.info.approxRowCount.toLocaleString()} /> : null}
+      <Row label={t("tool_data_size")} value={formatBytes(section.info.dataLengthBytes)} />
+      <Row label={t("tool_index_size")} value={formatBytes(section.info.indexLengthBytes)} />
+      {section.info.autoIncrement != null ? <Row label={t("tool_auto_increment")} value={String(section.info.autoIncrement)} /> : null}
+      {section.info.collation ? <Row label={t("tool_collation")} value={section.info.collation} /> : null}
     </dl>
   )
 }
 
 function ColumnsSection({ section }: { section: MysqlSection<MysqlColumnRow> }) {
   if (!section.available) return section.error ? <MysqlErrorNotice error={section.error} /> : null
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">No columns.</div>
+  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_columns")}</div>
 
   return (
     <div className="space-y-1">
@@ -83,12 +88,12 @@ function ColumnsSection({ section }: { section: MysqlSection<MysqlColumnRow> }) 
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">Column</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Type</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Nullable</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Key</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Default</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Extra</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_column")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_type")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_nullable")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_key")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_default")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_extra")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -105,14 +110,14 @@ function ColumnsSection({ section }: { section: MysqlSection<MysqlColumnRow> }) 
           </tbody>
         </table>
       </TableShell>
-      {section.truncated ? <TruncatedNotice label="Column list" /> : null}
+      {section.truncated ? <TruncatedNotice label={t("tool_column_list")} /> : null}
     </div>
   )
 }
 
 function IndexesSection({ section }: { section: MysqlSection<MysqlIndexRow> }) {
   if (!section.available) return section.error ? <MysqlErrorNotice error={section.error} /> : null
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">No indexes.</div>
+  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_indexes")}</div>
 
   return (
     <ul className="space-y-1">
@@ -127,7 +132,7 @@ function IndexesSection({ section }: { section: MysqlSection<MysqlIndexRow> }) {
 
 function ForeignKeysSection({ section }: { section: MysqlSection<MysqlForeignKeyRow> }) {
   if (!section.available) return section.error ? <MysqlErrorNotice error={section.error} /> : null
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">No foreign keys.</div>
+  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_foreign_keys")}</div>
 
   return (
     <ul className="space-y-1">
@@ -148,19 +153,19 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="font-mono font-medium text-gray-800 dark:text-gray-100">{card.database}.{card.table}</div>
       <div>
-        <SectionLabel>Info</SectionLabel>
+        <SectionLabel>{t("tool_info")}</SectionLabel>
         <InfoSection section={card.info} />
       </div>
       <div>
-        <SectionLabel>Columns</SectionLabel>
+        <SectionLabel>{t("tool_columns")}</SectionLabel>
         <ColumnsSection section={card.columns} />
       </div>
       <div>
-        <SectionLabel>Indexes</SectionLabel>
+        <SectionLabel>{t("tool_indexes")}</SectionLabel>
         <IndexesSection section={card.indexes} />
       </div>
       <div>
-        <SectionLabel>Foreign keys</SectionLabel>
+        <SectionLabel>{t("tool_foreign_keys")}</SectionLabel>
         <ForeignKeysSection section={card.foreignKeys} />
       </div>
     </CardShell>
