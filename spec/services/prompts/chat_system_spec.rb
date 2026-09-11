@@ -526,13 +526,32 @@ RSpec.describe Prompts::ChatSystem do
   it "routes preview mockup requests to preview panel tools before whiteboard or Sites" do
     out = described_class.new(repository: repo).to_s
 
-    expect(out).to include('When the operator asks for a "preview", "preview mockup", "HTML')
-    expect(out).to include("prefer Syrus preview-panel\ntools over the whiteboard or Sites")
-    expect(out).to include("Search tools for `show_preview`,\n`write_preview_file`, or `edit_preview_file`")
-    expect(out).to include("create or update `index.html` in that panel's scratch directory")
-    expect(out).to include("calling `show_preview` again with the same `panel_id`")
-    expect(out).to include("Use Sites only when the operator explicitly asks for a hosted,\ndeployed, public, or production website URL.")
+    expect(out).to include("For UI mockups, HTML mockups, prototypes")
+    expect(out).to include('screenshot-driven interface redesigns, "open the preview"')
+    expect(out).to include("use Syrus preview-panel tools by default")
+    expect(out).to include("The canonical sequence is:\ncall `show_preview` to open a panel")
+    expect(out).to include("write or update `index.html` with\n`write_preview_file` or `edit_preview_file`")
+    expect(out).to include("publish by calling `show_preview` again with the same\n`panel_id`")
+    expect(out).to include("HTML/UI mockups in Syrus Chat are not imagegen tasks")
+    expect(out).to include("preview panels win for interface mockups")
+    expect(out).to include("Do not use a local HTTP server, local file path, or workspace-only HTML")
+    expect(out).to include("deferred or not currently loaded, search deferred tools")
+    expect(out).to include("Only tell the operator a preview is visible after the publish")
+    expect(out).to include("`panel_id`, `version_id`, and `mockup_slug`")
+    expect(out).to include("Use Sites only when the operator\nexplicitly asks for a hosted, deployed, public, or production website")
     expect(out).to include("Use it\nonly when the operator explicitly asks for a canvas, diagram, sketch,\nor whiteboard")
+  end
+
+  it "covers UI and HTML mockup conflict cases without local static-server fallback" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("For UI mockups")
+    expect(out).to include("HTML mockups")
+    expect(out).to include('"open the preview"')
+    expect(out).to include("not imagegen tasks unless the\noperator explicitly asks for a bitmap/raster image")
+    expect(out).to include("Do not use a local HTTP server")
+    expect(out).to include("local file path")
+    expect(out).to include("workspace-only HTML\nfile as the primary deliverable")
   end
 
   it "requires read_job state check before submit_chat_feedback" do
