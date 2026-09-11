@@ -45,6 +45,45 @@ RSpec.describe AgentActivity::SessionSerializer do
     expect(payload[:repository]).to eq(id: repository.id, slug: "acme/widgets")
   end
 
+  it "builds workflow transcript paths from the requested surface scope" do
+    job = Factories.job_with_run(repository: repository, run_attrs: { state: "running" })
+    run = job.runs.last
+    agent = agent_for_run(run)
+
+    payload = described_class.call(agent, scope: :admin)
+
+    expect(payload[:transcript_path]).to eq("/api/v1/app/admin/agent_activity/sessions/#{run.id}/artifacts")
+    expect(payload[:chat_path]).to be_nil
+  end
+
+  it "serializes chat sessions with a live-chat deep link and no transcript drawer path" do
+    chat = ChatSession.create!(user: repository.user, repository: repository, mode: "coding", chat_provider: "codex")
+    agent = Agent.find_or_create_for!(chat)
+    SpawnedProcess.create!(
+      agent: agent,
+      chat_session: chat,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "spec-host",
+      started_at: 2.minutes.ago,
+      finished_at: nil,
+      outcome: nil
+    )
+
+    payload = described_class.call(agent)
+
+    expect(payload).to include(
+      state: "running",
+      step_kind: "coding",
+      role: AgentRole::CHAT_CODING,
+      role_label: "Coding",
+      agent_provider: "codex",
+      transcript_path: nil,
+      chat_path: "/chats/#{chat.id}"
+    )
+    expect(payload[:repository]).to eq(id: repository.id, slug: "acme/widgets")
+  end
+
   it "computes duration from started_at to finished_at, or to now while still running" do
     job = Factories.job_with_run(
       repository: repository,

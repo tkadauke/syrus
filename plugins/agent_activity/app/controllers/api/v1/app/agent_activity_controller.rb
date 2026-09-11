@@ -61,14 +61,9 @@ module Api
         end
 
         def serialize(agent)
-          transcript_path = if agent.resumable_type == "Run"
-            run = agent.resumable
-            "/api/v1/app/jobs/#{run.job_id}/runs/#{run.id}/artifacts"
-          end
-
           ::AgentActivity::SessionSerializer.call(
             agent,
-            transcript_path: transcript_path
+            scope: :mine
           )
         end
 

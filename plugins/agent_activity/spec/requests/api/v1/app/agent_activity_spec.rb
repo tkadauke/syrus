@@ -27,6 +27,20 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
     )
   end
 
+  def record_chat_process(chat)
+    agent = Agent.find_or_create_for!(chat)
+    SpawnedProcess.create!(
+      agent: agent,
+      chat_session: chat,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "spec-host",
+      started_at: 1.minute.ago,
+      finished_at: nil,
+      outcome: nil
+    )
+  end
+
   describe "GET /sessions" do
     it "requires authentication" do
       get "/api/v1/app/agent_activity/sessions"
@@ -187,6 +201,18 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
 
       row = parse_body.fetch("sessions").first
       expect(row.fetch("transcript_path")).to eq("/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts")
+    end
+
+    it "deep-links chat-backed sessions to the live chat instead of run artifacts" do
+      sign_in_as(operator)
+      chat = ChatSession.create!(user: operator, repository: repository, mode: "coding")
+      record_chat_process(chat)
+
+      get "/api/v1/app/agent_activity/sessions"
+
+      row = parse_body.fetch("sessions").first
+      expect(row.fetch("transcript_path")).to be_nil
+      expect(row.fetch("chat_path")).to eq("/chats/#{chat.id}")
     end
   end
 end
