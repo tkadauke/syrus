@@ -766,6 +766,21 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "classifies a refused no-HEAD workspace reclone as non-retryable git state corruption" do
+    run.update!(state: "failed")
+    diagnostic(
+      "GitRunner::GitError",
+      "git rev-parse --verify HEAD exited 128\n" \
+      "existing workflow workspace at /tmp/workflows/123 has no valid HEAD; " \
+      "refusing to discard possible agent work"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("git_state_corrupt")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies an empty-commit amend as empty_commit, not git_state_corrupt (JOB-330 regression)" do
     run.update!(state: "failed")
     # A GitRunner::GitError whose error_class alone would match git_state_corrupt?,

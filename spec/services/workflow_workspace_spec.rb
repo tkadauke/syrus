@@ -204,8 +204,27 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         FileUtils.mkdir_p(ws.path)
         File.write(ws.path.join("agent-output.tmp"), "possibly unpushed agent output")
 
-        expect { ws.setup }.to raise_error(GitRunner::GitError, /no valid HEAD/)
+        expect { ws.setup }.to raise_error(GitRunner::GitError, /refusing to discard possible agent work/)
         expect(ws.path.join("agent-output.tmp")).to exist
+      end
+
+      it "reclones an invalid merge-train workspace from its published required branch after agentic steps succeeded" do
+        required = "syrus/merge-train-epic-99"
+        seed_remote_branch(required, "integration work")
+        workflow.update!(trigger_kind: "merge_train")
+        workflow.set_artifact!(described_class::REQUIRED_BRANCH_ARTIFACT, required)
+        workflow.steps.create!(kind: "merge_train_build", position: 1, state: "succeeded")
+        workflow.steps.create!(kind: "merge_train_reconcile", position: 2, state: "succeeded")
+
+        ws = described_class.new(workflow)
+        FileUtils.mkdir_p(ws.path)
+        File.write(ws.path.join("agent-output.tmp"), "corrupt workspace debris")
+
+        expect { ws.setup }.not_to raise_error
+        expect(ws.path.join("agent-output.tmp")).not_to exist
+        expect(ws.path.join("integration.txt")).to exist
+        expect(sh("git -C #{ws.path} rev-parse --verify HEAD").strip).to match(/\A[0-9a-f]{40}\z/)
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq(required)
       end
 
       it "creates a fresh branch when the target branch isn't on origin" do
