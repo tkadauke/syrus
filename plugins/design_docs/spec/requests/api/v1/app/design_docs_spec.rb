@@ -141,6 +141,28 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(row.fetch("collaborators").map { |user| user.fetch("id") }).to eq([ collaborator.id ])
   end
 
+  it "preloads summary associations for the index table instead of counting comments per row" do
+    docs = 3.times.map do |index|
+      doc = create_design_doc(title: "Indexed doc #{index}", markdown: "Body #{index}")
+      doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+      ::DesignDocs::CreateComment.call(
+        design_doc: doc.reload,
+        user: owner,
+        attributes: { body: "Comment #{index}", start_offset: 0, end_offset: 4, selected_markdown: "Body" }
+      )
+      doc
+    end
+    sign_in_as(owner)
+
+    queries = capture_sql { get "/api/v1/app/design_docs" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("design_docs").pluck("id")).to include(*docs.map(&:id))
+    comment_queries = queries.select { |sql| sql.match?(/\bFROM [`"]?design_doc_comments[`"]?/i) }
+    expect(comment_queries.size).to be <= 1
+    expect(queries.grep(/COUNT\(\*\).*design_doc_comments/i)).to be_empty
+  end
+
   it "persists Design Docs visible column choices using dashboard preference storage" do
     sign_in_as(owner)
 
