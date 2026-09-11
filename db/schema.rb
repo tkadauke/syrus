@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_143000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_170000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2500,6 +2500,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_143000) do
   end
 
   create_table "spawned_processes", force: :cascade do |t|
+    t.bigint "agent_id"
     t.bigint "chat_session_id"
     t.string "command", limit: 4096, null: false
     t.datetime "created_at", null: false
@@ -2521,6 +2522,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_143000) do
     t.integer "wall_timeout_s"
     t.string "workdir", limit: 4096
     t.integer "workflow_id"
+    t.index ["agent_id"], name: "index_spawned_processes_on_agent_id"
     t.index ["chat_session_id"], name: "index_spawned_processes_on_chat_session_id"
     t.index ["finished_at", "hostname", "pid", "last_chunk_at"], name: "idx_spawned_processes_active_host_pid"
     t.index ["finished_at", "kind"], name: "idx_spawned_processes_active_kind"

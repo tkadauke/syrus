@@ -1,5 +1,6 @@
 class Agent < ApplicationRecord
   belongs_to :resumable, polymorphic: true
+  has_many :spawned_processes, dependent: :nullify
 
   validates :resumable, presence: true
   validates :resumable_id, uniqueness: { scope: :resumable_type }
