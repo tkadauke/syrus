@@ -6,8 +6,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 export function useCopyToClipboard(resetDelayMs = 1500) {
   const [copied, setCopied] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mountedRef = useRef(true)
 
   useEffect(() => () => {
+    mountedRef.current = false
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
   }, [])
 
@@ -15,10 +17,13 @@ export function useCopyToClipboard(resetDelayMs = 1500) {
     if (!navigator.clipboard?.writeText) return
 
     void navigator.clipboard.writeText(text).then(() => {
+      if (!mountedRef.current) return
       setCopied(true)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       timeoutRef.current = setTimeout(() => setCopied(false), resetDelayMs)
-    }, () => setCopied(false))
+    }, () => {
+      if (mountedRef.current) setCopied(false)
+    })
   }, [resetDelayMs])
 
   return { copied, copy }

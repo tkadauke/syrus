@@ -21,6 +21,11 @@ module Steps
     # Steps::GraderCollect always sees a value scoped to *this* iteration,
     # never a stale entry left over from an earlier one.
     CARRIED_FORWARD_ARTIFACT_KEY = "grade_carried_forward_graders".freeze
+    MATERIALIZATION_LOCK_ERRORS = [
+      ActiveRecord::Deadlocked,
+      ActiveRecord::LockWaitTimeout
+    ].freeze
+    MATERIALIZATION_LOCK_RETRY_ATTEMPTS = 3
 
     def call
       workspace.setup
@@ -245,35 +250,52 @@ module Steps
       insertion_position = step.position + 1
       offset = graders.size
 
-      Step.transaction do
-        source_snapshot = current_source_snapshot_for_projection
+      with_materialization_lock_retries do
+        Step.transaction do
+          source_snapshot = current_source_snapshot_for_projection
 
-        workflow.steps.where("position >= ?", insertion_position).update_all(
-          [ "position = position + ?", offset ]
-        )
-
-        new_steps = graders.each_with_index.map do |grader, index|
-          prepare_targets = prepare_targets_for(grader)
-
-          Step.create!(
-            workflow: workflow,
-            kind: "grader",
-            position: insertion_position + index,
-            iteration: step.iteration,
-            loop_id: step.loop_id,
-            placement_policy: grader_placement_policy,
-            details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+          workflow.steps.where("position >= ?", insertion_position).update_all(
+            [ "position = position + ?", offset ]
           )
+
+          new_steps = graders.each_with_index.map do |grader, index|
+            prepare_targets = prepare_targets_for(grader)
+
+            Step.create!(
+              workflow: workflow,
+              kind: "grader",
+              position: insertion_position + index,
+              iteration: step.iteration,
+              loop_id: step.loop_id,
+              placement_policy: grader_placement_policy,
+              details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+            )
+          end
+
+          link_materialized_grader_steps!(new_steps, continuation)
+
+          # workflow-engine-v3 A5: the graders all run from this fanout, and the
+          # continuation waits for every one of them. Stating the fan-in as edges
+          # is what lets "find next" be a ready-set query instead of a sentinel
+          # plus a per-kind waits_for_terminal_step_kind rule.
+          new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
+          continuation&.update!(depends_on_ids: new_steps.map(&:id))
         end
+      end
+    end
 
-        link_materialized_grader_steps!(new_steps, continuation)
+    def with_materialization_lock_retries
+      attempts = 0
 
-        # workflow-engine-v3 A5: the graders all run from this fanout, and the
-        # continuation waits for every one of them. Stating the fan-in as edges
-        # is what lets "find next" be a ready-set query instead of a sentinel
-        # plus a per-kind waits_for_terminal_step_kind rule.
-        new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
-        continuation&.update!(depends_on_ids: new_steps.map(&:id))
+      begin
+        yield
+      rescue *MATERIALIZATION_LOCK_ERRORS => e
+        attempts += 1
+        raise if attempts > MATERIALIZATION_LOCK_RETRY_ATTEMPTS
+
+        log("[grader_fanout] transient step materialization lock conflict (#{e.class}); retrying #{attempts}/#{MATERIALIZATION_LOCK_RETRY_ATTEMPTS}")
+        sleep(0.05 * attempts) unless Rails.env.test?
+        retry
       end
     end
 

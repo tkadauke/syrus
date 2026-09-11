@@ -17,6 +17,12 @@ module Steps
   #   - Materializes Steps with kind "preflight_grader" to avoid collisions
   #     with the main grade loop's "grader" steps
   class PreflightGraderFanout < Base
+    MATERIALIZATION_LOCK_ERRORS = [
+      ActiveRecord::Deadlocked,
+      ActiveRecord::LockWaitTimeout
+    ].freeze
+    MATERIALIZATION_LOCK_RETRY_ATTEMPTS = 3
+
     def call
       workspace.setup
       plan = effective_plan(RepoGradePlan.for(workspace.path))
@@ -53,28 +59,45 @@ module Steps
       insertion_position = step.position + 1
       offset = graders.size
 
-      Step.transaction do
-        source_snapshot = current_source_snapshot_for_projection
+      with_materialization_lock_retries do
+        Step.transaction do
+          source_snapshot = current_source_snapshot_for_projection
 
-        workflow.steps.where("position >= ?", insertion_position).update_all(
-          [ "position = position + ?", offset ]
-        )
-
-        new_steps = graders.each_with_index.map do |grader, index|
-          prepare_targets = prepare_targets_for(grader)
-
-          Step.create!(
-            workflow: workflow,
-            kind: "preflight_grader",
-            position: insertion_position + index,
-            iteration: step.iteration,
-            placement_policy: grader_placement_policy,
-            details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+          workflow.steps.where("position >= ?", insertion_position).update_all(
+            [ "position = position + ?", offset ]
           )
-        end
 
-        ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
-        new_steps.last.update!(next_step_id: continuation&.id)
+          new_steps = graders.each_with_index.map do |grader, index|
+            prepare_targets = prepare_targets_for(grader)
+
+            Step.create!(
+              workflow: workflow,
+              kind: "preflight_grader",
+              position: insertion_position + index,
+              iteration: step.iteration,
+              placement_policy: grader_placement_policy,
+              details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+            )
+          end
+
+          ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
+          new_steps.last.update!(next_step_id: continuation&.id)
+        end
+      end
+    end
+
+    def with_materialization_lock_retries
+      attempts = 0
+
+      begin
+        yield
+      rescue *MATERIALIZATION_LOCK_ERRORS => e
+        attempts += 1
+        raise if attempts > MATERIALIZATION_LOCK_RETRY_ATTEMPTS
+
+        log("[preflight_grader_fanout] transient step materialization lock conflict (#{e.class}); retrying #{attempts}/#{MATERIALIZATION_LOCK_RETRY_ATTEMPTS}")
+        sleep(0.05 * attempts) unless Rails.env.test?
+        retry
       end
     end
 

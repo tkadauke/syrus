@@ -613,6 +613,8 @@ module Steps
         body = PrCostFooter.apply(PrStackFooter.apply(pr.body.to_s, stack_job), stack_job)
         client.update_pull_request_body(pr_repo.slug, stack_job.pr_number, body)
       end
+    rescue Octokit::TooManyRequests, Octokit::ServerError => e
+      log("[pr_open] failed to refresh stack footer: #{e.class}: #{e.message}")
     end
 
     def post_coverage_comment_if_present

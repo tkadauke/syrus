@@ -50,6 +50,18 @@ RSpec.describe BackfillChatSearchIndexJob do
     }.not_to change { indexed_message_ids.count(message.id) }
   end
 
+  it "retries transient SQLite busy errors" do
+    job = described_class.new
+    calls = 0
+
+    job.send(:with_sqlite_busy_retries) do
+      calls += 1
+      raise ActiveRecord::StatementTimeout, "SQLite3::BusyException: database is locked" if calls == 1
+    end
+
+    expect(calls).to eq(2)
+  end
+
   def indexed_message_ids
     SearchRecord.connection.select_values("SELECT chat_message_id FROM chat_message_fts ORDER BY chat_message_id").map(&:to_i)
   end

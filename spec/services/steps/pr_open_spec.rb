@@ -857,6 +857,28 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(git).not_to have_received(:run).with("push", anything, anything, chdir: anything)
   end
 
+  it "does not fail pr_open when stack footer refresh hits a transient GitHub server error" do
+    parent = Factories.job(repository: repository, issue_number: 41)
+    parent.update!(pr_number: 76)
+    job.update!(parent_job: parent, pr_number: 77)
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    client = instance_double(GithubClient)
+    error = Octokit::BadGateway.new(status: 502, body: { message: "Bad Gateway" })
+
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow(client).to receive(:pull_request).and_raise(error)
+
+    expect {
+      handler.send(:refresh_stack_footer)
+    }.not_to raise_error
+  end
+
   # `summarize` amends the implement commit to the agent-authored message, so by
   # the time pr_open runs the validated SHA has been replaced by an equivalent
   # commit. Treating that as "the implementation is missing" reset the branch to

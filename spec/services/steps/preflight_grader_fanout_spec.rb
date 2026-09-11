@@ -67,6 +67,26 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec lint])
   end
 
+  it "retries transient step materialization deadlocks" do
+    write_grade_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    calls = 0
+    allow(Step).to receive(:transaction).and_wrap_original do |original, *args, &block|
+      calls += 1
+      raise ActiveRecord::Deadlocked, "deadlock" if calls == 1
+
+      original.call(*args, &block)
+    end
+
+    handler.call
+
+    expect(calls).to eq(2)
+    expect(workflow.steps.where(kind: "preflight_grader").count).to eq(1)
+  end
+
   it "materializes preflight_grader (not grader) steps to avoid loop collisions" do
     write_grade_config(<<~YAML)
       grade:

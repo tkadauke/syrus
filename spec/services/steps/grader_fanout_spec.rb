@@ -105,6 +105,26 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_steps.first.details["name"]).to eq("rspec")
   end
 
+  it "retries transient step materialization deadlocks" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    calls = 0
+    allow(Step).to receive(:transaction).and_wrap_original do |original, *args, &block|
+      calls += 1
+      raise ActiveRecord::Deadlocked, "deadlock" if calls == 1
+
+      original.call(*args, &block)
+    end
+
+    handler.call
+
+    expect(calls).to eq(2)
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+  end
+
   it "keeps materialized grader Steps pinned and detail-compatible when the distributed gate is off" do
     job.repository.update!(distributed_workflow_dag_enabled: true)
     write_config(<<~YAML)

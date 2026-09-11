@@ -1,6 +1,8 @@
 class BackfillChatSearchIndexJob < ApplicationJob
   BATCH_SIZE = 500
   LAST_BACKFILLED_ID_KEY = "last_backfilled_id".freeze
+  SQLITE_BUSY_RETRY_ATTEMPTS = 3
+  SQLITE_BUSY_RETRY_DELAY = 0.05
 
   queue_as :indexing
 
@@ -13,10 +15,10 @@ class BackfillChatSearchIndexJob < ApplicationJob
         next unless ChatMessageSearchIndex.indexable?(message)
         next if ChatMessageSearchIndex.indexed?(message.id)
 
-        ChatMessageSearchIndex.insert(message)
+        with_sqlite_busy_retries { ChatMessageSearchIndex.insert(message) }
       end
 
-      update_last_backfilled_id(messages.last.id)
+      with_sqlite_busy_retries { update_last_backfilled_id(messages.last.id) }
     end
   end
 
@@ -52,5 +54,25 @@ class BackfillChatSearchIndexJob < ApplicationJob
 
   def bind(value)
     ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
+  end
+
+  def with_sqlite_busy_retries
+    attempts = 0
+
+    begin
+      yield
+    rescue ActiveRecord::StatementInvalid, ActiveRecord::StatementTimeout => e
+      raise unless sqlite_busy_error?(e)
+
+      attempts += 1
+      raise if attempts > SQLITE_BUSY_RETRY_ATTEMPTS
+
+      sleep(SQLITE_BUSY_RETRY_DELAY * attempts) unless Rails.env.test?
+      retry
+    end
+  end
+
+  def sqlite_busy_error?(error)
+    error.message.match?(/SQLite3::BusyException|database is locked/i)
   end
 end

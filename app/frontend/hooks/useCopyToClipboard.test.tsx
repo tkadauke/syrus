@@ -58,4 +58,27 @@ describe("useCopyToClipboard", () => {
 
     expect(result.current.copied).toBe(false)
   })
+
+  it("does not update state if the clipboard write resolves after unmount", async () => {
+    let resolveWrite: (() => void) | undefined
+    const writeText = vi.fn().mockImplementation(() => new Promise<void>((resolve) => {
+      resolveWrite = resolve
+    }))
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    const { result, unmount } = renderHook(() => useCopyToClipboard())
+
+    act(() => {
+      result.current.copy("hello")
+    })
+    unmount()
+
+    await act(async () => {
+      resolveWrite?.()
+      await Promise.resolve()
+    })
+
+    expect(writeText).toHaveBeenCalledWith("hello")
+    expect(result.current.copied).toBe(false)
+  })
 })
