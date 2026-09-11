@@ -4,6 +4,7 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { Button, Checkbox, DataTable, Input } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createKubernetesCluster,
@@ -130,23 +131,22 @@ function ClustersTable({
   const [editingId, setEditingId] = useState<number | null>(null)
 
   return (
-    <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-900 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-4 py-2">{t("col_label")}</th>
-              <th className="px-4 py-2">{t("col_api_server_url")}</th>
-              <th className="px-4 py-2">{t("col_credential_kind")}</th>
-              <th className="px-4 py-2">{t("col_agentic_access")}</th>
-              <th className="px-4 py-2">{t("col_allow_writes")}</th>
-              <th className="px-4 py-2">{t("col_insecure_skip_tls_verify")}</th>
-              <th className="px-4 py-2"><span className="sr-only">{t("col_actions")}</span></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
+    <section>
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("col_label")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_api_server_url")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_credential_kind")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_agentic_access")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_allow_writes")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_insecure_skip_tls_verify")}</DataTable.HeadCell>
+            <DataTable.HeadCell><span className="sr-only">{t("col_actions")}</span></DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
             {clusters.length === 0 ? (
-              <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={7}>{t("empty")}</td></tr>
+              <DataTable.Empty colSpan={7}>{t("empty")}</DataTable.Empty>
             ) : clusters.map((cluster) => (
               editingId === cluster.id ? (
                 <ClusterEditRow
@@ -166,9 +166,8 @@ function ClustersTable({
                 />
               )
             ))}
-          </tbody>
-        </table>
-      </div>
+        </DataTable.Body>
+      </DataTable.Root>
     </section>
   )
 }
@@ -187,35 +186,35 @@ function ClusterRow({
   const { t } = useT("k8s_cluster")
 
   return (
-    <tr>
-      <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{cluster.label}</td>
-      <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{cluster.api_server_url}</td>
-      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+    <DataTable.Row>
+      <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{cluster.label}</DataTable.Cell>
+      <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">{cluster.api_server_url}</DataTable.Cell>
+      <DataTable.Cell className="text-gray-700 dark:text-gray-300">
         {cluster.credential_kind === "token"
           ? t("credential_kind_token")
           : cluster.credential_kind === "client_cert"
             ? t("credential_kind_client_cert")
             : t("credential_kind_none")}
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         <StatusBadge tone={cluster.agentic_access_enabled ? "success" : "neutral"}>
           {cluster.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}
         </StatusBadge>
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         <StatusBadge tone={cluster.allow_writes ? "warning" : "neutral"}>
           {cluster.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
         </StatusBadge>
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         <StatusBadge tone={cluster.insecure_skip_tls_verify ? "warning" : "neutral"}>
           {cluster.insecure_skip_tls_verify ? t("insecure_enabled") : t("insecure_disabled")}
         </StatusBadge>
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         <ClusterActions cluster={cluster} onBrowse={onBrowse} onEdit={onEdit} onNotice={onNotice} />
-      </td>
-    </tr>
+      </DataTable.Cell>
+    </DataTable.Row>
   )
 }
 
@@ -243,21 +242,13 @@ function ClusterActions({
   return (
     <div>
       <div className="flex flex-wrap items-start justify-end gap-2">
-        <button
-          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90"
-          onClick={onBrowse}
-          type="button"
-        >
+        <Button onClick={onBrowse} type="button" variant="primary">
           {t("browse_button")}
-        </button>
+        </Button>
         <TestButton onTest={() => testKubernetesCluster(cluster.id)} />
-        <button
-          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          onClick={onEdit}
-          type="button"
-        >
+        <Button onClick={onEdit} type="button" variant="secondary">
           {t("edit_button")}
-        </button>
+        </Button>
         <button
           className="rounded border border-red-300 dark:border-red-900 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={destroy.isPending}
@@ -317,8 +308,8 @@ function ClusterEditRow({
   }
 
   return (
-    <tr>
-      <td className="px-4 py-4" colSpan={7}>
+    <DataTable.Row>
+      <DataTable.Cell colSpan={7}>
         <form className="space-y-3" onSubmit={submit}>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
           <ClusterFieldsGrid
@@ -328,26 +319,18 @@ function ClusterEditRow({
             values={values}
           />
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={update.isPending}
-              type="submit"
-            >
+            <Button disabled={update.isPending} type="submit" variant="primary">
               {update.isPending ? t("saving") : t("save_button")}
-            </button>
-            <button
-              className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-              onClick={onCancel}
-              type="button"
-            >
+            </Button>
+            <Button onClick={onCancel} type="button" variant="secondary">
               {t("cancel_button")}
-            </button>
+            </Button>
             <TestButton onTest={() => testKubernetesCluster(cluster.id, values.kubeconfig || undefined)} />
           </div>
           {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
         </form>
-      </td>
-    </tr>
+      </DataTable.Cell>
+    </DataTable.Row>
   )
 }
 
@@ -374,8 +357,8 @@ function ClusterFieldsGrid({
     <div className="grid gap-3">
       <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-label`}>
         {t("field_label")}
-        <input
-          className={INPUT_CLASSES}
+        <Input
+          className="mt-1 normal-case"
           id={`${idPrefix}-label`}
           onChange={(event) => set("label", event.target.value)}
           required
@@ -396,45 +379,42 @@ function ClusterFieldsGrid({
         />
         {kubeconfigHint ? <span className="mt-1 block text-xs normal-case text-gray-500 dark:text-gray-400">{kubeconfigHint}</span> : null}
       </label>
-      <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300" htmlFor={`${idPrefix}-agentic-access`}>
-        <input
+      <div className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300">
+        <Checkbox
           checked={values.agentic_access_enabled}
-          className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+          className="mt-0.5"
           id={`${idPrefix}-agentic-access`}
           onChange={(event) => set("agentic_access_enabled", event.target.checked)}
-          type="checkbox"
         />
-        <span>
+        <label htmlFor={`${idPrefix}-agentic-access`}>
           {t("field_agentic_access")}
           <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_agentic_access_hint")}</span>
-        </span>
-      </label>
-      <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300" htmlFor={`${idPrefix}-allow-writes`}>
-        <input
+        </label>
+      </div>
+      <div className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300">
+        <Checkbox
           checked={values.allow_writes}
-          className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+          className="mt-0.5"
           id={`${idPrefix}-allow-writes`}
           onChange={(event) => set("allow_writes", event.target.checked)}
-          type="checkbox"
         />
-        <span>
+        <label htmlFor={`${idPrefix}-allow-writes`}>
           {t("field_allow_writes")}
           <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_allow_writes_hint")}</span>
-        </span>
-      </label>
-      <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300" htmlFor={`${idPrefix}-insecure`}>
-        <input
+        </label>
+      </div>
+      <div className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300">
+        <Checkbox
           checked={values.insecure_skip_tls_verify}
-          className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+          className="mt-0.5"
           id={`${idPrefix}-insecure`}
           onChange={(event) => set("insecure_skip_tls_verify", event.target.checked)}
-          type="checkbox"
         />
-        <span>
+        <label htmlFor={`${idPrefix}-insecure`}>
           {t("field_insecure_skip_tls_verify")}
           <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_insecure_skip_tls_verify_hint")}</span>
-        </span>
-      </label>
+        </label>
+      </div>
     </div>
   )
 }
@@ -445,14 +425,9 @@ function TestButton({ onTest }: { onTest: () => Promise<KubernetesClusterTestRes
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <button
-        className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={test.isPending}
-        onClick={() => test.mutate()}
-        type="button"
-      >
+      <Button disabled={test.isPending} onClick={() => test.mutate()} type="button" variant="secondary">
         {test.isPending ? t("testing") : t("test_button")}
-      </button>
+      </Button>
       {test.isSuccess ? (
         test.data.success ? (
           <p className="text-xs text-emerald-700 dark:text-emerald-300">{t("test_success")}</p>

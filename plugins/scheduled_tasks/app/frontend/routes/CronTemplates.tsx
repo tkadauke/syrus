@@ -25,6 +25,7 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { Button, buttonClasses } from "@app/components/Button"
+import { DataTable, DescriptionList } from "@app/components/ui"
 
 const defaultPolicies = ["skip", "pile", "replace"]
 const emptyTemplate: CronTemplateInput = {
@@ -146,34 +147,34 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
   }
 
   return (
-    <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("cron_templates.col_name")}</th>
-            <th className="px-4 py-2">{t("cron_templates.col_schedule")}</th>
-            <th className="px-4 py-2">{t("cron_templates.col_pileup")}</th>
-            <th className="px-4 py-2">{t("cron_templates.col_applied")}</th>
-            <th className="px-4 py-2">{t("cron_templates.col_status")}</th>
-            <th className="px-4 py-2"><span className="sr-only">{t("cron_templates.col_open")}</span></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+    <section>
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("cron_templates.col_name")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("cron_templates.col_schedule")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("cron_templates.col_pileup")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("cron_templates.col_applied")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("cron_templates.col_status")}</DataTable.HeadCell>
+            <DataTable.HeadCell><span className="sr-only">{t("cron_templates.col_open")}</span></DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {templates.map((template) => (
-            <tr key={template.id}>
-              <td className="px-4 py-3 font-medium">
+            <DataTable.Row key={template.id}>
+              <DataTable.Cell className="font-medium">
                 <Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>{template.name}</Link>
                 {template.description ? <p className="mt-0.5 text-xs font-normal text-gray-500 dark:text-gray-400">{template.description}</p> : null}
-              </td>
-              <td className="px-4 py-3 text-xs">{template.schedule_explanation || template.cron_expression}</td>
-              <td className="px-4 py-3 text-xs">{template.pr_pileup_policy}</td>
-              <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{t("cron_templates.repos", { count: template.applied_tasks_count })}</td>
-              <td className="px-4 py-3"><StatusPill enabled={template.enabled} /></td>
-              <td className="px-4 py-3 text-right"><Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>{t("cron_templates.col_open")}</Link></td>
-            </tr>
+              </DataTable.Cell>
+              <DataTable.Cell>{template.schedule_explanation || template.cron_expression}</DataTable.Cell>
+              <DataTable.Cell>{template.pr_pileup_policy}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-600 dark:text-gray-400">{t("cron_templates.repos", { count: template.applied_tasks_count })}</DataTable.Cell>
+              <DataTable.Cell><StatusPill enabled={template.enabled} /></DataTable.Cell>
+              <DataTable.Cell align="right"><Link className="text-brand underline hover:no-underline" to={`${basePath}/${template.id}`}>{t("cron_templates.col_open")}</Link></DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </DataTable.Root>
     </section>
   )
 }
@@ -222,14 +223,11 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("cron_templates.section_schedule")}</h2>
-        <dl className="grid grid-cols-2 gap-y-2 text-sm">
-          <dt className="text-gray-500 dark:text-gray-400">{t("cron_templates.cron_expression_label")}</dt>
-          <dd>{payload.template.schedule_explanation || payload.template.cron_expression}</dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("cron_templates.semantics_label")}</dt>
-          <dd className="font-mono text-xs">{payload.template.schedule_expression}</dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("cron_templates.pr_pileup_policy_label")}</dt>
-          <dd>{payload.template.pr_pileup_policy}</dd>
-        </dl>
+        <DescriptionList.Root>
+          <DescriptionList.Item label={t("cron_templates.cron_expression_label")}>{payload.template.schedule_explanation || payload.template.cron_expression}</DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-xs" label={t("cron_templates.semantics_label")}>{payload.template.schedule_expression}</DescriptionList.Item>
+          <DescriptionList.Item label={t("cron_templates.pr_pileup_policy_label")}>{payload.template.pr_pileup_policy}</DescriptionList.Item>
+        </DescriptionList.Root>
       </section>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
@@ -338,26 +336,26 @@ function AppliedTasks({ tasks, prefix }: { tasks: Awaited<ReturnType<typeof fetc
       {tasks.length === 0 ? (
         <p className="text-sm text-gray-600 dark:text-gray-400">{t("cron_templates.not_applied")}</p>
       ) : (
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-2 py-2">{t("cron_templates.applied_tasks_col_repo")}</th>
-              <th className="px-2 py-2">{t("cron_templates.applied_tasks_col_task")}</th>
-              <th className="px-2 py-2">{t("cron_templates.applied_tasks_col_state")}</th>
-              <th className="px-2 py-2">{t("cron_templates.applied_tasks_col_fired")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+        <DataTable.Root density="compact" wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("cron_templates.applied_tasks_col_repo")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("cron_templates.applied_tasks_col_task")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("cron_templates.applied_tasks_col_state")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("cron_templates.applied_tasks_col_fired")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {tasks.map((task) => (
-              <tr key={task.id}>
-                <td className="px-2 py-2 font-mono text-xs"><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(task.repository_path, prefix)}>{task.repository_slug}</Link></td>
-                <td className="px-2 py-2"><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(task.scheduled_task_path, prefix)}>{task.name}</Link></td>
-                <td className="px-2 py-2"><StatePill state={task.state} /></td>
-                <td className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp fallback={t("cron_templates.never")} value={task.last_fired_at} /></td>
-              </tr>
+              <DataTable.Row key={task.id}>
+                <DataTable.Cell className="font-mono"><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(task.repository_path, prefix)}>{task.repository_slug}</Link></DataTable.Cell>
+                <DataTable.Cell><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(task.scheduled_task_path, prefix)}>{task.name}</Link></DataTable.Cell>
+                <DataTable.Cell><StatePill state={task.state} /></DataTable.Cell>
+                <DataTable.Cell className="text-gray-500 dark:text-gray-400"><RelativeTimestamp fallback={t("cron_templates.never")} value={task.last_fired_at} /></DataTable.Cell>
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
+          </DataTable.Body>
+        </DataTable.Root>
       )}
     </section>
   )

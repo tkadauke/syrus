@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { DescriptionList } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesNodes, fetchKubernetesOverview, type KubernetesMetricsSection } from "../../api/kubernetesResources"
@@ -60,16 +61,14 @@ function MetricsCard({ heading, section }: { heading: string; section: Kubernete
     <div className="rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
       <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{heading}</h4>
       {section.available ? (
-        <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">{t("overview_total_cpu")}</dt>
-            <dd className="font-medium text-gray-900 dark:text-gray-100">{formatMillicores(section.total_cpu_millicores)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 dark:text-gray-400">{t("overview_total_memory")}</dt>
-            <dd className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(section.total_memory_bytes)}</dd>
-          </div>
-        </dl>
+        <DescriptionList.Root className="mt-2 grid-cols-2 sm:grid-cols-2" density="compact">
+          <DescriptionList.Item descriptionClassName="font-medium text-gray-900 dark:text-gray-100" label={t("overview_total_cpu")} termClassName="normal-case tracking-normal">
+            {formatMillicores(section.total_cpu_millicores)}
+          </DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-medium text-gray-900 dark:text-gray-100" label={t("overview_total_memory")} termClassName="normal-case tracking-normal">
+            {formatBytes(section.total_memory_bytes)}
+          </DescriptionList.Item>
+        </DescriptionList.Root>
       ) : (
         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           <p>{t("overview_metrics_unavailable")}</p>
