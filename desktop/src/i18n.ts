@@ -2,7 +2,7 @@ type Locale = "en" | "de" | "la"
 
 const supportedLocales: Locale[] = ["en", "de", "la"]
 
-const messages = {
+const messages: Record<Locale, Record<string, string>> = {
   en: {
     "common.back": "Back",
     "common.cancel": "Cancel",
@@ -140,7 +140,7 @@ const messages = {
     "common.try_again": "Iterum tempta",
     "common.show_details": "Singula ostende"
   }
-} satisfies Record<Locale, Record<string, string>>
+}
 
 for (const locale of ["de", "la"] as const) {
   messages[locale] = { ...messages.en, ...messages[locale] }
@@ -153,5 +153,5 @@ function currentLocale(): Locale {
 
 export function t(key: string, values: Record<string, string | number | null | undefined> = {}) {
   const template = messages[currentLocale()][key] ?? messages.en[key] ?? key
-  return template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(values[name] ?? ""))
+  return template.replace(/\{\{(\w+)\}\}/g, (_match: string, name: string) => String(values[name] ?? ""))
 }
