@@ -119,30 +119,88 @@ class McpToolUsageRecorder
     normalized_result(nil, raw)
   end
 
-  def self.advertised_tools(surface:)
+  def self.advertised_tools(surface:, chat_session: nil, repository: nil)
     case surface.to_s
     when "workflow"
-      workflow_tool_names
+      workflow_tool_names(repository: repository)
     when "chat"
-      chat_tool_names
+      chat_tool_names(chat_session: chat_session)
     else
-      (workflow_tool_names + chat_tool_names).uniq.sort
+      (workflow_tool_names(repository: repository) + chat_tool_names(chat_session: chat_session)).uniq.sort
     end
   end
 
-  def self.workflow_tool_names
+  def self.workflow_tool_names(repository: nil)
     (McpToolRegistry.summaries(surface: :workflow) + McpToolRegistry.summaries(surface: :agent_insight))
       .map { |entry| entry[:tool_name].to_s }
+      .concat(plugin_workflow_tool_names(repository: repository))
       .uniq
       .sort
   end
 
-  def self.chat_tool_names
+  def self.chat_tool_names(chat_session: nil)
     McpToolRegistry.summaries(surface: :chat)
       .map { |entry| entry[:tool_name].to_s }
+      .concat(plugin_chat_tool_names(chat_session: chat_session))
       .uniq
       .sort
   end
+
+  CHAT_TOOL_TIERS = %i[essential deferred].freeze
+
+  def self.plugin_chat_tool_names(chat_session:)
+    Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |tool_set|
+      CHAT_TOOL_TIERS.flat_map do |tier|
+        next [] unless plugin_chat_tool_set_available?(tool_set, chat_session: chat_session, tier: tier)
+
+        tool_definitions(tool_set, tier: tier, chat_session: chat_session)
+      end
+    end.filter_map { |definition| definition[:name].presence&.to_s }
+  end
+  private_class_method :plugin_chat_tool_names
+
+  def self.plugin_chat_tool_set_available?(tool_set, chat_session:, tier:)
+    tool_set.available_for?(chat_session, tier: tier)
+  rescue StandardError, NoMethodError
+    false
+  end
+  private_class_method :plugin_chat_tool_set_available?
+
+  def self.plugin_workflow_tool_names(repository:)
+    Syrus::PluginRegistry.providers_for(:mcp_tool_set).flat_map do |tool_set|
+      next [] unless plugin_workflow_tool_set_available?(tool_set, repository: repository)
+
+      tool_definitions(tool_set)
+    end.filter_map { |definition| definition[:name].presence&.to_s }
+  end
+  private_class_method :plugin_workflow_tool_names
+
+  def self.plugin_workflow_tool_set_available?(tool_set, repository:)
+    return false unless tool_set.respond_to?(:available_for?)
+
+    tool_set.available_for?(repository)
+  rescue StandardError, NoMethodError
+    false
+  end
+  private_class_method :plugin_workflow_tool_set_available?
+
+  def self.tool_definitions(tool_set, tier: nil, chat_session: nil)
+    return [] unless tool_set.respond_to?(:tool_definitions)
+
+    method = tool_set.method(:tool_definitions)
+    keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
+    if keywords.include?(:tier)
+      args = { tier: tier }
+      args[:chat_session] = chat_session if keywords.include?(:chat_session)
+      return Array(tool_set.tool_definitions(**args))
+    end
+    return Array(tool_set.tool_definitions(context: nil)) if keywords.include?(:context)
+
+    Array(tool_set.tool_definitions)
+  rescue StandardError, NotImplementedError
+    []
+  end
+  private_class_method :tool_definitions
 
   def initialize(surface:, run: nil, chat_session: nil, provider: nil, sidecar_mode: nil, daemon_identity: nil)
     @surface = surface

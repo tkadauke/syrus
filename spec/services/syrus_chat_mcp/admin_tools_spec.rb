@@ -22,6 +22,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     "admin_list_users" => {},
     "admin_version" => {},
     "read_worker_health" => {},
+    "admin_mcp_tool_usage" => {},
     "admin_kill_process" => { process_id: 1 },
     "admin_reap_stale_runs" => {},
     "admin_pause_polling" => {},
@@ -84,6 +85,194 @@ RSpec.describe "Mcp::Tools admin tools" do
 
       expect(response.dig(:result, :isError)).to be(true), name
       expect(error_text(response)).to eq("Unauthorized: Admin access required")
+    end
+  end
+
+  it "returns MCP usage stats with chat as the default surface and no raw payload data" do
+    job = Factories.job(user: admin, repository: repository)
+    run = job.initial_run
+    workflow_chat = ChatSession.create!(user: admin, repository: repository)
+    now = Time.zone.parse("2026-09-01 12:00:00")
+
+    travel_to(now) do
+      McpToolUsageRecorder.record_chat_tool_call(
+        chat_session: workflow_chat,
+        tool_name: "mcp__syrus-chat-sidecar__repo_info",
+        tool_use_id: "chat_recent",
+        tool_input: { "secret" => "never-return-this" },
+        provider: "codex",
+        sidecar_mode: "persistent"
+      )
+      McpToolUsageRecorder.record_chat_tool_result(
+        chat_session: workflow_chat,
+        tool_name: "mcp__syrus-chat-sidecar__repo_info",
+        tool_use_id: "chat_recent",
+        content: { "token" => "never-return-this-either" },
+        error: false,
+        provider: "codex",
+        sidecar_mode: "persistent"
+      )
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.read_live_state",
+        tool_use_id: "workflow_recent",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now + 1.second) do
+      response = call_tool(admin_session, "admin_mcp_tool_usage")
+      body = payload_for(response)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(surface: "chat")
+      expect(body.fetch(:totals)).to include(calls: 1, errors: 0)
+      expect(body.fetch(:top_tools)).to contain_exactly(
+        include(tool_name: "repo_info", server_name: "syrus-chat-sidecar", calls: 1)
+      )
+      expect(body.fetch(:surface_breakdown)).to contain_exactly(
+        include(surface: "chat", calls: 1, errors: 0)
+      )
+      expect(body.fetch(:provider_breakdown)).to contain_exactly(
+        include(provider: "codex", calls: 1, errors: 0)
+      )
+      expect(body.fetch(:server_breakdown)).to contain_exactly(
+        include(server_name: "syrus-chat-sidecar", calls: 1, errors: 0)
+      )
+      expect(body.fetch(:sidecar_mode_breakdown)).to contain_exactly(
+        include(sidecar_mode: "persistent", calls: 1, errors: 0)
+      )
+      expect(body.fetch(:unused_advertised_tools)).to include("admin_mcp_tool_usage")
+      expect(body.fetch(:recent_calls)).to contain_exactly(
+        include(tool_name: "repo_info", server_name: "syrus-chat-sidecar", chat_session_id: workflow_chat.id)
+      )
+      expect(body.to_json).not_to include("never-return-this")
+    end
+  end
+
+  it "allows admins to query workflow usage with time, tool, server, and limit filters" do
+    job = Factories.job(user: admin, repository: repository)
+    run = job.initial_run
+    chat = ChatSession.create!(user: admin, repository: repository)
+    now = Time.zone.parse("2026-09-01 12:00:00")
+
+    travel_to(now - 90.minutes) do
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_summary",
+        tool_use_id: "wanted",
+        tool_input: {}
+      )
+      McpToolUsageRecorder.record_workflow_tool_result(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_summary",
+        tool_use_id: "wanted",
+        content: { "message" => "boom" },
+        error: true,
+        error_class: "RuntimeError"
+      )
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_test_plan",
+        tool_use_id: "other_tool",
+        tool_input: {}
+      )
+      McpToolUsageRecorder.record_chat_tool_call(
+        chat_session: chat,
+        tool_name: "mcp__syrus-chat-sidecar__submit_summary",
+        tool_use_id: "other_surface",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now - 3.hours) do
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_summary",
+        tool_use_id: "old",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now) do
+      response = call_tool(
+        admin_session,
+        "admin_mcp_tool_usage",
+        {
+          surface: "workflow",
+          window: "2h",
+          tool_name: "submit_summary",
+          server_name: "syrus-mcp-sidecar",
+          limit: 1,
+          recent_limit: 1
+        }
+      )
+      body = payload_for(response)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(surface: "workflow")
+      expect(Time.zone.parse(body.dig(:window, :start))).to eq(now - 2.hours)
+      expect(body.fetch(:filters)).to eq(tool_name: "submit_summary", server_name: "syrus-mcp-sidecar")
+      expect(body.fetch(:totals)).to include(calls: 1, errors: 1)
+      expect(body.fetch(:top_tools)).to contain_exactly(
+        include(tool_name: "submit_summary", server_name: "syrus-mcp-sidecar", calls: 1, errors: 1)
+      )
+      expect(body.fetch(:error_rates)).to contain_exactly(
+        include(tool_name: "submit_summary", error_rate: 1.0)
+      )
+      expect(body.fetch(:recent_calls)).to contain_exactly(
+        include(
+          tool_name: "submit_summary",
+          surface: "workflow",
+          server_name: "syrus-mcp-sidecar",
+          status: "failed",
+          error_class: "RuntimeError",
+          error_message_summary: "boom"
+        )
+      )
+    end
+  end
+
+  it "honors explicit start and end bounds through the MCP tool" do
+    job = Factories.job(user: admin, repository: repository)
+    run = job.initial_run
+    now = Time.zone.parse("2026-09-01 12:00:00")
+
+    travel_to(now - 150.minutes) do
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_summary",
+        tool_use_id: "inside_explicit_window",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now - 90.minutes) do
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_test_plan",
+        tool_use_id: "after_explicit_window",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now) do
+      response = call_tool(
+        admin_session,
+        "admin_mcp_tool_usage",
+        {
+          surface: "workflow",
+          start: (now - 3.hours).iso8601,
+          end: (now - 2.hours).iso8601
+        }
+      )
+      body = payload_for(response)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(Time.zone.parse(body.dig(:window, :start))).to eq(now - 3.hours)
+      expect(Time.zone.parse(body.dig(:window, :end))).to eq(now - 2.hours)
+      expect(body.fetch(:totals)).to include(calls: 1)
+      expect(body.fetch(:recent_calls).map { |call| call.fetch(:tool_name) }).to eq([ "submit_summary" ])
     end
   end
 
