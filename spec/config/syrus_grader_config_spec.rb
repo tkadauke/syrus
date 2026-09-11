@@ -3,6 +3,32 @@
 require "rails_helper"
 
 RSpec.describe "Syrus grader configuration" do
+  it "onboards deterministic formatter commands for Syrus workflow autofixes" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+
+    expect(config.formatters.map { |formatter| [ formatter.command, formatter.files ] }).to eq(
+      [
+        [
+          "bundle exec rubocop -a",
+          [
+            "**/*.rb",
+            "*.rb",
+            ".rubocop.yml"
+          ]
+        ],
+        [
+          "npx eslint --fix app/frontend plugins/*/app/frontend",
+          [
+            "app/frontend/**/*.{ts,tsx}",
+            "plugins/*/app/frontend/**/*.{ts,tsx}",
+            "eslint.config.js",
+            "eslint-rules/**/*.js"
+          ]
+        ]
+      ]
+    )
+  end
+
   it "gives Rails-booting plugin model namespace checks enough grader headroom" do
     grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "plugin-model-namespaces" }
 

@@ -43,6 +43,30 @@ RSpec.describe RepoGradeLoopPlan do
       expect(result).to be_any_configured
     end
 
+    it "reports format_configured for Syrus's explicit Ruby and frontend formatter entries" do
+      config = parse(<<~YAML)
+        formatters:
+          - command: bundle exec rubocop -a
+            files:
+              - "**/*.rb"
+              - "*.rb"
+              - ".rubocop.yml"
+          - command: npx eslint --fix app/frontend plugins/*/app/frontend
+            files:
+              - "app/frontend/**/*.{ts,tsx}"
+              - "plugins/*/app/frontend/**/*.{ts,tsx}"
+              - "eslint.config.js"
+              - "eslint-rules/**/*.js"
+      YAML
+
+      result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
+
+      expect(result.format_configured).to eq(true)
+      expect(result.generate_configured).to eq(false)
+      expect(result.graders_configured).to eq(false)
+      expect(result).to be_any_configured
+    end
+
     it "reports generate_configured when generated is a non-empty array" do
       config = parse(<<~YAML)
         generated:
