@@ -336,6 +336,7 @@
     "no_triage_jobs": "Keine Aufgaben warten auf Triage-Freigabe.",
     "recent_jobs": "Aktuelle Aufgaben",
     "col_state": "Status",
+    "col_issue": "Issue",
     "col_runs": "Läufe",
     "col_last": "Zuletzt",
     "view": "Ansehen",
