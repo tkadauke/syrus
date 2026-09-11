@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { DashboardJobItem, DashboardPayload } from "../api/dashboard"
 import { DashboardTable } from "./Dashboard"
+
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
 
 function jobItem(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
   const id = overrides.id ?? 1
@@ -137,11 +139,36 @@ function renderTable(items: DashboardJobItem[], payloadOverrides: Partial<Dashbo
   )
 }
 
+function mockDesktopMediaQuery(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
+
 describe("landing queue status column", () => {
   beforeEach(() => {
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
     })
+  })
+
+  afterEach(() => {
+    if (originalMatchMedia) {
+      Object.defineProperty(window, "matchMedia", originalMatchMedia)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
   })
 
   it("renders ordinary queue waits with neutral styling under Queue status", () => {
@@ -188,6 +215,22 @@ describe("landing queue status column", () => {
     expect(screen.getByRole("button", { name: "Copy WU-22 to clipboard" })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "WF-10" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "WU-22" })).not.toBeInTheDocument()
+  })
+
+  it("shows copyable landing queue wait slugs on mobile job cards", () => {
+    mockDesktopMediaQuery(false)
+
+    renderTable([
+      jobItem({
+        id: 1,
+        landing_queue_wait_reason: "active rebase workflow WF-10 and active work unit WU-22"
+      })
+    ])
+
+    expect(screen.queryByText("Queue status")).not.toBeInTheDocument()
+    expect(screen.getByRole("article", { name: "Job 1" })).toHaveTextContent("active rebase workflow")
+    expect(screen.getByRole("button", { name: "Copy WF-10 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy WU-22 to clipboard" })).toBeInTheDocument()
   })
 
   it("renders true landing blockers with warning styling in the same column", () => {
