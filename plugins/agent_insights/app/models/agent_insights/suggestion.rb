@@ -39,6 +39,8 @@ module AgentInsights
     scope :active,    -> { where.not(state: "retired") }
     scope :for_repository, ->(repository) { where(repository: repository) }
     scope :pending_remove_memory, -> { pending.where(proposal_type: "remove_memory") }
+    scope :with_created_job, -> { where.not(created_job_id: nil) }
+    scope :without_created_job, -> { where(created_job_id: nil) }
 
     def self.resolve_obsolete_remove_memory!(relation = all)
       relation
