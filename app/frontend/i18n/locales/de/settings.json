@@ -860,6 +860,7 @@
     "provider_availability_desc": "Pause this provider's jobs between steps when usage drops below the threshold. Set 0% to disable automatic provider-availability pauses for that provider.",
     "provider_availability_threshold": "{{provider}} pause threshold (%)",
     "provider_availability_remaining": "{{percent}}% remaining.",
+    "provider_availability_resets_in": "Resets in {{time}}.",
     "provider_availability_no_usage": "No usage percentage recorded.",
     "provider_availability_override_active": "Override active.",
     "provider_availability_recheck": "Recheck",

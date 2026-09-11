@@ -152,6 +152,7 @@ function renderAgentSettings() {
 
 describe("CredentialsRoute (provider cards)", () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     actionCable.createSubscription.mockClear()
   })
@@ -272,6 +273,8 @@ describe("CredentialsRoute (provider cards)", () => {
   })
 
   it("shows depleted Claude usage on the agent settings panel", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-08-29T11:00:00Z"))
     mockRoutes({
       ...makePayload(),
       provider_availability: {
@@ -294,10 +297,44 @@ describe("CredentialsRoute (provider cards)", () => {
               source: "usage_probe",
               observed_at: "2026-08-29T11:00:00Z",
               provider: "claude"
+            },
+            windows: {
+              five_hour: {
+                label: "5h",
+                remaining_percent: 0,
+                reset_at: "2026-08-29T13:30:00Z"
+              },
+              weekly: {
+                label: "weekly",
+                remaining_percent: 47,
+                reset_at: "2026-09-01T12:00:00Z"
+              }
             }
           }
         },
-        codex: null
+        codex: {
+          provider: "codex",
+          label: "Codex",
+          model: null,
+          state: "available",
+          open: false,
+          usage_exhausted: false,
+          retry_after: null,
+          reason: null,
+          message: "Codex available.",
+          usage: {
+            status: "ok",
+            observed_at: "2026-08-29T11:00:00Z",
+            remaining_percent: 42,
+            windows: {
+              five_hour: {
+                label: "5h",
+                remaining_percent: 42,
+                reset_at: "2026-08-30T12:00:00Z"
+              }
+            }
+          }
+        }
       }
     })
     renderAgentSettings()
@@ -306,7 +343,15 @@ describe("CredentialsRoute (provider cards)", () => {
     const claudePanel = claudeInput.closest(".grid")
     expect(claudePanel).not.toBeNull()
     expect(within(claudePanel as HTMLElement).getByText(/Claude Code usage limit reached/)).toBeInTheDocument()
+    const resetLabel = within(claudePanel as HTMLElement).getByText("Resets in 2 hours, 30 minutes.")
+    expect(resetLabel).toHaveAttribute("title", expect.stringContaining("2026"))
     expect(within(claudePanel as HTMLElement).queryByText("No usage percentage recorded.")).not.toBeInTheDocument()
+
+    const codexInput = screen.getByLabelText("Codex pause threshold (%)")
+    const codexPanel = codexInput.closest(".grid")
+    expect(codexPanel).not.toBeNull()
+    expect(within(codexPanel as HTMLElement).getByText(/42% remaining\./)).toBeInTheDocument()
+    expect(within(codexPanel as HTMLElement).getByText("Resets in 1 day, 1 hour.")).toHaveAttribute("title", expect.stringContaining("2026"))
   })
 
   it("serializes the agent-provider failover policy from agent settings", async () => {
