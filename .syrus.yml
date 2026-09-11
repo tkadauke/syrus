@@ -15,6 +15,21 @@ prepare: &syrus_prepare
   - bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}"
   - npm ci
 
+formatters:
+  - command: bundle exec rubocop -a
+    files:
+      - "**/*.rb"
+      - "*.rb"
+      - ".rubocop.yml"
+  - command: npx eslint --fix app/frontend plugins/*/app/frontend
+    files:
+      - "app/frontend/**/*.ts"
+      - "app/frontend/**/*.tsx"
+      - "plugins/*/app/frontend/**/*.ts"
+      - "plugins/*/app/frontend/**/*.tsx"
+      - "eslint.config.js"
+      - "eslint-rules/**/*.js"
+
 preview:
   setup: *syrus_prepare
   start: bin/syrus-preview-dev
