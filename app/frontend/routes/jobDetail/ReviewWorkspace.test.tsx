@@ -675,6 +675,64 @@ describe("ReviewWorkspace", () => {
     expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=first-head&head=third-head")
   })
 
+  it("does not keep the previous explicit range visible while a new range loads", async () => {
+    const initial = sourceDiffPayload({
+      version: version({ id: 500, version_index: 5, base_sha: "branch-base", head_sha: "fourth-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
+      versions: [
+        version({ id: 100, version_index: 1, base_sha: "branch-base", head_sha: "first-head", label: "Initial implementation", run_id: 11 }),
+        version({ id: 200, version_index: 2, base_sha: "first-head", head_sha: "second-head", label: "Repair", run_id: 22 }),
+        version({ id: 300, version_index: 3, base_sha: "second-head", head_sha: "third-head", label: "Follow-up", run_id: 33 }),
+        version({ id: 400, version_index: 4, base_sha: "third-head", head_sha: "fourth-head", label: "Final", run_id: 44 }),
+        version({ id: 500, version_index: 5, base_sha: "branch-base", head_sha: "fourth-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } })
+      ]
+    })
+    const firstExplicit = sourceDiffPayload({
+      version: version({ id: 600, version_index: 6, base_sha: "first-head", head_sha: "fourth-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions: initial.versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/first_custom_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+first-custom-range"
+      }]
+    })
+    let resolveSecondExplicit: (payload: JobSourceDiffPayload) => void = () => {}
+    const secondExplicit = new Promise<JobSourceDiffPayload>((resolve) => {
+      resolveSecondExplicit = resolve
+    })
+    vi.mocked(fetchJobSourceDiff)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(firstExplicit)
+      .mockReturnValueOnce(secondExplicit)
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 500))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    fireEvent.click(selector)
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "From v2 RUN-22" }))
+    expect(await screen.findByTitle("app/models/first_custom_range.rb")).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "To v3 RUN-33" }))
+
+    expect(screen.getByText("Loading diff...")).toBeInTheDocument()
+    expect(screen.queryByTitle("app/models/first_custom_range.rb")).not.toBeInTheDocument()
+    resolveSecondExplicit(sourceDiffPayload({
+      version: version({ id: 700, version_index: 7, base_sha: "first-head", head_sha: "third-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions: initial.versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/second_custom_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+second-custom-range"
+      }]
+    }))
+    expect(await screen.findByTitle("app/models/second_custom_range.rb")).toBeInTheDocument()
+  })
+
   it("prefers the All changes full range even when the embedded payload version is a narrower range", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
       version: version({ id: 100, version_index: 1, label: "Preview fixture", base_sha: "preview-base", head_sha: "preview-head" }),
