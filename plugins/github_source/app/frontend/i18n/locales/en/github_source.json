@@ -1,6 +1,7 @@
 {
   "tab_issues": "GitHub Issues",
   "nav_github_api_usage": "GitHub API Usage",
+  "nav_api_usage": "GitHub API Usage",
   "repository": {
     "loading_issues": "Loading GitHub issues...",
     "trigger_label_prefix": "Trigger label:",
