@@ -25,8 +25,9 @@ WORKDIR /rails
 # Install base packages. Notes specific to Syrus:
 #   - `git` is needed at *runtime*, not just build, because the worker
 #     shells out to it for every clone / commit / push.
-#   - `nodejs` + `npm` are required to install the agent CLIs, which
-#     the agent worker spawns per Run via AgentInvocation / CodexInvocation.
+#   - `nodejs` + `npm` are required to install the npm-packaged agent CLIs,
+#     which the agent worker spawns per Run via AgentInvocation. Muse Code is
+#     installed below through Meta's launcher so it can fetch its native binary.
 #   - `gnupg` and `ca-certificates` are needed for NodeSource's apt repo.
 #   - `ffmpeg` extracts still frames from walkthrough videos at the
 #     timestamps Gemini flags, so the analysis chat turn can illustrate each
@@ -34,6 +35,7 @@ WORKDIR /rails
 ARG NODE_MAJOR=22
 ARG CLAUDE_CODE_VERSION=2.1.251
 ARG CODEX_CLI_VERSION=0.151.0
+ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update -qq && \
@@ -43,6 +45,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
     apt-get install --no-install-recommends -y nodejs && \
     npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @openai/codex@${CODEX_CLI_VERSION} && \
+    mkdir -p /opt/muse/bin && \
+    curl -fsSL "${MUSE_LAUNCHER_URL}" -o /opt/muse/bin/muse && \
+    chmod 0755 /opt/muse/bin/muse && \
+    MUSE_LAUNCHER_INSTALL=1 /opt/muse/bin/muse && \
+    MUSE_NO_AUTO_UPDATE=1 /opt/muse/bin/muse --version && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
@@ -50,7 +57,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # BUNDLE_WITHOUT excludes both groups so test-only gems (capybara, vcr,
 # webmock, selenium-webdriver, rspec-rails, brakeman) don't ship in the
 # image. Single colon-separated string per Bundler's docs.
-ENV RAILS_ENV="production" \
+ENV PATH="/opt/muse/bin:${PATH}" \
+    MUSE_NO_AUTO_UPDATE="1" \
+    RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development:test" \
