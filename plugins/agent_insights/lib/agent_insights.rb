@@ -41,6 +41,11 @@ module AgentInsights
         },
         i18n: [ "app/frontend/i18n/locales/*/agent_insights.json" ]
 
+    while_enabled do |scope|
+      AgentInsights::FilterSubject.install_into(scope)
+      AgentInsights::SmartFolders.install_into(scope)
+    end
+
     # Rows this plugin owns on core records outlive it being disabled, and
     # still have to go when their owner does.
     always do |scope|

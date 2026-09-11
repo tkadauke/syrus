@@ -48,29 +48,34 @@ module Api
 
           page     = page_param
           per_page = per_page_param
-          state    = state_param
+          filter   = current_filter
 
           base_relation = AgentInsights::Suggestion.for_repository(repository)
             .includes(:job, :created_job)
             .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC"))
 
-          relation    = state == "all" ? base_relation : base_relation.where(state: state)
+          relation    = filter.apply(base_relation)
           total       = relation.count
           total_pages = [ (total.to_f / per_page).ceil, 1 ].max
           suggestions = relation.offset((page - 1) * per_page).limit(per_page)
+          counts      = state_counts(count_filter.apply(AgentInsights::Suggestion.for_repository(repository)))
 
           render json: {
             repository: repository_summary_json(repository),
             tabs: repository_tabs_json(repository),
-            counts: suggestion_counts(repository),
+            counts: counts.transform_keys(&:to_s),
             suggestions: suggestions.map { |s| suggestion_json(s) },
+            filter: filter.to_h,
+            filter_schema: AgentInsights::Filter.schema(user: Current.user),
+            active_smart_folder_id: active_smart_folder&.id,
+            smart_folders: smart_folders(repository),
             meta: {
               total:       total,
               page:        page,
               per_page:    per_page,
               total_pages: total_pages,
-              state:       state,
-              counts:      state_counts(AgentInsights::Suggestion.for_repository(repository))
+              state:       state_param,
+              counts:      counts
             }
           }
         end
@@ -129,6 +134,60 @@ module Api
         def state_param
           state = params[:state].to_s
           STATES.include?(state) ? state : "all"
+        end
+
+        def current_filter
+          @current_filter ||= AgentInsights::Filter.from_params(params, smart_folder: active_smart_folder, user: Current.user)
+        end
+
+        def count_filter
+          @count_filter ||= AgentInsights::Filter.from_params(count_filter_params, user: Current.user)
+        end
+
+        def count_filter_params
+          params.except(:state, :smart_folder_id)
+        end
+
+        def active_smart_folder
+          @active_smart_folder ||= begin
+            explicit_folder = ::Admin::SmartFolderNavigation.active_folder(
+              subject: AgentInsights::SmartFolders::SUBJECT,
+              user: Current.user,
+              params: params
+            )
+            explicit_folder || default_smart_folder
+          end
+        end
+
+        def default_smart_folder
+          return if smart_folder_param_present?
+          return if params[::Filters::QueryParam::PARAM_NAME].present?
+          return if params[:state].present?
+
+          AgentInsights::SmartFolders.default_folder
+        end
+
+        def smart_folder_param_present?
+          params.key?(:smart_folder_id) || params.key?("smart_folder_id")
+        end
+
+        def smart_folders(repository)
+          ::SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
+          base_scope = count_filter.apply(AgentInsights::Suggestion.for_repository(repository))
+          ::Admin::SmartFolderNavigation.new(
+            subject: AgentInsights::SmartFolders::SUBJECT,
+            user: Current.user,
+            active_folder: active_smart_folder,
+            base_scope: base_scope,
+            filter_class: AgentInsights::Filter
+          ).folders
+            .reject { |folder| folder[:kind] == "builtin" && folder[:name] == "All" }
+            .map { |folder| folder.merge(path: insight_folder_path(repository, folder.fetch(:id))) }
+        end
+
+        def insight_folder_path(repository, folder_id)
+          params = { smart_folder_id: folder_id }
+          "/repositories/#{repository.id}/insights?#{params.to_query}"
         end
 
         def state_counts(relation)
@@ -263,6 +322,7 @@ module Api
         def suggestion_json(suggestion)
           {
             id: suggestion.id,
+            slug: "INSIGHT-#{suggestion.id}",
             title: suggestion.redacted_title,
             category: suggestion.redacted_category,
             severity: suggestion.severity,
