@@ -24,6 +24,8 @@
 | `LinkText` | Tokenized React Router or anchor link text. | Use for inline/navigation links instead of repeating brand hover classes. |
 | `Notice` | Tokenized alert/callout surface with `info`, `warning`, `danger`, `success`, and `neutral` tones plus optional actions. | Replaces ad hoc warning/error/success panels and backs `PanelMessage`. |
 | `Pill` / `Badge` | Tokenized rounded chips for state, tags, and compact labels. | `TonePill` remains the domain status bridge; new generic chips should use these. |
+| `DataTable` | Compound table primitive: `DataTable.Root`, `Header`, `Body`, `Row`, `HeadCell`, `Cell`, and `Empty` with responsive overflow. | Use for dense operational tables, sortable headers, checkbox columns, interactive rows, row group headers, and consistent empty states. |
+| `DescriptionList` | Compound metadata primitive: `DescriptionList.Root` and `DescriptionList.Item`. | Use for settings, diagnostics, repository metadata, and job summary panels instead of hand-rolled `<dl>` grids. |
 
 ## Import Policy
 
