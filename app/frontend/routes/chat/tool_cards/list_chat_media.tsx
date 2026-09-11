@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CloseIcon } from "@app/components/CloseIcon"
+import { MediaPreviewShell, type MediaPreviewAction } from "../mediaPreviewShell"
 
 // Core-owned tool card for list_chat_media (the Tier 1 tool-card work), registered
 // through the plugin-aware extension point core and plugins share (see
@@ -100,156 +99,48 @@ function renderExpanded(context: ToolCardContext) {
 }
 
 function MediaGallery({ items, whiteboardElementCount }: { items: ChatMediaItem[]; whiteboardElementCount: number | null }) {
-  const [preview, setPreview] = useState<ChatMediaItem | null>(null)
-  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null)
-  const imageItems = items.filter((item): item is ChatMediaImage => item.kind === "chat_image")
-  const previewItem = previewImageIndex == null ? preview : imageItems[previewImageIndex] || preview
-
   return (
-    <>
-      <div className="mt-1 rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{items.length} media {items.length === 1 ? "item" : "items"}</span>
-          {whiteboardElementCount != null ? <span>{whiteboardElementCount} whiteboard elements</span> : null}
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {items.map((item) => (
-            <MediaTile
-              item={item}
-              key={item.id}
-              onOpen={() => {
-                setPreview(item)
-                setPreviewImageIndex(item.kind === "chat_image" ? imageItems.findIndex((image) => image.id === item.id) : null)
-              }}
-            />
-          ))}
-        </div>
+    <div className="mt-1 rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+        <span className="font-medium text-gray-900 dark:text-gray-100">{items.length} media {items.length === 1 ? "item" : "items"}</span>
+        {whiteboardElementCount != null ? <span>{whiteboardElementCount} whiteboard elements</span> : null}
       </div>
-      {previewItem ? (
-        <MediaPreviewModal
-          hasNext={previewImageIndex != null && previewImageIndex < imageItems.length - 1}
-          hasPrevious={previewImageIndex != null && previewImageIndex > 0}
-          item={previewItem}
-          onClose={() => {
-            setPreview(null)
-            setPreviewImageIndex(null)
-          }}
-          onNext={() => setPreviewImageIndex((index) => index == null ? index : Math.min(index + 1, imageItems.length - 1))}
-          onPrevious={() => setPreviewImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
-          showNavigation={previewImageIndex != null && imageItems.length > 1}
-        />
-      ) : null}
-    </>
-  )
-}
-
-function MediaTile({ item, onOpen }: { item: ChatMediaItem; onOpen: () => void }) {
-  const thumbnailSrc = mediaThumbnailSrc(item)
-
-  return (
-    <button
-      aria-label={`Open ${mediaTitle(item)}`}
-      className="group/media overflow-hidden rounded border border-gray-200 bg-white p-0 text-left shadow-sm transition hover:border-brand/40 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:bg-gray-950"
-      onClick={onOpen}
-      type="button"
-    >
-      <span className="block aspect-square w-full overflow-hidden bg-gray-100 dark:bg-gray-800">
-        {thumbnailSrc ? (
-          <img alt={mediaTitle(item)} className="h-full w-full object-cover transition group-hover/media:scale-105" src={thumbnailSrc} />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">
-            {item.kind === "chat_image" ? contentTypeLabel(item.content_type) : "Snapshot"}
-          </span>
-        )}
-      </span>
-      <span className="block truncate px-1.5 pt-1 text-2xs font-medium text-gray-800 dark:text-gray-100" title={mediaTitle(item)}>{mediaTitle(item)}</span>
-      <span className="flex items-center justify-between gap-1 px-1.5 pb-1 text-2xs text-gray-500 dark:text-gray-400">
-        <span className="truncate font-mono" title={item.id}>{item.id}</span>
-        <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 uppercase dark:bg-gray-800">{item.kind === "chat_image" ? "image" : "snapshot"}</span>
-      </span>
-      {item.kind === "chat_image" ? (
-        <span className="block truncate px-1.5 pb-1.5 text-2xs text-gray-500 dark:text-gray-400">{item.content_type}</span>
-      ) : null}
-    </button>
-  )
-}
-
-function MediaPreviewModal({ item, onClose, showNavigation = false, hasPrevious = false, hasNext = false, onPrevious, onNext }: { item: ChatMediaItem; onClose: () => void; showNavigation?: boolean; hasPrevious?: boolean; hasNext?: boolean; onPrevious?: () => void; onNext?: () => void }) {
-  const thumbnailSrc = mediaThumbnailSrc(item)
-  useEffect(() => {
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-      if (shortcutTargetAcceptsText(event.target)) return
-      if (event.key === "ArrowLeft" && hasPrevious) {
-        event.preventDefault()
-        onPrevious?.()
-      }
-      if (event.key === "ArrowRight" && hasNext) {
-        event.preventDefault()
-        onNext?.()
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [hasNext, hasPrevious, onClose, onNext, onPrevious])
-
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
-      <section aria-label={mediaTitle(item)} aria-modal="true" className="relative max-h-full max-w-full rounded bg-white p-4 shadow-lg dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
-        <button
-          aria-label="Close media preview"
-          className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-          onClick={onClose}
-          type="button"
-        >
-          <CloseIcon className="h-4 w-4" />
-        </button>
-        {showNavigation ? (
-          <>
-            <button
-              aria-label="Previous image"
-              className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-              disabled={!hasPrevious}
-              onClick={onPrevious}
-              type="button"
-            >
-              <span aria-hidden="true">‹</span>
-            </button>
-            <button
-              aria-label="Next image"
-              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-              disabled={!hasNext}
-              onClick={onNext}
-              type="button"
-            >
-              <span aria-hidden="true">›</span>
-            </button>
-          </>
-        ) : null}
-        {thumbnailSrc ? (
-          <img alt={mediaTitle(item)} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain dark:bg-gray-900" src={thumbnailSrc} />
-        ) : (
-          <h3 className="pr-8 text-sm font-semibold text-gray-900 dark:text-gray-100">{mediaTitle(item)}</h3>
-        )}
-        <dl className="mt-3 space-y-2 text-xs">
-          <PreviewRow label="ID" value={item.id} />
-          <PreviewRow label="Kind" value={item.kind === "chat_image" ? "Image" : "Whiteboard snapshot"} />
-          {item.kind === "chat_image" ? <PreviewRow label="Content type" value={item.content_type} /> : null}
-          {item.kind === "snapshot" && item.element_count != null ? <PreviewRow label="Elements" value={String(item.element_count)} /> : null}
-          {item.kind === "snapshot" && item.created_at ? <PreviewRow label="Created" value={item.created_at} /> : null}
-        </dl>
-      </section>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {items.map((item) => <MediaTile item={item} key={item.id} />)}
+      </div>
     </div>
   )
 }
 
-function PreviewRow({ label, value }: { label: string; value: string }) {
+function MediaTile({ item }: { item: ChatMediaItem }) {
+  const thumbnailSrc = mediaThumbnailSrc(item)
+  const actions: MediaPreviewAction[] = [{ label: "Copy ID", copyValue: item.id }]
+  if (thumbnailSrc) {
+    actions.unshift({ label: "Download", href: thumbnailSrc, download: true })
+    actions.unshift({ label: "Open", href: thumbnailSrc })
+  }
+  if (item.kind === "chat_image" && item.file_path) actions.push({ label: "Copy path", copyValue: item.file_path })
+
   return (
-    <div className="flex gap-2">
-      <dt className="w-24 shrink-0 font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="min-w-0 break-words font-mono text-gray-800 dark:text-gray-200">{value}</dd>
-    </div>
+    <MediaPreviewShell
+      item={{
+        title: mediaTitle(item),
+        subtitle: item.kind === "chat_image" ? item.content_type : item.created_at,
+        src: thumbnailSrc,
+        alt: mediaTitle(item),
+        badge: item.kind === "chat_image" ? "image" : "snapshot",
+        fallbackLabel: item.kind === "chat_image" ? contentTypeLabel(item.content_type) : "Snapshot",
+        actions,
+        meta: [
+          { label: "ID", value: item.id, copyValue: item.id },
+          { label: "Kind", value: item.kind === "chat_image" ? "Image" : "Whiteboard snapshot" },
+          item.kind === "chat_image" ? { label: "Content type", value: item.content_type } : { label: "Elements", value: item.element_count != null ? String(item.element_count) : null },
+          item.kind === "chat_image" ? { label: "Path", value: item.file_path, copyValue: item.file_path } : { label: "Created", value: item.created_at }
+        ]
+      }}
+      modalLabel={mediaTitle(item)}
+      thumbnailClassName="w-full"
+    />
   )
 }
 
@@ -265,12 +156,6 @@ function mediaThumbnailSrc(item: ChatMediaItem) {
 function contentTypeLabel(contentType: string) {
   const suffix = contentType.split("/").pop()
   return suffix ? suffix.toUpperCase() : "Image"
-}
-
-function shortcutTargetAcceptsText(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable) return true
-  return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
 }
 
 const listChatMediaToolCard: ToolCardRenderer = {
