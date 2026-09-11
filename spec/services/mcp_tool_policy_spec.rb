@@ -110,6 +110,14 @@ RSpec.describe McpToolPolicy do
       expect(tools.map(&:tool_name)).not_to include("submit_chat_feedback")
     end
 
+    it "does not resolve chat-only policy lists for an ordinary implement run" do
+      context = McpToolContext.from_run(run)
+      expect(described_class).not_to receive(:supervisor_excluded_tools)
+      expect(described_class).not_to receive(:ref_movement_tools)
+
+      expect(described_class.for(context)).to include(Mcp::Tools::ReadLiveStateTool)
+    end
+
     it "includes submit_job_metadata for refresh_job_metadata runs" do
       run.step.update_columns(kind: "refresh_job_metadata")
       context = McpToolContext.from_run(run.reload)
