@@ -9,8 +9,10 @@ module Mcp::Tools
 
     description <<~DESC
       Create a new Syrus Job in coding state and link it to this Local Mode
-      chat session. Use this when the operator describes work that doesn't
-      map to an existing Job. After creation, implement using local tools,
+      chat session. Use this when the operator describes new Local Mode work
+      that doesn't map to an existing Job, including requests phrased as
+      "local job", "do a local job", "make a local job", "start a local job",
+      or "minimal local job". After creation, implement using local tools,
       then call `complete_implement_step` with the pushed branch name to
       release the lock and trigger graders + PR creation.
     DESC
