@@ -626,6 +626,48 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("all-changes")).not.toBeInTheDocument()
   })
 
+  it("prefers the All changes full range even when the embedded payload version is a narrower range", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 100, version_index: 1, label: "Preview fixture", base_sha: "preview-base", head_sha: "preview-head" }),
+      versions: [
+        version({ id: 100, version_index: 1, label: "Preview fixture", base_sha: "preview-base", head_sha: "preview-head", files_count: 1 }),
+        version({ id: 200, version_index: 2, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" }, files_count: 2 })
+      ],
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/preview_fixture.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+preview-fixture"
+      }]
+    }))
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({ id: 200, version_index: 2, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" }, files_count: 2 }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/all_changes.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+all-changes"
+      }]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 200))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    expect(selector).toHaveTextContent("All changes")
+    expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 200)
+    expect(screen.getByTitle("app/models/all_changes.rb")).toBeInTheDocument()
+    expect(screen.queryByTitle("app/models/preview_fixture.rb")).not.toBeInTheDocument()
+
+    fireEvent.click(selector)
+    expect(within(screen.getByRole("listbox", { name: "Version" })).getByRole("option", { name: /All changes - From main \(branch-\) to syrus\/issue-42 \(branch-\)/ })).toHaveAttribute("aria-selected", "true")
+  })
+
   it("keeps latest-version review behavior working while comment history is enabled", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
