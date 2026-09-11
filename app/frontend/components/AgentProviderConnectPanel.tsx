@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { ClaudeConnect, StatusBox } from "@plugins/claude_agent/app/frontend/components/credentials/ClaudeConnect"
+import { pluginAgentProviderConnectPanelComponentFor } from "../pluginAgentProviderConnectPanels"
 import { Button } from "./Button"
 import { useT } from "../hooks/useT"
 
-export type ConnectableAgentProvider = "claude"
+export type ConnectableAgentProvider = string
 
 export function agentProviderHasConnectPanel(provider: string): provider is ConnectableAgentProvider {
-  return provider === "claude"
+  return Boolean(pluginAgentProviderConnectPanelComponentFor(provider))
 }
 
 export function AgentProviderConnectPanel({
@@ -27,11 +27,16 @@ export function AgentProviderConnectPanel({
   const queryClient = useQueryClient()
   const [ambientReady, setAmbientReady] = useState(false)
   const [connected, setConnected] = useState<string | null>(null)
+  const ProviderConnectPanel = pluginAgentProviderConnectPanelComponentFor(provider)
+
+  if (!ProviderConnectPanel) return null
 
   if (connected) {
     return (
       <div className="space-y-5">
-        <StatusBox tone="ok">{connected}</StatusBox>
+        <div className="rounded border px-3 py-2 text-sm border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200">
+          {connected}
+        </div>
         <div className="flex justify-end">
           <Button onClick={onCancel}>
             {t('configure_agent.done')}
@@ -42,7 +47,7 @@ export function AgentProviderConnectPanel({
   }
 
   return (
-    <ClaudeConnect
+    <ProviderConnectPanel
       autoFocus={autoFocus}
       onConnected={async (result) => {
         setConnected(result.message || t('configure_agent.connected_default'))
