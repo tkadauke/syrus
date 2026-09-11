@@ -57,6 +57,18 @@ RSpec.describe Whiteboard::ChatToolSet do
         "update_scene", "save_canvas", "clear_canvas", "load_canvas"
       )
     end
+
+    it "warns that draw_arrow uses center-bound endpoints and non-rendering labels" do
+      draw_arrow = described_class.tool_definitions(tier: :deferred).find { |tool| tool.fetch(:name) == "draw_arrow" }
+      description = draw_arrow.fetch(:description)
+      label_description = draw_arrow.fetch(:input_schema).fetch(:properties).fetch(:label).fetch(:description)
+
+      expect(description).to include("connect at element centers, not edges")
+      expect(description).to include("draw_line with type: \"arrow\"")
+      expect(description).to include("label parameter does not currently render as visible text")
+      expect(label_description).to include("not rendered as visible text")
+      expect(label_description).to include("draw_text")
+    end
   end
 
   describe "#handle" do
