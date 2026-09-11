@@ -52,7 +52,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["lcov"],
       reportsDirectory: "coverage/js",
-      include: ["app/frontend/**"],
+      include: ["app/frontend/**/*.{ts,tsx}"],
       exclude: ["app/frontend/**/*.test.*", "app/frontend/**/*.spec.*"]
     }
   }
