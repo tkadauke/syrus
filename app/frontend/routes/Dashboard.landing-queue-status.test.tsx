@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { DashboardJobItem, DashboardPayload } from "../api/dashboard"
 import { DashboardTable } from "./Dashboard"
+
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
 
 function jobItem(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
   const id = overrides.id ?? 1
@@ -137,7 +139,38 @@ function renderTable(items: DashboardJobItem[], payloadOverrides: Partial<Dashbo
   )
 }
 
+function mockDesktopMediaQuery(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
+
 describe("landing queue status column", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
+  afterEach(() => {
+    if (originalMatchMedia) {
+      Object.defineProperty(window, "matchMedia", originalMatchMedia)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
   it("renders ordinary queue waits with neutral styling under Queue status", () => {
     renderTable([
       jobItem({
@@ -153,6 +186,57 @@ describe("landing queue status column", () => {
     expect(status?.className).not.toContain("red")
   })
 
+  it("renders slug params in landing queue waits as copyable buttons", async () => {
+    renderTable([
+      jobItem({
+        id: 1,
+        landing_queue_wait_reason: { key: "waiting_to_merge", params: { slug: "JOB-1234" } }
+      })
+    ])
+
+    const button = screen.getByRole("button", { name: "Copy JOB-1234 to clipboard" })
+    expect(button).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "JOB-1234" })).not.toBeInTheDocument()
+
+    fireEvent.click(button)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-1234")
+    await waitFor(() => expect(button).toHaveAttribute("title", "Copied"))
+  })
+
+  it("renders raw workflow and work-unit slugs in queue waits as copyable buttons", () => {
+    renderTable([
+      jobItem({
+        id: 1,
+        landing_queue_wait_reason: "active rebase workflow WF-10 and active work unit WU-22"
+      })
+    ])
+
+    expect(screen.getByRole("button", { name: "Copy WF-10 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy WU-22 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "WF-10" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "WU-22" })).not.toBeInTheDocument()
+  })
+
+  it("shows copyable landing queue wait slugs on mobile job cards", () => {
+    mockDesktopMediaQuery(false)
+
+    renderTable([
+      jobItem({
+        id: 1,
+        landing_queue_wait_reason: "active rebase workflow WF-10 and active work unit WU-22"
+      })
+    ])
+
+    expect(screen.queryByText("Queue status")).not.toBeInTheDocument()
+    expect(screen.getByRole("article", { name: "Job 1" })).toHaveTextContent("active rebase workflow")
+    expect(screen.getByRole("button", { name: "Copy WF-10 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy WU-22 to clipboard" })).toBeInTheDocument()
+
+    const status = screen.getByRole("button", { name: "Copy WF-10 to clipboard" }).closest("[data-status-pill]")
+    expect(status).toHaveClass("whitespace-normal", "flex-wrap", "max-w-full")
+    expect(status).not.toHaveClass("whitespace-nowrap")
+  })
+
   it("renders true landing blockers with warning styling in the same column", () => {
     renderTable([
       jobItem({
@@ -164,6 +248,42 @@ describe("landing queue status column", () => {
 
     const status = screen.getByText("Landing paused").closest("[data-status-pill]")
     expect(status?.className).toContain("red")
+  })
+
+  it("renders blocked-folder reasons with copyable slug buttons", () => {
+    renderTable(
+      [
+        jobItem({
+          id: 9,
+          blocked_reason: { key: "pr_checks_failing", params: { slug: "EPIC-7" } }
+        })
+      ],
+      {
+        active_smart_folder_id: 8,
+        controls: {
+          ...buildPayload([]).controls,
+          columns: {
+            required: [
+              { key: "checkbox", title: "Checkbox" },
+              { key: "blocked_reason", title: "Blocked reason" },
+              { key: "issue", title: "Issue" }
+            ],
+            optional: []
+          }
+        },
+        preferences: {
+          ...buildPayload([]).preferences,
+          sort: { column: "created_at", direction: "desc" }
+        },
+        smart_folders: [
+          { id: 8, name: "Blocked", key: "blocked", kind: "builtin", position: 1, subject_type: "job", visibility: "when_present", count: 1, active: true, filter: {}, attention_preset: "blocked", path: "/dashboard/jobs?smart_folder_id=8" }
+        ]
+      }
+    )
+
+    expect(screen.getByText("PR checks failing on")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "EPIC-7" })).not.toBeInTheDocument()
   })
 
   it("shows a pending override badge when an override was granted but not yet used", () => {

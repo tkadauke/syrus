@@ -91,6 +91,42 @@ describe("linkifySlugs", () => {
     expect(screen.queryByRole("link", { name: "JOB-42" })).not.toBeInTheDocument()
   })
 
+  it("can render every known slug kind as a copyable hover-card reference", () => {
+    render(<MemoryRouter>{linkifySlugs("Waiting for JOB-42, EPIC-7, DOC-9, and CHAT-3", { slugStyle: "copyable" })}</MemoryRouter>)
+
+    for (const slug of ["JOB-42", "EPIC-7", "DOC-9", "CHAT-3"]) {
+      expect(screen.getByRole("button", { name: `Copy ${slug} to clipboard` })).toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: slug })).not.toBeInTheDocument()
+    }
+  })
+
+  it("renders unknown uppercase Syrus-style slugs as copyable text only when requested", () => {
+    render(<MemoryRouter>{linkifySlugs("Blocked by WF-10, WU-22, RUN-33, and STEP-44", { slugStyle: "copyable" })}</MemoryRouter>)
+
+    for (const slug of ["WF-10", "WU-22", "RUN-33", "STEP-44"]) {
+      expect(screen.getByRole("button", { name: `Copy ${slug} to clipboard` })).toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: slug })).not.toBeInTheDocument()
+    }
+
+    expect(screen.queryAllByTestId("slug-hover-card")).toHaveLength(0)
+  })
+
+  it("can render known slugs as copy-only controls without hover cards", () => {
+    render(<MemoryRouter>{linkifySlugs("Waiting for JOB-42 and EPIC-7", { hoverCards: false, slugStyle: "copyable" })}</MemoryRouter>)
+
+    expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryAllByTestId("slug-hover-card")).toHaveLength(0)
+  })
+
+  it("leaves unknown uppercase Syrus-style slugs as plain text by default", () => {
+    const { container } = render(<MemoryRouter>{linkifySlugs("Blocked by WF-10")}</MemoryRouter>)
+
+    expect(container).toHaveTextContent("Blocked by WF-10")
+    expect(screen.queryByRole("button", { name: "Copy WF-10 to clipboard" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "WF-10" })).not.toBeInTheDocument()
+  })
+
   it("renders one SlugHoverCard per slug with correct kind and id attributes", () => {
     render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, and DOC-9")}</MemoryRouter>)
 
