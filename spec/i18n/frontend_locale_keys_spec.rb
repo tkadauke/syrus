@@ -2,6 +2,51 @@ require "rails_helper"
 require "json"
 
 RSpec.describe "Frontend locale keys", type: :unit do
+  REFERENCED_CORE_KEYS = {
+    "admin" => %w[
+      page_title_work_units
+      page_title_backend_exceptions
+      nav_work_units
+      nav_backend_exceptions
+      work_units.heading
+      work_units.aria
+      work_units.description
+      work_units.loading
+      work_units.error_load
+      work_units.refresh
+      work_units.refreshing
+      work_units.show_user_debug
+      work_units.hide_user_debug
+      backend_exceptions.heading
+      backend_exceptions.aria
+      backend_exceptions.loading
+      backend_exceptions.error_load
+      backend_exceptions.refresh
+      backend_exceptions.refreshing
+      features.slugs.browser_error_auto_reports.name
+    ],
+    "common" => %w[
+      status.skipped
+      blocked_reasons.pr_checks_failing_base_unknown
+      blocked_reasons.pr_checks_failing_base_stale
+    ],
+    "jobs" => %w[
+      recheck_pr_checks
+      retry_with_agent
+      retry_with_agent_feedback
+      section_workflows_loading
+      section_workflows_load_error
+      pr_checks_head_sha
+      pr_checks_payload_base_sha
+      pr_checks_override_once
+      pr_checks_override_confirm
+      pr_checks_override_reason
+    ],
+    "settings" => %w[
+      repository.needs_triage_showing_limited
+    ]
+  }.freeze
+
   def supported_locales
     %w[en de la]
   end
@@ -53,12 +98,39 @@ RSpec.describe "Frontend locale keys", type: :unit do
     end
   end
 
+  def dig_key(tree, key)
+    key.split(".").reduce(tree) do |value, part|
+      return nil unless value.is_a?(Hash)
+
+      value[part]
+    end
+  end
+
   it "keeps core frontend JSON locale key trees identical" do
     root = Rails.root.join("app/frontend/i18n/locales")
 
     failures = parity_failures("core", locale_namespaces(root))
 
     expect(failures).to be_empty, failures.join("\n")
+  end
+
+  it "resolves core locale keys referenced by admin work units, exceptions, jobs, and repository triage UI" do
+    root = Rails.root.join("app/frontend/i18n/locales")
+    namespaces = locale_namespaces(root)
+    failures = supported_locales.flat_map do |locale|
+      REFERENCED_CORE_KEYS.flat_map do |namespace, keys|
+        tree = namespaces.fetch(locale).fetch(namespace)
+
+        keys.filter_map do |key|
+          value = dig_key(tree, key)
+          next if value.is_a?(String) && value.present?
+
+          "#{locale}/#{namespace}.#{key}"
+        end
+      end
+    end
+
+    expect(failures).to be_empty, "Missing or blank referenced frontend locale keys:\n#{failures.join("\n")}"
   end
 
   it "keeps plugin frontend JSON locale key trees identical" do
