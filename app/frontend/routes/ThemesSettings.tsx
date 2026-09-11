@@ -67,6 +67,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   const [draft, setDraft] = useState<ThemeDraft | null>(null)
   const [contrastIssues, setContrastIssues] = useState<ContrastIssue[]>([])
   const [orderedThemes, setOrderedThemes] = useState<ColorTheme[]>([])
+  const draftRef = useRef<ThemeDraft | null>(null)
   const orderedThemesRef = useRef<ColorTheme[]>([])
   const dragIndex = useRef<number | null>(null)
 
@@ -79,8 +80,10 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
         ? customThemes.find((theme) => theme.id === selectedId)
         : undefined
     ) ?? customThemes[0]
+    const nextDraft = selected ? draftFromTheme(selected) : null
     setSelectedId(selected?.id ?? null)
-    setDraft(selected ? draftFromTheme(selected) : null)
+    draftRef.current = nextDraft
+    setDraft(nextDraft)
     setContrastIssues([])
   }, [customThemes, selectedId])
 
@@ -102,13 +105,16 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      if (!draft) throw new Error("No theme selected.")
-      return updateTheme(draft.id, { name: draft.name, tokens: draft.tokens })
+      const currentDraft = draftRef.current
+      if (!currentDraft) throw new Error("No theme selected.")
+      return updateTheme(currentDraft.id, { name: currentDraft.name, tokens: currentDraft.tokens })
     },
     onSuccess: (payload) => {
       setContrastIssues([])
+      const nextDraft = draftFromTheme(payload.theme)
       queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => mergeCustomTheme(current, payload.theme))
-      setDraft(draftFromTheme(payload.theme))
+      draftRef.current = nextDraft
+      setDraft(nextDraft)
       void setColorTheme(payload.theme)
       onNotice("Theme saved.")
     },
@@ -147,23 +153,27 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   })
 
   function updateDraftName(name: string) {
-    if (!draft) return
-    setDraft({ ...draft, name })
+    if (!draftRef.current) return
+
+    const nextDraft = { ...draftRef.current, name }
+    draftRef.current = nextDraft
+    setDraft(nextDraft)
   }
 
   function updateDraftToken(mode: "light" | "dark", key: string, value: string) {
-    if (!draft) return
+    if (!draftRef.current) return
 
     const nextDraft = {
-      ...draft,
+      ...draftRef.current,
       tokens: {
-        ...draft.tokens,
+        ...draftRef.current.tokens,
         [mode]: {
-          ...draft.tokens[mode],
+          ...draftRef.current.tokens[mode],
           [key]: value
         }
       }
     }
+    draftRef.current = nextDraft
     setDraft(nextDraft)
     setContrastIssues((issues) => issues.filter((issue) => !issueMatchesField(issue, mode, key)))
     if (hexPattern.test(value)) previewColorTheme(nextDraft)
@@ -253,7 +263,8 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
           }}
           onNameChange={updateDraftName}
           onSave={() => {
-            if (!draftTokensValid(draft)) return
+            const currentDraft = draftRef.current
+            if (!currentDraft || !draftTokensValid(currentDraft)) return
             saveMutation.mutate()
           }}
           onTokenChange={updateDraftToken}
