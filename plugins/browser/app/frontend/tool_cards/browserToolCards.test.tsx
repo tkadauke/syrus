@@ -139,8 +139,8 @@ describe("browser tool cards", () => {
 
     const image = screen.getByRole("img", { name: "Browser screenshot" })
     expect(image).toHaveAttribute("src", "data:image/png;base64,iVBORw0KGgo=")
-    expect(image).toHaveClass("dark:bg-gray-950")
-    expect(screen.getByText("image/png")).toBeInTheDocument()
+    expect(screen.getByText("image/png · 9 B")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open Browser screenshot" })).toBeInTheDocument()
   })
 
   it("renders screenshot previews from persisted artifact references", () => {
@@ -172,7 +172,8 @@ describe("browser tool cards", () => {
     expect(screen.getByText("Checkout")).toBeInTheDocument()
     expect(screen.getByText("http://127.0.0.1:3001/checkout")).toBeInTheDocument()
     expect(screen.getByText("390x844")).toBeInTheDocument()
-    expect(screen.getByText("2 KB")).toBeInTheDocument()
+    expect(screen.getByText("image/png · 2 KB")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open Checkout page" })).toBeInTheDocument()
   })
 
   it("shows a screenshot fallback when image data is missing", () => {

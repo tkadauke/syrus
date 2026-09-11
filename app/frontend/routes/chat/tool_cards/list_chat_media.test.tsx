@@ -38,7 +38,6 @@ describe("list_chat_media tool card", () => {
     const tile = screen.getByRole("button", { name: "Open desktop.png" })
     expect(within(tile).getByRole("img", { name: "desktop.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
     expect(within(tile).getByText("desktop.png")).toBeInTheDocument()
-    expect(within(tile).getByText("chat_image:3")).toBeInTheDocument()
     expect(within(tile).getByText("image/png")).toBeInTheDocument()
     expect(within(tile).getByText("image")).toBeInTheDocument()
   })
@@ -54,7 +53,7 @@ describe("list_chat_media tool card", () => {
     const tile = screen.getByRole("button", { name: "Open Checkout flow" })
     expect(within(tile).getByText("Snapshot")).toBeInTheDocument()
     expect(within(tile).getByText("Checkout flow")).toBeInTheDocument()
-    expect(within(tile).getByText("snapshot:9")).toBeInTheDocument()
+    expect(within(tile).getByText("2026-09-01T12:00:00Z")).toBeInTheDocument()
   })
 
   it("opens a preview modal with full details on click", () => {
@@ -70,6 +69,7 @@ describe("list_chat_media tool card", () => {
     expect(within(dialog).getByText("ID")).toBeInTheDocument()
     expect(within(dialog).getByText("chat_image:3")).toBeInTheDocument()
     expect(within(dialog).getByText("Content type")).toBeInTheDocument()
+    expect(within(dialog).getByRole("link", { name: "Download" })).toHaveAttribute("download")
 
     fireEvent.click(screen.getByRole("button", { name: "Close media preview" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()

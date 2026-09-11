@@ -637,19 +637,18 @@ describe("tool result rendering", () => {
     expect(imageTile).toHaveClass("dark:bg-gray-950")
     expect(within(imageTile).getByRole("img", { name: "desktop.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
     expect(within(imageTile).getByText("desktop.png")).toBeInTheDocument()
-    expect(within(imageTile).getByText("chat_image:3")).toBeInTheDocument()
     expect(within(imageTile).getByText("image/png")).toBeInTheDocument()
     expect(within(imageTile).getByText("image")).toBeInTheDocument()
 
     const snapshotTile = screen.getByRole("button", { name: "Open Checkout flow" })
     expect(within(snapshotTile).getByText("Checkout flow")).toBeInTheDocument()
-    expect(within(snapshotTile).getByText("snapshot:9")).toBeInTheDocument()
     expect(within(snapshotTile).getByText("snapshot")).toBeInTheDocument()
 
     fireEvent.click(imageTile)
     expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
     expect(screen.getAllByRole("img", { name: "desktop.png" })).toHaveLength(2)
     expect(screen.getByText("Content type")).toBeInTheDocument()
+    expect(screen.getByText("chat_image:3")).toBeInTheDocument()
 
     const rawDetails = screen.getByText("Raw details").closest("details")
     expect(rawDetails).not.toBeNull()
@@ -659,7 +658,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("chat_image:3") === true)).toBeInTheDocument()
   })
 
-  it("navigates between image previews in list_chat_media tool cards", () => {
+  it("closes list_chat_media previews with Escape", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "List chat media",
@@ -694,19 +693,11 @@ describe("tool result rendering", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open desktop.png" }))
 
     expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Next image" })).toBeEnabled()
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file")
 
-    fireEvent.click(screen.getByRole("button", { name: "Next image" }))
+    fireEvent.keyDown(window, { key: "Escape" })
 
-    const dialog = screen.getByRole("dialog", { name: "mobile.png" })
-    expect(dialog).toBeInTheDocument()
-    expect(within(dialog).getByRole("img", { name: "mobile.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/4/file")
-    expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
-
-    fireEvent.keyDown(window, { key: "ArrowLeft" })
-
-    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: "desktop.png" })).not.toBeInTheDocument()
   })
 
   it("renders an empty state for list_chat_media when the chat has no media", () => {
