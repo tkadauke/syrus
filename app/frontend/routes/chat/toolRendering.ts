@@ -317,6 +317,21 @@ export function typedToolResult(name: string, body: string, error = false): Type
   }
 }
 
+export function normalizedToolCardParsedResult(parsed: unknown): unknown {
+  if (!isPlainObject(parsed)) return parsed
+
+  if (parsed.structured_content != null) return parsed.structured_content
+
+  const content = parsed.content
+  if (!Array.isArray(content)) return parsed
+
+  const firstContent = content[0]
+  if (!isPlainObject(firstContent) || typeof firstContent.text !== "string") return parsed
+
+  const inner = parseJsonText(firstContent.text)
+  return inner == null ? parsed : inner
+}
+
 // `parseBody` defaults to `body` but callers that already have the tool
 // result's complete, untruncated text (see `fullResultBodyUnbounded`) should
 // pass it explicitly: `body` itself is frequently the display-bounded
@@ -328,13 +343,14 @@ export function typedToolResult(name: string, body: string, error = false): Type
 export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parseJsonText(parseBody)
+  const cardParsed = normalizedToolCardParsedResult(parsed)
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
   // a handful of well-known array/count keys), so it takes priority. Run it
   // before the error fallback too: MCP tools can report a plain-text or
   // structured failure that still has a purpose-built card summary.
-  const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: parsed })
+  const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: cardParsed })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: pluginSummary }
 
   if (error) return { kind: "error", summary: "" }
