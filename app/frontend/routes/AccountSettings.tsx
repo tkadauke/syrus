@@ -814,11 +814,8 @@ function titleize(value: string) {
 
 function providerUsageReset(availability?: ProviderAvailability) {
   const now = new Date()
-  const resetAt = Object.values(availability?.usage?.windows || {})
-    .map((window) => parseTimestamp(window?.reset_at))
-    .filter((date): date is Date => Boolean(date))
-    .filter((date) => date.getTime() >= now.getTime())
-    .sort((a, b) => a.getTime() - b.getTime())[0]
+  const resetAt = futureResetCandidate(providerUsageResetCandidates(availability, now), now) ||
+    futureResetCandidate([parseTimestamp(availability?.retry_after)], now)
 
   if (!resetAt) return null
 
@@ -826,6 +823,49 @@ function providerUsageReset(availability?: ProviderAvailability) {
     absolute: resetAt.toLocaleString(),
     relative: formatRelativeReset(resetAt, now)
   }
+}
+
+function futureResetCandidate(candidates: Array<Date | null>, now: Date) {
+  return candidates
+    .filter((date): date is Date => Boolean(date))
+    .filter((date) => date.getTime() >= now.getTime())
+    .sort((a, b) => a.getTime() - b.getTime())[0]
+}
+
+function providerUsageResetCandidates(availability: ProviderAvailability | undefined, now: Date) {
+  return [
+    ...Object.values(availability?.usage?.windows || {}).map((window) => parseTimestamp(window?.reset_at)),
+    ...usageSnapshotResetCandidates(availability?.usage?.evidence?.details, availability?.usage?.observed_at, now),
+    ...usageSnapshotResetCandidates(availability?.evidence?.current?.details, availability?.evidence?.current?.observed_at, now)
+  ]
+}
+
+function usageSnapshotResetCandidates(details: Record<string, unknown> | null | undefined, observedAtValue: string | null | undefined, now: Date) {
+  const snapshot = recordValue(details?.snapshot)
+  if (!snapshot) return []
+
+  const observedAt = parseTimestamp(observedAtValue) || now
+  return [
+    parseTimestamp(stringValue(recordValue(snapshot.primary)?.reset_at)),
+    parseTimestamp(stringValue(recordValue(snapshot.secondary)?.reset_at)),
+    resetAfterMinutes(snapshot.session_reset_minutes, observedAt),
+    resetAfterMinutes(snapshot.weekly_reset_minutes, observedAt)
+  ]
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" ? value : null
+}
+
+function resetAfterMinutes(value: unknown, observedAt: Date) {
+  const minutes = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
+  if (!Number.isFinite(minutes)) return null
+
+  return new Date(observedAt.getTime() + minutes * 60_000)
 }
 
 function parseTimestamp(value?: string | null) {
