@@ -9,7 +9,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
 import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
 import { getJson, postJson } from "../api/client"
 import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
@@ -26,8 +26,10 @@ import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/b
 import { BuildBadge } from "../components/BuildBadge"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
+import { AgentProviderConnectPanel, agentProviderHasConnectPanel, type ConnectableAgentProvider } from "../components/AgentProviderConnectPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
+import { Modal } from "../components/Modal"
 import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsBell } from "../components/Notifications"
 import { ShellNotices } from "../components/ShellNotices"
@@ -468,8 +470,9 @@ function SystemAlertsBanner({ alerts, prefix }: { alerts?: BootstrapPayload["sys
 function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<BootstrapPayload["system_alerts"]>[number]; prefix: string; onDismiss: () => void }) {
   const { t } = useTranslation("nav")
   const queryClient = useQueryClient()
+  const [reauthorizingProvider, setReauthorizingProvider] = useState<ConnectableAgentProvider | null>(null)
   const action = useMutation({
-    mutationFn: (payload: NonNullable<typeof alert.actions>[number]) => postJson(payload.path, payload.params || {}),
+    mutationFn: (payload: Extract<SystemAlertAction, { path: string }>) => postJson(payload.path, payload.params || {}),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
@@ -516,8 +519,16 @@ function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<Boot
             <button
               className={`inline-flex items-center justify-center rounded border border-current px-3 py-1.5 font-medium hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-60 ${alertAction.destructive ? "text-red-900" : ""}`}
               disabled={action.isPending}
-              key={`${alertAction.method}:${alertAction.path}:${alertAction.text}`}
-              onClick={() => action.mutate(alertAction)}
+              key={systemAlertActionKey(alertAction)}
+              onClick={() => {
+                if (isReauthorizeProviderAction(alertAction)) {
+                  if (agentProviderHasConnectPanel(alertAction.provider)) {
+                    setReauthorizingProvider(alertAction.provider)
+                  }
+                  return
+                }
+                action.mutate(alertAction)
+              }}
               type="button"
             >
               {alertAction.text}
@@ -526,7 +537,75 @@ function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<Boot
         </div>
       ) : null}
       {action.isError ? <p className="mt-2 text-xs font-medium">Action failed.</p> : null}
+      {reauthorizingProvider ? (
+        <ProviderReauthorizationModal
+          onClose={() => setReauthorizingProvider(null)}
+          onSaved={() => {
+            setReauthorizingProvider(null)
+            void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+            void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+            void queryClient.invalidateQueries({ queryKey: ["chats"] })
+          }}
+          provider={reauthorizingProvider}
+          title={alert.title}
+        />
+      ) : null}
     </article>
+  )
+}
+
+function isReauthorizeProviderAction(action: SystemAlertAction): action is Extract<SystemAlertAction, { kind: "reauthorize_provider" }> {
+  return action.kind === "reauthorize_provider"
+}
+
+function systemAlertActionKey(action: SystemAlertAction) {
+  if (isReauthorizeProviderAction(action)) return `${action.kind}:${action.provider}:${action.text}`
+
+  return `${action.method}:${action.path}:${action.text}`
+}
+
+function ProviderReauthorizationModal({
+  onClose,
+  onSaved,
+  provider,
+  title
+}: {
+  onClose: () => void
+  onSaved: () => void
+  provider: ConnectableAgentProvider
+  title: string
+}) {
+  const { t } = useT("settings")
+
+  return (
+    <Modal
+      className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-gray-900"
+      labelledBy="provider-reauthorization-title"
+      onClose={onClose}
+      open
+    >
+      <div className="space-y-5 p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="provider-reauthorization-title">
+              {title}
+            </h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              {t('configure_agent.description')}
+            </p>
+          </div>
+          <button
+            aria-label={t('configure_agent.close')}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            onClick={onClose}
+            type="button"
+          >
+            <CloseIcon className="h-7 w-7" />
+          </button>
+        </div>
+        <AgentProviderConnectPanel autoFocus onCancel={onClose} onSaved={onSaved} provider={provider} />
+      </div>
+    </Modal>
   )
 }
 

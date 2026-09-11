@@ -3,6 +3,23 @@ import type { ProviderAvailability } from "./providerAvailability"
 import type { SetupStatusPayload } from "./setup"
 import type { ColorTheme } from "./themes"
 
+export type SystemAlertAction =
+  | {
+      text: string
+      kind: "reauthorize_provider"
+      provider: string
+      destructive?: boolean
+    }
+  | {
+      text: string
+      method: "post" | string
+      path: string
+      params?: Record<string, unknown>
+      destructive?: boolean
+      kind?: string
+      provider?: string
+    }
+
 export type BootstrapPayload = {
   current_user: {
     id: number
@@ -116,13 +133,7 @@ export type BootstrapPayload = {
       text: string
       path: string
     } | null
-    actions?: Array<{
-      text: string
-      method: "post" | string
-      path: string
-      params?: Record<string, unknown>
-      destructive?: boolean
-    }>
+    actions?: SystemAlertAction[]
   }>
   unread_notifications_count: number
   csrf_token: string

@@ -324,6 +324,81 @@ describe("AppChromeV2", () => {
     expect(screen.queryByRole("link", { name: "Epics" })).not.toBeInTheDocument()
   })
 
+  it("opens a provider-scoped reauthorization modal from an auth system alert", async () => {
+    vi.spyOn(window, "open").mockReturnValue({} as Window)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/credentials/test_claude_cli") {
+        return Promise.resolve(jsonResponse({
+          credential_test: {
+            credential: "claude_oauth_token",
+            ok: false,
+            message: "Claude is not authenticated on this machine yet.",
+            details: {}
+          }
+        }))
+      }
+      if (path === "/api/v1/app/credentials/claude_oauth_start") {
+        return Promise.resolve(jsonResponse({ authorize_url: "https://claude.ai/oauth/authorize?state=abc" }))
+      }
+      if (path === "/api/v1/app/credentials/claude_oauth_exchange") {
+        return Promise.resolve(jsonResponse({
+          credential_test: {
+            credential: "claude_oauth_token",
+            ok: true,
+            message: "Claude OAuth token is valid.",
+            details: {}
+          }
+        }))
+      }
+      if (path === "/api/v1/app/chats") return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      if (path === "/api/v1/app/bootstrap") return Promise.resolve(jsonResponse(bootstrapPayload({ system_alerts: [] })))
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("section") === "chrome") {
+        return Promise.resolve(jsonResponse(dashboardChromePayload({ subject: "job" })))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div>Dashboard</div>, {
+      initialEntries: ["/dashboard"],
+      bootstrap: bootstrapPayload({
+        system_alerts: [{
+          id: "provider_auth:claude:1",
+          dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
+          severity: "alarm",
+          title: "Claude sign-in expired.",
+          message: "Claude authentication failed for this account.",
+          action_steps: ["Reconnect Claude here or open agent settings."],
+          cta: { text: "Open agent settings", path: "/settings/agent" },
+          actions: [
+            { text: "Reauthorize Claude", kind: "reauthorize_provider", provider: "claude" },
+            { text: "Recheck Claude", method: "post", path: "/api/v1/app/credentials/recheck_provider_availability", params: { provider: "claude" } }
+          ]
+        }]
+      })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Reauthorize Claude" }))
+
+    const dialog = await screen.findByRole("dialog", { name: "Claude sign-in expired." })
+    expect(within(dialog).getByRole("button", { name: /Authorize with Claude/ })).toBeInTheDocument()
+    expect(within(dialog).queryByRole("tab", { name: "Claude" })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("tab", { name: /Gemini/ })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("tab", { name: /Codex/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/test_claude_cli", expect.objectContaining({ method: "POST" })))
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /Authorize with Claude/ }))
+    await waitFor(() => expect(within(dialog).getByPlaceholderText("paste code here")).toBeEnabled())
+    const codeInput = within(dialog).getByPlaceholderText("paste code here")
+    fireEvent.change(codeInput, { target: { value: "reauth-code#state" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Connect" }))
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Claude sign-in expired." })).not.toBeInTheDocument())
+    const exchangeCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/claude_oauth_exchange"))
+    expect(JSON.parse(exchangeCall?.[1]?.body as string)).toEqual({ code: "reauth-code#state" })
+  })
+
   it("hides smart folder save controls in the chrome sidebar when row context is absent", async () => {
     const savedFilter = { and: [{ field: "state", op: "is", value: "open" }] }
     const chromeFilter = { and: [{ field: "kind", op: "is", value: "issue" }] }
