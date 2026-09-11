@@ -736,6 +736,14 @@ class StepDispatcher
       create_run_and_enqueue(step, workflow, check_phase_admission: check_phase_admission)
     elsif completed_predecessor?(previous)
       advance_from(previous, check_phase_admission: check_phase_admission)
+    elsif retry_until_continuation_after_failed_check?(workflow, step, previous)
+      dispatcher = new(workflow, advancing_from: previous, check_phase_admission: check_phase_admission)
+      create_run_and_enqueue(
+        step,
+        workflow,
+        parent_session_id: dispatcher.send(:prior_iteration_session_id),
+        check_phase_admission: check_phase_admission
+      )
     end
   end
 
@@ -748,6 +756,19 @@ class StepDispatcher
 
   def self.completed_predecessor?(step)
     step&.succeeded? || step&.skipped?
+  end
+
+  def self.retry_until_continuation_after_failed_check?(workflow, step, previous)
+    return false unless previous&.failed?
+    return false unless previous.next_step_id == step.id
+    return false unless step.loop_id.present? && previous.loop_id == step.loop_id
+    return false unless step.iteration == previous.iteration + 1
+
+    dispatcher = new(workflow, advancing_from: previous)
+    loop_node = dispatcher.send(:loop_node_for, previous)
+    return false unless loop_node&.fetch("type", nil) == "retry_until"
+
+    Array(loop_node["repair"]).map(&:to_s).include?(step.kind)
   end
 
   def self.next_queued_step_without_run(workflow)
