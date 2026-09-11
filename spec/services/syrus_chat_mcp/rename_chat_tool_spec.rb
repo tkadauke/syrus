@@ -32,6 +32,7 @@ RSpec.describe Mcp::Tools::RenameChatTool do
     expect(response[:result][:isError]).to be_falsey
     expect(response_payload(response)).to include(
       session_id: chat_session.id,
+      previous_title: "Old title",
       title: "Release planning"
     )
     expect(chat_session.reload.title).to eq("Release planning")

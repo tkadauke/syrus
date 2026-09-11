@@ -36,6 +36,19 @@ describe("toolDetail", () => {
   it("renders empty arguments as a concise label", () => {
     expect(toolDetail("syrus-chat-sidecar.list_chat_media", {})).toBe("No arguments")
   })
+
+  it("summarizes ask_user_question arguments without dumping raw JSON", () => {
+    const detail = toolDetail("ask_user_question", {
+      questions: [
+        { question: "Which path?", options: ["Fast", "Careful"] },
+        { question: "Anything else?" }
+      ]
+    })
+
+    expect(detail).toBe("2 questions")
+    expect(detail).not.toContain("Which path?")
+    expect(detail).not.toContain("{")
+  })
 })
 
 describe("toolLabel", () => {
