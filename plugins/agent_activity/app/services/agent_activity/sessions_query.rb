@@ -95,20 +95,38 @@ module AgentActivity
     end
 
     def self.design_doc_agent_sql(user)
-      return "1=0" unless defined?(DesignDocs::DesignDocAgentRun)
-
-      visible_doc_ids = DesignDocs::DesignDoc.visible_to(user).select(:id)
       sanitize_sql([
         "(
           agents.resumable_type = 'DesignDocs::DesignDocAgentRun'
           AND EXISTS (
             SELECT 1
             FROM design_doc_agent_runs
+            INNER JOIN design_docs
+              ON design_docs.id = design_doc_agent_runs.design_doc_id
             WHERE design_doc_agent_runs.id = agents.resumable_id
-              AND design_doc_agent_runs.design_doc_id IN (?)
+              AND (
+                design_docs.owner_user_id = ?
+                OR EXISTS (
+                  SELECT 1
+                  FROM design_doc_collaborators
+                  WHERE design_doc_collaborators.design_doc_id = design_docs.id
+                    AND design_doc_collaborators.user_id = ?
+                )
+                OR (
+                  design_docs.visibility = 'public'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM design_doc_repositories
+                    WHERE design_doc_repositories.design_doc_id = design_docs.id
+                      AND design_doc_repositories.repository_id IN (?)
+                  )
+                )
+              )
           )
         )",
-        visible_doc_ids
+        user.id,
+        user.id,
+        Repository.accessible_to(user).select(:id)
       ])
     end
 
@@ -137,8 +155,6 @@ module AgentActivity
     end
 
     def self.design_doc_admin_agent_sql
-      return "1=0" unless defined?(DesignDocs::DesignDocAgentRun)
-
       "agents.resumable_type = 'DesignDocs::DesignDocAgentRun'"
     end
 
