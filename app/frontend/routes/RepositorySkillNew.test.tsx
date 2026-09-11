@@ -78,7 +78,10 @@ describe("RepositorySkillNewRoute", () => {
 
     expect(await screen.findByText("investigate")).toBeInTheDocument()
     expect(screen.getByText("deploy")).toBeInTheDocument()
-    expect((screen.getByRole("radio", { name: /investigate/ }) as HTMLInputElement).checked).toBe(true)
+    const selectedRadio = screen.getByRole("radio", { name: /investigate/ }) as HTMLInputElement
+    expect(selectedRadio.checked).toBe(true)
+    expect(selectedRadio).toHaveClass("w-auto")
+    expect(selectedRadio).not.toHaveClass("w-full")
     expect(screen.getByRole("textbox", { name: "Question" })).toBeInTheDocument()
   })
 

@@ -551,18 +551,18 @@ function ScheduledTaskForm({
         </Select>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{autoApproval?.preview}</p>
       </Field>
-      <Field label={t("scheduled_tasks.field_task_source")}>
+      <FieldGroup label={t("scheduled_tasks.field_task_source")}>
         <div className="flex gap-4 text-sm text-gray-700 dark:text-gray-300">
           <label className="flex items-center gap-2">
-            <Input checked={taskSource === "prompt"} onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
+            <Input checked={taskSource === "prompt"} fullWidth={false} name="task_source" onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
             {t("scheduled_tasks.task_source_prompt")}
           </label>
           <label className="flex items-center gap-2">
-            <Input checked={taskSource === "skill"} onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
+            <Input checked={taskSource === "skill"} fullWidth={false} name="task_source" onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
             {t("scheduled_tasks.task_source_skill")}
           </label>
         </div>
-      </Field>
+      </FieldGroup>
       {taskSource === "prompt" ? (
         <Field label={t("scheduled_tasks.prompt_heading")}>
           <textarea className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
@@ -574,13 +574,13 @@ function ScheduledTaskForm({
           {skills.data && skills.data.skills.length === 0 ? <PanelMessage>{tJobs("skill_job_no_skills")}</PanelMessage> : null}
           {skills.data && skills.data.skills.length > 0 ? (
             <>
-              <Field label={tJobs("skill_job_section_pick")}>
+              <FieldGroup label={tJobs("skill_job_section_pick")}>
                 <div className="space-y-2">
                   {skills.data.skills.map((skill) => (
                     <SkillOption key={skill.name} onSelect={() => selectSkill(skill)} selected={skill.name === values.skill_name} skill={skill} />
                   ))}
                 </div>
-              </Field>
+              </FieldGroup>
               {selectedSkill && selectedSkill.parameters.length > 0 ? (
                 <Field label={tJobs("skill_job_section_parameters")}>
                   <div className="space-y-4">
@@ -619,6 +619,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       {label}
       <div className="mt-2">{children}</div>
     </label>
+  )
+}
+
+function FieldGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+      <div>{label}</div>
+      <div className="mt-2">{children}</div>
+    </div>
   )
 }
 

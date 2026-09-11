@@ -223,6 +223,12 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
     renderNewForm()
 
     expect(await screen.findByDisplayValue("Every Monday at 9:00 AM")).toBeInTheDocument()
+    const promptRadio = screen.getByRole("radio", { name: "Freeform prompt" })
+    const skillRadio = screen.getByRole("radio", { name: "Skill" })
+    expect(promptRadio).toHaveClass("w-auto")
+    expect(promptRadio).not.toHaveClass("w-full")
+    expect(skillRadio).toHaveClass("w-auto")
+    expect(skillRadio).not.toHaveClass("w-full")
     await waitFor(() => {
       expect(screen.getByText("Every Monday at 9:00 AM UTC")).toBeInTheDocument()
     })
