@@ -109,6 +109,9 @@ describe("AdminEventLogTable", () => {
       />
     )
 
+    const table = screen.getByRole("table")
+    expect(table.parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
+
     fireEvent.click(screen.getByRole("button", { name: /Time/ }))
     expect(onNavigate).toHaveBeenCalledTimes(1)
     expect((onNavigate.mock.calls[0][0] as URLSearchParams).toString()).toBe("sort=time&direction=asc")
