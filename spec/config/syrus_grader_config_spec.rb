@@ -38,6 +38,13 @@ RSpec.describe "Syrus grader configuration" do
             "tsconfig.json",
             "vite.config.ts"
           ]
+        ],
+        [
+          "gofmt -w cli plugins/*/cli",
+          [
+            "cli/**/*.go",
+            "plugins/*/cli/**/*.go"
+          ]
         ]
       ]
     )
