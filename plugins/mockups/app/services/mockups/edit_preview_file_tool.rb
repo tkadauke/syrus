@@ -6,8 +6,13 @@ module Mockups
 
     tool_name "edit_preview_file"
 
-    description "Replace old_string with new_string in a file inside a preview panel's " \
-                "scratch directory. old_string must appear exactly once in the file unless " \
+    description "Edit a file inside a preview panel's scratch directory for UI mockups, " \
+                "HTML mockups, HTML previews, prototypes, open-preview requests, and " \
+                "screenshot-driven interface redesigns. Use after show_preview opens a panel; " \
+                "then call show_preview again with the same panel_id to publish the visible " \
+                "preview. Do not use local HTTP servers, local file paths, workspace-only HTML " \
+                "files, or imagegen as the primary path for HTML/UI mockups. Replace old_string " \
+                "with new_string. old_string must appear exactly once in the file unless " \
                 "replace_all is set -- same contract as a normal Edit tool."
 
     input_schema(
