@@ -1199,8 +1199,10 @@ What happens to a single labeled issue, from label to merge:
 4. **`Run#after_create_commit`** enqueues `RunJob.perform_later(run.id)`.
 5. **A worker picks up the RunJob**:
    - Sets up the worktree on a fresh branch `syrus/issue-{N}-{job_id}`.
-   - Composes the initial prompt from the issue title + body via
-     `Prompts::Initial`.
+   - Composes the implement-step prompt from the issue title, body, comments,
+     and workflow context via `Prompts::Implement`, which renders the static
+     git-safety and phased-execution instructions from
+     `.claude/skills/implement/SKILL.md` through `Prompts::SkillLoader`.
    - Invokes the selected provider (Claude Code or Codex) with the MCP
      sidecar attached.
    - Agent works in the top-level `implement` Step: edits files and commits.
