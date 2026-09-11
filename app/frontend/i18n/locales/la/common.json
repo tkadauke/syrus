@@ -207,7 +207,8 @@
     "cancelled": "Intermissum",
     "invalid": "Invalidum",
     "unmergeable": "Bellum",
-    "mergeable": "Concordia"
+    "mergeable": "Concordia",
+    "skipped": "Omissum"
   },
   "trigger_kind": {
     "initial": "Initiale",

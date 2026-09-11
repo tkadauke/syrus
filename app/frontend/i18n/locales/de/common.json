@@ -207,7 +207,8 @@
     "cancelled": "abgebrochen",
     "invalid": "ungültig",
     "unmergeable": "nicht mergebar",
-    "mergeable": "mergebar"
+    "mergeable": "mergebar",
+    "skipped": "übersprungen"
   },
   "trigger_kind": {
     "initial": "Initial",
