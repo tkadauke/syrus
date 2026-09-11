@@ -231,6 +231,10 @@ describe("landing queue status column", () => {
     expect(screen.getByRole("article", { name: "Job 1" })).toHaveTextContent("active rebase workflow")
     expect(screen.getByRole("button", { name: "Copy WF-10 to clipboard" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy WU-22 to clipboard" })).toBeInTheDocument()
+
+    const status = screen.getByRole("button", { name: "Copy WF-10 to clipboard" }).closest("[data-status-pill]")
+    expect(status).toHaveClass("whitespace-normal", "flex-wrap", "max-w-full")
+    expect(status).not.toHaveClass("whitespace-nowrap")
   })
 
   it("renders true landing blockers with warning styling in the same column", () => {

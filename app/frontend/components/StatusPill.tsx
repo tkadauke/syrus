@@ -71,11 +71,12 @@ export function StatusPill({ state }: { state: string }) {
   )
 }
 
-export function TonePill({ children, tone, active = false, title, ariaLabel }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string }) {
+export function TonePill({ children, tone, active = false, title, ariaLabel, wrap = false }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string; wrap?: boolean }) {
+  const wrappingClasses = wrap ? "max-w-full flex-wrap whitespace-normal break-words text-left" : "whitespace-nowrap"
   const semanticTone = tone === "red" ? "danger" : tone === "green" ? "success" : tone === "blue" ? "info" : tone === "amber" ? "warning" : "neutral"
 
   return (
-    <Pill active={active} aria-label={ariaLabel} className="capitalize" data-status-pill="true" title={title} tone={semanticTone}>
+    <Pill active={active} aria-label={ariaLabel} className={`capitalize ${wrappingClasses}`} data-status-pill="true" title={title} tone={semanticTone}>
       {children}
     </Pill>
   )
