@@ -26,7 +26,8 @@ describe("save_canvas tool card", () => {
     expect(screen.getByText("Saved snapshot")).toBeInTheDocument()
     expect(screen.getByText("#9")).toBeInTheDocument()
     expect(screen.getByText("Diagram v1")).toBeInTheDocument()
-    expect(screen.getByText("4")).toBeInTheDocument()
+    expect(screen.getByText("4 elements")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open Diagram v1" })).toBeInTheDocument()
   })
 
   it("summarizes and renders an empty-canvas non-save", () => {

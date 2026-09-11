@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import showPreviewToolCard from "./show_preview"
@@ -37,11 +37,13 @@ describe("show_preview tool card", () => {
     render(<>{showPreviewToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("Panel #7")).toBeInTheDocument()
-    expect(screen.getByText("open")).toBeInTheDocument()
-    expect(screen.getByText("Landing page")).toBeInTheDocument()
-    expect(screen.getByText("index.html")).toBeInTheDocument()
+    expect(screen.getAllByText("open").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Landing page").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("index.html").length).toBeGreaterThan(0)
     expect(screen.getByText("3")).toBeInTheDocument()
-    const link = screen.getByRole("link", { name: "Open mockup" })
+    fireEvent.click(screen.getByRole("button", { name: "Open Landing page" }))
+    const dialog = screen.getByRole("dialog", { name: "Landing page" })
+    const link = within(dialog).getByRole("link", { name: "Open mockup" })
     expect(link).toHaveAttribute("href", "/mockups/abc123")
   })
 
@@ -50,7 +52,8 @@ describe("show_preview tool card", () => {
 
     render(<>{showPreviewToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByRole("link", { name: "https://panel.example.test" })).toHaveAttribute(
+    fireEvent.click(screen.getByRole("button", { name: "Open Landing page" }))
+    expect(screen.getByRole("link", { name: "Open preview" })).toHaveAttribute(
       "href",
       "https://panel.example.test"
     )
