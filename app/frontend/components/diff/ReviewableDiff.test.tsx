@@ -766,15 +766,15 @@ describe("hidden-context expansion", () => {
       "diff --git a/f.rb b/f.rb",
       "--- a/f.rb",
       "+++ b/f.rb",
-      "@@ -1,1 +1,1 @@",
       "first",
       "between 2",
       "between 3",
       "between 4",
       "between 5",
-      "@@ -6,1 +6,1 @@",
       "second"
     ])
+    expect(screen.queryByText("@@ -1,1 +1,1 @@")).not.toBeInTheDocument()
+    expect(screen.queryByText("@@ -6,1 +6,1 @@")).not.toBeInTheDocument()
   })
 
   it("syntax-highlights context loaded from chunk expansion", async () => {
