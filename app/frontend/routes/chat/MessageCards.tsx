@@ -26,6 +26,7 @@ import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from ".
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
+import { ToolErrorCard } from "./toolErrorCard"
 
 
 
@@ -580,6 +581,8 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
     parsedResult: call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
   })
   if (pluginBody != null) return <>{pluginBody}</>
+
+  if (call.result_error) return <ToolErrorCard call={call} />
 
   return <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} />
 }

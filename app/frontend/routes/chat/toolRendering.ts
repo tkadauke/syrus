@@ -337,7 +337,7 @@ export function toolResultPresentation(name: string, body: string, error = false
   const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: parsed })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: pluginSummary }
 
-  if (error) return { kind: "error", summary: "" }
+  if (error) return { kind: "error", summary: genericToolErrorSummary(parsed, body) }
 
   const mcpSummary = mcpResultSummary(normalizedName, parsed)
   if (mcpSummary) return mcpSummary
@@ -351,6 +351,32 @@ export function toolResultPresentation(name: string, body: string, error = false
 
   const noun = normalizedName === "Glob" ? "path" : normalizedName === "Grep" ? "match" : "line"
   return { kind: "text", summary: countSummary(lines.length, noun), metadata: { count: lines.length, noun } }
+}
+
+function genericToolErrorSummary(parsed: unknown, body: string) {
+  const record = firstErrorRecord(parsed)
+  const message = record ? stringErrorField(record, ["message", "error_message", "error", "detail", "details", "reason"]) : null
+  const errorClass = record ? stringErrorField(record, ["error_class", "class", "exception", "type", "code"]) : null
+  const text = [errorClass, message || firstLine(body)].filter(Boolean).join(": ")
+  return text.length > 160 ? `${text.slice(0, 157)}...` : text
+}
+
+function firstErrorRecord(value: unknown): Record<string, unknown> | null {
+  if (isPlainObject(value)) return value
+  if (Array.isArray(value)) return value.find(isPlainObject) ?? null
+  return null
+}
+
+function stringErrorField(record: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === "string" && value.trim()) return value.trim()
+    if (isPlainObject(value)) {
+      const nested = stringErrorField(value, keys)
+      if (nested) return nested
+    }
+  }
+  return null
 }
 
 function mcpResultSummary(name: string, parsed: unknown): ToolResultPresentation | null {
