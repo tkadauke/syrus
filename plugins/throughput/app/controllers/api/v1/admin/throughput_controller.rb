@@ -24,7 +24,7 @@ module Api
         def require_throughput_enabled
           return if ::Throughput.enabled?
 
-          render_error("plugin_disabled", "The throughput plugin is disabled.", status: :not_found)
+          render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "throughput"), status: :not_found)
         end
 
         def repository_filter

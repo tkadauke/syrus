@@ -25,13 +25,14 @@ RSpec.describe "API: /api/v1/app/admin/github_app", type: :request do
   end
 
   it "returns the manifest registration payload and stores callback state" do
+    admin.update!(locale: "de")
     sign_in_as(admin)
 
     get "/api/v1/app/admin/github_app/register", params: { origin: "onboarding" }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.fetch("submit_label")).to eq("Register GitHub App")
+    expect(body.fetch("submit_label")).to eq("GitHub App registrieren")
     expect(body.dig("github_app", "registered")).to be false
 
     bounce = URI.parse(body.fetch("bounce_url"))

@@ -22,23 +22,23 @@ module Api
 
           role = params[:role].to_s
           unless TeamRepository::ROLES.include?(role)
-            render_error("validation_failed", "Role must be one of #{TeamRepository::ROLES.join(', ')}.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_team_grants.invalid_role", roles: TeamRepository::ROLES.join(", ")), status: :unprocessable_content)
             return
           end
 
           team = target_team_from_params
           unless team
-            render_error("validation_failed", "No team found with that name.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_team_grants.team_not_found"), status: :unprocessable_content)
             return
           end
 
           if repository.team_repositories.exists?(team_id: team.id)
-            render_error("validation_failed", "#{team.name} already has a grant on this repository.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_team_grants.already_granted", team: team.name), status: :unprocessable_content)
             return
           end
 
           repository.team_repositories.create!(team: team, role: role)
-          render json: repository_members_payload(repository.reload).merge(message: "#{team.name} added as #{role}."), status: :created
+          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_team_grants.added", team: team.name, role: role)), status: :created
         end
 
         def update
@@ -47,12 +47,12 @@ module Api
 
           role = params[:role].to_s
           unless TeamRepository::ROLES.include?(role)
-            render_error("validation_failed", "Role must be one of #{TeamRepository::ROLES.join(', ')}.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_team_grants.invalid_role", roles: TeamRepository::ROLES.join(", ")), status: :unprocessable_content)
             return
           end
 
           grant.update!(role: role)
-          render json: repository_members_payload(repository.reload).merge(message: "Role updated to #{role}.")
+          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_team_grants.role_updated", role: role))
         end
 
         def destroy
@@ -60,7 +60,7 @@ module Api
           grant = repository.team_repositories.find(params[:id])
           grant.destroy!
 
-          render json: repository_members_payload(repository.reload).merge(message: "#{grant.team.name} removed.")
+          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_team_grants.removed", team: grant.team.name))
         end
 
         private

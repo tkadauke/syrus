@@ -40,7 +40,7 @@ module Api
         def require_worker_timeline_enabled
           return if ::WorkerTimeline.enabled?
 
-          render_error("plugin_disabled", "The worker_timeline plugin is disabled.", status: :not_found)
+          render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "worker_timeline"), status: :not_found)
         end
       end
     end

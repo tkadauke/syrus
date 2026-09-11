@@ -40,6 +40,24 @@ la:
     admin_required: "Accessus administratoris necessarius est."
     chat_unavailable: "Ille colloquium non iam praesto est."
 
+  github_app:
+    manifest:
+      title: "Ad GitHub pergitur…"
+      heading: "Ad GitHub pergitur…"
+      body: "Manifestum Syrus App ad GitHub mittitur. Si nihil fit, utere puga infra."
+      button: "Perge ad GitHub"
+    registered:
+      title: "GitHub App relata est"
+      heading: "GitHub App relata est"
+      body: "Hanc fenestram claudere potes et ad compositionem Syri redire."
+    error:
+      title: "Relatio GitHub App"
+      body: "Redi ad Syrum et relationem iterum incipe."
+    errors:
+      missing_code: "GitHub codicem manifesti non reddidit."
+      registration_failed: "Relatio GitHub App defecit: %{error}"
+      invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
+
   api:
     base:
       unauthorized: "Da validum signum API per `Authorization: Bearer <signum>`."
@@ -163,6 +181,10 @@ la:
     admin_queue:
       reap_ran: "ReapStaleRunsJob in linea cursum dedit."
 
+    admin_github_app:
+      register: "GitHub App referre"
+      reregister: "GitHub App iterum referre"
+
     admin_features:
       not_found: "Proprium non inventum est."
 
@@ -191,3 +213,118 @@ la:
 
     admin_transcripts:
       no_session: "Nulla sessio agentis pro Cursu #%{id} capta est."
+
+    preview:
+      logs_unavailable: "Acta praevia ad tempus praesto non sunt."
+      starting: "Ambitus praevisionis incipit."
+      stopping: "Ambitus praevisionis sistitur."
+
+    repository_preview:
+      not_found: "Nullus ambitus praevisionis huic repositorio inventus est."
+      archived: "Praevisio repositoriis in archivo non praesto est."
+      already_active: "Ambitus praevisionis huic repositorio iam activus est."
+      active_not_found: "Nullus ambitus praevisionis activus huic repositorio inventus est."
+
+    job_preview:
+      not_found: "Nullus ambitus praevisionis huic operi inventus est."
+      not_previewable: "Praevisio tantum operibus effectis, probatis, descendentibus, aut descensis praesto est."
+      already_active: "Ambitus praevisionis huic operi iam activus est."
+      active_not_found: "Nullus ambitus praevisionis activus huic operi inventus est."
+
+    speech_to_text:
+      backend_batch_unavailable: "Transcriptio fasciculorum in tergo non configurata est."
+      backend_streaming_unavailable: "Transcriptio fluentis in tergo non configurata est."
+      missing_file: "Adiunge fasciculum soni."
+      transcription_failed: "Transcriptio in tergo defecit."
+      disabled: "Vox-in-textum colloquii non est activa."
+      unsupported_content_type: "Mitte fasciculum soni sustentatum."
+      audio_too_large: "Fasciculi soni missi 10 MB aut minores esse debent."
+      audio_too_long: "Fasciculi soni missi 120 secundas aut breviores esse debent."
+
+    repository_documents:
+      added: "Documentum additum est."
+      removed: "Documentum remotum est."
+
+    skills:
+      agent_not_configured: "Hic agens non configuratus est."
+      created: "Opus per artem creatum est."
+
+    repository_memberships:
+      invalid_role: "Munus unum ex his esse debet: %{roles}."
+      user_not_found: "Nullus usor cum hac inscriptione electronica inventus est."
+      already_member: "%{email} iam membrum huius repositorii est."
+      added: "%{email} ut %{role} additus est."
+      change_last_admin: "Munus ultimi administratoris mutari non potest — prius aliud membrum ad administratorem promove."
+      role_updated: "Munus ad %{role} renovatum est."
+      remove_last_admin: "Ultimus administrator removeri non potest — prius aliud membrum ad administratorem promove."
+      removed: "Membrum remotum est."
+
+    repository_team_grants:
+      invalid_role: "Munus unum ex his esse debet: %{roles}."
+      team_not_found: "Nulla turma hoc nomine inventa est."
+      already_granted: "%{team} iam concessionem in hoc repositorio habet."
+      added: "%{team} ut %{role} addita est."
+      role_updated: "Munus ad %{role} renovatum est."
+      removed: "%{team} remota est."
+
+    job_ref_movement_actions:
+      invalid_action: "%{action} ex Opere mitti non potest."
+      blank_action: "(vacuum)"
+      sent_upstream: "Ad fontem superiorem missum est."
+      blocked: "Actio motus ref obstructa est."
+
+    plugins:
+      disabled: "Plugin %{plugin} deactivatum est."
+      route_not_found: "Iter plugin non inventum est."
+
+    job_lifecycle:
+      direct_only: "Sola opera directa manu incipi possunt."
+      thread_closed: "Filum clausum est - id rursus aperi antequam opus incipias."
+      backlogged: "Opus in acervo est - id libera antequam opus incipias."
+      run_active: "Cursus iam agitur - exspecta dum finiatur."
+      already_started: "Hoc Opus iam inceptum est - utere potius Itera."
+      initial_enqueued: "Fluxus initialis in ordinem positus est."
+      release_backlog_only: "Sola opera in acervo liberari possunt."
+      release_unavailable: "%{slug} est %{state} nec ex acervo liberari potest."
+      released_from_backlog: "Opus ex acervo liberatum est."
+      move_to_backlog_unavailable: "%{slug} in acervum moveri non potest postquam opus runtime, recognitio, descensus, aut creatio PR incepta est."
+      moved_to_backlog: "Opus in acervum motum est."
+      not_awaiting_triage: "%{slug} trianam non exspectat."
+      accepted: "Opus acceptum est."
+      rejected: "Opus reiectum est."
+      retry_enqueued: "Fluxus iterationis in ordinem positus est."
+      retry_enqueued_with_provider: "Fluxus iterationis cum %{provider} in ordinem positus est."
+      started_over: "Ab initio inceptum est - novus ramus et PR creabuntur."
+      already_closed: "Opus iam clausum est."
+      cancellation_requested: "Petitio cassationis missa est."
+      not_landing: "Opus nunc non descendit."
+      landing_stopped: "Descensus sistitur."
+      force_fail_unavailable: "%{slug} est %{state} nec vi defectum declarari potest."
+      force_failed: "Opus vi defectum declaratum est."
+      auto_merge_disabled: "Auto-merge pro %{slug} deactivatum est; activa id in rebus repositorii ante probationem."
+      approval_forbidden: "Solus dominus operis aut alia membra repositorii approbationem addere possunt — creator operis approbare non potest nisi etiam dominus est."
+      landing_enqueued: "Fluxus descensus in ordinem positus est."
+      approved: "Opus probatum est."
+      approval_recorded: "Approbatio relata est."
+      unapprove_unavailable: "Sola opera probata quae descensum nondum inceperunt improbari possunt."
+      unapproved: "Opus improbatum est."
+      not_closed: "Opus clausum non est."
+      pause_closed: "Opera clausa pausari non possunt."
+      already_paused: "Opus iam manu pausatum est."
+      paused: "Opus pausatum est. Gradus activus finiatur antequam Syrus progredi desinat."
+      not_paused: "Opus manu pausatum non est."
+      unpaused: "Opus depausatum est. Sub potestate admissionis resumetur."
+      local_mode_disabled: "Local Mode non est activus."
+      local_mode_state_unavailable: "Sola opera effecta aut probata in Local Mode aperiri possunt."
+      local_mode_already_linked: "Opus iam sessioni locali coding coniunctum est."
+      local_mode_chat_missing: "Nullum colloquium Local Mode activum inventum est. Prius colloquium in Local Mode incipe."
+      local_mode_opened: "Opus in Local Mode apertum est. Perge in colloquio coniuncto."
+      not_coding: "Opus in statu coding non est."
+      local_mode_cancelled: "Sessio Local Mode cassata est."
+      start_blocked: "Obstructum: %{reason} — vide schedulam operis pro singulis."
+      start_blocked_unknown: "Fluxus initialis nunc incipi non potuit. Renova et inspice schedulam operis pro singulis."
+      reopened: "Filum rursus apertum est."
+      reopened_syrus_stop: "Moneo: proxima interrogatio id rursus claudet si titulus syrus-stop adhuc in PR est."
+      reopened_pr_state: "Moneo: proxima interrogatio statum PR inspiciet et id rursus claudere potest."
+      blocked_reasons:
+        admission_control: "modus admissionis fluxus"

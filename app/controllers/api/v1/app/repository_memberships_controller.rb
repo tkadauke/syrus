@@ -18,23 +18,23 @@ module Api
 
           role = params[:role].to_s
           unless RepositoryMembership::ROLES.include?(role)
-            render_error("validation_failed", "Role must be one of #{RepositoryMembership::ROLES.join(', ')}.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_memberships.invalid_role", roles: RepositoryMembership::ROLES.join(", ")), status: :unprocessable_content)
             return
           end
 
           target_user = target_user_from_params
           unless target_user
-            render_error("validation_failed", "No user found with that email.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_memberships.user_not_found"), status: :unprocessable_content)
             return
           end
 
           if repository.repository_memberships.exists?(user_id: target_user.id)
-            render_error("validation_failed", "#{target_user.email_address} is already a member of this repository.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_memberships.already_member", email: target_user.email_address), status: :unprocessable_content)
             return
           end
 
           repository.repository_memberships.create!(user: target_user, role: role)
-          render json: repository_members_payload(repository.reload).merge(message: "#{target_user.email_address} added as #{role}."), status: :created
+          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_memberships.added", email: target_user.email_address, role: role)), status: :created
         end
 
         def update
@@ -43,17 +43,17 @@ module Api
 
           role = params[:role].to_s
           unless RepositoryMembership::ROLES.include?(role)
-            render_error("validation_failed", "Role must be one of #{RepositoryMembership::ROLES.join(', ')}.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_memberships.invalid_role", roles: RepositoryMembership::ROLES.join(", ")), status: :unprocessable_content)
             return
           end
 
           if role != "admin" && last_admin?(repository, membership)
-            render_error("validation_failed", "Cannot change the role of the last admin — promote another member to admin first.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_memberships.change_last_admin"), status: :unprocessable_content)
             return
           end
 
           membership.update!(role: role)
-          render json: repository_members_payload(repository.reload).merge(message: "Role updated to #{role}.")
+          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_memberships.role_updated", role: role))
         end
 
         def destroy
@@ -61,12 +61,12 @@ module Api
           membership = repository.repository_memberships.find(params[:id])
 
           if last_admin?(repository, membership)
-            render_error("validation_failed", "Cannot remove the last admin — promote another member to admin first.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_memberships.remove_last_admin"), status: :unprocessable_content)
             return
           end
 
           membership.destroy!
-          render json: repository_members_payload(repository.reload).merge(message: "Member removed.")
+          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_memberships.removed"))
         end
 
         private

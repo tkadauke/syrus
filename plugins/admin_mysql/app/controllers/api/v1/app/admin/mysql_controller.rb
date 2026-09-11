@@ -28,7 +28,7 @@ module Api
           def require_admin_mysql_enabled
             return if ::AdminMysql.enabled?
 
-            render_error("plugin_disabled", "The admin_mysql plugin is disabled.", status: :not_found)
+            render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "admin_mysql"), status: :not_found)
           end
         end
       end
