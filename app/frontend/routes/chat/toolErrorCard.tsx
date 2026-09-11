@@ -1,4 +1,5 @@
 import type { ChatToolGroupItem } from "../../api/chats"
+import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 import { Badge, CardShell, Disclosure, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { isPlainObject, normalizedToolName } from "./toolRendering"
 
@@ -129,21 +130,23 @@ export function buildToolErrorCardModel(call: ToolCall): ToolErrorCardModel {
   const errorClass = errorClassFrom(parsed)
   const errorMessage = errorMessageFrom(parsed, call.result_body)
   const retryable = retryableFrom(parsed, errorMessage)
+  const redactedInput = redactToolCardValue(call.raw_payload)
+  const redactedResult = redactToolCardValue(parsed ?? call.result_body)
 
   return {
-    toolLabel: call.display_label || call.tool_name,
+    toolLabel: redactToolCardText(call.display_label || call.tool_name),
     rawName: call.raw_name || call.tool_name,
     mcpServerId: identity.server,
     mcpToolId: identity.tool,
-    errorClass,
-    errorMessage,
-    affectedEntityIds: affectedEntityIds(call.raw_payload, parsed),
+    errorClass: errorClass ? redactToolCardText(errorClass) : null,
+    errorMessage: redactToolCardText(errorMessage),
+    affectedEntityIds: affectedEntityIds(redactedInput, redactedResult),
     retryable,
     sideEffectRisk: sideEffectRiskFor(call.tool_name || identity.tool),
     rawDetails: {
       name: call.raw_name || call.tool_name,
-      input: call.raw_payload,
-      result: parsed ?? call.result_body
+      input: redactedInput,
+      result: redactedResult
     }
   }
 }
