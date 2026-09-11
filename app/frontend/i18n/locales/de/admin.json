@@ -246,7 +246,10 @@
     "component_stack": "Component Stack",
     "recent_api_requests": "Neue API-Anfragen",
     "recent_errors": "Neue JS-Fehler",
-    "environment": "Umgebung"
+    "environment": "Umgebung",
+    "id": "ID",
+    "timeline": "Zeitleiste",
+    "timeline_empty": "Keine Browser-Fehler in diesem gefilterten Zeitfenster."
   },
   "users": {
     "heading": "Benutzer",
@@ -405,6 +408,10 @@
       "persistent_mcp_sidecar": {
         "name": "Persistenter MCP-Sidecar",
         "description": "Aktiviert einen persistenten, worker-lokalen MCP-Sidecar-Daemon, der einmal startet und einen rein lokalen MCP-Transport samt Health-Check bereitstellt. Chat-Turns können ihre MCP-Tool-Aufrufe dorthin leiten, mit automatischem Fallback auf Stdio; Workflow-Agent-Läufe nutzen ihn noch nicht und verwenden weiterhin den Stdio-Sidecar pro Run. Solange deaktiviert, nutzen alle Agenten weiterhin die üblichen Stdio-Sidecars pro Run/Sitzung."
+      },
+      "browser_error_auto_reports": {
+        "name": "Automatische Browser-Fehlerberichte",
+        "description": "Erstellt automatisch einen Bug-Report-Job pro Browser-Fehler-Fingerabdruck und App-Revision."
       }
     }
   },
@@ -478,7 +485,14 @@
       "agent_provider": "agent_provider",
       "mcp_tool_set": "mcp_tool_set",
       "input_source": "input_source"
-    }
+    },
+    "required": "Erforderlich",
+    "enable": "Aktivieren",
+    "disable": "Deaktivieren",
+    "saving": "Speichert...",
+    "error_toggle": "Plugin konnte nicht aktualisiert werden.",
+    "category": "Kategorie",
+    "default_state": "Standard"
   },
   "invitations": {
     "heading": "Einladungen",
@@ -560,7 +574,9 @@
     "discord_token_label": "Discord-Bot-Token",
     "discord_token_placeholder": "Bot-Token eingeben…",
     "discord_token_clear_confirm": "Discord-Bot-Token löschen?",
-    "discord_save_token": "Token speichern"
+    "discord_save_token": "Token speichern",
+    "show_work_unit_debug_label": "WorkIntent- und WorkUnit-Debugbereiche in Job-Workflow-Tabs anzeigen",
+    "show_work_unit_debug_help": "Wenn deaktiviert, bleiben WorkIntent- und WorkUnit-Interna auf normalen Job-Seiten verborgen. Admin Work Units bleibt für Diagnosen verfügbar."
   },
   "github_app": {
     "register_title": "GitHub-App-Registrierung",
@@ -932,5 +948,85 @@
   "aria_features": "Admin-Features",
   "aria_console": "Admin-Konsole",
   "aria_github_registration": "GitHub-App-Registrierung",
-  "aria_github_registered": "GitHub-App registriert"
+  "aria_github_registered": "GitHub-App registriert",
+  "page_title_work_units": "Work Units — Administration",
+  "page_title_backend_exceptions": "Backend-Ausnahmen — Administration",
+  "nav_work_units": "Work Units",
+  "nav_backend_exceptions": "Backend-Ausnahmen",
+  "work_units": {
+    "heading": "Work Units",
+    "aria": "Admin-Work-Units",
+    "description": "Untersuche vom Scheduler verwaltete gewünschte Arbeit und Laufzeitversuche über alle Benutzer hinweg. Dies ist eine interne Diagnoseansicht; normale Job-Seiten zeigen diese Bereiche nur, wenn die Debug-Einstellung aktiviert ist.",
+    "loading": "Work Units werden geladen...",
+    "error_load": "Work Units konnten nicht geladen werden.",
+    "refresh": "Aktualisieren",
+    "refreshing": "Aktualisiere...",
+    "show_user_debug": "Auf Job-Seiten anzeigen",
+    "hide_user_debug": "Auf Job-Seiten ausblenden",
+    "filter_intent_state": "Intent-Status",
+    "filter_intent_kind": "Intent-Art",
+    "filter_unit_state": "Unit-Status",
+    "filter_unit_kind": "Unit-Art",
+    "filter_scope": "Geltungsbereich",
+    "filter_repository": "Repository-ID",
+    "filter_job": "Job-ID",
+    "filter_workflow": "Workflow-ID",
+    "apply_filters": "Filter anwenden",
+    "clear_filters": "Filter löschen",
+    "no_intents": "Keine Work Intents passen zu diesen Filtern.",
+    "showing": "Zeige {{first}}-{{last}} von {{total}} Intents",
+    "col_requested": "Angefordert",
+    "col_intent": "Intent",
+    "col_scope": "Geltungsbereich",
+    "col_jobs": "Jobs",
+    "col_units": "Units",
+    "aria_pagination": "Work-Unit-Paginierung",
+    "page_of": "Seite {{page}} von {{total}}",
+    "previous": "Zurück",
+    "next": "Weiter"
+  },
+  "backend_exceptions": {
+    "heading": "Backend-Ausnahmen",
+    "aria": "Backend-Ausnahmen",
+    "loading": "Backend-Ausnahmen werden geladen...",
+    "error_load": "Backend-Ausnahmen konnten nicht geladen werden.",
+    "refresh": "Aktualisieren",
+    "refreshing": "Aktualisiere...",
+    "query": "Suche",
+    "query_placeholder": "Nachricht, Klasse, Pfad, Anfrage oder Backtrace",
+    "since": "Seit",
+    "until": "Bis",
+    "until_placeholder": "optional",
+    "fingerprint": "Fingerabdruck",
+    "source": "Quelle",
+    "all_sources": "Alle Quellen",
+    "exception_class": "Ausnahmeklasse",
+    "path": "Pfad",
+    "revision_scope": "Revision",
+    "revision_current": "Aktuelle SHA",
+    "revision_all": "Alle SHAs",
+    "per_page": "Pro Seite",
+    "search": "Suchen",
+    "clear": "Leeren",
+    "showing": "Zeige {{count}} Ereignisse auf Seite {{page}}",
+    "revision_hint": "{{revision}}",
+    "all_revisions": "alle Revisionen",
+    "empty": "Keine Backend-Ausnahmen aufgezeichnet.",
+    "timeline": "Zeitleiste",
+    "timeline_empty": "Keine Backend-Ausnahmen in diesem gefilterten Zeitfenster.",
+    "page": "Seite {{page}}",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "col_time": "Zeit",
+    "col_context": "Kontext",
+    "col_error": "Fehler",
+    "col_runtime": "Laufzeit",
+    "col_actions": "Aktionen",
+    "show_details": "Details",
+    "hide_details": "Ausblenden",
+    "backtrace": "Backtrace",
+    "request_context": "Anfragekontext",
+    "job_context": "Job-Kontext",
+    "environment": "Umgebung"
+  }
 }

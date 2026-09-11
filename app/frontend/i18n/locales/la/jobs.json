@@ -724,5 +724,15 @@
   "pr_checks_attribution_unknown": "Nondum attribuendum",
   "pr_checks_attribution_base": "Cum basi {{sha}} comparatum",
   "pr_checks_attribution_failing": "Hic cadens",
-  "pr_checks_attribution_base_failing": "In basi cadens"
+  "pr_checks_attribution_base_failing": "In basi cadens",
+  "recheck_pr_checks": "Recognitiones iterum inspice",
+  "retry_with_agent": "Itera cum {{provider}}",
+  "retry_with_agent_feedback": "Itera cum {{provider}} et responso",
+  "section_workflows_loading": "Cursus onerantur...",
+  "section_workflows_load_error": "Cursus onerari non potuerunt.",
+  "pr_checks_head_sha": "Caput {{sha}}",
+  "pr_checks_payload_base_sha": "Basis PR {{sha}}",
+  "pr_checks_override_once": "Semel tamen demerge",
+  "pr_checks_override_confirm": "Hoc opus semel demergere, quamquam recognitiones PR deficientes iam in basi deficiunt?",
+  "pr_checks_override_reason": "Operator verificavit recognitiones PR deficientes hereditas acceptabiles esse huic conatui demergendi."
 }
