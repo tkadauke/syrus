@@ -38,6 +38,10 @@ formatters:
       - "package-lock.json"
       - "tsconfig.json"
       - "vite.config.ts"
+  - command: gofmt -w cli plugins/*/cli
+    files:
+      - "cli/**/*.go"
+      - "plugins/*/cli/**/*.go"
 
 preview:
   setup: *syrus_prepare
