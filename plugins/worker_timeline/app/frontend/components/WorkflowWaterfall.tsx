@@ -1,5 +1,6 @@
 import type { ScaleTime } from "d3-scale"
 import { type ReactNode, useState } from "react"
+import { Link } from "react-router-dom"
 import { useT } from "@app/hooks/useT"
 import { TimeAxis } from "@app/components/timeline/TimeAxis"
 import { TimelineBar } from "@app/components/timeline/TimelineBar"
@@ -43,7 +44,17 @@ export function WorkflowWaterfall({ payload }: { payload: WorkerTimelineWaterfal
   return (
     <div className="space-y-4">
       <section aria-label={t("detail_summary_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-700 dark:text-gray-300">
-        <p>{t("detail_summary", { id: workflow.id, trigger_kind: workflow.trigger_kind, status: workflow.status })}</p>
+        <p className="flex flex-wrap items-center gap-1.5">
+          <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={workflow.job_path}>
+            {workflow.job_slug}
+          </Link>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">·</span>
+          <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={workflow.workflow_path}>
+            {workflow.slug}
+          </Link>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">·</span>
+          <span>{t("detail_summary_status", { trigger_kind: workflow.trigger_kind, status: workflow.status })}</span>
+        </p>
         {!hasStarted ? <p className="mt-1 text-gray-500 dark:text-gray-400">{t("detail_not_started_note")}</p> : null}
       </section>
 
