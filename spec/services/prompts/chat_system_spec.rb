@@ -119,6 +119,19 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("submit_chat_feedback")
   end
 
+  it "tells Local Mode chats to route local job phrases to create_coding_job" do
+    chat = ChatSession.create!(user: repo.user, repository: repo, mode: "local")
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("## Local Mode")
+    expect(out).to include('"local job", "do a local job", "make a local job", "start a local job", and "minimal local job"')
+    expect(out).to include("create a new coding Job with `create_coding_job`")
+    expect(out).to include("Do not route those requests to `propose_job`")
+    expect(out).to include("`propose_job` is the exception path in Local Mode, not the default")
+    expect(out).to include("only when the operator explicitly asks for a proposal, draft, proposal card,\nor review-before-implementation artifact")
+  end
+
   it "instructs admin chats to diagnose before requesting repair actions" do
     admin = Factories.user(admin: true)
     chat = ChatSession.create!(user: admin, system_kind: "supervisor")
