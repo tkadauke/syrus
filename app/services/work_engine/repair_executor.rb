@@ -348,6 +348,14 @@ module WorkEngine
             retry_blocker = auto_retry_blocker_for(workflow, retry_kind)
             if retry_blocker
               locked_skip = skipped(retry_blocker)
+            elsif delayed_retry_already_scheduled?(
+              workflow: workflow,
+              source_run: source_run,
+              classification: classification,
+              retry_kind: retry_kind,
+              scheduled_at: scheduled_at
+            )
+              locked_skip = skipped("retry already pending until #{scheduled_at.iso8601}")
             else
               attempt_number = AutoRetryAttempt.budget_scope_for(
                 job: job,
@@ -401,6 +409,22 @@ module WorkEngine
 
         def retry_budget_limit(classification)
           classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS : AutoRetryAttempt::MAX_ATTEMPTS
+        end
+
+        def delayed_retry_already_scheduled?(workflow:, source_run:, classification:, retry_kind:, scheduled_at:)
+          return false unless classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
+          return false unless scheduled_at&.future?
+
+          scope = workflow.auto_retry_attempts
+            .unskipped
+            .where(
+              run: source_run,
+              retry_kind: retry_kind,
+              failure_classification: classification
+            )
+            .where("scheduled_at >= ?", now)
+
+          scope.exists?
         end
 
         def auto_retry_blocker_for(workflow, retry_kind)
