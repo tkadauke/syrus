@@ -2913,10 +2913,12 @@ Bundled plugins:
   drill-down (`WorkflowWaterfall.tsx`, reached by clicking a macro-view
   Workflow span), consuming
   `GET /api/v1/app/admin/worker_timeline/workflow` — a session-authenticated
-  wrapper around `Timeline::WorkflowWaterfallQuery` — reusing the macro
-  view's bar/pan-zoom/tooltip rendering primitives, though (unlike the
-  macro view) it still row-virtualizes its Step lanes inside a
-  fixed-height scrollable container — see
+  wrapper around `Timeline::WorkflowWaterfallQuery`; the header links the
+  owning `JOB-<id>` and canonical `WF-<id>` slug back into the Job workflows
+  tab while preserving the active SPA route prefix. It reuses the macro
+  view's bar/pan-zoom/tooltip rendering primitives, though (unlike the macro
+  view) it still row-virtualizes its Step lanes inside a fixed-height
+  scrollable container — see
   `plugins/worker_timeline/docs/syrus_docs/worker_timeline.md`.
 - `agent_activity` — default-enabled; the fourth `sidebar_page` plugin, and
   the first to pair a primary sidebar page with an admin page

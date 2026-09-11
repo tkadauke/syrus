@@ -62,7 +62,11 @@ export type WorkerTimelineMacroPayload = {
 
 export type WorkerTimelineWaterfallWorkflow = {
   id: number
+  slug: string
   job_id: number
+  job_slug: string
+  job_path: string
+  workflow_path: string
   trigger_kind: string
   status: string
   started_at: string | null
