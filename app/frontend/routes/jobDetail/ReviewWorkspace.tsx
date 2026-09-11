@@ -12,6 +12,7 @@ import {
   fetchJobSourceFileContent,
   fetchDiffReviewVersion,
   type DiffReviewComment,
+  type DiffReviewVersion,
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
@@ -44,9 +45,10 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [pendingCommentFocus, setPendingCommentFocus] = useState<DiffReviewComment | null>(null)
   const versions = sourceDiff.data?.versions || []
-  const latestVersionId = sourceDiff.data?.version?.id ?? versions[versions.length - 1]?.id ?? null
-  const activeVersionId = selectedVersionId ?? latestVersionId
-  const historicalVersionSelected = activeVersionId != null && activeVersionId !== latestVersionId
+  const payloadVersionId = sourceDiff.data?.version?.id ?? null
+  const defaultVersionId = preferredReviewVersionId(sourceDiff.data?.version ?? null, versions)
+  const activeVersionId = selectedVersionId ?? defaultVersionId
+  const historicalVersionSelected = activeVersionId != null && activeVersionId !== payloadVersionId
   const historicalVersion = useQuery({
     enabled: sourceDiff.isSuccess && historicalVersionSelected,
     queryKey: ["jobs", String(jobId), "diff_review_versions", activeVersionId],
@@ -55,7 +57,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const selectedVersion = versions.find((version) => version.id === activeVersionId) ?? sourceDiff.data?.version ?? null
   const activeDiff = useMemo(() => {
     if (!sourceDiff.data) return null
-    if (activeVersionId != null && activeVersionId !== latestVersionId && historicalVersion.data) {
+    if (activeVersionId != null && activeVersionId !== payloadVersionId && historicalVersion.data) {
       return {
         ...sourceDiff.data,
         base_ref: historicalVersion.data.base_ref || historicalVersion.data.base_sha,
@@ -67,7 +69,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
       }
     }
     return sourceDiff.data
-  }, [activeVersionId, historicalVersion.data, latestVersionId, sourceDiff.data])
+  }, [activeVersionId, historicalVersion.data, payloadVersionId, sourceDiff.data])
   const feedback = useDiffReviewFeedback({
     baseRef: activeDiff?.base_ref,
     diffReviewVersionId: activeVersionId,
@@ -83,8 +85,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
 
   useEffect(() => {
-    if (latestVersionId && selectedVersionId == null) setSelectedVersionId(latestVersionId)
-  }, [latestVersionId, selectedVersionId])
+    if (defaultVersionId && selectedVersionId == null) setSelectedVersionId(defaultVersionId)
+  }, [defaultVersionId, selectedVersionId])
 
   useEffect(() => {
     if (!pendingCommentFocus || activeVersionId !== pendingCommentFocus.diff_review_version_id) return
@@ -164,7 +166,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             <div className="flex flex-wrap items-start gap-3 text-xs">
               <DiffReviewVersionSelector
                 disabled={sourceDiff.isFetching || historicalVersion.isFetching}
-                latestVersionId={latestVersionId}
+                latestVersionId={defaultVersionId}
                 onChange={setSelectedVersionId}
                 selectedVersionId={activeVersionId}
                 versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
@@ -214,6 +216,15 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
       </div>
     </div>
   )
+}
+
+function preferredReviewVersionId(payloadVersion: DiffReviewVersion | null, versions: DiffReviewVersion[]) {
+  const allChangesVersion = versions.find(isAllChangesVersion)
+  return allChangesVersion?.id ?? payloadVersion?.id ?? versions[versions.length - 1]?.id ?? null
+}
+
+function isAllChangesVersion(version: DiffReviewVersion) {
+  return version.reason === "source_diff" || version.metadata?.range_kind === "all_changes"
 }
 
 function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetailPayload; reviewArtifacts: string[] }) {
