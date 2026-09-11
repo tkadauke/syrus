@@ -3275,7 +3275,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  add_foreign_key "github_api_usage_rollups", "installations"
-  add_foreign_key "github_api_usage_rollups", "repositories"
-  add_foreign_key "github_api_usage_rollups", "users"
 end
