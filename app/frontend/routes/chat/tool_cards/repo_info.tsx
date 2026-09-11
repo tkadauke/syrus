@@ -1,5 +1,6 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, Row } from "../toolCardUi"
+import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for repo_info (the tool-card work). Shows the
 // attached repository's default branch, trigger label, agent provider, and
@@ -15,6 +16,16 @@ type RepoInfoResult = {
   agentProvider: string | null
   commits: CommitRow[]
   branches: BranchRow[]
+}
+
+const failureConfig: ToolFailureConfig = {
+  title: "Repository info",
+  attempted: (context) => {
+    const slug = stringFromInput(context, ["slug", "repository", "repository_slug"])
+    return slug ? `Read repository info for ${slug}` : "Read repository info"
+  },
+  retrySafety: "safe",
+  recovery: "Retry after repository access or GitHub availability recovers."
 }
 
 function commitRows(value: unknown): CommitRow[] {
@@ -56,12 +67,17 @@ function parseResult(context: ToolCardContext): RepoInfoResult | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
+  const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
+  if (failureSummary) return failureSummary
+
   const result = parseResult(context)
   if (!result) return null
   return result.defaultBranch ? `${result.slug} (default: ${result.defaultBranch})` : result.slug
 }
 
 function renderExpanded(context: ToolCardContext) {
+  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+
   const result = parseResult(context)
   if (!result) return null
 
@@ -110,3 +126,7 @@ const repoInfoToolCard: ToolCardRenderer = {
 }
 
 export default repoInfoToolCard
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]"
+}

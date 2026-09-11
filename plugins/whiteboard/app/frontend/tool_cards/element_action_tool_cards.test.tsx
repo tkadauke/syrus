@@ -73,6 +73,25 @@ describe("whiteboard element-action tool cards", () => {
     expect(screen.getByText("rectangle")).toBeInTheDocument()
   })
 
+  it("renders a specific failure card for a failed draw_arrow call", () => {
+    const toolContext = context({
+      toolName: "draw_arrow",
+      input: { from_id: "start", to_id: "finish", label: "handoff" },
+      resultError: true,
+      resultBody: "could not find endpoint",
+      parsedResult: { message: "could not find endpoint", retryable: false }
+    })
+
+    expect(drawArrowToolCard.collapsedSummary?.(toolContext)).toBe("Drew arrow failed: could not find endpoint")
+
+    render(<>{drawArrowToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("Drew arrow failed")).toBeInTheDocument()
+    expect(screen.getByText("Drew arrow from start to finish")).toBeInTheDocument()
+    expect(screen.getByText("Check before retrying")).toBeInTheDocument()
+    expect(screen.getByText("Check the canvas for a partial edit before retrying.")).toBeInTheDocument()
+  })
+
   it.each(CARDS)("$card.toolName falls back to null for a malformed payload (missing id)", ({ card }) => {
     expect(card.collapsedSummary?.(context({ toolName: card.toolName, parsedResult: { oops: true } }))).toBeNull()
     expect(card.renderExpanded(context({ toolName: card.toolName, parsedResult: { oops: true } }))).toBeNull()
