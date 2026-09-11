@@ -1,5 +1,6 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, StatePill } from "../toolCardUi"
+import { countFromInputArray, stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for propose_epic_with_jobs (the pending-action tool-card work).
 // Unlike propose_job/propose_epic, this tool's payload has no title and no
@@ -14,6 +15,18 @@ type EpicWithJobsOutcome = {
   targetEpicLabel: string | null
   dependencyCount: number
   childProposals: ChildProposalRow[]
+}
+
+const failureConfig: ToolFailureConfig = {
+  title: "Epic with Jobs proposal",
+  attempted: (context) => {
+    const title = stringFromInput(context, ["title", "epic_title", "name"])
+    const jobCount = countFromInputArray(context, "jobs")
+    const suffix = jobCount == null ? "" : ` with ${jobCount} Job${jobCount === 1 ? "" : "s"}`
+    return `${title ? `Propose epic: ${title}` : "Propose epic"}${suffix}`
+  },
+  retrySafety: "caution",
+  recovery: "Check whether any epic or child Job proposals were created before retrying."
 }
 
 function childProposalRows(value: unknown): ChildProposalRow[] {
@@ -45,6 +58,9 @@ function parseEpicWithJobs(context: ToolCardContext): EpicWithJobsOutcome | null
 }
 
 function collapsedSummary(context: ToolCardContext) {
+  const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
+  if (failureSummary) return failureSummary
+
   const outcome = parseEpicWithJobs(context)
   if (!outcome) return null
   const count = outcome.childProposals.length
@@ -52,6 +68,8 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
+  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+
   const outcome = parseEpicWithJobs(context)
   if (!outcome) return null
 
@@ -95,3 +113,7 @@ const proposeEpicWithJobsToolCard: ToolCardRenderer = {
 }
 
 export default proposeEpicWithJobsToolCard
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]"
+}

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react"
-import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 // Shared presentation for the pending-action MCP tool family (the pending-action tool-card work /
@@ -209,4 +208,8 @@ export function PendingActionResultCard({ result }: { result: PendingActionResul
       ) : null}
     </CardShell>
   )
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]"
 }

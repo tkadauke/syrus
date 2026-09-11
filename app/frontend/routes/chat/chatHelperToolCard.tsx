@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
+import type { ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 const SUMMARY_CHARS = 88
@@ -119,4 +119,8 @@ export function QuestionList({ questions }: { questions: AskedQuestion[] }) {
 export function OptionalReason({ reason }: { reason: string | null }) {
   if (!reason) return null
   return <Row label="Reason" value={reason} />
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]"
 }
