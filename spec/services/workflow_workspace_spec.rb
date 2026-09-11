@@ -204,8 +204,104 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         FileUtils.mkdir_p(ws.path)
         File.write(ws.path.join("agent-output.tmp"), "possibly unpushed agent output")
 
-        expect { ws.setup }.to raise_error(GitRunner::GitError, /no valid HEAD/)
+        expect { ws.setup }.to raise_error(GitRunner::GitError, /refusing to discard possible agent work/)
         expect(ws.path.join("agent-output.tmp")).to exist
+      end
+
+      it "reclones an invalid merge-train workspace from its published required branch after agentic steps succeeded" do
+        required = "syrus/merge-train-epic-99"
+        seed_remote_branch(required, "integration work")
+        branch_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse #{required}").strip
+        epic = Factories.epic(user: user, repository: repository)
+        train = MergeTrain.create!(
+          epic: epic,
+          repository: repository,
+          base_branch: "main",
+          integration_branch: required,
+          integration_sha: branch_sha,
+          state: "grading"
+        )
+        workflow.update!(trigger_kind: "merge_train")
+        workflow.set_artifact!(described_class::REQUIRED_BRANCH_ARTIFACT, required)
+        workflow.set_artifact!("merge_train_id", train.id)
+        workflow.steps.create!(kind: "merge_train_build", position: 1, state: "succeeded")
+        workflow.steps.create!(kind: "merge_train_reconcile", position: 2, state: "succeeded")
+
+        ws = described_class.new(workflow)
+        FileUtils.mkdir_p(ws.path)
+        File.write(ws.path.join("agent-output.tmp"), "corrupt workspace debris")
+
+        expect { ws.setup }.not_to raise_error
+        expect(ws.path.join("agent-output.tmp")).not_to exist
+        expect(ws.path.join("integration.txt")).to exist
+        expect(sh("git -C #{ws.path} rev-parse --verify HEAD").strip).to match(/\A[0-9a-f]{40}\z/)
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq(required)
+      end
+
+      it "restores a merge-train invalid checkout to the reconciled integration SHA from a checkpoint when the branch is stale" do
+        required = "syrus/merge-train-epic-100"
+        seed_remote_branch(required, "built integration")
+        built_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse #{required}").strip
+        checkpoint_ref = "refs/syrus/checkpoints/runs/#{SecureRandom.hex(4)}"
+        reconcile_sha = nil
+
+        Dir.mktmpdir("syrus-wfws-reconcile-checkpoint") do |work|
+          sh("git clone -q #{bare_remote_dir} #{work}")
+          sh("git -C #{work} checkout -q #{required}")
+          File.write(File.join(work, "reconcile.txt"), "reconciled integration\n")
+          sh("git -C #{work} add reconcile.txt")
+          sh("git -C #{work} commit -q -m 'reconcile integration'")
+          reconcile_sha = sh("git -C #{work} rev-parse HEAD").strip
+          sh("git -C #{work} push -q origin HEAD:#{checkpoint_ref}")
+        end
+
+        expect(sh("git --git-dir=#{bare_remote_dir} rev-parse #{required}").strip).to eq(built_sha)
+        epic = Factories.epic(user: user, repository: repository)
+        train = MergeTrain.create!(
+          epic: epic,
+          repository: repository,
+          base_branch: "main",
+          integration_branch: required,
+          integration_sha: reconcile_sha,
+          state: "grading"
+        )
+        workflow.update!(trigger_kind: "merge_train")
+        workflow.set_artifact!(described_class::REQUIRED_BRANCH_ARTIFACT, required)
+        workflow.set_artifact!("merge_train_id", train.id)
+        workflow.steps.create!(kind: "merge_train_build", position: 1, state: "succeeded")
+        reconcile_step = workflow.steps.create!(kind: "merge_train_reconcile", position: 2, state: "succeeded")
+        reconcile_run = reconcile_step.runs.create!(
+          job: job,
+          user: user,
+          trigger_kind: "merge_train",
+          agent_provider: workflow.agent_provider,
+          state: "succeeded",
+          head_sha: reconcile_sha
+        )
+        RunCheckpoint.create!(
+          run: reconcile_run,
+          workflow: workflow,
+          step: reconcile_step,
+          job: job,
+          repository: repository,
+          user: user,
+          step_kind: "merge_train_reconcile",
+          commit_sha: reconcile_sha,
+          remote_ref: checkpoint_ref,
+          status: "published",
+          published_at: Time.current
+        )
+
+        ws = described_class.new(workflow)
+        FileUtils.mkdir_p(ws.path)
+        File.write(ws.path.join("agent-output.tmp"), "corrupt workspace debris")
+
+        expect { ws.setup }.not_to raise_error
+        expect(ws.path.join("agent-output.tmp")).not_to exist
+        expect(ws.path.join("integration.txt").read).to eq("built integration")
+        expect(ws.path.join("reconcile.txt").read).to eq("reconciled integration\n")
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(reconcile_sha)
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq(required)
       end
 
       it "creates a fresh branch when the target branch isn't on origin" do

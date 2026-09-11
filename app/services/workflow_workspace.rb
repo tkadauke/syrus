@@ -339,7 +339,10 @@ class WorkflowWorkspace
     return if @required_branch.blank?
 
     head = current_branch_name
-    return if head == @required_branch
+    if head == @required_branch
+      ensure_required_branch_tip!
+      return
+    end
 
     unless local_branch_exists?(@required_branch)
       raise RequiredBranchUnavailable,
@@ -351,6 +354,7 @@ class WorkflowWorkspace
     Rails.logger.info(
       "[WorkflowWorkspace] Workflow ##{@workflow.id} moved from '#{head}' to required branch '#{@required_branch}'"
     )
+    ensure_required_branch_tip!
   end
 
   def current_branch_name
@@ -489,6 +493,12 @@ class WorkflowWorkspace
       # one off the base tip would look identical to the real thing to every
       # later Step while containing none of the integrated work, so this is
       # the one case where a missing branch has to stop the Workflow.
+      expected_sha = required_branch_expected_sha
+      if expected_sha.present? && required_branch_checkpoint_for(expected_sha).present?
+        restore_required_branch_expected_sha!(expected_sha)
+        return
+      end
+
       raise RequiredBranchUnavailable,
             "Workflow ##{@workflow.id} requires branch '#{@required_branch}', " \
             "which is not on #{@repository.slug}"
@@ -675,7 +685,11 @@ class WorkflowWorkspace
 
     message = "existing workflow workspace at #{path} has no valid HEAD"
     unless safe_to_reclone_existing_workspace?
-      raise GitRunner::GitError.new([ "rev-parse", "--verify", "HEAD" ], 128, message)
+      raise GitRunner::GitError.new(
+        [ "rev-parse", "--verify", "HEAD" ],
+        128,
+        "#{message}; refusing to discard possible agent work"
+      )
     end
 
     notify("#{message}; recloning")
@@ -694,10 +708,101 @@ class WorkflowWorkspace
     succeeded_steps = @workflow.steps.where(state: "succeeded")
     return true if succeeded_steps.none?
 
+    return true if required_branch_restorable?
+
     # A broken checkout with no valid HEAD cannot preserve meaningful git state.
     # Reclone when only deterministic/read-only setup has succeeded; keep
     # failing loudly if a prior agentic step may have produced unpushed commits.
     succeeded_steps.where(kind: Step::AGENTIC_KINDS).none?
+  end
+
+  def required_branch_restorable?
+    return false if @required_branch.blank?
+
+    expected_sha = required_branch_expected_sha
+    return remote_branch_exists?(@required_branch) if expected_sha.blank?
+
+    remote_branch_sha(@required_branch) == expected_sha ||
+      required_branch_checkpoint_for(expected_sha).present?
+  rescue GitRunner::GitError
+    false
+  end
+
+  def ensure_required_branch_tip!
+    expected_sha = required_branch_expected_sha
+    return if expected_sha.blank?
+    return if head_sha == expected_sha
+
+    restore_required_branch_expected_sha!(expected_sha)
+  end
+
+  def required_branch_expected_sha
+    return @required_branch_expected_sha if defined?(@required_branch_expected_sha)
+
+    @required_branch_expected_sha = required_branch_merge_train&.integration_sha.presence
+  end
+
+  def required_branch_merge_train
+    return @required_branch_merge_train if defined?(@required_branch_merge_train)
+
+    train_id = @workflow.artifact("merge_train_id").presence
+    @required_branch_merge_train = train_id ? MergeTrain.find_by(id: train_id) : nil
+  end
+
+  def restore_required_branch_expected_sha!(expected_sha)
+    if git_object_present?(expected_sha)
+      @git.run("checkout", "-B", @required_branch, expected_sha, chdir: path.to_s)
+      return
+    end
+
+    checkpoint = required_branch_checkpoint_for(expected_sha)
+    if checkpoint
+      authenticated_git("git_workflow_fetch_required_branch_checkpoint") do |url|
+        @git.run("fetch", url, checkpoint.remote_ref, chdir: path.to_s, env: @env)
+      end
+      @git.run("checkout", "-B", @required_branch, "FETCH_HEAD", chdir: path.to_s)
+      return
+    end
+
+    raise RequiredBranchUnavailable,
+          "workspace for Workflow ##{@workflow.id} requires '#{@required_branch}' " \
+          "at #{expected_sha}, but that commit is not available from the branch or a checkpoint"
+  end
+
+  def git_object_present?(revision)
+    @git.run("cat-file", "-e", "#{revision}^{commit}", chdir: path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
+  end
+
+  def head_sha
+    @git.run("rev-parse", "HEAD", chdir: path.to_s).strip
+  rescue GitRunner::GitError
+    nil
+  end
+
+  def required_branch_checkpoint_for(expected_sha)
+    @required_branch_checkpoints ||= {}
+    return @required_branch_checkpoints[expected_sha] if @required_branch_checkpoints.key?(expected_sha)
+
+    checkpoint = RunCheckpoint.published
+      .where(workflow_id: @workflow.id, commit_sha: expected_sha)
+      .recent
+      .detect { |candidate| remote_ref_sha(candidate.remote_ref) == expected_sha }
+
+    @required_branch_checkpoints[expected_sha] = checkpoint
+  end
+
+  def remote_branch_sha(branch)
+    remote_ref_sha("refs/heads/#{branch}")
+  end
+
+  def remote_ref_sha(ref)
+    output = authenticated_git("git_workflow_ls_remote_ref") do |url|
+      @git.run("ls-remote", url, ref, chdir: path.dirname.to_s, env: @env)
+    end
+    output.to_s.lines.first.to_s.split(/\s+/).first.presence
   end
 
   # For main_grader workflows: detach HEAD at the exact SHA that was

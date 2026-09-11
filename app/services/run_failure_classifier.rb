@@ -58,6 +58,8 @@ class RunFailureClassifier
       result("rate_limited", 0.90, true, "The run hit an external rate limit.")
     when workspace_clone_timeout?
       result("workspace_clone_timeout", 0.95, true, "The workflow workspace clone timed out before producing a usable checkout.")
+    when workspace_checkout_refused_reclone?
+      result("git_state_corrupt", 0.95, false, "The workflow workspace has no valid git HEAD and may contain unpushed agent work; operator review is required before discarding it.")
     when workspace_checkout_invalid?
       result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
     when source_snapshot_metadata_invalid?
@@ -180,6 +182,10 @@ class RunFailureClassifier
 
   def workspace_checkout_invalid?
     text_match?(/existing workflow workspace .* has no valid HEAD|workflow workspace .* no valid HEAD/i)
+  end
+
+  def workspace_checkout_refused_reclone?
+    workspace_checkout_invalid? && text_match?(/refusing to discard possible agent work/i)
   end
 
   def source_snapshot_metadata_invalid?
