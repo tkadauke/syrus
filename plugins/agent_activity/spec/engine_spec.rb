@@ -27,7 +27,7 @@ RSpec.describe AgentActivity::Engine do
   it "registers the agent_activity filter subject while enabled" do
     subject = Filters.subject(:agent_activity)
 
-    expect(subject.model).to eq(Run)
+    expect(subject.model).to eq(Agent)
     expect(subject.chips).to eq(AgentActivity::FILTER_CHIPS)
     expect(subject.chip_class("repository_id")).to eq(Filters::Chips::AgentActivity::RepositoryId)
   end
