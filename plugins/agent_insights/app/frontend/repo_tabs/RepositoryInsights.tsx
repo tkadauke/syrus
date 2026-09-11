@@ -237,6 +237,7 @@ function SuggestionCard({
     onSuccess: (data) => {
       setNotice(data.message)
       setError(null)
+      queryClient.invalidateQueries({ queryKey })
     },
     onError: (err) => setError(errorMessage(err, t("save_memory_error")))
   })
