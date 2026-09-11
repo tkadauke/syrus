@@ -1030,7 +1030,9 @@ export function UnifiedDiffTable({
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
               hunkIndex += 1
-              return <HunkRow controls={hunkControls?.[hunkIndex]} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} />
+              const controls = hunkControls?.[hunkIndex]
+              if (controls && !controls.up && !controls.down) return null
+              return <HunkRow controls={controls} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} />
             }
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
