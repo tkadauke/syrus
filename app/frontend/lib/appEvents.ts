@@ -284,7 +284,7 @@ function flushDashboardInvalidation(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
 }
 
-function scheduleJobDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey) {
+export function scheduleJobDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey) {
   let states = jobDetailInvalidations.get(queryClient)
   if (!states) {
     states = new Map()

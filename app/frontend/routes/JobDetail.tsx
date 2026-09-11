@@ -44,6 +44,7 @@ import { ReviewWorkspace } from "./jobDetail/ReviewWorkspace"
 import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
+import { scheduleJobDetailInvalidation } from "../lib/appEvents"
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
@@ -146,8 +147,8 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
     onSuccess: () => {
       setFeedbackPanelOpen(false)
       setNotice(t("feedback_submitted"))
-      void queryClient.invalidateQueries({ queryKey })
-      if (workflowsQueryKey) void queryClient.invalidateQueries({ queryKey: workflowsQueryKey })
+      scheduleJobDetailInvalidation(queryClient, queryKey)
+      if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
     }
   })
 
@@ -156,7 +157,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
     onSuccess: () => {
       setRequestChangesPanelOpen(false)
       setNotice(t("request_changes_submitted"))
-      void queryClient.invalidateQueries({ queryKey })
+      scheduleJobDetailInvalidation(queryClient, queryKey)
     }
   })
 

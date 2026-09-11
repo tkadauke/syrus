@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteJobCommand, patchJobCommand, postJobCommand, type JobDetailPayload } from "../../api/jobs"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
+import { scheduleJobDetailInvalidation } from "../../lib/appEvents"
 import { useConfirm } from "../../hooks/useConfirm"
 import type { JobDetailQueryKey, JobWorkflowsQueryKey } from "./queryKeys"
 
@@ -48,8 +49,8 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
           actions: payload.actions ?? old.actions
         })
       }
-      void queryClient.invalidateQueries({ queryKey })
-      if (workflowsQueryKey) void queryClient.invalidateQueries({ queryKey: workflowsQueryKey })
+      scheduleJobDetailInvalidation(queryClient, queryKey)
+      if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
       void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
     }
   })
