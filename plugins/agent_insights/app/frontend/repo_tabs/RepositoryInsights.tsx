@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { useState, type MouseEvent } from "react"
 import { Link, useParams, useLocation } from "react-router-dom"
@@ -17,13 +17,15 @@ import {
   fetchInsightSuggestions,
   saveInsightMemory,
   type InsightSuggestion,
+  type InsightSuggestionsPayload,
   type PaginationMeta
 } from "../api/insights"
 import { errorMessage } from "@app/lib/errorMessage"
 import { Button } from "@app/components/Button"
-import { Select } from "@app/components/Select"
-
-type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
+import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
+import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
+import { FilterBar } from "@app/components/FilterBar"
+import { CopyableSlug } from "@app/components/CopyableSlug"
 
 export function RepositoryInsightsRoute() {
   const { t } = useT("agent_insights")
@@ -31,20 +33,15 @@ export function RepositoryInsightsRoute() {
   const location = useLocation()
   const repositoryId = params.repositoryId || ""
   const prefix = routePrefix(location.pathname)
-  const [page, setPage] = useState(1)
-  const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
+  const page = currentPage(location.search)
 
   const query = useQuery({
-    queryKey: ["repositories", repositoryId, "insight_suggestions", stateFilter, page],
-    queryFn: () => fetchInsightSuggestions(repositoryId, page, 20, stateFilter),
-    enabled: repositoryId.length > 0
+    queryKey: ["repositories", repositoryId, "insight_suggestions", location.search],
+    queryFn: () => fetchInsightSuggestions(repositoryId, location.search, page, 20),
+    enabled: repositoryId.length > 0,
+    placeholderData: keepPreviousData
   })
   const payload = query.data
-
-  function handleFilterChange(filter: StateFilter) {
-    setStateFilter(filter)
-    setPage(1)
-  }
 
   return (
     <RepositoryPageShell
@@ -68,9 +65,10 @@ export function RepositoryInsightsRoute() {
           suggestions={payload.suggestions}
           meta={payload.meta}
           page={page}
-          stateFilter={stateFilter}
-          onFilterChange={handleFilterChange}
-          onPageChange={setPage}
+          payload={payload}
+          locationSearch={location.search}
+          pathname={location.pathname}
+          prefix={prefix}
         />
       ) : null}
     </RepositoryPageShell>
@@ -82,62 +80,61 @@ function InsightSuggestionsList({
   suggestions,
   meta,
   page,
-  onPageChange,
-  stateFilter,
-  onFilterChange
+  payload,
+  locationSearch,
+  pathname,
+  prefix
 }: {
   repositoryId: string
   suggestions: InsightSuggestion[]
   meta: PaginationMeta
   page: number
-  onPageChange: (page: number) => void
-  stateFilter: StateFilter
-  onFilterChange: (filter: StateFilter) => void
+  payload: InsightSuggestionsPayload
+  locationSearch: string
+  pathname: string
+  prefix: string
 }) {
   const { t } = useT("agent_insights")
-
-  const filterTabs: Array<{ key: StateFilter; label: string; count: number }> = [
-    { key: "pending", label: t("filter_pending"), count: meta.counts.pending },
-    { key: "accepted", label: t("filter_accepted"), count: meta.counts.accepted },
-    { key: "dismissed", label: t("filter_dismissed"), count: meta.counts.dismissed },
-    { key: "retired", label: t("filter_retired"), count: meta.counts.retired },
-    { key: "all", label: t("filter_all"), count: meta.counts.all }
-  ]
-
   const firstItem = meta.total === 0 ? 0 : (page - 1) * meta.per_page + 1
   const lastItem = Math.min(page * meta.per_page, meta.total)
+  const smartFolders = payload.smart_folders.map((folder) => (
+    folder.i18n_key
+      ? { ...folder, name: t(`smart_folder_${folder.i18n_key}`, { defaultValue: folder.name }), path: repositoryInsightFolderPath(repositoryId, folder.path) }
+      : { ...folder, path: repositoryInsightFolderPath(repositoryId, folder.path) }
+  ))
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+    <AdminFiltersLayout
+      filterBar={(
+        <FilterBar
+          filter={payload.filter}
+          filterSchema={payload.filter_schema}
+          legacyFilterKeys={["state"]}
+          pathname={pathname}
+          search={locationSearch}
+          suggestionSearch={{ surface: "repository_insights", subject: "agent_insight" }}
+        />
+      )}
+      smartFolders={(
+        <AdminSmartFolderNav
+          activeFolderId={payload.active_smart_folder_id}
+          allLabel={t("smart_folder_agent_insights_all")}
+          allPath={`/repositories/${repositoryId}/plugin/insights?smart_folder_id=`}
+          allowSaveWithoutActiveFolder
+          ariaLabel={t("smart_folders_aria")}
+          currentFilter={payload.filter}
+          folders={smartFolders}
+          heading={t("smart_folders_heading")}
+          prefix={prefix}
+          queryKey={["repositories", repositoryId, "insight_suggestions"]}
+          rewriteRedirectTo={(path) => repositoryInsightFolderPath(repositoryId, path)}
+          subjectType="agent_insight"
+        />
+      )}
+    >
+      <div className="flex items-center justify-between gap-4">
         <SectionHeading>{t("suggestions_heading")}</SectionHeading>
-        <Select
-          aria-label={t("filter_aria")}
-          className="sm:hidden"
-          onChange={(event) => onFilterChange(event.target.value as StateFilter)}
-          value={stateFilter}
-        >
-          {filterTabs.map((tab) => (
-            <option key={tab.key} value={tab.key}>
-              {tab.label} ({tab.count})
-            </option>
-          ))}
-        </Select>
-        <nav aria-label={t("filter_aria")} className="hidden gap-1 sm:flex">
-          {filterTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              onClick={() => onFilterChange(tab.key)}
-              size="sm"
-              variant={stateFilter === tab.key ? "primary" : "secondary"}
-            >
-              {tab.label}
-              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                {tab.count}
-              </span>
-            </Button>
-          ))}
-        </nav>
+        <span className="text-sm text-gray-500 dark:text-gray-400">{t("insight_count", { count: meta.total })}</span>
       </div>
 
       {suggestions.length === 0 ? (
@@ -161,26 +158,24 @@ function InsightSuggestionsList({
           <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: meta.total })}</span>
           <div className="flex gap-2">
             {page > 1 ? (
-              <button
+              <Link
                 className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page - 1)}
-                type="button"
+                to={pageLink(pathname, locationSearch, page - 1, prefix)}
               >
                 {t("pagination_previous")}
-              </button>
+              </Link>
             ) : (
               <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
                 {t("pagination_previous")}
               </span>
             )}
             {page < meta.total_pages ? (
-              <button
+              <Link
                 className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page + 1)}
-                type="button"
+                to={pageLink(pathname, locationSearch, page + 1, prefix)}
               >
                 {t("pagination_next")}
-              </button>
+              </Link>
             ) : (
               <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
                 {t("pagination_next")}
@@ -189,7 +184,7 @@ function InsightSuggestionsList({
           </div>
         </div>
       )}
-    </div>
+    </AdminFiltersLayout>
   )
 }
 
@@ -285,6 +280,7 @@ function SuggestionCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
+              <CopyableSlug className="text-xs font-semibold text-brand dark:text-brand-emphasis" slug={suggestion.slug} />
               <SeverityPill severity={suggestion.severity} />
               <ProposalPill proposalType={suggestion.proposal_type} />
               <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
@@ -704,3 +700,19 @@ function isInteractiveClickTarget(target: EventTarget | null) {
 // (app/frontend/pluginRepoPageTabs.tsx and siblings resolve
 // `<plugin>/<Component>` to this module and read `.default`).
 export default RepositoryInsightsRoute
+
+function currentPage(search: string) {
+  const parsed = Number(new URLSearchParams(search).get("page") || "1")
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+}
+
+function pageLink(pathname: string, search: string, page: number, prefix: string) {
+  const params = new URLSearchParams(search)
+  params.set("page", String(page))
+  return withRoutePrefix(`${pathname}?${params.toString()}`, prefix)
+}
+
+function repositoryInsightFolderPath(repositoryId: string, path: string) {
+  const suffix = path.includes("?") ? path.slice(path.indexOf("?")) : ""
+  return `/repositories/${repositoryId}/plugin/insights${suffix}`
+}

@@ -152,6 +152,35 @@ RSpec.describe "App API insight suggestions", type: :request do
       )
     end
 
+    it "returns smart folders, filter schema, and defaults to the pending folder" do
+      pending = create_suggestion(title: "Pending")
+      accepted = create_suggestion(title: "Accepted")
+      accepted.accept!
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
+
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ pending.id ])
+      expect(body["active_smart_folder_id"]).to be_present
+      expect(body["smart_folders"].map { |folder| folder["i18n_key"] }).to include(
+        "agent_insights_pending",
+        "agent_insights_accepted",
+        "agent_insights_dismissed",
+        "agent_insights_retired",
+        "agent_insights_all"
+      )
+      expect(body["smart_folders"].map { |folder| folder["path"] }).to all(start_with("/agent_insights"))
+      expect(body["filter_schema"].map { |field| field["field"] }).to include(
+        "created_at",
+        "state",
+        "severity",
+        "proposal_type",
+        "category",
+        "confidence",
+        "created_job_present"
+      )
+    end
+
     it "filters suggestions by state and returns unfiltered state counts" do
       create_suggestion(title: "Pending")
       accepted = create_suggestion(title: "Accepted")
@@ -169,6 +198,54 @@ RSpec.describe "App API insight suggestions", type: :request do
         "accepted"  => 1,
         "dismissed" => 1,
         "all"       => 3
+      )
+    end
+
+    it "filters suggestions by created_at range and keeps state counts within the remaining filters" do
+      old_pending = create_suggestion(title: "Old pending")
+      old_pending.update_column(:created_at, Time.zone.parse("2026-01-10T12:00:00Z"))
+      recent_pending = create_suggestion(title: "Recent pending")
+      recent_pending.update_column(:created_at, Time.zone.parse("2026-02-10T12:00:00Z"))
+      old_accepted = create_suggestion(title: "Old accepted")
+      old_accepted.accept!
+      old_accepted.update_column(:created_at, Time.zone.parse("2026-01-11T12:00:00Z"))
+
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "created_at", "op" => "between", "value" => [ "2026-01-01T00:00:00Z", "2026-01-31T23:59:59Z" ] }
+        ]
+      )
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: { q: q, state: "all" }
+
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to match_array([ old_pending.id, old_accepted.id ])
+      expect(body.dig("meta", "counts")).to include(
+        "pending"  => 1,
+        "accepted" => 1,
+        "all"      => 2
+      )
+      expect(body["suggestions"].map { |s| s["id"] }).not_to include(recent_pending.id)
+    end
+
+    it "combines smart folder selection with additional filters" do
+      high_pending = create_suggestion(title: "High pending", severity: "high")
+      create_suggestion(title: "Low pending", severity: "low")
+      accepted = create_suggestion(title: "High accepted", severity: "high")
+      accepted.accept!
+      SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
+      pending_folder = SmartFolder.builtins(AgentInsights::SmartFolders::SUBJECT).find_by!(name: "Pending")
+      q = Filters::QueryParam.encode("and" => [ { "field" => "severity", "op" => "is", "value" => "high" } ])
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions",
+          params: { smart_folder_id: pending_folder.id, q: q }
+
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ high_pending.id ])
+      expect(body.dig("meta", "counts")).to include(
+        "pending"  => 1,
+        "accepted" => 1,
+        "all"      => 2
       )
     end
 
@@ -294,6 +371,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
 
       suggestion = parse_body["suggestions"].first
+      expect(suggestion["slug"]).to match(/\AINSIGHT-\d+\z/)
       expect(suggestion["title"]).to eq("Cache misses")
       expect(suggestion["category"]).to eq("inefficiency")
       expect(suggestion["severity"]).to eq("medium")
