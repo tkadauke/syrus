@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "@app/testSupport"
 import type { MysqlSnapshot } from "../api/adminMysql"
 import { AdminMysql } from "./AdminMysql"
+import * as useConfirmModule from "@app/hooks/useConfirm"
 
 describe("AdminMysql", () => {
   it("keeps the statement digests and slow log panels shrinkable so their tables scroll instead of overflowing the page", async () => {
@@ -51,6 +52,34 @@ describe("AdminMysql", () => {
     expect(toggle).not.toBeChecked()
     expect(screen.getByText("Sleep")).toBeInTheDocument()
     expect(screen.getByText("Query")).toBeInTheDocument()
+  })
+
+  it("opens the shared confirm dialog before killing the current query", async () => {
+    const mockConfirm = vi.fn().mockResolvedValue(true)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/admin/mysql/kill_query" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ killed: true, thread_id: 2 }))
+      }
+      return Promise.resolve(jsonResponse(mysqlPayload({
+        process_list: [
+          { id: 2, user: "app", host: "10.0.0.2:5000", database: "syrus_production", command: "Query", time_seconds: 3, state: "executing", info: "SELECT 1" }
+        ]
+      })))
+    })
+
+    renderRoute(<AdminMysql />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Kill query" }))
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/mysql/kill_query", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ thread_id: 2 })
+      }))
+    })
   })
 })
 

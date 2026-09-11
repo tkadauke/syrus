@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
+import * as useConfirmModule from "../hooks/useConfirm"
 
 let receivedHandler: ((data: unknown) => void) | undefined
 
@@ -40,6 +41,7 @@ function renderRoute() {
 describe("ConnectedPlatformsRoute", () => {
   afterEach(() => {
     receivedHandler = undefined
+    vi.restoreAllMocks()
   })
 
   it("shows linked accounts and disables unconfigured platforms", async () => {
@@ -93,5 +95,47 @@ describe("ConnectedPlatformsRoute", () => {
       expect(screen.getByText(/Connected as @ada since/)).toBeInTheDocument()
     })
     expect(screen.getByText("Telegram account connected.")).toBeInTheDocument()
+  })
+
+  it("opens the shared confirm dialog before disconnecting a platform", async () => {
+    const mockConfirm = vi.fn().mockResolvedValue(true)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/platform_identities/7" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(payload({ message: "Disconnected." })))
+      }
+      return Promise.resolve(jsonResponse(payload({
+        platform_identities: [
+          { id: 7, platform: "telegram", external_handle: "@ada", linked_at: "2026-08-02T12:00:00Z" }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }))
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/platform_identities/7", expect.objectContaining({ method: "DELETE" }))
+    })
+  })
+
+  it("does not disconnect when the shared confirm dialog is cancelled", async () => {
+    const mockConfirm = vi.fn().mockResolvedValue(false)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
+      platform_identities: [
+        { id: 7, platform: "telegram", external_handle: "@ada", linked_at: "2026-08-02T12:00:00Z" }
+      ]
+    })))
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }))
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled())
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/platform_identities/7", expect.anything())
   })
 })

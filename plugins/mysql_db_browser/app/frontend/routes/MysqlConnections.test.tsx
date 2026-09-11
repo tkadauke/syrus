@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
 import { MysqlConnections } from "./MysqlConnections"
+import * as useConfirmModule from "@app/hooks/useConfirm"
 
 function querySql(body: Record<string, unknown> | undefined): string | undefined {
   const mysqlQuery = body?.mysql_query as { sql?: string } | undefined
@@ -276,22 +277,26 @@ describe("MysqlConnections", () => {
 
   it("deletes a connection after confirmation", async () => {
     setupFetchMock()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
+    const mockConfirm = vi.fn().mockResolvedValue(true)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
     renderConnections()
 
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
 
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
     await waitFor(() => expect(screen.queryByText("Staging")).not.toBeInTheDocument())
     expect(await screen.findByText("No connections yet. Add one to get started.")).toBeInTheDocument()
   })
 
   it("does not delete when the confirmation is dismissed", async () => {
     const { calls } = setupFetchMock()
-    vi.spyOn(window, "confirm").mockReturnValue(false)
+    const mockConfirm = vi.fn().mockResolvedValue(false)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
     renderConnections()
 
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
 
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled())
     await waitFor(() => expect(screen.getByText("Staging")).toBeInTheDocument())
     expect(calls.some((call) => call.method === "DELETE")).toBe(false)
   })
