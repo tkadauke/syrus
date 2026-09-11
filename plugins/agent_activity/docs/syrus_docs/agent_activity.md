@@ -96,8 +96,13 @@ their own `transcript_path`:
   `head_ref`, `agent_diff`, `logs`) can't drift between the two routes --
   only the authorization/lookup path differs.
 
-Chat and design-doc cards render without a transcript drawer until those
-surfaces have a native transcript/artifact route with an equivalent payload.
+Chat-backed session cards do not open an inline transcript drawer. They carry
+`chat_path: "/chats/:chat_session_id"` and deep-link to the live chat UI
+instead, because a chat transcript is an ongoing multi-turn conversation better
+served by the full chat surface than by a single-invocation log drawer.
+
+Design-doc cards render without a transcript drawer until that surface has a
+native transcript/artifact route with an equivalent payload.
 
 ## Frontend
 
@@ -112,7 +117,9 @@ The primary `sidebar_page` registration and admin `admin_page` registration shar
 
 Both render a pulsing "N running now" indicator, the shared `FilterBar`, and a
 card-per-session feed where each card leads with the session's own submitted
-outcome text/verdict. Agent Activity's built-in `SmartFolder`s are `All`,
+outcome text/verdict. Workflow cards toggle their transcript drawer from that
+headline; chat cards make the headline and secondary action links to the live
+chat. Agent Activity's built-in `SmartFolder`s are `All`,
 `Running`, and `Failed`; bare visits to `/agent_activity` and
 `/admin/agent_activity` default to the `Running` folder unless a `q` filter or
 explicit `smart_folder_id` parameter is present. Links that need the all-history
