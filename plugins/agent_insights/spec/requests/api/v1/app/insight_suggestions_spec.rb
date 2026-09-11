@@ -528,6 +528,9 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(memory.source_type).to eq("insight")
       expect(memory.source_id).to eq(suggestion.id)
       expect(memory.content).to eq("Always check the logs first")
+      expect(parse_body["suggestion"]["state"]).to eq("accepted")
+      expect(suggestion.reload.accepted?).to be true
+      expect(suggestion.accepted_at).to be_present
     end
 
     it "redacts GitHub credentials before saving a memory from a suggestion" do
