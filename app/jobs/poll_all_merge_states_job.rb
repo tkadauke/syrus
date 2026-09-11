@@ -11,7 +11,11 @@ class PollAllMergeStatesJob < ApplicationJob
   def perform
     return if AppSetting.polling_paused?
 
-    pollable_jobs.find_each do |job|
+    GithubPollingBudget.take_pollable_jobs(
+      pollable_jobs,
+      kind: :merge_state,
+      limit: GithubPollingBudget::MERGE_STATE_LIMIT
+    ).each do |job|
       next if job.repository.github_api_rate_limited_for?(user: job.user)
 
       PollMergeStateJob.perform_later(job.id)

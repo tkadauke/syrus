@@ -12,14 +12,20 @@ module SyrusGithubSource
     default_enabled true
     disableable true
     provides repo_page_tab: "GithubSource::RepoPageTabs",
+             admin_page: "GithubSource::AdminPages",
              input_source: "InputSources::Github",
              source_control_provider: "SourceControl::GithubOperations"
+    route :get, "/api/v1/app/admin/github_api_usage", to: "api/v1/app/admin/github_api_usage#show"
+    route :get, "/admin/github_api_usage", to: "spa#show"
     route :get, "/api/v1/app/repositories/:repository_id/issues", to: "api/v1/app/repository_issues#issues"
     route :post, "/api/v1/app/repositories/:repository_id/issues/comment", to: "api/v1/app/repository_issues#comment_issue"
     route :post, "/api/v1/app/repositories/:repository_id/issues/close", to: "api/v1/app/repository_issues#close_issue"
     route :post, "/api/v1/app/repositories/:repository_id/issues/delegate", to: "api/v1/app/repository_issues#delegate_issue"
     route :post, "/api/v1/app/repositories/:repository_id/issues/bulk", to: "api/v1/app/repository_issues#bulk_issues"
-    frontend routes: { "github_source/RepositoryIssues" => "app/frontend/repo_tabs/RepositoryIssues.tsx" },
+    frontend routes: {
+          "github_source/RepositoryIssues" => "app/frontend/repo_tabs/RepositoryIssues.tsx",
+          "github_source/AdminGithubApiUsage" => "app/frontend/routes/AdminGithubApiUsage.tsx"
+        },
         i18n: [ "app/frontend/i18n/locales/*/github_source.json" ]
   end
 end

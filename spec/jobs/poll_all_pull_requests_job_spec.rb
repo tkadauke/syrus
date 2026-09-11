@@ -23,6 +23,23 @@ RSpec.describe PollAllPullRequestsJob do
     }.not_to have_enqueued_job(PollPullRequestJob).with(closed_with_pr.id)
   end
 
+  it "stays within the PR feedback poll budget and keeps recent Jobs first" do
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+    Array.new(GithubPollingBudget::PR_FEEDBACK_LIMIT + 5) do |index|
+      Factories.job(repository: repo, issue_number: 100 + index).tap do |job|
+        job.update_columns(pr_number: 100 + index, updated_at: Time.current)
+      end
+    end
+    recent = Factories.job(repository: repo, issue_number: 999)
+    recent.update!(pr_number: 999)
+
+    described_class.perform_now
+
+    poll_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |entry| entry[:job] == PollPullRequestJob }
+    expect(poll_jobs.count).to eq(GithubPollingBudget::PR_FEEDBACK_LIMIT)
+    expect(PollPullRequestJob).to have_been_enqueued.with(recent.id)
+  end
+
   it "skips PR feedback polling while the repository's GitHub App installation is rate-limited" do
     installation = Factories.installation(
       user: user,

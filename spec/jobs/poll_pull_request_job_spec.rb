@@ -1435,16 +1435,21 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.pr_checks_state).to eq("unknown")
     end
 
-    it "updates the cache even when last_ci_handled_sha matches (state can change for the same SHA)" do
-      job.update!(last_ci_handled_sha: sha)
-      stub_check_runs(sha, [
-        { name: "test", status: "completed", conclusion: "success", html_url: "u", output: { summary: "ok" } }
-      ])
+    it "does not refetch fresh handled failing checks for the same SHA" do
+      checked_at = 1.minute.ago
+      job.update_columns(
+        last_ci_handled_sha: sha,
+        pr_checks_sha: sha,
+        pr_checks_base_sha: "base000000000000000000000000000000000000",
+        pr_checks_state: "failing",
+        pr_checks_checked_at: checked_at,
+        pr_checks_failing_names: [ "test" ]
+      )
 
       described_class.perform_now(job.id)
 
-      expect(job.reload.pr_checks_state).to eq("passing")
-      expect(job.reload.pr_checks_sha).to eq(sha)
+      expect(job.reload.pr_checks_checked_at.to_i).to eq(checked_at.to_i)
+      expect(WebMock).not_to have_requested(:get, "https://api.github.com/repos/acme/widgets/commits/#{sha}/check-runs")
     end
 
     it "does not rewrite fresh unchanged PR check cache rows" do
@@ -1462,6 +1467,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
       described_class.perform_now(job.id)
 
       expect(job.reload.pr_checks_checked_at.to_i).to eq(checked_at.to_i)
+      expect(WebMock).not_to have_requested(:get, "https://api.github.com/repos/acme/widgets/commits/#{sha}/check-runs")
     end
 
     it "refreshes unchanged PR check cache rows after the minimum interval" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_11_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1130,6 +1130,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_220000) do
     t.index ["user_id", "surface", "subject", "fingerprint"], name: "index_filter_usages_on_user_surface_subject_fingerprint", unique: true
     t.index ["user_id", "surface", "subject", "last_used_at"], name: "index_filter_usages_on_user_surface_subject_recent"
     t.index ["user_id"], name: "index_filter_usages_on_user_id"
+  end
+
+  create_table "github_api_usage_rollups", force: :cascade do |t|
+    t.string "auth_source", null: false
+    t.datetime "bucket_started_at", null: false
+    t.datetime "created_at", null: false
+    t.string "credential_key", null: false
+    t.integer "installation_id"
+    t.integer "last_limit"
+    t.integer "last_remaining"
+    t.datetime "last_reset_at"
+    t.datetime "last_seen_at", null: false
+    t.integer "last_status"
+    t.string "operation", null: false
+    t.integer "rate_limited_count", default: 0, null: false
+    t.string "repo_slug"
+    t.integer "repository_id"
+    t.string "repository_key", null: false
+    t.integer "request_count", default: 0, null: false
+    t.string "resource"
+    t.datetime "updated_at", null: false
+    t.integer "user_id"
+    t.index ["bucket_started_at", "auth_source", "credential_key", "repository_key", "operation", "resource"], name: "idx_github_api_usage_rollups_unique_bucket", unique: true
+    t.index ["installation_id"], name: "index_github_api_usage_rollups_on_installation_id"
+    t.index ["repository_id"], name: "index_github_api_usage_rollups_on_repository_id"
+    t.index ["user_id"], name: "index_github_api_usage_rollups_on_user_id"
   end
 
   create_table "github_auth_fallback_diagnostics", force: :cascade do |t|
@@ -3206,4 +3232,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_220000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "github_api_usage_rollups", "installations"
+  add_foreign_key "github_api_usage_rollups", "repositories"
+  add_foreign_key "github_api_usage_rollups", "users"
 end

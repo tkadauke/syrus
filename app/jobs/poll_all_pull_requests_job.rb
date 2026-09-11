@@ -15,20 +15,26 @@ class PollAllPullRequestsJob < ApplicationJob
   # so the Job closes when the external PR is merged or closed.
   def perform
     return if AppSetting.polling_paused?
-    Job.joins(:repository)
-       .merge(Repository.active)
-       .open_threads.where.not(pr_number: nil)
-       .find_each do |job|
+    GithubPollingBudget.take_pollable_jobs(
+      Job.joins(:repository)
+         .merge(Repository.active)
+         .open_threads.where.not(pr_number: nil),
+      kind: :pr_feedback,
+      limit: GithubPollingBudget::PR_FEEDBACK_LIMIT
+    ).each do |job|
       next if job.repository.github_api_rate_limited_for?(user: job.user)
 
       PollPullRequestJob.perform_later(job.id)
     end
 
-    Job.joins(:repository)
-       .merge(Repository.active)
-       .open_threads.where.not(external_pr_number: nil)
-       .where("jobs.pr_number IS NULL OR jobs.kind = ?", "external_pr")
-       .find_each do |job|
+    GithubPollingBudget.take_pollable_jobs(
+      Job.joins(:repository)
+         .merge(Repository.active)
+         .open_threads.where.not(external_pr_number: nil)
+         .where("jobs.pr_number IS NULL OR jobs.kind = ?", "external_pr"),
+      kind: :external_pr,
+      limit: GithubPollingBudget::EXTERNAL_PR_LIMIT
+    ).each do |job|
       next if job.repository.github_api_rate_limited_for?(user: job.user)
 
       PollExternalPrJob.perform_later(job.id)
@@ -37,10 +43,13 @@ class PollAllPullRequestsJob < ApplicationJob
     # Fan-out to fork review PR polling for jobs in fork review mode that have
     # not yet had their upstream PR created. Once pr_number is set the job
     # transitions to normal polling via PollPullRequestJob above.
-    Job.joins(:repository)
-       .merge(Repository.active)
-       .open_threads.where(pr_number: nil).where.not(fork_review_pr_number: nil)
-       .find_each do |job|
+    GithubPollingBudget.take_pollable_jobs(
+      Job.joins(:repository)
+         .merge(Repository.active)
+         .open_threads.where(pr_number: nil).where.not(fork_review_pr_number: nil),
+      kind: :fork_review,
+      limit: GithubPollingBudget::FORK_REVIEW_LIMIT
+    ).each do |job|
       next if job.repository.github_api_rate_limited_for?(user: job.user)
 
       PollForkReviewPrJob.perform_later(job.id)

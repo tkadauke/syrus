@@ -23,4 +23,12 @@ RSpec.describe SyrusGithubSource::Engine do
   it "registers the GitHub source-control provider" do
     expect(Syrus::PluginRegistry.providers_for(:source_control_provider)).to include(SourceControl::GithubOperations)
   end
+
+  it "registers its GitHub API usage admin page" do
+    expect(Syrus::PluginRegistry.providers_for(:admin_page)).to include(GithubSource::AdminPages)
+    expect(GithubSource::AdminPages.admin_pages.first).to include(
+      path: "/admin/github_api_usage",
+      component: "github_source/AdminGithubApiUsage"
+    )
+  end
 end

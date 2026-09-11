@@ -1035,6 +1035,7 @@ class GithubClient
   def actions_job_log_for(repo_slug, job_id)
     response = actions_job_logs_response(repo_slug, job_id)
     persist_rate_limit_headers!(response.headers)
+    record_api_usage!(headers: response.headers, status: response.status, rate_limited: false, operation: "actions_job_log", repo_slug: repo_slug)
 
     case response.status
     when 200
@@ -1101,25 +1102,67 @@ class GithubClient
   # response carries (every GitHub API response includes them for free). On
   # TooManyRequests, persists the headers from the error response and writes
   # a JobLog against the current run if one is active on this thread.
-  def track_rate_limits(response_client: -> { @client })
+  def track_rate_limits(response_client: -> { @client }, operation: nil, repo_slug: nil)
+    operation ||= inferred_operation
+    repo_slug ||= inferred_repo_slug
     result = yield
-    persist_rate_limit_headers!(response_client.call.last_response&.headers)
+    response = response_client.call.last_response
+    persist_rate_limit_headers!(response&.headers)
+    record_api_usage!(headers: response&.headers, status: response&.status, rate_limited: false, operation: operation, repo_slug: repo_slug)
     result
   rescue Octokit::Unauthorized, Octokit::NotFound => e
     raise unless installation_auth?
 
     result = retry_with_refreshed_installation_or_fallback!(e) { yield }
-    persist_rate_limit_headers!(response_client.call.last_response&.headers)
+    response = response_client.call.last_response
+    persist_rate_limit_headers!(response&.headers)
+    record_api_usage!(headers: response&.headers, status: response&.status, rate_limited: false, operation: operation, repo_slug: repo_slug)
     result
   rescue Octokit::TooManyRequests => e
     persist_rate_limit_headers!(e.response_headers)
+    record_api_usage!(headers: e.response_headers, status: github_error_status(e), rate_limited: true, operation: operation, repo_slug: repo_slug)
     mark_api_rate_limited!(e, e.response_headers)
     write_rate_limit_job_log!(e.response_headers)
     raise
   rescue Octokit::Forbidden => e
     persist_rate_limit_headers!(e.response_headers)
+    record_api_usage!(headers: e.response_headers, status: github_error_status(e), rate_limited: github_rate_limit_error?(e), operation: operation, repo_slug: repo_slug)
     mark_api_rate_limited!(e, e.response_headers) if github_rate_limit_error?(e)
     raise
+  end
+
+  def inferred_operation
+    caller_locations(2, 12)
+      .map(&:base_label)
+      .reject { |label| label.in?(%w[track_rate_limits retry_with_refreshed_installation_or_fallback!]) }
+      .first
+      .presence || "unknown"
+  end
+
+  def inferred_repo_slug
+    @repository&.slug
+  end
+
+  def record_api_usage!(headers:, status:, rate_limited:, operation:, repo_slug:)
+    return unless headers&.key?("x-ratelimit-resource")
+
+    GithubApiUsageRollup.record!(
+      auth_source: @auth_source,
+      installation: @installation,
+      user: @user,
+      repository: @repository,
+      repo_slug: repo_slug,
+      operation: operation,
+      headers: headers,
+      status: status,
+      rate_limited: rate_limited
+    )
+  end
+
+  def github_error_status(error)
+    return error.response_status if error.respond_to?(:response_status)
+
+    error.response_headers&.[]("status")&.to_i
   end
 
   def retry_with_refreshed_installation_or_fallback!(original_error)

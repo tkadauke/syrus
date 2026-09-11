@@ -11,6 +11,33 @@ RSpec.describe GithubClient do
   end
 
   describe ".for" do
+    it "records GitHub API usage by credential, repository, and operation" do
+      reset_at = 1.hour.from_now.change(usec: 0)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(
+          status: 200,
+          headers: {
+            "Content-Type" => "application/json",
+            "X-RateLimit-Remaining" => "4999",
+            "X-RateLimit-Limit" => "5000",
+            "X-RateLimit-Reset" => reset_at.to_i.to_s,
+            "X-RateLimit-Resource" => "core"
+          },
+          body: { number: 42, title: "PAT path" }.to_json
+        )
+
+      GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
+
+      usage = GithubApiUsageRollup.sole
+      expect(usage.auth_source).to eq("pat")
+      expect(usage.user).to eq(user)
+      expect(usage.repository).to eq(repository)
+      expect(usage.operation).to eq("fetch_issue")
+      expect(usage.request_count).to eq(1)
+      expect(usage.last_remaining).to eq(4999)
+    end
+
     it "uses an active installation token before the user's PAT" do
       installation = Factories.installation(
         user: user,

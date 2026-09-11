@@ -432,6 +432,7 @@ class PollPullRequestJob < ApplicationJob
   def react_to_ci_failures
     head_sha = @pr.head&.sha
     return unless head_sha.present?
+    return if pr_checks_cache_allows_skip?(head_sha)
 
     # Fetch all check runs in one API call: updates the landing-gate cache
     # (pr_checks_state) AND collects failure details for ci_failure workflows.
@@ -504,6 +505,26 @@ class PollPullRequestJob < ApplicationJob
     return false if @job.pr_checks_checked_at.blank?
 
     @job.pr_checks_checked_at > PR_CHECK_CACHE_REFRESH_INTERVAL.ago
+  end
+
+  def pr_checks_cache_allows_skip?(head_sha)
+    return false if no_effective_ci_repair_landing_reason?
+    return false unless @job.pr_checks_sha == head_sha
+    return false if pr_base_sha.present? && @job.pr_checks_base_sha != pr_base_sha
+    return false unless @job.pr_checks_checked_at&.> PR_CHECK_CACHE_REFRESH_INTERVAL.ago
+
+    case @job.pr_checks_state
+    when "passing", "pending"
+      true
+    when "failing"
+      @job.last_ci_handled_sha == head_sha ||
+        landing_workflow_active? ||
+        ci_repair_deferred_until_approval? ||
+        ci_repair_deferred_to_epic_merge_train? ||
+        pending_ci_failure_run?
+    else
+      false
+    end
   end
 
   def ci_infrastructure_failure_only?(head_sha, detail)
