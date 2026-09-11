@@ -8,6 +8,7 @@ import { InstallFailed } from "./InstallFailed"
 import { PortConflict } from "./PortConflict"
 import { FooterRow, OnboardingScreen } from "./primitives"
 import syrusIconUrl from "../../assets/syrusIcon.png"
+import { t } from "../i18n"
 
 // The window uses titleBarStyle hiddenInset: the traffic lights float over
 // this strip, which doubles as the drag handle.
@@ -71,7 +72,7 @@ export function OnboardingApp() {
 
   let content = (
     <p className="text-sm text-slate-500 dark:text-slate-400" role="status">
-      Loading…
+      {t("onboarding.loading")}
     </p>
   )
 
@@ -96,27 +97,26 @@ export function OnboardingApp() {
       case "local.precheck":
         content = (
           <p className="text-sm text-slate-500 dark:text-slate-400" role="status">
-            {window.syrusDesktop?.platform === "win32" ? "Checking this PC…" : "Checking this Mac…"}
+            {window.syrusDesktop?.platform === "win32" ? t("onboarding.precheck_pc") : t("onboarding.precheck_mac")}
           </p>
         )
         break
       case "local.adoptRunning":
         content = (
-          <OnboardingScreen title="Syrus is already running here" subtitle={`Something is already serving Syrus at ${state.url}.`}>
+          <OnboardingScreen title={t("onboarding.adopt_running.title")} subtitle={t("onboarding.adopt_running.subtitle", { url: state.url })}>
             <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              This app didn&apos;t install it, so it can&apos;t manage starting or stopping it — but you can
-              still connect to it and use everything else.
+              {t("onboarding.adopt_running.body")}
             </p>
             <FooterRow>
               <button type="button" className="secondary-button" onClick={back}>
-                Back
+                {t("common.back")}
               </button>
               <button
                 type="button"
                 className="primary-button"
                 onClick={() => void window.syrusDesktop.adoptRunningInstance()}
               >
-                Connect to it
+                {t("onboarding.adopt_running.connect")}
               </button>
             </FooterRow>
           </OnboardingScreen>
@@ -213,7 +213,7 @@ export function OnboardingApp() {
               </span>
             </div>
             <h1 className="mt-4 text-xl font-semibold">
-              {state.mode === "local" ? "Syrus is installed and running" : "Connected to Syrus"}
+              {state.mode === "local" ? t("onboarding.done_local") : t("onboarding.done_remote")}
             </h1>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{state.url}</p>
             <button
