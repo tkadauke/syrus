@@ -2,6 +2,7 @@ import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLin
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { translateBlockedReason } from "../../lib/translateBlockedReason"
+import { linkifySlugs } from "../../lib/linkifySlugs"
 import { bulkButtonClass, columnAriaSort, formatCurrency, humanizeOption, jobDateValue, withRoutePrefix } from "./helpers"
 import type { DashboardSortState } from "./helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -953,7 +954,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     return <LandingQueueStatusCell job={job} />
   }
   if (column === "blocked_reason") {
-    return <DataTable.Cell className="text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? translateBlockedReason(job.blocked_reason, t) : "-"}</DataTable.Cell>
+    return <DataTable.Cell className="text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? <CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /> : "-"}</DataTable.Cell>
   }
   if (column === "repository") {
     return <DataTable.Cell><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></DataTable.Cell>
@@ -975,7 +976,7 @@ function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
     return (
       <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
-          <TonePill tone="red">{translateBlockedReason(job.landing_queue_blocked_reason, t)}</TonePill>
+          <TonePill tone="red"><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
           <LandingBlockerOverrideBadge job={job} />
         </div>
       </DataTable.Cell>
@@ -986,7 +987,7 @@ function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
     return (
       <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
-          <TonePill tone="gray">{translateBlockedReason(job.landing_queue_wait_reason, t)}</TonePill>
+          <TonePill tone="gray"><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_wait_reason, t)} /></TonePill>
           <LandingBlockerOverrideBadge job={job} />
         </div>
       </DataTable.Cell>
@@ -1001,6 +1002,10 @@ function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
       </div>
     </DataTable.Cell>
   )
+}
+
+function CopyableBlockedReason({ reason }: { reason: string }) {
+  return <>{linkifySlugs(reason, { slugStyle: "copyable" })}</>
 }
 
 function LandingBlockerOverrideBadge({ job }: { job: DashboardJobItem }) {
