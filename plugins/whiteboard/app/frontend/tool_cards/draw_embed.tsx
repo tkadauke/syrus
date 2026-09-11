@@ -1,10 +1,13 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { ElementActionCard, elementActionSummary, parseElementResult } from "../whiteboardToolCard"
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { ElementActionCard, ElementFailureCard, elementActionSummary, elementFailureSummary, isPlainObject, parseElementResult } from "../whiteboardToolCard"
 
 // Plugin-owned tool card for draw_embed (the pending-action tool-card work).
 const ACTION = "Drew embed"
 
 function collapsedSummary(context: ToolCardContext) {
+  const failureSummary = elementFailureSummary(context, ACTION)
+  if (failureSummary) return failureSummary
+
   const result = parseElementResult(context.parsedResult)
   if (!result) return null
 
@@ -12,6 +15,8 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
+  if (context.resultError) return <ElementFailureCard action={ACTION} context={context} />
+
   const result = parseElementResult(context.parsedResult)
   if (!result) return null
 

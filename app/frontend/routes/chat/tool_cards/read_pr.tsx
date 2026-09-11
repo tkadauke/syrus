@@ -1,6 +1,7 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
+import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for read_pr (the Tier 1 tool-card work). Shows PR title,
 // number (linked to GitHub when a URL is available), state, body preview,
@@ -14,6 +15,16 @@ type PrCard = {
   htmlUrl: string | null
   body: string | null
   diff: PrDiff | null
+}
+
+const failureConfig: ToolFailureConfig = {
+  title: "PR read",
+  attempted: (context) => {
+    const prNumber = stringFromInput(context, ["pr_number", "pull_request_number", "number"])
+    return prNumber ? `Read PR #${prNumber}` : "Read PR"
+  },
+  retrySafety: "safe",
+  recovery: "Retry after GitHub or repository access recovers."
 }
 
 function parseDiff(value: unknown): PrDiff | null {
@@ -46,12 +57,17 @@ function parsePr(context: ToolCardContext): PrCard | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
+  const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
+  if (failureSummary) return failureSummary
+
   const pr = parsePr(context)
   if (!pr) return null
   return `PR #${pr.number} (${pr.state})`
 }
 
 function renderExpanded(context: ToolCardContext) {
+  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+
   const pr = parsePr(context)
   if (!pr) return null
 
@@ -94,3 +110,7 @@ const readPrToolCard: ToolCardRenderer = {
 }
 
 export default readPrToolCard
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]"
+}

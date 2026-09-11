@@ -1,5 +1,6 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row } from "../toolCardUi"
+import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for attach_repository (the tool-card work). Shows
 // the resolved repository slug/default branch plus where the chat
@@ -9,6 +10,16 @@ type AttachRepositoryResult = {
   defaultBranch: string | null
   workspacePath: string | null
   repositoryPath: string | null
+}
+
+const failureConfig: ToolFailureConfig = {
+  title: "Repository attach",
+  attempted: (context) => {
+    const slug = stringFromInput(context, ["slug", "repository", "repository_slug"])
+    return slug ? `Attach ${slug}` : "Attach repository"
+  },
+  retrySafety: "safe",
+  recovery: "Retry after the repository or workspace issue is corrected."
 }
 
 function parseResult(context: ToolCardContext): AttachRepositoryResult | null {
@@ -27,12 +38,17 @@ function parseResult(context: ToolCardContext): AttachRepositoryResult | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
+  const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
+  if (failureSummary) return failureSummary
+
   const result = parseResult(context)
   if (!result) return null
   return `Attached ${result.slug}`
 }
 
 function renderExpanded(context: ToolCardContext) {
+  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+
   const result = parseResult(context)
   if (!result) return null
 
@@ -56,3 +72,7 @@ const attachRepositoryToolCard: ToolCardRenderer = {
 }
 
 export default attachRepositoryToolCard
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]"
+}
