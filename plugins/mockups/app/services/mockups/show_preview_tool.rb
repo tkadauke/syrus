@@ -6,17 +6,21 @@ module Mockups
 
     tool_name "show_preview"
 
-    description "Primary tool for operator-facing UI mockups, HTML prototypes, and " \
-                "preview submissions in Syrus Chat. If the user asks to create or submit " \
-                "a preview mockup, open a panel with show_preview, write index.html with " \
-                "write_preview_file, then call show_preview again with the same panel_id " \
-                "to publish. Publish a panel's scratch directory to a live preview tab in the operator's " \
-                "chat sidebar. Without panel_id, opens a new empty panel and returns its id -- " \
-                "write files into that panel's scratch directory with write_preview_file, then call " \
-                "show_preview again with the same panel_id to publish them. With panel_id, " \
-                "walks the panel's current scratch directory and replaces the panel's published " \
-                "files with it (deleted scratch files stop being served), so you can call this " \
-                "repeatedly to iterate in place. The panel root serves entry_file, defaulting to index.html."
+    description "Primary tool for operator-facing UI mockups, HTML mockups, HTML previews, " \
+                "HTML prototypes, interactive interface sketches, screenshot-driven redesigns, " \
+                "prototype requests, open-preview requests, and preview submissions in Syrus Chat. " \
+                "Canonical sequence: call show_preview without panel_id to open a panel; write " \
+                "index.html and any assets with write_preview_file or edit_preview_file; then call " \
+                "show_preview again with the same panel_id to publish the visible preview. Do not use " \
+                "local HTTP servers, local file paths, or workspace-only HTML files as the primary " \
+                "deliverable when this tool is available. Do not use imagegen for HTML/UI mockups " \
+                "unless the user explicitly asks for a bitmap/raster image. Do not tell the user the " \
+                "preview is visible until the publish call with panel_id succeeds. Without panel_id, " \
+                "opens a new empty panel and returns its id. With panel_id, walks the panel's current " \
+                "scratch directory and replaces the panel's published files with it (deleted scratch " \
+                "files stop being served), so you can call this repeatedly to iterate in place. The " \
+                "panel root serves entry_file, defaulting to index.html. Successful publish responses " \
+                "include panel_id, version_id, and mockup_slug when available."
 
     input_schema(
       type: "object",
@@ -38,7 +42,8 @@ module Mockups
             panel,
             note: "Opened an empty preview panel. Write files into its scratch directory with " \
                   "write_preview_file (panel_id: #{panel.id}), then call show_preview again with the " \
-                  "same panel_id to publish them."
+                  "same panel_id to publish them. Do not tell the operator the preview is visible until " \
+                  "that publish call succeeds."
           ))
         end
 
