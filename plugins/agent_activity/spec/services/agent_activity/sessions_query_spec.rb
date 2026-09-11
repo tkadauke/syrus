@@ -10,6 +10,12 @@ RSpec.describe AgentActivity::SessionsQuery do
     described_class.call(scope: scope, user: user, filter: filter, page: page, per: per)
   end
 
+  def explain_details(relation)
+    ActiveRecord::Base.connection
+      .select_rows("EXPLAIN QUERY PLAN #{relation.to_sql}")
+      .map(&:last)
+  end
+
   it "only includes Runs whose Step is agentic" do
     job = Factories.job_with_run(repository: my_repository, user: operator, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 1.minute.ago })
     Factories.job_with_run(repository: my_repository, user: operator, step_attrs: { kind: "prepare" }, run_attrs: { state: "running", started_at: 1.minute.ago })
@@ -166,5 +172,34 @@ RSpec.describe AgentActivity::SessionsQuery do
       expect(outer_clause).not_to match(/repository_id/i)
       expect(outer_clause).not_to match(/\bOR\b/i)
     end
+  end
+
+  describe "recency sort query plan" do
+    it "uses the state-started-at index for status SmartFolders without a temp sort" do
+      3.times do |n|
+        Factories.job_with_run(
+          repository: my_repository,
+          user: operator,
+          issue_number: n + 1,
+          run_attrs: { state: "running", started_at: (n + 1).minutes.ago }
+        )
+      end
+
+      relation = described_class
+        .visible_relation(scope: :mine, user: operator)
+        .where(state: "running")
+        .order(started_at: :desc, id: :desc)
+        .limit(AgentActivity::SessionsQuery::DEFAULT_PER)
+
+      details = explain_details(relation)
+
+      expect(details).to include(match(/idx_runs_state_started_id/))
+      expect(details).not_to include(match(/USE TEMP B-TREE FOR ORDER BY/))
+    end
+
+    # SQLite still drives the All folder from the visibility/step filters and
+    # reports a temp sort even with plain or job/step-prefixed started_at
+    # indexes. Production MySQL may choose a different plan, so keep this spec
+    # to the state-filtered shape SQLite can cleanly verify.
   end
 end
