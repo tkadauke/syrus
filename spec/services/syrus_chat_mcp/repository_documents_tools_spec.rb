@@ -82,6 +82,9 @@ RSpec.describe "Mcp::Tools repository document tools" do
         id: file_document.id,
         kind: "file",
         title: "API spec",
+        status: "attached",
+        repository_id: repository.id,
+        repository: repository.slug,
         content_type: "text/markdown",
         size_bytes: 5
       },
@@ -89,6 +92,9 @@ RSpec.describe "Mcp::Tools repository document tools" do
         id: google_document.id,
         kind: "google_doc",
         title: "Architecture notes",
+        status: "linked",
+        repository_id: repository.id,
+        repository: repository.slug,
         url: "https://docs.google.com/document/d/abc/edit"
       }
     ])
@@ -112,6 +118,9 @@ RSpec.describe "Mcp::Tools repository document tools" do
       id: document.id,
       kind: "google_doc",
       title: "Job context",
+      status: "linked",
+      repository_id: other.id,
+      repository: other.slug,
       url: "https://docs.google.com/document/d/job/edit"
     )
   end

@@ -158,6 +158,29 @@ describe("toolResultPresentation", () => {
 
     expect(result).toMatchObject({ kind: "text", summary: "1 design doc" })
   })
+
+  it("lets registered cards summarize structured error payloads", () => {
+    const result = toolResultPresentation("delete_repo_document", JSON.stringify({
+      pending_action_id: 502,
+      state: "failed",
+      message: "Delete document \"Old notes\"?",
+      reason: "Document disappeared before confirmation."
+    }), true)
+
+    expect(result).toMatchObject({ kind: "error", summary: "Delete document \"Old notes\"?" })
+  })
+
+  it("passes tool input to registered collapsed-summary cards", () => {
+    const result = toolResultPresentation(
+      "cancel_job",
+      JSON.stringify({ pending_action_id: 7, state: "pending", message: "Job cancellation requires operator confirmation." }),
+      false,
+      JSON.stringify({ pending_action_id: 7, state: "pending", message: "Job cancellation requires operator confirmation." }),
+      { job_id: 44 }
+    )
+
+    expect(result).toMatchObject({ kind: "text", summary: "Cancel requested · JOB-44 · pending #7" })
+  })
 })
 
 describe("typedToolResult", () => {

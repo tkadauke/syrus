@@ -1,3 +1,3 @@
 import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
 
-export default maintenanceToolCard("poll_job_feedback")
+export default maintenanceToolCard("add_job_dependency")
