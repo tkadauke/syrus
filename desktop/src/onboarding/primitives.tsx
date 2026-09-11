@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { t } from "../i18n"
 
 // The shared visual language for every onboarding screen, so alignment and
 // spacing can't drift per-screen again: centered title + centered one-line
@@ -102,7 +103,7 @@ export function ProgressBar({ percent }: { percent: number }) {
   )
 }
 
-export function LogTail({ lines, label = "Show details" }: { lines: string[]; label?: string }) {
+export function LogTail({ lines, label = t("common.show_details") }: { lines: string[]; label?: string }) {
   if (lines.length === 0) {
     return null
   }

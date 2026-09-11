@@ -1,4 +1,5 @@
 import { OnboardingScreen } from "./primitives"
+import { t } from "../i18n"
 
 type WelcomeProps = {
   onChoose: (mode: "local" | "remote") => void
@@ -10,8 +11,8 @@ export function Welcome({ onChoose }: WelcomeProps) {
 
   return (
     <OnboardingScreen
-      title="Welcome to Syrus"
-      subtitle="Syrus turns GitHub issues into reviewed pull requests. Where should it run?"
+      title={t("onboarding.welcome.title")}
+      subtitle={t("onboarding.welcome.subtitle")}
       width="xl"
     >
       <div className="mt-8 grid grid-cols-2 gap-4 text-left">
@@ -21,12 +22,12 @@ export function Welcome({ onChoose }: WelcomeProps) {
           className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-terracotta-400 hover:shadow dark:border-slate-700 dark:bg-slate-900 dark:hover:border-terracotta-500"
         >
           <span className="block text-base font-semibold text-slate-900 dark:text-slate-100">
-            {isWindows ? "Install on this PC" : "Install on this Mac"}
+            {isWindows ? t("onboarding.welcome.install_pc") : t("onboarding.welcome.install_mac")}
           </span>
           <span className="mt-2 block text-sm leading-relaxed text-slate-600 dark:text-slate-400">
             {isWindows
-              ? "Runs Syrus locally on Docker Desktop. Everything stays on your machine — this app sets it all up."
-              : "Runs Syrus locally in Docker. Everything stays on your machine — this app sets it all up."}
+              ? t("onboarding.welcome.local_windows")
+              : t("onboarding.welcome.local_mac")}
           </span>
         </button>
 
@@ -35,9 +36,9 @@ export function Welcome({ onChoose }: WelcomeProps) {
           onClick={() => onChoose("remote")}
           className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-terracotta-400 hover:shadow dark:border-slate-700 dark:bg-slate-900 dark:hover:border-terracotta-500"
         >
-          <span className="block text-base font-semibold text-slate-900 dark:text-slate-100">Connect to existing Syrus</span>
+          <span className="block text-base font-semibold text-slate-900 dark:text-slate-100">{t("onboarding.welcome.remote")}</span>
           <span className="mt-2 block text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            Your team already runs Syrus somewhere? Point this app at its address.
+            {t("onboarding.welcome.remote_hint")}
           </span>
         </button>
       </div>

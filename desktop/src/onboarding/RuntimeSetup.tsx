@@ -1,4 +1,5 @@
 import { FooterRow, OnboardingScreen, Spinner } from "./primitives"
+import { t } from "../i18n"
 
 type RuntimeSetupProps = {
   mode: "missing" | "starting" | "installing"
@@ -38,13 +39,13 @@ export function RuntimeSetup({ mode, polling, wslMissing = false, needsAttention
   if (mode === "installing") {
     return (
       <OnboardingScreen
-        title="Installing Docker Desktop…"
-        subtitle="Syrus is setting up your Docker runtime — no clicks needed. The service agreement is accepted for you."
+        title={t("runtime.installing_title")}
+        subtitle={t("runtime.installing_subtitle")}
       >
         {installStep === "downloading" ? (
           <div className="mt-5" data-testid="runtime-install-progress">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Downloading the Docker Desktop installer{installPercent !== null ? ` — ${installPercent}%` : "…"}
+              {t("runtime.downloading", { percent: installPercent !== null ? ` -- ${installPercent}%` : "..." })}
             </p>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
               <div
@@ -56,12 +57,12 @@ export function RuntimeSetup({ mode, polling, wslMissing = false, needsAttention
         ) : (
           <p className="mt-5 flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400" role="status">
             <Spinner />
-            Running the installer — the first install can take a few minutes…
+            {t("runtime.running_installer")}
           </p>
         )}
         <FooterRow>
           <button type="button" className="secondary-button" onClick={onBack}>
-            Back
+            {t("common.back")}
           </button>
         </FooterRow>
       </OnboardingScreen>
@@ -76,35 +77,32 @@ export function RuntimeSetup({ mode, polling, wslMissing = false, needsAttention
     if (needsAttention) {
       return (
         <OnboardingScreen
-          title={`${runtimeName} needs you to finish its setup`}
-          subtitle="Syrus started your Docker runtime, but its engine hasn't come up — it's waiting for you."
+          title={t("runtime.needs_setup_title", { runtime: runtimeName })}
+          subtitle={t("runtime.needs_setup_subtitle")}
         >
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-testid="runtime-attention">
             <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               {isWindows ? (
                 <>
-                  Open the <span className="font-medium text-slate-900 dark:text-slate-100">Docker Desktop</span> window and{" "}
-                  <span className="font-medium text-slate-900 dark:text-slate-100">Accept</span> its service agreement. Signing in is
-                  optional — you can skip it. Syrus continues automatically the moment the engine is running.
+                  {t("runtime.needs_windows")}
                 </>
               ) : (
                 <>
-                  Open the <span className="font-medium text-slate-900 dark:text-slate-100">{runtimeName}</span> window and finish
-                  its first-run setup. Syrus continues automatically the moment the engine is running.
+                  {t("runtime.needs_other", { runtime: runtimeName })}
                 </>
               )}
             </p>
             <button type="button" className="primary-button mt-3" onClick={onOpenRuntime}>
-              Open {runtimeName}
+              {t("runtime.open", { runtime: runtimeName })}
             </button>
           </div>
           <p className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400" role="status">
             <Spinner />
-            Waiting for the Docker engine…
+            {t("runtime.wait_engine")}
           </p>
           <FooterRow>
             <button type="button" className="secondary-button" onClick={onBack}>
-              Back
+              {t("common.back")}
             </button>
           </FooterRow>
         </OnboardingScreen>
@@ -113,16 +111,16 @@ export function RuntimeSetup({ mode, polling, wslMissing = false, needsAttention
 
     return (
       <OnboardingScreen
-        title="Starting your Docker runtime…"
-        subtitle="The first launch can take a moment and may ask for a one-time permission — accept it if it does."
+        title={t("runtime.starting_title")}
+        subtitle={t("runtime.starting_subtitle")}
       >
         <p className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400" role="status">
           <Spinner />
-          Waiting for Docker…
+          {t("runtime.wait_docker")}
         </p>
         <FooterRow>
           <button type="button" className="secondary-button" onClick={onBack}>
-            Back
+            {t("common.back")}
           </button>
         </FooterRow>
       </OnboardingScreen>
@@ -131,33 +129,29 @@ export function RuntimeSetup({ mode, polling, wslMissing = false, needsAttention
 
   return (
     <OnboardingScreen
-      title="One thing first: a Docker runtime"
-      subtitle="Syrus runs in containers, which needs a Docker runtime."
+      title={t("runtime.missing_title")}
+      subtitle={t("runtime.missing_subtitle")}
     >
       <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
         {isWindows ? (
           <>
-            We recommend <span className="font-medium text-slate-900 dark:text-slate-100">Docker Desktop</span>, which runs on
-            WSL&nbsp;2.
+            {t("runtime.recommend_windows")}
           </>
         ) : (
           <>
-            We recommend <span className="font-medium text-slate-900 dark:text-slate-100">OrbStack</span> — it&apos;s fast,
-            lightweight, and free for personal use. Docker Desktop works too.
+            {t("runtime.recommend_mac")}
           </>
         )}
       </p>
 
       {isWindows && wslMissing ? (
         <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-testid="wsl-step">
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">First: install WSL 2</p>
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{t("runtime.wsl_title")}</p>
           <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            This PC doesn&apos;t have WSL&nbsp;2 yet. Click below and accept the Windows permission prompt —
-            no terminal needed. Windows may ask to restart afterwards; after the restart, reopen Syrus and it
-            picks up right here.
+            {t("runtime.wsl_body")}
           </p>
           <button type="button" className="primary-button mt-3" onClick={onInstallWsl}>
-            Install WSL 2
+            {t("runtime.install_wsl")}
           </button>
         </div>
       ) : null}
@@ -165,10 +159,7 @@ export function RuntimeSetup({ mode, polling, wslMissing = false, needsAttention
       {isWindows ? (
         <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" data-testid="runtime-auto-install">
           <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            Syrus can <span className="font-medium text-slate-900 dark:text-slate-100">install Docker Desktop for you</span> — it
-            downloads the official installer and runs it silently. No admin permission needed, and the service
-            agreement is accepted for you, so there&apos;s nothing to click afterwards. If Windows restarts,
-            reopen isn&apos;t needed either: Syrus relaunches after you log back in and picks up right here.
+            {t("runtime.auto_install_body")}
           </p>
           {installError ? (
             <p className="mt-2 text-sm text-red-600 dark:text-red-400" data-testid="runtime-install-error">
@@ -176,44 +167,44 @@ export function RuntimeSetup({ mode, polling, wslMissing = false, needsAttention
             </p>
           ) : null}
           <button type="button" className="primary-button mt-3" onClick={onInstallRuntime} disabled={wslMissing}>
-            Install Docker Desktop
+            {t("runtime.install_docker")}
           </button>
           {wslMissing ? (
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Install WSL 2 above first — Docker Desktop runs on it.</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t("runtime.install_wsl_first")}</p>
           ) : null}
         </div>
       ) : (
         <ol className="mt-5 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-          <li>{`Download ${runtimeName} and drag it into Applications.`}</li>
-          <li>Open it once and finish its short setup.</li>
-          <li>Come back here — we&apos;ll pick things up automatically.</li>
+          <li>{t("runtime.download_step", { runtime: runtimeName })}</li>
+          <li>{t("runtime.open_step")}</li>
+          <li>{t("runtime.return_step")}</li>
         </ol>
       )}
 
       {polling ? (
         <p className="mt-5 flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400" role="status">
           <Spinner />
-          Waiting for Docker to become available…
+          {t("runtime.wait_available")}
         </p>
       ) : null}
 
       <FooterRow>
         <button type="button" className="secondary-button" onClick={onBack}>
-          Back
+          {t("common.back")}
         </button>
         <div className="flex items-center gap-2">
           {polling ? (
             <button type="button" className="secondary-button" onClick={onRetry}>
-              Check again now
+              {t("runtime.check_now")}
             </button>
           ) : null}
           {isWindows ? (
             <button type="button" className="text-sm text-slate-500 underline hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" onClick={onDownload}>
-              download manually instead
+              {t("runtime.download_manual")}
             </button>
           ) : (
             <button type="button" className="primary-button" onClick={onDownload}>
-              Download {runtimeName}
+              {t("runtime.download", { runtime: runtimeName })}
             </button>
           )}
         </div>
