@@ -64,6 +64,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     allow(handler).to receive(:run_agent)
     allow(handler).to receive(:assert_branch_history_intact!)
     allow(handler).to receive(:diff_against_sha).and_return(step_diff)
+    allow(RunCheckpointPublisher).to receive(:publish!)
     allow(git).to receive(:run)
     allow(git).to receive(:configure_author)
     allow(git).to receive(:run).with("status", "--porcelain", chdir: "/tmp/ws").and_return(status)
@@ -591,6 +592,11 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(handler.run.reload.head_sha).to eq("intsha999")
       expect(handler.run.agent_diff).to eq("")
       expect(train.reload.integration_sha).to eq("intsha999")
+      expect(RunCheckpointPublisher).to have_received(:publish!).with(
+        run: handler.run,
+        workspace: handler.send(:workspace),
+        log: anything
+      )
       expect(handler.run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_reconcile: no reconciliation changes needed")
       expect(LandedCommit.where(landable: epic, kind: "reconcile")).to be_empty
     end
