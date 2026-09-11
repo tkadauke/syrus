@@ -19,6 +19,21 @@ RSpec.describe Mcp::Sidecar do
   end
 
   describe "MCP handshake" do
+    it "builds workflow tools without building chat registry entries" do
+      cached_entries = McpToolRegistry.instance_variable_get(:@entries)
+      cached_entries_by_surface = McpToolRegistry.instance_variable_get(:@entries_by_surface)
+      McpToolRegistry.remove_instance_variable(:@entries) if McpToolRegistry.instance_variable_defined?(:@entries)
+      McpToolRegistry.remove_instance_variable(:@entries_by_surface) if McpToolRegistry.instance_variable_defined?(:@entries_by_surface)
+      expect(McpToolRegistry).not_to receive(:chat_entries)
+
+      server_for(run)
+    ensure
+      McpToolRegistry.remove_instance_variable(:@entries) if McpToolRegistry.instance_variable_defined?(:@entries)
+      McpToolRegistry.remove_instance_variable(:@entries_by_surface) if McpToolRegistry.instance_variable_defined?(:@entries_by_surface)
+      McpToolRegistry.instance_variable_set(:@entries, cached_entries) if defined?(cached_entries)
+      McpToolRegistry.instance_variable_set(:@entries_by_surface, cached_entries_by_surface) if defined?(cached_entries_by_surface)
+    end
+
     it "records the tool list when the workflow sidecar builds" do
       server_for(run)
 
