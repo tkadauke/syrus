@@ -181,6 +181,33 @@ RSpec.describe Steps::Format do
       expect(chunks).not_to include("plugin-default")
     end
 
+    it "matches Syrus's frontend formatter globs against changed TypeScript and TSX files" do
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: echo frontend-fixed
+            files:
+              - "app/frontend/**/*.ts"
+              - "app/frontend/**/*.tsx"
+              - "plugins/*/app/frontend/**/*.ts"
+              - "plugins/*/app/frontend/**/*.tsx"
+              - "eslint.config.js"
+              - "eslint-rules/**/*.js"
+      YAML
+      allow(handler).to receive(:changed_files).and_return(
+        [
+          "app/frontend/routes/Dashboard.tsx",
+          "plugins/demo/app/frontend/index.ts"
+        ]
+      )
+      expect(handler).to receive(:commit_agent_changes).with("Format: apply deterministic formatting")
+
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("$ echo frontend-fixed")
+      expect(chunks).not_to include("no applicable formatters")
+    end
+
     it "does not fall back to plugin providers even when every formatter is skipped" do
       write_syrus_yml(<<~YAML)
         formatters:
