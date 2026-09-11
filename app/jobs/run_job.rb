@@ -248,7 +248,7 @@ class RunJob < ApplicationJob
       run: @run,
       kind: "system",
       chunk: "worker slot admission deferred before #{@step.kind}: #{admission.reason}"
-    )
+    ) unless admission_deferral_log_exists?("worker slot admission deferred before #{@step.kind}: #{admission.reason}")
   rescue StandardError => e
     Rails.logger.warn("[RunJob] failed to record worker slot admission deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
   end
@@ -268,9 +268,13 @@ class RunJob < ApplicationJob
       run: @run,
       kind: "system",
       chunk: "compute host admission deferred before #{@step.kind}: #{admission.reason}"
-    )
+    ) unless admission_deferral_log_exists?("compute host admission deferred before #{@step.kind}: #{admission.reason}")
   rescue StandardError => e
     Rails.logger.warn("[RunJob] failed to record host admission deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
+  end
+
+  def admission_deferral_log_exists?(chunk)
+    JobLog.where(run: @run, kind: "system", chunk: chunk).exists?
   end
 
   def complete_pre_admission_skip?
