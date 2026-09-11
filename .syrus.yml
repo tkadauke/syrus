@@ -12,7 +12,7 @@ prepare: &syrus_prepare
   # so bare commands like `bin/rails` and `bin/rspec` resolve gems the
   # agent just installed.
   - bundle config set --local path vendor/bundle
-  - bundle install --jobs 4
+  - bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}"
   - npm ci
 
 preview:
@@ -58,7 +58,7 @@ visual_review:
 
 hooks:
   post_checkout:
-    - bundle check || bundle install --jobs 4
+    - bundle check || bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}"
     - bundle exec rails db:migrate
     - git checkout -- db/schema.rb 2>/dev/null || true
     - git checkout -- db/structure.sql 2>/dev/null || true
@@ -144,7 +144,7 @@ grade:
       `production`, and `public` by default). This catches deleted or
       reordered migrations that are invisible on a fully migrated dev
       database but crash deploys when an environment is still behind.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-primary-migration-baselines
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-primary-migration-baselines
     phases: [landing, ci]
     timeout_minutes: 10
 
@@ -155,7 +155,7 @@ grade:
       boot — it can't claim a connection per thread. Bump
       RAILS_MAX_THREADS / config/database.yml's pool, or trim the
       queue's thread count.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && bin/check-thread-budget
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && bin/check-thread-budget
     phases: [review, landing, ci]
     # Landing dispatches graders in parallel; this one starts with the same
     # `bundle check` as eager-load/production-build-boot, so it needs the
@@ -182,7 +182,7 @@ grade:
       their core superclass table, but new plugin tables must be clearly
       owned by the plugin to avoid collisions once engine migrations are
       installed into the host app.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-model-namespaces
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-model-namespaces
     phases: [review, landing, ci]
     required: true
     # Boots Rails before checking plugin-owned model classes. Under
@@ -198,7 +198,7 @@ grade:
       is acyclic. Core depending on a plugin is what makes a plugin
       undeletable, so this has to fail fast rather than surface as a
       mysterious boot error after someone removes a gem.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-boundaries
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-boundaries
     phases: [review, landing, ci]
     required: true
     # Boots Rails to read the plugin registry, same as the model-namespace
@@ -214,7 +214,7 @@ grade:
       detonate live pods. If this fails, two files probably define
       the same constant with different superclasses — check umbrella
       files vs per-class siblings.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
     phases: [review, landing, ci]
     timeout_minutes: 3
 
@@ -225,7 +225,7 @@ grade:
       execution and must end in success or a declared waiting state, so
       scheduler/reconciler regressions surface before they block the
       landing queue for hours.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/simulator
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/simulator
     phases: [review, landing, ci]
     required: true
     timeout_minutes: 30
@@ -237,7 +237,7 @@ grade:
       DATABASE_URL. Asset precompile should load Rails without touching
       application tables; if an initializer performs DB work at build time,
       this grader fails before the production image build does.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-production-build-boot
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-production-build-boot
     phases: [review, landing, ci]
     timeout_minutes: 3
 
@@ -292,7 +292,7 @@ grade:
     # to flag a test as flaky. See plugins/test_insights/docs/syrus_docs/test_insights.md.
     # bin/rspec-fast merges its per-worker JUnit XML into this single path so
     # ingestion works under parallelism.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-fast
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-fast
     phases: [landing]
     junit_output: .syrus/grade-output/rspec-junit.xml
     failures: allow_inherited
@@ -328,7 +328,7 @@ grade:
       files plus the conventional spec for each changed app/lib source
       file) on every review-phase grade iteration. Fast feedback loop —
       the full suite still runs at landing via the `rspec` grader.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rspec-focused
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rspec-focused
     phases: [review]
     when_files_changed: ["app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb", "plugins/**/*.rb"]
     junit_output: .syrus/grade-output/rspec-focused-junit.xml
@@ -340,7 +340,7 @@ grade:
       Full GitHub Actions-equivalent RSpec suite, including specs tagged
       :ci_only. This runs only when Syrus is fixing a CI failure or judging
       main-branch health, not during ordinary review or landing.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-ci
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-ci
     phases: [ci]
     junit_output: .syrus/grade-output/rspec-junit.xml
     failures: allow_inherited

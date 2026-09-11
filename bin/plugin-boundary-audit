@@ -13,7 +13,7 @@ require_relative "../config/environment"
 options = {
   command: ENV.fetch(
     "PLUGIN_BOUNDARY_AUDIT_COMMAND",
-    'BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle exec rails runner "puts :plugin_boundary_boot_ok"'
+    'BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle exec rails runner "puts :plugin_boundary_boot_ok"'
   )
 }
 
