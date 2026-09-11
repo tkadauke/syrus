@@ -875,12 +875,14 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   features that have no existing doc file should create one following the
   format in the existing files. PRs that add operator-facing behavior while
   leaving the docs stale are incomplete, same as public website docs.
-- **Prompts** all live under `app/services/prompts/` as PORO classes
-  (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::CiFailure`,
+- **Prompts** all live under `app/services/prompts/`. Core workflow prompt
+  classes include
+  (`Prompts::Implement`, `Prompts::PrFeedback`, `Prompts::CiFailure`,
   `Prompts::AdversarialReview`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::TestPlan`,
   `Prompts::ReviewPlan`,
-  `Prompts::Rebase`, `Prompts::PushRebase`, `Prompts::LandingFix`,
+  `Prompts::Rebase`, `Prompts::StackRebase`, `Prompts::PushRebase`,
+  `Prompts::LandingFix`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`, `Prompts::EpicContext`,
   `Prompts::Skill`,
   `VideoWalkthroughs::Prompts::Analysis`, `VideoWalkthroughs::Prompts::Context`,
@@ -888,6 +890,11 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   Each has a `to_s`. Compose by appending; never inline prompt text in
   jobs/services. Epic-aware prompts append `Prompts::EpicContext` as
   orientation only; it must not expand the current Job's implementation scope.
+  `Prompts::Implement`, `Prompts::Rebase`, and `Prompts::StackRebase`
+  render their static git-safety and phased-execution instructions through
+  `Prompts::SkillLoader` from `.claude/skills/implement/SKILL.md` and
+  `.claude/skills/rebase/SKILL.md`; those skill files are live prompt source
+  of truth, not duplicate stale documentation.
 - **Website/docs audit.** If no website/docs update is needed, the PR body
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
@@ -1687,6 +1694,9 @@ app/services/job_dependency_parser.rb        # parses Depends-on / Blocked-by is
 app/services/syrus_mcp/sidecar.rb            # MCP::Server boot + SIGTERM trap
 app/services/syrus_mcp/                      # all MCP sidecar tools (submit_summary, adversarial_review, memory, etc.)
 app/services/prompts/                        # all agent prompts (PORO)
+app/services/prompts/skill_loader.rb         # renders .claude/skills/*/SKILL.md into prompts
+.claude/skills/implement/SKILL.md            # live implement-step prompt instructions
+.claude/skills/rebase/SKILL.md               # live rebase/stack-rebase prompt instructions
 app/services/pr_summarizer.rb                # second-shot fallback
 app/jobs/poll_*.rb                           # polling jobs (cron-style; see config/recurring.yml)
 app/jobs/reap_stale_runs_job.rb              # kills zombie Runs every minute
