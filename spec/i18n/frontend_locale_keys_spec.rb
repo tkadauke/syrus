@@ -44,6 +44,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
     ],
     "settings" => %w[
       repository.needs_triage_showing_limited
+      repository.col_issue
     ]
   }.freeze
 
