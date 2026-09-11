@@ -510,25 +510,67 @@ describe("ReviewWorkspace", () => {
     vi.restoreAllMocks()
   })
 
-  it("renders a version selector with labels, metadata, and per-version comment counts", async () => {
+  it("renders a structured version range picker with labels, endpoint chips, metadata, and comment counts", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
       versions: [
         version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1, created_at: "2026-05-01T12:00:00Z" }),
-        version({ id: 200, version_index: 2, label: "Chat feedback #1", reason: "chat_feedback", trigger_kind: "chat_feedback", workflow_id: 12, run_id: 34, comments_count: 2, created_at: "2026-05-02T12:00:00Z" })
+        version({
+          id: 200,
+          version_index: 2,
+          label: "v2 repair range",
+          reason: "chat_feedback",
+          trigger_kind: "chat_feedback",
+          workflow_id: 12,
+          run_id: 34,
+          comments_count: 2,
+          created_at: "2026-05-02T12:00:00Z",
+          base_ref: "refs/heads/main-with-a-very-long-name",
+          base_sha: "base-sha-1234567890",
+          head_ref: "syrus/direct-42-with-a-very-long-branch-name",
+          head_sha: "head-sha-1234567890"
+        })
       ],
-      version: version({ id: 200, version_index: 2, label: "Chat feedback #1", reason: "chat_feedback", trigger_kind: "chat_feedback", workflow_id: 12, run_id: 34, comments_count: 2, created_at: "2026-05-02T12:00:00Z" })
+      version: version({
+        id: 200,
+        version_index: 2,
+        label: "v2 repair range",
+        reason: "chat_feedback",
+        trigger_kind: "chat_feedback",
+        workflow_id: 12,
+        run_id: 34,
+        comments_count: 2,
+        created_at: "2026-05-02T12:00:00Z",
+        base_ref: "refs/heads/main-with-a-very-long-name",
+        base_sha: "base-sha-1234567890",
+        head_ref: "syrus/direct-42-with-a-very-long-branch-name",
+        head_sha: "head-sha-1234567890"
+      })
     }))
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     renderWorkspace()
 
     const selector = await screen.findByLabelText("Version")
-    expect(selector).toHaveValue("200")
-    expect(selector).toHaveClass("max-w-full", "truncate")
+    expect(selector).toHaveRole("button")
+    expect(selector).toHaveTextContent("v2 repair range")
+    expect(selector).toHaveAttribute("aria-haspopup", "listbox")
+    expect(selector).toHaveAttribute("aria-expanded", "false")
     expect(selector.closest("div")).toHaveClass("w-full", "min-w-0", "max-w-full")
-    expect(screen.getByRole("option", { name: /v2 latest - Chat feedback #1 - WF-12 - RUN-34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/ })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: /v1 - Initial implementation - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 1 comment/ })).toBeInTheDocument()
-    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/)).toBeInTheDocument()
+
+    fireEvent.click(selector)
+
+    expect(selector).toHaveAttribute("aria-expanded", "true")
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+    expect(listbox).toHaveClass("max-h-[min(22rem,70vh)]", "w-[min(100%,calc(100vw-2rem))]", "overflow-y-auto")
+    const selectedRange = within(listbox).getByRole("option", { name: /v2 repair range - From refs\/heads\/main-with-a-very-long-name \(base-sh\) to syrus\/direct-42-with-a-very-long-branch-name \(head-sh\)/ })
+    expect(selectedRange).toHaveAttribute("aria-selected", "true")
+    expect(within(selectedRange).getByText("From")).toBeInTheDocument()
+    expect(within(selectedRange).getByText("To")).toBeInTheDocument()
+    expect(within(selectedRange).getByText("RUN-34")).toBeInTheDocument()
+    expect(within(selectedRange).getByText(/v2 - WF-12 - RUN-34 - .* - 2 files - 2 comments/)).toBeInTheDocument()
+    expect(screen.getByTitle("refs/heads/main-with-a-very-long-name @ base-sha-1234567890")).toHaveTextContent("refs/hea...ong-name")
+    expect(screen.getByTitle("syrus/direct-42-with-a-very-long-branch-name @ head-sha-1234567890")).toHaveTextContent("syrus/di...nch-name")
+    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From refs\/heads\/main-with-a-very-long-name \(base-sh\) to syrus\/direct-42-with-a-very-long-branch-name \(head-sh\) - 2 files - 2 comments/)).toBeInTheDocument()
   })
 
   it("defaults to All changes while keeping a smaller repair-step range selectable", async () => {
@@ -565,11 +607,19 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     const selector = await screen.findByLabelText("Version")
-    expect(selector).toHaveValue("200")
-    expect(screen.getByRole("option", { name: /All changes - From main \(branch-\) to syrus\/issue-42 \(branch-\) - no comments/ })).toBeInTheDocument()
+    expect(selector).toHaveRole("button")
+    expect(selector).toHaveTextContent("All changes")
     expect(screen.getByTitle("app/models/all_changes.rb")).toBeInTheDocument()
 
-    fireEvent.change(selector, { target: { value: "100" } })
+    fireEvent.click(selector)
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+    expect(within(listbox).getAllByRole("option")[0]).toHaveTextContent("All changes")
+    const allChanges = within(listbox).getByRole("option", { name: /All changes - From main \(branch-\) to syrus\/issue-42 \(branch-\)/ })
+    expect(allChanges).toHaveAttribute("aria-selected", "true")
+    expect(within(allChanges).getByText("From")).toBeInTheDocument()
+    expect(within(allChanges).getByText("To")).toBeInTheDocument()
+
+    fireEvent.click(within(listbox).getByRole("option", { name: /Initial implementation - From main \(initial\) to syrus\/issue-42 \(branch-\)/ }))
 
     expect(await screen.findByTitle("db/migrate/repair.rb")).toBeInTheDocument()
     expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 100)
@@ -632,7 +682,7 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("v1 historical")
     fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
 
-    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveValue("100"))
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveTextContent("Initial implementation"))
     expect(document.querySelector('[data-diff-anchor="right::1"]')).toBeInTheDocument()
     await waitFor(() => expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled())
   })
@@ -695,7 +745,7 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("Old whole-review note.")
     fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
 
-    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveValue("100"))
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveTextContent("Version 1"))
     const record = document.querySelector('[data-diff-review-comment-id="11"]') as HTMLElement
     expect(record).toBeInTheDocument()
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
