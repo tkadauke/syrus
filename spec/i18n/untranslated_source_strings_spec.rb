@@ -58,39 +58,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #
       app/frontend/routes/jobDetail/Delivery.tsx|jsx_text|PR #
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_attr|InnoDB and query counters
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_attr|MySQL admin
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_attr|MySQL variables
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Actions
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Command
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Count
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Generated
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Host
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Info
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Killed query for thread .
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Loading MySQL state...
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Max
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Performance Schema summary ordered by total time.
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Process list
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Query time
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Rows
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Rows examined
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Slow log
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|State
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Statement
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Statement digests
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Time
-      plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx|jsx_text|Total
-      plugins/agent_memory/app/frontend/memoryToolCard.tsx|jsx_text|Content
-      plugins/agent_memory/app/frontend/memoryToolCard.tsx|jsx_text|Kind
-      plugins/agent_memory/app/frontend/memoryToolCard.tsx|jsx_text|Scope
-      plugins/agent_memory/app/frontend/memoryToolCard.tsx|jsx_text|State
-      plugins/agent_memory/app/frontend/memoryToolCard.tsx|jsx_text|Updated
-      plugins/agent_memory/app/frontend/memoryToolCard.tsx|jsx_text|confidence: →
-      plugins/agent_memory/app/frontend/memoryToolCard.tsx|jsx_text|kind: →
       plugins/agent_memory/app/frontend/routes/Memories.tsx|jsx_text|Actions
-      plugins/agent_memory/app/frontend/tool_cards/admin_read_memory_audit_history.tsx|jsx_text|Audit trail (oldest first)
-      plugins/agent_memory/app/frontend/tool_cards/admin_read_memory_audit_history.tsx|jsx_text|No audit events recorded.
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Add repository
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Block type
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Change mode
@@ -155,37 +123,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
       plugins/mockups/app/frontend/previewPanelToolCard.tsx|jsx_text|Panel #
       plugins/mockups/app/frontend/routes/MockupPreviewPanel.tsx|jsx_text|postJson
       plugins/mysql_db_browser/app/frontend/mysqlToolCard.tsx|jsx_text|T | null): MysqlSection
-      plugins/mysql_db_browser/app/frontend/mysqlToolCard.tsx|jsx_text|truncated -- narrow the query for a complete view.
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Column
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Columns
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Default
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Extra
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Foreign keys
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Indexes
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Info
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Key
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|No columns.
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|No foreign keys.
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|No indexes.
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Nullable
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx|jsx_text|Type
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_execute_query.tsx|jsx_text|Query failed.
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_execute_query.tsx|jsx_text|Query returned no rows.
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_connections.tsx|jsx_text|Agentic access
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_connections.tsx|jsx_text|Default database
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_connections.tsx|jsx_text|Label
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_connections.tsx|jsx_text|No MySQL DB Browser connections configured.
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_connections.tsx|jsx_text|Writes
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_databases.tsx|jsx_text|Character set
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_databases.tsx|jsx_text|Collation
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_databases.tsx|jsx_text|Database
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_databases.tsx|jsx_text|No databases visible on this connection.
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_tables.tsx|jsx_text|Data size
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_tables.tsx|jsx_text|Engine
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_tables.tsx|jsx_text|No tables in .
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_tables.tsx|jsx_text|Rows (approx)
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_tables.tsx|jsx_text|Table
-      plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_tables.tsx|jsx_text|Type
       plugins/rails/app/frontend/components/artifacts/ErdDiagramRenderer.tsx|jsx_attr|foreign key
       plugins/rails/app/frontend/components/artifacts/ErdDiagramRenderer.tsx|jsx_text|No tables found in schema.
       plugins/rails/app/frontend/components/artifacts/MigrationDiffRenderer.tsx|jsx_attr|After
@@ -210,26 +147,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
       plugins/terminal/app/frontend/routes/Terminal.tsx|jsx_attr|Search workspaces
       plugins/terminal/app/frontend/routes/Terminal.tsx|jsx_attr|Search workspaces, chats, workers
       plugins/terminal/app/frontend/routes/Terminal.tsx|jsx_text|No workspace matches
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_attr|name, suite, or file
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Click to open →
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Duration
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Duration over time
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Failure
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Last seen
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Latest:
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Loading test history...
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Loading tests...
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Next
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|No duration samples yet.
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Previous
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Recent failures
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Run
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Showing – of
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Status
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Suite
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Test
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Time
-      plugins/test_insights/app/frontend/repo_tabs/RepositoryTests.tsx|jsx_text|Updating results...
       plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_attr|Failed / error cases
       plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_attr|Slow cases
       plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_text|Duration

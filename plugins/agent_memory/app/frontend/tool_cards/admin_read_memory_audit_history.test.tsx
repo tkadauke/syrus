@@ -59,7 +59,7 @@ describe("admin_read_memory_audit_history tool card", () => {
     expect(screen.getByText("updated")).toBeInTheDocument()
     expect(screen.getByText("user (user #4)")).toBeInTheDocument()
     expect(screen.getByText("agent (run #500)")).toBeInTheDocument()
-    expect(screen.getByText("kind: feedback → project_fact")).toBeInTheDocument()
+    expect(screen.getByText("kind: feedback -> project_fact")).toBeInTheDocument()
     expect(screen.getAllByText("Content change").length).toBeGreaterThan(0)
   })
 
