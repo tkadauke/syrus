@@ -94,6 +94,11 @@ class User < ApplicationRecord
       "ownership_scope" => "mine",
       "visible_columns" => %w[workflow job trigger state started finished agent],
       "kanban_lanes" => %w[queued running done]
+    },
+    "design_docs" => {
+      "visible_columns" => %w[
+        title doc_slug state repository owner collaborators comments latest_version updated_at actions
+      ]
     }
   }.freeze
   DASHBOARD_KANBAN_LANES = {
@@ -104,7 +109,8 @@ class User < ApplicationRecord
   DASHBOARD_REQUIRED_COLUMNS = {
     "epics" => %w[epic],
     "jobs" => %w[checkbox issue],
-    "workflows" => %w[workflow job]
+    "workflows" => %w[workflow job],
+    "design_docs" => %w[title]
   }.freeze
   DASHBOARD_OPTIONAL_COLUMNS = {
     "epics" => %w[state owner repository updated created_at updated_at done_at archived_at],
@@ -117,6 +123,9 @@ class User < ApplicationRecord
     "workflows" => %w[
       trigger state started finished agent
       created_at updated_at started_at finished_at cleaned_up_at
+    ],
+    "design_docs" => %w[
+      doc_slug state repository owner collaborators comments latest_version updated_at actions
     ]
   }.freeze
   DASHBOARD_SORT_COLUMNS = {
@@ -850,7 +859,7 @@ class User < ApplicationRecord
       normalize_dashboard_preference_subject(preference)
     when "last_view", "last_ownership_scope", "last_owner_user_id"
       preference.to_s
-    when "epics", "jobs", "workflows"
+    when "epics", "jobs", "workflows", "design_docs"
       normalize_dashboard_table_preferences(preference)
     else
       preference.to_s

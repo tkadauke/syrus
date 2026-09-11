@@ -9,10 +9,13 @@ module DesignDocs
           visibility: design_doc.visibility,
           state: design_doc.state,
           owner: user_json(design_doc.owner_user),
+          collaborators: design_doc.collaborator_users.map { |user| user_json(user) },
           repository_ids: design_doc.repositories.map(&:id),
           repositories: design_doc.repositories.map { |repository| repository_json(repository) },
+          comments_count: design_doc.comments_count,
           current_version_number: design_doc.current_version&.version_number,
           origin_chat_session_id: design_doc.origin_chat_session_id,
+          preview_text: design_doc.preview_text,
           updated_at: design_doc.updated_at.iso8601,
           created_at: design_doc.created_at.iso8601
         }

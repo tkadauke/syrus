@@ -15,10 +15,13 @@ const docDetail = {
   visibility: "private",
   state: "draft",
   owner: { id: 1, name: "Owner", email_address: "owner@example.com" },
+  collaborators: [{ id: 2, name: "Editor", email_address: "editor@example.com" }],
   repository_ids: [10],
   repositories: [{ id: 10, slug: "acme/widgets" }],
+  comments_count: 2,
   current_version_number: 1,
   origin_chat_session_id: 5,
+  preview_text: "Alpha beta gamma",
   updated_at: "2026-08-29T12:00:00Z",
   created_at: "2026-08-29T11:00:00Z",
   markdown: "Alpha beta gamma",
@@ -30,7 +33,6 @@ const docDetail = {
     can_archive: true
   },
   collaborator_ids: [2],
-  collaborators: [{ id: 2, name: "Editor", email_address: "editor@example.com" }],
   pending_suggestions_count: 1,
   open_threads_count: 1,
   threads: [{
@@ -166,10 +168,12 @@ const secondDocDetail = {
   title: "Billing design",
   repository_ids: [],
   repositories: [],
+  collaborators: [],
+  comments_count: 0,
+  preview_text: "Second document body",
   markdown: "Second document body",
   rendered_markdown: "Second document body",
   collaborator_ids: [],
-  collaborators: [],
   pending_suggestions_count: 0,
   open_threads_count: 0,
   threads: [],
@@ -337,6 +341,26 @@ function indexPayload(detail = docDetail) {
       { field: "visibility", label: "Visibility", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [{ value: "public", label: "Public" }] },
       { field: "updated_at", label: "Updated", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago"], values: [] }
     ],
+    preferences: {
+      visible_columns: ["title", "doc_slug", "state", "repository", "owner", "collaborators", "comments", "latest_version", "updated_at", "actions"],
+      raw: {}
+    },
+    controls: {
+      columns: {
+        required: [{ key: "title", title: "Title" }],
+        optional: [
+          { key: "doc_slug", title: "DOC" },
+          { key: "state", title: "State" },
+          { key: "repository", title: "Repository" },
+          { key: "owner", title: "Owner" },
+          { key: "collaborators", title: "Collaborators" },
+          { key: "comments", title: "Comments" },
+          { key: "latest_version", title: "Latest version" },
+          { key: "updated_at", title: "Updated" },
+          { key: "actions", title: "Actions" }
+        ]
+      }
+    },
     smart_folders: [
       {
         id: 3,
@@ -377,6 +401,10 @@ function mockFetch(detail = docDetail) {
     }
     if (url.pathname === "/api/v1/app/design_docs" && (!init || init.method === undefined)) {
       return jsonResponse(indexPayload(detail))
+    }
+    if (url.pathname === "/api/v1/app/design_docs/preferences" && init?.method === "PATCH") {
+      const payload = JSON.parse(String(init?.body ?? "{}"))
+      return jsonResponse({ message: "Design Docs preferences updated.", preferences: { visible_columns: payload.preferences?.visible_columns ?? [], raw: {} } })
     }
     if (url.pathname === "/api/v1/app/repositories/10/design_docs" && (!init || init.method === undefined)) {
       return jsonResponse({
@@ -552,18 +580,30 @@ describe("DesignDocsSurface", () => {
     renderSurface()
 
     expect(await screen.findByRole("heading", { name: "Design Docs" })).toBeInTheDocument()
-    expect(await screen.findByRole("button", { name: /Checkout design/ })).toBeInTheDocument()
+    expect(await screen.findByTestId("design-docs-table")).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Title" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "DOC" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "State" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Repository" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Owner" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Collaborators" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Comments" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Latest version" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Updated" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: /DOC-1 Checkout design/ })).toBeInTheDocument()
     expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
     expect(await screen.findByRole("button", { name: /\+ Add filter/ })).toBeInTheDocument()
     expect(screen.queryByRole("combobox", { name: "Repository filter" })).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
-    fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
+    expect(screen.queryByText("Select a design doc to review or edit.")).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("link", { name: /DOC-1 Checkout design/ }))
 
     expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /DOC-2 Billing design/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
     expect(screen.getByText("Threads")).toBeInTheDocument()
@@ -599,8 +639,8 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /Checkout design/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /DOC-1 Checkout design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /DOC-2 Billing design/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
     expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
   })
@@ -610,12 +650,38 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     renderSurface()
 
+    const mobileList = await screen.findByTestId("design-docs-mobile-list")
+    expect(within(mobileList).getByText("Checkout design")).toBeInTheDocument()
+    expect(within(mobileList).getByText("DOC-1")).toBeInTheDocument()
+    expect(within(mobileList).getAllByText("draft")[0]).toBeInTheDocument()
+    expect(within(mobileList).getByText("acme/widgets")).toBeInTheDocument()
+    expect(within(mobileList).getAllByText("Owner")[0]).toBeInTheDocument()
+    expect(within(mobileList).queryByText("Editor")).not.toBeInTheDocument()
+    expect(within(mobileList).queryByText("v1")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("design-docs-table")).not.toBeInTheDocument()
+
     fireEvent.click(await screen.findByText("Folders and filters"))
 
     expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
     expect(screen.getByRole("navigation", { name: "Design Docs smart folders" })).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "My docs 1" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Accepted docs 1" })).toBeInTheDocument()
+  })
+
+  it("persists visible Design Docs columns from the table menu", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Columns" }))
+    fireEvent.click(screen.getByLabelText("Collaborators"))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/preferences", expect.objectContaining({ method: "PATCH" })))
+    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/preferences")
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({
+      preferences: {
+        visible_columns: ["doc_slug", "state", "repository", "owner", "comments", "latest_version", "updated_at", "actions"]
+      }
+    })
   })
 
   it("keeps repository-scoped smart folders visible on desktop because the app sidebar does not own them", async () => {
@@ -1573,7 +1639,7 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     renderSurface("/design_docs?q=eyJhbmQiOltdfQ%3D%3D")
 
-    fireEvent.click(await screen.findByRole("button", { name: /Billing design/ }))
+    fireEvent.click(await screen.findByRole("link", { name: /DOC-2 Billing design/ }))
 
     fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
     expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")

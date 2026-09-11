@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEv
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
+import { Checkbox } from "@app/components/Checkbox"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
@@ -30,6 +31,7 @@ import {
   rejectDesignDocSuggestion,
   resolveDesignDocThread,
   updateDesignDoc,
+  updateDesignDocPreferences,
   type DesignDocDetail,
   type DesignDocSuggestion,
   type DesignDocThread,
@@ -94,7 +96,6 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const effectiveId = id || selectedId
   const queryClient = useQueryClient()
   const showIndexControls = mode === "index" || mode === "repository"
-  const showDocList = showIndexControls
   const showPageHeader = showIndexControls
   const indexQuery = useQuery({
     queryKey: mode === "repository" ? ["design_docs", "repository", String(repositoryId), search] : ["design_docs", search],
@@ -105,7 +106,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const detailQuery = useQuery({
     queryKey: ["design_docs", "detail", String(effectiveId || "")],
     queryFn: () => fetchDesignDoc(effectiveId || ""),
-    enabled: Boolean(effectiveId)
+    enabled: Boolean(effectiveId) && !showIndexControls
   })
   const repositoriesQuery = useQuery({
     queryKey: ["repositories"],
@@ -210,14 +211,18 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           </details>
         </div>
       ) : null}
-      <div className={`grid min-h-0 gap-4 ${compact && showDocList ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : showDesktopInlineFolders ? "lg:grid-cols-[16rem_20rem_minmax(0,1fr)]" : showDocList ? "lg:grid-cols-[20rem_minmax(0,1fr)]" : "grid-cols-1"}`}>
-        {showDesktopInlineFolders ? smartFolders : null}
-        {showDocList ? <DesignDocList
-          docs={docs}
-          loading={docsLoading}
-          selectedId={effectiveId}
-          onSelect={(docId) => navigate(docPath(docId))}
-        /> : null}
+      {showIndexControls ? (
+        <div className={`grid min-h-0 gap-4 ${showDesktopInlineFolders ? "lg:grid-cols-[16rem_minmax(0,1fr)]" : "grid-cols-1"}`}>
+          {showDesktopInlineFolders ? smartFolders : null}
+          <DesignDocsIndexTable
+            controls={indexQuery.data?.controls ?? null}
+            docs={docs}
+            loading={docsLoading}
+            onSelect={(docId) => navigate(docPath(docId))}
+            preferences={indexQuery.data?.preferences ?? null}
+          />
+        </div>
+      ) : (
         <section className="min-w-0">
           {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, "Unable to load design doc.")}</Panel> : null}
           {!effectiveId && !detailQuery.isError ? <Panel>{mode === "chat" ? "No design docs are attached to this chat." : "Select a design doc to review or edit."}</Panel> : null}
@@ -238,7 +243,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
             />
           ) : null}
         </section>
-      </div>
+      )}
     </>
   )
 
@@ -267,37 +272,278 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   )
 }
 
-function DesignDocList({ docs, loading, selectedId, onSelect }: {
+function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }: {
+  controls: RepositoryDesignDocsPayload["controls"] | null
   docs: DesignDocSummary[]
   loading: boolean
-  selectedId: string | number | null
   onSelect: (id: number) => void
+  preferences: RepositoryDesignDocsPayload["preferences"] | null
 }) {
+  const queryClient = useQueryClient()
+  const isDesktop = useMediaQuery("(min-width: 768px)", true)
+  const [columnsOpen, setColumnsOpen] = useState(false)
+  const columnsMenuRef = useDismissiblePopup<HTMLDivElement>(columnsOpen, () => setColumnsOpen(false))
+  const requiredColumns = controls?.columns.required ?? [{ key: "title", title: "Title" }]
+  const optionalColumns = controls?.columns.optional ?? defaultDesignDocOptionalColumns()
+  const columns = designDocVisibleColumns({ requiredColumns, optionalColumns, preferences })
+  const menuColumns = designDocOptionalColumnOrder({ optionalColumns, preferences })
+    .map((key) => optionalColumns.find((column) => column.key === key))
+    .filter((column): column is { key: string; title: string } => column != null)
+  const updatePreferences = useMutation({
+    mutationFn: updateDesignDocPreferences,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
+    }
+  })
+
+  function updateColumn(column: string, checked: boolean) {
+    const current = designDocVisibleOptionalColumns({ optionalColumns, preferences })
+    const next = checked ? [ ...current, column ].filter(uniqueValue) : current.filter((value) => value !== column)
+    updatePreferences.mutate({ visible_columns: next })
+  }
+
+  function moveColumn(column: string, direction: -1 | 1) {
+    const current = designDocVisibleOptionalColumns({ optionalColumns, preferences })
+    const index = current.indexOf(column)
+    const target = index + direction
+    if (index < 0 || target < 0 || target >= current.length) return
+
+    const next = [ ...current ]
+    const [moved] = next.splice(index, 1)
+    next.splice(target, 0, moved)
+    updatePreferences.mutate({ visible_columns: next })
+  }
+
+  if (loading) return <Panel>Loading design docs...</Panel>
+  if (docs.length === 0) return <Panel>No visible design docs match these filters.</Panel>
+
   return (
-    <aside className="min-w-0 space-y-3">
-      <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        {loading ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">Loading design docs...</div> : null}
-        {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">No visible design docs match these filters.</div> : null}
-        {docs.map((doc) => (
-          <button
-            className={`block w-full border-b border-gray-100 p-3 text-left last:border-b-0 dark:border-gray-800 ${String(selectedId) === String(doc.id) ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
-            key={doc.id}
-            onClick={() => onSelect(doc.id)}
-            type="button"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{doc.title}</p>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{doc.display_id}</p>
+    <section className="min-w-0 space-y-3" aria-label="Design Docs index">
+      {isDesktop ? (
+        <div className="flex justify-end">
+          <div className="relative" ref={columnsMenuRef}>
+            <Button
+              aria-label="Columns"
+              aria-controls="design-docs-columns-menu"
+              aria-expanded={columnsOpen}
+              aria-haspopup="menu"
+              className="h-9 w-9"
+              onClick={() => setColumnsOpen((open) => !open)}
+              size="sm"
+              variant="secondary"
+            >
+              <ColumnsIcon />
+            </Button>
+            {columnsOpen ? (
+              <div className="absolute right-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="design-docs-columns-menu" role="menu">
+                <fieldset className="space-y-2">
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Visible columns</legend>
+                  {menuColumns.map((column) => {
+                    const checked = columns.includes(column.key)
+                    return (
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
+                        <label className="flex min-w-0 items-center gap-2">
+                          <Checkbox
+                            checked={checked}
+                            disabled={updatePreferences.isPending}
+                            onChange={(event) => updateColumn(column.key, event.target.checked)}
+                          />
+                          <span className="truncate">{column.title}</span>
+                        </label>
+                        <button aria-label={`Move ${column.title} left`} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">Up</button>
+                        <button aria-label={`Move ${column.title} right`} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">Down</button>
+                      </div>
+                    )
+                  })}
+                </fieldset>
+                {updatePreferences.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, "Unable to update columns.")}</p> : null}
               </div>
-              <StatusLabel value={doc.state} />
-            </div>
-            <p className="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">{doc.repositories.map((repository) => repository.slug).join(", ") || "No repositories"}</p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Updated <RelativeTimestamp value={doc.updated_at} /></p>
-          </button>
-        ))}
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {isDesktop ? (
+        <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+          <table className="min-w-full table-fixed divide-y divide-gray-200 text-left text-sm dark:divide-gray-800" data-testid="design-docs-table">
+            <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-500 dark:bg-gray-950/40 dark:text-gray-400">
+              <tr>{columns.map((column) => <th className={designDocColumnClass(column, "header")} key={column} scope="col">{designDocColumnLabel(column, requiredColumns, optionalColumns)}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {docs.map((doc) => (
+                <tr
+                  aria-label={`${doc.display_id} ${doc.title}`}
+                  className="cursor-pointer align-top hover:bg-gray-50 focus:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:bg-gray-800/70 dark:focus:bg-gray-800/70"
+                  key={doc.id}
+                  onClick={() => onSelect(doc.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      onSelect(doc.id)
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
+                >
+                  {columns.map((column) => <DesignDocTableCell column={column} doc={doc} key={column} onSelect={onSelect} />)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" data-testid="design-docs-mobile-list">
+          {docs.map((doc) => (
+            <button
+              className="block w-full border-b border-gray-100 p-3 text-left last:border-b-0 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-gray-800 dark:hover:bg-gray-800/70"
+              key={doc.id}
+              onClick={() => onSelect(doc.id)}
+              type="button"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{doc.title}</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{doc.display_id}</p>
+                </div>
+                <StatusLabel value={doc.state} />
+              </div>
+              <p className="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">{repositoryLabel(doc)}</p>
+              <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{doc.owner?.name ?? "Unassigned"}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function DesignDocTableCell({ column, doc, onSelect }: { column: string; doc: DesignDocSummary; onSelect: (id: number) => void }) {
+  return (
+    <td className={designDocColumnClass(column, "cell")}>
+      {designDocCellContent(column, doc, onSelect)}
+    </td>
+  )
+}
+
+function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (id: number) => void): ReactNode {
+  if (column === "title") {
+    return (
+      <div className="min-w-0">
+        <button
+          className="max-w-full truncate rounded-sm text-left text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          onClick={(event) => {
+            event.stopPropagation()
+            onSelect(doc.id)
+          }}
+          title={doc.title}
+          type="button"
+        >
+          {doc.title}
+        </button>
+        {doc.preview_text ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{doc.preview_text}</p> : null}
       </div>
-    </aside>
+    )
+  }
+  if (column === "doc_slug") {
+    return (
+      <span onClick={(event) => event.stopPropagation()}>
+        <CopyableSlug slug={doc.display_id} />
+      </span>
+    )
+  }
+  if (column === "state") return <StatusLabel value={doc.state} />
+  if (column === "repository") return <span className="block truncate text-gray-700 dark:text-gray-200">{repositoryLabel(doc)}</span>
+  if (column === "owner") return <span className="block truncate text-gray-700 dark:text-gray-200">{doc.owner?.name ?? "Unassigned"}</span>
+  if (column === "collaborators") return <span className="block truncate text-gray-600 dark:text-gray-300">{doc.collaborators?.map((user) => user.name).join(", ") || "None"}</span>
+  if (column === "comments") return <span className="tabular-nums text-gray-700 dark:text-gray-200">{doc.comments_count ?? 0}</span>
+  if (column === "latest_version") return <span className="tabular-nums text-gray-700 dark:text-gray-200">{doc.current_version_number ? `v${doc.current_version_number}` : "None"}</span>
+  if (column === "updated_at") return <RelativeTimestamp value={doc.updated_at} />
+  if (column === "actions") {
+    return (
+      <Button
+        onClick={(event) => {
+          event.stopPropagation()
+          onSelect(doc.id)
+        }}
+        size="sm"
+        variant="secondary"
+      >
+        Open
+      </Button>
+    )
+  }
+
+  return null
+}
+
+function defaultDesignDocOptionalColumns() {
+  return [
+    { key: "doc_slug", title: "DOC" },
+    { key: "state", title: "State" },
+    { key: "repository", title: "Repository" },
+    { key: "owner", title: "Owner" },
+    { key: "collaborators", title: "Collaborators" },
+    { key: "comments", title: "Comments" },
+    { key: "latest_version", title: "Latest version" },
+    { key: "updated_at", title: "Updated" },
+    { key: "actions", title: "Actions" }
+  ]
+}
+
+function designDocOptionalColumnOrder({ optionalColumns, preferences }: { optionalColumns: Array<{ key: string; title: string }>; preferences: RepositoryDesignDocsPayload["preferences"] | null }) {
+  const optional = new Set(optionalColumns.map((column) => column.key))
+  const preferred = designDocVisibleOptionalColumns({ optionalColumns, preferences })
+  const knownPreferred = new Set(preferred)
+  return [ ...preferred, ...optionalColumns.map((column) => column.key).filter((column) => !knownPreferred.has(column)) ]
+}
+
+function designDocVisibleOptionalColumns({ optionalColumns, preferences }: { optionalColumns: Array<{ key: string; title: string }>; preferences: RepositoryDesignDocsPayload["preferences"] | null }) {
+  const optional = new Set(optionalColumns.map((column) => column.key))
+  const preferred = (preferences?.visible_columns ?? optionalColumns.map((column) => column.key)).filter((column) => optional.has(column))
+  return preferred.filter(uniqueValue)
+}
+
+function designDocVisibleColumns({ optionalColumns, preferences, requiredColumns }: { optionalColumns: Array<{ key: string; title: string }>; preferences: RepositoryDesignDocsPayload["preferences"] | null; requiredColumns: Array<{ key: string; title: string }> }) {
+  const allowed = new Set([ ...requiredColumns, ...optionalColumns ].map((column) => column.key))
+  const required = requiredColumns.map((column) => column.key)
+  const preferred = preferences?.visible_columns ?? [ ...required, ...optionalColumns.map((column) => column.key) ]
+  const normalized = [ ...required, ...preferred ].filter((column, index, columns) => allowed.has(column) && columns.indexOf(column) === index)
+  return normalized.length > 0 ? normalized : required
+}
+
+function designDocColumnLabel(column: string, requiredColumns: Array<{ key: string; title: string }>, optionalColumns: Array<{ key: string; title: string }>) {
+  return [ ...requiredColumns, ...optionalColumns ].find((option) => option.key === column)?.title ?? column.replace(/_/g, " ")
+}
+
+function designDocColumnClass(column: string, kind: "header" | "cell") {
+  const base = kind === "header" ? "px-3 py-2" : "px-3 py-3"
+  const width = {
+    title: "w-[30%]",
+    doc_slug: "w-[7.5rem]",
+    state: "w-[7rem]",
+    repository: "w-[12rem]",
+    owner: "w-[10rem]",
+    collaborators: "w-[12rem]",
+    comments: "w-[6rem]",
+    latest_version: "w-[7rem]",
+    updated_at: "w-[9rem]",
+    actions: "w-[6rem]"
+  }[column] ?? ""
+  return `${base} ${width}`
+}
+
+function repositoryLabel(doc: DesignDocSummary) {
+  return doc.repositories.map((repository) => repository.slug).join(", ") || "No repositories"
+}
+
+function uniqueValue(value: string, index: number, values: string[]) {
+  return values.indexOf(value) === index
+}
+
+function ColumnsIcon() {
+  return (
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+      <path d="M7 4v16M17 4v16M5 5h14M5 12h14M5 19h14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
   )
 }
 
