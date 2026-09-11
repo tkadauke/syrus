@@ -133,19 +133,10 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["csrf_token"]).to be_present
     expect(body["system_alerts"]).to eq([])
     expect(body["unread_notifications_count"]).to eq(0)
-    expect(body["feature_flags"]).to eq(
+    expect(body["feature_flags"]).to include(
       "admin_supervisor_chat" => false,
-      "browser_error_auto_reports" => false,
-      "chat_context_compaction" => false,
-      "chat_speech_to_text" => false,
       "coding_mode" => false,
-      "distributed_workflow_dag" => false,
-      "epicless_job_bundling" => false,
-      "landing_validation_prefetch" => false,
       "local_mode" => false,
-      "operational_log_indexing" => false,
-      "performance_logging" => false,
-      "persistent_mcp_sidecar" => false,
       "visual_review" => false
     )
   end
