@@ -59,6 +59,14 @@ RSpec.describe RepoGradeLoopPlan do
               - "plugins/*/app/frontend/**/*.tsx"
               - "eslint.config.js"
               - "eslint-rules/**/*.js"
+          - command: npm run format:frontend
+            files:
+              - "app/frontend/**/*.{ts,tsx,js,jsx,json,css,md,yml,yaml}"
+              - "plugins/*/app/frontend/**/*.{ts,tsx,js,jsx,json,css,md,yml,yaml}"
+              - "eslint-rules/**/*.js"
+              - "package.json"
+              - "tsconfig.json"
+              - "vite.config.ts"
       YAML
 
       result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
