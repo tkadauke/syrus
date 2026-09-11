@@ -36,8 +36,16 @@ class McpToolRegistry
   end
 
   class << self
-    def entries
-      @entries ||= build_entries.freeze
+    SURFACE_ENTRY_BUILDERS = {
+      chat: :chat_entries,
+      workflow: :workflow_entries,
+      agent_insight: :agent_insight_entries
+    }.freeze
+
+    def entries(surface: nil)
+      return all_entries if surface.nil?
+
+      entries_for_surface(surface.to_sym)
     end
 
     def tools(surface: nil, tier: nil)
@@ -75,16 +83,34 @@ class McpToolRegistry
     end
 
     def capability_permitted?(context, capability)
-      entries.any? do |entry|
-        entry.capability == capability.to_sym &&
-          allowed_entry?(entry, context)
+      surfaces_for_context(context).any? do |surface|
+        entries(surface: surface).any? do |entry|
+          entry.capability == capability.to_sym &&
+            allowed_entry?(entry, context)
+        end
       end
     end
 
     private
 
+    def all_entries
+      @entries ||= SURFACE_ENTRY_BUILDERS.keys.flat_map { |surface| entries_for_surface(surface) }.freeze
+    end
+
+    def entries_for_surface(surface)
+      builder = SURFACE_ENTRY_BUILDERS.fetch(surface)
+      (@entries_by_surface ||= {})[surface] ||= send(builder).freeze
+    end
+
+    def surfaces_for_context(context)
+      return [ :chat ] if context.chat?
+      return [ :workflow, :agent_insight ] if context.run?
+
+      []
+    end
+
     def matching_entries(surface:, tier:)
-      entries.select do |entry|
+      entries(surface: surface).select do |entry|
         (surface.nil? || entry.surface == surface.to_sym) &&
           (tier.nil? || entry.tier == tier.to_sym)
       end
@@ -116,14 +142,6 @@ class McpToolRegistry
       else
         false
       end
-    end
-
-    def build_entries
-      [
-        *chat_entries,
-        *workflow_entries,
-        *agent_insight_entries
-      ]
     end
 
     def chat_entries
