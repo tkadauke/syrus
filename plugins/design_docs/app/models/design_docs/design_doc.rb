@@ -5,6 +5,13 @@ module DesignDocs
     VISIBILITIES = %w[private public].freeze
     STATES = %w[draft accepted archived].freeze
     PREVIEW_WORD_LIMIT = 100
+    SUMMARY_ASSOCIATIONS = [
+      :owner_user,
+      :current_version,
+      :repositories,
+      :collaborator_users,
+      { threads: :comments }
+    ].freeze
 
     belongs_to :owner_user, class_name: "User"
     belongs_to :origin_chat_session, class_name: "ChatSession", optional: true
@@ -32,6 +39,10 @@ module DesignDocs
 
     scope :newest_first, -> { order(updated_at: :desc, id: :desc) }
     scope :publicly_visible, -> { where(visibility: "public") }
+
+    def self.summary_associations
+      SUMMARY_ASSOCIATIONS
+    end
 
     def self.visible_to(user)
       user = User.find(user) unless user.is_a?(User)
@@ -62,6 +73,12 @@ module DesignDocs
     end
 
     def comments_count
+      if association(:threads).loaded?
+        return threads.sum do |thread|
+          thread.association(:comments).loaded? ? thread.comments.size : thread.comments.count
+        end
+      end
+
       threads.joins(:comments).count
     end
 
