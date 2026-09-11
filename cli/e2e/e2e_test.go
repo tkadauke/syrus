@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	e2eToken     = "syrus_e2e_cli_token"
-	e2eRepoSlug  = "demo/syrus-preview"
+	e2eToken    = "syrus_e2e_cli_token"
+	e2eRepoSlug = "demo/syrus-preview"
 	e2eJobTitle = "CLI golden path fixture"
 )
 
