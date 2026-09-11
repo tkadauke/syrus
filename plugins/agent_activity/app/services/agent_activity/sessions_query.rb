@@ -156,11 +156,12 @@ module AgentActivity
 
       total = filtered.except(:select, :order).count
       rows = filtered
-        .includes(:resumable)
+        .includes(:resumable, :spawned_processes)
         .order(Arel.sql("#{self.class.latest_process_started_sql} DESC"), id: :desc)
         .offset((@page - 1) * @per)
         .limit(@per)
         .to_a
+      preload_resumable_context(rows)
 
       {
         rows: rows,
@@ -175,6 +176,19 @@ module AgentActivity
       ActiveRecord::Base.sanitize_sql_array(array)
     end
     private_class_method :sanitize_sql
+
+    def preload_resumable_context(agents)
+      resumables_by_type = agents.group_by(&:resumable_type).transform_values { |rows| rows.map(&:resumable).compact }
+      preload(resumables_by_type["Run"], [ { job: :repository }, { step: :workflow } ])
+      preload(resumables_by_type["ChatSession"], [ { repository_attachments: :attachable } ])
+      preload(resumables_by_type["DesignDocs::DesignDocAgentRun"], [ { design_doc: :repositories }, :thread ])
+    end
+
+    def preload(records, associations)
+      return if records.blank?
+
+      ActiveRecord::Associations::Preloader.new(records: records, associations: associations).call
+    end
 
   end
 end

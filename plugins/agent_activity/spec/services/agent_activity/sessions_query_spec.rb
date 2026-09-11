@@ -46,13 +46,14 @@ RSpec.describe AgentActivity::SessionsQuery do
     agent
   end
 
-  def design_doc_agent_run(requested_by_user:, title: "Design notes")
+  def design_doc_agent_run(requested_by_user:, title: "Design notes", repository: nil)
     doc = DesignDocs::DesignDoc.create!(
       owner_user: requested_by_user,
       title: title,
       markdown: "Alpha beta gamma",
       visibility: "private"
     )
+    DesignDocs::DesignDocRepository.create!(design_doc: doc, repository: repository) if repository
     version = doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: requested_by_user)
     doc.update!(current_version: version)
     comment_result = DesignDocs::CreateComment.call(
@@ -71,6 +72,20 @@ RSpec.describe AgentActivity::SessionsQuery do
       started_at: 2.minutes.ago,
       finished_at: 1.minute.ago
     )
+  end
+
+  def record_design_doc_process(run)
+    agent = Agent.find_or_create_for!(run)
+    SpawnedProcess.create!(
+      agent: agent,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "spec-host",
+      started_at: 1.minute.ago,
+      finished_at: 30.seconds.ago,
+      outcome: "succeeded"
+    )
+    agent
   end
 
   def row_job_ids(result)
@@ -210,16 +225,7 @@ RSpec.describe AgentActivity::SessionsQuery do
   describe "design-doc-backed agents" do
     it "includes visible design-doc agent runs with design-doc context" do
       run = design_doc_agent_run(requested_by_user: operator, title: "Merge train design")
-      agent = Agent.find_or_create_for!(run)
-      SpawnedProcess.create!(
-        agent: agent,
-        kind: "agent",
-        command: "codex exec",
-        hostname: "spec-host",
-        started_at: 1.minute.ago,
-        finished_at: 30.seconds.ago,
-        outcome: "succeeded"
-      )
+      agent = record_design_doc_process(run)
 
       result = sessions_for(scope: :mine, user: operator)
 
@@ -227,6 +233,60 @@ RSpec.describe AgentActivity::SessionsQuery do
       payload = AgentActivity::SessionSerializer.call(agent)
       expect(payload[:role_label]).to eq("Design Doc")
       expect(payload[:outcome_summary]).to include("DOC-#{run.design_doc_id}", "Merge train design")
+    end
+  end
+
+  describe "filters" do
+    it "filters repository_id across workflow, chat, and design-doc contexts" do
+      workflow_job = agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 3.minutes.ago })
+      chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      chat_agent = record_chat_process(chat, started_at: 2.minutes.ago, finished_at: 1.minute.ago, outcome: "succeeded")
+      design_run = design_doc_agent_run(requested_by_user: operator, repository: my_repository)
+      design_agent = record_design_doc_process(design_run)
+      agent_activity_job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "succeeded", started_at: 4.minutes.ago })
+      filter = AgentActivity::Filter.from_tree({ "and" => [ { "field" => "repository_id", "op" => "is", "value" => my_repository.id } ] }, user: operator)
+
+      result = described_class.call(scope: :mine, user: operator, filter: filter)
+
+      expect(result[:rows]).to match_array([ Agent.find_by!(resumable: workflow_job.runs.last), chat_agent, design_agent ])
+    end
+
+    it "filters role values for chat modes and design-doc agents" do
+      coding_chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      coding_agent = record_chat_process(coding_chat, started_at: 3.minutes.ago, finished_at: 2.minutes.ago, outcome: "succeeded")
+      planning_chat = ChatSession.create!(user: operator, repository: my_repository, mode: "planning")
+      record_chat_process(planning_chat, started_at: 2.minutes.ago, finished_at: 1.minute.ago, outcome: "succeeded")
+      design_agent = record_design_doc_process(design_doc_agent_run(requested_by_user: operator, repository: my_repository))
+      filter = AgentActivity::Filter.from_tree({ "and" => [ { "field" => "step_kind", "op" => "is_one_of", "value" => [ "coding", "design_doc" ] } ] }, user: operator)
+
+      result = described_class.call(scope: :mine, user: operator, filter: filter)
+
+      expect(result[:rows]).to match_array([ coding_agent, design_agent ])
+    end
+  end
+
+  describe "preloading" do
+    it "loads process and context associations needed by the serializer" do
+      workflow_job = agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 4.minutes.ago })
+      chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      chat_agent = record_chat_process(chat, started_at: 3.minutes.ago, finished_at: 2.minutes.ago, outcome: "succeeded")
+      design_agent = record_design_doc_process(design_doc_agent_run(requested_by_user: operator, repository: my_repository))
+
+      result = sessions_for(scope: :mine, user: operator)
+
+      workflow_agent = result[:rows].find { |agent| agent.resumable == workflow_job.runs.last }
+      expect(workflow_agent.association(:spawned_processes)).to be_loaded
+      expect(workflow_agent.resumable.association(:job)).to be_loaded
+      expect(workflow_agent.resumable.association(:step)).to be_loaded
+      expect(workflow_agent.resumable.step.association(:workflow)).to be_loaded
+      expect(chat_agent.reload.association(:spawned_processes)).not_to be_loaded
+      loaded_chat_agent = result[:rows].find { |agent| agent.id == chat_agent.id }
+      expect(loaded_chat_agent.association(:spawned_processes)).to be_loaded
+      expect(loaded_chat_agent.resumable.association(:repository_attachments)).to be_loaded
+      loaded_design_agent = result[:rows].find { |agent| agent.id == design_agent.id }
+      expect(loaded_design_agent.association(:spawned_processes)).to be_loaded
+      expect(loaded_design_agent.resumable.association(:design_doc)).to be_loaded
+      expect(loaded_design_agent.resumable.design_doc.association(:repositories)).to be_loaded
     end
   end
 

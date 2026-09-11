@@ -2929,25 +2929,37 @@ Bundled plugins:
   gate at all — `PluginRecord.enabled` (default on) is the only toggle, and
   both pages share one component (`AgentActivityFeed.tsx`, parameterized by
   `scope: "mine" | "admin"`) rendering a live, sessions-only feed: one card
-  per agentic `Run`, headlined by whatever that session actually submitted
-  (never inferred from transcript text — see `plugins/agent_activity/docs/syrus_docs/agent_activity.md`).
+  per `Agent` with at least one `SpawnedProcess(kind: "agent")`. Workflow
+  cards still represent agentic Runs, chat cards represent a whole
+  `ChatSession` (multiple turns collapse by `agent_id`), and design-doc cards
+  represent `DesignDocs::DesignDocAgentRun` rows; labels come from
+  `Step::Kind`, `ChatSession#mode`, or design-doc context rather than
+  transcript text — see `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
   `AgentActivity::SessionsQuery` backs
-  `GET /api/v1/app/agent_activity/sessions` (scope `:mine`: repositories the
-  user belongs to plus Jobs they effectively own) and
+  `GET /api/v1/app/agent_activity/sessions` (scope `:mine`: workflow Jobs
+  visible through `Job.accessible_to`/`effectively_owned_by`, self-owned chat
+  sessions, and visible design docs) and
   `GET /api/v1/app/admin/agent_activity/sessions` (scope `:admin`: every
-  session on the instance, gated by `Api::V1::App::Admin::BaseController`'s
-  `require_admin`). Both respond with the same shared-`FilterBar` `filter`/
-  `filter_schema` shape (subject `:agent_activity`: `repository_id`/`job_id`
-  fk, `step_kind` enum, `agent_provider` enum, `status` enum, `window` date),
-  compiled through the normal `Filters::Compiler` since the underlying query
-  is a single `Run` relation. Bare `/agent_activity` and
+  workflow/design-doc Agent on the instance, but chat Agents remain
+  self-scoped to the requesting admin, gated by
+  `Api::V1::App::Admin::BaseController`'s `require_admin`). Both respond with
+  the same shared-`FilterBar` `filter`/`filter_schema` shape (subject
+  `:agent_activity`: `repository_id` across workflow/chat/design-doc context,
+  workflow-only `job_id`, `step_kind` role enum, `agent_provider` enum,
+  process-derived `status` enum, latest-process `window` date), compiled
+  through the normal `Filters::Compiler` since the underlying query is a
+  single `Agent` relation. `Running` means an unfinished spawned agent process;
+  `Failed` means the Agent's latest spawned agent process has outcome
+  `failed`. Bare `/agent_activity` and
   `/admin/agent_activity` visits default to the built-in `Running` SmartFolder;
   explicit `smart_folder_id=` means no active SmartFolder and preserves the
-  all-history view. Clicking a session card reuses the existing
+  all-history view. Clicking a workflow-backed card reuses the existing
   `RunTranscriptLogs` transcript rendering rather than duplicating
-  `AdminTranscript.tsx`'s live-tail viewer; the admin surface has its own
-  `GET .../sessions/:run_id/artifacts` route since it can list sessions on
-  repositories the admin has no membership on and so can't reuse the
-  ownership-scoped Jobs transcript route the operator surface uses; both
-  routes share `App::RunArtifactsPayload.build(run:)` for the JSON shape so
-  they can't drift apart — see `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
+  `AdminTranscript.tsx`'s live-tail viewer; chat/design-doc cards currently
+  render without transcript drawers. The admin surface has its own
+  `GET .../sessions/:run_id/artifacts` route for workflow cards since it can
+  list sessions on repositories the admin has no membership on and so can't
+  reuse the ownership-scoped Jobs transcript route the operator surface uses;
+  both workflow transcript routes share `App::RunArtifactsPayload.build(run:)`
+  for the JSON shape so they can't drift apart — see
+  `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
