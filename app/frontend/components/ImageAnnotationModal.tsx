@@ -79,6 +79,20 @@ const HANDLE_HIT_RAD  = 7
 const SELECTION_PAD   = 4
 const HIT_PAD         = 6
 const SELECTION_COLOR = "#3b82f6"
+const INTERACTIVE_ENTER_TARGET = [
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "a[href]",
+  "[contenteditable='true']",
+  "[role='button']",
+  "[role='checkbox']",
+  "[role='menuitem']",
+  "[role='radio']",
+  "[role='slider']",
+  "[role='switch']"
+].join(",")
 const ZOOM_MIN  = 0.1
 const ZOOM_MAX  = 8
 const ZOOM_STEP = 0.25
@@ -87,6 +101,13 @@ let nextShapeId = 0
 function makeId() { return `s${++nextShapeId}` }
 
 function clampZoom(z: number) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)) }
+
+function acceptsAnnotationEnterShortcut(target: EventTarget | null) {
+  if (!target || target === window || target === document || target === document.body) return true
+  if (!(target instanceof Element)) return true
+  if (target instanceof HTMLCanvasElement) return true
+  return !target.closest(INTERACTIVE_ENTER_TARGET)
+}
 
 function normalizeTextSize(size?: TextSize): TextSize {
   return size ?? "medium"
@@ -609,6 +630,11 @@ function ImageAnnotationModalContent({
     setTool(nextTool)
   }, [textPlacement])
 
+  const handleEnterShortcut = useCallback((event: globalThis.KeyboardEvent) => {
+    if (textPlacement || showDiscardConfirm || !acceptsAnnotationEnterShortcut(event.target)) return
+    finishAnnotation()
+  }, [finishAnnotation, showDiscardConfirm, textPlacement])
+
   const shortcutGroup = t("image_annotation.shortcuts_group")
   useOptionalShortcut("?", () => setHelpOpen(true), {
     description: t("image_annotation.shortcut_show_help"),
@@ -617,6 +643,11 @@ function ImageAnnotationModalContent({
   })
   useOptionalShortcut("escape", handleEscapeShortcut, {
     description: t("image_annotation.shortcut_escape"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("enter", handleEnterShortcut, {
+    description: t("image_annotation.done"),
     group: shortcutGroup,
     groupOrder: 0
   })
