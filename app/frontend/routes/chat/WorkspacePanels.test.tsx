@@ -8,6 +8,7 @@ import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatP
 import { ApiError } from "../../api/client"
 import type { WorkspaceTab } from "./workspaceTabs"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
+import { chatPinsQueryKey } from "./pins"
 
 vi.mock("./attachMediaLibraryImage", () => ({
   attachMediaLibraryImage: vi.fn()
@@ -141,6 +142,9 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
   onNotice?: (message: string | null) => void
 } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  if (options.activeTab !== "pinned") {
+    client.setQueryData(chatPinsQueryKey(payload.chat.id, ""), { pins: [] })
+  }
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
