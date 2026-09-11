@@ -136,6 +136,23 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(spawned_process.chat_session).to eq(chat_session)
   end
 
+  it "attributes the spawned process row to an agent when given one" do
+    agent = Agent.find_or_create_for!(Factories.run)
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "agent",
+      agent: agent
+    ).run
+
+    expect(result).to be_success
+    spawned_process = SpawnedProcess.order(:id).last
+    expect(spawned_process.agent).to eq(agent)
+  end
+
   it "keeps command span attribution distinct from spawned process attribution" do
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
