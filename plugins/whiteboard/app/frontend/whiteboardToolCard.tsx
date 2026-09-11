@@ -1,5 +1,6 @@
-import { isPlainObject } from "@app/pluginToolCards"
+import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
 import { Badge, CardShell, displayValue, numberValue, Row } from "@app/routes/chat/toolCardUi"
+import { isPlainObject } from "@app/toolCardParsing"
 
 // Shared presentation for the whiteboard plugin's chat tool cards (the pending-action tool-card work /
 // Most drawing/move/delete tools return only `{ id, version }` --
@@ -159,8 +160,28 @@ export function SaveCanvasCard({ result }: { result: SaveCanvasResult }) {
         <Badge>Saved snapshot</Badge>
         {result.snapshotId ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{result.snapshotId}</span> : null}
       </div>
-      {result.name ? <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{result.name}</div> : null}
-      {result.elementCount != null ? <Row label="Elements" value={String(result.elementCount)} /> : null}
+      {result.snapshotId ? (
+        <MediaPreviewShell
+          item={{
+            title: result.name ?? `Snapshot #${result.snapshotId}`,
+            subtitle: result.elementCount != null ? `${result.elementCount} element${result.elementCount === 1 ? "" : "s"}` : null,
+            badge: "snapshot",
+            fallbackLabel: "Whiteboard snapshot",
+            actions: [{ label: "Copy ID", copyValue: result.snapshotId }],
+            meta: [
+              { label: "Snapshot ID", value: result.snapshotId, copyValue: result.snapshotId },
+              { label: "Name", value: result.name },
+              { label: "Elements", value: result.elementCount != null ? String(result.elementCount) : null }
+            ]
+          }}
+          modalLabel="Whiteboard snapshot"
+        />
+      ) : (
+        <>
+          {result.name ? <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{result.name}</div> : null}
+          {result.elementCount != null ? <Row label="Elements" value={String(result.elementCount)} /> : null}
+        </>
+      )}
     </CardShell>
   )
 }
@@ -186,6 +207,9 @@ export function parseLoadCanvasResult(value: unknown): LoadCanvasResult | null {
 }
 
 export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
+  const actions: MediaPreviewAction[] = result.snapshotId ? [{ label: "Copy ID", copyValue: result.snapshotId }] : []
+  if (result.autoSavedSnapshotId) actions.push({ label: "Copy auto-save", copyValue: result.autoSavedSnapshotId })
+
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
@@ -193,6 +217,24 @@ export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
         {result.snapshotId ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{result.snapshotId}</span> : null}
         {result.mode ? <Badge>{result.mode}</Badge> : null}
       </div>
+      {result.snapshotId ? (
+        <MediaPreviewShell
+          item={{
+            title: `Snapshot #${result.snapshotId}`,
+            subtitle: result.mode,
+            badge: "snapshot",
+            fallbackLabel: "Whiteboard snapshot",
+            actions,
+            meta: [
+              { label: "Snapshot ID", value: result.snapshotId, copyValue: result.snapshotId },
+              { label: "Mode", value: result.mode },
+              { label: "Elements added", value: result.elementsAdded != null ? String(result.elementsAdded) : null },
+              { label: "Auto-saved as", value: result.autoSavedSnapshotId, copyValue: result.autoSavedSnapshotId }
+            ]
+          }}
+          modalLabel="Whiteboard snapshot"
+        />
+      ) : null}
       <dl className="grid gap-1 sm:grid-cols-2">
         {result.elementsAdded != null ? <Row label="Elements added" value={String(result.elementsAdded)} /> : null}
         {result.autoSavedSnapshotId ? <Row label="Auto-saved as" value={`#${result.autoSavedSnapshotId}`} /> : null}
