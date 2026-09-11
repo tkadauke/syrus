@@ -2446,6 +2446,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
     t.index ["state", "finished_at"], name: "idx_runs_state_finished_at"
     t.index ["state", "job_id", "updated_at"], name: "idx_runs_state_job_updated"
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
+    t.index ["state", "started_at", "id"], name: "idx_runs_state_started_id"
     t.index ["state", "step_id"], name: "idx_runs_state_step_id"
     t.index ["state", "updated_at", "id"], name: "idx_runs_state_updated_id"
     t.index ["step_id", "created_at", "id"], name: "idx_runs_step_created"
