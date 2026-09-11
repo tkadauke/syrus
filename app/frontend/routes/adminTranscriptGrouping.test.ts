@@ -48,13 +48,9 @@ describe("groupTranscriptEvents", () => {
   })
 
   it("renders an unmatched tool_result as a fallback item instead of dropping it", () => {
-    const items = groupTranscriptEvents([
-      event("tool_result", { tool_use_id: "missing", content: "orphaned" })
-    ])
+    const items = groupTranscriptEvents([event("tool_result", { tool_use_id: "missing", content: "orphaned" })])
 
-    expect(items).toEqual([
-      expect.objectContaining({ type: "fallback", badge: "tool ok", title: "orphaned" })
-    ])
+    expect(items).toEqual([expect.objectContaining({ type: "fallback", badge: "tool ok", title: "orphaned" })])
   })
 
   it("passes through text and system events untouched", () => {

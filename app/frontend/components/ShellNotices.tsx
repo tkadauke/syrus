@@ -72,9 +72,7 @@ function BackendUpdateNotice({ update }: { update: SyrusBackendUpdate }) {
   const { t } = useTranslation("nav")
   const percent = update.percent !== null ? Math.max(0, Math.min(100, update.percent)) : null
   const phaseLabel =
-    update.phase === "downloading" && percent !== null
-      ? t("shell.backend_update_downloading_percent", { percent })
-      : t(`shell.backend_update_${update.phase}`)
+    update.phase === "downloading" && percent !== null ? t("shell.backend_update_downloading_percent", { percent }) : t(`shell.backend_update_${update.phase}`)
 
   return (
     <div className={noticeBoxClass()} data-testid="backend-update-notice" role="status">
@@ -82,10 +80,7 @@ function BackendUpdateNotice({ update }: { update: SyrusBackendUpdate }) {
       <span className="mt-0.5 block text-2xs text-gray-500 dark:text-gray-400">{phaseLabel}</span>
       <span aria-hidden="true" className="mt-1.5 block h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
         {percent !== null ? (
-          <span
-            className="block h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
-            style={{ width: `${percent}%` }}
-          />
+          <span className="block h-full rounded-full bg-brand transition-[width] duration-300 ease-out" style={{ width: `${percent}%` }} />
         ) : (
           // No percentage known (phase without one, or compose streamed no
           // parseable pull progress): an indeterminate sweep, stilled for
@@ -181,7 +176,10 @@ function SkillOfferNotice({ bridge, state }: { bridge: SyrusShellBridge; state: 
             <InfoIcon />
           </button>
           {infoOpen ? (
-            <span className="absolute bottom-full right-0 z-30 mb-1 block w-56 rounded border border-gray-200 bg-white p-2 text-2xs font-normal text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300" role="note">
+            <span
+              className="absolute bottom-full right-0 z-30 mb-1 block w-56 rounded border border-gray-200 bg-white p-2 text-2xs font-normal text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
+              role="note"
+            >
               {t("shell.skill_info")}
             </span>
           ) : null}
@@ -205,7 +203,13 @@ function noticeBoxClass() {
 function InfoIcon() {
   return (
     <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-      <path d="M12 11v5.25M12 7.9v.02M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path
+        d="M12 11v5.25M12 7.9v.02M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
     </svg>
   )
 }

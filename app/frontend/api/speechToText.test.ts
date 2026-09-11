@@ -18,14 +18,7 @@ describe("speech-to-text upload gates", () => {
   })
 
   it("accepts recorder-friendly audio content types", () => {
-    expect(TRANSCRIPTION_AUDIO_CONTENT_TYPES).toEqual([
-      "audio/webm",
-      "audio/mp4",
-      "audio/mpeg",
-      "audio/wav",
-      "audio/x-wav",
-      "audio/ogg"
-    ])
+    expect(TRANSCRIPTION_AUDIO_CONTENT_TYPES).toEqual(["audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg"])
     expect(isTranscriptionAudioFile(new File([""], "dictation.webm", { type: "audio/webm;codecs=opus" }))).toBe(true)
     expect(isTranscriptionAudioFile(new File([""], "notes.txt", { type: "text/plain" }))).toBe(false)
   })
@@ -76,9 +69,7 @@ describe("transcribeChatAudio", () => {
     })
     requests[0].respond(502, { error: { code: "speech_to_text_transcription_failed", message: "model unavailable" } })
 
-    await expect(promise).rejects.toMatchObject(
-      new ApiError("model unavailable", { status: 502, code: "speech_to_text_transcription_failed" })
-    )
+    await expect(promise).rejects.toMatchObject(new ApiError("model unavailable", { status: 502, code: "speech_to_text_transcription_failed" }))
   })
 })
 

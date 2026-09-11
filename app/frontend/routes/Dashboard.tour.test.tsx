@@ -102,9 +102,15 @@ describe("DashboardTour", () => {
       "[data-tour='dashboard-table']"
     ])
     expect(screen.getByText("Start new work")).toBeInTheDocument()
-    expect(screen.getByText("'New Job' opens a quick-start form; 'New Epic' groups related jobs together. The recommended way to create jobs and epics is through Chat — describe your task there and Syrus turns it into a pull request.")).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "'New Job' opens a quick-start form; 'New Epic' groups related jobs together. The recommended way to create jobs and epics is through Chat — describe your task there and Syrus turns it into a pull request."
+      )
+    ).toBeInTheDocument()
     expect(screen.getByText("Click any job to dive in")).toBeInTheDocument()
-    expect(screen.getByText("Opening a job shows the full implementation timeline, the pull request diff, and lets you give feedback or approve the work.")).toBeInTheDocument()
+    expect(
+      screen.getByText("Opening a job shows the full implementation timeline, the pull request diff, and lets you give feedback or approve the work.")
+    ).toBeInTheDocument()
   })
 
   it("drops the filter_chips step and uses simple-mode copy in simple mode", () => {
@@ -116,8 +122,14 @@ describe("DashboardTour", () => {
       "[data-tour='dashboard-create-actions']",
       "[data-tour='dashboard-table']"
     ])
-    expect(screen.getByText("'New Feature' starts a new piece of work. The recommended way to start is through Chat — describe what you want there and Syrus turns it into a feature you can review.")).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "'New Feature' starts a new piece of work. The recommended way to start is through Chat — describe what you want there and Syrus turns it into a feature you can review."
+      )
+    ).toBeInTheDocument()
     expect(screen.getByText("Click any feature to dive in")).toBeInTheDocument()
-    expect(screen.getByText("Opening a feature shows its progress. Once it's ready, you can approve it or leave feedback, which starts another round of work.")).toBeInTheDocument()
+    expect(
+      screen.getByText("Opening a feature shows its progress. Once it's ready, you can approve it or leave feedback, which starts another round of work.")
+    ).toBeInTheDocument()
   })
 })

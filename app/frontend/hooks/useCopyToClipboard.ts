@@ -7,19 +7,28 @@ export function useCopyToClipboard(resetDelayMs = 1500) {
   const [copied, setCopied] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-  }, [])
-
-  const copy = useCallback((text: string) => {
-    if (!navigator.clipboard?.writeText) return
-
-    void navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
+  useEffect(
+    () => () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      timeoutRef.current = setTimeout(() => setCopied(false), resetDelayMs)
-    }, () => setCopied(false))
-  }, [resetDelayMs])
+    },
+    []
+  )
+
+  const copy = useCallback(
+    (text: string) => {
+      if (!navigator.clipboard?.writeText) return
+
+      void navigator.clipboard.writeText(text).then(
+        () => {
+          setCopied(true)
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          timeoutRef.current = setTimeout(() => setCopied(false), resetDelayMs)
+        },
+        () => setCopied(false)
+      )
+    },
+    [resetDelayMs]
+  )
 
   return { copied, copy }
 }

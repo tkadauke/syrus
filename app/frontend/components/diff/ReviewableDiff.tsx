@@ -153,7 +153,10 @@ function useFileCacheEntry(cache: Map<string, FileCacheEntry>, path: string): [F
 // A pixel estimate used only until a file section actually mounts and
 // reports its real height (see `virtualizer.measureElement`). Close enough
 // that ordinary scrolling doesn't jump once the real measurement lands.
-function estimateFileSectionHeight(file: ReviewableDiffFile, { forceLoaded, largeFileRowThreshold, showHeader }: { forceLoaded: boolean; largeFileRowThreshold: number; showHeader: boolean }): number {
+function estimateFileSectionHeight(
+  file: ReviewableDiffFile,
+  { forceLoaded, largeFileRowThreshold, showHeader }: { forceLoaded: boolean; largeFileRowThreshold: number; showHeader: boolean }
+): number {
   const header = showHeader ? DEFAULT_FILE_HEADER_HEIGHT_PX : 0
   if (file.patch === null) return header + DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX
   const rowCount = countDiffRows(file.patch)
@@ -224,9 +227,10 @@ export function ReviewableDiff({
     fileCache.current = new Map()
   }
 
-  const containerClass = scroll === "natural"
-    ? "bg-white font-mono text-xs dark:bg-gray-950"
-    : "max-h-[32rem] overflow-y-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950"
+  const containerClass =
+    scroll === "natural"
+      ? "bg-white font-mono text-xs dark:bg-gray-950"
+      : "max-h-[32rem] overflow-y-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950"
 
   const visibleFiles = renderFiles.slice(0, visibleFileCount)
   const remainingFileCount = renderFiles.length - visibleFiles.length
@@ -242,7 +246,14 @@ export function ReviewableDiff({
     return visibleFiles[index]?.path ?? index
   }
 
-  const virtualizer = useVirtualizer({ count: visibleFiles.length, enabled: scroll === "bounded", estimateSize, getItemKey, getScrollElement: () => scrollContainerRef.current, overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN })
+  const virtualizer = useVirtualizer({
+    count: visibleFiles.length,
+    enabled: scroll === "bounded",
+    estimateSize,
+    getItemKey,
+    getScrollElement: () => scrollContainerRef.current,
+    overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN
+  })
 
   // Navigates the virtualized list to `selectedPath` whenever it changes
   // (Files menu selection, a header click round-tripping back through
@@ -266,16 +277,20 @@ export function ReviewableDiff({
       return
     }
     pendingScrollTarget.current = null
-    measureSync("diff_review.anchor_scroll", () => {
-      if (scroll === "natural") {
-        document.querySelector(`[data-diff-file="${CSS.escape(target)}"]`)?.scrollIntoView({ block: "start" })
-      } else {
-        virtualizer.scrollToIndex(index, { align: "start" })
+    measureSync(
+      "diff_review.anchor_scroll",
+      () => {
+        if (scroll === "natural") {
+          document.querySelector(`[data-diff-file="${CSS.escape(target)}"]`)?.scrollIntoView({ block: "start" })
+        } else {
+          virtualizer.scrollToIndex(index, { align: "start" })
+        }
+      },
+      {
+        maxPerSession: 200,
+        metadata: { selected_path: target, virtualization_mode: scroll }
       }
-    }, {
-      maxPerSession: 200,
-      metadata: { selected_path: target, virtualization_mode: scroll }
-    })
+    )
   })
 
   const virtualItems = virtualizer.getVirtualItems()
@@ -286,9 +301,8 @@ export function ReviewableDiff({
   // -- initial mount, "load more files", or files scrolling in/out of the
   // overscan range -- not on every scroll-position pixel.
   useEffect(() => {
-    const mountedFiles = scroll === "natural"
-      ? visibleFiles
-      : virtualItems.map((item) => visibleFiles[item.index]).filter((file): file is ReviewableDiffFile => Boolean(file))
+    const mountedFiles =
+      scroll === "natural" ? visibleFiles : virtualItems.map((item) => visibleFiles[item.index]).filter((file): file is ReviewableDiffFile => Boolean(file))
     const mountedRows = mountedFiles.reduce((sum, file) => sum + (file.patch ? countDiffRows(file.patch) : 0), 0)
     recordCount("diff_review.viewport_render", {
       maxPerSession: 300,
@@ -353,7 +367,13 @@ export function ReviewableDiff({
 
   return (
     <div className="relative" data-testid="agent-diff-viewer" ref={containerRef}>
-      <div className={containerClass} data-rendered-file-count={renderedFileCount} data-total-file-count={visibleFiles.length} onClick={wordHighlighting ? clearHighlightOnDiffBackgroundClick : undefined} ref={scrollContainerRef}>
+      <div
+        className={containerClass}
+        data-rendered-file-count={renderedFileCount}
+        data-total-file-count={visibleFiles.length}
+        onClick={wordHighlighting ? clearHighlightOnDiffBackgroundClick : undefined}
+        ref={scrollContainerRef}
+      >
         {scroll === "natural" ? (
           visibleFiles.map((file, index) => renderFileSection(file, index))
         ) : (
@@ -362,12 +382,7 @@ export function ReviewableDiff({
               const file = visibleFiles[virtualItem.index]
               if (!file) return null
               return (
-                <div
-                  data-index={virtualItem.index}
-                  key={virtualItem.key}
-                  ref={virtualizer.measureElement}
-                  style={virtualFileSectionStyle(virtualItem.start)}
-                >
+                <div data-index={virtualItem.index} key={virtualItem.key} ref={virtualizer.measureElement} style={virtualFileSectionStyle(virtualItem.start)}>
                   {renderFileSection(file, virtualItem.index)}
                 </div>
               )
@@ -411,7 +426,12 @@ export function ReviewableDiff({
 
   function renderFileSection(file: ReviewableDiffFile, index: number) {
     return (
-      <section className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path} key={file.path} style={stickyFileHeaderBoundaryStyle(showHeader)}>
+      <section
+        className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""}
+        data-diff-file={file.path}
+        key={file.path}
+        style={stickyFileHeaderBoundaryStyle(showHeader)}
+      >
         <DiffFileSection
           annotations={annotationsForFile(annotations, file.path)}
           cache={fileCache.current}
@@ -533,15 +553,21 @@ function ChangedFilesPopup({
         className="fixed z-30 flex flex-col overflow-hidden rounded border border-gray-200 bg-white font-mono text-xs shadow-lg dark:border-gray-700 dark:bg-gray-900"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
-        style={placement ? {
-          bottom: placement.bottom,
-          left: placement.left,
-          maxHeight: placement.maxHeight,
-          top: placement.top,
-          width: placement.width
-        } : { left: 16, maxHeight: 480, top: 56, width: 320 }}
+        style={
+          placement
+            ? {
+                bottom: placement.bottom,
+                left: placement.left,
+                maxHeight: placement.maxHeight,
+                top: placement.top,
+                width: placement.width
+              }
+            : { left: 16, maxHeight: 480, top: 56, width: 320 }
+        }
       >
-        <p className="shrink-0 border-b border-gray-100 px-3 py-2 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">Changed files</p>
+        <p className="shrink-0 border-b border-gray-100 px-3 py-2 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          Changed files
+        </p>
         <div className="min-h-0 flex-1 overflow-auto">
           <ChangedFilesList commentCounts={commentCounts} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
         </div>
@@ -567,7 +593,12 @@ function MobileChangedFilesModal({
     <div className="fixed inset-0 z-50 flex flex-col bg-white font-mono text-xs dark:bg-gray-950" role="dialog">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <p className="font-sans text-sm font-semibold text-gray-700 dark:text-gray-200">Changed files</p>
-        <button aria-label="Close changed files" className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+        <button
+          aria-label="Close changed files"
+          className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+          onClick={onClose}
+          type="button"
+        >
           <CloseIcon className="h-5 w-5" />
         </button>
       </div>
@@ -602,7 +633,11 @@ function ChangedFilesList({
           <span className="min-w-0 flex-1 truncate">{file.path}</span>
           {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
           {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
-          {commentCounts?.[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{commentCounts[file.path]}</span> : null}
+          {commentCounts?.[file.path] ? (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              {commentCounts[file.path]}
+            </span>
+          ) : null}
         </button>
       ))}
     </>
@@ -756,18 +791,20 @@ function DiffFileSection({
   // resolve null — never show controls that can't do anything.
   const contextExpansionEnabled = Boolean(onLoadFileContext) && file.status !== "removed"
 
-  const hunkControls: HunkControls[] = contextExpansionEnabled ? hunks.map((_, hunkIndex) => {
-    const upGap = gapsMeta[hunkIndex]
-    const downGap = gapsMeta[hunkIndex + 1]
-    const loading = contextState.status === "loading"
-    const upVisible = !contextState.fullyExpanded && remainingInGap(upGap, contextState.gaps[hunkIndex]) > 0
-    const downVisible = !contextState.fullyExpanded && remainingInGap(downGap, contextState.gaps[hunkIndex + 1]) > 0
+  const hunkControls: HunkControls[] = contextExpansionEnabled
+    ? hunks.map((_, hunkIndex) => {
+        const upGap = gapsMeta[hunkIndex]
+        const downGap = gapsMeta[hunkIndex + 1]
+        const loading = contextState.status === "loading"
+        const upVisible = !contextState.fullyExpanded && remainingInGap(upGap, contextState.gaps[hunkIndex]) > 0
+        const downVisible = !contextState.fullyExpanded && remainingInGap(downGap, contextState.gaps[hunkIndex + 1]) > 0
 
-    return {
-      down: downVisible ? { loading, onClick: () => expandGap(hunkIndex + 1, "fromTop") } : undefined,
-      up: upVisible ? { loading, onClick: () => expandGap(hunkIndex, "fromBottom") } : undefined
-    }
-  }) : []
+        return {
+          down: downVisible ? { loading, onClick: () => expandGap(hunkIndex + 1, "fromTop") } : undefined,
+          up: upVisible ? { loading, onClick: () => expandGap(hunkIndex, "fromBottom") } : undefined
+        }
+      })
+    : []
 
   if (rowCount > largeFileRowThreshold && !forceLoaded) {
     return (
@@ -843,7 +880,9 @@ function LargeFilePlaceholder({ file, onLoad, rowCount }: { file: ReviewableDiff
         {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions} </span> : null}
         This file&rsquo;s diff is large (~{rowCount} rendered lines) and is hidden by default.
       </p>
-      <Button onClick={onLoad} size="sm" variant="secondary">Load diff for this file</Button>
+      <Button onClick={onLoad} size="sm" variant="secondary">
+        Load diff for this file
+      </Button>
     </div>
   )
 }
@@ -865,7 +904,11 @@ function LargeFilePlaceholder({ file, onLoad, rowCount }: { file: ReviewableDiff
 // cache that outlives this component's own mount -- see FileCacheEntry -- so
 // a file that scrolls out of the virtualized window and back doesn't redo
 // Shiki work it already paid for.
-function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId | null, tokensByHunk: Map<number, ThemedToken[][]>): (ThemedToken[] | undefined)[] {
+function useHighlightedDiffLines(
+  lines: DiffLine[],
+  lang: HighlighterLanguageId | null,
+  tokensByHunk: Map<number, ThemedToken[][]>
+): (ThemedToken[] | undefined)[] {
   // Bumped after a fetch populates `tokensByHunk` (mutated in place, so its
   // reference never changes on its own) to tell the memo below new entries
   // landed.
@@ -1030,7 +1073,14 @@ export function UnifiedDiffTable({
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
               hunkIndex += 1
-              return <HunkRow controls={hunkControls?.[hunkIndex]} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} />
+              return (
+                <HunkRow
+                  controls={hunkControls?.[hunkIndex]}
+                  hideOldLineGutter={hideOldLineGutter}
+                  key={`${index}-hunk-${line.hunkNewStart ?? ""}`}
+                  line={line}
+                />
+              )
             }
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
@@ -1042,129 +1092,142 @@ export function UnifiedDiffTable({
             const isComposingHere = Boolean(lineAnchorKey && composingKey && composingKey === lineAnchorKey)
             return (
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
-              <tr
-                className={`group ${diffLineClass(line.kind)} ${canComment ? "max-md:cursor-pointer" : ""}`}
-                data-coverage={annotation}
-                data-diff-anchor={lineAnchorKey || undefined}
-                data-diff-kind={line.kind}
-                onClickCapture={commentSelection ? (event) => handleLineTap(event, commentSelection) : undefined}
-              >
-                {hideOldLineGutter ? null : (
+                <tr
+                  className={`group ${diffLineClass(line.kind)} ${canComment ? "max-md:cursor-pointer" : ""}`}
+                  data-coverage={annotation}
+                  data-diff-anchor={lineAnchorKey || undefined}
+                  data-diff-kind={line.kind}
+                  onClickCapture={commentSelection ? (event) => handleLineTap(event, commentSelection) : undefined}
+                >
+                  {hideOldLineGutter ? null : (
+                    <td className={`relative ${diffGutterClass(line.kind)}`}>
+                      {commentSide === "old" && canComment ? <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" /> : null}
+                      {line.oldLine ?? ""}
+                    </td>
+                  )}
                   <td className={`relative ${diffGutterClass(line.kind)}`}>
-                    {commentSide === "old" && canComment ? (
-                      <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
+                    {commentSide === "new" && canComment ? <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" /> : null}
+                    {line.newLine ?? ""}
+                  </td>
+                  <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
+                  <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>
+                    <DiffCode
+                      code={line.code}
+                      highlightedToken={activeHighlight}
+                      kind={line.kind}
+                      onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
+                      onToggleHighlightToken={toggleHighlight}
+                      tokens={tokensByLine[index]}
+                    />
+                  </td>
+                  <td className="w-4 select-none px-1 text-center">
+                    {annotation === "covered" ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                    ) : annotation === "uncovered" ? (
+                      <span className="text-red-600 dark:text-red-400">✗</span>
                     ) : null}
-                    {line.oldLine ?? ""}
                   </td>
-                )}
-                <td className={`relative ${diffGutterClass(line.kind)}`}>
-                  {commentSide === "new" && canComment ? (
-                    <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" />
-                  ) : null}
-                  {line.newLine ?? ""}
-                </td>
-                <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
-                <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>
-                  <DiffCode
-                    code={line.code}
-                    highlightedToken={activeHighlight}
-                    kind={line.kind}
-                    onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
-                    onToggleHighlightToken={toggleHighlight}
-                    tokens={tokensByLine[index]}
-                  />
-                </td>
-                <td className="w-4 select-none px-1 text-center">
-                  {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-                    : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
-                    : null}
-                </td>
-              </tr>
-              {threads.length > 0 ? (
-                <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
-                  <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
-                  <td className="text-amber-700 dark:text-amber-300">*</td>
-                  <td className="px-3 py-2 text-xs text-amber-950 dark:text-amber-100" colSpan={2}>
-                    <div className="space-y-2">
-                      {threads.map((thread) => (
-                        <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
-                          <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {thread.author ? <span>{thread.author}</span> : null}
-                              <span>{thread.state}</span>
-                              {thread.workflowState ? <span>{thread.workflowState}</span> : null}
-                            </div>
-                            {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
-                              <button
-                                className="normal-case tracking-normal text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
-                                onClick={() => onStartEditThread(thread)}
-                                type="button"
-                              >
-                                Edit
-                              </button>
-                            ) : null}
-                            {thread.state === "draft" && onDeleteThread && editingThreadId !== thread.id ? (
-                              <button
-                                className="normal-case tracking-normal text-red-700 underline hover:text-red-900 dark:text-red-300 dark:hover:text-red-100"
-                                onClick={() => onDeleteThread(thread)}
-                                type="button"
-                              >
-                                Delete
-                              </button>
-                            ) : null}
-                          </div>
-                          {editingThreadId === thread.id ? (
-                            <div className="space-y-2">
-                              <textarea
-                                aria-label={`Edit comment ${thread.id}`}
-                                className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                                onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
-                                value={editingThreadBody ?? ""}
-                              />
-                              <div className="flex gap-2">
-                                <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">Save</Button>
-                                <Button onClick={onCancelEditThread} size="sm" variant="secondary">Cancel</Button>
+                </tr>
+                {threads.length > 0 ? (
+                  <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
+                    <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
+                    <td className="text-amber-700 dark:text-amber-300">*</td>
+                    <td className="px-3 py-2 text-xs text-amber-950 dark:text-amber-100" colSpan={2}>
+                      <div className="space-y-2">
+                        {threads.map((thread) => (
+                          <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
+                            <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {thread.author ? <span>{thread.author}</span> : null}
+                                <span>{thread.state}</span>
+                                {thread.workflowState ? <span>{thread.workflowState}</span> : null}
                               </div>
+                              {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
+                                <button
+                                  className="normal-case tracking-normal text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+                                  onClick={() => onStartEditThread(thread)}
+                                  type="button"
+                                >
+                                  Edit
+                                </button>
+                              ) : null}
+                              {thread.state === "draft" && onDeleteThread && editingThreadId !== thread.id ? (
+                                <button
+                                  className="normal-case tracking-normal text-red-700 underline hover:text-red-900 dark:text-red-300 dark:hover:text-red-100"
+                                  onClick={() => onDeleteThread(thread)}
+                                  type="button"
+                                >
+                                  Delete
+                                </button>
+                              ) : null}
                             </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ) : null}
-              {isComposingHere ? (
-                <tr className="bg-brand/5 font-sans" data-testid="diff-review-composer">
-                  <td className="border-r border-brand/20 max-md:hidden" colSpan={gutterColSpan} />
-                  <td className="text-brand max-md:hidden">*</td>
-                  <td className="px-3 py-2 max-md:p-0" colSpan={2}>
-                    <div className="max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950">
-                      <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
-                        <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("diff_review_composer.title")}</h4>
-                        <button aria-label={t("diff_review_composer.close")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">
-                          <CloseIcon className="h-5 w-5" />
-                        </button>
+                            {editingThreadId === thread.id ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  aria-label={`Edit comment ${thread.id}`}
+                                  className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                  onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
+                                  value={editingThreadBody ?? ""}
+                                />
+                                <div className="flex gap-2">
+                                  <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">
+                                    Save
+                                  </Button>
+                                  <Button onClick={onCancelEditThread} size="sm" variant="secondary">
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">
+                                {thread.body}
+                              </p>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                      <div className="space-y-2 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:gap-2 max-md:overflow-auto max-md:p-3">
-                        <textarea
-                          aria-label="Comment"
-                          autoFocus
-                          className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 max-md:flex-1"
-                          onChange={(event) => onChangeComposingBody?.(event.target.value)}
-                          value={composingBody ?? ""}
-                        />
-                        <div className="flex gap-2">
-                          <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">Create comment</Button>
-                          <Button onClick={onCancelComposing} size="sm" variant="secondary">Cancel</Button>
+                    </td>
+                  </tr>
+                ) : null}
+                {isComposingHere ? (
+                  <tr className="bg-brand/5 font-sans" data-testid="diff-review-composer">
+                    <td className="border-r border-brand/20 max-md:hidden" colSpan={gutterColSpan} />
+                    <td className="text-brand max-md:hidden">*</td>
+                    <td className="px-3 py-2 max-md:p-0" colSpan={2}>
+                      <div className="max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950">
+                        <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
+                          <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("diff_review_composer.title")}</h4>
+                          <button
+                            aria-label={t("diff_review_composer.close")}
+                            className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                            onClick={onCancelComposing}
+                            type="button"
+                          >
+                            <CloseIcon className="h-5 w-5" />
+                          </button>
                         </div>
-                        {composingError ? <p className="text-xs text-red-700 dark:text-red-300">Unable to create diff comment.</p> : null}
+                        <div className="space-y-2 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:gap-2 max-md:overflow-auto max-md:p-3">
+                          <textarea
+                            aria-label="Comment"
+                            autoFocus
+                            className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 max-md:flex-1"
+                            onChange={(event) => onChangeComposingBody?.(event.target.value)}
+                            value={composingBody ?? ""}
+                          />
+                          <div className="flex gap-2">
+                            <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">
+                              Create comment
+                            </Button>
+                            <Button onClick={onCancelComposing} size="sm" variant="secondary">
+                              Cancel
+                            </Button>
+                          </div>
+                          {composingError ? <p className="text-xs text-red-700 dark:text-red-300">Unable to create diff comment.</p> : null}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              ) : null}
+                    </td>
+                  </tr>
+                ) : null}
               </Fragment>
             )
           })}
@@ -1179,9 +1242,7 @@ function isAddedFileDiff(file: ReviewableDiffFile) {
 }
 
 function closestInteractiveElement(target: EventTarget | null) {
-  return target instanceof Element
-    ? target.closest("button, a, input, textarea, select, summary, [role='button'], [contenteditable='true']")
-    : null
+  return target instanceof Element ? target.closest("button, a, input, textarea, select, summary, [role='button'], [contenteditable='true']") : null
 }
 
 function hasActiveTextSelection() {
@@ -1235,27 +1296,33 @@ function DiffCode({
   tokens?: ThemedToken[]
 }) {
   const highlightable = kind === "add" || kind === "delete" || kind === "context"
-  if (!highlightable || !code) return <>{tokens ? renderCodeLine(tokens, code || " ") : (code || " ")}</>
+  if (!highlightable || !code) return <>{tokens ? renderCodeLine(tokens, code || " ") : code || " "}</>
 
   if (tokens) {
     return (
       <>
         {tokens.map((shikiToken, tokenIndex) => (
           <Fragment key={tokenIndex}>
-            {tokenizeCode(shikiToken.content).map((word, wordIndex) => word.highlightable ? (
-              <span
-                className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
-                data-diff-highlight-token
-                key={wordIndex}
-                onClick={(event) => {
-                  if (onMobileTokenTap?.(event)) return
-                  onToggleHighlightToken(word.text)
-                }}
-                style={{ color: shikiToken.color }}
-              >
-                {word.text}
-              </span>
-            ) : <span key={wordIndex} style={{ color: shikiToken.color }}>{word.text}</span>)}
+            {tokenizeCode(shikiToken.content).map((word, wordIndex) =>
+              word.highlightable ? (
+                <span
+                  className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
+                  data-diff-highlight-token
+                  key={wordIndex}
+                  onClick={(event) => {
+                    if (onMobileTokenTap?.(event)) return
+                    onToggleHighlightToken(word.text)
+                  }}
+                  style={{ color: shikiToken.color }}
+                >
+                  {word.text}
+                </span>
+              ) : (
+                <span key={wordIndex} style={{ color: shikiToken.color }}>
+                  {word.text}
+                </span>
+              )
+            )}
           </Fragment>
         ))}
       </>
@@ -1265,19 +1332,23 @@ function DiffCode({
   const wordTokens = tokenizeCode(code)
   return (
     <>
-      {wordTokens.map((token, index) => token.highlightable ? (
-        <span
-          className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
-          data-diff-highlight-token
-          key={index}
-          onClick={(event) => {
-            if (onMobileTokenTap?.(event)) return
-            onToggleHighlightToken(token.text)
-          }}
-        >
-          {token.text}
-        </span>
-      ) : <span key={index}>{token.text}</span>)}
+      {wordTokens.map((token, index) =>
+        token.highlightable ? (
+          <span
+            className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
+            data-diff-highlight-token
+            key={index}
+            onClick={(event) => {
+              if (onMobileTokenTap?.(event)) return
+              onToggleHighlightToken(token.text)
+            }}
+          >
+            {token.text}
+          </span>
+        ) : (
+          <span key={index}>{token.text}</span>
+        )
+      )}
     </>
   )
 }
@@ -1449,10 +1520,7 @@ function statusFromPatch(patch: string) {
   return "modified"
 }
 
-function annotationsForFile(
-  annotations: ReviewableDiffProps["annotations"],
-  path: string
-): Record<string, LineAnnotation> | undefined {
+function annotationsForFile(annotations: ReviewableDiffProps["annotations"], path: string): Record<string, LineAnnotation> | undefined {
   if (!annotations) return undefined
   if (isLineAnnotations(annotations)) return annotations
   return annotations[path]

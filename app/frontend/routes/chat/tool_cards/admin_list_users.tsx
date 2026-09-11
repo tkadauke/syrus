@@ -37,7 +37,10 @@ function userRows(context: ToolCardContext): UserRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.users)) return null
 
-  return parsed.users.flatMap((user, index) => { const row = parseRow(user, index); return row ? [row] : [] })
+  return parsed.users.flatMap((user, index) => {
+    const row = parseRow(user, index)
+    return row ? [row] : []
+  })
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -59,7 +62,9 @@ function renderExpanded(context: ToolCardContext) {
         <TBody>
           {rows.map((row) => (
             <tr key={row.key}>
-              <Td maxWidth title={row.email ?? undefined}>{row.email || "—"}</Td>
+              <Td maxWidth title={row.email ?? undefined}>
+                {row.email || "—"}
+              </Td>
               <Td>{row.admin ? <Badge>admin</Badge> : "—"}</Td>
               <Td>{row.agentProvider || "—"}</Td>
               <Td>{row.schedulingPaused ? <StatePill state="paused" tone="warning" /> : <StatePill state="active" tone="success" />}</Td>

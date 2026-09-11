@@ -1,18 +1,70 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, EpicIcon, GripIcon, MenuIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, SystemThemeIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
-import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, withRoutePrefix } from "./appChromeV2/helpers"
+import {
+  ChevronDownIcon,
+  EpicIcon,
+  GripIcon,
+  MenuIcon,
+  MoonIcon,
+  PlusIcon,
+  SearchIcon,
+  SetupIcon,
+  SunIcon,
+  SystemThemeIcon,
+  TeamIcon,
+  UserIcon
+} from "./appChromeV2/icons"
+import {
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  activeChatIdFromPath,
+  adminNavItemActive,
+  adminNavLinkClass,
+  bugReportContext,
+  clampSidebarWidth,
+  isAdminPath,
+  isAuthPath,
+  normalizedAppPath,
+  popupButtonClass,
+  popupLinkClass,
+  redirectsToSetup,
+  sidebarLinkClass,
+  storeSidebarWidth,
+  storedSidebarWidth,
+  withRoutePrefix
+} from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  type DragEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
 import { getJson, postJson } from "../api/client"
-import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
+import {
+  dashboardApiSearch,
+  dashboardChromeSearch,
+  dashboardSubjectFromPath,
+  fetchDashboardChrome,
+  mergeDashboardPayload,
+  type DashboardChromePayload,
+  type DashboardRowsPayload,
+  type DashboardSubject
+} from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
 import { fetchSidebarPluginPages, type SidebarPluginPage } from "../api/sidebarPages"
@@ -93,13 +145,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }, [])
   const registerBugReportAttachments = useCallback((attachments: BugReportOptionalAttachment[]) => {
     setBugReportAttachments(attachments)
-    return () => setBugReportAttachments((current) => current === attachments ? [] : current)
+    return () => setBugReportAttachments((current) => (current === attachments ? [] : current))
   }, [])
   const bugReportContextValue = useMemo(() => ({ openBugReport, registerBugReportAttachments }), [openBugReport, registerBugReportAttachments])
 
-  const pageContent = redirectsToSetup(data, normalizedPath)
-    ? <Navigate replace to={`${prefix}/onboarding`} />
-    : children ?? <Outlet />
+  const pageContent = redirectsToSetup(data, normalizedPath) ? <Navigate replace to={`${prefix}/onboarding`} /> : (children ?? <Outlet />)
 
   const sidebarPluginPages = useQuery({
     queryKey: ["sidebar", "plugin_pages"],
@@ -107,11 +157,14 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     staleTime: 30_000,
     enabled: Boolean(user)
   })
-  const sidebarNavContext = useMemo(() => ({
-    simpleMode,
-    featureFlags: data?.feature_flags ?? {},
-    teamUserCount: data?.team_user_count ?? 0
-  }), [simpleMode, data?.feature_flags, data?.team_user_count])
+  const sidebarNavContext = useMemo(
+    () => ({
+      simpleMode,
+      featureFlags: data?.feature_flags ?? {},
+      teamUserCount: data?.team_user_count ?? 0
+    }),
+    [simpleMode, data?.feature_flags, data?.team_user_count]
+  )
   const navBadges = useSidebarNavBadges(sidebarPluginPages.data?.pages ?? [], Boolean(user))
   const sidebarNavOrder = data?.current_user?.sidebar_nav_order ?? EMPTY_SIDEBAR_NAV_ORDER
   const mergedSidebarNavItems = useMemo(
@@ -124,39 +177,62 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
     }
   })
-  const primaryNavItems = useMemo(() => mergedSidebarNavItems.map((item) => ({
-    id: item.id,
-    label: item.label,
-    to: `${prefix}${item.to}`,
-    rawTo: item.to,
-    active: sidebarNavItemActive(item, normalizedPath),
-    icon: item.icon,
-    smartFolderApiPath: item.smartFolderApiPath,
-    smartFolderSubject: item.smartFolderSubject,
-    ...(navBadges[item.id] === undefined ? {} : { badge: navBadges[item.id] })
-  })), [mergedSidebarNavItems, navBadges, normalizedPath, prefix])
-  const navItems: SidebarNavItem[] = useMemo(() => (
-    user ? [
-      ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, rawTo: "/onboarding", active: normalizedPath === "/onboarding", icon: <SetupIcon />, smartFolderApiPath: null, smartFolderSubject: null }] : []),
-      ...(tabsHidden ? [] : (() => {
-        const items = [...primaryNavItems]
-        if (legacyEpicsVisible) {
-          const dashboardIndex = items.findIndex((item) => item.id === "dashboard")
-          items.splice(dashboardIndex + 1, 0, {
-            id: "legacy_epics",
-            label: t("nav:epics"),
-            to: `${prefix}/dashboard/epics`,
-            rawTo: "/dashboard/epics",
-            active: normalizedPath.startsWith("/dashboard/epics"),
-            icon: <EpicIcon />,
-            smartFolderApiPath: null,
-            smartFolderSubject: null
-          })
-        }
-        return items
-      })())
-    ] : []
-  ), [user, inOnboarding, tabsHidden, primaryNavItems, legacyEpicsVisible, prefix, normalizedPath, t])
+  const primaryNavItems = useMemo(
+    () =>
+      mergedSidebarNavItems.map((item) => ({
+        id: item.id,
+        label: item.label,
+        to: `${prefix}${item.to}`,
+        rawTo: item.to,
+        active: sidebarNavItemActive(item, normalizedPath),
+        icon: item.icon,
+        smartFolderApiPath: item.smartFolderApiPath,
+        smartFolderSubject: item.smartFolderSubject,
+        ...(navBadges[item.id] === undefined ? {} : { badge: navBadges[item.id] })
+      })),
+    [mergedSidebarNavItems, navBadges, normalizedPath, prefix]
+  )
+  const navItems: SidebarNavItem[] = useMemo(
+    () =>
+      user
+        ? [
+            ...(inOnboarding
+              ? [
+                  {
+                    id: "setup",
+                    label: t("nav:setup"),
+                    to: `${prefix}/onboarding`,
+                    rawTo: "/onboarding",
+                    active: normalizedPath === "/onboarding",
+                    icon: <SetupIcon />,
+                    smartFolderApiPath: null,
+                    smartFolderSubject: null
+                  }
+                ]
+              : []),
+            ...(tabsHidden
+              ? []
+              : (() => {
+                  const items = [...primaryNavItems]
+                  if (legacyEpicsVisible) {
+                    const dashboardIndex = items.findIndex((item) => item.id === "dashboard")
+                    items.splice(dashboardIndex + 1, 0, {
+                      id: "legacy_epics",
+                      label: t("nav:epics"),
+                      to: `${prefix}/dashboard/epics`,
+                      rawTo: "/dashboard/epics",
+                      active: normalizedPath.startsWith("/dashboard/epics"),
+                      icon: <EpicIcon />,
+                      smartFolderApiPath: null,
+                      smartFolderSubject: null
+                    })
+                  }
+                  return items
+                })())
+          ]
+        : [],
+    [user, inOnboarding, tabsHidden, primaryNavItems, legacyEpicsVisible, prefix, normalizedPath, t]
+  )
 
   async function startChat() {
     if (normalizedPath === "/chats/new") return
@@ -256,115 +332,129 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
 
   return (
     <ShortcutsProvider>
-    <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
-    <BugReportContext.Provider value={bugReportContextValue}>
-    <GlobalShortcutsHelp />
-    {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
-    <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
-      <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }} {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}>
-        <SidebarContent
-          csrfToken={data?.csrf_token}
-          dashboardSubnavEnabled={isDesktopSidebarViewport}
-          featureFlags={data?.feature_flags ?? {}}
-          navItems={navItems}
-          onCloseDrawer={() => setDrawerOpen(false)}
-          onNotice={setNotice}
-          onOpenBugReport={openBugReport}
-          onReorderNavItems={reorderSidebarNav.mutate}
-          onStartChat={startChat}
-          onStartGroupChat={startGroupChat}
-          prefix={prefix}
-          showTeamProfile={(data?.team_user_count || 0) > 1}
-          showDashboardSidebarSubjects={showDashboardSidebarSubjects}
-          startingChat={startingChat}
-          user={user}
-        />
-        <div
-          aria-label={t("nav:resize_sidebar")}
-          aria-orientation="vertical"
-          aria-valuemax={SIDEBAR_MAX_WIDTH}
-          aria-valuemin={SIDEBAR_MIN_WIDTH}
-          aria-valuenow={sidebarWidth}
-          className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-brand/30 focus-visible:bg-brand/40"
-          onKeyDown={resizeSidebarWithKeyboard}
-          onMouseDown={startSidebarResize}
-          role="separator"
-          tabIndex={0}
-        />
-      </aside>
-
-      {drawerOpen ? (
-        <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
-          <SidebarContent
-            csrfToken={data?.csrf_token}
-            dashboardSubnavEnabled={false}
-            featureFlags={data?.feature_flags ?? {}}
-            navItems={navItems}
-            onCloseDrawer={() => setDrawerOpen(false)}
-            onNotice={setNotice}
-            onOpenBugReport={openBugReport}
-            onReorderNavItems={reorderSidebarNav.mutate}
-            onStartChat={startChat}
-            onStartGroupChat={startGroupChat}
-            prefix={prefix}
-            showTeamProfile={(data?.team_user_count || 0) > 1}
-            showDashboardSidebarSubjects={showDashboardSidebarSubjects}
-            startingChat={startingChat}
-            user={user}
-          />
-        </div>
-      ) : null}
-
-      <main className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
-        <div className="sticky left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
-          <div className="flex min-w-0 items-center gap-2">
-            <button
-              aria-label={t("nav:open_sidebar")}
-              className="inline-flex min-h-[44px] min-w-0 items-center gap-2 text-lg font-semibold text-gray-900 hover:text-brand dark:text-white"
-              onClick={() => setDrawerOpen(true)}
-              type="button"
+      <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
+        <BugReportContext.Provider value={bugReportContextValue}>
+          <GlobalShortcutsHelp />
+          {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
+          <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
+            <aside
+              className="relative hidden shrink-0 lg:flex"
+              style={{ width: `${sidebarWidth}px` }}
+              {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}
             >
-              <MenuIcon />
-              <SyrusBrand />
-            </button>
-            <TestChannelBadge />
+              <SidebarContent
+                csrfToken={data?.csrf_token}
+                dashboardSubnavEnabled={isDesktopSidebarViewport}
+                featureFlags={data?.feature_flags ?? {}}
+                navItems={navItems}
+                onCloseDrawer={() => setDrawerOpen(false)}
+                onNotice={setNotice}
+                onOpenBugReport={openBugReport}
+                onReorderNavItems={reorderSidebarNav.mutate}
+                onStartChat={startChat}
+                onStartGroupChat={startGroupChat}
+                prefix={prefix}
+                showTeamProfile={(data?.team_user_count || 0) > 1}
+                showDashboardSidebarSubjects={showDashboardSidebarSubjects}
+                startingChat={startingChat}
+                user={user}
+              />
+              <div
+                aria-label={t("nav:resize_sidebar")}
+                aria-orientation="vertical"
+                aria-valuemax={SIDEBAR_MAX_WIDTH}
+                aria-valuemin={SIDEBAR_MIN_WIDTH}
+                aria-valuenow={sidebarWidth}
+                className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-brand/30 focus-visible:bg-brand/40"
+                onKeyDown={resizeSidebarWithKeyboard}
+                onMouseDown={startSidebarResize}
+                role="separator"
+                tabIndex={0}
+              />
+            </aside>
+
+            {drawerOpen ? (
+              <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
+                <SidebarContent
+                  csrfToken={data?.csrf_token}
+                  dashboardSubnavEnabled={false}
+                  featureFlags={data?.feature_flags ?? {}}
+                  navItems={navItems}
+                  onCloseDrawer={() => setDrawerOpen(false)}
+                  onNotice={setNotice}
+                  onOpenBugReport={openBugReport}
+                  onReorderNavItems={reorderSidebarNav.mutate}
+                  onStartChat={startChat}
+                  onStartGroupChat={startGroupChat}
+                  prefix={prefix}
+                  showTeamProfile={(data?.team_user_count || 0) > 1}
+                  showDashboardSidebarSubjects={showDashboardSidebarSubjects}
+                  startingChat={startingChat}
+                  user={user}
+                />
+              </div>
+            ) : null}
+
+            <main className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
+              <div className="sticky left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button
+                    aria-label={t("nav:open_sidebar")}
+                    className="inline-flex min-h-[44px] min-w-0 items-center gap-2 text-lg font-semibold text-gray-900 hover:text-brand dark:text-white"
+                    onClick={() => setDrawerOpen(true)}
+                    type="button"
+                  >
+                    <MenuIcon />
+                    <SyrusBrand />
+                  </button>
+                  <TestChannelBadge />
+                </div>
+                <div className="flex items-center gap-1">
+                  <BugReportTriggerButton onClick={() => openBugReport()} />
+                  {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
+                </div>
+              </div>
+              <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
+              <FlashBanner flash={data?.flash} />
+              <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+              {isMobileChatPage ? (
+                <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
+              ) : showAdminSubnav ? (
+                <div className="flex min-h-full min-w-0">
+                  <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
+                    {pageContent}
+                  </AdminNav>
+                </div>
+              ) : (
+                pageContent
+              )}
+              {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
+            </main>
+            {user ? (
+              <BugReportButton
+                bugReportMode={data?.app?.bug_report_mode ?? null}
+                chatId={activeChatId}
+                context={bugReportContext(location.pathname)}
+                featureFlags={data?.feature_flags}
+                pageAttachments={bugReportAttachments}
+                ref={bugReportRef}
+                reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null}
+              />
+            ) : null}
+            <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
+            {groupChatPickerOpen ? (
+              <ParticipantPickerModal
+                confirmLabel={t("chat:group_picker_create_button")}
+                error={groupChatError}
+                onCancel={() => setGroupChatPickerOpen(false)}
+                onConfirm={confirmGroupChat}
+                submitting={groupChatCreating}
+                title={t("chat:group_picker_title_create")}
+              />
+            ) : null}
           </div>
-          <div className="flex items-center gap-1">
-            <BugReportTriggerButton onClick={() => openBugReport()} />
-            {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
-          </div>
-        </div>
-        <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
-        <FlashBanner flash={data?.flash} />
-        <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-        {isMobileChatPage ? (
-          <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
-        ) : showAdminSubnav ? (
-          <div className="flex min-h-full min-w-0">
-            <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
-              {pageContent}
-            </AdminNav>
-          </div>
-        ) : (
-          pageContent
-        )}
-        {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
-      </main>
-      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatId} context={bugReportContext(location.pathname)} featureFlags={data?.feature_flags} pageAttachments={bugReportAttachments} ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
-      <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
-      {groupChatPickerOpen ? (
-        <ParticipantPickerModal
-          confirmLabel={t("chat:group_picker_create_button")}
-          error={groupChatError}
-          onCancel={() => setGroupChatPickerOpen(false)}
-          onConfirm={confirmGroupChat}
-          submitting={groupChatCreating}
-          title={t("chat:group_picker_title_create")}
-        />
-      ) : null}
-    </div>
-    </BugReportContext.Provider>
-    </ThemeProvider>
+        </BugReportContext.Provider>
+      </ThemeProvider>
     </ShortcutsProvider>
   )
 }
@@ -385,15 +475,19 @@ function GlobalShortcutsHelp() {
 function GlobalBugReportShortcut({ onOpenBugReport }: { onOpenBugReport: () => void }) {
   const { t } = useTranslation("nav")
 
-  useShortcut("mod+b", (event) => {
-    event.preventDefault()
-    onOpenBugReport()
-  }, {
-    allowWhileTyping: true,
-    description: t("nav:shortcuts.report_bug"),
-    group: t("nav:shortcuts.group_global"),
-    groupOrder: 0
-  })
+  useShortcut(
+    "mod+b",
+    (event) => {
+      event.preventDefault()
+      onOpenBugReport()
+    },
+    {
+      allowWhileTyping: true,
+      description: t("nav:shortcuts.report_bug"),
+      group: t("nav:shortcuts.group_global"),
+      groupOrder: 0
+    }
+  )
 
   return null
 }
@@ -460,12 +554,22 @@ function SystemAlertsBanner({ alerts, prefix }: { alerts?: BootstrapPayload["sys
 
   return (
     <section aria-label={t("nav:system_alerts_aria")} className="mx-auto max-w-[96rem] space-y-3 px-6 pt-4">
-      {active.map((alert) => <SystemAlertItem alert={alert} key={alert.id} prefix={prefix} onDismiss={() => dismiss(alert)} />)}
+      {active.map((alert) => (
+        <SystemAlertItem alert={alert} key={alert.id} prefix={prefix} onDismiss={() => dismiss(alert)} />
+      ))}
     </section>
   )
 }
 
-function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<BootstrapPayload["system_alerts"]>[number]; prefix: string; onDismiss: () => void }) {
+function SystemAlertItem({
+  alert,
+  prefix,
+  onDismiss
+}: {
+  alert: NonNullable<BootstrapPayload["system_alerts"]>[number]
+  prefix: string
+  onDismiss: () => void
+}) {
   const { t } = useTranslation("nav")
   const queryClient = useQueryClient()
   const action = useMutation({
@@ -476,11 +580,12 @@ function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<Boot
       void queryClient.invalidateQueries({ queryKey: ["chats"] })
     }
   })
-  const tone = {
-    alarm: "border-red-200 bg-red-50 text-red-900",
-    warn: "border-amber-200 bg-amber-50 text-amber-900",
-    info: "border-info/30 bg-info/10 text-info"
-  }[alert.severity] || "border-gray-200 bg-gray-50 text-gray-900"
+  const tone =
+    {
+      alarm: "border-red-200 bg-red-50 text-red-900",
+      warn: "border-amber-200 bg-amber-50 text-amber-900",
+      info: "border-info/30 bg-info/10 text-info"
+    }[alert.severity] || "border-gray-200 bg-gray-50 text-gray-900"
 
   return (
     <article className={`relative rounded border px-4 py-3 pr-14 text-sm ${tone}`}>
@@ -508,7 +613,10 @@ function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<Boot
       {alert.cta || alert.actions?.length ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {alert.cta ? (
-            <Link className="inline-flex shrink-0 items-center justify-center rounded border border-current px-3 py-1.5 font-medium hover:bg-white/60" to={withRoutePrefix(alert.cta.path, prefix)}>
+            <Link
+              className="inline-flex shrink-0 items-center justify-center rounded border border-current px-3 py-1.5 font-medium hover:bg-white/60"
+              to={withRoutePrefix(alert.cta.path, prefix)}
+            >
               {alert.cta.text}
             </Link>
           ) : null}
@@ -589,9 +697,7 @@ function AdminNav({
         <div className="space-y-4">
           {groups.map(({ group, items }) => (
             <section key={group.id}>
-              <p className="mb-1 px-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                {t(`admin:${group.labelKey}`)}
-              </p>
+              <p className="mb-1 px-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t(`admin:${group.labelKey}`)}</p>
               <div className="space-y-0.5">
                 {items.map((item) => (
                   <AdminNavLink key={item.id} item={item} normalizedPath={normalizedPath} prefix={prefix} />
@@ -627,11 +733,7 @@ function AdminNav({
   )
 }
 
-function AdminNavLink({ item, normalizedPath, prefix }: {
-  item: MergedAdminNavItem
-  normalizedPath: string
-  prefix: string
-}) {
+function AdminNavLink({ item, normalizedPath, prefix }: { item: MergedAdminNavItem; normalizedPath: string; prefix: string }) {
   const active = item.paths.some((p) => adminNavItemActive(normalizedPath, p))
   return (
     <Link className={adminNavLinkClass(active)} to={withRoutePrefix(item.to, prefix)}>
@@ -768,7 +870,7 @@ function SidebarContent({
     if (itemHasSubnav(item, dashboardSubnavEnabled)) {
       if (item.active) {
         event.preventDefault()
-        setOpenSubnavItemId((current) => current === item.id ? null : item.id)
+        setOpenSubnavItemId((current) => (current === item.id ? null : item.id))
         return
       }
 
@@ -827,8 +929,12 @@ function SidebarContent({
       <div className="shrink-0 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
-            <span aria-hidden="true" className="text-gray-900 dark:text-white lg:hidden"><MenuIcon /></span>
-            <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}><SyrusBrand /></Link>
+            <span aria-hidden="true" className="text-gray-900 dark:text-white lg:hidden">
+              <MenuIcon />
+            </span>
+            <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}>
+              <SyrusBrand />
+            </Link>
             <TestChannelBadge />
           </div>
           <div className="flex items-center gap-1">
@@ -847,22 +953,12 @@ function SidebarContent({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="sticky top-0 z-20 space-y-3 bg-white px-3 py-4 dark:bg-gray-950">
-          <Button
-            className="w-full"
-            disabled={!user || startingChat}
-            onClick={onStartChat}
-          >
+          <Button className="w-full" disabled={!user || startingChat} onClick={onStartChat}>
             <PlusIcon />
             <span>{t("nav:new_chat")}</span>
           </Button>
           {showTeamProfile ? (
-            <Button
-              className="w-full"
-              disabled={!user}
-              onClick={onStartGroupChat}
-              size="sm"
-              variant="secondary"
-            >
+            <Button className="w-full" disabled={!user} onClick={onStartGroupChat} size="sm" variant="secondary">
               <TeamIcon />
               <span>{t("nav:new_group_chat")}</span>
             </Button>
@@ -872,7 +968,12 @@ function SidebarContent({
         <div className="px-3 pb-4">
           <nav aria-label={t("nav:primary_nav_aria")} className="flex flex-col gap-1 text-sm">
             {setupItem ? (
-              <Link className={sidebarLinkClass(setupItem.active)} key={setupItem.id} onClick={(event) => handlePrimaryNavClick(setupItem, event)} to={setupItem.to}>
+              <Link
+                className={sidebarLinkClass(setupItem.active)}
+                key={setupItem.id}
+                onClick={(event) => handlePrimaryNavClick(setupItem, event)}
+                to={setupItem.to}
+              >
                 {setupItem.icon}
                 <span>{setupItem.label}</span>
               </Link>
@@ -899,7 +1000,12 @@ function SidebarContent({
                   <GripIcon />
                 </div>
                 {item.id === "dashboard" && dashboardSubnavEnabled ? (
-                  <SidebarDashboardNav expanded={openSubnavItemId === item.id} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
+                  <SidebarDashboardNav
+                    expanded={openSubnavItemId === item.id}
+                    onCloseDrawer={onCloseDrawer}
+                    prefix={prefix}
+                    showSubjects={showDashboardSidebarSubjects}
+                  />
                 ) : dashboardSubnavEnabled && item.smartFolderApiPath && item.smartFolderSubject ? (
                   <SidebarPluginSmartFolderNav expanded={openSubnavItemId === item.id} item={item} prefix={prefix} />
                 ) : null}
@@ -913,13 +1019,7 @@ function SidebarContent({
       <div className="shrink-0 border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
           <nav aria-label={t("account_aria")}>
-            <SettingsPopup
-              csrfToken={csrfToken}
-              onCloseDrawer={onCloseDrawer}
-              prefix={prefix}
-              showTeamProfile={showTeamProfile}
-              user={user}
-            />
+            <SettingsPopup csrfToken={csrfToken} onCloseDrawer={onCloseDrawer} prefix={prefix} showTeamProfile={showTeamProfile} user={user} />
           </nav>
         ) : null}
       </div>
@@ -944,11 +1044,7 @@ function itemHasSubnav(item: SidebarNavItem, dashboardSubnavEnabled = true) {
 }
 
 function isCoarsePointer() {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(pointer: coarse)").matches
-  )
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
 }
 
 function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
@@ -989,9 +1085,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
     function focusSearch(event: globalThis.KeyboardEvent) {
       const target = event.target
       const targetElement = target instanceof HTMLElement ? target : null
-      const typingTarget = targetElement?.tagName === "INPUT" ||
-        targetElement?.tagName === "TEXTAREA" ||
-        targetElement?.isContentEditable
+      const typingTarget = targetElement?.tagName === "INPUT" || targetElement?.tagName === "TEXTAREA" || targetElement?.isContentEditable
       const shortcut = event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k")
       if (!shortcut || typingTarget) return
 
@@ -1006,7 +1100,9 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 
   return (
     <form className="relative" onSubmit={submitSearch} role="search">
-      <label className="sr-only" htmlFor="sidebar-global-search">{t("nav:search_label")}</label>
+      <label className="sr-only" htmlFor="sidebar-global-search">
+        {t("nav:search_label")}
+      </label>
       <SearchIcon />
       <Input
         className="h-9 pl-9"
@@ -1034,7 +1130,7 @@ function legacySearchQuery(value: string) {
   if (!value) return ""
 
   try {
-    const padded = value.padEnd(value.length + ((4 - value.length % 4) % 4), "=")
+    const padded = value.padEnd(value.length + ((4 - (value.length % 4)) % 4), "=")
     const json = window.atob(padded.replace(/-/g, "+").replace(/_/g, "/"))
     const parsed = JSON.parse(json)
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? "" : value
@@ -1043,7 +1139,17 @@ function legacySearchQuery(value: string) {
   }
 }
 
-function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: { expanded: boolean; onCloseDrawer: () => void; prefix: string; showSubjects: boolean }) {
+function SidebarDashboardNav({
+  expanded,
+  onCloseDrawer,
+  prefix,
+  showSubjects
+}: {
+  expanded: boolean
+  onCloseDrawer: () => void
+  prefix: string
+  showSubjects: boolean
+}) {
   const location = useLocation()
   const queryClient = useQueryClient()
   const isDashboard = location.pathname.includes("/dashboard")
@@ -1154,7 +1260,10 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
   ]
 
   return (
-    <nav aria-label={t("nav:dashboard_sections_aria")} className="inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900">
+    <nav
+      aria-label={t("nav:dashboard_sections_aria")}
+      className="inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900"
+    >
       {subjects.map((subject) => (
         <Link
           className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
@@ -1169,7 +1278,13 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
   )
 }
 
-function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user }: {
+function SettingsPopup({
+  csrfToken,
+  onCloseDrawer,
+  prefix,
+  showTeamProfile,
+  user
+}: {
   csrfToken?: string
   onCloseDrawer: () => void
   prefix: string
@@ -1198,14 +1313,29 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
           <ThemePicker />
           <ColorThemePicker />
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
-          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:profile")}</Link>
-          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
-          {user.admin ? <Link className="block px-4 py-2 font-medium text-brand hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
+          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>
+            {t("nav:profile")}
+          </Link>
+          <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>
+            {t("nav:settings")}
+          </Link>
+          {user.admin ? (
+            <Link
+              className="block px-4 py-2 font-medium text-brand hover:bg-gray-50 dark:hover:bg-gray-800"
+              onClick={onCloseDrawer}
+              title="Curia — The Roman Senate house"
+              to={`${prefix}/admin`}
+            >
+              {t("nav:admin")}
+            </Link>
+          ) : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <form action="/session" method="post">
             {csrfToken ? <Input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
             <Input name="_method" type="hidden" value="delete" />
-            <button className={popupButtonClass()} type="submit">{t("nav:sign_out")}</button>
+            <button className={popupButtonClass()} type="submit">
+              {t("nav:sign_out")}
+            </button>
           </form>
         </div>
       ) : null}
@@ -1271,7 +1401,11 @@ function ColorThemePicker() {
         onClick={() => setExpanded((value) => !value)}
         type="button"
       >
-        <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: current.tokens.light.brand }} />
+        <span
+          aria-hidden="true"
+          className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20"
+          style={{ backgroundColor: current.tokens.light.brand }}
+        />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700 dark:text-gray-300">{current.name}</span>
         <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform dark:text-gray-500 ${expanded ? "rotate-180" : ""}`} />
       </button>
@@ -1292,7 +1426,11 @@ function ColorThemePicker() {
                   onClick={() => setColorTheme(option)}
                   type="button"
                 >
-                  <span aria-hidden="true" className="h-4 w-4 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: option.tokens.light.brand }} />
+                  <span
+                    aria-hidden="true"
+                    className="h-4 w-4 rounded-full border border-black/10 dark:border-white/20"
+                    style={{ backgroundColor: option.tokens.light.brand }}
+                  />
                   <span className="w-full truncate text-center">{option.name}</span>
                 </button>
               )
@@ -1309,16 +1447,12 @@ function ColorThemePicker() {
 // is being counted. This used to be a hardcoded terminal-session query here,
 // which meant core had to import the terminal API to draw its own sidebar.
 export function useSidebarNavBadges(pages: SidebarPluginPage[], enabled: boolean): Record<string, number> {
-  const badged = useMemo(
-    () => pages.filter((page) => Boolean(page.badge_api_path)),
-    [pages]
-  )
+  const badged = useMemo(() => pages.filter((page) => Boolean(page.badge_api_path)), [pages])
 
   const results = useQueries({
     queries: badged.map((page) => ({
-      queryKey: [ "sidebar_badge", page.id ],
-      queryFn: ({ signal }: { signal?: AbortSignal }) =>
-        getJson<{ count?: number }>(page.badge_api_path as string, { signal }),
+      queryKey: ["sidebar_badge", page.id],
+      queryFn: ({ signal }: { signal?: AbortSignal }) => getJson<{ count?: number }>(page.badge_api_path as string, { signal }),
       enabled,
       refetchInterval: enabled ? 10000 : (false as const)
     }))

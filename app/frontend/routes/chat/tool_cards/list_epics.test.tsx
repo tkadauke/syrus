@@ -19,15 +19,18 @@ describe("list_epics tool card", () => {
   })
 
   it("summarizes the collapsed row with an Epic count", () => {
-    const parsedResult = { epics: [{ id: 291, state: "running" }, { id: 292, state: "backlog" }] }
+    const parsedResult = {
+      epics: [
+        { id: 291, state: "running" },
+        { id: 292, state: "backlog" }
+      ]
+    }
     expect(listEpicsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 Epics")
   })
 
   it("renders a dense table with one row per Epic, including progress", () => {
     const parsedResult = {
-      epics: [
-        { id: 291, repository_slug: "tkadauke/syrus", title: "Tier 1 Custom Tool Cards", state: "running", child_job_count: 4, open_job_count: 1 }
-      ]
+      epics: [{ id: 291, repository_slug: "tkadauke/syrus", title: "Tier 1 Custom Tool Cards", state: "running", child_job_count: 4, open_job_count: 1 }]
     }
 
     render(<>{listEpicsToolCard.renderExpanded(context({ parsedResult }))}</>)

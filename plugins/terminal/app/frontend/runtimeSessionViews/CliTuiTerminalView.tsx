@@ -11,7 +11,7 @@ function terminalSessionIdFor(metadata: Record<string, unknown> | null | undefin
 
 function CliTuiTerminalView({ session, inputEnabled, onConnectionChange }: PluginRuntimeSessionViewProps) {
   const { t } = useT("chat")
-  const [ connection, setConnection ] = useState<TerminalConnectionState>({ connected: true, ended: false })
+  const [connection, setConnection] = useState<TerminalConnectionState>({ connected: true, ended: false })
   const terminalSessionId = terminalSessionIdFor(session.metadata)
 
   if (terminalSessionId == null) return null

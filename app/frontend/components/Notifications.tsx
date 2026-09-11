@@ -3,13 +3,7 @@ import { withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type MouseEvent, type ReactNode, useEffect, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import {
-  fetchNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-  type NotificationRecord,
-  type NotificationsPayload
-} from "../api/notifications"
+import { fetchNotifications, markAllNotificationsRead, markNotificationRead, type NotificationRecord, type NotificationsPayload } from "../api/notifications"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { requestNativeNotificationPermission } from "../lib/nativeNotifications"
 import { useT } from "../hooks/useT"
@@ -146,12 +140,7 @@ function NotificationsPanel({
       ) : notifications.length > 0 ? (
         <div className="max-h-[28rem] overflow-y-auto">
           {notifications.map((notification) => (
-            <NotificationRow
-              key={notification.id}
-              notification={notification}
-              onNavigate={onNavigate}
-              prefix={prefix}
-            />
+            <NotificationRow key={notification.id} notification={notification} onNavigate={onNavigate} prefix={prefix} />
           ))}
         </div>
       ) : (
@@ -177,7 +166,7 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
         return {
           ...current,
           unread_count: payload.unread_count,
-          notifications: current.notifications.map((item) => item.id === payload.notification.id ? payload.notification : item)
+          notifications: current.notifications.map((item) => (item.id === payload.notification.id ? payload.notification : item))
         }
       })
     }
@@ -199,7 +188,6 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
     if (notification.pr_url) window.open(notification.pr_url, "_blank", "noopener")
   }
 
-
   return (
     <div
       className={`flex w-full min-w-0 items-start gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 ${jobTarget ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900" : ""} ${read ? "" : "bg-brand/10"}`}
@@ -219,9 +207,7 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
         <span className={`block text-sm leading-5 ${read ? "font-medium text-gray-700 dark:text-gray-300" : "font-semibold text-gray-950 dark:text-gray-100"}`}>
           {notification.body}
         </span>
-        {showJobTitle ? (
-          <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">{notification.job_title}</span>
-        ) : null}
+        {showJobTitle ? <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">{notification.job_title}</span> : null}
         <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
           {notification.pr_url ? (
             <>
@@ -237,7 +223,9 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
               <span aria-hidden="true">·</span>
             </>
           ) : null}
-          <span><RelativeTimestamp value={notification.created_at} /></span>
+          <span>
+            <RelativeTimestamp value={notification.created_at} />
+          </span>
         </span>
       </span>
     </div>
@@ -259,8 +247,6 @@ function bodyIncludesJobTitle(body: string, jobTitle: string | null) {
 
   return jobTitle.length > 77 && body.includes(`${jobTitle.slice(0, 77)}...`)
 }
-
-
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(() => {
@@ -316,7 +302,13 @@ function NotificationBadge({ children }: { children: ReactNode }) {
 function BellIcon() {
   return (
     <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
-      <path d="M6.75 10.75a5.25 5.25 0 0 1 10.5 0v3.5l1.5 2.25h-13.5l1.5-2.25v-3.5ZM10 19.25h4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path
+        d="M6.75 10.75a5.25 5.25 0 0 1 10.5 0v3.5l1.5 2.25h-13.5l1.5-2.25v-3.5ZM10 19.25h4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
     </svg>
   )
 }

@@ -246,8 +246,7 @@ export function fetchEpicDetail(id: string) {
 
 export function searchEpicOptions(query: string, options: { signal?: AbortSignal } = {}) {
   const params = new URLSearchParams({ field: "epic_id", q: query })
-  return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options)
-    .then((payload) => payload.options || [])
+  return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options).then((payload) => payload.options || [])
 }
 
 export function createEpic(values: EpicInput, options: { start?: boolean } = {}) {

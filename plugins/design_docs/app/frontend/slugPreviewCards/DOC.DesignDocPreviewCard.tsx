@@ -32,7 +32,7 @@ export function DesignDocPreviewCard({ id, compact = false }: { id: number; comp
   const { data, isPending } = useQuery({
     queryKey: ["design_docs", "preview", String(id)],
     queryFn: () => fetchDesignDocPreview(id),
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   if (isPending) return <DesignDocPreviewSkeleton />
@@ -70,9 +70,7 @@ export function DesignDocPreviewCard({ id, compact = false }: { id: number; comp
       {!compact ? (
         <div className="mb-3 space-y-1 text-xs text-gray-600 dark:text-gray-400">
           <p>{t("preview_owner", { name: doc.owner ? collaboratorLabel(doc.owner) : t("preview_unknown_owner") })}</p>
-          {doc.collaborators && doc.collaborators.length > 0 ? (
-            <p>{t("preview_collaborators", { names: collaboratorSummary(doc.collaborators) })}</p>
-          ) : null}
+          {doc.collaborators && doc.collaborators.length > 0 ? <p>{t("preview_collaborators", { names: collaboratorSummary(doc.collaborators) })}</p> : null}
         </div>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">

@@ -31,7 +31,15 @@ describe("admin_read_operational_logs tool card", () => {
   })
 
   it("summarizes a healthy log search with a count", () => {
-    const parsedResult = { enabled: true, retention_seconds: 3600, count: 2, logs: [{ id: 1, level: "info", message: "a" }, { id: 2, level: "error", message: "b" }] }
+    const parsedResult = {
+      enabled: true,
+      retention_seconds: 3600,
+      count: 2,
+      logs: [
+        { id: 1, level: "info", message: "a" },
+        { id: 2, level: "error", message: "b" }
+      ]
+    }
     expect(adminReadOperationalLogsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 log lines")
   })
 
@@ -44,7 +52,13 @@ describe("admin_read_operational_logs tool card", () => {
   })
 
   it("renders a collapsed log preview with attribution and truncates a very large payload", () => {
-    const logs = Array.from({ length: 60 }, (_, index) => ({ id: index, level: "info", occurred_at: "2026-09-06T00:00:00Z", message: `line ${index}`, job_id: 4048 }))
+    const logs = Array.from({ length: 60 }, (_, index) => ({
+      id: index,
+      level: "info",
+      occurred_at: "2026-09-06T00:00:00Z",
+      message: `line ${index}`,
+      job_id: 4048
+    }))
     const parsedResult = { enabled: true, retention_seconds: 3600, count: logs.length, logs }
 
     render(<>{adminReadOperationalLogsToolCard.renderExpanded(context({ parsedResult }))}</>)

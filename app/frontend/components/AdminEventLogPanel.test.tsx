@@ -18,10 +18,15 @@ describe("AdminEventFilterBar", () => {
             { name: "query", label: "Search", placeholder: "message or path" },
             { name: "since", label: "Since", defaultValue: "24h", placeholder: "24h" },
             { name: "id", label: "ID", inputMode: "numeric" },
-            { name: "revision_scope", label: "Revision", defaultValue: "current", options: [
-              { value: "current", label: "Current SHA" },
-              { value: "all", label: "All SHAs" }
-            ] }
+            {
+              name: "revision_scope",
+              label: "Revision",
+              defaultValue: "current",
+              options: [
+                { value: "current", label: "Current SHA" },
+                { value: "all", label: "All SHAs" }
+              ]
+            }
           ]}
           search="?query=n.map&revision_scope=all"
           searchLabel="Search"
@@ -39,12 +44,7 @@ describe("AdminEventFilterBar", () => {
   it("builds clear links that remove admin filter params", () => {
     render(
       <MemoryRouter>
-        <AdminEventFilterBar
-          clearLabel="Clear"
-          fields={[{ name: "query", label: "Search" }]}
-          search="?query=boom&sort=time"
-          searchLabel="Search"
-        />
+        <AdminEventFilterBar clearLabel="Clear" fields={[{ name: "query", label: "Search" }]} search="?query=boom&sort=time" searchLabel="Search" />
       </MemoryRouter>
     )
 
@@ -97,9 +97,16 @@ describe("AdminEventLogTable", () => {
       <AdminEventLogTable
         columns={[
           { key: "time", header: "Time", sort: "time", className: "px-4 py-2", render: (row: { id: number; message: string }) => row.id },
-          { key: "message", header: "Message", className: "px-4 py-2", render: (row: { id: number; message: string }, state) => (
-            <button onClick={state.toggleExpanded} type="button">{state.expanded ? "Hide" : row.message}</button>
-          ) }
+          {
+            key: "message",
+            header: "Message",
+            className: "px-4 py-2",
+            render: (row: { id: number; message: string }, state) => (
+              <button onClick={state.toggleExpanded} type="button">
+                {state.expanded ? "Hide" : row.message}
+              </button>
+            )
+          }
         ]}
         getRowKey={(row) => row.id}
         rows={[{ id: 7, message: "Show details" }]}

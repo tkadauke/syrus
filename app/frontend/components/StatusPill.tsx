@@ -29,35 +29,41 @@ export const BANNER_TONE_CLASSES: Record<BannerTone, string> = {
 
 const STATE_LATIN: Record<string, string> = {
   // Job states
-  backlog:     "In tabulario — In the register",
-  triaging:    "Auspicia consuluntur — The omens are being consulted",
-  queued:      "In acie stat — It stands in the battle line",
-  open:        "Agitur — It is being done",
+  backlog: "In tabulario — In the register",
+  triaging: "Auspicia consuluntur — The omens are being consulted",
+  queued: "In acie stat — It stands in the battle line",
+  open: "Agitur — It is being done",
   implemented: "Factum est — It is done",
-  approved:    "Probatum est — It is proven",
-  landing:     "Propinquat — It draws near",
-  merged:      "In annales scriptum — Written in the annals",
-  closed:           "Cecidit — It fell",
+  approved: "Probatum est — It is proven",
+  landing: "Propinquat — It draws near",
+  merged: "In annales scriptum — Written in the annals",
+  closed: "Cecidit — It fell",
   no_change_needed: "Iam factum est — It was already done",
   // Run / step states
-  running:     "Currit — It runs",
-  success:     "Successit — It has succeeded",
-  failed:      "Defecit — It has failed",
-  cancelled:   "Intermissum est — It has been interrupted",
-  skipped:     "Praetermissum est — It has been skipped",
-  invalid:     "Invalidum — Invalid",
+  running: "Currit — It runs",
+  success: "Successit — It has succeeded",
+  failed: "Defecit — It has failed",
+  cancelled: "Intermissum est — It has been interrupted",
+  skipped: "Praetermissum est — It has been skipped",
+  invalid: "Invalidum — Invalid",
   // Merge state
   unmergeable: "Bellum Civile — Civil war between branches",
-  mergeable:   "Concordia — Harmony",
+  mergeable: "Concordia — Harmony"
 }
 
 export function StatusPill({ state }: { state: string }) {
   const { t } = useT()
   const normalized = state.toLowerCase()
-  const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
-    normalized.includes("success") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
-      normalized.includes("running") || normalized.includes("queued") ? "blue" :
-        normalized.includes("backlog") || normalized.includes("paused") ? "amber" : "gray"
+  const tone =
+    normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel")
+      ? "red"
+      : normalized.includes("success") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed")
+        ? "green"
+        : normalized.includes("running") || normalized.includes("queued")
+          ? "blue"
+          : normalized.includes("backlog") || normalized.includes("paused")
+            ? "amber"
+            : "gray"
 
   // Translated label with a humanized fallback for states not in the locale.
   const label = t(`status.${normalized}`, { defaultValue: state.replaceAll("_", " ") })
@@ -69,9 +75,26 @@ export function StatusPill({ state }: { state: string }) {
   )
 }
 
-export function TonePill({ children, tone, active = false, title, ariaLabel }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string }) {
+export function TonePill({
+  children,
+  tone,
+  active = false,
+  title,
+  ariaLabel
+}: {
+  children: ReactNode
+  tone: PillTone
+  active?: boolean
+  title?: string
+  ariaLabel?: string
+}) {
   return (
-    <span aria-label={ariaLabel} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${PILL_TONE_CLASSES[tone]}`} data-status-pill="true" title={title}>
+    <span
+      aria-label={ariaLabel}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${PILL_TONE_CLASSES[tone]}`}
+      data-status-pill="true"
+      title={title}
+    >
       {active ? <RunningSpinner /> : null}
       <span>{children}</span>
     </span>

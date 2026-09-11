@@ -31,7 +31,6 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
     if (epic) {
       return (
         <SlugHoverCard key={index} kind="epic" id={Number(epic[1])}>
-
           <Link className={slugLinkClassName} to={`/epics/${epic[1]}`}>
             {part}
           </Link>

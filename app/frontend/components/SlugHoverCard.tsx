@@ -28,11 +28,7 @@ function PluginPreviewCard({ prefix, id }: { prefix: string; id: number }) {
 }
 
 function detectPointerFine(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(hover: hover) and (pointer: fine)").matches
-  )
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(hover: hover) and (pointer: fine)").matches
 }
 
 export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps) {
@@ -43,7 +39,7 @@ export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps
   const canHover = useRef(detectPointerFine())
 
   const { refs, floatingStyles } = useFloating({
-    middleware: [offset(8), flip({ padding: 8 }), autoPlacement({ padding: 8 }), shift({ padding: 8 })],
+    middleware: [offset(8), flip({ padding: 8 }), autoPlacement({ padding: 8 }), shift({ padding: 8 })]
   })
 
   const handleReferenceEnter = useCallback(() => {
@@ -69,12 +65,7 @@ export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps
 
   return (
     <>
-      <span
-        onMouseEnter={handleReferenceEnter}
-        onMouseLeave={handleReferenceLeave}
-        ref={refs.setReference}
-        style={{ display: "inline" }}
-      >
+      <span onMouseEnter={handleReferenceEnter} onMouseLeave={handleReferenceLeave} ref={refs.setReference} style={{ display: "inline" }}>
         {children}
       </span>
       {isOpen && (

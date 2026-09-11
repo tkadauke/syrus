@@ -14,14 +14,7 @@ function renderExpanded(context: ToolCardContext) {
   const outcome = parseScheduledTaskOutcome(context.parsedResult)
   if (!outcome) return null
 
-  return (
-    <ScheduledTaskOutcomeCard
-      detail="This task is scheduled again and will fire on its next due tick."
-      outcome={outcome}
-      pill="resumed"
-      tone="success"
-    />
-  )
+  return <ScheduledTaskOutcomeCard detail="This task is scheduled again and will fire on its next due tick." outcome={outcome} pill="resumed" tone="success" />
 }
 
 const resumeScheduledTaskToolCard: ToolCardRenderer = {

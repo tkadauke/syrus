@@ -60,12 +60,7 @@ describe("pickRecorderMimeType", () => {
   })
 
   it("probes the candidates in preference order", () => {
-    expect(RECORDER_MIME_CANDIDATES).toEqual([
-      "video/webm;codecs=vp9,opus",
-      "video/webm;codecs=vp8,opus",
-      "video/webm",
-      "video/mp4"
-    ])
+    expect(RECORDER_MIME_CANDIDATES).toEqual(["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"])
   })
 })
 
@@ -104,15 +99,21 @@ describe("useWalkthroughRecorder onFinished", () => {
     const onFinished = vi.fn()
     let recorder: FakeMediaRecorder | null = null
 
-    vi.stubGlobal("MediaRecorder", class extends FakeMediaRecorder {
-      constructor() {
-        super()
-        recorder = this
+    vi.stubGlobal(
+      "MediaRecorder",
+      class extends FakeMediaRecorder {
+        constructor() {
+          super()
+          recorder = this
+        }
       }
-    })
-    vi.stubGlobal("MediaStream", class {
-      // The hook wraps the picked tracks in a fresh MediaStream — jsdom has none.
-    })
+    )
+    vi.stubGlobal(
+      "MediaStream",
+      class {
+        // The hook wraps the picked tracks in a fresh MediaStream — jsdom has none.
+      }
+    )
     vi.stubGlobal("navigator", {
       ...navigator,
       mediaDevices: {
@@ -246,9 +247,7 @@ describe("useWalkthroughRecorder annotation", () => {
   it("enables the overlay on start and disables it on stop", async () => {
     stubMedia()
     const { bridge } = fakeAnnotation()
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge }))
 
     // Runtime gate: nothing is advertised until enable() resolves true.
     expect(result.current.annotationAvailable).toBe(false)
@@ -273,9 +272,7 @@ describe("useWalkthroughRecorder annotation", () => {
     // A stolen accelerator or a compositor that can't host the overlay makes
     // the main process report false — the recorder must NOT advertise ⌘⇧A.
     const { bridge } = fakeAnnotation({ enable: vi.fn().mockResolvedValue({ available: false, hold: false }) })
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge }))
 
     await act(async () => {
       await result.current.start()
@@ -303,9 +300,7 @@ describe("useWalkthroughRecorder annotation", () => {
         })
     )
     const { bridge } = fakeAnnotation({ enable })
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge }))
 
     await act(async () => {
       await result.current.start()
@@ -323,9 +318,7 @@ describe("useWalkthroughRecorder annotation", () => {
   it("reports hold mode from enable() so the HUD can show the right hint", async () => {
     stubMedia()
     const { bridge } = fakeAnnotation({ enable: vi.fn().mockResolvedValue({ available: true, hold: true }) })
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge }))
 
     await act(async () => {
       await result.current.start()
@@ -349,9 +342,7 @@ describe("useWalkthroughRecorder annotation", () => {
     const { bridge } = fakeAnnotation({
       enable: vi.fn().mockResolvedValue({ available: true, hold: false, reason: "no-accessibility" })
     })
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge }))
 
     await act(async () => {
       await result.current.start()
@@ -372,9 +363,7 @@ describe("useWalkthroughRecorder annotation", () => {
     const { bridge } = fakeAnnotation({
       enable: vi.fn().mockResolvedValue({ available: true, hold: false })
     })
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge }))
 
     await act(async () => {
       await result.current.start()
@@ -386,9 +375,7 @@ describe("useWalkthroughRecorder annotation", () => {
   it("reflects arm + auto-release transitions pushed from the overlay", async () => {
     stubMedia()
     const { bridge, emitMode } = fakeAnnotation()
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge }))
 
     await act(async () => {
       await result.current.start()
@@ -413,9 +400,7 @@ describe("useWalkthroughRecorder annotation", () => {
   it("captures the shared display surface for the whole-screen nudge", async () => {
     stubMedia("window")
     const { bridge } = fakeAnnotation()
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge }))
 
     await act(async () => {
       await result.current.start()
@@ -425,9 +410,7 @@ describe("useWalkthroughRecorder annotation", () => {
 
   it("reports annotation unavailable and never calls the bridge when there is none", async () => {
     stubMedia()
-    const { result } = renderHook(() =>
-      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: null })
-    )
+    const { result } = renderHook(() => useWalkthroughRecorder({ onFinished: vi.fn(), annotation: null }))
 
     expect(result.current.annotationAvailable).toBe(false)
 
@@ -517,15 +500,7 @@ describe("WalkthroughRecorderHUD", () => {
   })
 
   it("renders the window-capture hint only when a label is supplied", () => {
-    render(
-      <WalkthroughRecorderHUD
-        elapsed={0}
-        labels={{ ...hudLabels, windowHint: "keep the window small" }}
-        micLive
-        onDiscard={() => {}}
-        onStop={() => {}}
-      />
-    )
+    render(<WalkthroughRecorderHUD elapsed={0} labels={{ ...hudLabels, windowHint: "keep the window small" }} micLive onDiscard={() => {}} onStop={() => {}} />)
     expect(screen.getByTestId("walkthrough-recorder-window-hint")).toHaveTextContent("keep the window small")
   })
 
@@ -597,21 +572,10 @@ describe("WalkthroughRecorderHUD", () => {
         onStop={() => {}}
       />
     )
-    expect(screen.getByTestId("walkthrough-annotate-accessibility-note")).toHaveTextContent(
-      "System Settings → Privacy & Security → Accessibility"
-    )
+    expect(screen.getByTestId("walkthrough-annotate-accessibility-note")).toHaveTextContent("System Settings → Privacy & Security → Accessibility")
     unmount()
 
-    render(
-      <WalkthroughRecorderHUD
-        annotation={annotation}
-        elapsed={0}
-        labels={hudLabels}
-        micLive
-        onDiscard={() => {}}
-        onStop={() => {}}
-      />
-    )
+    render(<WalkthroughRecorderHUD annotation={annotation} elapsed={0} labels={hudLabels} micLive onDiscard={() => {}} onStop={() => {}} />)
     expect(screen.queryByTestId("walkthrough-annotate-accessibility-note")).not.toBeInTheDocument()
   })
 
@@ -631,9 +595,7 @@ describe("WalkthroughRecorderHUD", () => {
         onStop={() => {}}
       />
     )
-    expect(screen.getByTestId("walkthrough-annotate-surface-note")).toHaveTextContent(
-      "Share your whole screen to see marks"
-    )
+    expect(screen.getByTestId("walkthrough-annotate-surface-note")).toHaveTextContent("Share your whole screen to see marks")
     unmount()
 
     render(
@@ -710,10 +672,24 @@ describe("useNativeRecorderHud", () => {
     let actionCb: ((kind: "stop" | "discard") => void) | null = null
     const bridge: SyrusRecorderHudBridge = {
       available: true,
-      show: (state) => { calls.show.push(state); return Promise.resolve() },
-      update: (state) => { calls.update.push(state); return Promise.resolve() },
-      hide: () => { calls.hide += 1; return Promise.resolve() },
-      onAction: (callback) => { actionCb = callback; return () => { actionCb = null } }
+      show: (state) => {
+        calls.show.push(state)
+        return Promise.resolve()
+      },
+      update: (state) => {
+        calls.update.push(state)
+        return Promise.resolve()
+      },
+      hide: () => {
+        calls.hide += 1
+        return Promise.resolve()
+      },
+      onAction: (callback) => {
+        actionCb = callback
+        return () => {
+          actionCb = null
+        }
+      }
     }
     return { bridge, calls, fire: (kind: "stop" | "discard") => actionCb?.(kind) }
   }
@@ -741,20 +717,20 @@ describe("useNativeRecorderHud", () => {
     const seam = fakeBridge()
     const onStop = vi.fn()
     const onDiscard = vi.fn()
-    renderHook(() =>
-      useNativeRecorderHud({ recording: true, state: {}, onStop, onDiscard, bridge: seam.bridge })
-    )
+    renderHook(() => useNativeRecorderHud({ recording: true, state: {}, onStop, onDiscard, bridge: seam.bridge }))
 
-    act(() => { seam.fire("stop") })
+    act(() => {
+      seam.fire("stop")
+    })
     expect(onStop).toHaveBeenCalledTimes(1)
-    act(() => { seam.fire("discard") })
+    act(() => {
+      seam.fire("discard")
+    })
     expect(onDiscard).toHaveBeenCalledTimes(1)
   })
 
   it("is inactive (returns false) with no bridge — a plain browser keeps the in-page HUD", () => {
-    const { result } = renderHook(() =>
-      useNativeRecorderHud({ recording: true, state: {}, onStop: () => {}, onDiscard: () => {}, bridge: null })
-    )
+    const { result } = renderHook(() => useNativeRecorderHud({ recording: true, state: {}, onStop: () => {}, onDiscard: () => {}, bridge: null }))
     expect(result.current).toBe(false)
   })
 })

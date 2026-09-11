@@ -23,11 +23,15 @@ export function TimelineBar({
       fill={fill}
       height="20"
       onClick={onClick}
-      onKeyDown={onClick ? (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return
-        event.preventDefault()
-        onClick()
-      } : undefined}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key !== "Enter" && event.key !== " ") return
+              event.preventDefault()
+              onClick()
+            }
+          : undefined
+      }
       onMouseEnter={(event) => onHover({ x: event.clientX, y: event.clientY })}
       onMouseLeave={() => onHover(null)}
       onMouseMove={(event) => onHover({ x: event.clientX, y: event.clientY })}

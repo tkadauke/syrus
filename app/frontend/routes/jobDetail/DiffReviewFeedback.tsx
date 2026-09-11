@@ -110,7 +110,8 @@ export function useDiffReviewFeedback({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: commentQueryKey })
   })
   const replyToComment = useMutation({
-    mutationFn: ({ id, body: replyText, versionId }: { id: number; body: string; versionId?: number | null }) => replyToDiffReviewComment(jobId, id, replyText, versionId),
+    mutationFn: ({ id, body: replyText, versionId }: { id: number; body: string; versionId?: number | null }) =>
+      replyToDiffReviewComment(jobId, id, replyText, versionId),
     onSuccess: () => {
       setReplyingId(null)
       setReplyBody("")
@@ -155,17 +156,19 @@ export function useDiffReviewFeedback({
       return
     }
     if (!selection) return
-    createComment.mutate(commentInputForSelection({
-      baseRef,
-      body: trimmed,
-      buildContext,
-      diffReviewVersionId,
-      headRef,
-      runId,
-      selection,
-      surface,
-      workflowId
-    }))
+    createComment.mutate(
+      commentInputForSelection({
+        baseRef,
+        body: trimmed,
+        buildContext,
+        diffReviewVersionId,
+        headRef,
+        runId,
+        selection,
+        surface,
+        workflowId
+      })
+    )
   }
 
   function editComment(comment: DiffReviewComment) {
@@ -412,55 +415,98 @@ function DiffReviewFeedbackPanel({
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("review_feedback_title")}</h3>
         <div className="flex flex-wrap gap-2">
           <ReviewStatePill label={t("review_pending_state", { count: actionableComments.length })} tone="pending" />
-          <ReviewStatePill label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })} tone={workflowActive ? "submitted" : "handled"} />
+          <ReviewStatePill
+            label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })}
+            tone={workflowActive ? "submitted" : "handled"}
+          />
         </div>
       </div>
       <div className="mt-3 space-y-3">
-        {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => {
-          const isGlobal = comment.anchor_kind === "review"
-          const selectedVersion = comment.diff_review_version_id === currentVersionId
-          return (
-          <div className={`min-w-0 rounded border p-3 text-sm ${selectedVersion ? "border-gray-200 dark:border-gray-800" : "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"}`} data-diff-review-comment-id={comment.id} key={comment.id}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
-                {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {!selectedVersion ? <ReviewStatePill label={t("review_version_historical_badge", { version: comment.diff_review_version?.version_index ?? "?" })} tone="submitted" /> : null}
-                <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
-              </div>
-            </div>
-            {!isGlobal && comment.diff_hunk ? (
-              <div className="mt-2">
-                <DiffHunkSnippet highlightLine={diffContextHighlightLine(comment)} hunk={comment.diff_hunk} />
-              </div>
-            ) : null}
-            <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
-              {supportsGlobalComments && (comment.path || isGlobal) ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
-              {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
-              {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
-              {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
-            </div>
-            {replyingId === comment.id ? (
-              <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
-                <textarea
-                  aria-label={t("review_reply_comment")}
-                  className="min-h-16 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                  onChange={(event) => onChangeReplyBody(event.target.value)}
-                  value={replyBody}
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">{t("review_send_reply")}</Button>
-                  <Button onClick={onCancelReply} size="sm" variant="secondary">{t("tags_cancel")}</Button>
+        {comments.length === 0 ? (
+          <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p>
+        ) : (
+          comments.map((comment) => {
+            const isGlobal = comment.anchor_kind === "review"
+            const selectedVersion = comment.diff_review_version_id === currentVersionId
+            return (
+              <div
+                className={`min-w-0 rounded border p-3 text-sm ${selectedVersion ? "border-gray-200 dark:border-gray-800" : "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"}`}
+                data-diff-review-comment-id={comment.id}
+                key={comment.id}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
+                    {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {!selectedVersion ? (
+                      <ReviewStatePill
+                        label={t("review_version_historical_badge", { version: comment.diff_review_version?.version_index ?? "?" })}
+                        tone="submitted"
+                      />
+                    ) : null}
+                    <ReviewStatePill
+                      label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state}
+                      tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"}
+                    />
+                  </div>
                 </div>
-                {replyError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
+                {!isGlobal && comment.diff_hunk ? (
+                  <div className="mt-2">
+                    <DiffHunkSnippet highlightLine={diffContextHighlightLine(comment)} hunk={comment.diff_hunk} />
+                  </div>
+                ) : null}
+                <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {comment.state === "draft" && isGlobal ? (
+                    <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">
+                      {t("review_edit_comment")}
+                    </Button>
+                  ) : null}
+                  {supportsGlobalComments && (comment.path || isGlobal) ? (
+                    <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">
+                      {t("review_view_in_diff")}
+                    </Button>
+                  ) : null}
+                  {comment.state !== "resolved" ? (
+                    <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">
+                      {t("review_resolve_comment")}
+                    </Button>
+                  ) : null}
+                  {replyingId !== comment.id ? (
+                    <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">
+                      {t("review_reply_comment")}
+                    </Button>
+                  ) : null}
+                  {comment.state === "draft" && isGlobal ? (
+                    <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">
+                      {t("review_delete_comment")}
+                    </Button>
+                  ) : null}
+                </div>
+                {replyingId === comment.id ? (
+                  <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
+                    <textarea
+                      aria-label={t("review_reply_comment")}
+                      className="min-h-16 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                      onChange={(event) => onChangeReplyBody(event.target.value)}
+                      value={replyBody}
+                    />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">
+                        {t("review_send_reply")}
+                      </Button>
+                      <Button onClick={onCancelReply} size="sm" variant="secondary">
+                        {t("tags_cancel")}
+                      </Button>
+                    </div>
+                    {replyError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-          )
-        })}
+            )
+          })
+        )}
       </div>
       {deleteError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
 
@@ -474,8 +520,12 @@ function DiffReviewFeedbackPanel({
             value={body}
           />
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button disabled={!body.trim() || createPending || updatePending} onClick={onSave} size="sm">{editing ? t("review_save_comment") : t("review_create_comment")}</Button>
-            <Button onClick={onCancel} size="sm" variant="secondary">{t("tags_cancel")}</Button>
+            <Button disabled={!body.trim() || createPending || updatePending} onClick={onSave} size="sm">
+              {editing ? t("review_save_comment") : t("review_create_comment")}
+            </Button>
+            <Button onClick={onCancel} size="sm" variant="secondary">
+              {t("tags_cancel")}
+            </Button>
           </div>
           {createError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(createError, t("review_create_error"))}</p> : null}
           {updateError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(updateError, t("review_update_error"))}</p> : null}
@@ -637,7 +687,15 @@ function diffThreadsByPath(comments: DiffReviewComment[]) {
   }, {})
 }
 
-function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, surface, workflowId }: {
+function diffReviewCommentsSearch({
+  baseRef,
+  diffReviewVersionId,
+  headRef,
+  includeAllVersions,
+  runId,
+  surface,
+  workflowId
+}: {
   baseRef?: string | null
   diffReviewVersionId?: number | null
   headRef?: string | null

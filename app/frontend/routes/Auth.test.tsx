@@ -144,8 +144,7 @@ describe("authRedirectTarget", () => {
     // after_authentication_path can replay session[:return_to_after_authenticating],
     // which is stored as the full request.url; prefixing it would build
     // "/app-shellhttp://..." and 404.
-    expect(authRedirectTarget("/app-shell", "http://127.0.0.1:3000/app-shell/jobs/5"))
-      .toBe("http://127.0.0.1:3000/app-shell/jobs/5")
+    expect(authRedirectTarget("/app-shell", "http://127.0.0.1:3000/app-shell/jobs/5")).toBe("http://127.0.0.1:3000/app-shell/jobs/5")
   })
 
   it("is a no-op outside the shell", () => {

@@ -16,13 +16,18 @@ function StageCircle({ state }: { state: StageFillState }) {
 
   if (state === "partial") {
     return (
-      <span aria-hidden="true" className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-emerald-200 bg-gray-100 dark:border-emerald-800 dark:bg-gray-900">
+      <span
+        aria-hidden="true"
+        className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-emerald-200 bg-gray-100 dark:border-emerald-800 dark:bg-gray-900"
+      >
         <span className="absolute inset-y-0 left-0 w-1/2 bg-emerald-500 dark:bg-emerald-600" />
       </span>
     )
   }
 
-  return <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-gray-100 text-2xs font-semibold text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500" />
+  return (
+    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-gray-100 text-2xs font-semibold text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500" />
+  )
 }
 
 function StageConnector({ filled }: { filled: boolean }) {
@@ -72,9 +77,7 @@ export function EpicDeploymentStagePipeline({ stages }: { stages: EpicDeployment
     <div aria-label={t("deployment_stages_label")} className="mt-3 pb-1">
       <ol className="flex w-full" data-testid="epic-deployment-stage-pipeline">
         {stages.map((stage, index) => {
-          const state: StageFillState = stage.total <= 0 || stage.reached_count <= 0
-            ? "pending"
-            : stage.reached_count >= stage.total ? "reached" : "partial"
+          const state: StageFillState = stage.total <= 0 || stage.reached_count <= 0 ? "pending" : stage.reached_count >= stage.total ? "reached" : "partial"
           const nextStage = stages[index + 1]
           const nextReached = Boolean(nextStage && nextStage.total > 0 && nextStage.reached_count >= nextStage.total)
           return (
@@ -84,7 +87,9 @@ export function EpicDeploymentStagePipeline({ stages }: { stages: EpicDeployment
                 {index < stages.length - 1 ? <StageConnector filled={state === "reached" && nextReached} /> : null}
               </div>
               <span className="w-full break-words text-xs font-medium text-gray-800 dark:text-gray-100">{stage.label}</span>
-              <span className={`text-xs ${state === "reached" ? "text-emerald-700 dark:text-emerald-300" : state === "partial" ? "text-amber-700 dark:text-amber-300" : "text-gray-400 dark:text-gray-500"}`}>
+              <span
+                className={`text-xs ${state === "reached" ? "text-emerald-700 dark:text-emerald-300" : state === "partial" ? "text-amber-700 dark:text-amber-300" : "text-gray-400 dark:text-gray-500"}`}
+              >
                 {state === "reached" && stage.reached_at ? (
                   <RelativeTimestamp value={stage.reached_at} />
                 ) : state === "partial" ? (

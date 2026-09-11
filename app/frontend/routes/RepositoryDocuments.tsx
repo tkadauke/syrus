@@ -40,17 +40,19 @@ export function RepositoryDocumentsRoute() {
     <RepositoryPageShell
       activeTab="documents"
       ariaLabel={t("aria_repo_documents")}
-      heading={payload ? (
-        <PageHeading mono>
-          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
-        </PageHeading>
-      ) : null}
+      heading={
+        payload ? (
+          <PageHeading mono>
+            <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>
+              {payload.repository.slug}
+            </Link>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={payload?.tabs ?? []}
     >
-      {documents.isPending ? <PanelMessage>
-        {t('repository_documents.loading')}
-      </PanelMessage> : null}
+      {documents.isPending ? <PanelMessage>{t("repository_documents.loading")}</PanelMessage> : null}
       {documents.isError ? <RepositoryDocumentsError error={documents.error} /> : null}
       {payload ? <RepositoryDocumentsView payload={payload} prefix={prefix} /> : null}
     </RepositoryPageShell>
@@ -68,7 +70,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
     mutationFn: (document: RepositoryDocument) => deleteRepositoryDocument(document.id),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
-      setNotice(updated.message || t('repository_documents.removed'))
+      setNotice(updated.message || t("repository_documents.removed"))
     }
   })
 
@@ -87,23 +89,19 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
 
   return (
     <>
-      <p className="text-sm text-gray-600 dark:text-gray-400">
-        {t('repository_documents.description')}
-      </p>
+      <p className="text-sm text-gray-600 dark:text-gray-400">{t("repository_documents.description")}</p>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete document.")}</PanelMessage> : null}
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-          <SectionHeading>
-            {t('repository_documents.documentation')}
-          </SectionHeading>
+          <SectionHeading>{t("repository_documents.documentation")}</SectionHeading>
         </div>
 
         {payload.documents.length === 0 ? (
           <div className="m-4 rounded border border-dashed border-gray-300 dark:border-gray-600 px-4 py-8 text-center text-sm text-gray-600 dark:text-gray-400">
-            {t('repository_documents.empty')}
+            {t("repository_documents.empty")}
           </div>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-800 px-4">
@@ -122,11 +120,11 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
                     className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
                     disabled={destroy.isPending}
                     onClick={async () => {
-                      if (await confirm({ message: t('repository_documents.confirm_delete'), destructive: true })) destroy.mutate(document)
+                      if (await confirm({ message: t("repository_documents.confirm_delete"), destructive: true })) destroy.mutate(document)
                     }}
                     type="button"
                   >
-                    {t('repository_documents.delete')}
+                    {t("repository_documents.delete")}
                   </button>
                 </div>
               </li>
@@ -189,51 +187,51 @@ function DocumentForms({
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      {save.isError ? <div className="md:col-span-2"><PanelMessage tone="error">{errorMessage(save.error, "Unable to add document.")}</PanelMessage></div> : null}
+      {save.isError ? (
+        <div className="md:col-span-2">
+          <PanelMessage tone="error">{errorMessage(save.error, "Unable to add document.")}</PanelMessage>
+        </div>
+      ) : null}
 
       <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitFile}>
-        <SectionHeading>
-          {t('repository_documents.upload_file')}
-        </SectionHeading>
+        <SectionHeading>{t("repository_documents.upload_file")}</SectionHeading>
         <Field label="File title">
-          <Input onChange={(event) => setFileTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional_filename")} type="text" value={fileTitle} />
+          <Input
+            onChange={(event) => setFileTitle(event.target.value)}
+            placeholder={t("repository_documents.placeholder_optional_filename")}
+            type="text"
+            value={fileTitle}
+          />
         </Field>
         <Field label="File">
           <Input accept={acceptedTypes.join(",")} onChange={(event) => setFile(event.currentTarget.files?.[0] || null)} required type="file" />
         </Field>
         <button className={primaryButton()} disabled={save.isPending} type="submit">
-          {save.isPending ? (
-            <>
-              {t('repository_documents.uploading')}
-            </>
-          ) : (
-            <>
-              {t('repository_documents.upload')}
-            </>
-          )}
+          {save.isPending ? <>{t("repository_documents.uploading")}</> : <>{t("repository_documents.upload")}</>}
         </button>
       </form>
 
       <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitGoogleDoc}>
-        <SectionHeading>
-          {t('repository_documents.link_google_doc')}
-        </SectionHeading>
+        <SectionHeading>{t("repository_documents.link_google_doc")}</SectionHeading>
         <Field label="URL">
-          <Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." required type="url" value={googleDocUrl} />
+          <Input
+            onChange={(event) => setGoogleDocUrl(event.target.value)}
+            placeholder="https://docs.google.com/document/..."
+            required
+            type="url"
+            value={googleDocUrl}
+          />
         </Field>
         <Field label="Document title">
-          <Input onChange={(event) => setDocTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional")} type="text" value={docTitle} />
+          <Input
+            onChange={(event) => setDocTitle(event.target.value)}
+            placeholder={t("repository_documents.placeholder_optional")}
+            type="text"
+            value={docTitle}
+          />
         </Field>
         <button className={primaryButton()} disabled={save.isPending} type="submit">
-          {save.isPending ? (
-            <>
-              {t('repository_documents.adding')}
-            </>
-          ) : (
-            <>
-              {t('repository_documents.add_google_doc')}
-            </>
-          )}
+          {save.isPending ? <>{t("repository_documents.adding")}</> : <>{t("repository_documents.add_google_doc")}</>}
         </button>
       </form>
     </section>
@@ -264,21 +262,13 @@ function DocumentSummary({ document }: { document: RepositoryDocument }) {
           <span className="text-brand dark:text-brand-emphasis underline">{document.google_doc_url}</span>
         ) : (
           <span>
-            {document.filename || (
-              <>
-                {t('repository_documents.no_file_attached')}
-              </>
-            )}
+            {document.filename || <>{t("repository_documents.no_file_attached")}</>}
             {document.byte_size ? ` · ${formatBytes(document.byte_size)}` : ""}
           </span>
         )}
       </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {document.uploaded_by || (
-          <>
-            {t('repository_documents.unknown')}
-          </>
-        )} · <RelativeTimestamp value={document.created_at} />
+        {document.uploaded_by || <>{t("repository_documents.unknown")}</>} · <RelativeTimestamp value={document.created_at} />
       </div>
     </div>
   )
@@ -299,9 +289,6 @@ function RepositoryDocumentsError({ error }: { error: Error }) {
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load repository documents.")}</PanelMessage>
 }
 
-
 function primaryButton() {
   return "rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
 }
-
-

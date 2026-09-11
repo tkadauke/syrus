@@ -12,21 +12,26 @@ export type AdminTranscriptToolGroupItem = ChatToolGroupItem & { key: string }
 export type AdminTranscriptTextItem = { type: "text"; kind: "user_prompt" | "assistant_text" | "job_log"; text: string; key: string }
 export type AdminTranscriptInitItem = { type: "system_init"; data: Record<string, unknown>; key: string }
 export type AdminTranscriptResultItem = { type: "result"; data: Record<string, unknown>; key: string }
-export type AdminTranscriptFallbackItem = { type: "fallback"; badge: string; title: string | null; data: unknown; tone: "gray" | "red" | "emerald"; key: string }
+export type AdminTranscriptFallbackItem = {
+  type: "fallback"
+  badge: string
+  title: string | null
+  data: unknown
+  tone: "gray" | "red" | "emerald"
+  key: string
+}
 
 export type AdminTranscriptRenderItem =
-  | AdminTranscriptToolGroupItem
-  | AdminTranscriptTextItem
-  | AdminTranscriptInitItem
-  | AdminTranscriptResultItem
-  | AdminTranscriptFallbackItem
+  AdminTranscriptToolGroupItem | AdminTranscriptTextItem | AdminTranscriptInitItem | AdminTranscriptResultItem | AdminTranscriptFallbackItem
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function preview(value: unknown) {
-  return stringValue(typeof value === "string" ? value : JSON.stringify(value)).replace(/\s+/g, " ").slice(0, 150)
+  return stringValue(typeof value === "string" ? value : JSON.stringify(value))
+    .replace(/\s+/g, " ")
+    .slice(0, 150)
 }
 
 // Pairs tool_result events back to their tool_use call by id (Claude's

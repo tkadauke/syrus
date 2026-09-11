@@ -24,8 +24,7 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 function prefersDarkColorScheme() {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches
 }
 
 function resolveTheme(theme: Theme): ResolvedTheme {

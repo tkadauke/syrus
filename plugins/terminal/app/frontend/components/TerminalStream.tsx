@@ -29,28 +29,28 @@ export function TerminalStream({
 }: TerminalStreamProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const inputEnabledRef = useRef(inputEnabled)
-  const [ connected, setConnected ] = useState(true)
-  const [ ended, setEnded ] = useState(false)
-  const [ paneReady, setPaneReady ] = useState(false)
+  const [connected, setConnected] = useState(true)
+  const [ended, setEnded] = useState(false)
+  const [paneReady, setPaneReady] = useState(false)
 
   useEffect(() => {
     inputEnabledRef.current = inputEnabled
-  }, [ inputEnabled ])
+  }, [inputEnabled])
 
   useEffect(() => {
     setConnected(true)
     setEnded(false)
-  }, [ terminalSessionId ])
+  }, [terminalSessionId])
 
   const onConnectionChangeRef = useRef(onConnectionChange)
 
   useEffect(() => {
     onConnectionChangeRef.current = onConnectionChange
-  }, [ onConnectionChange ])
+  }, [onConnectionChange])
 
   useEffect(() => {
     onConnectionChangeRef.current?.({ connected, ended })
-  }, [ connected, ended ])
+  }, [connected, ended])
 
   useLayoutEffect(() => {
     if (!containerRef.current) return
@@ -146,16 +146,12 @@ export function TerminalStream({
       subscription.unsubscribe()
       terminal.dispose()
     }
-  }, [ paneReady, terminalSessionId ])
+  }, [paneReady, terminalSessionId])
 
   return (
     <div className={className}>
       <div className={containerClassName} ref={containerRef} />
-      {ended ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-950/60 text-sm text-gray-300">
-          {endedOverlayText}
-        </div>
-      ) : null}
+      {ended ? <div className="absolute inset-0 flex items-center justify-center bg-gray-950/60 text-sm text-gray-300">{endedOverlayText}</div> : null}
     </div>
   )
 }

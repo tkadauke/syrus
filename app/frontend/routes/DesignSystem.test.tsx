@@ -72,10 +72,12 @@ describe("DesignSystemRoute", () => {
   })
 
   it("shows non-blocking contrast warnings for a draft preview with issues", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...oceanThemePayload(),
-      contrast_warnings: [ "light text-primary (#111827) on surface (#ffffff) has contrast 1.2:1, needs at least 4.5:1 for WCAG AA" ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        ...oceanThemePayload(),
+        contrast_warnings: ["light text-primary (#111827) on surface (#ffffff) has contrast 1.2:1, needs at least 4.5:1 for WCAG AA"]
+      })
+    )
 
     renderRoute("/design_system?theme_id=5")
 

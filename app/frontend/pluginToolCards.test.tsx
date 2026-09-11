@@ -38,7 +38,9 @@ describe("pluginToolCards", () => {
   it("falls back to null when renderExpanded throws on a malformed payload", () => {
     const renderer: ToolCardRenderer = {
       toolName: "broken_tool",
-      renderExpanded: () => { throw new Error("boom") }
+      renderExpanded: () => {
+        throw new Error("boom")
+      }
     }
 
     expect(renderToolCard(renderer, context({ toolName: "broken_tool" }))).toBeNull()
@@ -47,7 +49,9 @@ describe("pluginToolCards", () => {
   it("falls back to null when collapsedSummary throws", () => {
     const renderer: ToolCardRenderer = {
       toolName: "broken_tool",
-      collapsedSummary: () => { throw new Error("boom") },
+      collapsedSummary: () => {
+        throw new Error("boom")
+      },
       renderExpanded: () => null
     }
 

@@ -15,12 +15,7 @@ import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { TonePill } from "@app/components/StatusPill"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RunTranscriptLogs } from "@app/routes/jobDetail/components"
-import {
-  fetchAgentActivitySessions,
-  fetchAgentActivityTranscript,
-  recordAgentActivityFilterUsage,
-  type AgentActivitySession
-} from "../api/agentActivity"
+import { fetchAgentActivitySessions, fetchAgentActivityTranscript, recordAgentActivityFilterUsage, type AgentActivitySession } from "../api/agentActivity"
 
 function stateTone(state: string): "blue" | "green" | "red" | "gray" {
   if (state === "running" || state === "queued") return "blue"
@@ -62,19 +57,19 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
   const sessions = useQuery({
-    queryKey: [ "agent_activity", scope, location.search ],
+    queryKey: ["agent_activity", scope, location.search],
     queryFn: () => fetchAgentActivitySessions(scope, location.search),
     placeholderData: keepPreviousData,
     refetchInterval: 15_000
   })
 
   const runningCount = sessions.data?.running_count ?? 0
-  const activeUserFolderId = sessions.data?.smart_folders.find((folder) => folder.id === sessions.data?.active_smart_folder_id && folder.kind === "user_defined")?.id
-  const smartFolders = (sessions.data?.smart_folders ?? []).map((folder) => (
-    folder.i18n_key
-      ? { ...folder, i18n_key: null, name: t(`smart_folder_${folder.i18n_key}`, { defaultValue: folder.name }) }
-      : folder
-  ))
+  const activeUserFolderId = sessions.data?.smart_folders.find(
+    (folder) => folder.id === sessions.data?.active_smart_folder_id && folder.kind === "user_defined"
+  )?.id
+  const smartFolders = (sessions.data?.smart_folders ?? []).map((folder) =>
+    folder.i18n_key ? { ...folder, i18n_key: null, name: t(`smart_folder_${folder.i18n_key}`, { defaultValue: folder.name }) } : folder
+  )
   const inlineFolders = (
     <AdminSmartFolderNav
       activeFolderId={sessions.data?.active_smart_folder_id ?? null}
@@ -86,10 +81,10 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
       folders={smartFolders}
       heading={t("smart_folders_heading")}
       onMutationSuccess={() => {
-        void queryClient.invalidateQueries({ queryKey: [ "agent_activity", scope ] })
+        void queryClient.invalidateQueries({ queryKey: ["agent_activity", scope] })
       }}
       prefix={prefix}
-      queryKey={[ "agent_activity", scope ]}
+      queryKey={["agent_activity", scope]}
       rewriteRedirectTo={scope === "admin" ? (path) => path.replace(/^\/agent_activity/, "/admin/agent_activity") : undefined}
       subjectType="agent_session"
     />
@@ -132,7 +127,10 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{t(scope === "admin" ? "admin_heading" : "heading")}</h1>
           {runningCount > 0 ? (
-            <span className="inline-flex items-center gap-2 rounded-full bg-info/10 px-3 py-1 text-sm font-medium text-info" data-testid="running-now-indicator">
+            <span
+              className="inline-flex items-center gap-2 rounded-full bg-info/10 px-3 py-1 text-sm font-medium text-info"
+              data-testid="running-now-indicator"
+            >
               <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-info" />
               {t("running_now_count", { count: runningCount })}
             </span>
@@ -142,10 +140,7 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
       </header>
 
       {scope === "admin" || !isDesktop ? (
-        <AdminFiltersLayout
-          filterBar={filterBar}
-          smartFolders={inlineFolders}
-        >
+        <AdminFiltersLayout filterBar={filterBar} smartFolders={inlineFolders}>
           {sessionList}
         </AdminFiltersLayout>
       ) : (
@@ -164,7 +159,17 @@ function AgentActivityListLayout({ children, filterBar }: { children: ReactNode;
   )
 }
 
-function SessionsPagination({ payload, pathname, prefix, search }: { payload: { page: number; per: number; total: number; sessions: AgentActivitySession[] }; pathname: string; prefix: string; search: string }) {
+function SessionsPagination({
+  payload,
+  pathname,
+  prefix,
+  search
+}: {
+  payload: { page: number; per: number; total: number; sessions: AgentActivitySession[] }
+  pathname: string
+  prefix: string
+  search: string
+}) {
   const { t } = useT("agent_activity")
   const totalPages = Math.max(1, Math.ceil(payload.total / payload.per))
   const first = payload.total === 0 ? 0 : (payload.page - 1) * payload.per + 1
@@ -174,17 +179,30 @@ function SessionsPagination({ payload, pathname, prefix, search }: { payload: { 
   if (payload.total <= payload.per && payload.page <= 1) return null
 
   return (
-    <nav aria-label={t("pagination_label")} className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 text-sm dark:border-gray-700">
+    <nav
+      aria-label={t("pagination_label")}
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 text-sm dark:border-gray-700"
+    >
       <p className="text-gray-600 dark:text-gray-400">{t("pagination_showing", { first, last, total: payload.total })}</p>
       <div className="flex items-center gap-2">
         {payload.page > 1 ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" to={pageLink(pathname, currentSearch, payload.page - 1, prefix)}>{t("pagination_previous")}</Link>
+          <Link
+            className="rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+            to={pageLink(pathname, currentSearch, payload.page - 1, prefix)}
+          >
+            {t("pagination_previous")}
+          </Link>
         ) : (
           <span className="rounded border border-gray-200 px-3 py-1 text-gray-400 dark:border-gray-700 dark:text-gray-500">{t("pagination_previous")}</span>
         )}
         <span className="text-gray-500 dark:text-gray-400">{t("pagination_page_of", { page: payload.page, total: totalPages })}</span>
         {payload.page < totalPages ? (
-          <Link className="rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" to={pageLink(pathname, currentSearch, payload.page + 1, prefix)}>{t("pagination_next")}</Link>
+          <Link
+            className="rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+            to={pageLink(pathname, currentSearch, payload.page + 1, prefix)}
+          >
+            {t("pagination_next")}
+          </Link>
         ) : (
           <span className="rounded border border-gray-200 px-3 py-1 text-gray-400 dark:border-gray-700 dark:text-gray-500">{t("pagination_next")}</span>
         )}
@@ -202,11 +220,11 @@ function SessionCard({ session }: { session: AgentActivitySession }) {
     <li className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-col gap-1 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <TonePill active={session.state === "running"} tone={stateTone(session.state)}>{session.state}</TonePill>
+          <TonePill active={session.state === "running"} tone={stateTone(session.state)}>
+            {session.state}
+          </TonePill>
           <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">{session.role_label}</span>
-          {session.outcome_verdict ? (
-            <TonePill tone={session.outcome_verdict === "needs_work" ? "red" : "green"}>{session.outcome_verdict}</TonePill>
-          ) : null}
+          {session.outcome_verdict ? <TonePill tone={session.outcome_verdict === "needs_work" ? "red" : "green"}>{session.outcome_verdict}</TonePill> : null}
           <span className="text-xs text-gray-400 dark:text-gray-500">{session.agent_provider}</span>
           <span className="ml-auto flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             {session.job ? (
@@ -220,7 +238,11 @@ function SessionCard({ session }: { session: AgentActivitySession }) {
           </span>
         </div>
         {session.job?.title ? <p className="truncate text-xs text-gray-500 dark:text-gray-400">{session.job.title}</p> : null}
-        <button className="truncate text-left text-sm text-gray-800 hover:underline dark:text-gray-200" onClick={() => setExpanded((current) => !current)} type="button">
+        <button
+          className="truncate text-left text-sm text-gray-800 hover:underline dark:text-gray-200"
+          onClick={() => setExpanded((current) => !current)}
+          type="button"
+        >
           {session.outcome_summary || t("no_summary_submitted")}
         </button>
         <button className="self-start text-xs font-medium text-brand hover:underline" onClick={() => setExpanded((current) => !current)} type="button">
@@ -235,7 +257,7 @@ function SessionCard({ session }: { session: AgentActivitySession }) {
 function TranscriptDrawer({ session }: { session: AgentActivitySession }) {
   const { t } = useT("agent_activity")
   const transcript = useQuery({
-    queryKey: [ "agent_activity", "transcript", session.transcript_path ],
+    queryKey: ["agent_activity", "transcript", session.transcript_path],
     queryFn: () => fetchAgentActivityTranscript(session.transcript_path)
   })
 

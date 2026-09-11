@@ -5,7 +5,13 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute, chatQueryKey } from "./Chat"
-import { CHAT_WORKSPACE_DEFAULT_WIDTH, CHAT_WORKSPACE_MAX_WIDTH, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
+import {
+  CHAT_WORKSPACE_DEFAULT_WIDTH,
+  CHAT_WORKSPACE_MAX_WIDTH,
+  CHAT_WORKSPACE_MIN_WIDTH,
+  CHAT_WORKSPACE_SPLIT_MIN_WIDTH,
+  CHAT_WORKSPACE_WIDTH_KEY
+} from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
@@ -92,17 +98,13 @@ describe("workspaceTabLabel", () => {
   })
 
   it("resolves a plugin tab's label_key against the plugin's own namespace", () => {
-    const pluginTabs = [
-      { id: "my_plugin.status", label: "Status", label_key: "my_plugin:tab_status", component: "my_plugin/Status", order: 0 }
-    ]
+    const pluginTabs = [{ id: "my_plugin.status", label: "Status", label_key: "my_plugin:tab_status", component: "my_plugin/Status", order: 0 }]
 
     expect(workspaceTabLabel("plugin:my_plugin.status" as WorkspaceTab, mockT, [], pluginTabs)).toBe("T:my_plugin:tab_status")
   })
 
   it("falls back to the tab's plain label when it has no label_key", () => {
-    const pluginTabs = [
-      { id: "my_plugin.status", label: "Status", label_key: null, component: "my_plugin/Status", order: 0 }
-    ]
+    const pluginTabs = [{ id: "my_plugin.status", label: "Status", label_key: null, component: "my_plugin/Status", order: 0 }]
 
     expect(workspaceTabLabel("plugin:my_plugin.status" as WorkspaceTab, mockT, [], pluginTabs)).toBe("Status")
   })
@@ -125,9 +127,7 @@ describe("mobileChatTabLabel", () => {
   })
 
   it("delegates to workspaceTabLabel for plugin tabs, passing pluginTabs through", () => {
-    const pluginTabs = [
-      { id: "my_plugin.status", label: "Status", label_key: null, component: "my_plugin/Status", order: 0 }
-    ]
+    const pluginTabs = [{ id: "my_plugin.status", label: "Status", label_key: null, component: "my_plugin/Status", order: 0 }]
 
     expect(mobileChatTabLabel("plugin:my_plugin.status" as WorkspaceTab, mockT, [], pluginTabs)).toBe("Status")
   })
@@ -152,7 +152,7 @@ describe("asExcalidrawElements", () => {
     ]
 
     const result = asExcalidrawElements(elements)
-    const ids = (result as unknown as Array<{ id: string }>).map(el => el.id)
+    const ids = (result as unknown as Array<{ id: string }>).map((el) => el.id)
 
     expect(ids).toContain("r1")
     expect(ids).toContain("t1")
@@ -424,15 +424,21 @@ describe("chat message tail refetch", () => {
         </QueryClientProvider>
       )
 
-      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
       expect(chatGetCount).toBe(1)
 
       // No Action Cable reconnect event fires (the connection is a zombie, not properly
       // closed) — only the 30s refetchInterval backstop should recover the chat state.
-      await act(async () => { await vi.advanceTimersByTimeAsync(29_999) })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(29_999)
+      })
       expect(chatGetCount).toBe(1)
 
-      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
       expect(chatGetCount).toBe(2)
     } finally {
       vi.useRealTimers()
@@ -467,19 +473,21 @@ describe("simple mode chat transcript", () => {
   })
 
   it("renders a running tool call as a generic progress indicator", async () => {
-    mockChatRouteFetch(chatPayload({
-      messages: [
-        {
-          type: "message",
-          id: 9,
-          role: "tool_use",
-          tool_name: "Bash",
-          content: { type: "tool_use", id: "tu_1", name: "Bash", input: { command: "bin/rails db:migrate" } },
-          text: "",
-          bookmarkable: false
-        }
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "tool_use",
+            tool_name: "Bash",
+            content: { type: "tool_use", id: "tu_1", name: "Bash", input: { command: "bin/rails db:migrate" } },
+            text: "",
+            bookmarkable: false
+          }
+        ]
+      })
+    )
 
     renderRoute()
 
@@ -489,28 +497,30 @@ describe("simple mode chat transcript", () => {
   })
 
   it("removes completed successful tool calls from the transcript", async () => {
-    mockChatRouteFetch(chatPayload({
-      messages: [
-        {
-          type: "message",
-          id: 9,
-          role: "tool_use",
-          tool_name: "Read",
-          content: { type: "tool_use", id: "tu_1", name: "Read", input: { file_path: "/app/models/job.rb" } },
-          text: "",
-          bookmarkable: false
-        },
-        {
-          type: "message",
-          id: 10,
-          role: "tool_result",
-          tool_name: "Read",
-          content: { type: "tool_result", tool_use_id: "tu_1", content: [{ type: "text", text: "class Job < ApplicationRecord" }], is_error: false },
-          text: "",
-          bookmarkable: false
-        }
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "tool_use",
+            tool_name: "Read",
+            content: { type: "tool_use", id: "tu_1", name: "Read", input: { file_path: "/app/models/job.rb" } },
+            text: "",
+            bookmarkable: false
+          },
+          {
+            type: "message",
+            id: 10,
+            role: "tool_result",
+            tool_name: "Read",
+            content: { type: "tool_result", tool_use_id: "tu_1", content: [{ type: "text", text: "class Job < ApplicationRecord" }], is_error: false },
+            text: "",
+            bookmarkable: false
+          }
+        ]
+      })
+    )
 
     renderRoute()
 
@@ -522,28 +532,30 @@ describe("simple mode chat transcript", () => {
   })
 
   it("shows only a generic snag message for errored tool calls", async () => {
-    mockChatRouteFetch(chatPayload({
-      messages: [
-        {
-          type: "message",
-          id: 9,
-          role: "tool_use",
-          tool_name: "Grep",
-          content: { type: "tool_use", id: "tu_1", name: "Grep", input: { pattern: "secret", path: "/repo/app" } },
-          text: "",
-          bookmarkable: false
-        },
-        {
-          type: "message",
-          id: 10,
-          role: "tool_result",
-          tool_name: "Grep",
-          content: { type: "tool_result", tool_use_id: "tu_1", content: "rg failed in /repo/app", is_error: true },
-          text: "",
-          bookmarkable: false
-        }
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "tool_use",
+            tool_name: "Grep",
+            content: { type: "tool_use", id: "tu_1", name: "Grep", input: { pattern: "secret", path: "/repo/app" } },
+            text: "",
+            bookmarkable: false
+          },
+          {
+            type: "message",
+            id: 10,
+            role: "tool_result",
+            tool_name: "Grep",
+            content: { type: "tool_result", tool_use_id: "tu_1", content: "rg failed in /repo/app", is_error: true },
+            text: "",
+            bookmarkable: false
+          }
+        ]
+      })
+    )
 
     renderRoute()
 
@@ -556,21 +568,23 @@ describe("simple mode chat transcript", () => {
   it("omits the context tab from the workspace DOM", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     window.localStorage.setItem("syrus.chat.workspace.tab", "context")
-    mockChatRouteFetch(chatPayload({
-      chat: { has_chat_images: true },
-      messages: [
-        {
-          type: "message",
-          id: 9,
-          role: "user",
-          tool_name: null,
-          content: { text: "Screenshot." },
-          text: "Screenshot.",
-          bookmarkable: true,
-          attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }]
-        }
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        chat: { has_chat_images: true },
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "user",
+            tool_name: null,
+            content: { text: "Screenshot." },
+            text: "Screenshot.",
+            bookmarkable: true,
+            attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+          }
+        ]
+      })
+    )
 
     renderRoute()
 
@@ -636,37 +650,39 @@ describe("error system message retry", () => {
 
     await screen.findByText("Yes, here's how.")
 
-    const retryCall = fetchMock.mock.calls.find(([reqInput, reqInit]) => String(reqInput) === "/api/v1/app/chats/8/message" && (reqInit as RequestInit | undefined)?.method === "POST")
+    const retryCall = fetchMock.mock.calls.find(
+      ([reqInput, reqInit]) => String(reqInput) === "/api/v1/app/chats/8/message" && (reqInit as RequestInit | undefined)?.method === "POST"
+    )
     expect(retryCall).toBeDefined()
     expect(JSON.parse(String((retryCall![1] as RequestInit).body))).toEqual({ chat_message: { text: "does syrus have that feature?" } })
   })
 
   it("does not show Retry now under a non-error system message", async () => {
-    mockChatRouteFetch(chatPayload({
-      messages: [
-        {
-          type: "message",
-          id: 20,
-          role: "user",
-          content: { text: "hello" },
-          text: "hello",
-          bookmarkable: true
-        },
-        {
-          type: "message",
-          id: 21,
-          role: "system",
-          content: {
-            text: "MCP unavailable",
-            mcp_health: [
-              { name: "syrus-chat-sidecar", status: "unavailable", available_tools: [], pending_tools: [], unavailable_tools: ["submit_summary"] }
-            ]
+    mockChatRouteFetch(
+      chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 20,
+            role: "user",
+            content: { text: "hello" },
+            text: "hello",
+            bookmarkable: true
           },
-          text: "MCP unavailable",
-          bookmarkable: false
-        }
-      ]
-    }))
+          {
+            type: "message",
+            id: 21,
+            role: "system",
+            content: {
+              text: "MCP unavailable",
+              mcp_health: [{ name: "syrus-chat-sidecar", status: "unavailable", available_tools: [], pending_tools: [], unavailable_tools: ["submit_summary"] }]
+            },
+            text: "MCP unavailable",
+            bookmarkable: false
+          }
+        ]
+      })
+    )
 
     renderRoute()
 
@@ -737,27 +753,34 @@ describe("chat compose drafts", () => {
     await waitFor(() => expect(textarea).toHaveValue(""))
     expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some((call) =>
-        String(call[0]) === "/api/v1/app/chats/8/message" &&
-        (call[1] as RequestInit)?.method === "POST" &&
-        (call[1] as RequestInit)?.body === JSON.stringify({ chat_message: { text: "Please investigate the slow turn start." } })
-      )).toBe(true)
+      expect(
+        fetchMock.mock.calls.some(
+          (call) =>
+            String(call[0]) === "/api/v1/app/chats/8/message" &&
+            (call[1] as RequestInit)?.method === "POST" &&
+            (call[1] as RequestInit)?.body === JSON.stringify({ chat_message: { text: "Please investigate the slow turn start." } })
+        )
+      ).toBe(true)
     })
 
     await act(async () => {
-      resolveMessage?.(jsonResponse(chatPayload({
-        messages: [
-          {
-            type: "message",
-            id: 10,
-            role: "user",
-            tool_name: null,
-            content: { text: "Please investigate the slow turn start." },
-            text: "Please investigate the slow turn start.",
-            bookmarkable: true
-          }
-        ]
-      })))
+      resolveMessage?.(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              {
+                type: "message",
+                id: 10,
+                role: "user",
+                tool_name: null,
+                content: { text: "Please investigate the slow turn start." },
+                text: "Please investigate the slow turn start.",
+                bookmarkable: true
+              }
+            ]
+          })
+        )
+      )
       await messageRequest
     })
   }, 30000)
@@ -825,7 +848,9 @@ describe("chat composer dictation", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit | undefined)?.method === "POST")).toBe(true)
+      expect(
+        fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit | undefined)?.method === "POST")
+      ).toBe(true)
     })
   })
 
@@ -989,15 +1014,17 @@ describe("chat attachment popup", () => {
   })
 
   it("only offers document attachment search for Supervisor chats", async () => {
-    mockChatRouteFetch(chatPayload({
-      chat: { repository: null, system_kind: "supervisor", title: "Supervisor" },
-      attachment_results: [
-        { type: "Repository", id: 4, label: "acme/tools" },
-        { type: "Epic", id: 2, label: "Release planning" },
-        { type: "Job", id: 3, label: "JOB-3" },
-        { type: "Document", id: 5, label: "Runbook.md" }
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        chat: { repository: null, system_kind: "supervisor", title: "Supervisor" },
+        attachment_results: [
+          { type: "Repository", id: 4, label: "acme/tools" },
+          { type: "Epic", id: 2, label: "Release planning" },
+          { type: "Job", id: 3, label: "JOB-3" },
+          { type: "Document", id: 5, label: "Runbook.md" }
+        ]
+      })
+    )
     renderRoute()
 
     await screen.findByPlaceholderText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state...")
@@ -1044,11 +1071,14 @@ describe("chat attachment popup", () => {
       }
       if (path === "/api/v1/app/chats/8/context?attachment_type=Epic") {
         return new Promise((resolve) => {
-          resolveEpicSearch = () => resolve(jsonResponse({
-            attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
-            documents_in_scope: [],
-            attachment_results: [{ type: "Epic", id: 2, label: "Release planning" }]
-          }))
+          resolveEpicSearch = () =>
+            resolve(
+              jsonResponse({
+                attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
+                documents_in_scope: [],
+                attachment_results: [{ type: "Epic", id: 2, label: "Release planning" }]
+              })
+            )
         })
       }
 
@@ -1086,9 +1116,11 @@ describe("chat attachment popup", () => {
   })
 
   it("renders attachment results as plain buttons without card borders", async () => {
-    mockChatRouteFetch(chatPayload({
-      attachment_results: [{ type: "Repository", id: 4, label: "acme/tools" }]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        attachment_results: [{ type: "Repository", id: 4, label: "acme/tools" }]
+      })
+    )
     renderRoute()
 
     await screen.findByPlaceholderText("Ask about this repository...")
@@ -1170,15 +1202,25 @@ describe("chat slash commands", () => {
 
   for (const command of ["/discard JOB-DRAFT-1", "/cancel 42", "/retry 42"]) {
     it(`shows confirmation before executing ${command}`, async () => {
-      const fetchMock = mockChatRouteFetch(chatPayload({
-        messages: [messageWithProposal(9, proposal())]
-      }))
+      const fetchMock = mockChatRouteFetch(
+        chatPayload({
+          messages: [messageWithProposal(9, proposal())]
+        })
+      )
       renderRoute()
 
       await submitSlashCommand(command)
 
       expect(screen.getByText(`Confirm ${command.split(" ")[0]}`)).toBeInTheDocument()
-      expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/reject") || String(input).includes("/cancel") || String(input).includes("/run_again") || String(input).includes("/whiteboard"))).toBe(false)
+      expect(
+        fetchMock.mock.calls.some(
+          ([input]) =>
+            String(input).includes("/reject") ||
+            String(input).includes("/cancel") ||
+            String(input).includes("/run_again") ||
+            String(input).includes("/whiteboard")
+        )
+      ).toBe(false)
     })
   }
 
@@ -1213,10 +1255,7 @@ describe("chat slash commands", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/95/approve",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/jobs/95/approve", expect.objectContaining({ method: "POST" }))
     })
     expect(await screen.findByRole("status")).toHaveTextContent("Job approved")
   })
@@ -1228,12 +1267,12 @@ describe("chat slash commands", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/jobs?state=implemented&repo=acme%2Fwidgets&limit=50") {
-        return Promise.resolve(jsonResponse({
-          count: 1,
-          jobs: [
-            { id: 2203, title: "Approve slash command", issue_title: "Approve slash command", state: "implemented", repository_slug: "acme/widgets" }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            count: 1,
+            jobs: [{ id: 2203, title: "Approve slash command", issue_title: "Approve slash command", state: "implemented", repository_slug: "acme/widgets" }]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -1248,10 +1287,7 @@ describe("chat slash commands", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/2203/approve",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/jobs/2203/approve", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -1262,12 +1298,14 @@ describe("chat slash commands", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/jobs?repo=acme%2Fwidgets&limit=50") {
-        return Promise.resolve(jsonResponse({
-          count: 1,
-          jobs: [
-            { id: 2204, title: "Diff slash command", issue_title: "Diff slash command", state: "implemented", repository_slug: "acme/widgets", pr_url: null }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            count: 1,
+            jobs: [
+              { id: 2204, title: "Diff slash command", issue_title: "Diff slash command", state: "implemented", repository_slug: "acme/widgets", pr_url: null }
+            ]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload()))
@@ -1278,10 +1316,7 @@ describe("chat slash commands", () => {
     fireEvent.click(await screen.findByText("Diff slash command"))
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/app/chats/8/message",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
     })
     const messageCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/app/chats/8/message")
     expect(JSON.parse(messageCall?.[1]?.body as string).chat_message.text).toContain("get_job_diff MCP tool for job 2204")
@@ -1297,12 +1332,11 @@ describe("chat temporal markers", () => {
   it("renders a timestamp between same-day messages at least five minutes apart", async () => {
     const firstDate = localDateAt(9, 0)
     const secondDate = localDateAt(9, 6)
-    mockChatPayload(chatPayload({
-      messages: [
-        chatMessage(9, "assistant", "First update.", firstDate),
-        chatMessage(10, "assistant", "Second update.", secondDate)
-      ]
-    }))
+    mockChatPayload(
+      chatPayload({
+        messages: [chatMessage(9, "assistant", "First update.", firstDate), chatMessage(10, "assistant", "Second update.", secondDate)]
+      })
+    )
 
     renderRoute()
 
@@ -1314,12 +1348,11 @@ describe("chat temporal markers", () => {
   it("renders a day divider between messages on different local days", async () => {
     const firstDate = localDateAt(23, 58, -1)
     const secondDate = localDateAt(0, 3)
-    mockChatPayload(chatPayload({
-      messages: [
-        chatMessage(9, "assistant", "Yesterday's note.", firstDate),
-        chatMessage(10, "user", "Today's note.", secondDate)
-      ]
-    }))
+    mockChatPayload(
+      chatPayload({
+        messages: [chatMessage(9, "assistant", "Yesterday's note.", firstDate), chatMessage(10, "user", "Today's note.", secondDate)]
+      })
+    )
 
     renderRoute()
 
@@ -1330,12 +1363,11 @@ describe("chat temporal markers", () => {
   it("does not render an extra timestamp between messages less than five minutes apart", async () => {
     const firstDate = localDateAt(9, 0)
     const secondDate = localDateAt(9, 4)
-    mockChatPayload(chatPayload({
-      messages: [
-        chatMessage(9, "assistant", "First nearby update.", firstDate),
-        chatMessage(10, "assistant", "Second nearby update.", secondDate)
-      ]
-    }))
+    mockChatPayload(
+      chatPayload({
+        messages: [chatMessage(9, "assistant", "First nearby update.", firstDate), chatMessage(10, "assistant", "Second nearby update.", secondDate)]
+      })
+    )
 
     renderRoute()
 
@@ -1378,33 +1410,39 @@ describe("proposal outcome system events", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/jobs/88") {
-        return Promise.resolve(jsonResponse({
-          job: {
-            id: 88,
-            state: "open",
-            issue_title: "Map auth",
-            issue_body: "Add the auth route map.",
-            title_pending: false,
-            start_blocked_reason: null,
-            start_blocked_details: null
-          },
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            job: {
+              id: 88,
+              state: "open",
+              issue_title: "Map auth",
+              issue_body: "Add the auth route map.",
+              title_pending: false,
+              start_blocked_reason: null,
+              start_blocked_details: null
+            }
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          {
-            ...chatMessage(9, "system", 'Proposal confirmed. JOB-88 "Map auth" was created.', localDateAt(9, 0)),
-            content: {
-              text: 'Proposal confirmed. JOB-88 "Map auth" was created.',
-              source: "proposal_notification",
-              outcome: "confirmed",
-              acknowledgment: "Confirmed JOB-88."
-            },
-            bookmarkable: false
-          }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              {
+                ...chatMessage(9, "system", 'Proposal confirmed. JOB-88 "Map auth" was created.', localDateAt(9, 0)),
+                content: {
+                  text: 'Proposal confirmed. JOB-88 "Map auth" was created.',
+                  source: "proposal_notification",
+                  outcome: "confirmed",
+                  acknowledgment: "Confirmed JOB-88."
+                },
+                bookmarkable: false
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1422,16 +1460,19 @@ describe("proposal outcome system events", () => {
   })
 
   it("renders a long system message collapsed to a single-line bubble with an expand/collapse toggle", async () => {
-    const longBody = 'Proposal confirmed. Epic #241 "Workout planning" was created. Child jobs: JOB-211 "Group workout exercises into blocks", JOB-212 "Plan, Goal, and PlannedWorkout models", JOB-213 "Progression engine". The Epic was started; ready child Jobs are dispatching.'
-    mockChatPayload(chatPayload({
-      messages: [
-        {
-          ...chatMessage(9, "system", longBody, localDateAt(9, 0)),
-          content: { text: longBody, source: "proposal_notification", outcome: "confirmed" },
-          bookmarkable: false
-        }
-      ]
-    }))
+    const longBody =
+      'Proposal confirmed. Epic #241 "Workout planning" was created. Child jobs: JOB-211 "Group workout exercises into blocks", JOB-212 "Plan, Goal, and PlannedWorkout models", JOB-213 "Progression engine". The Epic was started; ready child Jobs are dispatching.'
+    mockChatPayload(
+      chatPayload({
+        messages: [
+          {
+            ...chatMessage(9, "system", longBody, localDateAt(9, 0)),
+            content: { text: longBody, source: "proposal_notification", outcome: "confirmed" },
+            bookmarkable: false
+          }
+        ]
+      })
+    )
 
     renderRoute()
 
@@ -1465,21 +1506,23 @@ describe("scoped event evaluator handoffs", () => {
 
   it("hides evaluator handoff context while rendering the assistant result", async () => {
     const handoffText = "A scoped Syrus event evaluator decided this event needs a live chat turn."
-    mockChatPayload(chatPayload({
-      messages: [
-        {
-          ...chatMessage(9, "system", `${handoffText}\n\nEvaluator decision: {"decision":"respond"}`, localDateAt(9, 0)),
-          content: {
-            text: `${handoffText}\n\nEvaluator decision: {"decision":"respond"}`,
-            source: "scoped_event_wakeup",
-            kind: "scoped_event_evaluator_handoff",
-            scoped_event_wakeup: true
+    mockChatPayload(
+      chatPayload({
+        messages: [
+          {
+            ...chatMessage(9, "system", `${handoffText}\n\nEvaluator decision: {"decision":"respond"}`, localDateAt(9, 0)),
+            content: {
+              text: `${handoffText}\n\nEvaluator decision: {"decision":"respond"}`,
+              source: "scoped_event_wakeup",
+              kind: "scoped_event_evaluator_handoff",
+              scoped_event_wakeup: true
+            },
+            bookmarkable: false
           },
-          bookmarkable: false
-        },
-        chatMessage(10, "assistant", "JOB-252 comments were addressed on PR #23.", localDateAt(9, 1))
-      ]
-    }))
+          chatMessage(10, "assistant", "JOB-252 comments were addressed on PR #23.", localDateAt(9, 1))
+        ]
+      })
+    )
 
     renderRoute()
 
@@ -1506,12 +1549,16 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        bookmarks: [
-          { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
-          { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            bookmarks: [
+              { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 },
+              { id: 2, label: "Canal follow-up", chat_message_id: 10, anchor_message_id: 10 }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1532,11 +1579,11 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/bookmarks") {
-        return Promise.resolve(jsonResponse({
-          bookmarks: [
-            { id: 1, label: "Lazy aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            bookmarks: [{ id: 1, label: "Lazy aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload({ bookmarks: [] })))
@@ -1561,11 +1608,13 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        bookmarks: [
-          { id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 99, anchor_message_id: 9 }]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1614,11 +1663,13 @@ describe("chat bookmark picker command", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        bookmarks: [
-          { id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            bookmarks: [{ id: 1, label: "Aqueduct marker", chat_message_id: 9, anchor_message_id: 9 }]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1677,11 +1728,7 @@ describe("pinned messages bar", () => {
 
     const bar = await screen.findByTestId("pinned-messages-bar")
     const previews = within(bar).getAllByRole("button", { name: /pinned note\./ })
-    expect(previews.map((button) => button.textContent)).toEqual([
-      "Fifth pinned note.",
-      "Fourth pinned note.",
-      "Third pinned note."
-    ])
+    expect(previews.map((button) => button.textContent)).toEqual(["Fifth pinned note.", "Fourth pinned note.", "Third pinned note."])
     expect(within(bar).getByRole("button", { name: "+2 more" })).toBeInTheDocument()
   })
 
@@ -1695,9 +1742,7 @@ describe("pinned messages bar", () => {
 
   it("scrolls to and highlights the message when a pinned preview is clicked", async () => {
     const scrollIntoView = vi.fn()
-    mockPinsFetch([
-      { id: 1, chat_message_id: 9, text: "Discuss aqueducts.", role: "assistant" }
-    ])
+    mockPinsFetch([{ id: 1, chat_message_id: 9, text: "Discuss aqueducts.", role: "assistant" }])
 
     renderRoute()
 
@@ -1750,12 +1795,16 @@ describe("chat pending proposal jump banner", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
-          messageWithProposal(10, proposal({ id: 2, title: "Draft build plan" }))
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
+              messageWithProposal(10, proposal({ id: 2, title: "Draft build plan" }))
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1772,27 +1821,34 @@ describe("chat pending proposal jump banner", () => {
       }
 
       if (path === "/api/v1/app/chats/8/messages?before=9") {
-        return Promise.resolve(jsonResponse({
-          has_more_older: false,
-          messages: [
-            messageWithProposal(4, proposal({ id: 1, title: "Survey aqueduct route" }))
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            has_more_older: false,
+            messages: [messageWithProposal(4, proposal({ id: 1, title: "Survey aqueduct route" }))]
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          {
-            type: "message",
-            id: 9,
-            role: "assistant",
-            tool_name: null,
-            content: { text: "Latest update." },
-            text: "Latest update.",
-            bookmarkable: true
-          }
-        ]
-      }, { has_more_older: true, pending_proposal_count: 1 })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload(
+            {
+              messages: [
+                {
+                  type: "message",
+                  id: 9,
+                  role: "assistant",
+                  tool_name: null,
+                  content: { text: "Latest update." },
+                  text: "Latest update.",
+                  bookmarkable: true
+                }
+              ]
+            },
+            { has_more_older: true, pending_proposal_count: 1 }
+          )
+        )
+      )
     })
 
     renderRoute()
@@ -1813,12 +1869,16 @@ describe("chat pending proposal jump banner", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
-          messageWithProposal(10, proposal({ id: 2, title: "Draft build plan" }))
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
+              messageWithProposal(10, proposal({ id: 2, title: "Draft build plan" }))
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1852,12 +1912,16 @@ describe("chat pending proposal jump banner", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
-          messageWithProposal(10, proposal({ id: 1, title: "Survey aqueduct route" }))
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" })),
+              messageWithProposal(10, proposal({ id: 1, title: "Survey aqueduct route" }))
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1873,11 +1937,13 @@ describe("chat pending proposal jump banner", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }))
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [messageWithProposal(9, proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }))]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1894,17 +1960,26 @@ describe("chat pending proposal jump banner", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          message: "Proposal confirmed. JOB-99 was created.",
-          proposal: proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }),
-          messages: [],
-          pending_proposal_count: 0
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            message: "Proposal confirmed. JOB-99 was created.",
+            proposal: proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }),
+            messages: [],
+            pending_proposal_count: 0
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [messageWithProposal(9, proposal())]
-      }, { pending_proposal_count: 1 })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload(
+            {
+              messages: [messageWithProposal(9, proposal())]
+            },
+            { pending_proposal_count: 1 }
+          )
+        )
+      )
     })
 
     renderRoute()
@@ -1938,9 +2013,13 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [messageWithProposal(9, proposal({ slug: "JOB-DRAFT-1" }))]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [messageWithProposal(9, proposal({ slug: "JOB-DRAFT-1" }))]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1958,12 +2037,16 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({ slug: "JOB-DRAFT-1" })),
-          messageWithProposal(10, proposal({ id: 2, slug: "JOB-DRAFT-2", proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }))
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(9, proposal({ slug: "JOB-DRAFT-1" })),
+              messageWithProposal(10, proposal({ id: 2, slug: "JOB-DRAFT-2", proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }))
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -1979,14 +2062,22 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/proposals/1" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(chatPayload({
-          messages: [messageWithProposal(9, proposal({ title: "Survey north aqueduct" }))]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            chatPayload({
+              messages: [messageWithProposal(9, proposal({ title: "Survey north aqueduct" }))]
+            })
+          )
+        )
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [messageWithProposal(9, proposal())]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [messageWithProposal(9, proposal())]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2000,7 +2091,9 @@ describe("chat proposal cards", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/proposals/1", expect.objectContaining({ method: "PATCH" }))
     })
-    const patchCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/v1/app/chats/8/proposals/1" && (call[1] as RequestInit | undefined)?.method === "PATCH")
+    const patchCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]) === "/api/v1/app/chats/8/proposals/1" && (call[1] as RequestInit | undefined)?.method === "PATCH"
+    )
     expect(JSON.parse(String((patchCall?.[1] as RequestInit).body))).toMatchObject({
       proposal: { title: "Survey north aqueduct" }
     })
@@ -2014,14 +2107,22 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/proposals/1" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(chatPayload({
-          messages: [messageWithProposal(9, proposal({ target_epic_id: null, target_epic_label: null }))]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            chatPayload({
+              messages: [messageWithProposal(9, proposal({ target_epic_id: null, target_epic_label: null }))]
+            })
+          )
+        )
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [messageWithProposal(9, proposal({ target_epic_id: 42, target_epic_label: "EPIC-42" }))]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [messageWithProposal(9, proposal({ target_epic_id: 42, target_epic_label: "EPIC-42" }))]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2038,7 +2139,9 @@ describe("chat proposal cards", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/proposals/1", expect.objectContaining({ method: "PATCH" }))
     })
-    const patchCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/v1/app/chats/8/proposals/1" && (call[1] as RequestInit | undefined)?.method === "PATCH")
+    const patchCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]) === "/api/v1/app/chats/8/proposals/1" && (call[1] as RequestInit | undefined)?.method === "PATCH"
+    )
     expect(JSON.parse(String((patchCall?.[1] as RequestInit).body))).toMatchObject({
       proposal: { target_epic_id: null }
     })
@@ -2051,9 +2154,13 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [messageWithProposal(9, proposal())]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [messageWithProposal(9, proposal())]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2076,9 +2183,13 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [messageWithProposal(9, proposal())]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [messageWithProposal(9, proposal())]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2112,16 +2223,20 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path.startsWith("/api/v1/app/chats/8/proposals/search")) {
-        return Promise.resolve(jsonResponse({
-          proposals: [
-            { id: 2, slug: "api-build", title: "Build API", state: "proposed" }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            proposals: [{ id: 2, slug: "api-build", title: "Build API", state: "proposed" }]
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [messageWithProposal(9, proposal())]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [messageWithProposal(9, proposal())]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2144,37 +2259,44 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({
-            kind: "epic",
-            kind_label: "Epic",
-            title: "Plan onboarding",
-            slug: "EPIC-DRAFT-1",
-            proposed: false,
-            resolved: true,
-            state: "withdrawn",
-            state_label: "Withdrawn",
-            epic_bundle: true,
-            active_children_count: 1,
-            children: [
-              {
-                id: 11,
-                title: "Build first step",
-                slug: "JOB-DRAFT-1",
-                body: "Create the first onboarding step.",
-                state: "proposed",
-                state_label: "Pending",
-                proposed: true,
-                repository_slug: "acme/widgets",
-                dependencies: [],
-                app_update_path: "/api/v1/app/chats/8/proposals/11",
-                app_reject_path: "/api/v1/app/chats/8/proposals/11/reject"
-              }
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(
+                9,
+                proposal({
+                  kind: "epic",
+                  kind_label: "Epic",
+                  title: "Plan onboarding",
+                  slug: "EPIC-DRAFT-1",
+                  proposed: false,
+                  resolved: true,
+                  state: "withdrawn",
+                  state_label: "Withdrawn",
+                  epic_bundle: true,
+                  active_children_count: 1,
+                  children: [
+                    {
+                      id: 11,
+                      title: "Build first step",
+                      slug: "JOB-DRAFT-1",
+                      body: "Create the first onboarding step.",
+                      state: "proposed",
+                      state_label: "Pending",
+                      proposed: true,
+                      repository_slug: "acme/widgets",
+                      dependencies: [],
+                      app_update_path: "/api/v1/app/chats/8/proposals/11",
+                      app_reject_path: "/api/v1/app/chats/8/proposals/11/reject"
+                    }
+                  ]
+                })
+              )
             ]
-          }))
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2191,46 +2313,53 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({
-            kind: "epic",
-            kind_label: "Epic",
-            title: "Plan onboarding",
-            slug: "EPIC-DRAFT-1",
-            epic_bundle: true,
-            active_children_count: 2,
-            children: [
-              {
-                id: 11,
-                title: "Build first step",
-                slug: "JOB-DRAFT-1",
-                body: "Create the first onboarding step.",
-                state: "proposed",
-                state_label: "Pending",
-                proposed: true,
-                repository_slug: "acme/widgets",
-                dependencies: ["job-build-second-step"],
-                app_update_path: "/api/v1/app/chats/8/proposals/11",
-                app_reject_path: "/api/v1/app/chats/8/proposals/11/reject"
-              },
-              {
-                id: 12,
-                title: "Build second step",
-                slug: "JOB-DRAFT-2",
-                body: "Create the second onboarding step.",
-                state: "proposed",
-                state_label: "Pending",
-                proposed: true,
-                repository_slug: "acme/widgets",
-                dependencies: [],
-                app_update_path: "/api/v1/app/chats/8/proposals/12",
-                app_reject_path: "/api/v1/app/chats/8/proposals/12/reject"
-              }
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(
+                9,
+                proposal({
+                  kind: "epic",
+                  kind_label: "Epic",
+                  title: "Plan onboarding",
+                  slug: "EPIC-DRAFT-1",
+                  epic_bundle: true,
+                  active_children_count: 2,
+                  children: [
+                    {
+                      id: 11,
+                      title: "Build first step",
+                      slug: "JOB-DRAFT-1",
+                      body: "Create the first onboarding step.",
+                      state: "proposed",
+                      state_label: "Pending",
+                      proposed: true,
+                      repository_slug: "acme/widgets",
+                      dependencies: ["job-build-second-step"],
+                      app_update_path: "/api/v1/app/chats/8/proposals/11",
+                      app_reject_path: "/api/v1/app/chats/8/proposals/11/reject"
+                    },
+                    {
+                      id: 12,
+                      title: "Build second step",
+                      slug: "JOB-DRAFT-2",
+                      body: "Create the second onboarding step.",
+                      state: "proposed",
+                      state_label: "Pending",
+                      proposed: true,
+                      repository_slug: "acme/widgets",
+                      dependencies: [],
+                      app_update_path: "/api/v1/app/chats/8/proposals/12",
+                      app_reject_path: "/api/v1/app/chats/8/proposals/12/reject"
+                    }
+                  ]
+                })
+              )
             ]
-          }))
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2246,19 +2375,26 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({
-            kind: "epic",
-            kind_label: "Epic",
-            title: "Plan onboarding",
-            slug: "EPIC-DRAFT-1",
-            epic_bundle: true,
-            active_children_count: 0,
-            children: []
-          }))
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(
+                9,
+                proposal({
+                  kind: "epic",
+                  kind_label: "Epic",
+                  title: "Plan onboarding",
+                  slug: "EPIC-DRAFT-1",
+                  epic_bundle: true,
+                  active_children_count: 0,
+                  children: []
+                })
+              )
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2276,33 +2412,40 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({
-            kind: "epic",
-            kind_label: "Epic",
-            title: "Plan onboarding",
-            slug: "EPIC-DRAFT-1",
-            epic_bundle: true,
-            active_children_count: 1,
-            children: [
-              {
-                id: 11,
-                title: "Build first step",
-                slug: "JOB-DRAFT-1",
-                body: "Create the first onboarding step.",
-                state: "proposed",
-                state_label: "Pending",
-                proposed: true,
-                repository_slug: "acme/widgets",
-                dependencies: [],
-                app_update_path: "/api/v1/app/chats/8/proposals/11",
-                app_reject_path: "/api/v1/app/chats/8/proposals/1/children/11/reject"
-              }
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(
+                9,
+                proposal({
+                  kind: "epic",
+                  kind_label: "Epic",
+                  title: "Plan onboarding",
+                  slug: "EPIC-DRAFT-1",
+                  epic_bundle: true,
+                  active_children_count: 1,
+                  children: [
+                    {
+                      id: 11,
+                      title: "Build first step",
+                      slug: "JOB-DRAFT-1",
+                      body: "Create the first onboarding step.",
+                      state: "proposed",
+                      state_label: "Pending",
+                      proposed: true,
+                      repository_slug: "acme/widgets",
+                      dependencies: [],
+                      app_update_path: "/api/v1/app/chats/8/proposals/11",
+                      app_reject_path: "/api/v1/app/chats/8/proposals/1/children/11/reject"
+                    }
+                  ]
+                })
+              )
             ]
-          }))
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2326,19 +2469,26 @@ describe("chat proposal cards", () => {
         return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({
-            kind: "epic",
-            kind_label: "Epic",
-            title: "Plan onboarding",
-            slug: "EPIC-DRAFT-1",
-            epic_bundle: true,
-            active_children_count: 0,
-            children: []
-          }))
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(
+                9,
+                proposal({
+                  kind: "epic",
+                  kind_label: "Epic",
+                  title: "Plan onboarding",
+                  slug: "EPIC-DRAFT-1",
+                  epic_bundle: true,
+                  active_children_count: 0,
+                  children: []
+                })
+              )
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2366,19 +2516,26 @@ describe("chat proposal cards", () => {
         return Promise.resolve(jsonResponse({ current_user: { ...developerUser(), role: "product_owner" } }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({
-            kind: "epic",
-            kind_label: "Epic",
-            title: "Plan onboarding",
-            slug: "EPIC-DRAFT-1",
-            epic_bundle: true,
-            active_children_count: 0,
-            children: []
-          }))
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(
+                9,
+                proposal({
+                  kind: "epic",
+                  kind_label: "Epic",
+                  title: "Plan onboarding",
+                  slug: "EPIC-DRAFT-1",
+                  epic_bundle: true,
+                  active_children_count: 0,
+                  children: []
+                })
+              )
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2398,33 +2555,40 @@ describe("chat proposal cards", () => {
         return Promise.resolve(jsonResponse({ current_user: developerUser() }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          messageWithProposal(9, proposal({
-            kind: "epic",
-            kind_label: "Epic",
-            title: "Plan onboarding",
-            slug: "EPIC-DRAFT-1",
-            epic_bundle: true,
-            active_children_count: 1,
-            children: [
-              {
-                id: 11,
-                title: "Build first step",
-                slug: "JOB-DRAFT-1",
-                body: "Create the first onboarding step.",
-                state: "proposed",
-                state_label: "Pending",
-                proposed: true,
-                repository_slug: "acme/widgets",
-                dependencies: [],
-                app_update_path: "/api/v1/app/chats/8/proposals/11",
-                app_reject_path: "/api/v1/app/chats/8/proposals/1/children/11/reject"
-              }
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              messageWithProposal(
+                9,
+                proposal({
+                  kind: "epic",
+                  kind_label: "Epic",
+                  title: "Plan onboarding",
+                  slug: "EPIC-DRAFT-1",
+                  epic_bundle: true,
+                  active_children_count: 1,
+                  children: [
+                    {
+                      id: 11,
+                      title: "Build first step",
+                      slug: "JOB-DRAFT-1",
+                      body: "Create the first onboarding step.",
+                      state: "proposed",
+                      state_label: "Pending",
+                      proposed: true,
+                      repository_slug: "acme/widgets",
+                      dependencies: [],
+                      app_update_path: "/api/v1/app/chats/8/proposals/11",
+                      app_reject_path: "/api/v1/app/chats/8/proposals/1/children/11/reject"
+                    }
+                  ]
+                })
+              )
             ]
-          }))
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2449,9 +2613,13 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [messageWithProposal(9, proposal())]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [messageWithProposal(9, proposal())]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2480,33 +2648,44 @@ describe("chat proposal cards", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/messages?before=9") {
-        return Promise.resolve(jsonResponse({
-          has_more_older: false,
-          messages: [messageWithProposal(4, proposal({ slug: "JOB-DRAFT-OLD", title: "Old scrolled proposal" }))]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            has_more_older: false,
+            messages: [messageWithProposal(4, proposal({ slug: "JOB-DRAFT-OLD", title: "Old scrolled proposal" }))]
+          })
+        )
       }
       if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          message: "Proposal confirmed. JOB-99 was created.",
-          proposal: confirmedProposal,
-          messages: [],
-          pending_proposal_count: 0
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            message: "Proposal confirmed. JOB-99 was created.",
+            proposal: confirmedProposal,
+            messages: [],
+            pending_proposal_count: 0
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          {
-            type: "message",
-            id: 9,
-            role: "assistant",
-            tool_name: null,
-            content: { text: "Latest update." },
-            text: "Latest update.",
-            bookmarkable: true
-          }
-        ]
-      }, { has_more_older: true, pending_proposal_count: 1 })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload(
+            {
+              messages: [
+                {
+                  type: "message",
+                  id: 9,
+                  role: "assistant",
+                  tool_name: null,
+                  content: { text: "Latest update." },
+                  text: "Latest update.",
+                  bookmarkable: true
+                }
+              ]
+            },
+            { has_more_older: true, pending_proposal_count: 1 }
+          )
+        )
+      )
     })
 
     renderRoute()
@@ -2680,14 +2859,22 @@ describe("attaching a media gallery image to the composer", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/media") {
-        return Promise.resolve(jsonResponse({
-          snapshots: [],
-          chat_images: [
-            { id: 1, title: "runtime-frame.png", filename: "runtime-frame.png", content_type: "image/png", image_url: "/api/v1/app/repository_documents/1/file" }
-          ],
-          typed_artifacts: [],
-          whiteboard_has_unsaved_content: false
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            snapshots: [],
+            chat_images: [
+              {
+                id: 1,
+                title: "runtime-frame.png",
+                filename: "runtime-frame.png",
+                content_type: "image/png",
+                image_url: "/api/v1/app/repository_documents/1/file"
+              }
+            ],
+            typed_artifacts: [],
+            whiteboard_has_unsaved_content: false
+          })
+        )
       }
       if (path === "/api/v1/app/repository_documents/1/file") {
         return Promise.resolve(new Response("pixels", { status: 200, headers: { "Content-Type": "image/png" } }))
@@ -2716,14 +2903,22 @@ describe("attaching a media gallery image to the composer", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/media") {
-        return Promise.resolve(jsonResponse({
-          snapshots: [],
-          chat_images: [
-            { id: 1, title: "runtime-frame.png", filename: "runtime-frame.png", content_type: "image/png", image_url: "/api/v1/app/repository_documents/1/file" }
-          ],
-          typed_artifacts: [],
-          whiteboard_has_unsaved_content: false
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            snapshots: [],
+            chat_images: [
+              {
+                id: 1,
+                title: "runtime-frame.png",
+                filename: "runtime-frame.png",
+                content_type: "image/png",
+                image_url: "/api/v1/app/repository_documents/1/file"
+              }
+            ],
+            typed_artifacts: [],
+            whiteboard_has_unsaved_content: false
+          })
+        )
       }
       if (path === "/api/v1/app/repository_documents/1/file") {
         return Promise.resolve(new Response("pixels", { status: 200, headers: { "Content-Type": "image/png" } }))
@@ -2801,23 +2996,27 @@ describe("chat message image attachments", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          {
-            type: "message",
-            id: 9,
-            role: "user",
-            tool_name: null,
-            content: { text: "Inspect this." },
-            text: "Inspect this.",
-            bookmarkable: true,
-            attachments: [
-              { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
-              { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" }
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              {
+                type: "message",
+                id: 9,
+                role: "user",
+                tool_name: null,
+                content: { text: "Inspect this." },
+                text: "Inspect this.",
+                bookmarkable: true,
+                attachments: [
+                  { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
+                  { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" }
+                ]
+              }
             ]
-          }
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2846,23 +3045,27 @@ describe("chat message image attachments", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          {
-            type: "message",
-            id: 9,
-            role: "user",
-            tool_name: null,
-            content: { text: "Inspect these." },
-            text: "Inspect these.",
-            bookmarkable: true,
-            attachments: [
-              { name: "before.png", mime_type: "image/png", data: "YmVmb3Jl" },
-              { name: "after.png", mime_type: "image/png", data: "YWZ0ZXI=" }
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              {
+                type: "message",
+                id: 9,
+                role: "user",
+                tool_name: null,
+                content: { text: "Inspect these." },
+                text: "Inspect these.",
+                bookmarkable: true,
+                attachments: [
+                  { name: "before.png", mime_type: "image/png", data: "YmVmb3Jl" },
+                  { name: "after.png", mime_type: "image/png", data: "YWZ0ZXI=" }
+                ]
+              }
             ]
-          }
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2895,47 +3098,51 @@ describe("chat message image attachments", () => {
       // The media tab sources its gallery from GET /media (the chat's full
       // history), not from the currently loaded `messages` window.
       if (path === "/api/v1/app/chats/8/media") {
-        return Promise.resolve(jsonResponse({
-          snapshots: [],
-          chat_images: [
-            { id: 1, title: "diagram.png", filename: "diagram.png", content_type: "image/png", image_url: "/api/v1/app/repository_documents/1/file" },
-            { id: 2, title: "mockup.jpg", filename: "mockup.jpg", content_type: "image/jpeg", image_url: "/api/v1/app/repository_documents/2/file" }
-          ],
-          typed_artifacts: [],
-          whiteboard_has_unsaved_content: false
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            snapshots: [],
+            chat_images: [
+              { id: 1, title: "diagram.png", filename: "diagram.png", content_type: "image/png", image_url: "/api/v1/app/repository_documents/1/file" },
+              { id: 2, title: "mockup.jpg", filename: "mockup.jpg", content_type: "image/jpeg", image_url: "/api/v1/app/repository_documents/2/file" }
+            ],
+            typed_artifacts: [],
+            whiteboard_has_unsaved_content: false
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        chat: { has_chat_images: true },
-        messages: [
-          {
-            type: "message",
-            id: 9,
-            role: "user",
-            tool_name: null,
-            content: { text: "First image." },
-            text: "First image.",
-            bookmarkable: true,
-            attachments: [
-              { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
-              { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" }
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            chat: { has_chat_images: true },
+            messages: [
+              {
+                type: "message",
+                id: 9,
+                role: "user",
+                tool_name: null,
+                content: { text: "First image." },
+                text: "First image.",
+                bookmarkable: true,
+                attachments: [
+                  { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
+                  { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" }
+                ]
+              },
+              {
+                type: "message",
+                id: 10,
+                role: "assistant",
+                tool_name: null,
+                content: { text: "Second image." },
+                text: "Second image.",
+                bookmarkable: true,
+                attachments: [{ name: "mockup.jpg", mime_type: "image/jpeg", data: "anBlZw==" }]
+              }
             ]
-          },
-          {
-            type: "message",
-            id: 10,
-            role: "assistant",
-            tool_name: null,
-            content: { text: "Second image." },
-            text: "Second image.",
-            bookmarkable: true,
-            attachments: [
-              { name: "mockup.jpg", mime_type: "image/jpeg", data: "anBlZw==" }
-            ]
-          }
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -2982,21 +3189,25 @@ describe("chat message image attachments", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        chat: { has_chat_images: true },
-        messages: [
-          {
-            type: "message",
-            id: 9,
-            role: "user",
-            tool_name: null,
-            content: { text: "Screenshot." },
-            text: "Screenshot.",
-            bookmarkable: true,
-            attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }]
-          }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            chat: { has_chat_images: true },
+            messages: [
+              {
+                type: "message",
+                id: 9,
+                role: "user",
+                tool_name: null,
+                content: { text: "Screenshot." },
+                text: "Screenshot.",
+                bookmarkable: true,
+                attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -3205,10 +3416,14 @@ describe("repositoryless chat compose", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        chat: { repository: null, system_kind: "supervisor", title: "Supervisor" },
-        messages: []
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            chat: { repository: null, system_kind: "supervisor", title: "Supervisor" },
+            messages: []
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -3279,37 +3494,41 @@ describe("chat slash commands", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          {
-            type: "message",
-            id: 9,
-            role: "assistant",
-            tool_name: null,
-            content: { text: "First assistant response." },
-            text: "First assistant response.",
-            bookmarkable: true
-          },
-          {
-            type: "message",
-            id: 10,
-            role: "user",
-            tool_name: null,
-            content: { text: "Thanks." },
-            text: "Thanks.",
-            bookmarkable: true
-          },
-          {
-            type: "message",
-            id: 11,
-            role: "assistant",
-            tool_name: null,
-            content: { text: "Latest assistant response." },
-            text: "Latest assistant response.",
-            bookmarkable: true
-          }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              {
+                type: "message",
+                id: 9,
+                role: "assistant",
+                tool_name: null,
+                content: { text: "First assistant response." },
+                text: "First assistant response.",
+                bookmarkable: true
+              },
+              {
+                type: "message",
+                id: 10,
+                role: "user",
+                tool_name: null,
+                content: { text: "Thanks." },
+                text: "Thanks.",
+                bookmarkable: true
+              },
+              {
+                type: "message",
+                id: 11,
+                role: "assistant",
+                tool_name: null,
+                content: { text: "Latest assistant response." },
+                text: "Latest assistant response.",
+                bookmarkable: true
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -3329,28 +3548,32 @@ describe("chat slash commands", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload({
-        messages: [
-          {
-            type: "message",
-            id: 9,
-            role: "assistant",
-            tool_name: null,
-            content: { text: "" },
-            text: "",
-            bookmarkable: true
-          },
-          {
-            type: "message",
-            id: 10,
-            role: "assistant",
-            tool_name: null,
-            content: { text: "Here is the answer." },
-            text: "Here is the answer.",
-            bookmarkable: true
-          }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              {
+                type: "message",
+                id: 9,
+                role: "assistant",
+                tool_name: null,
+                content: { text: "" },
+                text: "",
+                bookmarkable: true
+              },
+              {
+                type: "message",
+                id: 10,
+                role: "assistant",
+                tool_name: null,
+                content: { text: "Here is the answer." },
+                text: "Here is the answer.",
+                bookmarkable: true
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -3525,20 +3748,25 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
   })
 
   it("rehydrates the stop control from the payload when the composer mounts with a command already running (JOB-607 remount fix)", async () => {
-    mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
-      chat_shell_command_in_flight: {
-        id: 501,
-        chat_session_id: 8,
-        command: "sleep 100",
-        output: null,
-        outcome: null,
-        exit_status: null,
-        started_at: "2026-09-07T00:00:00Z",
-        finished_at: null,
-        running: true,
-        cancellable: true
-      }
-    }))
+    mockChatRouteFetch(
+      chatPayload(
+        { chat: { mode: "coding" } },
+        {
+          chat_shell_command_in_flight: {
+            id: 501,
+            chat_session_id: 8,
+            command: "sleep 100",
+            output: null,
+            outcome: null,
+            exit_status: null,
+            started_at: "2026-09-07T00:00:00Z",
+            finished_at: null,
+            running: true,
+            cancellable: true
+          }
+        }
+      )
+    )
     renderRoute()
 
     expect(await screen.findByRole("button", { name: "Stop command" })).toBeInTheDocument()
@@ -3559,9 +3787,7 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some((call) =>
-        String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit)?.method === "POST"
-      )).toBe(true)
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
     })
     expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/shell_commands")).toBe(false)
   })
@@ -3573,18 +3799,23 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/shell_commands" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          id: 501,
-          chat_session_id: 8,
-          command: "ls -la",
-          output: null,
-          outcome: null,
-          exit_status: null,
-          started_at: "2026-09-07T00:00:00Z",
-          finished_at: null,
-          running: true,
-          cancellable: false
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              id: 501,
+              chat_session_id: 8,
+              command: "ls -la",
+              output: null,
+              outcome: null,
+              exit_status: null,
+              started_at: "2026-09-07T00:00:00Z",
+              finished_at: null,
+              running: true,
+              cancellable: false
+            },
+            201
+          )
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } })))
@@ -3597,11 +3828,14 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some((call) =>
-        String(call[0]) === "/api/v1/app/chats/8/shell_commands" &&
-        (call[1] as RequestInit)?.method === "POST" &&
-        (call[1] as RequestInit)?.body === JSON.stringify({ command: "ls -la" })
-      )).toBe(true)
+      expect(
+        fetchMock.mock.calls.some(
+          (call) =>
+            String(call[0]) === "/api/v1/app/chats/8/shell_commands" &&
+            (call[1] as RequestInit)?.method === "POST" &&
+            (call[1] as RequestInit)?.body === JSON.stringify({ command: "ls -la" })
+        )
+      ).toBe(true)
     })
 
     await waitFor(() => expect(textarea).toHaveValue(""))
@@ -3611,20 +3845,25 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
   })
 
   it("shows a running shell command from the chat payload above the composer", async () => {
-    mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
-      chat_shell_command_in_flight: {
-        id: 501,
-        chat_session_id: 8,
-        command: "bin/rails db:migrate",
-        output: null,
-        outcome: null,
-        exit_status: null,
-        started_at: "2026-09-07T00:00:00Z",
-        finished_at: null,
-        running: true,
-        cancellable: true
-      }
-    }))
+    mockChatRouteFetch(
+      chatPayload(
+        { chat: { mode: "coding" } },
+        {
+          chat_shell_command_in_flight: {
+            id: 501,
+            chat_session_id: 8,
+            command: "bin/rails db:migrate",
+            output: null,
+            outcome: null,
+            exit_status: null,
+            started_at: "2026-09-07T00:00:00Z",
+            finished_at: null,
+            running: true,
+            cancellable: true
+          }
+        }
+      )
+    )
 
     renderRoute()
 
@@ -3641,18 +3880,23 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/shell_commands" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          id: 501,
-          chat_session_id: 8,
-          command: "ls -la",
-          output: null,
-          outcome: null,
-          exit_status: null,
-          started_at: "2026-09-07T00:00:00Z",
-          finished_at: null,
-          running: true,
-          cancellable: false
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              id: 501,
+              chat_session_id: 8,
+              command: "ls -la",
+              output: null,
+              outcome: null,
+              exit_status: null,
+              started_at: "2026-09-07T00:00:00Z",
+              finished_at: null,
+              running: true,
+              cancellable: false
+            },
+            201
+          )
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } })))
@@ -3665,9 +3909,8 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
     await screen.findByRole("button", { name: "Stop command" })
 
-    const shellCommandPosts = () => fetchMock.mock.calls.filter((call) =>
-      String(call[0]) === "/api/v1/app/chats/8/shell_commands" && (call[1] as RequestInit)?.method === "POST"
-    ).length
+    const shellCommandPosts = () =>
+      fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/chats/8/shell_commands" && (call[1] as RequestInit)?.method === "POST").length
     expect(shellCommandPosts()).toBe(1)
 
     fireEvent.change(textarea, { target: { value: "!pwd" } })
@@ -3684,32 +3927,39 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/shell_commands" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          id: 501,
-          chat_session_id: 8,
-          command: "sleep 100",
-          output: null,
-          outcome: null,
-          exit_status: null,
-          started_at: "2026-09-07T00:00:00Z",
-          finished_at: null,
-          running: true,
-          cancellable: true
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              id: 501,
+              chat_session_id: 8,
+              command: "sleep 100",
+              output: null,
+              outcome: null,
+              exit_status: null,
+              started_at: "2026-09-07T00:00:00Z",
+              finished_at: null,
+              running: true,
+              cancellable: true
+            },
+            201
+          )
+        )
       }
       if (path === "/api/v1/app/chats/8/shell_commands/501/cancel" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          id: 501,
-          chat_session_id: 8,
-          command: "sleep 100",
-          output: null,
-          outcome: null,
-          exit_status: null,
-          started_at: "2026-09-07T00:00:00Z",
-          finished_at: null,
-          running: true,
-          cancellable: true
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            id: 501,
+            chat_session_id: 8,
+            command: "sleep 100",
+            output: null,
+            outcome: null,
+            exit_status: null,
+            started_at: "2026-09-07T00:00:00Z",
+            finished_at: null,
+            running: true,
+            cancellable: true
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } })))
@@ -3725,9 +3975,9 @@ describe("bang command mode (the chat shell-command cancellation feature)", () =
     fireEvent.click(stopButton)
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some((call) =>
-        String(call[0]) === "/api/v1/app/chats/8/shell_commands/501/cancel" && (call[1] as RequestInit)?.method === "POST"
-      )).toBe(true)
+      expect(
+        fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/shell_commands/501/cancel" && (call[1] as RequestInit)?.method === "POST")
+      ).toBe(true)
     })
   })
 })
@@ -3779,7 +4029,9 @@ describe("scratchpad stash button", () => {
   it("calls POST scratchpad_items and clears the textarea on stash", async () => {
     const updatedPayload = {
       ...chatPayload({
-        scratchpad_items: [{ id: 1, content: "Draft idea", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }]
+        scratchpad_items: [
+          { id: 1, content: "Draft idea", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        ]
       }),
       agent_busy: true
     }
@@ -3804,8 +4056,8 @@ describe("scratchpad stash button", () => {
       expect(textarea).toHaveValue("")
     })
 
-    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    const stashCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(stashCalls).toHaveLength(1)
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Draft idea" } })
@@ -3814,14 +4066,16 @@ describe("scratchpad stash button", () => {
   it("stashes composer attachments with the draft and clears attachment chips", async () => {
     const updatedPayload = {
       ...chatPayload({
-        scratchpad_items: [{
-          id: 1,
-          content: "Draft idea",
-          text: "Draft idea",
-          attachments: [{ name: "screen.png", mime_type: "image/png", data: "cGl4ZWxz" }],
-          app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
-          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
-        }]
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "Draft idea",
+            text: "Draft idea",
+            attachments: [{ name: "screen.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
       }),
       agent_busy: true
     }
@@ -3852,8 +4106,8 @@ describe("scratchpad stash button", () => {
       expect(screen.queryByRole("button", { name: "Remove screen.png" })).not.toBeInTheDocument()
     })
 
-    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    const stashCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
       scratchpad_item: {
@@ -3866,14 +4120,16 @@ describe("scratchpad stash button", () => {
   it("stashes attachment-only composer drafts", async () => {
     const updatedPayload = {
       ...chatPayload({
-        scratchpad_items: [{
-          id: 1,
-          content: "",
-          text: "",
-          attachments: [{ name: "only.png", mime_type: "image/png", data: "cGl4ZWxz" }],
-          app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
-          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
-        }]
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "",
+            text: "",
+            attachments: [{ name: "only.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
       }),
       agent_busy: true
     }
@@ -3899,12 +4155,14 @@ describe("scratchpad stash button", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stash" }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.filter((call: unknown[]) =>
-        String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
-      )).toHaveLength(1)
+      expect(
+        fetchMock.mock.calls.filter(
+          (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+        )
+      ).toHaveLength(1)
     })
-    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    const stashCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
       scratchpad_item: {
@@ -3926,7 +4184,9 @@ describe("scratchpad stash button", () => {
 
   it("stashes on Tab when the textarea has text", async () => {
     const updatedPayload = chatPayload({
-      scratchpad_items: [{ id: 1, content: "Draft idea", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }]
+      scratchpad_items: [
+        { id: 1, content: "Draft idea", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+      ]
     })
 
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -3951,8 +4211,8 @@ describe("scratchpad stash button", () => {
       expect(textarea).toHaveValue("")
     })
 
-    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    const stashCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(stashCalls).toHaveLength(1)
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Draft idea" } })
@@ -3972,9 +4232,9 @@ describe("scratchpad stash button", () => {
     const defaultNotPrevented = fireEvent.keyDown(textarea, { key: "Tab" })
 
     expect(defaultNotPrevented).toBe(true)
-    expect(fetchMock.mock.calls.some((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
-    )).toBe(false)
+    expect(
+      fetchMock.mock.calls.some((call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST")
+    ).toBe(false)
   })
 
   it("does not stash on Shift+Tab when textarea has text", async () => {
@@ -3992,9 +4252,9 @@ describe("scratchpad stash button", () => {
     const defaultNotPrevented = fireEvent.keyDown(textarea, { key: "Tab", shiftKey: true })
 
     expect(defaultNotPrevented).toBe(true)
-    expect(fetchMock.mock.calls.some((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
-    )).toBe(false)
+    expect(
+      fetchMock.mock.calls.some((call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST")
+    ).toBe(false)
   })
 })
 
@@ -4313,9 +4573,11 @@ describe("floating composer positioning", () => {
   // `bottom-full`, so it always sits exactly at the composer's current top
   // edge, however tall the composer grows.
   it("positions the pending-proposal banner with bottom-full inside the composer's own positioned box", async () => {
-    mockChatRouteFetch(chatPayload({
-      messages: [messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" }))]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        messages: [messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" }))]
+      })
+    )
     renderRoute()
 
     const bannerText = await screen.findByText("1 pending proposal")
@@ -4392,7 +4654,15 @@ describe("floating composer height tracking", () => {
     // real ResizeObserver's initial report), so the mocked height needs to
     // be in place before the composer's mount-time effect calls observe().
     vi.spyOn(HTMLFormElement.prototype, "getBoundingClientRect").mockReturnValue({
-      height: 240, width: 600, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON: () => ({})
+      height: 240,
+      width: 600,
+      top: 0,
+      left: 0,
+      right: 600,
+      bottom: 240,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     } as DOMRect)
 
     mockChatRouteFetch(chatPayload())
@@ -4429,7 +4699,15 @@ describe("floating composer height tracking", () => {
   // chat history bug this state exists to fix.
   it("does not reset the tracked composer height when has_more_older changes without a chat switch", async () => {
     vi.spyOn(HTMLFormElement.prototype, "getBoundingClientRect").mockReturnValue({
-      height: 240, width: 600, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON: () => ({})
+      height: 240,
+      width: 600,
+      top: 0,
+      left: 0,
+      right: 600,
+      bottom: 240,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     } as DOMRect)
 
     const payload = chatPayload({}, { has_more_older: false })
@@ -4510,11 +4788,18 @@ describe("scratchpad panel", () => {
   })
 
   it("renders the scratchpad panel with items when scratchpad_items is non-empty", async () => {
-    mockChatRouteFetch(chatPayload({
-      scratchpad_items: [
-        { id: 1, content: "Review the aqueduct spec", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "Review the aqueduct spec",
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      })
+    )
     renderRoute()
 
     expect(await screen.findByText("Review the aqueduct spec")).toBeInTheDocument()
@@ -4531,11 +4816,20 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDeletePayload))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            scratchpad_items: [
+              {
+                id: 1,
+                content: "Check the aqueduct route",
+                app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+                app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -4548,9 +4842,11 @@ describe("scratchpad panel", () => {
       expect(textarea).toHaveValue("Check the aqueduct route")
     })
 
-    expect(fetchMock.mock.calls.some((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
-    )).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(
+        (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
+      )
+    ).toBe(true)
   })
 
   it("loads scratchpad attachments back into the composer", async () => {
@@ -4563,18 +4859,22 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDeletePayload))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          {
-            id: 1,
-            content: "",
-            text: "",
-            attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }],
-            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
-            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
-          }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            scratchpad_items: [
+              {
+                id: 1,
+                content: "",
+                text: "",
+                attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+                app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+                app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -4589,13 +4889,30 @@ describe("scratchpad panel", () => {
   it("auto-stashes existing text and loads item when textarea has content on load", async () => {
     const afterStashPayload = chatPayload({
       scratchpad_items: [
-        { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" },
-        { id: 2, content: "Already have some text", app_update_path: "/api/v1/app/chats/8/scratchpad_items/2", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2" }
+        {
+          id: 1,
+          content: "Check the aqueduct route",
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+        },
+        {
+          id: 2,
+          content: "Already have some text",
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/2",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2"
+        }
       ]
     })
-    const afterDeletePayload = chatPayload({ scratchpad_items: [
-      { id: 2, content: "Already have some text", app_update_path: "/api/v1/app/chats/8/scratchpad_items/2", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2" }
-    ] })
+    const afterDeletePayload = chatPayload({
+      scratchpad_items: [
+        {
+          id: 2,
+          content: "Already have some text",
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/2",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2"
+        }
+      ]
+    })
 
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
@@ -4607,16 +4924,25 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDeletePayload))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            scratchpad_items: [
+              {
+                id: 1,
+                content: "Check the aqueduct route",
+                app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+                app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
 
-    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    const textarea = (await screen.findByPlaceholderText("Ask about this repository...")) as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: "Already have some text" } })
 
     await screen.findByText("Check the aqueduct route")
@@ -4626,14 +4952,14 @@ describe("scratchpad panel", () => {
       expect(textarea).toHaveValue("Check the aqueduct route")
     })
 
-    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    const stashCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(stashCalls).toHaveLength(1)
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Already have some text" } })
 
-    const deleteCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
+    const deleteCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
     )
     expect(deleteCalls).toHaveLength(1)
   })
@@ -4648,11 +4974,20 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(updatedPayload))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          { id: 1, content: "Temporary note", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            scratchpad_items: [
+              {
+                id: 1,
+                content: "Temporary note",
+                app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+                app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -4664,9 +4999,11 @@ describe("scratchpad panel", () => {
       expect(screen.queryByText("Temporary note")).not.toBeInTheDocument()
     })
 
-    expect(fetchMock.mock.calls.some((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
-    )).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(
+        (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
+      )
+    ).toBe(true)
   })
 
   it("shows edit form when edit button is clicked and saves on save", async () => {
@@ -4683,11 +5020,20 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "PATCH") {
         return Promise.resolve(jsonResponse(updatedPayload))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          { id: 1, content: "Original note", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            scratchpad_items: [
+              {
+                id: 1,
+                content: "Original note",
+                app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+                app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -4709,7 +5055,12 @@ describe("scratchpad panel", () => {
   it("shows inline add field inside the panel and adds an item on Enter", async () => {
     const updatedPayload = chatPayload({
       scratchpad_items: [
-        { id: 1, content: "New draft note", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" },
+        {
+          id: 1,
+          content: "New draft note",
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+        },
         { id: 2, content: "First item", app_update_path: "/api/v1/app/chats/8/scratchpad_items/2", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2" }
       ]
     })
@@ -4721,11 +5072,20 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
         return Promise.resolve(jsonResponse(updatedPayload))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          { id: 2, content: "First item", app_update_path: "/api/v1/app/chats/8/scratchpad_items/2", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            scratchpad_items: [
+              {
+                id: 2,
+                content: "First item",
+                app_update_path: "/api/v1/app/chats/8/scratchpad_items/2",
+                app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -4740,11 +5100,18 @@ describe("scratchpad panel", () => {
   })
 
   it("collapses and expands the panel on header click", async () => {
-    mockChatRouteFetch(chatPayload({
-      scratchpad_items: [
-        { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "Check the aqueduct route",
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      })
+    )
     renderRoute()
 
     await screen.findByText("Check the aqueduct route")
@@ -4759,11 +5126,18 @@ describe("scratchpad panel", () => {
   })
 
   it("shows a Queue button on scratchpad items", async () => {
-    mockChatRouteFetch(chatPayload({
-      scratchpad_items: [
-        { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "Refactor the aqueduct service",
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      })
+    )
     renderRoute()
 
     await screen.findByText("Refactor the aqueduct service")
@@ -4774,11 +5148,24 @@ describe("scratchpad panel", () => {
     const afterEnqueue = {
       ...chatPayload({
         scratchpad_items: [
-          { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+          {
+            id: 1,
+            content: "Refactor the aqueduct service",
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
         ]
       }),
       agent_busy: true,
-      queued_messages: [{ id: 20, text: "Refactor the aqueduct service", created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/20", app_delete_path: "/api/v1/app/chats/8/queued_messages/20" }]
+      queued_messages: [
+        {
+          id: 20,
+          text: "Refactor the aqueduct service",
+          created_at: null,
+          app_update_path: "/api/v1/app/chats/8/queued_messages/20",
+          app_delete_path: "/api/v1/app/chats/8/queued_messages/20"
+        }
+      ]
     }
     const afterDelete = chatPayload({ scratchpad_items: [], queued_messages: afterEnqueue.queued_messages })
 
@@ -4792,11 +5179,20 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDelete))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            scratchpad_items: [
+              {
+                id: 1,
+                content: "Refactor the aqueduct service",
+                app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+                app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -4808,15 +5204,17 @@ describe("scratchpad panel", () => {
       expect(screen.queryByText("Scratch pad")).not.toBeInTheDocument()
     })
 
-    expect(fetchMock.mock.calls.some((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
-    )).toBe(true)
-    expect(fetchMock.mock.calls.some((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
-    )).toBe(true)
+    expect(
+      fetchMock.mock.calls.some((call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST")
+    ).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(
+        (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
+      )
+    ).toBe(true)
 
-    const enqueueCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+    const enqueueCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat_message: { text: "Refactor the aqueduct service" } })
   })
@@ -4837,7 +5235,16 @@ describe("scratchpad panel", () => {
         ]
       }),
       agent_busy: true,
-      queued_messages: [{ id: 20, text: "", attachments: [queuedAttachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/20", app_delete_path: "/api/v1/app/chats/8/queued_messages/20" }]
+      queued_messages: [
+        {
+          id: 20,
+          text: "",
+          attachments: [queuedAttachment],
+          created_at: null,
+          app_update_path: "/api/v1/app/chats/8/queued_messages/20",
+          app_delete_path: "/api/v1/app/chats/8/queued_messages/20"
+        }
+      ]
     }
     const afterDelete = chatPayload({ scratchpad_items: [], queued_messages: afterEnqueue.queued_messages })
 
@@ -4851,18 +5258,22 @@ describe("scratchpad panel", () => {
       if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDelete))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        scratchpad_items: [
-          {
-            id: 1,
-            content: "",
-            text: "",
-            attachments: [queuedAttachment],
-            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
-            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
-          }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            scratchpad_items: [
+              {
+                id: 1,
+                content: "",
+                text: "",
+                attachments: [queuedAttachment],
+                app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+                app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -4871,12 +5282,14 @@ describe("scratchpad panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Queue" }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.filter((call: unknown[]) =>
-        String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
-      )).toHaveLength(1)
+      expect(
+        fetchMock.mock.calls.filter(
+          (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+        )
+      ).toHaveLength(1)
     })
-    const enqueueCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+    const enqueueCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toEqual({
       chat_message: { text: "", attachments: [queuedAttachment] }
@@ -4903,11 +5316,21 @@ describe("queued message stash", () => {
       if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        queued_messages: [
-          { id: 14, text: "Check the forum routes", created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            queued_messages: [
+              {
+                id: 14,
+                text: "Check the forum routes",
+                created_at: null,
+                app_update_path: "/api/v1/app/chats/8/queued_messages/14",
+                app_delete_path: "/api/v1/app/chats/8/queued_messages/14"
+              }
+            ]
+          })
+        )
+      )
     })
     renderRoute()
 
@@ -4918,10 +5341,21 @@ describe("queued message stash", () => {
   it("calls POST scratchpad_items then DELETE queued message on Stash click", async () => {
     const afterCreate = chatPayload({
       queued_messages: [
-        { id: 14, text: "Check the forum routes", created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+        {
+          id: 14,
+          text: "Check the forum routes",
+          created_at: null,
+          app_update_path: "/api/v1/app/chats/8/queued_messages/14",
+          app_delete_path: "/api/v1/app/chats/8/queued_messages/14"
+        }
       ],
       scratchpad_items: [
-        { id: 5, content: "Check the forum routes", app_update_path: "/api/v1/app/chats/8/scratchpad_items/5", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/5" }
+        {
+          id: 5,
+          content: "Check the forum routes",
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/5",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/5"
+        }
       ]
     })
     const afterDelete = chatPayload({ scratchpad_items: afterCreate.scratchpad_items, queued_messages: [] })
@@ -4936,11 +5370,21 @@ describe("queued message stash", () => {
       if (String(input) === "/api/v1/app/chats/8/queued_messages/14" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDelete))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        queued_messages: [
-          { id: 14, text: "Check the forum routes", created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            queued_messages: [
+              {
+                id: 14,
+                text: "Check the forum routes",
+                created_at: null,
+                app_update_path: "/api/v1/app/chats/8/queued_messages/14",
+                app_delete_path: "/api/v1/app/chats/8/queued_messages/14"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -4952,15 +5396,17 @@ describe("queued message stash", () => {
       expect(screen.queryByText("Queued messages")).not.toBeInTheDocument()
     })
 
-    expect(fetchMock.mock.calls.some((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
-    )).toBe(true)
-    expect(fetchMock.mock.calls.some((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/queued_messages/14" && (call[1] as RequestInit)?.method === "DELETE"
-    )).toBe(true)
+    expect(
+      fetchMock.mock.calls.some((call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST")
+    ).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(
+        (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/queued_messages/14" && (call[1] as RequestInit)?.method === "DELETE"
+      )
+    ).toBe(true)
 
-    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    const stashCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Check the forum routes" } })
   })
@@ -4969,10 +5415,24 @@ describe("queued message stash", () => {
     const attachment = { name: "queue.png", mime_type: "image/png", data: "cGl4ZWxz" }
     const afterCreate = chatPayload({
       queued_messages: [
-        { id: 14, text: "", attachments: [attachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+        {
+          id: 14,
+          text: "",
+          attachments: [attachment],
+          created_at: null,
+          app_update_path: "/api/v1/app/chats/8/queued_messages/14",
+          app_delete_path: "/api/v1/app/chats/8/queued_messages/14"
+        }
       ],
       scratchpad_items: [
-        { id: 5, content: "", text: "", attachments: [attachment], app_update_path: "/api/v1/app/chats/8/scratchpad_items/5", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/5" }
+        {
+          id: 5,
+          content: "",
+          text: "",
+          attachments: [attachment],
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/5",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/5"
+        }
       ]
     })
     const afterDelete = chatPayload({ scratchpad_items: afterCreate.scratchpad_items, queued_messages: [] })
@@ -4987,11 +5447,22 @@ describe("queued message stash", () => {
       if (String(input) === "/api/v1/app/chats/8/queued_messages/14" && (init as RequestInit)?.method === "DELETE") {
         return Promise.resolve(jsonResponse(afterDelete))
       }
-      return Promise.resolve(jsonResponse(chatPayload({
-        queued_messages: [
-          { id: 14, text: "", attachments: [attachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            queued_messages: [
+              {
+                id: 14,
+                text: "",
+                attachments: [attachment],
+                created_at: null,
+                app_update_path: "/api/v1/app/chats/8/queued_messages/14",
+                app_delete_path: "/api/v1/app/chats/8/queued_messages/14"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -5001,12 +5472,14 @@ describe("queued message stash", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stash" }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.filter((call: unknown[]) =>
-        String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
-      )).toHaveLength(1)
+      expect(
+        fetchMock.mock.calls.filter(
+          (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+        )
+      ).toHaveLength(1)
     })
-    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    const stashCalls = fetchMock.mock.calls.filter(
+      (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
       scratchpad_item: { content: "", attachments: [attachment] }
@@ -5143,14 +5616,18 @@ describe("AgentQuestions markdown rendering", () => {
   })
 
   it("renders bold markdown in question text as a <strong> element", async () => {
-    mockChatRouteFetch(chatPayload({
-      agent_questions: [{
-        id: 1,
-        questions: [{ question: "Should we use **fiber** or threads?", options: null, multiple: false }],
-        asked_at: "2026-07-18T12:00:00Z",
-        app_answer_path: "/api/v1/app/chats/8/agent_questions/1/answer"
-      }]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        agent_questions: [
+          {
+            id: 1,
+            questions: [{ question: "Should we use **fiber** or threads?", options: null, multiple: false }],
+            asked_at: "2026-07-18T12:00:00Z",
+            app_answer_path: "/api/v1/app/chats/8/agent_questions/1/answer"
+          }
+        ]
+      })
+    )
 
     renderRoute()
 
@@ -5188,15 +5665,17 @@ describe("AgentQuestions wizard", () => {
   }
 
   it("advances a single-select step immediately, lets Back change it, and submits the summary atomically", async () => {
-    const { answerCalls } = mockAgentQuestionsRouteFetch([{
-      id: 1,
-      questions: [
-        { question: "Which path?", options: ["Fast", "Careful"], multiple: false },
-        { question: "Any notes?", options: null, multiple: false }
-      ],
-      asked_at: "2026-07-18T12:00:00Z",
-      app_answer_path: ANSWER_PATH
-    }])
+    const { answerCalls } = mockAgentQuestionsRouteFetch([
+      {
+        id: 1,
+        questions: [
+          { question: "Which path?", options: ["Fast", "Careful"], multiple: false },
+          { question: "Any notes?", options: null, multiple: false }
+        ],
+        asked_at: "2026-07-18T12:00:00Z",
+        app_answer_path: ANSWER_PATH
+      }
+    ])
 
     renderRoute()
 
@@ -5237,15 +5716,17 @@ describe("AgentQuestions wizard", () => {
   })
 
   it("requires an explicit Submit for multi-select and preserves the checked state across Back", async () => {
-    mockAgentQuestionsRouteFetch([{
-      id: 1,
-      questions: [
-        { question: "Which tools?", options: ["Fiber", "Threads", "Locks"], multiple: true },
-        { question: "Any notes?", options: null, multiple: false }
-      ],
-      asked_at: "2026-07-18T12:00:00Z",
-      app_answer_path: ANSWER_PATH
-    }])
+    mockAgentQuestionsRouteFetch([
+      {
+        id: 1,
+        questions: [
+          { question: "Which tools?", options: ["Fiber", "Threads", "Locks"], multiple: true },
+          { question: "Any notes?", options: null, multiple: false }
+        ],
+        asked_at: "2026-07-18T12:00:00Z",
+        app_answer_path: ANSWER_PATH
+      }
+    ])
 
     renderRoute()
 
@@ -5271,12 +5752,14 @@ describe("AgentQuestions wizard", () => {
   })
 
   it("renders no wizard chrome for a single question and posts immediately", async () => {
-    const { answerCalls } = mockAgentQuestionsRouteFetch([{
-      id: 1,
-      questions: [{ question: "Which path?", options: ["Fast", "Careful"], multiple: false }],
-      asked_at: "2026-07-18T12:00:00Z",
-      app_answer_path: ANSWER_PATH
-    }])
+    const { answerCalls } = mockAgentQuestionsRouteFetch([
+      {
+        id: 1,
+        questions: [{ question: "Which path?", options: ["Fast", "Careful"], multiple: false }],
+        asked_at: "2026-07-18T12:00:00Z",
+        app_answer_path: ANSWER_PATH
+      }
+    ])
 
     renderRoute()
 
@@ -5291,12 +5774,14 @@ describe("AgentQuestions wizard", () => {
   })
 
   it("records the decline literal for a free-text step", async () => {
-    const { answerCalls } = mockAgentQuestionsRouteFetch([{
-      id: 1,
-      questions: [{ question: "Anything else?", options: null, multiple: false }],
-      asked_at: "2026-07-18T12:00:00Z",
-      app_answer_path: ANSWER_PATH
-    }])
+    const { answerCalls } = mockAgentQuestionsRouteFetch([
+      {
+        id: 1,
+        questions: [{ question: "Anything else?", options: null, multiple: false }],
+        asked_at: "2026-07-18T12:00:00Z",
+        app_answer_path: ANSWER_PATH
+      }
+    ])
 
     renderRoute()
 
@@ -5308,12 +5793,14 @@ describe("AgentQuestions wizard", () => {
   })
 
   it("records the decline literal as an array for a multi-select step", async () => {
-    const { answerCalls } = mockAgentQuestionsRouteFetch([{
-      id: 1,
-      questions: [{ question: "Which tools?", options: ["Fiber", "Threads"], multiple: true }],
-      asked_at: "2026-07-18T12:00:00Z",
-      app_answer_path: ANSWER_PATH
-    }])
+    const { answerCalls } = mockAgentQuestionsRouteFetch([
+      {
+        id: 1,
+        questions: [{ question: "Which tools?", options: ["Fiber", "Threads"], multiple: true }],
+        asked_at: "2026-07-18T12:00:00Z",
+        app_answer_path: ANSWER_PATH
+      }
+    ])
 
     renderRoute()
 
@@ -5355,9 +5842,11 @@ describe("group chat participants and composer hint", () => {
   })
 
   it("does not show the mention hint once the group is down to one participant", async () => {
-    mockChatRouteFetch(chatPayload({
-      chat: { conversation_kind: "group", participants: [{ id: 1, name: "Marcus Cato", avatar_url: null, role: "owner" }] }
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        chat: { conversation_kind: "group", participants: [{ id: 1, name: "Marcus Cato", avatar_url: null, role: "owner" }] }
+      })
+    )
     renderRoute()
 
     await screen.findByPlaceholderText("Ask about this repository...")
@@ -5387,9 +5876,14 @@ describe("group chat participants and composer hint", () => {
         return Promise.resolve(jsonResponse([{ id: 3, name: "Cicero", avatar_url: null }]))
       }
       if (path === "/api/v1/app/chats/8/participants" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          participants: [...groupParticipants(), { id: 3, name: "Cicero", avatar_url: null, role: "member" }]
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              participants: [...groupParticipants(), { id: 3, name: "Cicero", avatar_url: null, role: "member" }]
+            },
+            201
+          )
+        )
       }
 
       return Promise.resolve(jsonResponse(payload))
@@ -5405,7 +5899,9 @@ describe("group chat participants and composer hint", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/participants" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/participants" && (call[1] as RequestInit)?.method === "POST")).toBe(
+        true
+      )
     })
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "Add participant" })).not.toBeInTheDocument()
@@ -5576,7 +6072,12 @@ function setBootstrapMode(mode: "advanced" | "simple") {
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}{location.search}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 async function submitSlashCommand(command: string) {
@@ -5593,12 +6094,17 @@ function mockChatRouteFetch(payload = chatPayload()) {
     }
     if (path === "/api/v1/app/chats/8/scheduled_messages" && init?.method === "POST") {
       const body = JSON.parse(String(init.body || "{}")).scheduled_message || {}
-      return Promise.resolve(jsonResponse({
-        id: 1,
-        body: body.body || "",
-        fire_at: body.fire_at || new Date().toISOString(),
-        message: "Message scheduled."
-      }, 201))
+      return Promise.resolve(
+        jsonResponse(
+          {
+            id: 1,
+            body: body.body || "",
+            fire_at: body.fire_at || new Date().toISOString(),
+            message: "Message scheduled."
+          },
+          201
+        )
+      )
     }
 
     return Promise.resolve(jsonResponse(payload))
@@ -5613,28 +6119,32 @@ function mockDictationFetch(payload = chatPayload(), options: { batchText?: stri
       return Promise.resolve(new Response(null, { status: 204 }))
     }
     if (path === "/api/v1/app/chats/8/speech_to_text/stream" && init?.method === "POST") {
-      return Promise.resolve(jsonResponse({
-        stream: {
-          transport: "action_cable",
-          channel: "ChatDictationChannel",
-          chat_session_id: 8,
-          events: ["started", "ack", "transcript_delta", "done", "cancelled", "error"],
-          fallback: {
-            mode: "backend_batch",
-            buffered_audio_required: true,
-            endpoint: "/api/v1/app/chats/8/speech_to_text"
+      return Promise.resolve(
+        jsonResponse({
+          stream: {
+            transport: "action_cable",
+            channel: "ChatDictationChannel",
+            chat_session_id: 8,
+            events: ["started", "ack", "transcript_delta", "done", "cancelled", "error"],
+            fallback: {
+              mode: "backend_batch",
+              buffered_audio_required: true,
+              endpoint: "/api/v1/app/chats/8/speech_to_text"
+            }
           }
-        }
-      }))
+        })
+      )
     }
     if (path === "/api/v1/app/chats/8/speech_to_text" && init?.method === "POST") {
-      return Promise.resolve(jsonResponse({
-        transcript: {
-          text: options.batchText || "backend batch transcript",
-          source: "backend_batch",
-          confidence: null
-        }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          transcript: {
+            text: options.batchText || "backend batch transcript",
+            source: "backend_batch",
+            confidence: null
+          }
+        })
+      )
     }
     if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
       return Promise.resolve(jsonResponse(payload))
@@ -5724,7 +6234,7 @@ function mockAudioPermission(result: Promise<MediaStream> | (() => Promise<Media
   Object.defineProperty(navigator, "mediaDevices", {
     configurable: true,
     value: {
-      getUserMedia: vi.fn(() => typeof result === "function" ? result() : result)
+      getUserMedia: vi.fn(() => (typeof result === "function" ? result() : result))
     }
   })
 }
@@ -5874,26 +6384,28 @@ function mockChatAttachmentFetch() {
       return Promise.resolve(new Response(null, { status: 204 }))
     }
     if (path.startsWith("/api/v1/app/chats/8/context")) {
-      return Promise.resolve(jsonResponse({
-        ...emptyChatContextPayload(),
-        attachment_groups: {
-          repositories: [],
-          epics: [],
-          jobs: [],
-          documents: [
-            { id: 31, label: "Runbook.md", app_detach_path: "/api/v1/app/chats/8/attachments/31" }
-          ]
-        }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          ...emptyChatContextPayload(),
+          attachment_groups: {
+            repositories: [],
+            epics: [],
+            jobs: [],
+            documents: [{ id: 31, label: "Runbook.md", app_detach_path: "/api/v1/app/chats/8/attachments/31" }]
+          }
+        })
+      )
     }
 
-    return Promise.resolve(jsonResponse(chatPayload({
-      attachment_groups: {
-        documents: [
-          { id: 31, label: "Runbook.md", app_detach_path: "/api/v1/app/chats/8/attachments/31" }
-        ]
-      }
-    })))
+    return Promise.resolve(
+      jsonResponse(
+        chatPayload({
+          attachment_groups: {
+            documents: [{ id: 31, label: "Runbook.md", app_detach_path: "/api/v1/app/chats/8/attachments/31" }]
+          }
+        })
+      )
+    )
   })
 }
 
@@ -6026,7 +6538,19 @@ function chatGoal(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>>; agent_questions?: Array<Record<string, unknown>> } = {}, rootOverrides: Record<string, unknown> = {}) {
+function chatPayload(
+  overrides: {
+    chat?: Record<string, unknown>
+    messages?: Array<Record<string, unknown>>
+    bookmarks?: Array<Record<string, unknown>>
+    attachment_groups?: Record<string, Array<Record<string, unknown>>>
+    attachment_results?: Array<Record<string, unknown>>
+    scratchpad_items?: Array<Record<string, unknown>>
+    queued_messages?: Array<Record<string, unknown>>
+    agent_questions?: Array<Record<string, unknown>>
+  } = {},
+  rootOverrides: Record<string, unknown> = {}
+) {
   return {
     chat: {
       id: 8,
@@ -6076,9 +6600,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     documents_in_scope: [],
     attachment_results: overrides.attachment_results || [],
     preview_panels: [],
-    workspace_tabs: [
-      { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", order: 0 }
-    ],
+    workspace_tabs: [{ id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", order: 0 }],
     local_mode_enabled: false,
     speech_to_text: {
       enabled: false,
@@ -6139,10 +6661,17 @@ describe("active goal strip", () => {
   })
 
   it("expands the goal text without taking more than a quarter of the viewport", async () => {
-    mockChatRouteFetch(chatPayload({}, { active_goal: chatGoal({
-      prompt: "Keep filing aqueduct cleanup work across every remaining frontend surface that still has direct color classes.",
-      completion_condition: "All risky segments have Jobs and the audit is scrollable on mobile."
-    }) }))
+    mockChatRouteFetch(
+      chatPayload(
+        {},
+        {
+          active_goal: chatGoal({
+            prompt: "Keep filing aqueduct cleanup work across every remaining frontend surface that still has direct color classes.",
+            completion_condition: "All risky segments have Jobs and the audit is scrollable on mobile."
+          })
+        }
+      )
+    )
     renderRoute()
 
     const strip = await screen.findByTestId("active-goal-strip")
@@ -6160,9 +6689,14 @@ describe("active goal strip", () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
-      if (path === "/api/v1/app/chats/8/goal/pause" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "paused" }), message: "Goal paused." })))
-      if (path === "/api/v1/app/chats/8/goal/resume" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "active" }), message: "Goal resumed." })))
-      if (path === "/api/v1/app/chats/8/goal/stop" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "cancelled", terminal_reason: "operator_stopped" }), message: "Goal stopped." })))
+      if (path === "/api/v1/app/chats/8/goal/pause" && init?.method === "POST")
+        return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "paused" }), message: "Goal paused." })))
+      if (path === "/api/v1/app/chats/8/goal/resume" && init?.method === "POST")
+        return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "active" }), message: "Goal resumed." })))
+      if (path === "/api/v1/app/chats/8/goal/stop" && init?.method === "POST")
+        return Promise.resolve(
+          jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "cancelled", terminal_reason: "operator_stopped" }), message: "Goal stopped." }))
+        )
       return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal() })))
     })
 
@@ -6175,8 +6709,12 @@ describe("active goal strip", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop goal" }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/pause" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
-      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/resume" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/pause" && (call[1] as RequestInit)?.method === "POST")).toBe(
+        true
+      )
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/resume" && (call[1] as RequestInit)?.method === "POST")).toBe(
+        true
+      )
       expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/stop" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
     })
     expect(await screen.findByText("Stopped")).toBeInTheDocument()
@@ -6187,7 +6725,18 @@ describe("active goal strip", () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
-      if (path === "/api/v1/app/chats/8/goal" && init?.method === "PATCH") return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ prompt: "New objective", completion_condition: "No gaps remain", approval_policy: "auto", auto_file_proposals: true }), message: "Goal updated." })))
+      if (path === "/api/v1/app/chats/8/goal" && init?.method === "PATCH")
+        return Promise.resolve(
+          jsonResponse(
+            chatPayload(
+              {},
+              {
+                active_goal: chatGoal({ prompt: "New objective", completion_condition: "No gaps remain", approval_policy: "auto", auto_file_proposals: true }),
+                message: "Goal updated."
+              }
+            )
+          )
+        )
       return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal() })))
     })
 
@@ -6238,23 +6787,28 @@ describe("active goal strip", () => {
   })
 
   it("shows goal provenance on proposal cards with materialized Job chips", async () => {
-    mockChatRouteFetch(chatPayload({
-      messages: [
-        messageWithProposal(10, proposal({
-          state: "confirmed",
-          state_label: "Confirmed",
-          proposed: false,
-          resolved: true,
-          goal_provenance: {
-            chat_goal_id: 55,
-            prompt_snapshot: { prompt: "Trace proposal work" }
-          },
-          materialized_label: "JOB-123",
-          materialized_path: "/jobs/123",
-          materialized: { kind: "job", job_id: 123, job_title: "Survey aqueduct route", job_state: "open" }
-        }))
-      ]
-    }))
+    mockChatRouteFetch(
+      chatPayload({
+        messages: [
+          messageWithProposal(
+            10,
+            proposal({
+              state: "confirmed",
+              state_label: "Confirmed",
+              proposed: false,
+              resolved: true,
+              goal_provenance: {
+                chat_goal_id: 55,
+                prompt_snapshot: { prompt: "Trace proposal work" }
+              },
+              materialized_label: "JOB-123",
+              materialized_path: "/jobs/123",
+              materialized: { kind: "job", job_id: 123, job_title: "Survey aqueduct route", job_state: "open" }
+            })
+          )
+        ]
+      })
+    )
     renderRoute()
 
     expect(await screen.findByText("Goal #55")).toBeInTheDocument()
@@ -6294,11 +6848,13 @@ describe("chat mode selector in toolbar", () => {
       if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
-      return Promise.resolve(jsonResponse({
-        ...chatPayload({ chat: { repository: null, system_kind: "supervisor", title: "Supervisor" } }),
-        coding_mode_enabled: true,
-        local_mode_enabled: true
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          ...chatPayload({ chat: { repository: null, system_kind: "supervisor", title: "Supervisor" } }),
+          coding_mode_enabled: true,
+          local_mode_enabled: true
+        })
+      )
     })
     renderRoute()
 
@@ -6382,8 +6938,8 @@ describe("chat mode selector in toolbar", () => {
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Coding" }))
 
     await waitFor(() => {
-      const patchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-        String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
+      const patchCalls = fetchMock.mock.calls.filter(
+        (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
       )
       expect(patchCalls).toHaveLength(1)
       expect(JSON.parse((patchCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat: { mode: "coding" } })
@@ -6408,20 +6964,22 @@ describe("LocalDaemonBanner", () => {
       }
       if (path === "/api/v1/app/chats/8/local_daemon_session" && init?.method === "POST") {
         createCalls += 1
-        return Promise.resolve(jsonResponse(
-          options.daemonSessionBody ?? {
-            daemon_session: {
-              id: 1,
-              chat_session_id: 8,
-              connected: false,
-              daemon_repo: null,
-              daemon_branch: null,
-              last_heartbeat_at: null,
-              auth_token: "secret-token"
-            }
-          },
-          options.daemonSessionStatus ?? 201
-        ))
+        return Promise.resolve(
+          jsonResponse(
+            options.daemonSessionBody ?? {
+              daemon_session: {
+                id: 1,
+                chat_session_id: 8,
+                connected: false,
+                daemon_repo: null,
+                daemon_branch: null,
+                last_heartbeat_at: null,
+                auth_token: "secret-token"
+              }
+            },
+            options.daemonSessionStatus ?? 201
+          )
+        )
       }
       return Promise.resolve(jsonResponse({ ...chatPayload({ chat: { mode: "local" } }), local_mode_enabled: true }))
     })
@@ -6471,22 +7029,29 @@ describe("LocalDaemonBanner", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
       if (path === "/api/v1/app/chats/8/local_daemon_session" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          daemon_session: {
-            id: 1,
-            chat_session_id: 8,
-            connected: false,
-            daemon_repo: null,
-            daemon_branch: null,
-            last_heartbeat_at: null,
-            auth_token: "reconnect-token"
-          }
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              daemon_session: {
+                id: 1,
+                chat_session_id: 8,
+                connected: false,
+                daemon_repo: null,
+                daemon_branch: null,
+                last_heartbeat_at: null,
+                auth_token: "reconnect-token"
+              }
+            },
+            201
+          )
+        )
       }
-      return Promise.resolve(jsonResponse({
-        ...chatPayload({ chat: { mode: "local", local_daemon_state: "disconnected" } }),
-        local_mode_enabled: true
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          ...chatPayload({ chat: { mode: "local", local_daemon_state: "disconnected" } }),
+          local_mode_enabled: true
+        })
+      )
     })
     renderRoute()
 
@@ -6505,22 +7070,29 @@ describe("LocalDaemonBanner", () => {
       }
       if (path === "/api/v1/app/chats/8/local_daemon_session" && init?.method === "POST") {
         createCalls += 1
-        return Promise.resolve(jsonResponse({
-          daemon_session: {
-            id: 1,
-            chat_session_id: 8,
-            connected: false,
-            daemon_repo: null,
-            daemon_branch: null,
-            last_heartbeat_at: null,
-            auth_token: "reconnect-token"
-          }
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              daemon_session: {
+                id: 1,
+                chat_session_id: 8,
+                connected: false,
+                daemon_repo: null,
+                daemon_branch: null,
+                last_heartbeat_at: null,
+                auth_token: "reconnect-token"
+              }
+            },
+            201
+          )
+        )
       }
-      return Promise.resolve(jsonResponse({
-        ...chatPayload({ chat: { mode: "local", local_daemon_state: "disconnected" } }),
-        local_mode_enabled: true
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          ...chatPayload({ chat: { mode: "local", local_daemon_state: "disconnected" } }),
+          local_mode_enabled: true
+        })
+      )
     })
     renderRoute()
 
@@ -6537,10 +7109,12 @@ describe("LocalDaemonBanner", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
-      return Promise.resolve(jsonResponse({
-        ...chatPayload({ chat: { mode: "local", local_daemon_state: "connected" } }),
-        local_mode_enabled: true
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          ...chatPayload({ chat: { mode: "local", local_daemon_state: "connected" } }),
+          local_mode_enabled: true
+        })
+      )
     })
     renderRoute()
 
@@ -6628,8 +7202,8 @@ describe("chat model selector in toolbar", () => {
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Opus 4.7" }))
 
     await waitFor(() => {
-      const patchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-        String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
+      const patchCalls = fetchMock.mock.calls.filter(
+        (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
       )
       expect(patchCalls).toHaveLength(1)
       expect(JSON.parse((patchCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat: { chat_model: "claude-opus-4-7" } })
@@ -6722,8 +7296,8 @@ describe("chat effort selector in toolbar", () => {
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Medium" }))
 
     await waitFor(() => {
-      const patchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
-        String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
+      const patchCalls = fetchMock.mock.calls.filter(
+        (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
       )
       expect(patchCalls).toHaveLength(1)
       expect(JSON.parse((patchCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat: { chat_effort: "medium" } })
@@ -6745,10 +7319,12 @@ describe("chat effort selector in toolbar", () => {
   })
 
   it("keeps the effort selector in the same wrapping toolbar row as the mode and model selectors", async () => {
-    mockChatRouteFetch(chatPayload(
-      { chat: { effective_chat_provider: "claude", available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }] } },
-      { coding_mode_enabled: true }
-    ))
+    mockChatRouteFetch(
+      chatPayload(
+        { chat: { effective_chat_provider: "claude", available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }] } },
+        { coding_mode_enabled: true }
+      )
+    )
     renderRoute()
 
     const modeButton = await screen.findByRole("button", { name: "Change mode" })
@@ -6863,25 +7439,27 @@ describe("renderChatMessages tool_result content key", () => {
         content: {
           type: "tool_result",
           tool_use_id: "toolu_rebase",
-          content: "{\"pending_action_id\":114,\"message\":\"Job rebase requires operator confirmation.\"}",
+          content: '{"pending_action_id":114,"message":"Job rebase requires operator confirmation."}',
           is_error: false
         },
         text: "",
         bookmarkable: false
       }
     ]
-    const pendingActions = [{
-      id: 114,
-      label: "Rebase JOB-825",
-      detail: null,
-      state: "pending" as const,
-      action: "rebase_job",
-      action_type: null,
-      chat_message_id: 6,
-      app_confirm_path: "/api/v1/app/chats/122/pending_actions/114/confirm",
-      app_reject_path: "/api/v1/app/chats/122/pending_actions/114/reject",
-      app_cancel_path: "/api/v1/app/chats/122/pending_actions/114"
-    }]
+    const pendingActions = [
+      {
+        id: 114,
+        label: "Rebase JOB-825",
+        detail: null,
+        state: "pending" as const,
+        action: "rebase_job",
+        action_type: null,
+        chat_message_id: 6,
+        app_confirm_path: "/api/v1/app/chats/122/pending_actions/114/confirm",
+        app_reject_path: "/api/v1/app/chats/122/pending_actions/114/reject",
+        app_cancel_path: "/api/v1/app/chats/122/pending_actions/114"
+      }
+    ]
 
     const stream = buildMessageStreamItems(renderChatMessages(messages), pendingActions)
     const proposalIndex = stream.findIndex((item) => item.type === "message" && item.proposal?.id === proposal.id)
@@ -6920,7 +7498,7 @@ describe("renderChatMessages tool_result content key", () => {
         content: {
           type: "tool_result",
           tool_use_id: "toolu_merge",
-          content: [{ type: "text", text: "{\"pending_action_id\":201}" }],
+          content: [{ type: "text", text: '{"pending_action_id":201}' }],
           is_error: false
         },
         text: "",

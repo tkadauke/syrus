@@ -46,12 +46,7 @@ export function signIn(values: { email_address: string; password: string }) {
   return postJson<AuthRedirectPayload>("/api/v1/app/auth/session", values)
 }
 
-export function signUp(values: {
-  email_address: string
-  password: string
-  password_confirmation: string
-  invitation_token?: string
-}) {
+export function signUp(values: { email_address: string; password: string; password_confirmation: string; invitation_token?: string }) {
   return postJson<AuthRedirectPayload>("/api/v1/app/auth/users", { user: values })
 }
 

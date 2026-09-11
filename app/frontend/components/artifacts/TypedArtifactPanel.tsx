@@ -52,8 +52,8 @@ export function ArtifactBody({ artifact }: { artifact: TypedArtifact }) {
 }
 
 function DataTableBody({ payload }: { payload: Record<string, unknown> }) {
-  const headers = Array.isArray(payload.headers) ? payload.headers as string[] : []
-  const rows = Array.isArray(payload.rows) ? payload.rows as unknown[][] : []
+  const headers = Array.isArray(payload.headers) ? (payload.headers as string[]) : []
+  const rows = Array.isArray(payload.rows) ? (payload.rows as unknown[][]) : []
 
   if (headers.length === 0 && rows.length === 0) {
     return <RawArtifactBody payload={payload} />
@@ -66,7 +66,12 @@ function DataTableBody({ payload }: { payload: Record<string, unknown> }) {
           <thead>
             <tr>
               {headers.map((h, i) => (
-                <th className="border border-gray-200 bg-gray-100 px-2 py-1.5 text-left font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={i}>{String(h)}</th>
+                <th
+                  className="border border-gray-200 bg-gray-100 px-2 py-1.5 text-left font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  key={i}
+                >
+                  {String(h)}
+                </th>
               ))}
             </tr>
           </thead>
@@ -75,7 +80,9 @@ function DataTableBody({ payload }: { payload: Record<string, unknown> }) {
           {rows.map((row, ri) => (
             <tr className="even:bg-gray-50 dark:even:bg-gray-800/50" key={ri}>
               {(Array.isArray(row) ? row : [row]).map((cell, ci) => (
-                <td className="border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-200" key={ci}>{String(cell ?? "")}</td>
+                <td className="border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-200" key={ci}>
+                  {String(cell ?? "")}
+                </td>
               ))}
             </tr>
           ))}
@@ -98,11 +105,15 @@ function BeforeAfterDiffBody({ payload }: { payload: Record<string, unknown> }) 
     <div className="grid min-w-0 gap-3 lg:grid-cols-2">
       <div className="min-w-0">
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_before")}</p>
-        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{before ?? "(empty)"}</pre>
+        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+          {before ?? "(empty)"}
+        </pre>
       </div>
       <div className="min-w-0">
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_after")}</p>
-        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{after ?? "(empty)"}</pre>
+        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+          {after ?? "(empty)"}
+        </pre>
       </div>
     </div>
   )
@@ -155,9 +166,5 @@ function VisualPane({ label, image }: { label: string; image: BeforeAfterVisualI
 }
 
 function RawArtifactBody({ payload }: { payload: unknown }) {
-  return (
-    <pre className="overflow-x-auto rounded bg-gray-50 p-3 text-xs text-gray-700">
-      {JSON.stringify(payload, null, 2)}
-    </pre>
-  )
+  return <pre className="overflow-x-auto rounded bg-gray-50 p-3 text-xs text-gray-700">{JSON.stringify(payload, null, 2)}</pre>
 }

@@ -10,7 +10,14 @@ import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
-import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
+import {
+  fetchJobAttachmentContent,
+  fetchJobTimeline,
+  type JobAttachment,
+  type JobDependency,
+  type JobDependencyTarget,
+  type JobDetailPayload
+} from "../../api/jobs"
 import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { DocumentPreviewModal, isImageContentType, isPreviewableTextContentType } from "../../components/DocumentPreviewModal"
 import { useJobCommand } from "./command"
@@ -32,7 +39,11 @@ import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToB
 // the workflow/step/run render subtree can import them without a circular edge.
 
 export function SmallPill({ children }: { children: ReactNode }) {
-  return <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{children}</span>
+  return (
+    <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+      {children}
+    </span>
+  )
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
@@ -80,10 +91,16 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
   if (queued) {
     return (
       <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
-        <span className="font-semibold">{t("run_queued_waiting", { id: run.id })}{elapsed ? ` · ${t("run_queued_suffix", { elapsed })}` : ""}</span>
+        <span className="font-semibold">
+          {t("run_queued_waiting", { id: run.id })}
+          {elapsed ? ` · ${t("run_queued_suffix", { elapsed })}` : ""}
+        </span>
         <span className="mt-1 block text-amber-700 dark:text-amber-300">
           {t("run_queued_backlog")}{" "}
-          <Link className="underline hover:text-amber-900 dark:hover:text-amber-100" to={withRoutePrefix("/admin/queue/pending", prefix)}>{t("run_queued_backlog_link")}</Link> {t("run_queued_backlog_suffix")}
+          <Link className="underline hover:text-amber-900 dark:hover:text-amber-100" to={withRoutePrefix("/admin/queue/pending", prefix)}>
+            {t("run_queued_backlog_link")}
+          </Link>{" "}
+          {t("run_queued_backlog_suffix")}
         </span>
       </div>
     )
@@ -91,7 +108,10 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
 
   return (
     <div className="mt-2 rounded border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
-      <span className="font-semibold">{t("run_running", { id: run.id })}{elapsed ? ` · ${elapsed}` : ""}</span>
+      <span className="font-semibold">
+        {t("run_running", { id: run.id })}
+        {elapsed ? ` · ${elapsed}` : ""}
+      </span>
       <span> {t("run_running_suffix", { date: run.started_at ? formatRelativeDate(new Date(run.started_at)) : "-" })}</span>
       {activeProcess ? (
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-info">
@@ -137,14 +157,26 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<
       {displayLogs.map((log) => (
         <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)] dark:text-gray-200" key={log.id}>
           <span className="text-gray-400 dark:text-gray-500">{transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`}</span>
-          <pre className="whitespace-pre-wrap break-words"><AnsiText text={log.chunk} /></pre>
+          <pre className="whitespace-pre-wrap break-words">
+            <AnsiText text={log.chunk} />
+          </pre>
         </li>
       ))}
     </ol>
   )
 }
 
-export function TagsPanel({ payload, command, embedded = false, canManageTags }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; embedded?: boolean; canManageTags: boolean }) {
+export function TagsPanel({
+  payload,
+  command,
+  embedded = false,
+  canManageTags
+}: {
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  embedded?: boolean
+  canManageTags: boolean
+}) {
   const { t } = useT("jobs")
   const [tagName, setTagName] = useState("")
   const [addingTag, setAddingTag] = useState(false)
@@ -155,7 +187,12 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
     event.preventDefault()
     command.mutate(
       { method: "post", path: payload.paths.app_tags_path, body: { tag_name: tagName } },
-      { onSuccess: () => { setTagName(""); setAddingTag(false) } }
+      {
+        onSuccess: () => {
+          setTagName("")
+          setAddingTag(false)
+        }
+      }
     )
   }
 
@@ -164,7 +201,10 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_tags")}</h2>
         {payload.tags.map((tag) => (
-          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
+          <span
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            key={tag.id}
+          >
             {tag.name}
             {canManageTags ? (
               <button
@@ -184,33 +224,46 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
       {canManageTags ? (
         addingTag ? (
           <form className="flex items-center gap-2" onSubmit={submit}>
-            <Input className="w-40" fullWidth={false} list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder={t("tags_placeholder")} required value={tagName} />
+            <Input
+              className="w-40"
+              fullWidth={false}
+              list="job-tag-options"
+              onChange={(event) => setTagName(event.target.value)}
+              placeholder={t("tags_placeholder")}
+              required
+              value={tagName}
+            />
             <datalist id="job-tag-options">
-              {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
+              {payload.tag_options.map((tag) => (
+                <option key={tag.id} value={tag.name} />
+              ))}
             </datalist>
-            <Button disabled={command.isPending} type="submit" variant="secondary">{t("tags_add")}</Button>
-            <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingTag(false)} type="button">{t("tags_cancel")}</button>
+            <Button disabled={command.isPending} type="submit" variant="secondary">
+              {t("tags_add")}
+            </Button>
+            <button
+              className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={command.isPending}
+              onClick={() => setAddingTag(false)}
+              type="button"
+            >
+              {t("tags_cancel")}
+            </button>
           </form>
         ) : (
-          <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingTag(true)} type="button">{t("tags_add_tag")}</button>
+          <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingTag(true)} type="button">
+            {t("tags_add_tag")}
+          </button>
         )
       ) : null}
     </div>
   )
 
   if (embedded) {
-    return (
-      <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
-        {content}
-      </div>
-    )
+    return <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">{content}</div>
   }
 
-  return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      {content}
-    </section>
-  )
+  return <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">{content}</section>
 }
 
 export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) {
@@ -225,24 +278,26 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
   }
 
   const message = job.needs_attention_reason
-    ? (reasonKeys[job.needs_attention_reason]
-        ? t(reasonKeys[job.needs_attention_reason])
-        : t("attention_reason_fallback", { reason: job.needs_attention_reason }))
+    ? reasonKeys[job.needs_attention_reason]
+      ? t(reasonKeys[job.needs_attention_reason])
+      : t("attention_reason_fallback", { reason: job.needs_attention_reason })
     : t("attention_generic")
 
-  const gracePeriodText = job.grace_period_expires_at ? (() => {
-    const expires = new Date(job.grace_period_expires_at)
-    const now = new Date()
-    const ms = expires.getTime() - now.getTime()
-    if (ms <= 0) return t("grace_expired")
-    const totalSeconds = Math.floor(ms / 1000)
-    const days = Math.floor(totalSeconds / 86400)
-    const hours = Math.floor((totalSeconds % 86400) / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    if (days > 0) return t("grace_cleanup_days", { days, hours })
-    if (hours > 0) return t("grace_cleanup_hours", { hours, minutes })
-    return t("grace_cleanup_minutes", { minutes })
-  })() : null
+  const gracePeriodText = job.grace_period_expires_at
+    ? (() => {
+        const expires = new Date(job.grace_period_expires_at)
+        const now = new Date()
+        const ms = expires.getTime() - now.getTime()
+        if (ms <= 0) return t("grace_expired")
+        const totalSeconds = Math.floor(ms / 1000)
+        const days = Math.floor(totalSeconds / 86400)
+        const hours = Math.floor((totalSeconds % 86400) / 3600)
+        const minutes = Math.floor((totalSeconds % 3600) / 60)
+        if (days > 0) return t("grace_cleanup_days", { days, hours })
+        if (hours > 0) return t("grace_cleanup_hours", { hours, minutes })
+        return t("grace_cleanup_minutes", { minutes })
+      })()
+    : null
 
   return (
     <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
@@ -265,9 +320,7 @@ export function TriageDecisionBanner({ job }: { job: JobDetailPayload["job"] }) 
     <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
       <p className="font-medium">{t("triage_uncertain_title")}</p>
       <p className="mt-1">{t("triage_uncertain_body")}</p>
-      {job.triaging_uncertainty_reason ? (
-        <p className="mt-2 font-mono text-xs text-amber-700 dark:text-amber-300">{job.triaging_uncertainty_reason}</p>
-      ) : null}
+      {job.triaging_uncertainty_reason ? <p className="mt-2 font-mono text-xs text-amber-700 dark:text-amber-300">{job.triaging_uncertainty_reason}</p> : null}
     </div>
   )
 }
@@ -288,11 +341,11 @@ export function FeedbackSourceBadge({ source }: { source: unknown }) {
     attributedTo,
     confirmedBy ? `confirmed by ${confirmedBy}` : null,
     action === "replace" ? "(replaced)" : null
-  ].filter(Boolean).join(" · ")
+  ]
+    .filter(Boolean)
+    .join(" · ")
 
-  return (
-    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{label}</p>
-  )
+  return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{label}</p>
 }
 
 export function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailPayload["epic"]>; prefix: string }) {
@@ -323,22 +376,32 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
         type="button"
       >
         <svg aria-hidden="true" className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
-          <path clipRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 0 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" fillRule="evenodd" />
+          <path
+            clipRule="evenodd"
+            d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 0 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+            fillRule="evenodd"
+          />
         </svg>
         {t("section_timeline")} <span className="font-normal text-gray-500 dark:text-gray-400">{t("timeline_runs", { count: runsCount })}</span>
       </button>
       {expanded ? (
         <div className="border-t border-gray-100 px-4 pb-4 dark:border-gray-800">
           {timeline.isPending ? <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("timeline_loading")}</p> : null}
-          {timeline.isError ? <p className="mt-3 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), t("timeline_error"))}</p> : null}
+          {timeline.isError ? (
+            <p className="mt-3 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), t("timeline_error"))}</p>
+          ) : null}
           {timeline.data && timeline.data.events.length > 0 ? (
             <ol className="mt-3 space-y-3">
               {timeline.data.events.map((event, index) => (
                 <li className="border-l border-gray-200 pl-3 text-sm dark:border-gray-700" key={`${event.at}-${event.title}-${index}`}>
                   <div className="font-medium text-gray-900 dark:text-gray-100">
                     {event.workflow_path ? (
-                      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
-                    ) : event.title}
+                      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>
+                        {event.title}
+                      </Link>
+                    ) : (
+                      event.title
+                    )}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     <RelativeTimestamp value={event.at} /> · {event.source}
@@ -346,8 +409,12 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
                       <>
                         {" · "}
                         {event.workflow_path ? (
-                          <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.ref_label}</Link>
-                        ) : event.ref_label}
+                          <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>
+                            {event.ref_label}
+                          </Link>
+                        ) : (
+                          event.ref_label
+                        )}
                       </>
                     ) : null}
                   </div>
@@ -370,7 +437,9 @@ export function AttachmentPreview({ attachments }: { attachments: JobAttachment[
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_attachments")}</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {attachments.slice(0, 6).map((attachment) => <AttachmentCard attachment={attachment} key={attachment.id} />)}
+        {attachments.slice(0, 6).map((attachment) => (
+          <AttachmentCard attachment={attachment} key={attachment.id} />
+        ))}
       </div>
     </section>
   )
@@ -394,15 +463,25 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
     <article className="rounded border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900">
       <div className="font-medium text-gray-900 dark:text-gray-100">
         {previewable ? (
-          <button className="text-left hover:underline" onClick={() => setPreviewOpen(true)} type="button">{title}</button>
+          <button className="text-left hover:underline" onClick={() => setPreviewOpen(true)} type="button">
+            {title}
+          </button>
         ) : attachment.file_path ? (
-          <a className="hover:underline" href={attachment.file_path}>{title}</a>
+          <a className="hover:underline" href={attachment.file_path}>
+            {title}
+          </a>
         ) : (
           title
         )}
       </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {attachment.google_doc_url ? <a className="text-brand hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">{t("attachment_google_doc")}</a> : attachment.content_type || attachment.attachment_type}
+        {attachment.google_doc_url ? (
+          <a className="text-brand hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">
+            {t("attachment_google_doc")}
+          </a>
+        ) : (
+          attachment.content_type || attachment.attachment_type
+        )}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
       </div>
       {previewOpen && imagePreviewable ? (
@@ -416,12 +495,7 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
         />
       ) : null}
       {previewOpen && textPreviewable ? (
-        <FilePreviewModal
-          onClose={() => setPreviewOpen(false)}
-          path={attachment.filename || title}
-          query={fileContent}
-          rawHref={attachment.file_path || "#"}
-        />
+        <FilePreviewModal onClose={() => setPreviewOpen(false)} path={attachment.filename || title} query={fileContent} rawHref={attachment.file_path || "#"} />
       ) : null}
     </article>
   )
@@ -469,7 +543,10 @@ export function PendingJobTitle({ pending, title }: { pending: boolean; title: s
 
   return (
     <span className="inline-flex min-w-0 items-center gap-2 italic text-gray-500 dark:text-gray-400">
-      <span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300" />
+      <span
+        aria-hidden="true"
+        className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300"
+      />
       <span>{t("generating_title")}</span>
     </span>
   )
@@ -513,7 +590,9 @@ export function DependencyLink({ dependency }: { dependency: JobDependency }) {
 
   if (epicTarget) {
     return (
-      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(epicTarget.epic_path, prefix)}>{label}</Link>
+      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(epicTarget.epic_path, prefix)}>
+        {label}
+      </Link>
     )
   }
 

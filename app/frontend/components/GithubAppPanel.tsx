@@ -72,30 +72,20 @@ export function GithubAppPanel({
   }, [installed])
 
   if (register.isPending) {
-    return <p className="text-sm text-gray-500 dark:text-gray-400">{t('github_app_panel.loading')}</p>
+    return <p className="text-sm text-gray-500 dark:text-gray-400">{t("github_app_panel.loading")}</p>
   }
 
   if (register.isError) {
     const forbidden = register.error instanceof ApiError && register.error.status === 403
-    return (
-      <Box tone="muted">
-        {forbidden
-          ? t('github_app_panel.error_forbidden')
-          : t('github_app_panel.error_load')}
-      </Box>
-    )
+    return <Box tone="muted">{forbidden ? t("github_app_panel.error_forbidden") : t("github_app_panel.error_load")}</Box>
   }
 
   if (registered && installed) {
     return (
       <div className="space-y-4">
-        <Box tone="ok">
-          {t('github_app_panel.installed_on', { accounts: installations.map((i) => i.account_login).join(', ') })}
-        </Box>
+        <Box tone="ok">{t("github_app_panel.installed_on", { accounts: installations.map((i) => i.account_login).join(", ") })}</Box>
         <div className="flex justify-end">
-          <Button onClick={onClose}>
-            {t('github_app_panel.done')}
-          </Button>
+          <Button onClick={onClose}>{t("github_app_panel.done")}</Button>
         </div>
       </div>
     )
@@ -104,10 +94,8 @@ export function GithubAppPanel({
   if (registered) {
     return (
       <div className="space-y-4">
-        <Box tone="ok">{t('github_app_panel.registered_ok')}</Box>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t('github_app_panel.install_prompt')}
-        </p>
+        <Box tone="ok">{t("github_app_panel.registered_ok")}</Box>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t("github_app_panel.install_prompt")}</p>
 
         {status?.install_url ? (
           <Button
@@ -118,29 +106,29 @@ export function GithubAppPanel({
               syncAdminGithubAppInstallations().catch(() => {})
             }}
           >
-            {t('github_app_panel.install_on_github')} <span aria-hidden="true">↗</span>
+            {t("github_app_panel.install_on_github")} <span aria-hidden="true">↗</span>
           </Button>
         ) : null}
 
         {popupBlocked ? (
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            {t('github_app_panel.popup_blocked')}{" "}
+            {t("github_app_panel.popup_blocked")}{" "}
             <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
-              {t('github_app_panel.open_install_page')}
+              {t("github_app_panel.open_install_page")}
             </a>{" "}
-            {t('github_app_panel.popup_blocked_manually')}
+            {t("github_app_panel.popup_blocked_manually")}
           </p>
         ) : null}
 
         {awaitingInstall ? (
           <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-            <Spinner /> {t('github_app_panel.waiting_for_install')}
+            <Spinner /> {t("github_app_panel.waiting_for_install")}
           </p>
         ) : null}
 
         <div className="flex justify-end">
           <Button variant="secondary" onClick={onClose}>
-            {awaitingInstall ? t('github_app_panel.close_connecting') : t('github_app_panel.skip_for_now')}
+            {awaitingInstall ? t("github_app_panel.close_connecting") : t("github_app_panel.skip_for_now")}
           </Button>
         </div>
       </div>
@@ -149,12 +137,14 @@ export function GithubAppPanel({
 
   return (
     <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
-      <p className="text-gray-600 dark:text-gray-400">
-        {t('github_app_panel.app_description')}
-      </p>
+      <p className="text-gray-600 dark:text-gray-400">{t("github_app_panel.app_description")}</p>
       <ol className="space-y-2">
-        <li><span className="font-medium text-gray-900 dark:text-gray-100">1.</span> {t('github_app_panel.register_step1')}</li>
-        <li><span className="font-medium text-gray-900 dark:text-gray-100">2.</span> {t('github_app_panel.register_step2')}</li>
+        <li>
+          <span className="font-medium text-gray-900 dark:text-gray-100">1.</span> {t("github_app_panel.register_step1")}
+        </li>
+        <li>
+          <span className="font-medium text-gray-900 dark:text-gray-100">2.</span> {t("github_app_panel.register_step2")}
+        </li>
       </ol>
 
       <Button
@@ -169,17 +159,17 @@ export function GithubAppPanel({
 
       {popupBlocked ? (
         <p className="text-xs text-amber-700 dark:text-amber-300">
-          {t('github_app_panel.popup_blocked')}{" "}
+          {t("github_app_panel.popup_blocked")}{" "}
           <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
-            {t('github_app_panel.open_registration_page')}
+            {t("github_app_panel.open_registration_page")}
           </a>{" "}
-          {t('github_app_panel.popup_blocked_manually')}
+          {t("github_app_panel.popup_blocked_manually")}
         </p>
       ) : null}
 
       {awaiting ? (
         <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-          <Spinner /> {t('github_app_panel.waiting_for_register')}
+          <Spinner /> {t("github_app_panel.waiting_for_register")}
         </p>
       ) : null}
     </div>
@@ -187,10 +177,15 @@ export function GithubAppPanel({
 }
 
 function Box({ tone, children }: { tone: "ok" | "muted"; children: React.ReactNode }) {
-  const toneClass = tone === "ok"
-    ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-    : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
-  return <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={tone === "ok" ? "status" : undefined}>{children}</p>
+  const toneClass =
+    tone === "ok"
+      ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+      : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
+  return (
+    <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={tone === "ok" ? "status" : undefined}>
+      {children}
+    </p>
+  )
 }
 
 function Spinner() {

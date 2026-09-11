@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { browserErrorRouteContext } from "./browserErrors"
 
 describe("browserErrorRouteContext", () => {
-  it("identifies job routes with params" , () => {
+  it("identifies job routes with params", () => {
     expect(browserErrorRouteContext("/jobs/3188")).toEqual({
       route_id: "job.show",
       route_params: { id: "3188" }
@@ -13,7 +13,7 @@ describe("browserErrorRouteContext", () => {
     })
   })
 
-  it("identifies chat and admin routes" , () => {
+  it("identifies chat and admin routes", () => {
     expect(browserErrorRouteContext("/chats/136")).toEqual({
       route_id: "chat.show",
       route_params: { id: "136" }
@@ -24,7 +24,7 @@ describe("browserErrorRouteContext", () => {
     })
   })
 
-  it("returns empty context for unknown paths" , () => {
+  it("returns empty context for unknown paths", () => {
     expect(browserErrorRouteContext("/unknown/path")).toEqual({})
   })
 })

@@ -76,10 +76,7 @@ describe("CronTemplateDetailRoute delete", () => {
     fireEvent.click(deleteButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/cron_templates/5",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/cron_templates/5", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -90,13 +87,14 @@ describe("CronTemplateDetailRoute delete", () => {
     renderRoute()
 
     const deleteButton = await screen.findByRole("button", { name: "Delete" })
-    await act(async () => { fireEvent.click(deleteButton) })
+    await act(async () => {
+      fireEvent.click(deleteButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/cron_templates/5",
-      expect.objectContaining({ method: "DELETE" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/cron_templates/5", expect.objectContaining({ method: "DELETE" }))
   })
 })
 
@@ -122,19 +120,21 @@ describe("CronTemplateFormRoute cadence preview", () => {
       if (url === "/api/v1/app/cron_templates/preview_schedule" && init?.method === "POST") {
         const body = JSON.parse(String(init.body))
         expect(body.schedule_input).toBe("Every Monday at 9:00 AM")
-        return Promise.resolve(jsonResponse({
-          valid: true,
-          schedule_input: "Every Monday at 9:00 AM",
-          schedule_format: "rrule",
-          schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
-          schedule_timezone: "UTC",
-          schedule_explanation: "Every Monday at 9:00 AM UTC",
-          next_fire_at: null,
-          cron_expression: null,
-          errors: [],
-          source: "natural",
-          structured_intent: null
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            valid: true,
+            schedule_input: "Every Monday at 9:00 AM",
+            schedule_format: "rrule",
+            schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_timezone: "UTC",
+            schedule_explanation: "Every Monday at 9:00 AM UTC",
+            next_fire_at: null,
+            cron_expression: null,
+            errors: [],
+            source: "natural",
+            structured_intent: null
+          })
+        )
       }
       return Promise.resolve(jsonResponse({ templates: [], pr_pileup_policies: ["skip", "pile", "replace"] }))
     })
@@ -153,25 +153,37 @@ describe("CronTemplateFormRoute cadence preview", () => {
       if (url === "/api/v1/app/cron_templates/preview_schedule" && init?.method === "POST") {
         const body = JSON.parse(String(init.body))
         if (body.schedule_input === "moday at 9am in tjhe mornin") {
-          return Promise.resolve(jsonResponse({
+          return Promise.resolve(
+            jsonResponse({
+              valid: true,
+              schedule_input: "moday at 9am in tjhe mornin",
+              schedule_format: "rrule",
+              schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+              schedule_timezone: "UTC",
+              schedule_explanation: "Every Monday at 9:00 AM UTC",
+              next_fire_at: null,
+              cron_expression: null,
+              errors: [],
+              source: "structured_intent",
+              structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
+            })
+          )
+        }
+        return Promise.resolve(
+          jsonResponse({
             valid: true,
-            schedule_input: "moday at 9am in tjhe mornin",
+            schedule_input: body.schedule_input,
             schedule_format: "rrule",
-            schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_expression: "",
             schedule_timezone: "UTC",
             schedule_explanation: "Every Monday at 9:00 AM UTC",
             next_fire_at: null,
             cron_expression: null,
             errors: [],
-            source: "structured_intent",
-            structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
-          }))
-        }
-        return Promise.resolve(jsonResponse({
-          valid: true, schedule_input: body.schedule_input, schedule_format: "rrule",
-          schedule_expression: "", schedule_timezone: "UTC", schedule_explanation: "Every Monday at 9:00 AM UTC",
-          next_fire_at: null, cron_expression: null, errors: [], source: "natural", structured_intent: null
-        }))
+            source: "natural",
+            structured_intent: null
+          })
+        )
       }
       return Promise.resolve(jsonResponse({ templates: [], pr_pileup_policies: ["skip", "pile", "replace"] }))
     })

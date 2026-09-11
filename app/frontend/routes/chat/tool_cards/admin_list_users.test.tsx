@@ -26,7 +26,15 @@ describe("admin_list_users tool card", () => {
   it("renders admin flag, provider, scheduling state, and job count", () => {
     const parsedResult = {
       users: [
-        { id: 1, email: "admin@example.com", admin: true, agent_provider: "claude", scheduling_paused: false, created_at: "2026-01-01T00:00:00Z", job_count: 12 },
+        {
+          id: 1,
+          email: "admin@example.com",
+          admin: true,
+          agent_provider: "claude",
+          scheduling_paused: false,
+          created_at: "2026-01-01T00:00:00Z",
+          job_count: 12
+        },
         { id: 2, email: "paused@example.com", admin: false, agent_provider: "codex", scheduling_paused: true, created_at: "2026-01-02T00:00:00Z", job_count: 0 }
       ]
     }

@@ -1,6 +1,16 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { displayValue, EmptyState, numberValue } from "@app/routes/chat/toolCardUi"
-import { formatFailureRate, formatMs, parseReasons, parseTestIdentityRef, ReasonBadges, TableShell, TestIdentityLink, TestStatusPill, type TestIdentityRef } from "../testInsightToolCard"
+import {
+  formatFailureRate,
+  formatMs,
+  parseReasons,
+  parseTestIdentityRef,
+  ReasonBadges,
+  TableShell,
+  TestIdentityLink,
+  TestStatusPill,
+  type TestIdentityRef
+} from "../testInsightToolCard"
 
 // Plugin-owned tool card for list_repository_test_insights (the pending-action tool-card work). Lives
 // entirely inside the test_insights plugin -- core discovers it by directory
@@ -55,12 +65,24 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Test</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Suite / file</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Category</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Status</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Failure rate</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Avg / last</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Test
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Suite / file
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Category
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Status
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Failure rate
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Avg / last
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -72,10 +94,16 @@ function renderExpanded(context: ToolCardContext) {
               <td className="max-w-[14rem] truncate px-2 py-1 text-gray-500 dark:text-gray-400" title={row.filePath ?? row.suiteName ?? undefined}>
                 {row.filePath || row.suiteName || "—"}
               </td>
-              <td className="whitespace-nowrap px-2 py-1"><ReasonBadges reasons={row.reasons} /></td>
-              <td className="whitespace-nowrap px-2 py-1"><TestStatusPill status={row.lastStatus} /></td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <ReasonBadges reasons={row.reasons} />
+              </td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <TestStatusPill status={row.lastStatus} />
+              </td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{formatFailureRate(row.failureRate)}</td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{formatMs(row.avgDurationMs)} / {formatMs(row.lastDurationMs)}</td>
+              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">
+                {formatMs(row.avgDurationMs)} / {formatMs(row.lastDurationMs)}
+              </td>
             </tr>
           ))}
         </tbody>

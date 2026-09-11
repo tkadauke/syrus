@@ -45,7 +45,10 @@ function processRows(context: ToolCardContext): ProcessRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.processes)) return null
 
-  return parsed.processes.flatMap((process, index) => { const row = parseRow(process, index); return row ? [row] : [] })
+  return parsed.processes.flatMap((process, index) => {
+    const row = parseRow(process, index)
+    return row ? [row] : []
+  })
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -75,7 +78,9 @@ function renderExpanded(context: ToolCardContext) {
               <Td>{row.kind || "—"}</Td>
               <Td mono>{row.hostname}</Td>
               <Td mono>{row.pid || "—"}</Td>
-              <Td><StateBadge state={row.state} /></Td>
+              <Td>
+                <StateBadge state={row.state} />
+              </Td>
               <Td mono>{formatPercent(row.cpu)}</Td>
               <Td mono>{formatBytesLarge(row.rss)}</Td>
               <Td mono>{row.startedAt || "—"}</Td>

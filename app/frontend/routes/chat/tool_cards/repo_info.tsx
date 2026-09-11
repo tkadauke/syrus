@@ -82,7 +82,8 @@ function renderExpanded(context: ToolCardContext) {
           <ul className="space-y-0.5 font-mono">
             {result.commits.map((commit) => (
               <li className="truncate" key={commit.sha} title={commit.subject ?? undefined}>
-                {commit.sha.slice(0, 12)}{commit.subject ? ` ${commit.subject}` : ""}
+                {commit.sha.slice(0, 12)}
+                {commit.subject ? ` ${commit.subject}` : ""}
               </li>
             ))}
           </ul>
@@ -93,7 +94,8 @@ function renderExpanded(context: ToolCardContext) {
           <ul className="space-y-0.5 font-mono">
             {result.branches.map((branch) => (
               <li className="truncate" key={branch.name}>
-                {branch.name}{branch.sha ? ` @ ${branch.sha.slice(0, 12)}` : ""}
+                {branch.name}
+                {branch.sha ? ` @ ${branch.sha.slice(0, 12)}` : ""}
               </li>
             ))}
           </ul>

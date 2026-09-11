@@ -76,16 +76,19 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(within(composer).getByRole("button", { name: "Create comment" }))
 
     await waitFor(() => {
-      expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
-        body: "Please add a regression spec.",
-        diff_review_version_id: 100,
-        base_ref: "base-sha",
-        head_ref: "head-sha",
-        path: "app/models/user.rb",
-        side: "right",
-        new_line: 1,
-        surface: "job_review_workspace"
-      }))
+      expect(createDiffReviewComment).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          body: "Please add a regression spec.",
+          diff_review_version_id: 100,
+          base_ref: "base-sha",
+          head_ref: "head-sha",
+          path: "app/models/user.rb",
+          side: "right",
+          new_line: 1,
+          surface: "job_review_workspace"
+        })
+      )
     })
   })
 
@@ -158,9 +161,9 @@ describe("ReviewWorkspace", () => {
   it("creates a whole-review comment from the permanent comment form", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
-    vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([
-      comment({ anchor_kind: "review", path: null, side: null, new_line: null, anchor_key: "review", body: "Looks great overall." })
-    ]))
+    vi.mocked(createDiffReviewComment).mockResolvedValue(
+      commentsPayload([comment({ anchor_kind: "review", path: null, side: null, new_line: null, anchor_key: "review", body: "Looks great overall." })])
+    )
 
     renderWorkspace()
 
@@ -173,12 +176,15 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(commentButton)
 
     await waitFor(() => {
-      expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
-        anchor_kind: "review",
-        body: "Looks great overall.",
-        diff_review_version_id: 100,
-        surface: "job_review_workspace"
-      }))
+      expect(createDiffReviewComment).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          anchor_kind: "review",
+          body: "Looks great overall.",
+          diff_review_version_id: 100,
+          surface: "job_review_workspace"
+        })
+      )
     })
     await waitFor(() => {
       expect(screen.getByLabelText("Whole-review comment")).toHaveValue("")
@@ -188,9 +194,9 @@ describe("ReviewWorkspace", () => {
   it("creates a comment from non-empty text then submits the whole review when Submit feedback is clicked", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
-    vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([
-      comment({ id: 2, anchor_kind: "review", path: null, side: null, new_line: null, anchor_key: "review", body: "One more thing." })
-    ]))
+    vi.mocked(createDiffReviewComment).mockResolvedValue(
+      commentsPayload([comment({ id: 2, anchor_kind: "review", path: null, side: null, new_line: null, anchor_key: "review", body: "One more thing." })])
+    )
     vi.mocked(submitDiffReviewComments).mockResolvedValue({
       message: "Diff comments submitted as chat feedback.",
       workflow: { id: 7, trigger_kind: "chat_feedback", state: "queued" },
@@ -204,12 +210,15 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
 
     await waitFor(() => {
-      expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
-        anchor_kind: "review",
-        body: "One more thing.",
-        diff_review_version_id: 100,
-        surface: "job_review_workspace"
-      }))
+      expect(createDiffReviewComment).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          anchor_kind: "review",
+          body: "One more thing.",
+          diff_review_version_id: 100,
+          surface: "job_review_workspace"
+        })
+      )
     })
     await waitFor(() => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2], 100)
@@ -324,14 +333,16 @@ describe("ReviewWorkspace", () => {
 
   it("shows a little surrounding diff context above and below a code-anchored comment in the sidebar", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
-    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([
-      comment({
-        new_line: 1,
-        anchor_key: "right::1",
-        diff_hunk: "@@ -1,2 +1,2 @@\n-old\n+new",
-        context: { line_kind: "add", line_text: "new" }
-      })
-    ]))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(
+      commentsPayload([
+        comment({
+          new_line: 1,
+          anchor_key: "right::1",
+          diff_hunk: "@@ -1,2 +1,2 @@\n-old\n+new",
+          context: { line_kind: "add", line_text: "new" }
+        })
+      ])
+    )
 
     renderWorkspace()
 
@@ -465,9 +476,7 @@ describe("ReviewWorkspace", () => {
   it("lets any eligible user reply to an existing comment", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment()]))
-    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([
-      comment({ id: 2, parent_id: 1, body: "Fixed in the follow-up commit." })
-    ]))
+    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([comment({ id: 2, parent_id: 1, body: "Fixed in the follow-up commit." })]))
 
     renderWorkspace()
 
@@ -488,11 +497,9 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await waitFor(() => expect(measureAsyncSpy).toHaveBeenCalledWith(
-      "diff_review.fetch_source_diff",
-      expect.any(Function),
-      expect.objectContaining({ metadata: { job_id: 42 } })
-    ))
+    await waitFor(() =>
+      expect(measureAsyncSpy).toHaveBeenCalledWith("diff_review.fetch_source_diff", expect.any(Function), expect.objectContaining({ metadata: { job_id: 42 } }))
+    )
     vi.restoreAllMocks()
   })
 
@@ -503,21 +510,45 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await waitFor(() => expect(useMarkedRenderSpy).toHaveBeenCalledWith(
-      "diff_review.initial_render",
-      expect.objectContaining({ enabled: undefined, metadata: { total_files: sourceDiffPayload().files.length }, phase: "paint" })
-    ))
+    await waitFor(() =>
+      expect(useMarkedRenderSpy).toHaveBeenCalledWith(
+        "diff_review.initial_render",
+        expect.objectContaining({ enabled: undefined, metadata: { total_files: sourceDiffPayload().files.length }, phase: "paint" })
+      )
+    )
     vi.restoreAllMocks()
   })
 
   it("renders a version selector with labels, metadata, and per-version comment counts", async () => {
-    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
-      versions: [
-        version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1, created_at: "2026-05-01T12:00:00Z" }),
-        version({ id: 200, version_index: 2, label: "Chat feedback #1", reason: "chat_feedback", trigger_kind: "chat_feedback", workflow_id: 12, run_id: 34, comments_count: 2, created_at: "2026-05-02T12:00:00Z" })
-      ],
-      version: version({ id: 200, version_index: 2, label: "Chat feedback #1", reason: "chat_feedback", trigger_kind: "chat_feedback", workflow_id: 12, run_id: 34, comments_count: 2, created_at: "2026-05-02T12:00:00Z" })
-    }))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        versions: [
+          version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1, created_at: "2026-05-01T12:00:00Z" }),
+          version({
+            id: 200,
+            version_index: 2,
+            label: "Chat feedback #1",
+            reason: "chat_feedback",
+            trigger_kind: "chat_feedback",
+            workflow_id: 12,
+            run_id: 34,
+            comments_count: 2,
+            created_at: "2026-05-02T12:00:00Z"
+          })
+        ],
+        version: version({
+          id: 200,
+          version_index: 2,
+          label: "Chat feedback #1",
+          reason: "chat_feedback",
+          trigger_kind: "chat_feedback",
+          workflow_id: 12,
+          run_id: 34,
+          comments_count: 2,
+          created_at: "2026-05-02T12:00:00Z"
+        })
+      })
+    )
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     renderWorkspace()
@@ -526,25 +557,52 @@ describe("ReviewWorkspace", () => {
     expect(selector).toHaveValue("200")
     expect(selector).toHaveClass("max-w-full", "truncate")
     expect(selector.closest("div")).toHaveClass("w-full", "min-w-0", "max-w-full")
-    expect(screen.getByRole("option", { name: /v2 latest - Chat feedback #1 - WF-12 - RUN-34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/ })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: /v1 - Initial implementation - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 1 comment/ })).toBeInTheDocument()
-    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/)).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", {
+        name: /v2 latest - Chat feedback #1 - WF-12 - RUN-34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: /v1 - Initial implementation - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 1 comment/ })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/)
+    ).toBeInTheDocument()
   })
 
   it("defaults to All changes while keeping a smaller repair-step range selectable", async () => {
     const latest = sourceDiffPayload({
-      version: version({ id: 200, version_index: 2, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
+      version: version({
+        id: 200,
+        version_index: 2,
+        base_sha: "branch-base",
+        head_sha: "branch-head",
+        label: "All changes",
+        reason: "source_diff",
+        metadata: { range_kind: "all_changes" }
+      }),
       versions: [
         version({ id: 100, version_index: 1, base_sha: "initial-head", head_sha: "branch-head", label: "Initial implementation", run_id: 34, files_count: 1 }),
-        version({ id: 200, version_index: 2, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" }, files_count: 2 })
+        version({
+          id: 200,
+          version_index: 2,
+          base_sha: "branch-base",
+          head_sha: "branch-head",
+          label: "All changes",
+          reason: "source_diff",
+          metadata: { range_kind: "all_changes" },
+          files_count: 2
+        })
       ],
-      files: [{
-        additions: 1,
-        deletions: 0,
-        path: "app/models/all_changes.rb",
-        status: "modified",
-        patch: "@@ -1 +1 @@\n+all-changes"
-      }]
+      files: [
+        {
+          additions: 1,
+          deletions: 0,
+          path: "app/models/all_changes.rb",
+          status: "modified",
+          patch: "@@ -1 +1 @@\n+all-changes"
+        }
+      ]
     })
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(latest)
     vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
@@ -552,13 +610,15 @@ describe("ReviewWorkspace", () => {
       job_id: 42,
       default_ref: "main",
       diff_error: null,
-      files: [{
-        additions: 1,
-        deletions: 0,
-        path: "db/migrate/repair.rb",
-        status: "modified",
-        patch: "@@ -1 +1 @@\n+repair-only"
-      }]
+      files: [
+        {
+          additions: 1,
+          deletions: 0,
+          path: "db/migrate/repair.rb",
+          status: "modified",
+          patch: "@@ -1 +1 @@\n+repair-only"
+        }
+      ]
     })
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
@@ -605,25 +665,29 @@ describe("ReviewWorkspace", () => {
       anchor_key: "right::1",
       body: "Old v1 note."
     })
-    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
-      version: version({ id: 200, version_index: 2, label: "Chat feedback #1" }),
-      versions: [
-        version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1 }),
-        version({ id: 200, version_index: 2, label: "Chat feedback #1", comments_count: 0 })
-      ]
-    }))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: version({ id: 200, version_index: 2, label: "Chat feedback #1" }),
+        versions: [
+          version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1 }),
+          version({ id: 200, version_index: 2, label: "Chat feedback #1", comments_count: 0 })
+        ]
+      })
+    )
     vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
       ...version({ id: 100, version_index: 1, label: "Initial implementation" }),
       job_id: 42,
       default_ref: "main",
       diff_error: null,
-      files: [{
-        additions: 1,
-        deletions: 0,
-        path: "app/models/user.rb",
-        status: "modified",
-        patch: "@@ -1 +1 @@\n+new"
-      }]
+      files: [
+        {
+          additions: 1,
+          deletions: 0,
+          path: "app/models/user.rb",
+          status: "modified",
+          patch: "@@ -1 +1 @@\n+new"
+        }
+      ]
     })
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([oldComment], 200))
 
@@ -644,14 +708,14 @@ describe("ReviewWorkspace", () => {
       diff_review_version: version({ id: 100, version_index: 1 }),
       body: "Old comment needing a reply."
     })
-    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
-      version: version({ id: 200, version_index: 2 }),
-      versions: [version({ id: 100, version_index: 1, comments_count: 1 }), version({ id: 200, version_index: 2 })]
-    }))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: version({ id: 200, version_index: 2 }),
+        versions: [version({ id: 100, version_index: 1, comments_count: 1 }), version({ id: 200, version_index: 2 })]
+      })
+    )
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([oldComment], 200))
-    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([
-      comment({ id: 13, parent_id: 12, body: "Acknowledged." })
-    ]))
+    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([comment({ id: 13, parent_id: 12, body: "Acknowledged." })]))
 
     renderWorkspace()
 
@@ -677,10 +741,12 @@ describe("ReviewWorkspace", () => {
       diff_review_version: version({ id: 100, version_index: 1 }),
       body: "Old whole-review note."
     })
-    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
-      version: version({ id: 200, version_index: 2 }),
-      versions: [version({ id: 100, version_index: 1, comments_count: 1 }), version({ id: 200, version_index: 2 })]
-    }))
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        version: version({ id: 200, version_index: 2 }),
+        versions: [version({ id: 100, version_index: 1, comments_count: 1 }), version({ id: 200, version_index: 2 })]
+      })
+    )
     vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
       ...version({ id: 100, version_index: 1 }),
       job_id: 42,
@@ -713,9 +779,7 @@ function sourceDiffPayload(overrides: Partial<JobSourceDiffPayload> = {}): JobSo
     truncated: false,
     diff_error: null,
     version: version(),
-    versions: [
-      version()
-    ],
+    versions: [version()],
     files: [
       {
         additions: 1,
@@ -819,7 +883,20 @@ function jobPayload(): JobDetailPayload {
       state: "implemented",
       summary_state: "implemented"
     },
-    repository: { id: 1, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main", review_policy: "self", feedback_policy: "confirm", main_health: "healthy", landing_paused: false, main_branch_repair_blocks_work: false, repository_path: "/repositories/1", edit_repository_path: "/repositories/1/edit" },
+    repository: {
+      id: 1,
+      slug: "acme/widgets",
+      owner: "acme",
+      name: "widgets",
+      default_branch: "main",
+      review_policy: "self",
+      feedback_policy: "confirm",
+      main_health: "healthy",
+      landing_paused: false,
+      main_branch_repair_blocks_work: false,
+      repository_path: "/repositories/1",
+      edit_repository_path: "/repositories/1/edit"
+    },
     epic: null,
     origin_chat: null,
     pinned: false,

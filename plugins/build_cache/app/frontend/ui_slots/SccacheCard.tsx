@@ -24,7 +24,11 @@ export function SccacheCard({ sccache }: SccacheCardProps) {
         <div className="mt-3 flex flex-wrap gap-3" data-testid="sccache-summary">
           <SccacheBadge label={t("sccache_hits")} value={String(summary.hits)} tone="green" />
           <SccacheBadge label={t("sccache_misses")} value={String(summary.misses)} tone="gray" />
-          <SccacheBadge label={t("sccache_hit_rate")} value={summary.hit_rate != null ? `${summary.hit_rate.toFixed(1)}%` : "—"} tone={hitRateTone(summary.hit_rate)} />
+          <SccacheBadge
+            label={t("sccache_hit_rate")}
+            value={summary.hit_rate != null ? `${summary.hit_rate.toFixed(1)}%` : "—"}
+            tone={hitRateTone(summary.hit_rate)}
+          />
         </div>
       ) : (
         <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("sccache_counts_unavailable")}</p>
@@ -32,14 +36,24 @@ export function SccacheCard({ sccache }: SccacheCardProps) {
 
       {cacheSize || maxCacheSize ? (
         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {cacheSize ? <span>{t("sccache_cache_size")}: {cacheSize}</span> : null}
+          {cacheSize ? (
+            <span>
+              {t("sccache_cache_size")}: {cacheSize}
+            </span>
+          ) : null}
           {cacheSize && maxCacheSize ? " · " : null}
-          {maxCacheSize ? <span>{t("sccache_max_cache_size")}: {maxCacheSize}</span> : null}
+          {maxCacheSize ? (
+            <span>
+              {t("sccache_max_cache_size")}: {maxCacheSize}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
       {summary.cache_location ? (
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("sccache_cache_location")}: {summary.cache_location}</div>
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {t("sccache_cache_location")}: {summary.cache_location}
+        </div>
       ) : null}
 
       <div className="mt-3 text-xs text-gray-400 dark:text-gray-500">

@@ -39,10 +39,7 @@ export function desktopBuiltAt(): string | null {
   if (!match) return null
 
   const [, date, time] = match
-  return (
-    `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}` +
-    `T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}Z`
-  )
+  return `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}` + `T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}Z`
 }
 
 // --- window.syrusShell bridge -------------------------------------------

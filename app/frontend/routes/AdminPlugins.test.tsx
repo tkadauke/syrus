@@ -28,7 +28,18 @@ const pluginFilterSchema = [
     field: "author",
     label: "Author",
     bucket: "string",
-    operators: ["contains", "does_not_contain", "starts_with", "does_not_start_with", "ends_with", "does_not_end_with", "equals", "not_equals", "is_set", "is_unset"],
+    operators: [
+      "contains",
+      "does_not_contain",
+      "starts_with",
+      "does_not_start_with",
+      "ends_with",
+      "does_not_end_with",
+      "equals",
+      "not_equals",
+      "is_set",
+      "is_unset"
+    ],
     values: []
   },
   {
@@ -68,30 +79,32 @@ const pluginFilterSchema = [
 
 describe("AdminPlugins", () => {
   it("renders registered plugins and extension points", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "codex_agent",
-          display_name: "Codex Agent",
-          disable_blockers: [],
-          version: "1.2.3",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: "Codex agent provider",
-          homepage: "https://example.test/codex",
-          author: "OpenAI",
-          source: "/app/plugins/codex_agent",
-          extension_points: [
-            {
-              extension_point: "agent_provider",
-              class_name: "AgentProviders::Codex",
-              availability: { status: "available", label: "Available" }
-            }
-          ]
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "codex_agent",
+            display_name: "Codex Agent",
+            disable_blockers: [],
+            version: "1.2.3",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: "Codex agent provider",
+            homepage: "https://example.test/codex",
+            author: "OpenAI",
+            source: "/app/plugins/codex_agent",
+            extension_points: [
+              {
+                extension_point: "agent_provider",
+                class_name: "AgentProviders::Codex",
+                availability: { status: "available", label: "Available" }
+              }
+            ]
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -105,25 +118,27 @@ describe("AdminPlugins", () => {
   })
 
   it("renders the plugin icon at the expected size", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "codex_agent",
-          display_name: "Codex Agent",
-          disable_blockers: [],
-          version: "1.2.3",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          icon_url: "/plugin-icons/spqr_eagle.svg",
-          author: null,
-          source: null,
-          extension_points: []
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "codex_agent",
+            display_name: "Codex Agent",
+            disable_blockers: [],
+            version: "1.2.3",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            icon_url: "/plugin-icons/spqr_eagle.svg",
+            author: null,
+            source: null,
+            extension_points: []
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -134,24 +149,26 @@ describe("AdminPlugins", () => {
   })
 
   it("does not render the source path", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "codex_agent",
-          display_name: "Codex Agent",
-          disable_blockers: [],
-          version: "1.2.3",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: "/rails/plugins/codex_agent",
-          extension_points: []
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "codex_agent",
+            display_name: "Codex Agent",
+            disable_blockers: [],
+            version: "1.2.3",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            author: null,
+            source: "/rails/plugins/codex_agent",
+            extension_points: []
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -161,30 +178,32 @@ describe("AdminPlugins", () => {
   })
 
   it("shows extension points in a collapsed section", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "claude_agent",
-          display_name: "Claude Agent",
-          disable_blockers: [],
-          version: "0.1.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: [
-            {
-              extension_point: "agent_provider",
-              class_name: "AgentProviders::Claude",
-              availability: { status: "available", label: "Available" }
-            }
-          ]
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "claude_agent",
+            display_name: "Claude Agent",
+            disable_blockers: [],
+            version: "0.1.0",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: [
+              {
+                extension_point: "agent_provider",
+                class_name: "AgentProviders::Claude",
+                availability: { status: "available", label: "Available" }
+              }
+            ]
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -195,30 +214,32 @@ describe("AdminPlugins", () => {
   })
 
   it("uses semantic info tokens for required extension point status badges", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "rails",
-          display_name: "Rails",
-          disable_blockers: [],
-          version: "1.0.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: [
-            {
-              extension_point: "rails_artifact_renderer",
-              class_name: "Rails::ArtifactRenderer",
-              availability: { status: "required", label: "Required" }
-            }
-          ]
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "rails",
+            display_name: "Rails",
+            disable_blockers: [],
+            version: "1.0.0",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: [
+              {
+                extension_point: "rails_artifact_renderer",
+                class_name: "Rails::ArtifactRenderer",
+                availability: { status: "required", label: "Required" }
+              }
+            ]
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -229,24 +250,26 @@ describe("AdminPlugins", () => {
   })
 
   it("tooltips the disable button with a single blocker reason", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "claude_agent",
-          display_name: "Claude Agent",
-          disable_blockers: [{ kind: "open_jobs", label: "Open jobs use Claude Code", count: 27 }],
-          version: "0.1.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: []
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "claude_agent",
+            display_name: "Claude Agent",
+            disable_blockers: [{ kind: "open_jobs", label: "Open jobs use Claude Code", count: 27 }],
+            version: "0.1.0",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: []
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -256,27 +279,29 @@ describe("AdminPlugins", () => {
   })
 
   it("tooltips the disable button with a summary when there are multiple blockers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "claude_agent",
-          display_name: "Claude Agent",
-          disable_blockers: [
-            { kind: "open_jobs", label: "Open jobs", count: 27 },
-            { kind: "active_workflows", label: "Active workflows", count: 6 }
-          ],
-          version: "0.1.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: []
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "claude_agent",
+            display_name: "Claude Agent",
+            disable_blockers: [
+              { kind: "open_jobs", label: "Open jobs", count: 27 },
+              { kind: "active_workflows", label: "Active workflows", count: 6 }
+            ],
+            version: "0.1.0",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: []
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -286,27 +311,29 @@ describe("AdminPlugins", () => {
   })
 
   it("shows usage details in a collapsed section when there are disable blockers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "claude_agent",
-          display_name: "Claude Agent",
-          disable_blockers: [
-            { kind: "open_jobs", label: "Open jobs use Claude Code", count: 27 },
-            { kind: "active_workflows", label: "Active workflows use Claude Code", count: 6 }
-          ],
-          version: "0.1.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: []
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "claude_agent",
+            display_name: "Claude Agent",
+            disable_blockers: [
+              { kind: "open_jobs", label: "Open jobs use Claude Code", count: 27 },
+              { kind: "active_workflows", label: "Active workflows use Claude Code", count: 6 }
+            ],
+            version: "0.1.0",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: []
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -317,50 +344,8 @@ describe("AdminPlugins", () => {
   })
 
   it("renders a category filter chip via the FilterBar add-filter menu", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "codex_agent",
-          display_name: "Codex Agent",
-          disable_blockers: [],
-          version: "1.2.3",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: "Codex agent provider",
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: []
-        }
-      ],
-      filter: { and: [] },
-      controls: { filter_schema: pluginFilterSchema }
-    }))
-
-    renderRoute(<AdminPlugins />)
-
-    await screen.findByRole("region", { name: "Registered plugins" })
-
-    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
-    expect(screen.getByRole("button", { name: "Enabled list" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Author text" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Extension point list" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Category list" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Search text" })).toBeInTheDocument()
-  })
-
-  it("filters plugins by the category chip and shows a filtered empty state", async () => {
-    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
-      const url = String(input)
-      if (url.includes("q=")) {
-        return Promise.resolve(jsonResponse({
-          plugins: [],
-          filter: { and: [{ field: "category", op: "is", value: "language" }] },
-          controls: { filter_schema: pluginFilterSchema }
-        }))
-      }
-      return Promise.resolve(jsonResponse({
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
         plugins: [
           {
             name: "codex_agent",
@@ -379,7 +364,55 @@ describe("AdminPlugins", () => {
         ],
         filter: { and: [] },
         controls: { filter_schema: pluginFilterSchema }
-      }))
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+
+    await screen.findByRole("region", { name: "Registered plugins" })
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    expect(screen.getByRole("button", { name: "Enabled list" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Author text" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Extension point list" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Category list" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Search text" })).toBeInTheDocument()
+  })
+
+  it("filters plugins by the category chip and shows a filtered empty state", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url.includes("q=")) {
+        return Promise.resolve(
+          jsonResponse({
+            plugins: [],
+            filter: { and: [{ field: "category", op: "is", value: "language" }] },
+            controls: { filter_schema: pluginFilterSchema }
+          })
+        )
+      }
+      return Promise.resolve(
+        jsonResponse({
+          plugins: [
+            {
+              name: "codex_agent",
+              display_name: "Codex Agent",
+              disable_blockers: [],
+              version: "1.2.3",
+              enabled: true,
+              disableable: true,
+              default_enabled: true,
+              description: "Codex agent provider",
+              homepage: null,
+              author: null,
+              source: null,
+              extension_points: []
+            }
+          ],
+          filter: { and: [] },
+          controls: { filter_schema: pluginFilterSchema }
+        })
+      )
     })
 
     renderRoute(<AdminPlugins />)
@@ -408,20 +441,22 @@ describe("AdminPlugins", () => {
       if (String(input).endsWith("/disable") && init?.method === "POST") {
         return Promise.resolve(jsonResponse({ plugins: [] }))
       }
-      return Promise.resolve(jsonResponse({
-        plugins: [
-          {
-            name: "codex_agent",
-            display_name: "Codex Agent",
-            disable_blockers: [],
-            disableable: true,
-            version: "1.2.3",
-            enabled: true,
-            description: "Codex agent provider",
-            extension_points: []
-          }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          plugins: [
+            {
+              name: "codex_agent",
+              display_name: "Codex Agent",
+              disable_blockers: [],
+              disableable: true,
+              version: "1.2.3",
+              enabled: true,
+              description: "Codex agent provider",
+              extension_points: []
+            }
+          ]
+        })
+      )
     })
 
     renderRoute(<AdminPlugins />)
@@ -432,42 +467,44 @@ describe("AdminPlugins", () => {
   })
 
   it("renders declared dependency relationships", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "ruby",
-          display_name: "Ruby",
-          disable_blockers: [],
-          version: "1.0.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: [],
-          depends_on: [],
-          dependents: [ "rails" ]
-        },
-        {
-          name: "rails",
-          display_name: "Rails",
-          disable_blockers: [],
-          version: "1.0.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: [],
-          depends_on: [ "ruby" ],
-          dependents: []
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "ruby",
+            display_name: "Ruby",
+            disable_blockers: [],
+            version: "1.0.0",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: [],
+            depends_on: [],
+            dependents: ["rails"]
+          },
+          {
+            name: "rails",
+            display_name: "Rails",
+            disable_blockers: [],
+            version: "1.0.0",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: null,
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: [],
+            depends_on: ["ruby"],
+            dependents: []
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -490,26 +527,30 @@ describe("AdminPlugins", () => {
           confirmed = true
           return Promise.resolve(jsonResponse({ plugins: [] }))
         }
-        return Promise.resolve(jsonResponse({
-          requires_confirmation: true,
-          plugin_name: "ruby",
-          dependents: [ "rails" ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            requires_confirmation: true,
+            plugin_name: "ruby",
+            dependents: ["rails"]
+          })
+        )
       }
-      return Promise.resolve(jsonResponse({
-        plugins: [
-          {
-            name: "ruby",
-            display_name: "Ruby",
-            disable_blockers: [],
-            disableable: true,
-            version: "1.0.0",
-            enabled: true,
-            description: null,
-            extension_points: []
-          }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          plugins: [
+            {
+              name: "ruby",
+              display_name: "Ruby",
+              disable_blockers: [],
+              disableable: true,
+              version: "1.0.0",
+              enabled: true,
+              description: null,
+              extension_points: []
+            }
+          ]
+        })
+      )
     })
 
     renderRoute(<AdminPlugins />)
@@ -529,26 +570,30 @@ describe("AdminPlugins", () => {
   it("cancels the cascade confirmation without disabling", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input).endsWith("/disable") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          requires_confirmation: true,
-          plugin_name: "ruby",
-          dependents: [ "rails" ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            requires_confirmation: true,
+            plugin_name: "ruby",
+            dependents: ["rails"]
+          })
+        )
       }
-      return Promise.resolve(jsonResponse({
-        plugins: [
-          {
-            name: "ruby",
-            display_name: "Ruby",
-            disable_blockers: [],
-            disableable: true,
-            version: "1.0.0",
-            enabled: true,
-            description: null,
-            extension_points: []
-          }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          plugins: [
+            {
+              name: "ruby",
+              display_name: "Ruby",
+              disable_blockers: [],
+              disableable: true,
+              version: "1.0.0",
+              enabled: true,
+              description: null,
+              extension_points: []
+            }
+          ]
+        })
+      )
     })
 
     renderRoute(<AdminPlugins />)
@@ -567,20 +612,22 @@ describe("AdminPlugins", () => {
       if (String(input).endsWith("/enable") && init?.method === "POST") {
         return Promise.resolve(jsonResponse({ plugins: [] }))
       }
-      return Promise.resolve(jsonResponse({
-        plugins: [
-          {
-            name: "codex_agent",
-            display_name: "Codex Agent",
-            disable_blockers: [],
-            disableable: true,
-            version: "1.2.3",
-            enabled: false,
-            description: "Codex agent provider",
-            extension_points: []
-          }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          plugins: [
+            {
+              name: "codex_agent",
+              display_name: "Codex Agent",
+              disable_blockers: [],
+              disableable: true,
+              version: "1.2.3",
+              enabled: false,
+              description: "Codex agent provider",
+              extension_points: []
+            }
+          ]
+        })
+      )
     })
 
     renderRoute(<AdminPlugins />)
@@ -591,21 +638,23 @@ describe("AdminPlugins", () => {
   })
 
   it("shows why a disabled plugin is worth enabling, with the evidence behind it", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "python",
-          display_name: "Python",
-          disable_blockers: [],
-          disableable: true,
-          version: "1.0.0",
-          enabled: false,
-          description: "Python support",
-          extension_points: [],
-          recommendation: { reason: "Python repositories get pytest grader detail.", evidence: "acme/api, acme/tools" }
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "python",
+            display_name: "Python",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.0.0",
+            enabled: false,
+            description: "Python support",
+            extension_points: [],
+            recommendation: { reason: "Python repositories get pytest grader detail.", evidence: "acme/api, acme/tools" }
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -614,20 +663,22 @@ describe("AdminPlugins", () => {
   })
 
   it("says nothing extra about a plugin with no recommendation", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "python",
-          display_name: "Python",
-          disable_blockers: [],
-          disableable: true,
-          version: "1.0.0",
-          enabled: false,
-          description: "Python support",
-          extension_points: []
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "python",
+            display_name: "Python",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.0.0",
+            enabled: false,
+            description: "Python support",
+            extension_points: []
+          }
+        ]
+      })
+    )
 
     renderRoute(<AdminPlugins />)
 
@@ -639,9 +690,7 @@ describe("AdminPlugins", () => {
 function renderRoute(children: ReactNode) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/app-shell/admin/plugins"]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/app-shell/admin/plugins"]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }

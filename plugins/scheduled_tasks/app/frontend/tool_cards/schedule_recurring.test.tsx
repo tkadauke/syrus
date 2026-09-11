@@ -25,17 +25,13 @@ describe("schedule_recurring tool card", () => {
   })
 
   it("summarizes the collapsed row with the cadence explanation", () => {
-    expect(scheduleRecurringToolCard.collapsedSummary?.(context({ parsedResult: proposal }))).toBe(
-      "Recurring task proposed: Runs every Monday at 9:00 AM UTC"
-    )
+    expect(scheduleRecurringToolCard.collapsedSummary?.(context({ parsedResult: proposal }))).toBe("Recurring task proposed: Runs every Monday at 9:00 AM UTC")
   })
 
   it("falls back to the confirmation id when there is no explanation", () => {
     const parsedResult = { ...proposal, schedule_explanation: null }
 
-    expect(scheduleRecurringToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "Recurring task proposed (confirmation #501)"
-    )
+    expect(scheduleRecurringToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Recurring task proposed (confirmation #501)")
   })
 
   it("renders the pending confirmation id, cadence, and first fire time", () => {

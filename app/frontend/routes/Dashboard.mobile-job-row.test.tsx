@@ -138,7 +138,7 @@ describe("mobile jobs list row", () => {
   it("truncates long titles instead of letting them widen the viewport", () => {
     mockMobileViewport()
     const longTitle = "main_grader:e7e0e7b265416479972bc0775728b307ee4ba88e"
-    renderTable([ mobileJobItem({ title: longTitle }) ])
+    renderTable([mobileJobItem({ title: longTitle })])
 
     const title = screen.getByRole("link", { name: longTitle })
     expect(title).toHaveClass("block", "min-w-0", "max-w-full", "truncate")
@@ -147,28 +147,28 @@ describe("mobile jobs list row", () => {
 
   it("does not render the workflow count", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem() ])
+    renderTable([mobileJobItem()])
 
     expect(screen.queryByText(/workflow/i)).not.toBeInTheDocument()
   })
 
   it("does not render a redundant approval label for an approved job", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ approved_at: "2026-07-31T12:00:00Z" }) ])
+    renderTable([mobileJobItem({ approved_at: "2026-07-31T12:00:00Z" })])
 
     expect(screen.queryByText("Approved")).not.toBeInTheDocument()
   })
 
   it("does not render a not-approved label", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ approved_at: null }) ])
+    renderTable([mobileJobItem({ approved_at: null })])
 
     expect(screen.queryByText("Not approved")).not.toBeInTheDocument()
   })
 
   it("renders the job kind on the same metadata line as the job slug", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({ kind: "direct" }) ])
+    renderTable([mobileJobItem({ kind: "direct" })])
 
     const slug = screen.getByText("JOB-3")
     const kindLabel = screen.getByText("Direct")
@@ -180,11 +180,13 @@ describe("mobile jobs list row", () => {
 
   it("uses the latest workflow's start time instead of the job's own started_at", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({
-      started_at: "2026-07-31T11:00:00Z",
-      created_at: "2026-07-31T10:00:00Z",
-      latest_workflow_started_at: "2026-07-31T11:30:00Z"
-    }) ])
+    renderTable([
+      mobileJobItem({
+        started_at: "2026-07-31T11:00:00Z",
+        created_at: "2026-07-31T10:00:00Z",
+        latest_workflow_started_at: "2026-07-31T11:30:00Z"
+      })
+    ])
 
     const time = screen.getByRole("article", { name: "Job 3" }).querySelector("time")
     expect(time?.getAttribute("dateTime")).toBe("2026-07-31T11:30:00Z")
@@ -192,11 +194,13 @@ describe("mobile jobs list row", () => {
 
   it("falls back to the job's started_at when there is no latest workflow start yet", () => {
     mockMobileViewport()
-    renderTable([ mobileJobItem({
-      started_at: "2026-07-31T11:00:00Z",
-      created_at: "2026-07-31T10:00:00Z",
-      latest_workflow_started_at: null
-    }) ])
+    renderTable([
+      mobileJobItem({
+        started_at: "2026-07-31T11:00:00Z",
+        created_at: "2026-07-31T10:00:00Z",
+        latest_workflow_started_at: null
+      })
+    ])
 
     const time = screen.getByRole("article", { name: "Job 3" }).querySelector("time")
     expect(time?.getAttribute("dateTime")).toBe("2026-07-31T11:00:00Z")

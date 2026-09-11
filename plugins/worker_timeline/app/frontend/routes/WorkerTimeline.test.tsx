@@ -10,14 +10,14 @@ import type { WorkerTimelineMacroPayload } from "../api/workerTimeline"
 
 function filterSchema() {
   return [
-    { field: "repository_id", label: "Repository", bucket: "fk", operators: [ "is" ], typeahead: true },
-    { field: "epic_id", label: "Epic", bucket: "fk", operators: [ "is" ], typeahead: true },
-    { field: "hostname", label: "Hostname", bucket: "fk", operators: [ "is" ], typeahead: true },
+    { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is"], typeahead: true },
+    { field: "epic_id", label: "Epic", bucket: "fk", operators: ["is"], typeahead: true },
+    { field: "hostname", label: "Hostname", bucket: "fk", operators: ["is"], typeahead: true },
     {
       field: "job_type",
       label: "Job type",
       bucket: "enum",
-      operators: [ "is_one_of" ],
+      operators: ["is_one_of"],
       values: [
         { value: "user", label: "User" },
         { value: "system", label: "Infrastructure" }
@@ -27,7 +27,7 @@ function filterSchema() {
       field: "status",
       label: "Status",
       bucket: "enum",
-      operators: [ "is_one_of" ],
+      operators: ["is_one_of"],
       values: [
         { value: "queued", label: "Queued" },
         { value: "running", label: "Running" },
@@ -36,7 +36,7 @@ function filterSchema() {
         { value: "cancelled", label: "Cancelled" }
       ]
     },
-    { field: "window", label: "Time window", bucket: "date", operators: [ "within_last", "between" ] }
+    { field: "window", label: "Time window", bucket: "date", operators: ["within_last", "between"] }
   ]
 }
 
@@ -109,7 +109,14 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
             status: "running",
             label: "JOB-43 · pr_comment",
             job_title: "Investigate flaky CI",
-            blocked: { blocked_reason: "provider_availability", blocked_since: "2026-01-01T00:14:00Z", blocked_details: { provider: "codex" }, next_check_at: "2026-01-01T00:16:00Z", available: true, historical: false }
+            blocked: {
+              blocked_reason: "provider_availability",
+              blocked_since: "2026-01-01T00:14:00Z",
+              blocked_details: { provider: "codex" },
+              next_check_at: "2026-01-01T00:16:00Z",
+              available: true,
+              historical: false
+            }
           }
         ]
       }
@@ -164,7 +171,14 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
         hostname: "worker-a",
         pid: 123,
         runs: [],
-        blocked: { blocked_reason: "provider_availability", blocked_since: "2026-01-01T00:09:00Z", blocked_details: { provider: "codex" }, next_check_at: "2026-01-01T00:20:00Z", available: true, historical: false }
+        blocked: {
+          blocked_reason: "provider_availability",
+          blocked_since: "2026-01-01T00:09:00Z",
+          blocked_details: { provider: "codex" },
+          next_check_at: "2026-01-01T00:20:00Z",
+          available: true,
+          historical: false
+        }
       }
     ],
     ...overrides
@@ -186,21 +200,23 @@ function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallO
     }
     if (url.startsWith("/api/v1/app/filters/fk_options")) {
       const field = new URL(url, "http://example.test").searchParams.get("field")
-      if (field === "repository_id") return Promise.resolve(jsonResponse({ options: [ { value: 1, label: "acme/widgets" } ] }))
-      if (field === "hostname") return Promise.resolve(jsonResponse({ options: [ { value: "worker-b", label: "worker-b" } ] }))
+      if (field === "repository_id") return Promise.resolve(jsonResponse({ options: [{ value: 1, label: "acme/widgets" }] }))
+      if (field === "hostname") return Promise.resolve(jsonResponse({ options: [{ value: "worker-b", label: "worker-b" }] }))
       return Promise.resolve(jsonResponse({ options: [] }))
     }
     if (url.startsWith("/api/v1/app/filters/suggestions")) {
-      return Promise.resolve(jsonResponse({
-        suggestions: [
-          {
-            id: "value-repository",
-            label: "Repository is tkadauke/syrus",
-            filter: { field: "repository_id", op: "is", value: 2 },
-            source: "value"
-          }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          suggestions: [
+            {
+              id: "value-repository",
+              label: "Repository is tkadauke/syrus",
+              filter: { field: "repository_id", op: "is", value: 2 },
+              source: "value"
+            }
+          ]
+        })
+      )
     }
     if (url === "/api/v1/app/filters/usage") {
       return Promise.resolve(jsonResponse({ recorded: true }))
@@ -217,7 +233,7 @@ function renderTimeline(initialPath = "/worker_timeline") {
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[ initialPath ]}>
+        <MemoryRouter initialEntries={[initialPath]}>
           <WorkerTimelineRoute />
         </MemoryRouter>
       </QueryClientProvider>
@@ -268,7 +284,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(await screen.findByText("acme/widgets"))
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "repository_id", op: "is", value: "1" } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "repository_id", op: "is", value: "1" }] })
     })
   })
 
@@ -287,7 +303,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(suggestion)
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "repository_id", op: "is", value: 2 } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "repository_id", op: "is", value: 2 }] })
     })
     await waitFor(() => {
       expect(calls).toContain("/api/v1/app/filters/usage")
@@ -305,7 +321,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Running" }))
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "running" ] } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "status", op: "is_one_of", value: ["running"] }] })
     })
   })
 
@@ -320,7 +336,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Infrastructure" }))
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "job_type", op: "is_one_of", value: [ "system" ] } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "job_type", op: "is_one_of", value: ["system"] }] })
     })
   })
 
@@ -336,7 +352,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(await screen.findByText("worker-b"))
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "hostname", op: "is", value: "worker-b" } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "hostname", op: "is", value: "worker-b" }] })
     })
   })
 
@@ -360,7 +376,14 @@ describe("WorkerTimeline macro view", () => {
           label: "JOB-77 · initial",
           job_title: "Queue the aqueduct repair",
           created_at: "2026-01-01T00:00:00Z",
-          blocked: { blocked_reason: "main_branch_health", blocked_since: "2026-01-01T00:00:00Z", blocked_details: {}, next_check_at: null, available: true, historical: false }
+          blocked: {
+            blocked_reason: "main_branch_health",
+            blocked_since: "2026-01-01T00:00:00Z",
+            blocked_details: {},
+            next_check_at: null,
+            available: true,
+            historical: false
+          }
         }
       ]
     })
@@ -400,7 +423,15 @@ describe("WorkerTimeline macro view", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue({
-      width: 320, height: 120, top: 0, left: 0, right: 320, bottom: 120, x: 0, y: 0, toJSON: () => ({})
+      width: 320,
+      height: 120,
+      top: 0,
+      left: 0,
+      right: 320,
+      bottom: 120,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
     setupFetchMock()
     renderTimeline()
@@ -417,7 +448,15 @@ describe("WorkerTimeline macro view", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue({
-      width: 320, height: 120, top: 0, left: 0, right: 320, bottom: 120, x: 0, y: 0, toJSON: () => ({})
+      width: 320,
+      height: 120,
+      top: 0,
+      left: 0,
+      right: 320,
+      bottom: 120,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
     setupFetchMock()
     renderTimeline()
@@ -674,16 +713,55 @@ describe("WorkerTimeline waterfall (micro) view", () => {
   })
 
   it("skips the time axis and shows every step as not-started when the workflow itself hasn't started", async () => {
-    setupFetchMock({}, {
-      workflow: {
-        id: 501, job_id: 42, trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null,
-        blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false }
-      },
-      steps: [
-        { id: 901, kind: "prepare", status: "queued", position: 0, iteration: 1, started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null, runs: [],
-          blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false } }
-      ]
-    })
+    setupFetchMock(
+      {},
+      {
+        workflow: {
+          id: 501,
+          job_id: 42,
+          trigger_kind: "initial",
+          status: "queued",
+          started_at: null,
+          finished_at: null,
+          worker_storage_key: null,
+          queue_role: null,
+          hostname: null,
+          pid: null,
+          blocked: {
+            blocked_reason: "provider_availability",
+            blocked_since: null,
+            blocked_details: {},
+            next_check_at: null,
+            available: true,
+            historical: false
+          }
+        },
+        steps: [
+          {
+            id: 901,
+            kind: "prepare",
+            status: "queued",
+            position: 0,
+            iteration: 1,
+            started_at: null,
+            finished_at: null,
+            worker_storage_key: null,
+            queue_role: null,
+            hostname: null,
+            pid: null,
+            runs: [],
+            blocked: {
+              blocked_reason: "provider_availability",
+              blocked_since: null,
+              blocked_details: {},
+              next_check_at: null,
+              available: true,
+              historical: false
+            }
+          }
+        ]
+      }
+    )
     renderTimeline("/worker_timeline/workflow?id=501")
 
     expect(await screen.findByText("This workflow hasn't started running yet. Hover a step below to see why.")).toBeInTheDocument()

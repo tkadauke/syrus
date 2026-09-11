@@ -11,10 +11,7 @@ export interface ToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 // A native <button role="switch"> (not a styled checkbox) — the standard
 // accessible pattern for a toggle. Wrapping in a <label> (button is a
 // labelable element) works the same way Checkbox wraps its <input>.
-export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(function Toggle(
-  { checked, onChange, label, className = "", disabled, ...props },
-  ref
-) {
+export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(function Toggle({ checked, onChange, label, className = "", disabled, ...props }, ref) {
   const button = (
     <button
       aria-checked={checked}

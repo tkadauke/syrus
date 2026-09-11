@@ -20,12 +20,7 @@ describe("git_status tool card", () => {
   })
 
   it("categorizes modified, added, deleted, and untracked files", () => {
-    const status = [
-      " M app/models/job.rb",
-      "A  app/models/new_file.rb",
-      " D app/models/old_file.rb",
-      "?? scratch.txt"
-    ].join("\n")
+    const status = [" M app/models/job.rb", "A  app/models/new_file.rb", " D app/models/old_file.rb", "?? scratch.txt"].join("\n")
 
     expect(gitStatusToolCard.collapsedSummary?.(context({ parsedResult: { status } }))).toBe("4 changed files")
 

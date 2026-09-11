@@ -50,13 +50,15 @@ export function RepositoryInsightsRoute() {
     <RepositoryPageShell
       activeTab="agent_insights.repository"
       ariaLabel={t("aria_insights")}
-      heading={payload ? (
-        <PageHeading mono>
-          <Link className="hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
-            {payload.repository.slug}
-          </Link>
-        </PageHeading>
-      ) : null}
+      heading={
+        payload ? (
+          <PageHeading mono>
+            <Link className="hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+              {payload.repository.slug}
+            </Link>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={payload?.tabs ?? []}
     >
@@ -111,12 +113,7 @@ function InsightSuggestionsList({
     <div className="space-y-4">
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <SectionHeading>{t("suggestions_heading")}</SectionHeading>
-        <Select
-          aria-label={t("filter_aria")}
-          className="sm:hidden"
-          onChange={(event) => onFilterChange(event.target.value as StateFilter)}
-          value={stateFilter}
-        >
+        <Select aria-label={t("filter_aria")} className="sm:hidden" onChange={(event) => onFilterChange(event.target.value as StateFilter)} value={stateFilter}>
           {filterTabs.map((tab) => (
             <option key={tab.key} value={tab.key}>
               {tab.label} ({tab.count})
@@ -125,16 +122,9 @@ function InsightSuggestionsList({
         </Select>
         <nav aria-label={t("filter_aria")} className="hidden gap-1 sm:flex">
           {filterTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              onClick={() => onFilterChange(tab.key)}
-              size="sm"
-              variant={stateFilter === tab.key ? "primary" : "secondary"}
-            >
+            <Button key={tab.key} onClick={() => onFilterChange(tab.key)} size="sm" variant={stateFilter === tab.key ? "primary" : "secondary"}>
               {tab.label}
-              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                {tab.count}
-              </span>
+              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">{tab.count}</span>
             </Button>
           ))}
         </nav>
@@ -147,11 +137,7 @@ function InsightSuggestionsList({
       ) : (
         <div className="space-y-3">
           {suggestions.map((suggestion) => (
-            <SuggestionCard
-              key={suggestion.id}
-              repositoryId={repositoryId}
-              suggestion={suggestion}
-            />
+            <SuggestionCard key={suggestion.id} repositoryId={repositoryId} suggestion={suggestion} />
           ))}
         </div>
       )}
@@ -169,9 +155,7 @@ function InsightSuggestionsList({
                 {t("pagination_previous")}
               </button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
-                {t("pagination_previous")}
-              </span>
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t("pagination_previous")}</span>
             )}
             {page < meta.total_pages ? (
               <button
@@ -182,9 +166,7 @@ function InsightSuggestionsList({
                 {t("pagination_next")}
               </button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
-                {t("pagination_next")}
-              </span>
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t("pagination_next")}</span>
             )}
           </div>
         </div>
@@ -193,13 +175,7 @@ function InsightSuggestionsList({
   )
 }
 
-function SuggestionCard({
-  repositoryId,
-  suggestion
-}: {
-  repositoryId: string
-  suggestion: InsightSuggestion
-}) {
+function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; suggestion: InsightSuggestion }) {
   const { t } = useT("agent_insights")
   const queryClient = useQueryClient()
   const { confirm, dialog: confirmDialog } = useConfirm()
@@ -287,23 +263,16 @@ function SuggestionCard({
             <div className="flex flex-wrap items-center gap-2">
               <SeverityPill severity={suggestion.severity} />
               <ProposalPill proposalType={suggestion.proposal_type} />
-              <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                {suggestion.category}
-              </span>
+              <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">{suggestion.category}</span>
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {t("confidence", { pct: Math.round(suggestion.confidence * 100) })}
                 <span aria-hidden="true"> · </span>
                 <span className="sr-only">{t("age_label")} </span>
                 <RelativeTimestamp value={suggestion.created_at} />
               </span>
-              {suggestion.state !== "pending" && (
-                <StatePill state={suggestion.state} />
-              )}
+              {suggestion.state !== "pending" && <StatePill state={suggestion.state} />}
               {suggestion.state === "accepted" && suggestion.created_job && (
-                <Link
-                  className="text-xs text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
-                  to={suggestion.created_job.job_path}
-                >
+                <Link className="text-xs text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis" to={suggestion.created_job.job_path}>
                   {suggestion.created_job.slug}
                 </Link>
               )}
@@ -314,7 +283,10 @@ function SuggestionCard({
           </div>
           <button
             className="shrink-0 rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-            onClick={() => { if (expanded) setShowEvidence(false); setExpanded((v) => !v) }}
+            onClick={() => {
+              if (expanded) setShowEvidence(false)
+              setExpanded((v) => !v)
+            }}
             type="button"
           >
             {expanded ? t("collapse") : t("expand")}
@@ -341,18 +313,14 @@ function SuggestionCard({
             )}
             {suggestion.proposal_type === "remove_memory" && (
               <div className="rounded border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
-                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">
-                  {t("remove_memory_label", { id: suggestion.target_memory_id })}
-                </p>
+                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">{t("remove_memory_label", { id: suggestion.target_memory_id })}</p>
                 {suggestion.stale_memory_text && (
                   <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
                     {suggestion.stale_memory_text}
                   </pre>
                 )}
                 {suggestion.stale_memory_evidence && (
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">
-                    {suggestion.stale_memory_evidence}
-                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">{suggestion.stale_memory_evidence}</p>
                 )}
               </div>
             )}
@@ -360,22 +328,14 @@ function SuggestionCard({
               <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 <p className="font-medium text-gray-700 dark:text-gray-200">{t("retired_heading")}</p>
                 {suggestion.retired_reason && <p className="mt-1 whitespace-pre-wrap">{suggestion.retired_reason}</p>}
-                {suggestion.superseded_by_insight_id && (
-                  <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>
-                )}
-                {suggestion.superseded_by_job_slug && (
-                  <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>
-                )}
+                {suggestion.superseded_by_insight_id && <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>}
+                {suggestion.superseded_by_job_slug && <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>}
               </div>
             )}
             {suggestion.proposal_type === "revise_existing_insight" && suggestion.target_insight_id && (
               <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                <p className="font-medium text-gray-700 dark:text-gray-200">
-                  {t("legacy_revision_heading")}
-                </p>
-                <p className="mt-1">
-                  {t("legacy_revision_body", { id: suggestion.target_insight_id })}
-                </p>
+                <p className="font-medium text-gray-700 dark:text-gray-200">{t("legacy_revision_heading")}</p>
+                <p className="mt-1">{t("legacy_revision_body", { id: suggestion.target_insight_id })}</p>
               </div>
             )}
             {suggestion.created_job && (
@@ -393,12 +353,7 @@ function SuggestionCard({
                   onClick={() => setShowEvidence((v) => !v)}
                   type="button"
                 >
-                  <svg
-                    className={`h-3 w-3 transition-transform ${showEvidence ? "rotate-90" : ""}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className={`h-3 w-3 transition-transform ${showEvidence ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
                   </svg>
                   {t("evidence_heading", { count: suggestion.evidence.length })}
@@ -418,26 +373,22 @@ function SuggestionCard({
                           <tr key={idx}>
                             <td className="py-1 pr-4 align-top">
                               {ev.job_path ? (
-                                <Link
-                                  className="text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
-                                  to={ev.job_path}
-                                >
+                                <Link className="text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis" to={ev.job_path}>
                                   #{ev.job_id}
                                 </Link>
-                              ) : <span className="text-gray-400">—</span>}
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
                             </td>
-                            <td className="py-1 pr-4 align-top text-gray-700 dark:text-gray-300">
-                              {ev.kind || <span className="text-gray-400">—</span>}
-                            </td>
+                            <td className="py-1 pr-4 align-top text-gray-700 dark:text-gray-300">{ev.kind || <span className="text-gray-400">—</span>}</td>
                             <td className="py-1 align-top">
                               {ev.run_transcript_path ? (
-                                <Link
-                                  className="text-gray-500 underline hover:no-underline dark:text-gray-400"
-                                  to={ev.run_transcript_path}
-                                >
+                                <Link className="text-gray-500 underline hover:no-underline dark:text-gray-400" to={ev.run_transcript_path}>
                                   {t("evidence_transcript")}
                                 </Link>
-                              ) : <span className="text-gray-400">—</span>}
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -450,57 +401,36 @@ function SuggestionCard({
           </div>
         )}
 
-        {notice && (
-          <p className="mt-2 text-xs text-green-700 dark:text-green-400">{notice}</p>
-        )}
-        {error && (
-          <p className="mt-2 text-xs text-red-700 dark:text-red-400">{error}</p>
-        )}
+        {notice && <p className="mt-2 text-xs text-green-700 dark:text-green-400">{notice}</p>}
+        {error && <p className="mt-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
 
         {suggestion.state === "pending" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
             {suggestion.proposal_type === "remove_memory" ? (
-              <Button
-                disabled={acceptRemoveMemoryMutation.isPending}
-                onClick={() => acceptRemoveMemoryMutation.mutate()}
-                size="sm"
-                variant="danger"
-              >
+              <Button disabled={acceptRemoveMemoryMutation.isPending} onClick={() => acceptRemoveMemoryMutation.mutate()} size="sm" variant="danger">
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </Button>
             ) : canCreateJob ? (
               <Button
                 disabled={showAcceptForm}
-                onClick={() => { setShowAcceptForm(true); setExpanded(true) }}
+                onClick={() => {
+                  setShowAcceptForm(true)
+                  setExpanded(true)
+                }}
                 size="sm"
                 variant="primary"
               >
                 {t("accept")}
               </Button>
             ) : null}
-            <Button
-              disabled={discussMutation.isPending}
-              onClick={() => discussMutation.mutate()}
-              size="sm"
-              variant="secondary"
-            >
+            <Button disabled={discussMutation.isPending} onClick={() => discussMutation.mutate()} size="sm" variant="secondary">
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
             </Button>
-            <Button
-              disabled={dismissMutation.isPending}
-              onClick={handleDismiss}
-              size="sm"
-              variant="secondary"
-            >
+            <Button disabled={dismissMutation.isPending} onClick={handleDismiss} size="sm" variant="secondary">
               {dismissMutation.isPending ? t("dismissing") : t("dismiss")}
             </Button>
             {suggestion.has_memory_suggestion && (
-              <Button
-                disabled={saveMemoryMutation.isPending}
-                onClick={() => saveMemoryMutation.mutate()}
-                size="sm"
-                variant="secondary"
-              >
+              <Button disabled={saveMemoryMutation.isPending} onClick={() => saveMemoryMutation.mutate()} size="sm" variant="secondary">
                 {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
               </Button>
             )}
@@ -509,21 +439,11 @@ function SuggestionCard({
 
         {suggestion.state === "accepted" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <Button
-              disabled={discussMutation.isPending}
-              onClick={() => discussMutation.mutate()}
-              size="sm"
-              variant="secondary"
-            >
+            <Button disabled={discussMutation.isPending} onClick={() => discussMutation.mutate()} size="sm" variant="secondary">
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
             </Button>
             {suggestion.has_memory_suggestion && (
-              <Button
-                disabled={saveMemoryMutation.isPending}
-                onClick={() => saveMemoryMutation.mutate()}
-                size="sm"
-                variant="secondary"
-              >
+              <Button disabled={saveMemoryMutation.isPending} onClick={() => saveMemoryMutation.mutate()} size="sm" variant="secondary">
                 {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
               </Button>
             )}
@@ -532,20 +452,10 @@ function SuggestionCard({
 
         {suggestion.state === "dismissed" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <Button
-              disabled={discussMutation.isPending}
-              onClick={() => discussMutation.mutate()}
-              size="sm"
-              variant="secondary"
-            >
+            <Button disabled={discussMutation.isPending} onClick={() => discussMutation.mutate()} size="sm" variant="secondary">
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
             </Button>
-            <Button
-              disabled={undismissMutation.isPending}
-              onClick={() => undismissMutation.mutate()}
-              size="sm"
-              variant="secondary"
-            >
+            <Button disabled={undismissMutation.isPending} onClick={() => undismissMutation.mutate()} size="sm" variant="secondary">
               {undismissMutation.isPending ? t("undismissing") : t("undismiss")}
             </Button>
           </div>
@@ -608,12 +518,7 @@ function AcceptForm({
           onClick={() => setPromptExpanded((v) => !v)}
           type="button"
         >
-          <svg
-            className={`h-3 w-3 transition-transform ${promptExpanded ? "rotate-90" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className={`h-3 w-3 transition-transform ${promptExpanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
           </svg>
           {t("edit_prompt")}
@@ -633,17 +538,10 @@ function AcceptForm({
       )}
 
       <div className="mt-3 flex gap-2">
-        <Button
-          disabled={mutation.isPending || !prompt.trim()}
-          onClick={() => mutation.mutate()}
-          variant="primary"
-        >
+        <Button disabled={mutation.isPending || !prompt.trim()} onClick={() => mutation.mutate()} variant="primary">
           {mutation.isPending ? t("confirming") : t("confirm_accept")}
         </Button>
-        <Button
-          onClick={onClose}
-          variant="secondary"
-        >
+        <Button onClick={onClose} variant="secondary">
           {t("cancel")}
         </Button>
       </div>
@@ -659,11 +557,7 @@ function SeverityPill({ severity }: { severity: string }) {
       : severity === "medium"
         ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
         : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`severity_${severity}`)}
-    </span>
-  )
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>{t(`severity_${severity}`)}</span>
 }
 
 function ProposalPill({ proposalType }: { proposalType: InsightSuggestion["proposal_type"] }) {
@@ -674,11 +568,7 @@ function ProposalPill({ proposalType }: { proposalType: InsightSuggestion["propo
       : proposalType === "save_memory"
         ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
         : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`proposal_${proposalType}`)}
-    </span>
-  )
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>{t(`proposal_${proposalType}`)}</span>
 }
 
 function StatePill({ state }: { state: string }) {
@@ -689,15 +579,14 @@ function StatePill({ state }: { state: string }) {
       : state === "retired"
         ? "bg-gray-200 text-gray-500 dark:bg-gray-800/60 dark:text-gray-500"
         : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`state_${state}`)}
-    </span>
-  )
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>{t(`state_${state}`)}</span>
 }
 
 function isInteractiveClickTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest("a, button, input, label, select, textarea, [role='button'], [role='link'], [data-insight-card-interactive]"))
+  return (
+    target instanceof Element &&
+    Boolean(target.closest("a, button, input, label, select, textarea, [role='button'], [role='link'], [data-insight-card-interactive]"))
+  )
 }
 
 // Default export is what the plugin component loaders require

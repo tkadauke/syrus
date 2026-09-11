@@ -8,12 +8,9 @@ const { subscribeToAppEvents, unsubscribe, setNativeNotificationCableSubscribed 
   const unsubscribe = vi.fn()
   return {
     unsubscribe,
-    subscribeToAppEvents: vi.fn((
-      _queryClient?: unknown,
-      _consumer?: unknown,
-      _onConnectionChange?: unknown,
-      _onSubscriptionChange?: unknown
-    ) => ({ unsubscribe })),
+    subscribeToAppEvents: vi.fn((_queryClient?: unknown, _consumer?: unknown, _onConnectionChange?: unknown, _onSubscriptionChange?: unknown) => ({
+      unsubscribe
+    })),
     setNativeNotificationCableSubscribed: vi.fn()
   }
 })

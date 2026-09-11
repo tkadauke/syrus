@@ -36,9 +36,7 @@ function renderExpanded(context: ToolCardContext) {
       <DesignDocHeader doc={doc.summary} />
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{doc.summary.title}</div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        {doc.summary.pendingSuggestionsCount != null ? (
-          <Row label="Pending suggestions" value={String(doc.summary.pendingSuggestionsCount)} />
-        ) : null}
+        {doc.summary.pendingSuggestionsCount != null ? <Row label="Pending suggestions" value={String(doc.summary.pendingSuggestionsCount)} /> : null}
         {doc.summary.openThreadsCount != null ? <Row label="Open threads" value={String(doc.summary.openThreadsCount)} /> : null}
         {metadata ? <Row label="Content" value={metadata} /> : null}
       </dl>

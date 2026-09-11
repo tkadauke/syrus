@@ -42,10 +42,7 @@ describe("AdminSmartFolderNav", () => {
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Confirm delete" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/smart_folders/10",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/smart_folders/10", expect.objectContaining({ method: "DELETE" }))
     })
     await waitFor(() => {
       expect(onMutationSuccess).toHaveBeenCalledTimes(1)
@@ -287,17 +284,13 @@ function smartFolders(): AdminSmartFolder[] {
 
 function savedFilter() {
   return {
-    and: [
-      { value: "runs", op: "is", field: "queue_name" }
-    ]
+    and: [{ value: "runs", op: "is", field: "queue_name" }]
   }
 }
 
 function changedFilter() {
   return {
-    and: [
-      { field: "queue_name", op: "is", value: "merges" }
-    ]
+    and: [{ field: "queue_name", op: "is", value: "merges" }]
   }
 }
 
@@ -306,18 +299,20 @@ function showSavedFolderActions(name: string, count: number) {
 }
 
 function mockSmartFolderFetch() {
-  return vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(
-    new Response(
-      JSON.stringify({
-        subject_type: "admin_queue",
-        subject_label: "Admin queue",
-        dashboard_path: "/admin/queue",
-        smart_folders: [],
-        message: "Smart folder updated."
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+  return vi.spyOn(window, "fetch").mockImplementation(() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          subject_type: "admin_queue",
+          subject_label: "Admin queue",
+          dashboard_path: "/admin/queue",
+          smart_folders: [],
+          message: "Smart folder updated."
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
     )
-  ))
+  )
 }
 
 function dataTransferStub() {

@@ -15,11 +15,13 @@ export function mergeOptionalAttachments(...groups: Array<BugReportOptionalAttac
   const seen = new Set<string>()
   const merged: BugReportOptionalAttachment[] = []
 
-  groups.flatMap((group) => group ?? []).forEach((attachment) => {
-    if (seen.has(attachment.id)) return
-    seen.add(attachment.id)
-    merged.push(attachment)
-  })
+  groups
+    .flatMap((group) => group ?? [])
+    .forEach((attachment) => {
+      if (seen.has(attachment.id)) return
+      seen.add(attachment.id)
+      merged.push(attachment)
+    })
 
   return merged
 }

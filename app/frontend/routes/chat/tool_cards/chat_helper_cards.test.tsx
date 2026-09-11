@@ -85,7 +85,9 @@ describe("chat helper tool cards", () => {
   })
 
   it("renders missing payload fields as malformed cards instead of throwing", () => {
-    expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe("Next-step suggestion returned an unexpected response")
+    expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe(
+      "Next-step suggestion returned an unexpected response"
+    )
     render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { parsedResult: { session_id: 42 } }))}</>)
     expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
   })
@@ -100,20 +102,22 @@ describe("chat helper tool rendering integration", () => {
       summary_label: "Goal #9 -> completed",
       outcome_label: "Done",
       collapsed_by_default: true,
-      calls: [{
-        message_id: 1,
-        tool_name: "mark_goal_completed",
-        raw_name: "mark_goal_completed",
-        detail: "done",
-        display_label: "Mark goal completed",
-        progress_label: "Thinking",
-        raw_payload: { reason: "done" },
-        result_body: resultBody,
-        result_json: { goal_id: 9, status: "completed", reason: "done" },
-        result_error: false,
-        result_kind: "record",
-        result_summary: "Goal #9 -> completed"
-      }]
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "mark_goal_completed",
+          raw_name: "mark_goal_completed",
+          detail: "done",
+          display_label: "Mark goal completed",
+          progress_label: "Thinking",
+          raw_payload: { reason: "done" },
+          result_body: resultBody,
+          result_json: { goal_id: 9, status: "completed", reason: "done" },
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Goal #9 -> completed"
+        }
+      ]
     }
 
     render(<ToolGroup item={item} />)

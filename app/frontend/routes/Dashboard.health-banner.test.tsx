@@ -76,10 +76,7 @@ describe("RepositoryHealthBanners", () => {
 
   it("does not show the banner when a matching dismissal is already in localStorage", () => {
     const repo = makeRepo()
-    window.localStorage.setItem(
-      HEALTH_BANNER_DISMISSALS_KEY,
-      JSON.stringify({ [repo.id]: "inconclusive:unknown" })
-    )
+    window.localStorage.setItem(HEALTH_BANNER_DISMISSALS_KEY, JSON.stringify({ [repo.id]: "inconclusive:unknown" }))
 
     renderBanners([repo])
 
@@ -87,10 +84,7 @@ describe("RepositoryHealthBanners", () => {
   })
 
   it("shows the banner again when health evidence changes after a prior dismissal", () => {
-    window.localStorage.setItem(
-      HEALTH_BANNER_DISMISSALS_KEY,
-      JSON.stringify({ 1: "inconclusive:unknown" })
-    )
+    window.localStorage.setItem(HEALTH_BANNER_DISMISSALS_KEY, JSON.stringify({ 1: "inconclusive:unknown" }))
 
     // A new grader result came in — grader_health is now "broken"
     const repo = makeRepo({ grader_health: "broken", main_health: "broken" })

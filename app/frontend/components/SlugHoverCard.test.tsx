@@ -7,17 +7,15 @@ import { SlugHoverCard } from "./SlugHoverCard"
 // Stub preview cards so tests don't need live API calls
 vi.mock("./JobPreviewCard", () => ({
   JobPreviewCard: ({ id }: { id: number }) => <div data-testid="job-card">JOB-{id}</div>,
-  JobPreviewSkeleton: () => <div data-testid="job-skeleton" />,
+  JobPreviewSkeleton: () => <div data-testid="job-skeleton" />
 }))
 vi.mock("./EpicPreviewCard", () => ({
   EpicPreviewCard: ({ id }: { id: number }) => <div data-testid="epic-card">EPIC-{id}</div>,
-  EpicPreviewSkeleton: () => <div data-testid="epic-skeleton" />,
+  EpicPreviewSkeleton: () => <div data-testid="epic-skeleton" />
 }))
 vi.mock("../pluginSlugPreviewCards", () => ({
   pluginSlugPreviewCardComponentForPrefix: (prefix: string | null | undefined) =>
-    prefix === "DOC"
-      ? ({ id }: { id: number }) => <div data-testid="doc-card">DOC-{id}</div>
-      : null,
+    prefix === "DOC" ? ({ id }: { id: number }) => <div data-testid="doc-card">DOC-{id}</div> : null
 }))
 
 function mockMatchMedia(matches: boolean) {
@@ -31,8 +29,8 @@ function mockMatchMedia(matches: boolean) {
       removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
+      dispatchEvent: vi.fn()
+    }))
   })
 }
 
@@ -43,7 +41,9 @@ function renderCard(kind: "job" | "epic" | "plugin", id: number, prefix?: string
     <QueryClientProvider client={qc}>
       <MemoryRouter>
         <SlugHoverCard id={id} kind={kind} prefix={prefix}>
-          <a href={`/${(prefix ?? kind).toLowerCase()}s/${id}`}>{label}-{id}</a>
+          <a href={`/${(prefix ?? kind).toLowerCase()}s/${id}`}>
+            {label}-{id}
+          </a>
         </SlugHoverCard>
       </MemoryRouter>
     </QueryClientProvider>
@@ -91,7 +91,9 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     const span = screen.getByRole("link", { name: "JOB-42" }).parentElement!
     fireEvent.mouseEnter(span)
 
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     expect(screen.getByTestId("job-card")).toBeInTheDocument()
     expect(screen.getByTestId("job-card").textContent).toBe("JOB-42")
@@ -102,7 +104,9 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     const span = screen.getByRole("link", { name: "JOB-42" }).parentElement!
     fireEvent.mouseEnter(span)
 
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     expect(screen.getByTestId("job-card").parentElement).toHaveClass("[&>*]:max-w-[calc(100vw-1rem)]")
   })
@@ -112,7 +116,9 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     const span = screen.getByRole("link", { name: "EPIC-7" }).parentElement!
     fireEvent.mouseEnter(span)
 
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     expect(screen.getByTestId("epic-card")).toBeInTheDocument()
     expect(screen.getByTestId("epic-card").textContent).toBe("EPIC-7")
@@ -123,7 +129,9 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     const span = screen.getByRole("link", { name: "DOC-20" }).parentElement!
     fireEvent.mouseEnter(span)
 
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     expect(screen.getByTestId("doc-card")).toBeInTheDocument()
     expect(screen.getByTestId("doc-card").textContent).toBe("DOC-20")
@@ -135,7 +143,9 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     fireEvent.mouseEnter(span)
     fireEvent.mouseLeave(span)
 
-    await act(async () => { vi.advanceTimersByTime(400) })
+    await act(async () => {
+      vi.advanceTimersByTime(400)
+    })
 
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
   })
@@ -144,12 +154,16 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     renderCard("job", 1)
     const span = screen.getByRole("link", { name: "JOB-1" }).parentElement!
     fireEvent.mouseEnter(span)
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
     expect(screen.getByTestId("job-card")).toBeInTheDocument()
 
     fireEvent.mouseLeave(span)
     // Advance past the 100ms close grace period
-    await act(async () => { vi.advanceTimersByTime(200) })
+    await act(async () => {
+      vi.advanceTimersByTime(200)
+    })
 
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
   })
@@ -158,13 +172,17 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     renderCard("job", 1)
     const span = screen.getByRole("link", { name: "JOB-1" }).parentElement!
     fireEvent.mouseEnter(span)
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     const card = screen.getByTestId("job-card").parentElement!
     // Mouse leaves reference but enters floating — grace period cancelled
     fireEvent.mouseLeave(span)
     fireEvent.mouseEnter(card)
-    await act(async () => { vi.advanceTimersByTime(200) })
+    await act(async () => {
+      vi.advanceTimersByTime(200)
+    })
 
     expect(screen.getByTestId("job-card")).toBeInTheDocument()
   })
@@ -173,11 +191,15 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     renderCard("job", 1)
     const span = screen.getByRole("link", { name: "JOB-1" }).parentElement!
     fireEvent.mouseEnter(span)
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     // handleFloatingLeave calls setIsOpen(false) directly — no timer needed
     const card = screen.getByTestId("job-card").parentElement!
-    await act(async () => { fireEvent.mouseLeave(card) })
+    await act(async () => {
+      fireEvent.mouseLeave(card)
+    })
 
     expect(screen.queryByTestId("job-card")).not.toBeInTheDocument()
   })

@@ -17,14 +17,16 @@ describe("CoverageSparkline", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders the sparkline when at least 2 data points with non-null lines_pct are present", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      repository_id: 42,
-      days: 30,
-      points: [
-        { date: "2026-07-01", lines_pct: 80.0, branches_pct: 70.0, functions_pct: null, branch: "main" },
-        { date: "2026-07-05", lines_pct: 85.5, branches_pct: 75.0, functions_pct: null, branch: "main" }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        repository_id: 42,
+        days: 30,
+        points: [
+          { date: "2026-07-01", lines_pct: 80.0, branches_pct: 70.0, functions_pct: null, branch: "main" },
+          { date: "2026-07-05", lines_pct: 85.5, branches_pct: 75.0, functions_pct: null, branch: "main" }
+        ]
+      })
+    )
 
     renderSparkline()
 
@@ -34,13 +36,13 @@ describe("CoverageSparkline", () => {
   })
 
   it("renders nothing when there is only one valid data point", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      repository_id: 42,
-      days: 30,
-      points: [
-        { date: "2026-07-05", lines_pct: 85.5, branches_pct: null, functions_pct: null, branch: "main" }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        repository_id: 42,
+        days: 30,
+        points: [{ date: "2026-07-05", lines_pct: 85.5, branches_pct: null, functions_pct: null, branch: "main" }]
+      })
+    )
 
     const { container } = renderSparkline()
 
@@ -50,11 +52,13 @@ describe("CoverageSparkline", () => {
   })
 
   it("renders nothing when there are no data points", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      repository_id: 42,
-      days: 30,
-      points: []
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        repository_id: 42,
+        days: 30,
+        points: []
+      })
+    )
 
     const { container } = renderSparkline()
 
@@ -83,14 +87,16 @@ describe("CoverageSparkline", () => {
   })
 
   it("ignores points with null lines_pct when counting valid points", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      repository_id: 42,
-      days: 30,
-      points: [
-        { date: "2026-07-01", lines_pct: null, branches_pct: null, functions_pct: null, branch: "main" },
-        { date: "2026-07-05", lines_pct: 85.5, branches_pct: null, functions_pct: null, branch: "main" }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        repository_id: 42,
+        days: 30,
+        points: [
+          { date: "2026-07-01", lines_pct: null, branches_pct: null, functions_pct: null, branch: "main" },
+          { date: "2026-07-05", lines_pct: 85.5, branches_pct: null, functions_pct: null, branch: "main" }
+        ]
+      })
+    )
 
     const { container } = renderSparkline()
 

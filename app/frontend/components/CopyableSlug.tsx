@@ -14,7 +14,9 @@ export function CopyableSlug({ slug, className = "" }: { slug: string; className
       type="button"
     >
       <span>{slug}</span>
-      <CopyIcon className={`h-3.5 w-3.5 ${copied ? "text-green-600 dark:text-green-300" : "text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300"}`} />
+      <CopyIcon
+        className={`h-3.5 w-3.5 ${copied ? "text-green-600 dark:text-green-300" : "text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300"}`}
+      />
     </button>
   )
 }

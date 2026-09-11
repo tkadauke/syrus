@@ -24,26 +24,18 @@ function payload() {
     surface: "all",
     filters: { tool_name: null, server_name: null },
     totals: { calls: 10, errors: 2 },
-    top_tools: [
-      { tool_name: "read_live_state", server_name: "syrus-mcp-sidecar", calls: 6, errors: 1, error_rate: 0.1667 }
-    ],
-    error_rates: [
-      { tool_name: "repo_info", server_name: "syrus-chat-sidecar", calls: 4, errors: 2, error_rate: 0.5 }
-    ],
+    top_tools: [{ tool_name: "read_live_state", server_name: "syrus-mcp-sidecar", calls: 6, errors: 1, error_rate: 0.1667 }],
+    error_rates: [{ tool_name: "repo_info", server_name: "syrus-chat-sidecar", calls: 4, errors: 2, error_rate: 0.5 }],
     surface_breakdown: [
       { surface: "workflow", calls: 6, errors: 1, error_rate: 0.1667 },
       { surface: "chat", calls: 4, errors: 2, error_rate: 0.5 }
     ],
-    provider_breakdown: [
-      { provider: "claude", calls: 10, errors: 2, error_rate: 0.2 }
-    ],
+    provider_breakdown: [{ provider: "claude", calls: 10, errors: 2, error_rate: 0.2 }],
     server_breakdown: [
       { server_name: "syrus-mcp-sidecar", calls: 6, errors: 1, error_rate: 0.1667 },
       { server_name: "syrus-chat-sidecar", calls: 4, errors: 2, error_rate: 0.5 }
     ],
-    sidecar_mode_breakdown: [
-      { sidecar_mode: "stdio", calls: 10, errors: 2, error_rate: 0.2 }
-    ],
+    sidecar_mode_breakdown: [{ sidecar_mode: "stdio", calls: 10, errors: 2, error_rate: 0.2 }],
     unused_advertised_tools: ["submit_summary"],
     recent_calls: [
       {

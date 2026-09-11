@@ -8,7 +8,10 @@ import { Modal } from "./Modal"
 // Shift on most layouts -- is left untouched rather than title-cased into
 // something that no longer matches the key the user actually presses.
 export function formatShortcutCombo(combo: string, platform = globalThis.navigator?.platform ?? ""): string {
-  const parts = combo.split("+").map((part) => part.trim()).filter(Boolean)
+  const parts = combo
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean)
   if (parts.length === 1 && parts[0].length === 1 && !/[a-z0-9]/i.test(parts[0])) return parts[0]
   return parts.map((part) => formatShortcutToken(part, platform)).join(" + ")
 }

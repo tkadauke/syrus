@@ -1,4 +1,11 @@
-import type { ChatComposeAttachment, ChatSystemAction, ChatSystemCommandAction, ChatSystemCommandHandlers, PendingSlashCommandConfirmation, WalkthroughDraft } from "./composeTypes"
+import type {
+  ChatComposeAttachment,
+  ChatSystemAction,
+  ChatSystemCommandAction,
+  ChatSystemCommandHandlers,
+  PendingSlashCommandConfirmation,
+  WalkthroughDraft
+} from "./composeTypes"
 import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent, FormEvent, KeyboardEvent } from "react"
@@ -6,11 +13,68 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
-import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../../components/WalkthroughRecorder"
-import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
+import {
+  AnalyzingHint,
+  annotationHoldLabel,
+  annotationIdleHintKind,
+  annotationShortcutLabel,
+  formatClock,
+  RECORDER_WARNING_SECONDS,
+  shouldShowAnnotationSurfaceNote,
+  useNativeRecorderHud,
+  useWalkthroughRecorder,
+  WalkthroughRecorderHUD
+} from "../../components/WalkthroughRecorder"
+import {
+  isWalkthroughVideoFile,
+  MAX_WALKTHROUGH_BYTES,
+  MAX_WALKTHROUGH_DURATION_SECONDS,
+  measureVideoDuration,
+  retryVideoWalkthrough,
+  uploadVideoWalkthrough
+} from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
+import {
+  attachChatRepository,
+  branchChat,
+  cancelChatShellCommand,
+  clearChatHistory,
+  createChat,
+  createChatShellCommand,
+  createChatTopicBookmark,
+  createScratchpadItem,
+  deleteQueuedChatMessage,
+  deleteChatAttachment,
+  enqueueChatMessage,
+  fetchChatWhiteboard,
+  patchChatGoal,
+  patchChatWhiteboard,
+  pauseChatGoal,
+  rejectChatProposal,
+  renameChat,
+  resumeChatGoal,
+  scheduleChatMessage,
+  sendChatMessage,
+  shareChat,
+  stopChat,
+  stopChatGoal,
+  updateChatEffort,
+  updateChatMode,
+  updateChatModel,
+  updateChatPinned,
+  updateQueuedChatMessage,
+  upsertChatGoal,
+  type ChatBranchPayload,
+  type ChatCreatedPayload,
+  type ChatDraftMessage,
+  type ChatMode,
+  type ChatPayload,
+  type ChatProposal,
+  type ChatQueuedMessage,
+  type ChatShellCommandRecord,
+  type ShareChatPayload
+} from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -19,7 +83,17 @@ import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
 import { SendIcon } from "../../components/SendIcon"
 import { StopIcon } from "../../components/StopIcon"
-import { filterSlashCommands, findSlashCommand, repoSkillCommands, slashCommandDescription, slashCommandPrompt, slashCommandQuery, slashCommandSignature, type SlashCommand, type SlashCommandMatch } from "../../lib/slashCommands"
+import {
+  filterSlashCommands,
+  findSlashCommand,
+  repoSkillCommands,
+  slashCommandDescription,
+  slashCommandPrompt,
+  slashCommandQuery,
+  slashCommandSignature,
+  type SlashCommand,
+  type SlashCommandMatch
+} from "../../lib/slashCommands"
 import { bangCommandText, isBangCommandMode } from "../../lib/bangCommand"
 import { fetchRepositorySkills } from "../../api/skills"
 import { formatScheduledTime, parseScheduleCommandArgs } from "../../lib/scheduleTime"
@@ -28,8 +102,28 @@ import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttach
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
-import { type ChatDraftAttachmentsChangedDetail, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
-import { appendSearch, chatDisplayTitle, contentRecord, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
+import {
+  type ChatDraftAttachmentsChangedDetail,
+  CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT,
+  type ChatQueryKey,
+  CHAT_ATTACHMENT_MAX_BYTES,
+  CHAT_ATTACHMENT_TOTAL_MAX_BYTES,
+  CHAT_COMPOSE_MAX_ROWS,
+  CHAT_DRAFT_KEY_PREFIX,
+  GHOST_SUGGESTION_TAB_GRACE_MS
+} from "./constants"
+import {
+  appendSearch,
+  chatDisplayTitle,
+  contentRecord,
+  currentRecentChat,
+  isDesktopChatViewport,
+  isSupervisorChat,
+  numericArg,
+  parsePixelValue,
+  providerLabel,
+  withRoutePrefix
+} from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
 import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
@@ -51,16 +145,41 @@ type ComposerDraftSnapshot = {
   attachments: ChatComposeAttachment[]
 }
 
-
-
-
 // Chat composer extracted from Chat.tsx: the Compose input component and its whole
 // support cast — the report-issue dialog, the slash-command palette/confirmation,
 // the queued-message list, the stop-generation button, and the compose-only
 // textarea/enter/proposal helpers. Compose is the entry point ChatColumn renders.
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
-export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, onComposerHeightChange, onLoadEarlierMessages, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; onComposerHeightChange?: (height: number | null) => void; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+export function Compose({
+  autoFocus = false,
+  canLoadEarlierMessages = false,
+  chatId,
+  commandHandlers,
+  floating = true,
+  onComposerHeightChange,
+  onLoadEarlierMessages,
+  payload,
+  prefix,
+  queryKey,
+  showAttachedRepositories = false,
+  onNotice,
+  onMessageSent
+}: {
+  autoFocus?: boolean
+  canLoadEarlierMessages?: boolean
+  chatId: string
+  commandHandlers: ChatSystemCommandHandlers
+  floating?: boolean
+  onComposerHeightChange?: (height: number | null) => void
+  onLoadEarlierMessages?: () => boolean
+  payload: ChatPayload
+  prefix: string
+  queryKey: ChatQueryKey
+  showAttachedRepositories?: boolean
+  onNotice: (message: string | null) => void
+  onMessageSent?: () => void
+}) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
@@ -136,32 +255,30 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // skills vary per repo. No repository attached means no skill commands.
   const repositoryId = payload.chat.repository?.id
   const repositorySkills = useQuery({
-    queryKey: [ "repositories", String(repositoryId), "skills" ],
+    queryKey: ["repositories", String(repositoryId), "skills"],
     queryFn: () => fetchRepositorySkills(String(repositoryId)),
     enabled: repositoryId != null
   })
-  const dynamicSkillCommands = useMemo(
-    () => repoSkillCommands(repositorySkills.data?.skills ?? []),
-    [ repositorySkills.data ]
-  )
+  const dynamicSkillCommands = useMemo(() => repoSkillCommands(repositorySkills.data?.skills ?? []), [repositorySkills.data])
   const slashCommandContext = useMemo(
     () => ({ chat: { pinned: payload.chat.pinned, system_kind: payload.chat.system_kind }, dynamicCommands: dynamicSkillCommands }),
-    [ payload.chat.pinned, payload.chat.system_kind, dynamicSkillCommands ]
+    [payload.chat.pinned, payload.chat.system_kind, dynamicSkillCommands]
   )
   const commandQuery = slashCommandQuery(text)
-  const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery, slashCommandContext), [commandQuery, slashCommandContext])
+  const matchingCommands = useMemo(
+    () => (commandQuery == null ? [] : filterSlashCommands(commandQuery, slashCommandContext)),
+    [commandQuery, slashCommandContext]
+  )
   const bangCommandModeActive = (payload.chat.mode === "coding" || payload.chat.mode === "local") && isBangCommandMode(text)
   const shellCommandRunning = shellCommand?.running ?? false
   const pendingProposals = useMemo(() => {
     const seenIds = new Set<number>()
-    return payload.messages.filter(
-      (item): item is typeof item & { proposal: ChatProposal } => {
-        if (item.type !== "message" || item.proposal?.proposed !== true) return false
-        if (seenIds.has(item.proposal.id)) return false
-        seenIds.add(item.proposal.id)
-        return true
-      }
-    )
+    return payload.messages.filter((item): item is typeof item & { proposal: ChatProposal } => {
+      if (item.type !== "message" || item.proposal?.proposed !== true) return false
+      if (seenIds.has(item.proposal.id)) return false
+      seenIds.add(item.proposal.id)
+      return true
+    })
   }, [payload.messages])
   const pendingProposalCount = payload.pending_proposal_count ?? pendingProposals.length
   const composerBannerStackVisible = pendingProposalCount > 0 || shellCommandRunning
@@ -245,9 +362,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   }
 
   const send = useMutation({
-    mutationFn: (draft: SubmittedChatDraft) => agentActive
-      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
-      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments),
+    mutationFn: (draft: SubmittedChatDraft) =>
+      agentActive
+        ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
+        : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
@@ -329,9 +447,16 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       if (action.kind === "job") {
         let endpoint: string
         let notice: string
-        if (action.action === "cancel") { endpoint = "cancel"; notice = "Job cancelled" }
-        else if (action.action === "retry") { endpoint = "run_again"; notice = "Job queued for retry" }
-        else { endpoint = "approve"; notice = "Job approved" }
+        if (action.action === "cancel") {
+          endpoint = "cancel"
+          notice = "Job cancelled"
+        } else if (action.action === "retry") {
+          endpoint = "run_again"
+          notice = "Job queued for retry"
+        } else {
+          endpoint = "approve"
+          notice = "Job approved"
+        }
         const path = `/api/v1/app/jobs/${encodeURIComponent(action.jobId)}/${endpoint}`
         await postJobCommand(path)
         return { jobId: action.jobId, notice }
@@ -361,15 +486,19 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           expected_version: result.payload.version
         })
       }
-      queryClient.setQueryData(queryKey, (currentPayload: ChatPayload | undefined) => currentPayload ? {
-        ...currentPayload,
-        whiteboard: {
-          version: result.payload.version,
-          elements: result.payload.scene_json.elements,
-          appState: result.payload.scene_json.appState,
-          files: result.payload.scene_json.files
-        }
-      } : currentPayload)
+      queryClient.setQueryData(queryKey, (currentPayload: ChatPayload | undefined) =>
+        currentPayload
+          ? {
+              ...currentPayload,
+              whiteboard: {
+                version: result.payload.version,
+                elements: result.payload.scene_json.elements,
+                appState: result.payload.scene_json.appState,
+                files: result.payload.scene_json.files
+              }
+            }
+          : currentPayload
+      )
       return { notice: "Canvas cleared" }
     },
     onSuccess: (result, action) => {
@@ -393,10 +522,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
   })
   const scheduleMessage = useMutation({
-    mutationFn: (input: { fireAt: Date; body: string }) => scheduleChatMessage(payload.paths.app_scheduled_messages_path, {
-      body: input.body,
-      fireAt: input.fireAt.toISOString()
-    }),
+    mutationFn: (input: { fireAt: Date; body: string }) =>
+      scheduleChatMessage(payload.paths.app_scheduled_messages_path, {
+        body: input.body,
+        fireAt: input.fireAt.toISOString()
+      }),
     onSuccess: (result) => {
       setText("")
       setPendingConfirmation(null)
@@ -429,16 +559,15 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
   })
   const canStashDraft = text.trim().length > 0 || attachments.length > 0
-  const commandPaletteOpen = commandQuery != null
-    && matchingCommands.length > 0
-    && !send.isPending
-    && !systemAction.isPending
-    && !systemCommandAction.isPending
-    && pendingConfirmation == null
+  const commandPaletteOpen =
+    commandQuery != null &&
+    matchingCommands.length > 0 &&
+    !send.isPending &&
+    !systemAction.isPending &&
+    !systemCommandAction.isPending &&
+    pendingConfirmation == null
   const suggestedNextStep = payload.chat.suggested_next_step || null
-  const ghostSuggestion = text.length === 0 && !send.isPending && suggestedNextStep && suggestedNextStep !== dismissedSuggestion
-    ? suggestedNextStep
-    : null
+  const ghostSuggestion = text.length === 0 && !send.isPending && suggestedNextStep && suggestedNextStep !== dismissedSuggestion ? suggestedNextStep : null
 
   function submitMessage() {
     if (send.isPending || systemAction.isPending || systemCommandAction.isPending) return
@@ -521,23 +650,34 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
   function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
     if (commandName === "/epic") return "epic"
-    if (commandName === "/job" || commandName === "/cancel" || commandName === "/retry" || commandName === "/feedback" || commandName === "/review" || commandName === "/approve" || commandName === "/diff") return "job"
+    if (
+      commandName === "/job" ||
+      commandName === "/cancel" ||
+      commandName === "/retry" ||
+      commandName === "/feedback" ||
+      commandName === "/review" ||
+      commandName === "/approve" ||
+      commandName === "/diff"
+    )
+      return "job"
     return null
   }
 
   function handleReviewWithId(jobId: string) {
-    fetchJobDetail(jobId).then((detail) => {
-      const prUrl = detail.job.pr_url
-      if (!prUrl) {
-        onNotice("This job doesn't have a pull request yet.")
-        return
-      }
-      window.open(prUrl, "_blank", "noopener,noreferrer")
-      setText("")
-      onNotice(null)
-    }).catch(() => {
-      onNotice("Could not load job.")
-    })
+    fetchJobDetail(jobId)
+      .then((detail) => {
+        const prUrl = detail.job.pr_url
+        if (!prUrl) {
+          onNotice("This job doesn't have a pull request yet.")
+          return
+        }
+        window.open(prUrl, "_blank", "noopener,noreferrer")
+        setText("")
+        onNotice(null)
+      })
+      .catch(() => {
+        onNotice("Could not load job.")
+      })
   }
 
   function handleCommandWithId(command: SlashCommand, id: string) {
@@ -899,10 +1039,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // `assumeConfigured` is set by the post-setup handoff: the calling render's
   // payload.gemini_configured is still stale (the refetch hasn't landed), but
   // the key was just saved — re-checking it would loop the setup sheet.
-  async function intakeWalkthroughVideo(
-    file: File,
-    options: { knownDuration?: number | null; assumeConfigured?: boolean } = {}
-  ) {
+  async function intakeWalkthroughVideo(file: File, options: { knownDuration?: number | null; assumeConfigured?: boolean } = {}) {
     // Every video intake path (drag-in, file picker, recorder) funnels
     // through here, so one check gates them all.
     if (!walkthroughsEnabled) {
@@ -989,9 +1126,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       remaining: t("walkthrough_remaining", { clock: formatClock(Math.max(0, MAX_WALKTHROUGH_DURATION_SECONDS - recorder.elapsed)) }),
       remainingWarn: recorder.elapsed >= RECORDER_WARNING_SECONDS,
       noMic: recorderMicLive ? undefined : t("walkthrough_no_mic"),
-      hint: recorder.annotationAvailable
-        ? (recorder.drawing ? annotationHintDrawing : annotationHintIdle)
-        : undefined,
+      hint: recorder.annotationAvailable ? (recorder.drawing ? annotationHintDrawing : annotationHintIdle) : undefined,
       drawing: recorder.drawing,
       stopLabel: t("walkthrough_stop"),
       discardLabel: t("walkthrough_discard"),
@@ -1159,10 +1294,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
 
-    void Promise.all(selectedFiles.map(readAttachmentFile)).then((newAttachments) => {
-      setAttachments((current) => [...current, ...newAttachments])
-      setAttachmentError(null)
-    }).catch(() => setAttachmentError("Unable to read the selected attachment."))
+    void Promise.all(selectedFiles.map(readAttachmentFile))
+      .then((newAttachments) => {
+        setAttachments((current) => [...current, ...newAttachments])
+        setAttachmentError(null)
+      })
+      .catch(() => setAttachmentError("Unable to read the selected attachment."))
   }
 
   function handleDragOver(event: DragEvent<HTMLFormElement>) {
@@ -1212,8 +1349,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     const popover = attachmentPopoverRef.current
     if (!popover) return
 
-    const focusable = Array.from(popover.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])"))
-      .filter((element) => element.offsetParent !== null || element === document.activeElement)
+    const focusable = Array.from(
+      popover.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])")
+    ).filter((element) => element.offsetParent !== null || element === document.activeElement)
     if (focusable.length === 0) return
 
     const activeIndex = focusable.indexOf(document.activeElement as HTMLElement)
@@ -1467,7 +1605,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         // The floating native HUD only fits the terse hint; the actionable
         // System Settings guidance renders here in the page — the ONLY way a
         // desktop user (always on the native HUD) ever sees it.
-        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300" data-testid="walkthrough-annotate-accessibility-note">
+        <div
+          className="rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+          data-testid="walkthrough-annotate-accessibility-note"
+        >
           {t("walkthrough_annotate_accessibility_note")}
         </div>
       ) : null}
@@ -1487,8 +1628,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                     : undefined,
                   // In-page guidance for the no-accessibility degrade: name the
                   // System Settings pane that brings hold-to-draw back.
-                  accessibilityNote:
-                    annotationIdleKind === "accessibility" ? t("walkthrough_annotate_accessibility_note") : undefined
+                  accessibilityNote: annotationIdleKind === "accessibility" ? t("walkthrough_annotate_accessibility_note") : undefined
                 }
               : undefined
           }
@@ -1557,12 +1697,14 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         // grows — no measurement needed for this part.
       }
       <div
-        className={floating
-          // Keep the floating composer visually tied to the chat panel edges.
-          // The surrounding desktop split now supplies only a narrow resize
-          // divider, so the composer should not add the old wide side gutters.
-          ? "absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 sm:left-2 sm:right-2 sm:bottom-2"
-          : undefined}
+        className={
+          floating
+            ? // Keep the floating composer visually tied to the chat panel edges.
+              // The surrounding desktop split now supplies only a narrow resize
+              // divider, so the composer should not add the old wide side gutters.
+              "absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 sm:left-2 sm:right-2 sm:bottom-2"
+            : undefined
+        }
         data-tour="chat-compose"
       >
         {composerBannerStackVisible ? (
@@ -1572,19 +1714,19 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           >
             {pendingProposalCount > 0 ? (
               <div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                <span>
-                  {pendingProposalCount === 1
-                    ? "1 pending proposal"
-                    : `${pendingProposalCount} pending proposals`}
-                </span>
+                <span>{pendingProposalCount === 1 ? "1 pending proposal" : `${pendingProposalCount} pending proposals`}</span>
                 <button
                   className="font-medium underline hover:no-underline"
                   onClick={pendingProposals.length > 0 ? jumpToPending : loadEarlierPendingProposal}
                   type="button"
                 >
                   {pendingProposals.length > 0
-                    ? pendingProposals.length > 1 ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})` : "Jump ↑"
-                    : canLoadEarlierMessages ? "Load earlier messages" : "Scroll to top"}
+                    ? pendingProposals.length > 1
+                      ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})`
+                      : "Jump ↑"
+                    : canLoadEarlierMessages
+                      ? "Load earlier messages"
+                      : "Scroll to top"}
                 </button>
               </div>
             ) : null}
@@ -1599,9 +1741,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           </div>
         ) : null}
         <form
-          className={floating
-            ? `relative w-full rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
-            : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
+          className={
+            floating
+              ? `relative w-full rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
+              : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`
+          }
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
@@ -1610,7 +1754,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           ref={formRef}
         >
           {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
-          {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
+          {systemAction.isError ? (
+            <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div>
+          ) : null}
           {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
           {dictation.message ? (
             <div className={`mb-2 text-sm ${dictation.messageTone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>
@@ -1621,8 +1767,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
               <span>{t("clear_confirm")}</span>
               <span className="flex gap-2">
-                <Button disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} variant="secondary">{t("clear")}</Button>
-                <Button disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} variant="secondary">{t("cancel")}</Button>
+                <Button disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} variant="secondary">
+                  {t("clear")}
+                </Button>
+                <Button disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} variant="secondary">
+                  {t("cancel")}
+                </Button>
               </span>
             </div>
           ) : null}
@@ -1678,12 +1828,23 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           {attachments.length > 0 ? (
             <div className="mb-3 flex flex-wrap gap-2">
               {attachments.map((attachment, index) => (
-                <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
+                <div
+                  className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  key={`${attachment.name}-${index}`}
+                >
                   {attachment.mimeType.startsWith("image/") ? (
                     <>
-                      <button aria-label={`Annotate ${attachment.name}`} className="group relative rounded focus:outline-none focus:ring-2 focus:ring-brand" onClick={() => setAnnotatingIndex(index)} type="button">
+                      <button
+                        aria-label={`Annotate ${attachment.name}`}
+                        className="group relative rounded focus:outline-none focus:ring-2 focus:ring-brand"
+                        onClick={() => setAnnotatingIndex(index)}
+                        type="button"
+                      >
                         <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
-                        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-0 flex items-center justify-center rounded bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                        >
                           <PencilIcon className="h-4 w-4" />
                         </span>
                       </button>
@@ -1695,259 +1856,337 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                           originalDataUrl={attachment.originalDataUrl}
                           onClose={() => setAnnotatingIndex(null)}
                           onDone={(annotatedDataUrl, shapes) => {
-                            setAttachments((current) => current.map((item, attachmentIndex) =>
-                              attachmentIndex === index
-                                ? { ...item, dataUrl: annotatedDataUrl, mimeType: "image/png", shapes, originalDataUrl: item.originalDataUrl ?? item.dataUrl }
-                                : item
-                            ))
+                            setAttachments((current) =>
+                              current.map((item, attachmentIndex) =>
+                                attachmentIndex === index
+                                  ? { ...item, dataUrl: annotatedDataUrl, mimeType: "image/png", shapes, originalDataUrl: item.originalDataUrl ?? item.dataUrl }
+                                  : item
+                              )
+                            )
                             setAnnotatingIndex(null)
                           }}
                         />
                       ) : null}
                     </>
                   ) : (
-                    <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
+                    <span
+                      aria-hidden="true"
+                      className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                    >
+                      PDF
+                    </span>
                   )}
-                  <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
-                  <button aria-label={`Remove ${attachment.name}`} className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
+                  <span className="max-w-48 truncate" title={attachment.name}>
+                    {attachment.name}
+                  </span>
+                  <button
+                    aria-label={`Remove ${attachment.name}`}
+                    className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+                    onClick={() => removeAttachment(index)}
+                    type="button"
+                  >
                     <CloseIcon className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ))}
             </div>
           ) : null}
-        {walkthrough ? (
-          <div className="mb-3 flex w-full items-center gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" data-testid="walkthrough-chip">
-            <span aria-hidden="true" className="text-base">🎬</span>
-            <span className="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-200">
-              {walkthrough.filename}
-              {walkthrough.durationSeconds ? <span className="ml-1 text-xs text-gray-500">({formatClock(walkthrough.durationSeconds)})</span> : null}
-            </span>
-            {walkthrough.status === "ready" ? <span className="text-xs text-gray-500">{t("walkthrough_ready")}</span> : null}
-            {walkthrough.status === "uploading" ? (
-              <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                {t("walkthrough_uploading", { percent: walkthrough.percent })}
-                <span className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                  <span className="block h-full rounded-full bg-brand transition-all" style={{ width: `${walkthrough.percent}%` }} />
+          {walkthrough ? (
+            <div
+              className="mb-3 flex w-full items-center gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+              data-testid="walkthrough-chip"
+            >
+              <span aria-hidden="true" className="text-base">
+                🎬
+              </span>
+              <span className="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-200">
+                {walkthrough.filename}
+                {walkthrough.durationSeconds ? <span className="ml-1 text-xs text-gray-500">({formatClock(walkthrough.durationSeconds)})</span> : null}
+              </span>
+              {walkthrough.status === "ready" ? <span className="text-xs text-gray-500">{t("walkthrough_ready")}</span> : null}
+              {walkthrough.status === "uploading" ? (
+                <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                  {t("walkthrough_uploading", { percent: walkthrough.percent })}
+                  <span className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <span className="block h-full rounded-full bg-brand transition-all" style={{ width: `${walkthrough.percent}%` }} />
+                  </span>
                 </span>
-              </span>
-            ) : null}
-            {walkthrough.status === "analyzing" ? (
-              <span className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
-                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-                <AnalyzingHint messages={walkthroughAnalyzingHints} />
-              </span>
-            ) : null}
-            {walkthrough.status === "failed" ? (
-              <span className="flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
-                <span className="max-w-64 truncate" title={walkthrough.error}>{walkthrough.error}</span>
-                {walkthrough.id ? (
-                  <button className="font-medium underline hover:no-underline" onClick={retryWalkthroughAnalysis} type="button">
-                    {t("walkthrough_retry")}
-                  </button>
-                ) : null}
-              </span>
-            ) : null}
-            {walkthrough.status === "ready" || walkthrough.status === "failed" ? (
-              <button
-                aria-label={t("walkthrough_remove")}
-                className="rounded-full p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
-                onClick={() => {
-                  setWalkthrough(null)
-                  // Clear any walkthrough-scoped error (e.g. one-at-a-time) so
-                  // it can't linger and disable the send button for the next
-                  // ordinary message.
-                  setAttachmentError(null)
-                }}
-                type="button"
-              >
-                <CloseIcon className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {showAttachedRepositories && attachedRepositories.length > 0 ? (
-          <div className="mb-3 flex w-full flex-wrap gap-2">
-            {attachedRepositories.map((repository) => (
-              <span className="flex min-h-[44px] max-w-full items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-sm text-brand" key={repository.id}>
-                <span className="truncate" title={repository.label}>{repository.label}</span>
+              ) : null}
+              {walkthrough.status === "analyzing" ? (
+                <span className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+                  <AnalyzingHint messages={walkthroughAnalyzingHints} />
+                </span>
+              ) : null}
+              {walkthrough.status === "failed" ? (
+                <span className="flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
+                  <span className="max-w-64 truncate" title={walkthrough.error}>
+                    {walkthrough.error}
+                  </span>
+                  {walkthrough.id ? (
+                    <button className="font-medium underline hover:no-underline" onClick={retryWalkthroughAnalysis} type="button">
+                      {t("walkthrough_retry")}
+                    </button>
+                  ) : null}
+                </span>
+              ) : null}
+              {walkthrough.status === "ready" || walkthrough.status === "failed" ? (
                 <button
-                  aria-label={`Detach repository ${repository.label}`}
-                  className="rounded-full p-2 text-brand hover:bg-brand/20 hover:text-brand-emphasis disabled:text-brand/40"
-                  disabled={detachRepository.isPending}
-                  onClick={() => detachRepository.mutate(repository.app_detach_path)}
-                  title={`Detach repository ${repository.label}`}
+                  aria-label={t("walkthrough_remove")}
+                  className="rounded-full p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
+                  onClick={() => {
+                    setWalkthrough(null)
+                    // Clear any walkthrough-scoped error (e.g. one-at-a-time) so
+                    // it can't linger and disable the send button for the next
+                    // ordinary message.
+                    setAttachmentError(null)
+                  }}
                   type="button"
                 >
                   <CloseIcon className="h-3.5 w-3.5" />
                 </button>
-              </span>
-            ))}
-          </div>
-        ) : null}
-        <Input
-          accept={walkthroughsEnabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
-          aria-label={t("chat_attachments")}
-          className="hidden"
-          disabled={send.isPending || systemAction.isPending}
-          multiple
-          onChange={(event) => handleAttachmentChange(event.target.files)}
-          ref={fileInputRef}
-          type="file"
-        />
-        {payload.chat.conversation_kind === "group" && (payload.chat.participants?.length ?? 0) > 1 ? (
-          <p className="mb-1 text-xs text-gray-500 dark:text-gray-400" data-testid="group-mention-hint">{t("group_mention_hint")}</p>
-        ) : null}
-        <div className="relative">
-          <textarea
-            aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
-            aria-expanded={commandPaletteOpen}
-            aria-haspopup="listbox"
-            className={`min-h-11 w-full resize-none overflow-y-hidden rounded border py-2.5 pl-3 pr-3 text-base leading-6 focus:ring-brand disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 ${
-              bangCommandModeActive
-                ? "border-red-300 bg-red-50 text-red-700 focus:border-red-400 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
-                : "border-gray-200 bg-white focus:border-brand dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            }`}
-            disabled={send.isPending || systemAction.isPending || runShellCommand.isPending}
-            onChange={(event) => {
-              updateText(event.target.value)
-              if (clearConfirmationOpen) setClearConfirmationOpen(false)
-            }}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : isSupervisorChat(payload) ? t("ask_supervisor") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
-            ref={textareaRef}
-            required={attachments.length === 0 && walkthrough?.status !== "ready"}
-            rows={1}
-            value={text}
-          />
-          {ghostSuggestion ? (
-            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
-              <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
-              <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-2xs font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
+              ) : null}
             </div>
           ) : null}
-          <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
-        </div>
-        <div className="relative mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-2">
-          <Button
-            aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
-            aria-expanded={attachmentPopoverOpen}
-            aria-label={t("add_attachment")}
-            aria-haspopup="dialog"
-            className="h-6 min-h-11 w-6 min-w-11 shrink-0 !text-lg leading-none sm:min-h-0 sm:min-w-0 sm:text-sm"
-            disabled={send.isPending || systemAction.isPending}
-            onClick={() => setAttachmentPopoverOpen((open) => !open)}
-            ref={addAttachmentButtonRef}
-            size="icon"
-            variant="secondary"
-          >
-            +
-          </Button>
-          {dictation.available ? (
-            <DictationButton
-              disabled={send.isPending || systemAction.isPending}
-              labels={{
-                idle: t("dictation_start"),
-                requesting: t("dictation_requesting"),
-                recording: t("dictation_stop"),
-                transcribing: t("dictation_transcribing"),
-                unavailable: t("dictation_unavailable")
-              }}
-              phase={dictation.phase}
-              onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
-            />
+          {showAttachedRepositories && attachedRepositories.length > 0 ? (
+            <div className="mb-3 flex w-full flex-wrap gap-2">
+              {attachedRepositories.map((repository) => (
+                <span
+                  className="flex min-h-[44px] max-w-full items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-sm text-brand"
+                  key={repository.id}
+                >
+                  <span className="truncate" title={repository.label}>
+                    {repository.label}
+                  </span>
+                  <button
+                    aria-label={`Detach repository ${repository.label}`}
+                    className="rounded-full p-2 text-brand hover:bg-brand/20 hover:text-brand-emphasis disabled:text-brand/40"
+                    disabled={detachRepository.isPending}
+                    onClick={() => detachRepository.mutate(repository.app_detach_path)}
+                    title={`Detach repository ${repository.label}`}
+                    type="button"
+                  >
+                    <CloseIcon className="h-3.5 w-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
           ) : null}
-          <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
-          <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
-          <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              aria-label={agentActive ? t("enqueue_message") : t("send_message")}
-              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-brand hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-800"
-              disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || runShellCommand.isPending || (bangCommandModeActive && shellCommandRunning) || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
-              type="submit"
-            >
-              {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
-            </button>
-            {canStashDraft ? (
-              <button
-                aria-label={t("scratchpad_stash")}
-                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-                disabled={stash.isPending || attachmentError != null}
-                onClick={() => stash.mutate(undefined)}
-                title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
-                type="button"
+          <Input
+            accept={walkthroughsEnabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
+            aria-label={t("chat_attachments")}
+            className="hidden"
+            disabled={send.isPending || systemAction.isPending}
+            multiple
+            onChange={(event) => handleAttachmentChange(event.target.files)}
+            ref={fileInputRef}
+            type="file"
+          />
+          {payload.chat.conversation_kind === "group" && (payload.chat.participants?.length ?? 0) > 1 ? (
+            <p className="mb-1 text-xs text-gray-500 dark:text-gray-400" data-testid="group-mention-hint">
+              {t("group_mention_hint")}
+            </p>
+          ) : null}
+          <div className="relative">
+            <textarea
+              aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+              aria-expanded={commandPaletteOpen}
+              aria-haspopup="listbox"
+              className={`min-h-11 w-full resize-none overflow-y-hidden rounded border py-2.5 pl-3 pr-3 text-base leading-6 focus:ring-brand disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 ${
+                bangCommandModeActive
+                  ? "border-red-300 bg-red-50 text-red-700 focus:border-red-400 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                  : "border-gray-200 bg-white focus:border-brand dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              }`}
+              disabled={send.isPending || systemAction.isPending || runShellCommand.isPending}
+              onChange={(event) => {
+                updateText(event.target.value)
+                if (clearConfirmationOpen) setClearConfirmationOpen(false)
+              }}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={
+                ghostSuggestion
+                  ? ""
+                  : payload.switching_provider
+                    ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") })
+                    : agentActive
+                      ? t("queue_followup")
+                      : isSupervisorChat(payload)
+                        ? t("ask_supervisor")
+                        : payload.chat.repository
+                          ? t("ask_repository")
+                          : t("ask_anything")
+              }
+              ref={textareaRef}
+              required={attachments.length === 0 && walkthrough?.status !== "ready"}
+              rows={1}
+              value={text}
+            />
+            {ghostSuggestion ? (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5"
+                data-testid="chat-suggestion-ghost"
               >
-                <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                  <rect height="4" rx="1" width="6" x="9" y="3" />
-                  <path d="M9 12h6M9 16h4" />
-                </svg>
-              </button>
+                <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
+                <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-2xs font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">
+                  ⇥ {t("suggestion_tab_hint")}
+                </span>
+              </div>
             ) : null}
-            {agentActive && !payload.switching_provider ? (
-              <StopButton
-                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
-                payload={payload}
-                queryKey={queryKey}
+            <span aria-live="polite" className="sr-only">
+              {ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}
+            </span>
+          </div>
+          <div className="relative mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-2">
+            <Button
+              aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
+              aria-expanded={attachmentPopoverOpen}
+              aria-label={t("add_attachment")}
+              aria-haspopup="dialog"
+              className="h-6 min-h-11 w-6 min-w-11 shrink-0 !text-lg leading-none sm:min-h-0 sm:min-w-0 sm:text-sm"
+              disabled={send.isPending || systemAction.isPending}
+              onClick={() => setAttachmentPopoverOpen((open) => !open)}
+              ref={addAttachmentButtonRef}
+              size="icon"
+              variant="secondary"
+            >
+              +
+            </Button>
+            {dictation.available ? (
+              <DictationButton
+                disabled={send.isPending || systemAction.isPending}
+                labels={{
+                  idle: t("dictation_start"),
+                  requesting: t("dictation_requesting"),
+                  recording: t("dictation_stop"),
+                  transcribing: t("dictation_transcribing"),
+                  unavailable: t("dictation_unavailable")
+                }}
+                phase={dictation.phase}
+                onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
               />
             ) : null}
-          </div>
-          {attachmentPopoverOpen ? (
-            <div
-              aria-label={t("add_attachment")}
-              className="absolute bottom-full left-0 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
-              id="chat-attachment-popover"
-              onKeyDown={handleAttachmentPopoverKeyDown}
-              ref={attachmentPopoverRef}
-              role="dialog"
-            >
+            <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
+            <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
+            <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
+            <div className="ml-auto flex items-center gap-1">
               <button
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                onClick={openAttachmentFilePicker}
-                type="button"
+                aria-label={agentActive ? t("enqueue_message") : t("send_message")}
+                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-brand hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-800"
+                disabled={
+                  send.isPending ||
+                  systemAction.isPending ||
+                  systemCommandAction.isPending ||
+                  scheduleMessage.isPending ||
+                  runShellCommand.isPending ||
+                  (bangCommandModeActive && shellCommandRunning) ||
+                  (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) ||
+                  pendingConfirmation != null ||
+                  attachmentError != null
+                }
+                type="submit"
               >
-                <UploadIcon className="h-4 w-4 shrink-0 text-gray-400" />
-                {t("upload_file")}
+                {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
               </button>
-              {walkthroughsEnabled ? (
+              {canStashDraft ? (
                 <button
-                  className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                  onClick={startWalkthroughRecording}
-                  title={t("record_walkthrough_title")}
+                  aria-label={t("scratchpad_stash")}
+                  className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+                  disabled={stash.isPending || attachmentError != null}
+                  onClick={() => stash.mutate(undefined)}
+                  title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
                   type="button"
                 >
-                  <span aria-hidden="true" className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                    <span className="h-2.5 w-2.5 rounded-full border-2 border-red-500" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block">{t("record_walkthrough")}</span>
-                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{t("record_walkthrough_hint")}</span>
-                  </span>
+                  <svg
+                    aria-hidden="true"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                    <rect height="4" rx="1" width="6" x="9" y="3" />
+                    <path d="M9 12h6M9 16h4" />
+                  </svg>
                 </button>
               ) : null}
-              <div className="border-t border-gray-100 dark:border-gray-800" />
-              <button
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                onClick={() => {
-                  setAttachmentPopoverOpen(false)
-                  setScratchpadOpen((prev) => !prev)
-                }}
-                type="button"
-              >
-                <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                  <rect height="4" rx="1" width="6" x="9" y="3" />
-                  <path d="M9 12h6M9 16h4" />
-                </svg>
-                {t("scratchpad_title")}
-              </button>
-              <div className="border-t border-gray-100 dark:border-gray-800" />
-              <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
+              {agentActive && !payload.switching_provider ? (
+                <StopButton
+                  className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+                  payload={payload}
+                  queryKey={queryKey}
+                />
+              ) : null}
             </div>
-          ) : null}
-        </div>
+            {attachmentPopoverOpen ? (
+              <div
+                aria-label={t("add_attachment")}
+                className="absolute bottom-full left-0 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+                id="chat-attachment-popover"
+                onKeyDown={handleAttachmentPopoverKeyDown}
+                ref={attachmentPopoverRef}
+                role="dialog"
+              >
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  onClick={openAttachmentFilePicker}
+                  type="button"
+                >
+                  <UploadIcon className="h-4 w-4 shrink-0 text-gray-400" />
+                  {t("upload_file")}
+                </button>
+                {walkthroughsEnabled ? (
+                  <button
+                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    onClick={startWalkthroughRecording}
+                    title={t("record_walkthrough_title")}
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                      <span className="h-2.5 w-2.5 rounded-full border-2 border-red-500" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block">{t("record_walkthrough")}</span>
+                      <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{t("record_walkthrough_hint")}</span>
+                    </span>
+                  </button>
+                ) : null}
+                <div className="border-t border-gray-100 dark:border-gray-800" />
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  onClick={() => {
+                    setAttachmentPopoverOpen(false)
+                    setScratchpadOpen((prev) => !prev)
+                  }}
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                    <rect height="4" rx="1" width="6" x="9" y="3" />
+                    <path d="M9 12h6M9 16h4" />
+                  </svg>
+                  {t("scratchpad_title")}
+                </button>
+                <div className="border-t border-gray-100 dark:border-gray-800" />
+                <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
+              </div>
+            ) : null}
+          </div>
         </form>
       </div>
     </>
@@ -1978,7 +2217,7 @@ function useChatDictation({
   paths: { batch?: string; stream?: string }
 }) {
   const { t } = useT("chat")
-  const [phase, setPhase] = useState<DictationPhase>(() => capability.enabled ? "idle" : "unavailable")
+  const [phase, setPhase] = useState<DictationPhase>(() => (capability.enabled ? "idle" : "unavailable"))
   const [message, setMessage] = useState<string | null>(null)
   const [messageTone, setMessageTone] = useState<DictationMessageTone>("status")
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -1992,11 +2231,11 @@ function useChatDictation({
   const discardOnStopRef = useRef(false)
 
   const browserRecognitionAvailable = () => Boolean(speechRecognitionConstructor())
-  const available = capability.enabled && (
-    capability.modes.backend_streaming.available ||
-    capability.modes.backend_batch.available ||
-    (capability.modes.browser.available && browserRecognitionAvailable())
-  )
+  const available =
+    capability.enabled &&
+    (capability.modes.backend_streaming.available ||
+      capability.modes.backend_batch.available ||
+      (capability.modes.browser.available && browserRecognitionAvailable()))
 
   useEffect(() => {
     if (!capability.enabled) setPhase("unavailable")
@@ -2043,10 +2282,7 @@ function useChatDictation({
   async function startBackendStream() {
     try {
       setPhase("requesting")
-      const [mediaStream, streamConfig] = await Promise.all([
-        requestAudioStream(),
-        startChatAudioStream(paths.stream!)
-      ])
+      const [mediaStream, streamConfig] = await Promise.all([requestAudioStream(), startChatAudioStream(paths.stream!)])
       startRecorder(mediaStream, {
         mode: "streaming",
         onChunk: (chunk) => sendStreamingChunk(chunk)
@@ -2267,9 +2503,7 @@ function useChatDictation({
   function showError(error: unknown, fallback: string) {
     setPhase("error")
     setMessageTone("error")
-    const message = error instanceof DOMException && error.name === "NotAllowedError"
-      ? t("dictation_permission_denied")
-      : errorMessage(error, fallback)
+    const message = error instanceof DOMException && error.name === "NotAllowedError" ? t("dictation_permission_denied") : errorMessage(error, fallback)
     setMessage(message)
   }
 
@@ -2288,20 +2522,23 @@ function DictationButton({
   phase: DictationPhase
 }) {
   const active = phase === "recording" || phase === "requesting" || phase === "transcribing"
-  const label = phase === "requesting" ? labels.requesting
-    : phase === "recording" ? labels.recording
-      : phase === "transcribing" ? labels.transcribing
-        : phase === "unavailable" ? labels.unavailable
-          : labels.idle
+  const label =
+    phase === "requesting"
+      ? labels.requesting
+      : phase === "recording"
+        ? labels.recording
+        : phase === "transcribing"
+          ? labels.transcribing
+          : phase === "unavailable"
+            ? labels.unavailable
+            : labels.idle
 
   return (
     <Button
       aria-label={label}
       aria-pressed={phase === "recording"}
       className={`h-6 min-h-11 w-6 min-w-11 shrink-0 sm:min-h-0 sm:min-w-0 ${
-        active
-          ? "!border-red-300 !bg-red-50 !text-red-700 hover:!bg-red-100 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300"
-          : ""
+        active ? "!border-red-300 !bg-red-50 !text-red-700 hover:!bg-red-100 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300" : ""
       }`}
       disabled={disabled || phase === "requesting" || phase === "transcribing"}
       onClick={onClick}
@@ -2309,7 +2546,16 @@ function DictationButton({
       title={label}
       variant="secondary"
     >
-      <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <svg
+        aria-hidden="true"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+      >
         <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
         <path d="M12 19v3" />
@@ -2350,9 +2596,7 @@ function speechRecognitionConstructor(): (new () => SpeechRecognitionLike) | nul
 }
 
 function recorderMimeType() {
-  return typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.("audio/webm")
-    ? "audio/webm"
-    : "audio/ogg"
+  return typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.("audio/webm") ? "audio/webm" : "audio/ogg"
 }
 
 async function requestAudioStream() {
@@ -2432,7 +2676,17 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
         variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
-        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          aria-hidden="true"
+          className="h-3 w-3 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </Button>
@@ -2446,9 +2700,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
             <button
               aria-selected={currentMode === value}
               className={`flex w-full items-center px-3 py-2 text-left text-sm ${
-                currentMode === value
-                  ? "bg-brand/10 font-medium text-brand"
-                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                currentMode === value ? "bg-brand/10 font-medium text-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               }`}
               key={value}
               onClick={() => {
@@ -2519,7 +2771,17 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
         variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
-        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          aria-hidden="true"
+          className="h-3 w-3 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </Button>
@@ -2532,7 +2794,10 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
           <button
             aria-selected={currentModel === null}
             className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentModel === null ? "bg-brand/10 font-medium text-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
-            onClick={() => { updateModel.mutate(null); setDropdownOpen(false) }}
+            onClick={() => {
+              updateModel.mutate(null)
+              setDropdownOpen(false)
+            }}
             role="option"
             type="button"
           >
@@ -2543,7 +2808,10 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
               aria-selected={currentModel === model.value}
               className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentModel === model.value ? "bg-brand/10 font-medium text-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
               key={model.value}
-              onClick={() => { updateModel.mutate(model.value); setDropdownOpen(false) }}
+              onClick={() => {
+                updateModel.mutate(model.value)
+                setDropdownOpen(false)
+              }}
               role="option"
               type="button"
             >
@@ -2556,7 +2824,17 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
   )
 }
 
-function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: string; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function ChatEffortSelector({
+  chatId,
+  payload,
+  queryKey,
+  onNotice
+}: {
+  chatId: string
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -2611,7 +2889,17 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
         variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
-        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          aria-hidden="true"
+          className="h-3 w-3 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </Button>
@@ -2626,7 +2914,10 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
               aria-selected={currentEffort === value}
               className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentEffort === value ? "bg-brand/10 font-medium text-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
               key={value ?? "none"}
-              onClick={() => { updateEffort.mutate(value); setDropdownOpen(false) }}
+              onClick={() => {
+                updateEffort.mutate(value)
+                setDropdownOpen(false)
+              }}
               role="option"
               type="button"
             >
@@ -2662,7 +2953,21 @@ function confirmationForSlashCommand(commandName: SlashCommand["name"], text: st
   return { commandName, text }
 }
 
-function SlashCommandConfirmation({ commandName, disabled, prompt, text, onCancel, onConfirm }: { commandName: SlashCommand["name"]; disabled: boolean; prompt?: string; text: string; onCancel: () => void; onConfirm: () => void }) {
+function SlashCommandConfirmation({
+  commandName,
+  disabled,
+  prompt,
+  text,
+  onCancel,
+  onConfirm
+}: {
+  commandName: SlashCommand["name"]
+  disabled: boolean
+  prompt?: string
+  text: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
   const { t } = useT("chat")
   return (
     <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
@@ -2676,15 +2981,31 @@ function SlashCommandConfirmation({ commandName, disabled, prompt, text, onCance
           )}
         </div>
         <div className="flex shrink-0 gap-2">
-          <Button disabled={disabled} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
-          <Button disabled={disabled} onClick={onConfirm} variant="primary">{t("confirm")}</Button>
+          <Button disabled={disabled} onClick={onCancel} variant="secondary">
+            {t("cancel")}
+          </Button>
+          <Button disabled={disabled} onClick={onConfirm} variant="primary">
+            {t("confirm")}
+          </Button>
         </div>
       </div>
     </div>
   )
 }
 
-function SlashCommandPalette({ activeIndex, commands, context, query, onSelect }: { activeIndex: number; commands: SlashCommand[]; context: { chat: { pinned?: boolean } }; query: string; onSelect: (command: SlashCommand) => void }) {
+function SlashCommandPalette({
+  activeIndex,
+  commands,
+  context,
+  query,
+  onSelect
+}: {
+  activeIndex: number
+  commands: SlashCommand[]
+  context: { chat: { pinned?: boolean } }
+  query: string
+  onSelect: (command: SlashCommand) => void
+}) {
   const { t } = useT("chat")
   const activeRef = useCallback((el: HTMLButtonElement | null) => {
     el?.scrollIntoView({ block: "nearest" })
@@ -2718,7 +3039,11 @@ function SlashCommandPalette({ activeIndex, commands, context, query, onSelect }
               </span>
               <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{slashCommandDescription(command, context)}</span>
             </span>
-            <span className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-semibold uppercase ${command.kind === "system" ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"}`}>{command.kind}</span>
+            <span
+              className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-semibold uppercase ${command.kind === "system" ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"}`}
+            >
+              {command.kind}
+            </span>
           </button>
         )
       })}
@@ -2748,7 +3073,9 @@ function QueuedMessages({ chatId, messages, queryKey }: { chatId: string; messag
   return (
     <div className="mb-3 space-y-2 border-b border-gray-100 pb-3 dark:border-gray-800">
       <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("queued_messages")}</div>
-      {messages.map((message, index) => <QueuedMessageRow chatId={chatId} key={message.id} message={message} position={index + 1} queryKey={queryKey} />)}
+      {messages.map((message, index) => (
+        <QueuedMessageRow chatId={chatId} key={message.id} message={message} position={index + 1} queryKey={queryKey} />
+      ))}
     </div>
   )
 }
@@ -2787,7 +3114,9 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
   if (editing) {
     return (
       <div className="rounded border border-brand/30 bg-brand/10 p-2">
-        {update.isError ? <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, "Queued message could not be updated.")}</div> : null}
+        {update.isError ? (
+          <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, "Queued message could not be updated.")}</div>
+        ) : null}
         <textarea
           aria-label={`Edit queued message ${position}`}
           className="min-h-16 w-full resize-y rounded border border-brand/30 bg-white px-2 py-1.5 text-sm focus:border-brand focus:ring-brand dark:bg-gray-950 dark:text-gray-100"
@@ -2795,8 +3124,17 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
           value={draft}
         />
         <div className="mt-2 flex justify-end gap-2">
-          <Button disabled={update.isPending} onClick={() => setEditing(false)} size="sm" variant="secondary">{t("cancel")}</Button>
-          <Button disabled={update.isPending || (draft.trim().length === 0 && (message.attachments || []).length === 0)} onClick={() => update.mutate()} size="sm" variant="primary">{t("save")}</Button>
+          <Button disabled={update.isPending} onClick={() => setEditing(false)} size="sm" variant="secondary">
+            {t("cancel")}
+          </Button>
+          <Button
+            disabled={update.isPending || (draft.trim().length === 0 && (message.attachments || []).length === 0)}
+            onClick={() => update.mutate()}
+            size="sm"
+            variant="primary"
+          >
+            {t("save")}
+          </Button>
         </div>
       </div>
     )
@@ -2818,7 +3156,17 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
           title={t("scratchpad_stash")}
           type="button"
         >
-          <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <svg
+            aria-hidden="true"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
             <rect height="4" rx="1" width="6" x="9" y="3" />
             <path d="M9 12h6M9 16h4" />
@@ -2834,7 +3182,9 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
           <CloseIcon className="h-4 w-4" />
         </button>
       </div>
-      {stash.isError ? <div className="mt-0.5 text-xs text-red-700 dark:text-red-300">{errorMessage(stash.error, "Could not move to scratch pad.")}</div> : null}
+      {stash.isError ? (
+        <div className="mt-0.5 text-xs text-red-700 dark:text-red-300">{errorMessage(stash.error, "Could not move to scratch pad.")}</div>
+      ) : null}
     </div>
   )
 }
@@ -2843,9 +3193,10 @@ function DraftAttachmentIndicator({ attachments }: { attachments: ChatDraftMessa
   if (!attachments || attachments.length === 0) return null
 
   const imageCount = attachments.filter((attachment) => attachment.mime_type.startsWith("image/")).length
-  const label = imageCount === attachments.length
-    ? `${attachments.length} image${attachments.length === 1 ? "" : "s"}`
-    : `${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
+  const label =
+    imageCount === attachments.length
+      ? `${attachments.length} image${attachments.length === 1 ? "" : "s"}`
+      : `${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
 
   return (
     <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
@@ -2878,7 +3229,7 @@ function autosizeChatTextarea(textarea: HTMLTextAreaElement) {
   const verticalPadding = parsePixelValue(style.paddingTop) + parsePixelValue(style.paddingBottom)
   const verticalBorder = parsePixelValue(style.borderTopWidth) + parsePixelValue(style.borderBottomWidth)
   const minHeight = lineHeight + verticalPadding + verticalBorder
-  const maxHeight = (lineHeight * CHAT_COMPOSE_MAX_ROWS) + verticalPadding + verticalBorder
+  const maxHeight = lineHeight * CHAT_COMPOSE_MAX_ROWS + verticalPadding + verticalBorder
   const nextHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight)
 
   textarea.style.height = `${nextHeight}px`
@@ -2907,19 +3258,43 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button aria-label={t("aria_stop_agent")} className={className ?? "inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+    <button
+      aria-label={t("aria_stop_agent")}
+      className={
+        className ??
+        "inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+      }
+      disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending}
+      onClick={() => stop.mutate()}
+      type="button"
+    >
       <StopIcon className={`h-5 w-5 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )
 }
 
-function ShellCommandRunningBanner({ chatId, command, onError, onUpdate }: { chatId: string; command: ChatShellCommandRecord; onError: (error: unknown) => void; onUpdate: (record: ChatShellCommandRecord) => void }) {
+function ShellCommandRunningBanner({
+  chatId,
+  command,
+  onError,
+  onUpdate
+}: {
+  chatId: string
+  command: ChatShellCommandRecord
+  onError: (error: unknown) => void
+  onUpdate: (record: ChatShellCommandRecord) => void
+}) {
   const { t } = useT("chat")
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="shell-command-running-banner">
+    <div
+      className="flex min-w-0 items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+      data-testid="shell-command-running-banner"
+    >
       <div className="min-w-0 flex-1">
         <div className="font-medium">{t("shell_command_running")}</div>
-        <div className="truncate font-mono text-amber-950 dark:text-amber-100" title={command.command}>{command.command}</div>
+        <div className="truncate font-mono text-amber-950 dark:text-amber-100" title={command.command}>
+          {command.command}
+        </div>
       </div>
       <ShellCommandStopButton
         chatId={chatId}
@@ -2939,7 +3314,21 @@ function ShellCommandRunningBanner({ chatId, command, onError, onUpdate }: { cha
 // here, not yet applied) response record back to the composer; the effect
 // that watches payload.messages is what actually clears it once
 // ChatShellCommandJob finalizes and posts the completion message.
-function ShellCommandStopButton({ chatId, className, command, label, onError, onUpdate }: { chatId: string; className?: string; command: ChatShellCommandRecord; label?: string; onError: (error: unknown) => void; onUpdate: (record: ChatShellCommandRecord) => void }) {
+function ShellCommandStopButton({
+  chatId,
+  className,
+  command,
+  label,
+  onError,
+  onUpdate
+}: {
+  chatId: string
+  className?: string
+  command: ChatShellCommandRecord
+  label?: string
+  onError: (error: unknown) => void
+  onUpdate: (record: ChatShellCommandRecord) => void
+}) {
   const { t } = useT("chat")
   const cancel = useMutation({
     mutationFn: () => cancelChatShellCommand(chatId, command.id),

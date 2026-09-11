@@ -84,18 +84,7 @@ describe("hunksFromLines / contextGapsForHunks", () => {
   })
 
   it("computes a bounded interior gap directly from two hunks' metadata, no fetch required", () => {
-    const twoHunkPatch = [
-      "diff --git a/f b/f",
-      "--- a/f",
-      "+++ b/f",
-      "@@ -1,2 +1,2 @@",
-      "-a",
-      "+b",
-      " keep",
-      "@@ -20,2 +20,2 @@",
-      "-c",
-      "+d"
-    ].join("\n")
+    const twoHunkPatch = ["diff --git a/f b/f", "--- a/f", "+++ b/f", "@@ -1,2 +1,2 @@", "-a", "+b", " keep", "@@ -20,2 +20,2 @@", "-c", "+d"].join("\n")
     const hunks = hunksFromLines(parseUnifiedDiff(twoHunkPatch))
     const gaps = contextGapsForHunks(hunks, null)
     // gap between hunk 0 (ends at new line 2) and hunk 1 (starts at new line 20)
@@ -152,15 +141,7 @@ describe("mergeContextIntoLines", () => {
   })
 
   it("places below-hunk context after the current hunk body and before the next hunk header", () => {
-    const twoHunkPatch = [
-      "diff --git a/f b/f",
-      "--- a/f",
-      "+++ b/f",
-      "@@ -1,1 +1,1 @@",
-      " first",
-      "@@ -6,1 +6,1 @@",
-      " second"
-    ].join("\n")
+    const twoHunkPatch = ["diff --git a/f b/f", "--- a/f", "+++ b/f", "@@ -1,1 +1,1 @@", " first", "@@ -6,1 +6,1 @@", " second"].join("\n")
     const lines = parseUnifiedDiff(twoHunkPatch)
     const hunks = hunksFromLines(lines)
     const gaps = contextGapsForHunks(hunks, fileLines.length)
@@ -181,15 +162,7 @@ describe("mergeContextIntoLines", () => {
   })
 
   it("places above-next-hunk context immediately before that hunk and assigns it to the next hunk for highlighting", () => {
-    const twoHunkPatch = [
-      "diff --git a/f b/f",
-      "--- a/f",
-      "+++ b/f",
-      "@@ -1,1 +1,1 @@",
-      " first",
-      "@@ -6,1 +6,1 @@",
-      " second"
-    ].join("\n")
+    const twoHunkPatch = ["diff --git a/f b/f", "--- a/f", "+++ b/f", "@@ -1,1 +1,1 @@", " first", "@@ -6,1 +6,1 @@", " second"].join("\n")
     const lines = parseUnifiedDiff(twoHunkPatch)
     const hunks = hunksFromLines(lines)
     const gaps = contextGapsForHunks(hunks, fileLines.length)
@@ -217,17 +190,7 @@ describe("mergeContextIntoLines", () => {
   })
 
   it("computes old-file line numbers using the offset established by prior hunks", () => {
-    const twoHunkPatch = [
-      "diff --git a/f b/f",
-      "--- a/f",
-      "+++ b/f",
-      "@@ -1,1 +1,2 @@",
-      "-old",
-      "+new1",
-      "+new2",
-      "@@ -10,1 +11,1 @@",
-      " tail"
-    ].join("\n")
+    const twoHunkPatch = ["diff --git a/f b/f", "--- a/f", "+++ b/f", "@@ -1,1 +1,2 @@", "-old", "+new1", "+new2", "@@ -10,1 +11,1 @@", " tail"].join("\n")
     const bigFile = Array.from({ length: 15 }, (_, index) => `f${index + 1}`)
     const lines = parseUnifiedDiff(twoHunkPatch)
     const hunks = hunksFromLines(lines)

@@ -44,22 +44,22 @@ type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences
 
 export function CredentialsRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description={t('account_settings.credentials_description')} label={t('nav.credentials')} section="credentials" />
+  return <AccountSettingsPage description={t("account_settings.credentials_description")} label={t("nav.credentials")} section="credentials" />
 }
 
 export function AccountProfileRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description={t('account_settings.profile_description')} label={t('nav.profile')} section="profile" />
+  return <AccountSettingsPage description={t("account_settings.profile_description")} label={t("nav.profile")} section="profile" />
 }
 
 export function AgentSettingsRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description={t('account_settings.agent_settings_description')} label={t('nav.agent_settings')} section="agent" />
+  return <AccountSettingsPage description={t("account_settings.agent_settings_description")} label={t("nav.agent_settings")} section="agent" />
 }
 
 export function PreferencesRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description={t('account_settings.preferences_description')} label={t('nav.preferences')} section="preferences" />
+  return <AccountSettingsPage description={t("account_settings.preferences_description")} label={t("nav.preferences")} section="preferences" />
 }
 
 function AccountSettingsPage({ description, label, section }: { description: string; label: string; section: AccountSettingsSection }) {
@@ -93,14 +93,22 @@ function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: st
 
   return (
     <>
-      {credentials.isPending ? <PanelMessage>{t('account_settings.loading_credentials')}</PanelMessage> : null}
+      {credentials.isPending ? <PanelMessage>{t("account_settings.loading_credentials")}</PanelMessage> : null}
       {credentials.isError ? <CredentialsError error={credentials.error} /> : null}
       {credentials.isSuccess ? <CredentialsView onNotice={onNotice} payload={credentials.data} section={section} /> : null}
     </>
   )
 }
 
-function CredentialsView({ payload, onNotice, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
+function CredentialsView({
+  payload,
+  onNotice,
+  section
+}: {
+  payload: CredentialsPayload
+  onNotice: (message: string | null) => void
+  section: AccountSettingsSection
+}) {
   const { t } = useT("settings")
   const location = useLocation()
   const setupStatus = useSetupStatus()
@@ -147,30 +155,44 @@ function ChatProviderPanel({ payload, onNotice }: { payload: CredentialsPayload;
       // overwrite the specific notice below, and refetches to reconcile
       // concurrent partial saves.
       cacheCredentials(queryClient, updated)
-      onNotice(t('credential_cards.chat_provider_saved_notice'))
+      onNotice(t("credential_cards.chat_provider_saved_notice"))
     }
   })
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      <SectionHeading>{t('credential_cards.chat_provider_heading')}</SectionHeading>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('credential_cards.chat_provider_desc')}</p>
+      <SectionHeading>{t("credential_cards.chat_provider_heading")}</SectionHeading>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("credential_cards.chat_provider_desc")}</p>
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
       <Select
-        aria-label={t('credential_cards.chat_provider_heading')}
+        aria-label={t("credential_cards.chat_provider_heading")}
         className="mt-3"
         disabled={save.isPending}
         onChange={(event) => save.mutate(event.target.value)}
         value={payload.options.chat_providers.includes(chatProvider) ? chatProvider : ""}
       >
-        <option disabled value="">{t('account_settings.select_provider')}</option>
-        {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
+        <option disabled value="">
+          {t("account_settings.select_provider")}
+        </option>
+        {payload.options.chat_providers.map((provider) => (
+          <option key={provider} value={provider}>
+            {titleize(provider)}
+          </option>
+        ))}
       </Select>
     </section>
   )
 }
 
-function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
+function CredentialsForm({
+  payload,
+  onNotice,
+  section
+}: {
+  payload: CredentialsPayload
+  onNotice: (message: string | null) => void
+  section: AccountSettingsSection
+}) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
@@ -179,14 +201,14 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
     mutationFn: () => deleteJson("/api/v1/app/tours/reset"),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
-      onNotice(t('account_settings.reset_tours_notice'))
+      onNotice(t("account_settings.reset_tours_notice"))
     }
   })
   const roleOptions = payload.options.roles || ["developer", "product_owner"]
   const sectionNoticeKey: Partial<Record<AccountSettingsSection, string>> = {
     preferences: "account_settings.preferences_saved_notice",
     profile: "account_settings.profile_saved_notice",
-    agent: "account_settings.agent_settings_saved_notice",
+    agent: "account_settings.agent_settings_saved_notice"
   }
   const save = useMutation({
     mutationFn: () => updateCredentials(values),
@@ -220,63 +242,82 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
 
         {section === "profile" ? (
           <>
-            <Field label={t('account_settings.display_name')}>
+            <Field label={t("account_settings.display_name")}>
               <Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t('account_settings.first_name')}>
+              <Field label={t("account_settings.first_name")}>
                 <Input maxLength={80} onChange={(event) => setValues({ ...values, first_name: event.target.value })} type="text" value={values.first_name} />
               </Field>
 
-              <Field label={t('account_settings.last_name')}>
+              <Field label={t("account_settings.last_name")}>
                 <Input maxLength={80} onChange={(event) => setValues({ ...values, last_name: event.target.value })} type="text" value={values.last_name} />
               </Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t('account_settings.company')}>
+              <Field label={t("account_settings.company")}>
                 <Input onChange={(event) => setValues({ ...values, profile_company: event.target.value })} type="text" value={values.profile_company} />
               </Field>
 
-              <Field label={t('account_settings.location')}>
+              <Field label={t("account_settings.location")}>
                 <Input onChange={(event) => setValues({ ...values, profile_location: event.target.value })} type="text" value={values.profile_location} />
               </Field>
             </div>
 
-            <Field label={t('account_settings.website')}>
+            <Field label={t("account_settings.website")}>
               <Input onChange={(event) => setValues({ ...values, profile_website: event.target.value })} type="url" value={values.profile_website} />
             </Field>
 
-            <Field label={t('account_settings.github_handle')}>
-              <Input maxLength={100} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
+            <Field label={t("account_settings.github_handle")}>
+              <Input
+                maxLength={100}
+                onChange={(event) => setValues({ ...values, github_handle: event.target.value })}
+                type="text"
+                value={values.github_handle}
+              />
             </Field>
 
-            <Field label={t('account_settings.role')}>
+            <Field label={t("account_settings.role")}>
               <Select onChange={(event) => setValues({ ...values, role: event.target.value })} value={values.role}>
-                {roleOptions.map((role) => <option key={role} value={role}>{titleize(role)}</option>)}
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {titleize(role)}
+                  </option>
+                ))}
               </Select>
             </Field>
 
-            <Field label={t('account_settings.avatar_url')}>
+            <Field label={t("account_settings.avatar_url")}>
               <Input maxLength={500} onChange={(event) => setValues({ ...values, avatar_url: event.target.value })} type="url" value={values.avatar_url} />
             </Field>
 
-            <Field label={t('account_settings.profile_bio')}>
-              <textarea className={inputClass()} maxLength={1000} onChange={(event) => setValues({ ...values, profile_bio: event.target.value })} rows={4} value={values.profile_bio} />
+            <Field label={t("account_settings.profile_bio")}>
+              <textarea
+                className={inputClass()}
+                maxLength={1000}
+                onChange={(event) => setValues({ ...values, profile_bio: event.target.value })}
+                rows={4}
+                value={values.profile_bio}
+              />
             </Field>
           </>
         ) : null}
 
         {section === "agent" ? (
-          <Field label={t('account_settings.agent_provider')}>
+          <Field label={t("account_settings.agent_provider")}>
             <Select onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
-              {payload.options.agent_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
+              {payload.options.agent_providers.map((provider) => (
+                <option key={provider} value={provider}>
+                  {titleize(provider)}
+                </option>
+              ))}
             </Select>
           </Field>
         ) : null}
 
         {section === "agent" ? (
-          <Field label={t('account_settings.max_turns')}>
+          <Field label={t("account_settings.max_turns")}>
             <Input
               max={payload.options.agent_max_turns.max}
               min={payload.options.agent_max_turns.min}
@@ -287,21 +328,12 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
           </Field>
         ) : null}
 
-        {section === "agent" ? (
-          <AgentProviderFailoverSettings payload={payload} setValues={setValues} values={values} />
-        ) : null}
+        {section === "agent" ? <AgentProviderFailoverSettings payload={payload} setValues={setValues} values={values} /> : null}
 
-        {section === "agent" ? (
-          <ProviderAvailabilitySettings
-            onNotice={onNotice}
-            payload={payload}
-            setValues={setValues}
-            values={values}
-          />
-        ) : null}
+        {section === "agent" ? <ProviderAvailabilitySettings onNotice={onNotice} payload={payload} setValues={setValues} values={values} /> : null}
 
         {section === "preferences" ? (
-          <Field label={t('account_settings.language')}>
+          <Field label={t("account_settings.language")}>
             <Select
               onChange={(event) => {
                 const locale = event.target.value
@@ -310,22 +342,22 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               }}
               value={values.locale}
             >
-              <option value="en">{t('account_settings.lang_english')}</option>
-              <option value="de">{t('account_settings.lang_deutsch')}</option>
-              <option value="la">{t('account_settings.lang_latina')}</option>
+              <option value="en">{t("account_settings.lang_english")}</option>
+              <option value="de">{t("account_settings.lang_deutsch")}</option>
+              <option value="la">{t("account_settings.lang_latina")}</option>
             </Select>
           </Field>
         ) : null}
 
         {section === "preferences" ? (
           <Checkbox
-            aria-label={t('account_settings.aria_pause_scheduling')}
+            aria-label={t("account_settings.aria_pause_scheduling")}
             checked={values.scheduling_paused}
             className="mt-1"
             label={
               <>
-                <span className="block font-medium text-gray-700 dark:text-gray-300">{t('account_settings.pause_scheduling')}</span>
-                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('account_settings.pause_scheduling_desc')}</span>
+                <span className="block font-medium text-gray-700 dark:text-gray-300">{t("account_settings.pause_scheduling")}</span>
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("account_settings.pause_scheduling_desc")}</span>
               </>
             }
             onChange={(event) => setValues({ ...values, scheduling_paused: event.target.checked })}
@@ -333,30 +365,34 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         ) : null}
 
         {section === "preferences" ? (
-          <Field label={t('account_settings.reset_tours')}>
-            <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.reset_tours_desc')}</p>
+          <Field label={t("account_settings.reset_tours")}>
+            <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.reset_tours_desc")}</p>
             <button
               className="rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={resetTours.isPending}
               onClick={() => resetTours.mutate()}
               type="button"
             >
-              {t('account_settings.reset_tours_button')}
+              {t("account_settings.reset_tours_button")}
             </button>
           </Field>
         ) : null}
 
         {section === "agent" ? (
-          <Field label={t('account_settings.auto_approval_fallback')}>
+          <Field label={t("account_settings.auto_approval_fallback")}>
             <Select onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
-              {payload.options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {payload.options.auto_approve_modes.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </Select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{selectedAutoApprove?.preview}</p>
           </Field>
         ) : null}
 
         <Button disabled={save.isPending} type="submit" variant="primary">
-          {save.isPending ? t('account_settings.saving') : t('account_settings.save')}
+          {save.isPending ? t("account_settings.saving") : t("account_settings.save")}
         </Button>
       </form>
     </section>
@@ -428,9 +464,7 @@ function PasskeysPanel() {
           {passkeys.data.map((passkey) => (
             <li className="flex items-center justify-between gap-4 py-2" key={passkey.id}>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                  {passkey.nickname || t("account_settings.passkeys_unnamed")}
-                </p>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{passkey.nickname || t("account_settings.passkeys_unnamed")}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {t("account_settings.passkeys_added")}: {new Date(passkey.created_at).toLocaleDateString()}
                   {passkey.last_used_at ? ` · ${t("account_settings.passkeys_last_used")}: ${new Date(passkey.last_used_at).toLocaleDateString()}` : ""}
@@ -466,7 +500,11 @@ function PasskeysPanel() {
           <button
             className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
             disabled={addPending}
-            onClick={() => { setAdding(false); setNickname(""); setAddError(null) }}
+            onClick={() => {
+              setAdding(false)
+              setNickname("")
+              setAddError(null)
+            }}
             type="button"
           >
             {t("account_settings.passkeys_cancel")}
@@ -475,7 +513,10 @@ function PasskeysPanel() {
       ) : isPasskeySupported() ? (
         <button
           className="mt-3 rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-          onClick={() => { setAdding(true); setAddError(null) }}
+          onClick={() => {
+            setAdding(true)
+            setAddError(null)
+          }}
           type="button"
         >
           {t("account_settings.passkeys_add")}
@@ -498,7 +539,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setNewToken(updated.new_api_token || "")
-      onNotice(updated.message || t('account_settings.api_token_rotated'))
+      onNotice(updated.message || t("account_settings.api_token_rotated"))
     }
   })
   const revoke = useMutation({
@@ -506,24 +547,24 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setNewToken("")
-      onNotice(updated.message || t('account_settings.api_token_revoked'))
+      onNotice(updated.message || t("account_settings.api_token_revoked"))
     }
   })
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      <SectionHeading>{t('account_settings.api_token_heading')}</SectionHeading>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.api_token_desc')}</p>
+      <SectionHeading>{t("account_settings.api_token_heading")}</SectionHeading>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.api_token_desc")}</p>
 
       {newToken ? (
         <div className="mt-3 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3">
-          <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">{t('account_settings.new_token')}</div>
+          <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">{t("account_settings.new_token")}</div>
           <code className="mt-1 block break-all font-mono text-sm">{newToken}</code>
         </div>
       ) : payload.credential_status.api_token ? (
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.token_is_set')}</p>
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.token_is_set")}</p>
       ) : (
-        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">{t('account_settings.no_token')}</p>
+        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">{t("account_settings.no_token")}</p>
       )}
 
       {rotate.isError ? <PanelMessage tone="error">{errorMessage(rotate.error, "Unable to rotate API token.")}</PanelMessage> : null}
@@ -534,24 +575,24 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
           className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:bg-gray-100 dark:disabled:bg-gray-800"
           disabled={rotate.isPending}
           onClick={async () => {
-            if (!payload.credential_status.api_token || await confirm({ message: t('account_settings.rotate_confirm') })) {
+            if (!payload.credential_status.api_token || (await confirm({ message: t("account_settings.rotate_confirm") }))) {
               rotate.mutate()
             }
           }}
           type="button"
         >
-          {payload.credential_status.api_token ? t('account_settings.rotate_token') : t('account_settings.generate_token')}
+          {payload.credential_status.api_token ? t("account_settings.rotate_token") : t("account_settings.generate_token")}
         </button>
         {payload.credential_status.api_token ? (
           <button
             className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:text-red-300 dark:disabled:text-red-500"
             disabled={revoke.isPending}
             onClick={async () => {
-              if (await confirm({ message: t('account_settings.revoke_confirm'), destructive: true })) revoke.mutate()
+              if (await confirm({ message: t("account_settings.revoke_confirm"), destructive: true })) revoke.mutate()
             }}
             type="button"
           >
-            {t('account_settings.revoke')}
+            {t("account_settings.revoke")}
           </button>
         ) : null}
       </div>
@@ -574,7 +615,6 @@ function CredentialsError({ error }: { error: Error }) {
   const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load credentials.")}</PanelMessage>
 }
-
 
 function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
   const chatProvider = payload.user.chat_provider || ""
@@ -741,9 +781,7 @@ function ProviderAvailabilitySettings({
       {payload.options.agent_providers.map((provider) => {
         const availability = payload.provider_availability?.[provider]
         const threshold = values.provider_availability_pause_thresholds?.[provider] ?? 10
-        const usageTextClass = availability?.usage_exhausted
-          ? "text-red-700 dark:text-red-300"
-          : "text-gray-500 dark:text-gray-400"
+        const usageTextClass = availability?.usage_exhausted ? "text-red-700 dark:text-red-300" : "text-gray-500 dark:text-gray-400"
         return (
           <div className="grid gap-3 rounded border border-gray-100 p-3 dark:border-gray-800 sm:grid-cols-[1fr_auto] sm:items-center" key={provider}>
             <div className="min-w-0">
@@ -753,13 +791,15 @@ function ProviderAvailabilitySettings({
                   className="mt-2 max-w-32"
                   max={100}
                   min={0}
-                  onChange={(event) => setValues({
-                    ...values,
-                    provider_availability_pause_thresholds: {
-                      ...values.provider_availability_pause_thresholds,
-                      [provider]: Number(event.target.value)
-                    }
-                  })}
+                  onChange={(event) =>
+                    setValues({
+                      ...values,
+                      provider_availability_pause_thresholds: {
+                        ...values.provider_availability_pause_thresholds,
+                        [provider]: Number(event.target.value)
+                      }
+                    })
+                  }
                   type="number"
                   value={threshold}
                 />
@@ -768,8 +808,8 @@ function ProviderAvailabilitySettings({
                 {availability?.usage_exhausted
                   ? availability.message
                   : availability?.usage?.remaining_percent != null
-                  ? t("account_settings.provider_availability_remaining", { percent: Math.round(availability.usage.remaining_percent) })
-                  : t("account_settings.provider_availability_no_usage")}
+                    ? t("account_settings.provider_availability_remaining", { percent: Math.round(availability.usage.remaining_percent) })
+                    : t("account_settings.provider_availability_no_usage")}
                 {availability?.override_active ? ` ${t("account_settings.provider_availability_override_active")}` : ""}
               </p>
             </div>

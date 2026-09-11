@@ -15,13 +15,7 @@
 // batched: events queue in memory and flush together (debounced, size- or
 // page-hide-triggered) instead of opening one request per marker.
 import { useEffect, useRef } from "react"
-import {
-  browserTraceId,
-  performanceLoggingEnabled,
-  postBrowserTraces,
-  type BrowserTracePayload,
-  type BrowserTraceSpan
-} from "./performanceTrace"
+import { browserTraceId, performanceLoggingEnabled, postBrowserTraces, type BrowserTracePayload, type BrowserTraceSpan } from "./performanceTrace"
 
 export type PerformanceMarkerMetadata = Record<string, string | number | boolean | null | undefined>
 
@@ -73,11 +67,16 @@ export function startMarker(name: string, options: PerformanceMarkerOptions = {}
 
 export function endMarker(handle: PerformanceMarkerHandle, extra: { metadata?: PerformanceMarkerMetadata; spans?: BrowserTraceSpan[] } = {}): void {
   const durationMs = roundMs(performanceNow() - handle.startedAt)
-  enqueueMarkerEvent(handle.name, durationMs, {
-    ...handle.options,
-    metadata: { ...handle.options.metadata, ...extra.metadata },
-    spans: extra.spans ?? handle.options.spans
-  }, handle.traceId)
+  enqueueMarkerEvent(
+    handle.name,
+    durationMs,
+    {
+      ...handle.options,
+      metadata: { ...handle.options.metadata, ...extra.metadata },
+      spans: extra.spans ?? handle.options.spans
+    },
+    handle.traceId
+  )
 }
 
 // Measures a synchronous named span. Always runs `fn` and returns/throws

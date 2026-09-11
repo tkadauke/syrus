@@ -38,15 +38,20 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("design_doc", 19))).toEqual([["design_docs"], ["design_docs", "detail", "19"]])
     expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])
     expect(queryKeysFor(event("provider_availability", "codex"))).toEqual([["bootstrap"], ["dashboard"], ["chats"]])
-    expect(queryKeysFor(event("admin_overview", null))).toEqual([["admin", "overview"], ["admin", "stuck"]])
+    expect(queryKeysFor(event("admin_overview", null))).toEqual([
+      ["admin", "overview"],
+      ["admin", "stuck"]
+    ])
     expect(queryKeysFor(event("unknown", 1))).toEqual([])
   })
 
   it("maps nested workflow progress job events to the workflows query prefix", () => {
-    expect(queryKeysFor({
-      ...event("job", 42),
-      changed: ["run.updated", "state"]
-    })).toContainEqual(["jobs", "42", "workflows"])
+    expect(
+      queryKeysFor({
+        ...event("job", 42),
+        changed: ["run.updated", "state"]
+      })
+    ).toContainEqual(["jobs", "42", "workflows"])
   })
 })
 
@@ -134,10 +139,7 @@ describe("applyAppEvent", () => {
   it("marks one cached notification read when a notification read event arrives", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["notifications"], notificationsCache([
-      notification(1),
-      notification(2)
-    ], 2))
+    queryClient.setQueryData(["notifications"], notificationsCache([notification(1), notification(2)], 2))
 
     applyAppEvent(queryClient, {
       type: "notification_read",
@@ -160,10 +162,7 @@ describe("applyAppEvent", () => {
 
   it("marks all cached notifications read when a bulk read event arrives", () => {
     const queryClient = new QueryClient()
-    queryClient.setQueryData(["notifications"], notificationsCache([
-      notification(1),
-      notification(2, "2026-06-25T11:00:00Z")
-    ], 1))
+    queryClient.setQueryData(["notifications"], notificationsCache([notification(1), notification(2, "2026-06-25T11:00:00Z")], 1))
 
     applyAppEvent(queryClient, {
       type: "notification_read",
@@ -228,11 +227,14 @@ describe("applyAppEvent", () => {
   it("applies chat replace-tail payloads directly to cached chat data", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["chats", "9", ""], chatPayload([
-      message(1, "user", "old"),
-      message(2, "tool_use", "read a", { tool_name: "Read", content: { input: { file_path: "a.rb" } } }),
-      message(3, "tool_use", "read b", { tool_name: "Read", content: { input: { file_path: "b.rb" } } })
-    ]))
+    queryClient.setQueryData(
+      ["chats", "9", ""],
+      chatPayload([
+        message(1, "user", "old"),
+        message(2, "tool_use", "read a", { tool_name: "Read", content: { input: { file_path: "a.rb" } } }),
+        message(3, "tool_use", "read b", { tool_name: "Read", content: { input: { file_path: "b.rb" } } })
+      ])
+    )
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
@@ -290,9 +292,7 @@ describe("applyAppEvent", () => {
     vi.useFakeTimers()
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
-    queryClient.setQueryData(["chats", "9", ""], chatPayload([
-      message(1, "user", "old")
-    ]))
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
@@ -325,14 +325,16 @@ describe("applyAppEvent", () => {
       messages: undefined
     })
 
-    expect(() => applyAppEvent(queryClient, {
-      ...event("chat", 9),
-      payload: {
-        action: "replace_tail",
-        replace_from_id: 1,
-        messages: [message(1, "assistant", "fresh response")]
-      }
-    })).not.toThrow()
+    expect(() =>
+      applyAppEvent(queryClient, {
+        ...event("chat", 9),
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 1,
+          messages: [message(1, "assistant", "fresh response")]
+        }
+      })
+    ).not.toThrow()
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
@@ -369,13 +371,15 @@ describe("applyAppEvent", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
     queryClient.setQueryData(["chats", "recent"], {
-      groups: [{
-        key: "general",
-        label: "General",
-        repository_id: null,
-        chats: [{ ...chatPayload([]).chat, turn_in_flight: true, agent_busy: true, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false }],
-        has_more: false
-      }],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [{ ...chatPayload([]).chat, turn_in_flight: true, agent_busy: true, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false }],
+          has_more: false
+        }
+      ],
       repositories: []
     })
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
@@ -395,7 +399,10 @@ describe("applyAppEvent", () => {
     expect(updated?.turn_in_flight).toBe(false)
     expect(updated?.agent_busy).toBe(false)
     expect(updated?.chat.stop_requested_at).toBe("2026-05-30T12:00:00Z")
-    const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; turn_in_flight?: boolean; agent_busy?: boolean }> }> }>(["chats", "recent"])
+    const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; turn_in_flight?: boolean; agent_busy?: boolean }> }> }>([
+      "chats",
+      "recent"
+    ])
     expect(recent?.groups[0].chats[0].turn_in_flight).toBe(false)
     expect(recent?.groups[0].chats[0].agent_busy).toBe(false)
   })
@@ -403,13 +410,25 @@ describe("applyAppEvent", () => {
   it("updates scratchpad_items_count in recent chats when update_controls includes scratchpad_items", () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(["chats", "recent"], {
-      groups: [{
-        key: "general",
-        label: "General",
-        repository_id: null,
-        chats: [{ ...chatPayload([]).chat, turn_in_flight: false, agent_busy: false, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false, scratchpad_items_count: 3 }],
-        has_more: false
-      }],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [
+            {
+              ...chatPayload([]).chat,
+              turn_in_flight: false,
+              agent_busy: false,
+              current: false,
+              last_message_at: "2026-05-30T11:00:00Z",
+              unread: false,
+              scratchpad_items_count: 3
+            }
+          ],
+          has_more: false
+        }
+      ],
       repositories: []
     })
 
@@ -431,13 +450,25 @@ describe("applyAppEvent", () => {
   it("leaves scratchpad_items_count unchanged in recent chats when update_controls omits scratchpad_items", () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(["chats", "recent"], {
-      groups: [{
-        key: "general",
-        label: "General",
-        repository_id: null,
-        chats: [{ ...chatPayload([]).chat, turn_in_flight: false, agent_busy: false, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false, scratchpad_items_count: 2 }],
-        has_more: false
-      }],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [
+            {
+              ...chatPayload([]).chat,
+              turn_in_flight: false,
+              agent_busy: false,
+              current: false,
+              last_message_at: "2026-05-30T11:00:00Z",
+              unread: false,
+              scratchpad_items_count: 2
+            }
+          ],
+          has_more: false
+        }
+      ],
       repositories: []
     })
 
@@ -506,7 +537,9 @@ describe("applyAppEvent", () => {
     expect(updated?.chat.cumulative_input_tokens).toBe(1500)
     expect(updated?.chat.cumulative_output_tokens).toBe(250)
     expect(updated?.chat.cumulative_cost_usd).toBe(0.125)
-    const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; title: string | null; title_pending: boolean; repository: { id: number; slug: string } | null }> }> }>(["chats", "recent"])
+    const recent = queryClient.getQueryData<{
+      groups: Array<{ chats: Array<{ id: number; title: string | null; title_pending: boolean; repository: { id: number; slug: string } | null }> }>
+    }>(["chats", "recent"])
     expect(recent?.groups[0].chats[0].title).toBe("Updated chat")
     expect(recent?.groups[0].chats[0].title_pending).toBe(false)
     expect(recent?.groups[0].chats[0].repository).toEqual({ id: 3, slug: "acme/widgets" })
@@ -529,13 +562,15 @@ describe("applyAppEvent", () => {
         pending_proposal_count: 0,
         scratchpad_items_count: 0
       },
-      groups: [{
-        key: "general",
-        label: "General",
-        repository_id: null,
-        has_more: false,
-        chats: []
-      }],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          has_more: false,
+          chats: []
+        }
+      ],
       repositories: []
     })
 
@@ -553,7 +588,10 @@ describe("applyAppEvent", () => {
     })
 
     expect(invalidate).not.toHaveBeenCalled()
-    const recent = queryClient.getQueryData<{ supervisor_chat?: { system_kind?: string; cumulative_input_tokens?: number }; groups: Array<{ chats: unknown[] }> }>(["chats", "recent"])
+    const recent = queryClient.getQueryData<{
+      supervisor_chat?: { system_kind?: string; cumulative_input_tokens?: number }
+      groups: Array<{ chats: unknown[] }>
+    }>(["chats", "recent"])
     expect(recent?.supervisor_chat?.system_kind).toBe("supervisor")
     expect(recent?.supervisor_chat?.cumulative_input_tokens).toBe(300)
     expect(recent?.groups[0].chats).toEqual([])
@@ -580,16 +618,18 @@ describe("applyAppEvent", () => {
       recent_chats: undefined
     })
 
-    expect(() => applyAppEvent(queryClient, {
-      ...event("chat", 9),
-      payload: {
-        action: "update_header",
-        chat: {
-          title: "Updated chat",
-          title_pending: false
+    expect(() =>
+      applyAppEvent(queryClient, {
+        ...event("chat", 9),
+        payload: {
+          action: "update_header",
+          chat: {
+            title: "Updated chat",
+            title_pending: false
+          }
         }
-      }
-    })).not.toThrow()
+      })
+    ).not.toThrow()
 
     expect(invalidate).not.toHaveBeenCalled()
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
@@ -637,9 +677,7 @@ describe("applyAppEvent", () => {
     })
 
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
-    expect(updated?.bookmarks).toEqual([
-      { id: 4, label: "Opening revised", chat_message_id: 1, anchor_message_id: 1 }
-    ])
+    expect(updated?.bookmarks).toEqual([{ id: 4, label: "Opening revised", chat_message_id: 1, anchor_message_id: 1 }])
   })
 
   it("applies chat bookmark payloads when the cached bookmark list is missing", () => {
@@ -650,19 +688,19 @@ describe("applyAppEvent", () => {
       bookmarks: undefined
     })
 
-    expect(() => applyAppEvent(queryClient, {
-      ...event("chat", 9),
-      payload: {
-        action: "upsert_bookmark",
-        bookmark: { id: 5, label: "Fresh aqueduct", chat_message_id: 3, anchor_message_id: 6 }
-      }
-    })).not.toThrow()
+    expect(() =>
+      applyAppEvent(queryClient, {
+        ...event("chat", 9),
+        payload: {
+          action: "upsert_bookmark",
+          bookmark: { id: 5, label: "Fresh aqueduct", chat_message_id: 3, anchor_message_id: 6 }
+        }
+      })
+    ).not.toThrow()
 
     expect(invalidate).not.toHaveBeenCalled()
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
-    expect(updated?.bookmarks).toEqual([
-      { id: 5, label: "Fresh aqueduct", chat_message_id: 3, anchor_message_id: 6 }
-    ])
+    expect(updated?.bookmarks).toEqual([{ id: 5, label: "Fresh aqueduct", chat_message_id: 3, anchor_message_id: 6 }])
   })
 
   it("invalidates the chat-pins query cache on upsert_pin without touching the chat payload cache", () => {
@@ -673,11 +711,11 @@ describe("applyAppEvent", () => {
 
     const handled = applyAppEvent(queryClient, {
       ...event("chat", 9),
-      changed: [ "pins" ],
+      changed: ["pins"],
       payload: { action: "upsert_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat-pins", "9"] })
     const untouched = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
     expect(untouched?.bookmarks).toEqual([])
   })
@@ -688,11 +726,11 @@ describe("applyAppEvent", () => {
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
-      changed: [ "pins" ],
+      changed: ["pins"],
       payload: { action: "remove_pin", pin: { id: 1, chat_message_id: 3 } }
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat-pins", "9"] })
   })
 
   it("applies chat agent question payloads directly to cached chat data", () => {
@@ -825,7 +863,20 @@ describe("applyAppEvent", () => {
 
   it("does not corrupt job_status cache when update_controls arrives", () => {
     const queryClient = new QueryClient()
-    const jobStatusData = [{ kind: "job", job_id: 1, slug: "JOB-1", title: "Test", state: "open", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null }]
+    const jobStatusData = [
+      {
+        kind: "job",
+        job_id: 1,
+        slug: "JOB-1",
+        title: "Test",
+        state: "open",
+        workflow_step: null,
+        active_workflow: null,
+        pr_number: null,
+        pr_url: null,
+        blocker: null
+      }
+    ]
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "hello")]))
     queryClient.setQueryData(["chats", "9", "job_status"], jobStatusData)
 
@@ -844,7 +895,20 @@ describe("applyAppEvent", () => {
 
   it("does not corrupt job_status cache when update_header arrives", () => {
     const queryClient = new QueryClient()
-    const jobStatusData = [{ kind: "job", job_id: 1, slug: "JOB-1", title: "Test", state: "open", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null }]
+    const jobStatusData = [
+      {
+        kind: "job",
+        job_id: 1,
+        slug: "JOB-1",
+        title: "Test",
+        state: "open",
+        workflow_step: null,
+        active_workflow: null,
+        pr_number: null,
+        pr_url: null,
+        blocker: null
+      }
+    ]
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "hello")]))
     queryClient.setQueryData(["chats", "9", "job_status"], jobStatusData)
 
@@ -912,12 +976,7 @@ function event(resource: string, id: number | string | null) {
 function dashboardInvalidationCount(invalidate: { mock: { calls: unknown[][] } }) {
   return invalidate.mock.calls.filter((call) => {
     const args = call[0] as { queryKey?: unknown } | undefined
-    return (
-      args != null &&
-      Array.isArray(args.queryKey) &&
-      args.queryKey.length === 1 &&
-      args.queryKey[0] === "dashboard"
-    )
+    return args != null && Array.isArray(args.queryKey) && args.queryKey.length === 1 && args.queryKey[0] === "dashboard"
   }).length
 }
 

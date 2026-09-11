@@ -2,7 +2,6 @@ import { type BootstrapPayload } from "../../api/bootstrap"
 import { type ChatGroupRecord, type ChatNavRecord } from "../../api/chats"
 import { type ColorTheme } from "../../api/themes"
 
-
 // Pure app-chrome helpers extracted from AppChromeV2.tsx: path/route classifiers,
 // link/query builders, chat sort/title helpers, sidebar-width persistence, and
 // nav/popup class helpers, plus the sidebar-width constants. No JSX or hooks.
@@ -48,17 +47,11 @@ export function redirectsToSetup(data: BootstrapPayload | null | undefined, norm
 }
 
 export function isAdminPath(pathname: string) {
-  return pathname === "/admin" ||
-    pathname.startsWith("/admin/") ||
-    pathname === "/invitations" ||
-    pathname === "/settings/edit"
+  return pathname === "/admin" || pathname.startsWith("/admin/") || pathname === "/invitations" || pathname === "/settings/edit"
 }
 
 export function isAuthPath(pathname: string) {
-  return pathname === "/session/new" ||
-    pathname === "/users/new" ||
-    pathname === "/passwords/new" ||
-    pathname.startsWith("/passwords/")
+  return pathname === "/session/new" || pathname === "/users/new" || pathname === "/passwords/new" || pathname.startsWith("/passwords/")
 }
 
 export function adminNavItemActive(pathname: string, navPath: string) {
@@ -111,27 +104,28 @@ export type ChatSection = {
 }
 
 export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSections: Record<string, { chats: ChatNavRecord[]; has_more: boolean }>) {
-  return groups.map((group) => {
-    const loaded = loadedSections[group.key]
-    const seen = new Set<number>()
-    const chats = [...group.chats, ...(loaded?.chats || [])]
-      .filter((chat) => chat.system_kind !== "supervisor")
-      .filter((chat) => {
-        if (seen.has(chat.id)) return false
+  return groups
+    .map((group) => {
+      const loaded = loadedSections[group.key]
+      const seen = new Set<number>()
+      const chats = [...group.chats, ...(loaded?.chats || [])]
+        .filter((chat) => chat.system_kind !== "supervisor")
+        .filter((chat) => {
+          if (seen.has(chat.id)) return false
 
-        seen.add(chat.id)
-        return true
-      })
-      .sort(compareChatsByLastMessage)
-    return {
-      key: group.key,
-      label: group.label,
-      repository_id: group.repository_id,
-      chats,
-      has_more: loaded?.has_more ?? group.has_more,
-      activeAt: Math.max(...chats.map(chatActivityTime))
-    }
-  })
+          seen.add(chat.id)
+          return true
+        })
+        .sort(compareChatsByLastMessage)
+      return {
+        key: group.key,
+        label: group.label,
+        repository_id: group.repository_id,
+        chats,
+        has_more: loaded?.has_more ?? group.has_more,
+        activeAt: Math.max(...chats.map(chatActivityTime))
+      }
+    })
     .sort((left, right) => right.activeAt - left.activeAt)
     .map(({ activeAt: _activeAt, ...group }) => group)
 }

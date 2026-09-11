@@ -118,9 +118,7 @@ describe("desktopBuiltAt", () => {
   it("decodes the compact ISO-8601 basic token back to extended form", () => {
     // The shell strips colons/dashes because colons are not valid in UA
     // product-version tokens — see webAppWindow.ts.
-    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
-      `${desktopUa} SyrusDesktopBuild/0.1.2 SyrusDesktopBuiltAt/20260707T143200Z`
-    )
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(`${desktopUa} SyrusDesktopBuild/0.1.2 SyrusDesktopBuiltAt/20260707T143200Z`)
     expect(desktopBuiltAt()).toBe("2026-07-07T14:32:00Z")
   })
 

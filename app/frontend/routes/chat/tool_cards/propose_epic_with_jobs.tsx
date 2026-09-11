@@ -64,15 +64,21 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       {outcome.targetEpicLabel || outcome.dependencyCount > 0 ? (
         <div className="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
-          {outcome.targetEpicLabel ? <span>Target epic: <span className="font-mono">{outcome.targetEpicLabel}</span></span> : null}
-          {outcome.dependencyCount > 0 ? <Badge>{outcome.dependencyCount} dependenc{outcome.dependencyCount === 1 ? "y" : "ies"}</Badge> : null}
+          {outcome.targetEpicLabel ? (
+            <span>
+              Target epic: <span className="font-mono">{outcome.targetEpicLabel}</span>
+            </span>
+          ) : null}
+          {outcome.dependencyCount > 0 ? (
+            <Badge>
+              {outcome.dependencyCount} dependenc{outcome.dependencyCount === 1 ? "y" : "ies"}
+            </Badge>
+          ) : null}
         </div>
       ) : null}
       {outcome.childProposals.length > 0 ? (
         <div>
-          <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-            Child proposals ({outcome.childProposals.length})
-          </div>
+          <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">Child proposals ({outcome.childProposals.length})</div>
           <ul className="mt-1 space-y-1">
             {outcome.childProposals.map((child) => (
               <li className="flex flex-wrap items-center gap-2" key={child.slug}>

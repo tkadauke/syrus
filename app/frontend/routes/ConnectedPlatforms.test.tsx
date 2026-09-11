@@ -43,11 +43,13 @@ describe("ConnectedPlatformsRoute", () => {
   })
 
   it("shows linked accounts and disables unconfigured platforms", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
-      platform_identities: [
-        { id: 7, platform: "telegram", external_handle: "@ada", linked_at: "2026-08-02T12:00:00Z" }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        payload({
+          platform_identities: [{ id: 7, platform: "telegram", external_handle: "@ada", linked_at: "2026-08-02T12:00:00Z" }]
+        })
+      )
+    )
 
     renderRoute()
 
@@ -61,10 +63,12 @@ describe("ConnectedPlatformsRoute", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/platform_identities/linking_token" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          token: "signed-token",
-          instructions: { text: "Send /start signed-token to @SyrusBot on Telegram", bot_handle: "SyrusBot" }
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            token: "signed-token",
+            instructions: { text: "Send /start signed-token to @SyrusBot on Telegram", bot_handle: "SyrusBot" }
+          })
+        )
       }
       return Promise.resolve(jsonResponse(payload()))
     })
@@ -75,17 +79,12 @@ describe("ConnectedPlatformsRoute", () => {
 
     expect(await screen.findByText("How to connect")).toBeInTheDocument()
     expect(screen.getByText("Send /start signed-token to @SyrusBot on Telegram")).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/platform_identities/linking_token",
-      expect.objectContaining({ method: "POST" })
-    )
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/platform_identities/linking_token", expect.objectContaining({ method: "POST" }))
 
     receivedHandler?.({
       type: "platform_identity_linked",
       payload: payload({
-        platform_identities: [
-          { id: 8, platform: "telegram", external_handle: "@ada", linked_at: "2026-08-02T12:00:00Z" }
-        ]
+        platform_identities: [{ id: 8, platform: "telegram", external_handle: "@ada", linked_at: "2026-08-02T12:00:00Z" }]
       })
     })
 

@@ -22,21 +22,18 @@ type PluginModule = {
 }
 
 const viewModules = import.meta.glob<PluginModule>(
-  [
-    "../../plugins/*/app/frontend/runtimeSessionViews/*.tsx",
-    "!../../plugins/*/app/frontend/runtimeSessionViews/*.test.tsx"
-  ],
+  ["../../plugins/*/app/frontend/runtimeSessionViews/*.tsx", "!../../plugins/*/app/frontend/runtimeSessionViews/*.test.tsx"],
   { eager: true }
 )
 
-const registeredViews = Object.entries(viewModules).flatMap(([ path, mod ]) => {
+const registeredViews = Object.entries(viewModules).flatMap(([path, mod]) => {
   const view = mod.default
   if (!view?.providerKey || !view.component) {
     console.warn(`[pluginRuntimeSessionViews] Skipping ${path}: default export is not a valid PluginRuntimeSessionView`)
     return []
   }
 
-  return [ view ]
+  return [view]
 })
 
 export function pluginRuntimeSessionViewComponentFor(providerKey: string | null | undefined) {

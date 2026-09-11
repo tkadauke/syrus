@@ -17,7 +17,7 @@ function parseRows(context: ToolCardContext): FileRow[] | null {
 }
 
 function sortedRows(rows: FileRow[]): FileRow[] {
-  return [ ...rows ].sort((a, b) => {
+  return [...rows].sort((a, b) => {
     if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
     return a.name.localeCompare(b.name)
   })
@@ -41,7 +41,9 @@ function renderExpanded(context: ToolCardContext) {
       <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{path}</div>
       <ul className="max-h-72 space-y-0.5 overflow-auto rounded border border-gray-200 bg-white px-2 py-1 font-mono text-xs dark:border-gray-800 dark:bg-gray-950">
         {sortedRows(rows).map((row) => (
-          <li className="truncate" key={row.name}>{row.isDir ? `${row.name}/` : row.name}</li>
+          <li className="truncate" key={row.name}>
+            {row.isDir ? `${row.name}/` : row.name}
+          </li>
         ))}
       </ul>
     </div>

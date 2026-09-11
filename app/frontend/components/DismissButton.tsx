@@ -7,9 +7,10 @@ import { CloseIcon } from "./CloseIcon"
 // call site's existing visuals (toast: larger, elevated; sidebar: compact,
 // already-muted background) — no visual change, just one definition.
 export function DismissButton({ label, onClick, size = "md" }: { label: string; onClick: () => void; size?: "sm" | "md" }) {
-  const dimensions = size === "sm"
-    ? "h-5 w-5 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
-    : "-mr-1 h-6 w-6 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800"
+  const dimensions =
+    size === "sm"
+      ? "h-5 w-5 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
+      : "-mr-1 h-6 w-6 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800"
 
   return (
     <button

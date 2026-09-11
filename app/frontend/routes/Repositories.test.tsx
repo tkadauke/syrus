@@ -91,10 +91,7 @@ describe("RepositoriesIndex archive", () => {
     fireEvent.click(archiveButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/archive",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/archive", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -105,12 +102,13 @@ describe("RepositoriesIndex archive", () => {
     renderRoute()
 
     const archiveButton = await screen.findByRole("button", { name: "Archive" })
-    await act(async () => { fireEvent.click(archiveButton) })
+    await act(async () => {
+      fireEvent.click(archiveButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1/archive",
-      expect.objectContaining({ method: "POST" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/repositories/1/archive", expect.objectContaining({ method: "POST" }))
   })
 })

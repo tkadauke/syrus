@@ -31,9 +31,7 @@ describe("suggest_design_doc_change tool card", () => {
   })
 
   it("summarizes the collapsed row with the doc ref and suggestion state", () => {
-    expect(suggestDesignDocChangeToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "Suggested change to DOC-20 (pending)"
-    )
+    expect(suggestDesignDocChangeToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Suggested change to DOC-20 (pending)")
   })
 
   it("renders the doc ref, suggestion state, change type, and summary", () => {

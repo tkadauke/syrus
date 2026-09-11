@@ -78,21 +78,21 @@ function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): Ch
 
 describe("buildMessageStreamItems pending action groups", () => {
   it("anchors a group to the message that produced it", () => {
-    const result = buildMessageStreamItems([ assistantMessage(1) ], [], [ pendingActionGroup({ chat_message_id: 1 }) ])
+    const result = buildMessageStreamItems([assistantMessage(1)], [], [pendingActionGroup({ chat_message_id: 1 })])
 
-    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["message", "pending_action_group"])
   })
 
   it("appends an unanchored group at the end of the stream", () => {
-    const result = buildMessageStreamItems([ assistantMessage(1) ], [], [ pendingActionGroup({ chat_message_id: null }) ])
+    const result = buildMessageStreamItems([assistantMessage(1)], [], [pendingActionGroup({ chat_message_id: null })])
 
-    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["message", "pending_action_group"])
   })
 
   it("appends a group whose anchor message was never rendered", () => {
-    const result = buildMessageStreamItems([], [], [ pendingActionGroup({ chat_message_id: 42 }) ])
+    const result = buildMessageStreamItems([], [], [pendingActionGroup({ chat_message_id: 42 })])
 
-    expect(result.map((item) => item.type)).toEqual([ "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["pending_action_group"])
   })
 
   it("interleaves pending actions and pending action groups anchored to the same message", () => {
@@ -109,9 +109,9 @@ describe("buildMessageStreamItems pending action groups", () => {
       app_cancel_path: "/api/v1/app/chats/122/pending_actions/9"
     }
 
-    const result = buildMessageStreamItems([ assistantMessage(1) ], [ action ], [ pendingActionGroup({ chat_message_id: 1 }) ])
+    const result = buildMessageStreamItems([assistantMessage(1)], [action], [pendingActionGroup({ chat_message_id: 1 })])
 
-    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action", "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["message", "pending_action", "pending_action_group"])
   })
 })
 
@@ -290,7 +290,13 @@ describe("renderChatMessages tool grouping", () => {
       toolUse(1, { toolUseId: "tu_agent", toolName: "Task", input: { prompt: "investigate" } }),
       toolUse(2, { toolUseId: "tu_read", toolName: "Read", input: { file_path: "app/models/job.rb" }, sidechain: true, parent_tool_use_id: "tu_agent" }),
       toolResult(3, { toolUseId: "tu_read", content: "class Job < ApplicationRecord", sidechain: true, parent_tool_use_id: "tu_agent" }),
-      toolUse(4, { toolUseId: "tu_bash", toolName: "Bash", input: { command: "bin/rspec spec/models/job_spec.rb" }, sidechain: true, parent_tool_use_id: "tu_agent" }),
+      toolUse(4, {
+        toolUseId: "tu_bash",
+        toolName: "Bash",
+        input: { command: "bin/rspec spec/models/job_spec.rb" },
+        sidechain: true,
+        parent_tool_use_id: "tu_agent"
+      }),
       toolResult(5, { toolUseId: "tu_bash", content: "1 example, 0 failures", sidechain: true, parent_tool_use_id: "tu_agent" }),
       toolResult(6, { toolUseId: "tu_agent", content: "Job model looks correct" })
     ])

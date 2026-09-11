@@ -63,13 +63,15 @@ describe("DirectJobNew agent provider icon", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders the selected provider's icon at the expected size", async () => {
-    renderRoute(formPayload({
-      selected_agent_provider: "claude",
-      configured_agent_providers: [
-        { value: "claude", label: "Claude" },
-        { value: "codex", label: "Codex" }
-      ]
-    }))
+    renderRoute(
+      formPayload({
+        selected_agent_provider: "claude",
+        configured_agent_providers: [
+          { value: "claude", label: "Claude" },
+          { value: "codex", label: "Codex" }
+        ]
+      })
+    )
 
     const select = await screen.findByRole("combobox", { name: "Agent" })
     const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
@@ -78,13 +80,15 @@ describe("DirectJobNew agent provider icon", () => {
   })
 
   it("falls back to the repository's default provider icon when no explicit provider is selected", async () => {
-    renderRoute(formPayload({
-      selected_agent_provider: null,
-      configured_agent_providers: [
-        { value: "claude", label: "Claude" },
-        { value: "codex", label: "Codex" }
-      ]
-    }))
+    renderRoute(
+      formPayload({
+        selected_agent_provider: null,
+        configured_agent_providers: [
+          { value: "claude", label: "Claude" },
+          { value: "codex", label: "Codex" }
+        ]
+      })
+    )
 
     const select = await screen.findByRole("combobox", { name: "Agent" })
     const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
@@ -96,10 +100,12 @@ describe("DirectJobNew epic linking", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("shows which epic the job will join when the form payload targets one", async () => {
-    renderRoute(formPayload({
-      selected_epic_id: "7",
-      epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
-    }))
+    renderRoute(
+      formPayload({
+        selected_epic_id: "7",
+        epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
+      })
+    )
 
     const link = await screen.findByRole("link", { name: "EPIC-7 · Ship the thing" })
     expect(link).toHaveAttribute("href", "/epics/7")
@@ -117,18 +123,36 @@ describe("DirectJobNew epic linking", () => {
     vi.spyOn(window, "fetch").mockImplementation((_url, init) => {
       if (init?.method === "POST") {
         submittedBody = init.body as FormData
-        return Promise.resolve(jsonResponse({
-          message: "Direct job created.",
-          create_more: false,
-          redirect_to: "/jobs/99",
-          job: { id: 99, title: "Ship the thing", state: "queued", repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", default_agent_provider: "claude", default_agent_provider_label: "Claude" }, job_path: "/jobs/99" }
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            message: "Direct job created.",
+            create_more: false,
+            redirect_to: "/jobs/99",
+            job: {
+              id: 99,
+              title: "Ship the thing",
+              state: "queued",
+              repository: {
+                id: 1,
+                slug: "acme/widgets",
+                repository_path: "/repositories/1",
+                default_agent_provider: "claude",
+                default_agent_provider_label: "Claude"
+              },
+              job_path: "/jobs/99"
+            }
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(formPayload({
-        selected_epic_id: "7",
-        epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          formPayload({
+            selected_epic_id: "7",
+            epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
+          })
+        )
+      )
     })
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -194,7 +218,9 @@ describe("DirectJobNew template selection", () => {
     fireEvent.click(screen.getByRole("button", { name: /Add GitHub Actions CI/i }))
 
     await waitFor(() => {
-      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: "Are you sure you want to apply this template? All of your changes will be lost." }))
+      expect(mockConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "Are you sure you want to apply this template? All of your changes will be lost." })
+      )
     })
   })
 

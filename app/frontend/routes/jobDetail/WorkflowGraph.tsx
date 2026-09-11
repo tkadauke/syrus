@@ -12,10 +12,51 @@ import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { Button, buttonClasses } from "../../components/Button"
 import { pluginIconSrc } from "../../lib/pluginIcon"
-import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
+import {
+  fetchJobGradeLog,
+  fetchJobRunArtifacts,
+  fetchJobSourceFileContent,
+  type JobAdversarialReviewIteration,
+  type JobDetailPayload,
+  type JobRun,
+  type JobStep,
+  type JobVisualReviewIteration,
+  type JobWorkflow,
+  type JobWorkIntent,
+  type JobWorkUnit,
+  type WorkflowWarning
+} from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import {
+  booleanValue,
+  displayStepItemKey,
+  effectiveStepStatus,
+  gradeDisplayStatus,
+  gradePhases,
+  gradeSummaries,
+  gradeSummaryCounts,
+  humanize,
+  isActiveState,
+  loopDisplayName,
+  loopDisplayStatus,
+  loopGradeSummaries,
+  loopSoleGradeItem,
+  objectDetails,
+  pendingWarnings,
+  prepareFailureDetails,
+  prepareFailureStatus,
+  sortedRunsNewestFirst,
+  stringify,
+  stringValue,
+  workflowDetectedPlugins,
+  workflowStepItems,
+  type DisplayStepItem,
+  type GradeStepItem,
+  type GradeSummary,
+  type LoopStepItem,
+  type PrepareFailure
+} from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { diffReviewFeedbackAllowed, useDiffReviewFeedback } from "./DiffReviewFeedback"
@@ -23,7 +64,6 @@ import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDura
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
 import { workflowBranchDivergence } from "./branchDivergence"
-
 
 // Workflow / step / run execution-graph rendering extracted from JobDetail.tsx.
 //
@@ -33,7 +73,19 @@ import { workflowBranchDivergence } from "./branchDivergence"
 // micro-components) and shared UI imports, so it carries no circular edge back to
 // the route file. Unused header imports were trimmed after the move.
 
-export function WorkflowsTab({ payload, command, prefix, loading = false, error = null }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; loading?: boolean; error?: unknown }) {
+export function WorkflowsTab({
+  payload,
+  command,
+  prefix,
+  loading = false,
+  error = null
+}: {
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  prefix: string
+  loading?: boolean
+  error?: unknown
+}) {
   const { t } = useT("jobs")
   const workUnits = payload.work_units || []
   if (loading) return <PanelMessage>{t("section_workflows_loading")}</PanelMessage>
@@ -45,7 +97,9 @@ export function WorkflowsTab({ payload, command, prefix, loading = false, error 
       <DesiredWorkPanel intent={payload.current_intent || null} />
       <WorkUnitsPanel command={command} payload={payload} prefix={prefix} units={workUnits} />
       <WorkflowsPagination payload={payload} prefix={prefix} />
-      {payload.workflows.map((workflow) => <WorkflowCard command={command} key={workflow.id} payload={payload} prefix={prefix} workflow={workflow} />)}
+      {payload.workflows.map((workflow) => (
+        <WorkflowCard command={command} key={workflow.id} payload={payload} prefix={prefix} workflow={workflow} />
+      ))}
       <WorkflowsPagination payload={payload} prefix={prefix} />
     </div>
   )
@@ -57,9 +111,7 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
   const waitLabel = intent.wait_label || (intent.wait_reason ? humanize(intent.wait_reason) : null)
   const executionStatus = intent.execution_status || intent.state
   const showAttemptStatus = executionStatus !== intent.state
-  const attemptLabel = executionStatus === "blocked"
-    ? `Waiting${intent.execution_label ? `: ${intent.execution_label}` : ""}`
-    : humanize(executionStatus)
+  const attemptLabel = executionStatus === "blocked" ? `Waiting${intent.execution_label ? `: ${intent.execution_label}` : ""}` : humanize(executionStatus)
 
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -77,13 +129,21 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span>WI-{intent.id}</span>
               {scopeLabel(intent.scope_type, intent.scope_id) ? <span>{scopeLabel(intent.scope_type, intent.scope_id)}</span> : null}
-              {intent.wait_until ? <span>next check <RelativeTimestamp value={intent.wait_until} /></span> : null}
+              {intent.wait_until ? (
+                <span>
+                  next check <RelativeTimestamp value={intent.wait_until} />
+                </span>
+              ) : null}
             </div>
             <WorkDiagnosticDetails details={intent.wait_details} />
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <TonePill tone="gray">Desired {humanize(intent.state)}</TonePill>
-            {showAttemptStatus ? <TonePill active={executionStatus === "active" || executionStatus === "running"} tone={intentExecutionTone(executionStatus)}>Attempt {attemptLabel}</TonePill> : null}
+            {showAttemptStatus ? (
+              <TonePill active={executionStatus === "active" || executionStatus === "running"} tone={intentExecutionTone(executionStatus)}>
+                Attempt {attemptLabel}
+              </TonePill>
+            ) : null}
           </div>
         </div>
       </div>
@@ -108,7 +168,17 @@ function scopeLabel(scopeType: string | null | undefined, scopeId: number | null
   return `${scopeType ? humanize(scopeType) : "Scope"} ${scopeId}`
 }
 
-function WorkUnitsPanel({ units, payload, command, prefix }: { units: JobWorkUnit[]; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+function WorkUnitsPanel({
+  units,
+  payload,
+  command,
+  prefix
+}: {
+  units: JobWorkUnit[]
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  prefix: string
+}) {
   if (units.length === 0) return null
 
   return (
@@ -117,13 +187,25 @@ function WorkUnitsPanel({ units, payload, command, prefix }: { units: JobWorkUni
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Work attempts</h3>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-        {units.map((unit) => <WorkUnitRow command={command} key={unit.id} payload={payload} prefix={prefix} unit={unit} />)}
+        {units.map((unit) => (
+          <WorkUnitRow command={command} key={unit.id} payload={payload} prefix={prefix} unit={unit} />
+        ))}
       </div>
     </section>
   )
 }
 
-function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+function WorkUnitRow({
+  unit,
+  payload,
+  command,
+  prefix
+}: {
+  unit: JobWorkUnit
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  prefix: string
+}) {
   const workflowAnchor = unit.workflow_id ? `#workflow-${unit.workflow_id}` : ""
   const workflowPath = unit.workflow_id ? withRoutePrefix(`/jobs/${unit.workflow_attached_job_id || ""}?tab=workflows${workflowAnchor}`, prefix) : null
   const label = unit.label || humanize(unit.kind)
@@ -143,14 +225,22 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
             <span>WU-{unit.id}</span>
             {unit.parent_work_unit_id ? <span>child of WU-{unit.parent_work_unit_id}</span> : null}
             {workflowPath ? (
-              <Link className="underline hover:no-underline" to={workflowPath}>{unit.workflow_slug || workflowSlug(unit.workflow_id!)}</Link>
+              <Link className="underline hover:no-underline" to={workflowPath}>
+                {unit.workflow_slug || workflowSlug(unit.workflow_id!)}
+              </Link>
             ) : (
               <span>No workflow attached</span>
             )}
-            {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? <span>attached to {unit.workflow_attached_job_slug || `JOB-${unit.workflow_attached_job_id}`}</span> : null}
+            {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? (
+              <span>attached to {unit.workflow_attached_job_slug || `JOB-${unit.workflow_attached_job_id}`}</span>
+            ) : null}
             {unit.preemption_reason ? <span>preempted: {humanize(unit.preemption_reason)}</span> : null}
             {unit.preempted_by_work_unit_id ? <span>by WU-{unit.preempted_by_work_unit_id}</span> : null}
-            {unit.blocked_until ? <span>next check <RelativeTimestamp value={unit.blocked_until} /></span> : null}
+            {unit.blocked_until ? (
+              <span>
+                next check <RelativeTimestamp value={unit.blocked_until} />
+              </span>
+            ) : null}
           </div>
           <WorkDiagnosticDetails details={unit.blocked_details} />
         </div>
@@ -173,7 +263,9 @@ function WorkDiagnosticDetails({ details }: { details: Record<string, unknown> |
     <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
       {lines.length > 0 ? (
         <ul className="list-disc space-y-1 pl-4">
-          {lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
+          {lines.map((line, index) => (
+            <li key={`${index}-${line}`}>{line}</li>
+          ))}
         </ul>
       ) : null}
       <details className="text-gray-500 dark:text-gray-400">
@@ -211,13 +303,20 @@ function workDiagnosticLines(details: Record<string, unknown>) {
   const jobPriority = stringDetail(details.job_priority)
   const triggerKind = stringDetail(details.trigger_kind)
   const highCost = booleanDetail(details.candidate_high_cost)
-  if (jobPriority || triggerKind) lines.push(`Work: ${[jobPriority && `${jobPriority} priority`, triggerKind && `${humanize(triggerKind)} workflow`].filter(Boolean).join(", ")}.`)
+  if (jobPriority || triggerKind)
+    lines.push(`Work: ${[jobPriority && `${jobPriority} priority`, triggerKind && `${humanize(triggerKind)} workflow`].filter(Boolean).join(", ")}.`)
   if (activeRunCount !== null || healthyWorkerCount !== null || repositoryActiveWorkflowCount !== null) {
-    lines.push([
-      activeRunCount !== null ? `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"}` : null,
-      healthyWorkerCount !== null ? `${healthyWorkerCount} healthy worker${healthyWorkerCount === 1 ? "" : "s"}` : null,
-      repositoryActiveWorkflowCount !== null ? `${repositoryActiveWorkflowCount} active workflow${repositoryActiveWorkflowCount === 1 ? "" : "s"} in this repository` : null
-    ].filter(Boolean).join("; ") + ".")
+    lines.push(
+      [
+        activeRunCount !== null ? `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"}` : null,
+        healthyWorkerCount !== null ? `${healthyWorkerCount} healthy worker${healthyWorkerCount === 1 ? "" : "s"}` : null,
+        repositoryActiveWorkflowCount !== null
+          ? `${repositoryActiveWorkflowCount} active workflow${repositoryActiveWorkflowCount === 1 ? "" : "s"} in this repository`
+          : null
+      ]
+        .filter(Boolean)
+        .join("; ") + "."
+    )
   }
   if (highCost !== null) lines.push(highCost ? "This workflow is predicted to be expensive." : "This workflow is not predicted to be expensive.")
 
@@ -264,13 +363,15 @@ function pressureSummary(pressure: Record<string, unknown> | null) {
 
 function dependencyLines(value: unknown) {
   if (!Array.isArray(value)) return []
-  return value.filter((item): item is Record<string, unknown> => Boolean(objectDetail(item))).map((dependency) => {
-    const slug = stringDetail(dependency.slug)
-    const jobId = numberDetail(dependency.job_id)
-    const state = stringDetail(dependency.state)
-    const label = slug || (jobId !== null ? `JOB-${jobId}` : "Dependency")
-    return `${label}${state ? ` is ${humanize(state)}` : ""}.`
-  })
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(objectDetail(item)))
+    .map((dependency) => {
+      const slug = stringDetail(dependency.slug)
+      const jobId = numberDetail(dependency.job_id)
+      const state = stringDetail(dependency.state)
+      const label = slug || (jobId !== null ? `JOB-${jobId}` : "Dependency")
+      return `${label}${state ? ` is ${humanize(state)}` : ""}.`
+    })
 }
 
 function formatDiagnosticTime(value: string) {
@@ -292,7 +393,7 @@ function booleanDetail(value: unknown) {
 }
 
 function objectDetail(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null
 }
 
 function numberArray(value: unknown) {
@@ -312,14 +413,36 @@ function WorkflowsPagination({ payload, prefix }: { payload: JobDetailPayload; p
     <nav aria-label={t("aria_workflow_pagination")} className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
       <span>{t("workflows_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_workflows })}</span>
       <div className="flex gap-2">
-        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>{t("workflows_previous")}</Link> : <span className={disabledPaginationClass()}>{t("workflows_previous")}</span>}
-        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>{t("workflows_next")}</Link> : <span className={disabledPaginationClass()}>{t("workflows_next")}</span>}
+        {pagination.previous_path ? (
+          <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>
+            {t("workflows_previous")}
+          </Link>
+        ) : (
+          <span className={disabledPaginationClass()}>{t("workflows_previous")}</span>
+        )}
+        {pagination.next_path ? (
+          <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>
+            {t("workflows_next")}
+          </Link>
+        ) : (
+          <span className={disabledPaginationClass()}>{t("workflows_next")}</span>
+        )}
       </div>
     </nav>
   )
 }
 
-function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWorkflow; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+function WorkflowCard({
+  workflow,
+  payload,
+  command,
+  prefix
+}: {
+  workflow: JobWorkflow
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  prefix: string
+}) {
   const { t } = useT("jobs")
   const stepItems = workflowStepItems(workflow.steps)
   const branchDivergence = workflowBranchDivergence(workflow)
@@ -330,9 +453,14 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            <Link className="hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflow.slug || workflowSlug(workflow.id)}</Link>
+            <Link className="hover:underline" to={withRoutePrefix(workflow.path, prefix)}>
+              {workflow.slug || workflowSlug(workflow.id)}
+            </Link>
           </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")} <RelativeTimestamp value={workflow.created_at} /></p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")}{" "}
+            <RelativeTimestamp value={workflow.created_at} />
+          </p>
           <ProviderFailoverNotice className="mt-1" failover={workflow.provider_failover} />
           {detectedPlugins.length > 0 ? (
             <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -349,22 +477,44 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
         <div className="flex flex-wrap items-center gap-2">
           {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
           <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
-          {workflow.retry_available ? <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">{t("retry_failed_step")}</CommandButton> : null}
-          {workflow.state === "failed" && !workflow.cleaned_up_at ? <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">{t("push_commits")}</CommandButton> : null}
+          {workflow.retry_available ? (
+            <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
+              {t("retry_failed_step")}
+            </CommandButton>
+          ) : null}
+          {workflow.state === "failed" && !workflow.cleaned_up_at ? (
+            <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
+              {t("push_commits")}
+            </CommandButton>
+          ) : null}
         </div>
       </div>
-      {branchDivergence ? <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={workflow} /> : null}
+      {branchDivergence ? (
+        <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={workflow} />
+      ) : null}
       {workflow.steps_truncated ? (
         <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-          {t("workflow_steps_truncated", { displayed: workflow.steps_displayed || workflow.steps.length, total: workflow.steps_total || workflow.steps.length })}
+          {t("workflow_steps_truncated", {
+            displayed: workflow.steps_displayed || workflow.steps.length,
+            total: workflow.steps_total || workflow.steps.length
+          })}
         </div>
       ) : null}
       <div className="mt-4 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
-        {stepItems.map((item, index) => item.type === "loop" ? (
-          <LoopGroup command={command} item={item} key={item.loopId} numberLabel={index + 1} payload={payload} workflowArtifacts={workflow.artifacts} />
-        ) : (
-          <DisplayStepCard command={command} item={item} key={displayStepItemKey(item)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflow.artifacts} />
-        ))}
+        {stepItems.map((item, index) =>
+          item.type === "loop" ? (
+            <LoopGroup command={command} item={item} key={item.loopId} numberLabel={index + 1} payload={payload} workflowArtifacts={workflow.artifacts} />
+          ) : (
+            <DisplayStepCard
+              command={command}
+              item={item}
+              key={displayStepItemKey(item)}
+              numberLabel={index + 1}
+              payload={payload}
+              workflowArtifacts={workflow.artifacts}
+            />
+          )
+        )}
       </div>
     </section>
   )
@@ -390,13 +540,20 @@ function BranchDivergencePanel({
   return (
     <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
       <div className="font-semibold">{t("workflow_divergence_title")}</div>
-      <p className="mt-1 text-amber-900 dark:text-amber-200">
-        {t("workflow_divergence_review")}
-      </p>
+      <p className="mt-1 text-amber-900 dark:text-amber-200">{t("workflow_divergence_review")}</p>
       <dl className="mt-2 grid gap-1 text-xs text-amber-900 dark:text-amber-200 sm:grid-cols-3">
-        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_branch")}</dt><dd className="font-mono">{branch}</dd></div>
-        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_remote")}</dt><dd className="font-mono">{shortSha(divergence.remote_sha)}</dd></div>
-        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_local")}</dt><dd className="font-mono">{shortSha(divergence.local_sha)}</dd></div>
+        <div>
+          <dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_branch")}</dt>
+          <dd className="font-mono">{branch}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_remote")}</dt>
+          <dd className="font-mono">{shortSha(divergence.remote_sha)}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_local")}</dt>
+          <dd className="font-mono">{shortSha(divergence.local_sha)}</dd>
+        </div>
       </dl>
       <BranchDivergenceComparisonView
         comparison={divergence.comparison}
@@ -404,21 +561,29 @@ function BranchDivergencePanel({
         remoteSha={divergence.remote_sha}
         sourcePath={sourcePath}
       />
-      {divergence.recovery_pending ? (
-        <p className="mt-2 text-xs font-medium text-info">{t("workflow_replace_pending")}</p>
-      ) : null}
+      {divergence.recovery_pending ? <p className="mt-2 text-xs font-medium text-info">{t("workflow_replace_pending")}</p> : null}
       {divergence.recovery_error?.message ? (
-        <p className="mt-2 text-xs font-medium text-red-700 dark:text-red-300">{t("workflow_replace_failed", { message: divergence.recovery_error.message })}</p>
+        <p className="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+          {t("workflow_replace_failed", { message: divergence.recovery_error.message })}
+        </p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Link className={buttonClasses("secondary")} to={sourcePath}>{t("workflow_open_source")}</Link>
+        <Link className={buttonClasses("secondary")} to={sourcePath}>
+          {t("workflow_open_source")}
+        </Link>
         <CommandButton command={command} input={{ method: "post", path: payload.paths.app_run_again_path }} tone="secondary">
           {t("workflow_retry_from_pr")}
         </CommandButton>
         {divergence.recovery_pending ? (
-          <Button disabled variant="secondary">{t("workflow_replace_queued")}</Button>
+          <Button disabled variant="secondary">
+            {t("workflow_replace_queued")}
+          </Button>
         ) : (
-          <CommandButton command={command} input={{ method: "post", path: workflow.app_force_push_branch_path, confirm: t("workflow_replace_confirm", { branch }) }} tone="danger">
+          <CommandButton
+            command={command}
+            input={{ method: "post", path: workflow.app_force_push_branch_path, confirm: t("workflow_replace_confirm", { branch }) }}
+            tone="danger"
+          >
             {t("workflow_replace_pr_branch")}
           </CommandButton>
         )}
@@ -470,7 +635,9 @@ function BranchDivergenceComparisonView({
               {t("workflow_divergence_files", { count: comparison.discardedFiles.files.length })}
             </summary>
             <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
-              {comparison.discardedFiles.files.map((file) => <li key={file}>{file}</li>)}
+              {comparison.discardedFiles.files.map((file) => (
+                <li key={file}>{file}</li>
+              ))}
               {comparison.discardedFiles.truncated ? <li className="italic">{t("workflow_divergence_truncated")}</li> : null}
             </ul>
           </details>
@@ -507,8 +674,7 @@ function BranchDivergenceCommitLines({ list }: { list: BranchDivergenceCommitLis
     <ul className="mt-1 space-y-1">
       {list.commits.map((commit) => (
         <li className="text-xs text-amber-950 dark:text-amber-100" key={commit.sha}>
-          <span className="font-mono text-amber-700 dark:text-amber-300">{commit.sha}</span>{" "}
-          <span>{commit.subject}</span>
+          <span className="font-mono text-amber-700 dark:text-amber-300">{commit.sha}</span> <span>{commit.subject}</span>
           {commit.author ? <span className="text-amber-700 dark:text-amber-400"> — {commit.author}</span> : null}
         </li>
       ))}
@@ -517,7 +683,19 @@ function BranchDivergenceCommitLines({ list }: { list: BranchDivergenceCommitLis
   )
 }
 
-function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: { item: LoopStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
+function LoopGroup({
+  item,
+  payload,
+  command,
+  numberLabel,
+  workflowArtifacts
+}: {
+  item: LoopStepItem
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  numberLabel: number | string
+  workflowArtifacts?: Record<string, unknown> | null
+}) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = loopDisplayStatus(item)
@@ -530,13 +708,17 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
       numberLabel={numberLabel}
       onToggle={() => setOpen((current) => !current)}
       open={open}
-      pills={(
+      pills={
         <>
           <SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>
-          {progress ? <SmallPill>{progress.completed}/{progress.total} complete</SmallPill> : null}
+          {progress ? (
+            <SmallPill>
+              {progress.completed}/{progress.total} complete
+            </SmallPill>
+          ) : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </>
-      )}
+      }
       status={status}
       title={loopDisplayName(item, t)}
     >
@@ -554,7 +736,14 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
                   {t("loop_iteration", { n: iteration.iteration })}
                 </div>
                 {iteration.items.map((stepItem, index) => (
-                  <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflowArtifacts} />
+                  <DisplayStepCard
+                    command={command}
+                    item={stepItem}
+                    key={displayStepItemKey(stepItem)}
+                    numberLabel={index + 1}
+                    payload={payload}
+                    workflowArtifacts={workflowArtifacts}
+                  />
                 ))}
               </section>
             ))}
@@ -565,13 +754,38 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
   )
 }
 
-function DisplayStepCard({ item, payload, command, numberLabel, workflowArtifacts }: { item: DisplayStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
-  if (item.type === "grade") return <GradeGroup command={command} item={item} numberLabel={numberLabel} payload={payload} workflowArtifacts={workflowArtifacts} />
+function DisplayStepCard({
+  item,
+  payload,
+  command,
+  numberLabel,
+  workflowArtifacts
+}: {
+  item: DisplayStepItem
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  numberLabel: number | string
+  workflowArtifacts?: Record<string, unknown> | null
+}) {
+  if (item.type === "grade")
+    return <GradeGroup command={command} item={item} numberLabel={numberLabel} payload={payload} workflowArtifacts={workflowArtifacts} />
 
   return <StepCard command={command} numberLabel={numberLabel} payload={payload} step={item.step} workflowArtifacts={workflowArtifacts} />
 }
 
-function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: { item: GradeStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
+function GradeGroup({
+  item,
+  payload,
+  command,
+  numberLabel,
+  workflowArtifacts
+}: {
+  item: GradeStepItem
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  numberLabel: number | string
+  workflowArtifacts?: Record<string, unknown> | null
+}) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = gradeDisplayStatus(item)
@@ -584,13 +798,17 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
       numberLabel={numberLabel}
       onToggle={() => setOpen((current) => !current)}
       open={open}
-      pills={(
+      pills={
         <>
           {item.graders.length > 0 ? <SmallPill>{t("grade_check_count", { count: item.graders.length })}</SmallPill> : null}
-          {progress ? <SmallPill>{progress.completed}/{progress.total} complete</SmallPill> : null}
+          {progress ? (
+            <SmallPill>
+              {progress.completed}/{progress.total} complete
+            </SmallPill>
+          ) : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </>
-      )}
+      }
       status={status}
       title={item.preflight ? t("preflight_grade_label") : t("grade_label")}
     >
@@ -613,7 +831,9 @@ function GradeBatchProgressPanel({ progress }: { progress: NonNullable<ReturnTyp
     <div className="border-t border-gray-100 bg-gray-50 px-3 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-gray-900 dark:text-gray-100">Batch progress</span>
-        <SmallPill>{progress.completed}/{progress.total} complete</SmallPill>
+        <SmallPill>
+          {progress.completed}/{progress.total} complete
+        </SmallPill>
         {running > 0 ? <SmallPill>{running} running</SmallPill> : null}
         {waiting > 0 ? <SmallPill>{waiting} waiting</SmallPill> : null}
         {failed > 0 ? <SmallPill>{failed} failed</SmallPill> : null}
@@ -623,16 +843,19 @@ function GradeBatchProgressPanel({ progress }: { progress: NonNullable<ReturnTyp
 }
 
 function gradeBatchProgress(item: GradeStepItem) {
-  const collectStep = item.steps.find((step) => isGradeCollectStep(step) && step.dependencies?.barrier_progress)
-    || item.steps.find((step) => step.dependencies?.barrier_progress)
+  const collectStep =
+    item.steps.find((step) => isGradeCollectStep(step) && step.dependencies?.barrier_progress) || item.steps.find((step) => step.dependencies?.barrier_progress)
   if (collectStep?.dependencies?.barrier_progress) return collectStep.dependencies.barrier_progress
   if (item.graders.length === 0) return null
 
-  const counts = item.graders.reduce((memo, grader) => {
-    const status = effectiveStepStatus(grader) || grader.state
-    memo[status] = (memo[status] || 0) + 1
-    return memo
-  }, {} as Record<string, number>)
+  const counts = item.graders.reduce(
+    (memo, grader) => {
+      const status = effectiveStepStatus(grader) || grader.state
+      memo[status] = (memo[status] || 0) + 1
+      return memo
+    },
+    {} as Record<string, number>
+  )
 
   return {
     total: item.graders.length,
@@ -650,7 +873,17 @@ function isGradeCollectStep(step: JobStep) {
   return step.kind === "grader_collect" || step.kind === "preflight_grader_collect"
 }
 
-function GradePhasesList({ phases, payload, command, workflowArtifacts }: { phases: ReturnType<typeof gradePhases>; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; workflowArtifacts?: Record<string, unknown> | null }) {
+function GradePhasesList({
+  phases,
+  payload,
+  command,
+  workflowArtifacts
+}: {
+  phases: ReturnType<typeof gradePhases>
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  workflowArtifacts?: Record<string, unknown> | null
+}) {
   return (
     <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
       <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -671,7 +904,23 @@ function GradePhasesList({ phases, payload, command, workflowArtifacts }: { phas
   )
 }
 
-function WorkflowGroup({ title, numberLabel, pills, status, open, onToggle, children }: { title: string; numberLabel: number | string; pills?: ReactNode; status: string | null; open: boolean; onToggle: () => void; children: ReactNode }) {
+function WorkflowGroup({
+  title,
+  numberLabel,
+  pills,
+  status,
+  open,
+  onToggle,
+  children
+}: {
+  title: string
+  numberLabel: number | string
+  pills?: ReactNode
+  status: string | null
+  open: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
   return (
     <section className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
       <button
@@ -687,7 +936,9 @@ function WorkflowGroup({ title, numberLabel, pills, status, open, onToggle, chil
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {status ? <StatusPill state={status} /> : null}
-          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">
+            {open ? "−" : "+"}
+          </span>
         </span>
       </button>
       {children}
@@ -752,7 +1003,23 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
   )
 }
 
-function StepCard({ step, payload, command, numberLabel, displayName, metadataLabel, workflowArtifacts }: { step: JobStep; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; displayName?: string; metadataLabel?: string; workflowArtifacts?: Record<string, unknown> | null }) {
+function StepCard({
+  step,
+  payload,
+  command,
+  numberLabel,
+  displayName,
+  metadataLabel,
+  workflowArtifacts
+}: {
+  step: JobStep
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  numberLabel: number | string
+  displayName?: string
+  metadataLabel?: string
+  workflowArtifacts?: Record<string, unknown> | null
+}) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const runs = sortedRunsNewestFirst(step.runs)
@@ -761,9 +1028,12 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
   const prepareFailure = prepareFailureDetails(step)
 
   const artifacts = workflowArtifacts ?? {}
-  const summaryArtifact = (step.kind === "summarize" || step.kind === "summarize_amend")
-    ? (typeof artifacts.summary === "string" && artifacts.summary ? artifacts.summary : null)
-    : null
+  const summaryArtifact =
+    step.kind === "summarize" || step.kind === "summarize_amend"
+      ? typeof artifacts.summary === "string" && artifacts.summary
+        ? artifacts.summary
+        : null
+      : null
   const testPlanArtifact = step.kind === "test_plan" ? stepArtifactTestPlan(artifacts.test_plan) : null
   const adversarialReviewArtifact = step.kind === "adversarial_review" ? stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) : null
   const visualReviewArtifact = step.kind === "visual_review" ? stepArtifactVisualReview(artifacts.visual_review_iterations) : null
@@ -782,7 +1052,9 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {displayStatus ? <StatusPill state={displayStatus} /> : null}
-          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">
+            {open ? "−" : "+"}
+          </span>
         </span>
       </button>
       {open ? (
@@ -795,7 +1067,9 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
             {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
             {activeRun && step.state !== activeRun.state ? <SmallPill>{t("step_state_display", { state: step.state.replaceAll("_", " ") })}</SmallPill> : null}
             {step.latest ? <SmallPill>{t("step_latest")}</SmallPill> : null}
-            <span><RelativeTimestamp value={step.started_at || step.created_at} /></span>
+            <span>
+              <RelativeTimestamp value={step.started_at || step.created_at} />
+            </span>
             {step.finished_at ? <span>{formatDuration(step.started_at, step.finished_at)}</span> : null}
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
@@ -805,9 +1079,13 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
           ))}
           {step.details && !prepareFailure ? (
-            (step.kind === "grader" || step.kind === "preflight_grader")
-              ? <GraderDetails details={objectDetails(step.details)} />
-              : <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">{stringify(step.details)}</pre>
+            step.kind === "grader" || step.kind === "preflight_grader" ? (
+              <GraderDetails details={objectDetails(step.details)} />
+            ) : (
+              <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                {stringify(step.details)}
+              </pre>
+            )
           ) : null}
           {step.runs_truncated ? (
             <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
@@ -830,7 +1108,9 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
                 />
               ))}
             </div>
-          ) : <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("section_no_runs")}</p>}
+          ) : (
+            <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("section_no_runs")}</p>
+          )}
         </div>
       ) : null}
     </div>
@@ -853,7 +1133,8 @@ function StepPlacementPanel({ step }: { step: JobStep }) {
   if (placement?.prepare_cache) rows.push(["Prepare cache", prepareCacheLabel(placement.prepare_cache)])
   if (placement?.admission) rows.push(["Admission", admissionLabel(placement.admission)])
   if (dependencies?.depends_on_step_ids?.length) rows.push(["Waits for", dependencies.depends_on_step_ids.map((id) => `STEP-${id}`).join(", ")])
-  if (dependencies?.barrier_progress) rows.push(["Barrier", `${dependencies.barrier_progress.completed}/${dependencies.barrier_progress.total} dependencies complete`])
+  if (dependencies?.barrier_progress)
+    rows.push(["Barrier", `${dependencies.barrier_progress.completed}/${dependencies.barrier_progress.total} dependencies complete`])
 
   return (
     <dl className="mt-2 grid gap-x-4 gap-y-1 rounded border border-gray-200 bg-white p-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:grid-cols-[max-content_1fr]">
@@ -900,7 +1181,11 @@ function StepTestPlanPanel({ testPlan, onClose }: { testPlan: { steps: string[];
       <div className="overflow-auto p-3 max-md:min-h-0 max-md:flex-1">
         {testPlan.steps.length > 0 ? (
           <ol className="min-w-0 max-w-full list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
-            {testPlan.steps.map((step, index) => <li className="min-w-0 break-words [overflow-wrap:anywhere]" key={`${index}-${step}`}>{step}</li>)}
+            {testPlan.steps.map((step, index) => (
+              <li className="min-w-0 break-words [overflow-wrap:anywhere]" key={`${index}-${step}`}>
+                {step}
+              </li>
+            ))}
           </ol>
         ) : null}
         {testPlan.notes ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={testPlan.notes} /> : null}
@@ -927,7 +1212,9 @@ export function StepAdversarialReviewPanel({ iterations, onClose }: { iterations
                   {t("adversarial_review_round", { n: iteration.iteration })}
                 </h5>
                 {isFinal ? (
-                  <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${isApproved ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"}`}>
+                  <span
+                    className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${isApproved ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"}`}
+                  >
                     {verdictLabel}
                   </span>
                 ) : (
@@ -961,30 +1248,37 @@ export function StepVisualReviewPanel({ iterations, onClose }: { iterations: Job
             : isSkipped
               ? t("visual_review_verdict_skipped")
               : t("visual_review_verdict_needs_work")
-          const badgeClass = isApproved || isSkipped
-            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
-            : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+          const badgeClass =
+            isApproved || isSkipped
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
+              : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
           return (
             <div className="p-3" key={iteration.iteration}>
               <div className="flex items-center gap-2">
-                <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-                  {t("visual_review_round", { n: iteration.iteration })}
-                </h5>
-                <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${isFinal ? "font-semibold" : "font-medium"} ${isFinal ? badgeClass : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+                <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("visual_review_round", { n: iteration.iteration })}</h5>
+                <span
+                  className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${isFinal ? "font-semibold" : "font-medium"} ${isFinal ? badgeClass : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
+                >
                   {verdictLabel}
                 </span>
               </div>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
               {iteration.artifacts.length > 0 ? (
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {iteration.artifacts.map((artifact) => artifact.image_url ? (
-                    <figure className="rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-950" key={artifact.type}>
-                      <a href={artifact.image_url} rel="noreferrer" target="_blank">
-                        <img alt={artifact.title || t("visual_review_screenshot_alt")} className="max-h-80 w-full rounded object-contain" src={artifact.image_url} />
-                      </a>
-                      {artifact.title ? <figcaption className="mt-2 text-xs text-gray-500 dark:text-gray-400">{artifact.title}</figcaption> : null}
-                    </figure>
-                  ) : null)}
+                  {iteration.artifacts.map((artifact) =>
+                    artifact.image_url ? (
+                      <figure className="rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-950" key={artifact.type}>
+                        <a href={artifact.image_url} rel="noreferrer" target="_blank">
+                          <img
+                            alt={artifact.title || t("visual_review_screenshot_alt")}
+                            className="max-h-80 w-full rounded object-contain"
+                            src={artifact.image_url}
+                          />
+                        </a>
+                        {artifact.title ? <figcaption className="mt-2 text-xs text-gray-500 dark:text-gray-400">{artifact.title}</figcaption> : null}
+                      </figure>
+                    ) : null
+                  )}
                 </div>
               ) : null}
             </div>
@@ -1001,12 +1295,11 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
 
   return (
     <section className="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
-      <div className="font-semibold">
-        {failure.soft ? t("prepare_failure_soft_title") : t("prepare_failure_hard_title")}
-      </div>
+      <div className="font-semibold">{failure.soft ? t("prepare_failure_soft_title") : t("prepare_failure_hard_title")}</div>
       {failure.soft ? (
         <p className="mt-1">
-          {t("prepare_failure_soft_body")} <code className="font-mono">{t("prepare_failure_soft_syrus_yml")}</code> <code className="font-mono">{t("prepare_failure_soft_prepare")}</code> {t("prepare_failure_soft_suffix")}
+          {t("prepare_failure_soft_body")} <code className="font-mono">{t("prepare_failure_soft_syrus_yml")}</code>{" "}
+          <code className="font-mono">{t("prepare_failure_soft_prepare")}</code> {t("prepare_failure_soft_suffix")}
         </p>
       ) : null}
       <dl className="mt-2 grid gap-x-4 gap-y-1 md:grid-cols-[max-content_1fr]">
@@ -1018,7 +1311,9 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
         <dd>{status}</dd>
       </dl>
       {failure.output_tail ? (
-        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-2xs text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">{failure.output_tail}</pre>
+        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-2xs text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">
+          {failure.output_tail}
+        </pre>
       ) : null}
     </section>
   )
@@ -1058,11 +1353,7 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
         <div className="mt-3">
           {warning.suggested_prompt ? (
             <>
-              <button
-                className="flex items-center gap-1 underline"
-                onClick={() => setPromptExpanded((current) => !current)}
-                type="button"
-              >
+              <button className="flex items-center gap-1 underline" onClick={() => setPromptExpanded((current) => !current)} type="button">
                 {promptExpanded ? t("warning_hide_prompt") : t("warning_edit_prompt")}
               </button>
               {promptExpanded ? (
@@ -1086,11 +1377,7 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
                 {t("warning_file_fix_job")}
               </Button>
             ) : null}
-            <Button
-              disabled={command.isPending}
-              onClick={() => command.mutate({ method: "post", path: dismissPath })}
-              variant="secondary"
-            >
+            <Button disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: dismissPath })} variant="secondary">
               {t("warning_dismiss")}
             </Button>
           </div>
@@ -1100,10 +1387,30 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
   )
 }
 
-function RunRow({ run, payload, command, active = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null, stepVisualReviewArtifact = null }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; active?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null; stepVisualReviewArtifact?: JobVisualReviewIteration[] | null }) {
+function RunRow({
+  run,
+  payload,
+  command,
+  active = false,
+  stepSummaryArtifact = null,
+  stepTestPlanArtifact = null,
+  stepAdversarialReviewArtifact = null,
+  stepVisualReviewArtifact = null
+}: {
+  run: JobRun
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  active?: boolean
+  stepSummaryArtifact?: string | null
+  stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null
+  stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null
+  stepVisualReviewArtifact?: JobVisualReviewIteration[] | null
+}) {
   const { t } = useT("jobs")
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
-  const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "visual_review" | null>(null)
+  const [artifactView, setArtifactView] = useState<
+    "transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "visual_review" | null
+  >(null)
   const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
   const gradeLog = useMutation({
     mutationFn: (path: string) => fetchJobGradeLog(path),
@@ -1122,12 +1429,12 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
 
   function showArtifacts(view: "transcript" | "diff" | "step_diff") {
     setGradeLogOpen(false)
-    setArtifactView((current) => current === view ? null : view)
+    setArtifactView((current) => (current === view ? null : view))
   }
 
   function toggleStepArtifact(view: "summary" | "test_plan" | "adversarial_review" | "visual_review") {
     setGradeLogOpen(false)
-    setArtifactView((current) => current === view ? null : view)
+    setArtifactView((current) => (current === view ? null : view))
   }
 
   function showGradeLog(path: string) {
@@ -1142,7 +1449,9 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
   }
 
   return (
-    <div className={`rounded border bg-white p-3 text-sm dark:bg-gray-900 ${active ? "border-brand/30 ring-1 ring-brand/20" : "border-gray-200 dark:border-gray-700"}`}>
+    <div
+      className={`rounded border bg-white p-3 text-sm dark:bg-gray-900 ${active ? "border-brand/30 ring-1 ring-brand/20" : "border-gray-200 dark:border-gray-700"}`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1151,7 +1460,8 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
             {run.rate_limited ? <SmallPill>{t("run_rate_limited")}</SmallPill> : null}
           </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
+            {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count}{" "}
+            {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
             {run.started_at ? (
@@ -1179,9 +1489,25 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
               {run.skill_resolved_class ? ` (${run.skill_resolved_class})` : ""}
             </p>
           ) : null}
-          {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("run_health")} {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
-          {run.failure_classification ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{t("run_failure_label")} {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? t("run_retryable") : t("run_not_retryable")}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
-          {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t("run_diagnostic_captured")} <RelativeTimestamp value={run.run_diagnostic.created_at} />{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
+          {run.health_snapshots.at(-1) ? (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {t("run_health")} {run.health_snapshots.at(-1)?.health_status || "unknown"}{" "}
+              {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}
+            </p>
+          ) : null}
+          {run.failure_classification ? (
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+              {t("run_failure_label")} {humanize(run.failure_classification.classification)} ·{" "}
+              {run.failure_classification.retryable ? t("run_retryable") : t("run_not_retryable")}
+              {run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}
+            </p>
+          ) : null}
+          {run.run_diagnostic?.present ? (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              {t("run_diagnostic_captured")} <RelativeTimestamp value={run.run_diagnostic.created_at} />
+              {run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           {run.job_log_count > 0 ? (
@@ -1219,9 +1545,21 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
               {artifactsLoading && artifactView === "step_diff" ? t("run_loading") : t("run_step_diff")}
             </Button>
           ) : null}
-          {run.can_stop ? <CommandButton command={command} input={{ method: "post", path: run.app_stop_path }} tone="danger">{t("run_stop")}</CommandButton> : null}
-          {run.can_diagnose ? <CommandButton command={command} input={{ method: "post", path: run.app_diagnose_path }} tone="secondary">{t("run_diagnose")}</CommandButton> : null}
-          {run.can_resume ? <CommandButton command={command} input={{ method: "post", path: payload.paths.app_resume_path, body: { source_run_id: run.id } }} tone="secondary">{t("run_resume")}</CommandButton> : null}
+          {run.can_stop ? (
+            <CommandButton command={command} input={{ method: "post", path: run.app_stop_path }} tone="danger">
+              {t("run_stop")}
+            </CommandButton>
+          ) : null}
+          {run.can_diagnose ? (
+            <CommandButton command={command} input={{ method: "post", path: run.app_diagnose_path }} tone="secondary">
+              {t("run_diagnose")}
+            </CommandButton>
+          ) : null}
+          {run.can_resume ? (
+            <CommandButton command={command} input={{ method: "post", path: payload.paths.app_resume_path, body: { source_run_id: run.id } }} tone="secondary">
+              {t("run_resume")}
+            </CommandButton>
+          ) : null}
           {run.app_grade_log_path ? (
             <Button disabled={gradeLog.isPending} onClick={() => showGradeLog(run.app_grade_log_path!)} variant="secondary">
               {gradeLog.isPending ? t("run_loading_log") : t("run_grade_log")}
@@ -1230,10 +1568,15 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
         </div>
       </div>
       {artifacts.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(artifacts.error, t("run_artifacts_error"))}</p> : null}
-      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
-      {artifactView === "summary" && stepSummaryArtifact ? (
-        <StepSummaryPanel onClose={() => setArtifactView(null)} summary={stepSummaryArtifact} />
+      {isRunArtifactView && artifacts.data ? (
+        <RunArtifactsPanel
+          canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)}
+          onClose={() => setArtifactView(null)}
+          payload={artifacts.data}
+          view={artifactView as "transcript" | "diff" | "step_diff"}
+        />
       ) : null}
+      {artifactView === "summary" && stepSummaryArtifact ? <StepSummaryPanel onClose={() => setArtifactView(null)} summary={stepSummaryArtifact} /> : null}
       {artifactView === "test_plan" && stepTestPlanArtifact ? (
         <StepTestPlanPanel onClose={() => setArtifactView(null)} testPlan={stepTestPlanArtifact} />
       ) : null}
@@ -1244,17 +1587,28 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
         <StepVisualReviewPanel iterations={stepVisualReviewArtifact} onClose={() => setArtifactView(null)} />
       ) : null}
       {gradeLog.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(gradeLog.error, t("run_grade_log_error"))}</p> : null}
-      {gradeLogOpen && gradeLog.data ? (
-        <RunGradeLogPanel onClose={() => setGradeLogOpen(false)} payload={gradeLog.data} />
-      ) : null}
+      {gradeLogOpen && gradeLog.data ? <RunGradeLogPanel onClose={() => setGradeLogOpen(false)} payload={gradeLog.data} /> : null}
     </div>
   )
 }
 
-function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canReviewDiff: boolean; payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
+function RunArtifactsPanel({
+  canReviewDiff,
+  payload,
+  view,
+  onClose
+}: {
+  canReviewDiff: boolean
+  payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>
+  view: "transcript" | "diff" | "step_diff"
+  onClose: () => void
+}) {
   const { t } = useT("jobs")
   const surface = view === "step_diff" ? "run_step_agent_diff" : "run_agent_diff"
-  const feedbackEnabled = canReviewDiff && view !== "transcript" && Boolean(payload.base_ref && payload.head_ref && payload.workflow_id && payload.run_id && payload.diff_review_version_id)
+  const feedbackEnabled =
+    canReviewDiff &&
+    view !== "transcript" &&
+    Boolean(payload.base_ref && payload.head_ref && payload.workflow_id && payload.run_id && payload.diff_review_version_id)
   const feedback = useDiffReviewFeedback({
     baseRef: payload.base_ref,
     buildContext: (selection) => ({
@@ -1297,7 +1651,9 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
             onStartEditThread={feedback.onStartEditThread}
             showFileHeaders
           />
-        ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
+        ) : (
+          <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>
+        )}
       </section>
     )
   }
@@ -1328,7 +1684,9 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
             onStartEditThread={feedback.onStartEditThread}
             showFileHeaders
           />
-        ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
+        ) : (
+          <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>
+        )}
       </section>
     )
   }
@@ -1336,7 +1694,11 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
   return (
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_transcript")}</ArtifactPanelHeader>
-      {payload.logs.length > 0 ? <RunTranscriptLogs logs={payload.logs} /> : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>}
+      {payload.logs.length > 0 ? (
+        <RunTranscriptLogs logs={payload.logs} />
+      ) : (
+        <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
+      )}
     </section>
   )
 }
@@ -1345,8 +1707,15 @@ function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<ty
   const { t } = useT("jobs")
   return (
     <section className={artifactPanelClass()}>
-      <ArtifactPanelHeader onClose={onClose}>{payload.name || t("run_number", { id: payload.run_id })} {t("artifact_grade_log_title")}</ArtifactPanelHeader>
-      <pre className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950 dark:text-gray-200" data-testid="run-grade-log-stream"><AnsiText text={payload.contents} /></pre>
+      <ArtifactPanelHeader onClose={onClose}>
+        {payload.name || t("run_number", { id: payload.run_id })} {t("artifact_grade_log_title")}
+      </ArtifactPanelHeader>
+      <pre
+        className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950 dark:text-gray-200"
+        data-testid="run-grade-log-stream"
+      >
+        <AnsiText text={payload.contents} />
+      </pre>
     </section>
   )
 }
@@ -1356,7 +1725,12 @@ function ArtifactPanelHeader({ children, onClose }: { children: ReactNode; onClo
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
       <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{children}</h4>
-      <button aria-label={t("artifact_close")} className="hidden rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 max-md:block dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+      <button
+        aria-label={t("artifact_close")}
+        className="hidden rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 max-md:block dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+        onClick={onClose}
+        type="button"
+      >
         <CloseIcon className="h-5 w-5" />
       </button>
     </div>

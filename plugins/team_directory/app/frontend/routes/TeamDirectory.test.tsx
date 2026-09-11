@@ -95,17 +95,21 @@ describe("profile routes", () => {
   })
 
   it("renders a team profile with empty work sections", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(teamProfilePayload({
-      profile_bio: null,
-      profile_company: null,
-      profile_location: null,
-      profile_website: null,
-      counts: { repositories: 0, epics: 0, jobs: 0, open_jobs: 0 },
-      epics: [],
-      jobs: [],
-      repositories: [],
-      recent_activity: []
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        teamProfilePayload({
+          profile_bio: null,
+          profile_company: null,
+          profile_location: null,
+          profile_website: null,
+          counts: { repositories: 0, epics: 0, jobs: 0, open_jobs: 0 },
+          epics: [],
+          jobs: [],
+          repositories: [],
+          recent_activity: []
+        })
+      )
+    )
 
     renderRoute(
       <Routes>
@@ -126,9 +130,7 @@ describe("profile routes", () => {
 function renderRoute(children: ReactNode, path: string) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[path]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -150,9 +152,7 @@ function teamProfilePayload(overrides: Record<string, unknown> = {}) {
       avatar_url: null,
       profile_path: "/profiles/7",
       counts: { repositories: 1, epics: 1, jobs: 1, open_jobs: 1 },
-      repositories: [
-        { id: 3, slug: "acme/widgets", path: "/repositories/3" }
-      ],
+      repositories: [{ id: 3, slug: "acme/widgets", path: "/repositories/3" }],
       epics: [
         {
           id: 12,

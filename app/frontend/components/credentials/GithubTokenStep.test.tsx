@@ -24,7 +24,12 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: ["repo", "workflow"], missing_scopes: [] } }
+const okResult = {
+  credential: "github_token",
+  ok: true,
+  message: "Token is valid for octocat.",
+  details: { login: "octocat", scopes: ["repo", "workflow"], missing_scopes: [] }
+}
 
 describe("GithubTokenStep", () => {
   afterEach(() => {

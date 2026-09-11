@@ -37,22 +37,28 @@ describe("translateBlockedReason", () => {
   })
 
   it("translates structured reasons with params", () => {
-    expect(translateBlockedReason({ key: "ci_failure_in_progress", params: { slug: "JOB-123" } }, mockT))
-      .toBe("common:blocked_reasons.ci_failure_in_progress(slug=JOB-123)")
-    expect(translateBlockedReason({ key: "ci_repair_no_effective_change", params: { slug: "JOB-123" } }, mockT))
-      .toBe("common:blocked_reasons.ci_repair_no_effective_change(slug=JOB-123)")
-    expect(translateBlockedReason({ key: "pr_checks_failing", params: { slug: "JOB-456" } }, mockT))
-      .toBe("common:blocked_reasons.pr_checks_failing(slug=JOB-456)")
-    expect(translateBlockedReason({ key: "pr_checks_failing_base_unknown", params: { slug: "JOB-456", checks: "rspec" } }, mockT))
-      .toBe("common:blocked_reasons.pr_checks_failing_base_unknown(slug=JOB-456,checks=rspec)")
-    expect(translateBlockedReason({ key: "pr_checks_failing_base_stale", params: { slug: "JOB-456", checks: "rspec" } }, mockT))
-      .toBe("common:blocked_reasons.pr_checks_failing_base_stale(slug=JOB-456,checks=rspec)")
-    expect(translateBlockedReason({ key: "pr_checks_pending", params: { slug: "JOB-789" } }, mockT))
-      .toBe("common:blocked_reasons.pr_checks_pending(slug=JOB-789)")
-    expect(translateBlockedReason({ key: "waiting_to_merge", params: { slug: "JOB-42" } }, mockT))
-      .toBe("common:blocked_reasons.waiting_to_merge(slug=JOB-42)")
-    expect(translateBlockedReason({ key: "waiting_epic_to_complete", params: { number: 7 } }, mockT))
-      .toBe("common:blocked_reasons.waiting_epic_to_complete(number=7)")
+    expect(translateBlockedReason({ key: "ci_failure_in_progress", params: { slug: "JOB-123" } }, mockT)).toBe(
+      "common:blocked_reasons.ci_failure_in_progress(slug=JOB-123)"
+    )
+    expect(translateBlockedReason({ key: "ci_repair_no_effective_change", params: { slug: "JOB-123" } }, mockT)).toBe(
+      "common:blocked_reasons.ci_repair_no_effective_change(slug=JOB-123)"
+    )
+    expect(translateBlockedReason({ key: "pr_checks_failing", params: { slug: "JOB-456" } }, mockT)).toBe(
+      "common:blocked_reasons.pr_checks_failing(slug=JOB-456)"
+    )
+    expect(translateBlockedReason({ key: "pr_checks_failing_base_unknown", params: { slug: "JOB-456", checks: "rspec" } }, mockT)).toBe(
+      "common:blocked_reasons.pr_checks_failing_base_unknown(slug=JOB-456,checks=rspec)"
+    )
+    expect(translateBlockedReason({ key: "pr_checks_failing_base_stale", params: { slug: "JOB-456", checks: "rspec" } }, mockT)).toBe(
+      "common:blocked_reasons.pr_checks_failing_base_stale(slug=JOB-456,checks=rspec)"
+    )
+    expect(translateBlockedReason({ key: "pr_checks_pending", params: { slug: "JOB-789" } }, mockT)).toBe(
+      "common:blocked_reasons.pr_checks_pending(slug=JOB-789)"
+    )
+    expect(translateBlockedReason({ key: "waiting_to_merge", params: { slug: "JOB-42" } }, mockT)).toBe("common:blocked_reasons.waiting_to_merge(slug=JOB-42)")
+    expect(translateBlockedReason({ key: "waiting_epic_to_complete", params: { number: 7 } }, mockT)).toBe(
+      "common:blocked_reasons.waiting_epic_to_complete(number=7)"
+    )
   })
 
   it("passes through raw strings as legacy fallback", () => {

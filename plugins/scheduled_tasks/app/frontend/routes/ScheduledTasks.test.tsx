@@ -93,10 +93,7 @@ describe("ScheduledTaskDetailRoute archive", () => {
     fireEvent.click(archiveButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/scheduled_tasks/7",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/scheduled_tasks/7", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -107,13 +104,14 @@ describe("ScheduledTaskDetailRoute archive", () => {
     renderRoute()
 
     const archiveButton = await screen.findByRole("button", { name: "Archive" })
-    await act(async () => { fireEvent.click(archiveButton) })
+    await act(async () => {
+      fireEvent.click(archiveButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/scheduled_tasks/7",
-      expect.objectContaining({ method: "DELETE" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/scheduled_tasks/7", expect.objectContaining({ method: "DELETE" }))
   })
 })
 
@@ -127,11 +125,21 @@ describe("ScheduledTaskDetailRoute recent jobs", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders the job as a copyable slug instead of a bare #id link", async () => {
-    renderRoute(taskDetail({
-      recent_jobs: [
-        { id: 622, state: "running", closure_reason: null, pr_number: null, external_pr_number: null, created_at: "2026-08-12T00:00:00Z", job_path: "/jobs/622" }
-      ]
-    }))
+    renderRoute(
+      taskDetail({
+        recent_jobs: [
+          {
+            id: 622,
+            state: "running",
+            closure_reason: null,
+            pr_number: null,
+            external_pr_number: null,
+            created_at: "2026-08-12T00:00:00Z",
+            job_path: "/jobs/622"
+          }
+        ]
+      })
+    )
 
     expect(await screen.findByText("JOB-622")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy JOB-622 to clipboard" })).toBeInTheDocument()
@@ -139,11 +147,21 @@ describe("ScheduledTaskDetailRoute recent jobs", () => {
   })
 
   it("copies the job slug to the clipboard when clicked", async () => {
-    renderRoute(taskDetail({
-      recent_jobs: [
-        { id: 622, state: "running", closure_reason: null, pr_number: null, external_pr_number: null, created_at: "2026-08-12T00:00:00Z", job_path: "/jobs/622" }
-      ]
-    }))
+    renderRoute(
+      taskDetail({
+        recent_jobs: [
+          {
+            id: 622,
+            state: "running",
+            closure_reason: null,
+            pr_number: null,
+            external_pr_number: null,
+            created_at: "2026-08-12T00:00:00Z",
+            job_path: "/jobs/622"
+          }
+        ]
+      })
+    )
 
     const copyButton = await screen.findByRole("button", { name: "Copy JOB-622 to clipboard" })
     fireEvent.click(copyButton)
@@ -203,19 +221,21 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
       if (url === "/api/v1/app/scheduled_tasks/preview_schedule" && init?.method === "POST") {
         const body = JSON.parse(String(init.body))
         expect(body.schedule_input).toBe("Every Monday at 9:00 AM")
-        return Promise.resolve(jsonResponse({
-          valid: true,
-          schedule_input: "Every Monday at 9:00 AM",
-          schedule_format: "rrule",
-          schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
-          schedule_timezone: "UTC",
-          schedule_explanation: "Every Monday at 9:00 AM UTC",
-          next_fire_at: null,
-          cron_expression: null,
-          errors: [],
-          source: "natural",
-          structured_intent: null
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            valid: true,
+            schedule_input: "Every Monday at 9:00 AM",
+            schedule_format: "rrule",
+            schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_timezone: "UTC",
+            schedule_explanation: "Every Monday at 9:00 AM UTC",
+            next_fire_at: null,
+            cron_expression: null,
+            errors: [],
+            source: "natural",
+            structured_intent: null
+          })
+        )
       }
       return Promise.resolve(jsonResponse(newFormPayload()))
     })
@@ -234,25 +254,37 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
       if (url === "/api/v1/app/scheduled_tasks/preview_schedule" && init?.method === "POST") {
         const body = JSON.parse(String(init.body))
         if (body.schedule_input === "moday at 9am in tjhe mornin") {
-          return Promise.resolve(jsonResponse({
+          return Promise.resolve(
+            jsonResponse({
+              valid: true,
+              schedule_input: "moday at 9am in tjhe mornin",
+              schedule_format: "rrule",
+              schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+              schedule_timezone: "UTC",
+              schedule_explanation: "Every Monday at 9:00 AM UTC",
+              next_fire_at: null,
+              cron_expression: null,
+              errors: [],
+              source: "structured_intent",
+              structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
+            })
+          )
+        }
+        return Promise.resolve(
+          jsonResponse({
             valid: true,
-            schedule_input: "moday at 9am in tjhe mornin",
+            schedule_input: body.schedule_input,
             schedule_format: "rrule",
-            schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_expression: "",
             schedule_timezone: "UTC",
             schedule_explanation: "Every Monday at 9:00 AM UTC",
             next_fire_at: null,
             cron_expression: null,
             errors: [],
-            source: "structured_intent",
-            structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
-          }))
-        }
-        return Promise.resolve(jsonResponse({
-          valid: true, schedule_input: body.schedule_input, schedule_format: "rrule",
-          schedule_expression: "", schedule_timezone: "UTC", schedule_explanation: "Every Monday at 9:00 AM UTC",
-          next_fire_at: null, cron_expression: null, errors: [], source: "natural", structured_intent: null
-        }))
+            source: "natural",
+            structured_intent: null
+          })
+        )
       }
       return Promise.resolve(jsonResponse(newFormPayload()))
     })
@@ -275,12 +307,14 @@ describe("ScheduledTaskFormRoute top-level repository picker", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = String(input)
       if (url === "/api/v1/app/scheduled_tasks/new") {
-        return Promise.resolve(jsonResponse({
-          repositories: [
-            { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
-            { id: 2, slug: "acme/gadgets", repository_path: "/repositories/2" }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            repositories: [
+              { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+              { id: 2, slug: "acme/gadgets", repository_path: "/repositories/2" }
+            ]
+          })
+        )
       }
       if (url.startsWith("/api/v1/app/repositories/1/scheduled_tasks/new")) {
         return Promise.resolve(jsonResponse(newFormPayload()))

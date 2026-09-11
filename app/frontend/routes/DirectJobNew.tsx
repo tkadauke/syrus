@@ -12,12 +12,7 @@ import { Input } from "../components/Input"
 import { Select } from "../components/Select"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
-import {
-  createDirectJob,
-  fetchDirectJobForm,
-  type DirectJobFormPayload,
-  type DirectJobPromptTemplate
-} from "../api/directJobs"
+import { createDirectJob, fetchDirectJobForm, type DirectJobFormPayload, type DirectJobPromptTemplate } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import { providerIconSrc } from "../lib/pluginIcon"
@@ -110,7 +105,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
     const hasManualTitle = values.title.trim() !== "" && values.title !== (appliedTemplate?.name ?? "")
     const hasManualPrompt = values.prompt.trim() !== "" && values.prompt !== (appliedTemplate?.prompt ?? "")
 
-    if ((hasManualTitle || hasManualPrompt) && !await confirm({ message: t("form_template_confirm") })) {
+    if ((hasManualTitle || hasManualPrompt) && !(await confirm({ message: t("form_template_confirm") }))) {
       return
     }
 
@@ -152,15 +147,12 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         <SectionHeading>{t("form_section_target")}</SectionHeading>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("form_repository_label")}>
-            <Select
-              name="repository_id"
-              onChange={(event) => setValues({ ...values, repositoryId: event.target.value })}
-              required
-              value={values.repositoryId}
-            >
+            <Select name="repository_id" onChange={(event) => setValues({ ...values, repositoryId: event.target.value })} required value={values.repositoryId}>
               <option value="">{t("form_repository_placeholder")}</option>
               {payload.repositories.map((repository) => (
-                <option key={repository.id} value={repository.id}>{repository.slug}</option>
+                <option key={repository.id} value={repository.id}>
+                  {repository.slug}
+                </option>
               ))}
             </Select>
           </Field>
@@ -169,16 +161,21 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
             <Field label={t("form_agent_label")}>
               <div className="flex items-center gap-2">
                 {values.agentProvider || selectedRepository?.default_agent_provider ? (
-                  <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(values.agentProvider || selectedRepository?.default_agent_provider || "")} />
+                  <img
+                    alt=""
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0"
+                    src={providerIconSrc(values.agentProvider || selectedRepository?.default_agent_provider || "")}
+                  />
                 ) : null}
-                <Select
-                  name="agent_provider"
-                  onChange={(event) => setValues({ ...values, agentProvider: event.target.value })}
-                  value={values.agentProvider}
-                >
-                  <option value="">{t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})</option>
+                <Select name="agent_provider" onChange={(event) => setValues({ ...values, agentProvider: event.target.value })} value={values.agentProvider}>
+                  <option value="">
+                    {t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})
+                  </option>
                   {payload.configured_agent_providers.map((provider) => (
-                    <option key={provider.value} value={provider.value}>{provider.label}</option>
+                    <option key={provider.value} value={provider.value}>
+                      {provider.label}
+                    </option>
                   ))}
                 </Select>
               </div>
@@ -238,11 +235,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           />
         </Field>
         <Field label={t("form_priority_label")}>
-          <Select
-            name="priority"
-            onChange={(event) => setValues({ ...values, priority: event.target.value })}
-            value={values.priority}
-          >
+          <Select name="priority" onChange={(event) => setValues({ ...values, priority: event.target.value })} value={values.priority}>
             {payload.priorities.map((priority) => (
               <option key={priority.value} value={priority.value}>
                 {priority.label} {priority.description ? `- ${priority.description}` : ""}
@@ -312,7 +305,12 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         <Button disabled={save.isPending} type="submit">
           {save.isPending ? t("form_creating") : t("form_create_job")}
         </Button>
-        <Link className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}>{t("cancel")}</Link>
+        <Link
+          className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200"
+          to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}
+        >
+          {t("cancel")}
+        </Link>
       </div>
       {dialog}
     </form>

@@ -35,7 +35,7 @@ describe("resolve_delivery_policy tool card", () => {
       hotfix_sync: { enabled: false, mode: null },
       upstream_export: { enabled: true, mode: "manual", after_local_approval: true },
       ref_movement_actions: {
-        send_job_upstream: { enabled: true, mode: "auto", grade_phases: [ "review" ] }
+        send_job_upstream: { enabled: true, mode: "auto", grade_phases: ["review"] }
       }
     }
 

@@ -79,7 +79,7 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["adopt_current_pr_head", adoptCurrentPrHeadCard],
   ["replace_pr_branch_with_workflow_output", replacePrBranchWithWorkflowOutputCard],
   ["retry_from_current_pr_branch", retryFromCurrentPrBranchCard],
-  ["reconcile_job_state", reconcileJobStateCard],
+  ["reconcile_job_state", reconcileJobStateCard]
 ]
 
 function context(toolName: string, parsedResult: unknown): ToolCardContext {
@@ -148,9 +148,7 @@ describe("pending action tool card family", () => {
       }
     }
 
-    expect(adoptCurrentPrHeadCard.collapsedSummary?.(context("adopt_current_pr_head", parsedResult))).toBe(
-      "Dry run: adopt_current_pr_head for JOB-4222"
-    )
+    expect(adoptCurrentPrHeadCard.collapsedSummary?.(context("adopt_current_pr_head", parsedResult))).toBe("Dry run: adopt_current_pr_head for JOB-4222")
     render(<>{adoptCurrentPrHeadCard.renderExpanded(context("adopt_current_pr_head", parsedResult))}</>)
     expect(screen.getByText("Adopt current pr head")).toBeInTheDocument()
     expect(screen.getByText("1 changed file")).toBeInTheDocument()

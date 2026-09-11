@@ -35,7 +35,10 @@ type WorkerHealthCard = {
 
 function parseReasons(value: unknown): string[] {
   if (!Array.isArray(value)) return []
-  return value.flatMap((reason) => { const text = displayValue(reason); return text ? [text] : [] })
+  return value.flatMap((reason) => {
+    const text = displayValue(reason)
+    return text ? [text] : []
+  })
 }
 
 function parseCurrentWorker(value: unknown, index: number): CurrentWorker | null {
@@ -95,8 +98,16 @@ function parseWorkerHealth(context: ToolCardContext): WorkerHealthCard | null {
   return {
     since: range ? displayValue(range.since) : null,
     until: range ? displayValue(range.until) : null,
-    current: parsed.current.flatMap((worker, index) => { const row = parseCurrentWorker(worker, index); return row ? [row] : [] }),
-    hosts: Array.isArray(parsed.hosts) ? parsed.hosts.flatMap((host, index) => { const row = parseHostRow(host, index); return row ? [row] : [] }) : []
+    current: parsed.current.flatMap((worker, index) => {
+      const row = parseCurrentWorker(worker, index)
+      return row ? [row] : []
+    }),
+    hosts: Array.isArray(parsed.hosts)
+      ? parsed.hosts.flatMap((host, index) => {
+          const row = parseHostRow(host, index)
+          return row ? [row] : []
+        })
+      : []
   }
 }
 
@@ -114,7 +125,12 @@ function collapsedSummary(context: ToolCardContext) {
 function WindowCell({ window }: { window: WindowSummary | null }) {
   if (!window) return <>—</>
   if (window.sampleCount === 0) return <span className="text-gray-400 dark:text-gray-500">no samples</span>
-  return <span>{window.sampleCount} samples{window.criticalCount > 0 ? `, ${window.criticalCount} critical` : window.warningCount > 0 ? `, ${window.warningCount} warning` : ""}</span>
+  return (
+    <span>
+      {window.sampleCount} samples
+      {window.criticalCount > 0 ? `, ${window.criticalCount} critical` : window.warningCount > 0 ? `, ${window.warningCount} warning` : ""}
+    </span>
+  )
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -161,8 +177,12 @@ function renderExpanded(context: ToolCardContext) {
                   <tr key={host.key}>
                     <Td mono>{host.hostname}</Td>
                     <Td>{host.status || "—"}</Td>
-                    <Td><WindowCell window={host.window1h} /></Td>
-                    <Td><WindowCell window={host.window24h} /></Td>
+                    <Td>
+                      <WindowCell window={host.window1h} />
+                    </Td>
+                    <Td>
+                      <WindowCell window={host.window24h} />
+                    </Td>
                   </tr>
                 ))}
               </TBody>

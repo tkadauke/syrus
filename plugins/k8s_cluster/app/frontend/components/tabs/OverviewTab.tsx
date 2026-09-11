@@ -9,11 +9,11 @@ import { StatusBadge } from "../StatusBadge"
 export function OverviewTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const nodes = useQuery({
-    queryKey: [ "k8s_cluster", "nodes", clusterId ],
+    queryKey: ["k8s_cluster", "nodes", clusterId],
     queryFn: () => fetchKubernetesNodes(clusterId)
   })
   const overview = useQuery({
-    queryKey: [ "k8s_cluster", "overview", clusterId ],
+    queryKey: ["k8s_cluster", "overview", clusterId],
     queryFn: () => fetchKubernetesOverview(clusterId)
   })
 
@@ -53,7 +53,13 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
   )
 }
 
-function MetricsCard({ heading, section }: { heading: string; section: KubernetesMetricsSection<{ name: string; cpu_millicores: number; memory_bytes: number }> }) {
+function MetricsCard({
+  heading,
+  section
+}: {
+  heading: string
+  section: KubernetesMetricsSection<{ name: string; cpu_millicores: number; memory_bytes: number }>
+}) {
   const { t } = useT("k8s_cluster")
 
   return (

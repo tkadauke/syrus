@@ -40,7 +40,12 @@ function parseTranscript(context: ToolCardContext): RunTranscriptCard | null {
   const runState = displayValue(parsed.run_state)
   if (!runId || !runState) return null
 
-  const chunks = Array.isArray(parsed.chunks) ? parsed.chunks.flatMap((chunk, index) => { const parsed = parseChunk(chunk, index); return parsed ? [parsed] : [] }) : []
+  const chunks = Array.isArray(parsed.chunks)
+    ? parsed.chunks.flatMap((chunk, index) => {
+        const parsed = parseChunk(chunk, index)
+        return parsed ? [parsed] : []
+      })
+    : []
 
   return {
     runId,

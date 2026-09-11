@@ -142,7 +142,7 @@ describe("TerminalRoute", () => {
         "/api/v1/app/terminal_sessions",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining("\"candidate_key\":\"workflow:99\"")
+          body: expect.stringContaining('"candidate_key":"workflow:99"')
         })
       )
     })
@@ -150,17 +150,51 @@ describe("TerminalRoute", () => {
   })
 
   it("groups the default workspace picker and limits each section to three choices", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(terminalSessionsPayload({
-      workspaces: [
-        workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-        workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-        workspace({ key: "workflow:3", id: 3, label: "WF-3 - Approved checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-        workspace({ key: "workflow:4", id: 4, label: "WF-4 - Search-only checkout", section: "interesting_workflows", section_title: "Interesting workflows", search_text: "needle workflow" }),
-        workspace({ key: "workflow:5", id: 5, label: "WF-5 - Stale succeeded checkout", section: "interesting_workflows", section_title: "Interesting workflows", default_visible: false, search_text: "stale-only workflow" }),
-        workspace({ key: "chat:10", id: 10, label: "Chat #10 - Coding terminal", kind: "chat", section: "coding_chats", section_title: "Coding chats" }),
-        workspace({ key: "worker:alpha:storage-a", id: "worker:alpha:storage-a", label: "Scratch on alpha", kind: "worker", section: "workers", section_title: "Workers", worker_hostname: "alpha", worker_storage_key: "storage-a" })
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        terminalSessionsPayload({
+          workspaces: [
+            workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+            workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+            workspace({
+              key: "workflow:3",
+              id: 3,
+              label: "WF-3 - Approved checkout",
+              section: "interesting_workflows",
+              section_title: "Interesting workflows"
+            }),
+            workspace({
+              key: "workflow:4",
+              id: 4,
+              label: "WF-4 - Search-only checkout",
+              section: "interesting_workflows",
+              section_title: "Interesting workflows",
+              search_text: "needle workflow"
+            }),
+            workspace({
+              key: "workflow:5",
+              id: 5,
+              label: "WF-5 - Stale succeeded checkout",
+              section: "interesting_workflows",
+              section_title: "Interesting workflows",
+              default_visible: false,
+              search_text: "stale-only workflow"
+            }),
+            workspace({ key: "chat:10", id: 10, label: "Chat #10 - Coding terminal", kind: "chat", section: "coding_chats", section_title: "Coding chats" }),
+            workspace({
+              key: "worker:alpha:storage-a",
+              id: "worker:alpha:storage-a",
+              label: "Scratch on alpha",
+              kind: "worker",
+              section: "workers",
+              section_title: "Workers",
+              worker_hostname: "alpha",
+              worker_storage_key: "storage-a"
+            })
+          ]
+        })
+      )
+    )
 
     renderTerminalRoute()
 
@@ -175,15 +209,42 @@ describe("TerminalRoute", () => {
   })
 
   it("searches workspace candidates across hidden default entries and worker metadata", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(terminalSessionsPayload({
-      workspaces: [
-        workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-        workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-        workspace({ key: "workflow:3", id: 3, label: "WF-3 - Approved checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-        workspace({ key: "workflow:4", id: 4, label: "WF-4 - Search-only checkout", section: "interesting_workflows", section_title: "Interesting workflows", search_text: "needle workflow" }),
-        workspace({ key: "worker:beta:storage-b", id: "worker:beta:storage-b", label: "Scratch on beta", kind: "worker", section: "workers", section_title: "Workers", worker_hostname: "beta", worker_storage_key: "storage-b", search_text: "beta storage-b" })
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        terminalSessionsPayload({
+          workspaces: [
+            workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+            workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+            workspace({
+              key: "workflow:3",
+              id: 3,
+              label: "WF-3 - Approved checkout",
+              section: "interesting_workflows",
+              section_title: "Interesting workflows"
+            }),
+            workspace({
+              key: "workflow:4",
+              id: 4,
+              label: "WF-4 - Search-only checkout",
+              section: "interesting_workflows",
+              section_title: "Interesting workflows",
+              search_text: "needle workflow"
+            }),
+            workspace({
+              key: "worker:beta:storage-b",
+              id: "worker:beta:storage-b",
+              label: "Scratch on beta",
+              kind: "worker",
+              section: "workers",
+              section_title: "Workers",
+              worker_hostname: "beta",
+              worker_storage_key: "storage-b",
+              search_text: "beta storage-b"
+            })
+          ]
+        })
+      )
+    )
 
     renderTerminalRoute()
 
@@ -195,11 +256,23 @@ describe("TerminalRoute", () => {
   })
 
   it("can find stale workflow candidates through search without showing them by default", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(terminalSessionsPayload({
-      workspaces: [
-        workspace({ key: "workflow:5", id: 5, label: "WF-5 - Stale succeeded checkout", section: "interesting_workflows", section_title: "Interesting workflows", default_visible: false, search_text: "stale-only workflow" })
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        terminalSessionsPayload({
+          workspaces: [
+            workspace({
+              key: "workflow:5",
+              id: 5,
+              label: "WF-5 - Stale succeeded checkout",
+              section: "interesting_workflows",
+              section_title: "Interesting workflows",
+              default_visible: false,
+              search_text: "stale-only workflow"
+            })
+          ]
+        })
+      )
+    )
 
     renderTerminalRoute()
 
@@ -248,10 +321,9 @@ describe("TerminalRoute", () => {
         expect.objectContaining({ connected: expect.any(Function), received: expect.any(Function) })
       )
     })
-    const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [
-      unknown,
-      { connected(): void; received(data: { type: string; data?: string }): void }
-    ])[1]
+    const mixin = (
+      actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { connected(): void; received(data: { type: string; data?: string }): void }]
+    )[1]
     mixin.connected()
     expect(subscription.perform).toHaveBeenCalledWith("receive", { type: "resize", cols: 132, rows: 43 })
 
@@ -336,7 +408,7 @@ describe("TerminalRoute", () => {
     id: "terminal",
     label: "Terminal",
     path: "/terminal",
-    paths: [ "/terminal" ],
+    paths: ["/terminal"],
     order: 40,
     icon: "terminal",
     badge_api_path: "/api/v1/app/terminal_sessions/open_count"
@@ -345,7 +417,7 @@ describe("TerminalRoute", () => {
   it("renders the sidebar Terminal item and its live badge", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
-      if (path.startsWith("/api/v1/app/sidebar_pages")) return Promise.resolve(jsonResponse({ pages: [ sidebarPage ] }))
+      if (path.startsWith("/api/v1/app/sidebar_pages")) return Promise.resolve(jsonResponse({ pages: [sidebarPage] }))
       if (path.startsWith("/api/v1/app/terminal_sessions/open_count")) return Promise.resolve(jsonResponse({ count: 2 }))
       if (path.startsWith("/api/v1/app/chats")) return Promise.resolve(jsonResponse({ groups: [], chats: [], pagination: { total: 0 } }))
       return Promise.resolve(jsonResponse(bootstrapPayload({ feature_flags: { v2_ui: true } })))
@@ -367,7 +439,7 @@ describe("TerminalRoute", () => {
   it("hides the sidebar Terminal badge when there are no running sessions", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
-      if (path.startsWith("/api/v1/app/sidebar_pages")) return Promise.resolve(jsonResponse({ pages: [ sidebarPage ] }))
+      if (path.startsWith("/api/v1/app/sidebar_pages")) return Promise.resolve(jsonResponse({ pages: [sidebarPage] }))
       if (path.startsWith("/api/v1/app/terminal_sessions/open_count")) return Promise.resolve(jsonResponse({ count: 0 }))
       if (path.startsWith("/api/v1/app/chats")) return Promise.resolve(jsonResponse({ groups: [], chats: [], pagination: { total: 0 } }))
       return Promise.resolve(jsonResponse(bootstrapPayload({ feature_flags: { v2_ui: true } })))
@@ -399,11 +471,7 @@ function renderWithClient(ui: ReactElement, bootstrap?: BootstrapPayload) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   if (bootstrap) queryClient.setQueryData(["bootstrap"], bootstrap)
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      {ui}
-    </QueryClientProvider>
-  )
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
 }
 
 function terminalSessionsPayload(overrides: Partial<TerminalSessionsPayload> = {}): TerminalSessionsPayload {
@@ -413,8 +481,25 @@ function terminalSessionsPayload(overrides: Partial<TerminalSessionsPayload> = {
       terminalSession({ id: 2, name: "Deploy shell", working_directory: "/syrus-home/.syrus/workflows/99" })
     ],
     workspaces: [
-      workspace({ key: "worker:local", id: "worker:local", label: "Scratch on local", working_directory: "/app", kind: "worker", section: "workers", section_title: "Workers" }),
-      workspace({ key: "workflow:99", id: 99, label: "WF-99 - Build terminal", working_directory: "/syrus-home/.syrus/workflows/99", kind: "workflow", section: "interesting_workflows", section_title: "Interesting workflows", workflow_id: 99 })
+      workspace({
+        key: "worker:local",
+        id: "worker:local",
+        label: "Scratch on local",
+        working_directory: "/app",
+        kind: "worker",
+        section: "workers",
+        section_title: "Workers"
+      }),
+      workspace({
+        key: "workflow:99",
+        id: 99,
+        label: "WF-99 - Build terminal",
+        working_directory: "/syrus-home/.syrus/workflows/99",
+        kind: "workflow",
+        section: "interesting_workflows",
+        section_title: "Interesting workflows",
+        workflow_id: 99
+      })
     ],
     ...overrides
   }
@@ -474,10 +559,20 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       agent_max_turns: 200,
       theme: "light",
       locale: "en",
-    gemini_configured: false
+      gemini_configured: false
     },
     team_user_count: 1,
-    app: { revision: "dev", revision_url: null, version: null, built_at: null, bug_report_mode: null, report_issue_repo_slug: "tkadauke/syrus", mode: "advanced" as const, mode_configured: false, legacy_epics_visible: false },
+    app: {
+      revision: "dev",
+      revision_url: null,
+      version: null,
+      built_at: null,
+      bug_report_mode: null,
+      report_issue_repo_slug: "tkadauke/syrus",
+      mode: "advanced" as const,
+      mode_configured: false,
+      legacy_epics_visible: false
+    },
     public: {
       first_signup: false,
       signups_open: false,

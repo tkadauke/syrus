@@ -18,10 +18,7 @@ export function formatDuration(startedAt: string, finishedAt: string | null): st
   return finishedAt ? label : `${label}+ (running)`
 }
 
-export function blockedMessage(
-  blocked: WorkerTimelineBlockedInfo,
-  t: (key: string, options?: Record<string, unknown>) => string
-): string {
+export function blockedMessage(blocked: WorkerTimelineBlockedInfo, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (!blocked.available) {
     return blocked.historical ? t("no_historical_blocker_data") : t("no_blocker_data")
   }

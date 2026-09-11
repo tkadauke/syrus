@@ -58,7 +58,7 @@ export function ParticipantPickerModal({
   }, [onCancel])
 
   function toggleUser(userId: number) {
-    setSelectedIds((current) => current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId])
+    setSelectedIds((current) => (current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]))
   }
 
   function submit() {
@@ -68,9 +68,17 @@ export function ParticipantPickerModal({
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onCancel} role="presentation">
-      <section aria-labelledby="participant-picker-title" aria-modal="true" className="w-full max-w-md rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
+      <section
+        aria-labelledby="participant-picker-title"
+        aria-modal="true"
+        className="w-full max-w-md rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="participant-picker-title">{title}</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="participant-picker-title">
+            {title}
+          </h2>
           <button
             aria-label={t("cancel")}
             className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
@@ -117,12 +125,14 @@ export function ParticipantPickerModal({
           )}
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-gray-100 px-4 py-3 dark:border-gray-800">
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {t("group_picker_selected_count", { count: selectedIds.length })}
-          </span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{t("group_picker_selected_count", { count: selectedIds.length })}</span>
           <div className="flex gap-2">
-            <button className={secondaryButton()} disabled={submitting} onClick={onCancel} type="button">{t("cancel")}</button>
-            <button className={primaryButton()} disabled={selectedIds.length === 0 || submitting} onClick={submit} type="button">{confirmLabel}</button>
+            <button className={secondaryButton()} disabled={submitting} onClick={onCancel} type="button">
+              {t("cancel")}
+            </button>
+            <button className={primaryButton()} disabled={selectedIds.length === 0 || submitting} onClick={submit} type="button">
+              {confirmLabel}
+            </button>
           </div>
         </div>
         {error ? <p className="px-4 pb-3 text-sm text-red-700 dark:text-red-300">{error}</p> : null}

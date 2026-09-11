@@ -7,9 +7,7 @@ export type PluginArtifactRenderer = {
   render: (artifact: TypedArtifact) => ReactNode
 }
 
-const pluginArtifactRenderers: PluginArtifactRenderer[] = [
-  ...railsArtifactRenderers
-]
+const pluginArtifactRenderers: PluginArtifactRenderer[] = [...railsArtifactRenderers]
 
 export function pluginArtifactBodyFor(artifact: TypedArtifact) {
   if (!artifact.renderer_type) return null

@@ -118,9 +118,7 @@ describe("AdminInsightsRoute", () => {
     })
 
     it("renders pagination controls when total_pages > 1", async () => {
-      const suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` })
-      )
+      const suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` }))
       renderRoute(suggestions, { total: 25, page: 1, per_page: 20, total_pages: 2 })
 
       await screen.findByText("Showing 1–20 of 25")
@@ -129,9 +127,7 @@ describe("AdminInsightsRoute", () => {
     })
 
     it("Previous is disabled (not a button) on page 1", async () => {
-      const suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` })
-      )
+      const suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` }))
       renderRoute(suggestions, { total: 25, page: 1, per_page: 20, total_pages: 2 })
 
       await screen.findByText("Showing 1–20 of 25")
@@ -141,9 +137,7 @@ describe("AdminInsightsRoute", () => {
     })
 
     it("clicking Next re-fetches with page=2", async () => {
-      const page1Suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` })
-      )
+      const page1Suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Admin Suggestion ${i + 1}` }))
       const page2Suggestions = [makeSuggestion({ id: 21, title: "Admin Suggestion 21" })]
 
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -170,10 +164,7 @@ describe("AdminInsightsRoute", () => {
       fireEvent.click(screen.getByRole("button", { name: "Next" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("page=2"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("page=2"), expect.anything())
       })
     })
 
@@ -186,10 +177,7 @@ describe("AdminInsightsRoute", () => {
       fireEvent.click(dismissedTab)
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("state=dismissed"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("state=dismissed"), expect.anything())
       })
     })
 
@@ -202,10 +190,7 @@ describe("AdminInsightsRoute", () => {
       fireEvent.click(retiredTab)
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("state=retired"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("state=retired"), expect.anything())
       })
     })
   })
@@ -239,7 +224,13 @@ describe("AdminInsightsRoute", () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
         const url = String(input)
         if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
-          return Promise.resolve(jsonResponse({ message: "Memory removed and suggestion accepted.", suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }), memory_id: 88 }))
+          return Promise.resolve(
+            jsonResponse({
+              message: "Memory removed and suggestion accepted.",
+              suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }),
+              memory_id: 88
+            })
+          )
         }
         return Promise.resolve(jsonResponse(payload([removeMemory])))
       })
@@ -251,10 +242,7 @@ describe("AdminInsightsRoute", () => {
       fireEvent.click(screen.getByRole("button", { name: "Remove memory" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
     })
   })

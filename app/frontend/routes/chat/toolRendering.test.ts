@@ -39,10 +39,7 @@ describe("toolDetail", () => {
 
   it("summarizes ask_user_question arguments without dumping raw JSON", () => {
     const detail = toolDetail("ask_user_question", {
-      questions: [
-        { question: "Which path?", options: ["Fast", "Careful"] },
-        { question: "Anything else?" }
-      ]
+      questions: [{ question: "Which path?", options: ["Fast", "Careful"] }, { question: "Anything else?" }]
     })
 
     expect(detail).toBe("2 questions")
@@ -79,10 +76,12 @@ describe("toolResultPresentation", () => {
     // this proves the registered card wins over the blind generic guess.
     const result = toolResultPresentation(
       "list_chat_media",
-      JSON.stringify(JSON.stringify({
-        snapshots: [{ id: "snapshot:1" }],
-        chat_images: [{ id: "chat_image:1" }]
-      }))
+      JSON.stringify(
+        JSON.stringify({
+          snapshots: [{ id: "snapshot:1" }],
+          chat_images: [{ id: "chat_image:1" }]
+        })
+      )
     )
 
     expect(result).toMatchObject({ kind: "text", summary: "2 media items" })
@@ -98,9 +97,15 @@ describe("toolResultPresentation", () => {
     // list_design_docs is registered entirely inside the design_docs plugin
     // (plugins/design_docs/app/frontend/tool_cards/list_design_docs.tsx) —
     // this proves the extension point without this file naming that plugin.
-    const result = toolResultPresentation("list_design_docs", JSON.stringify({
-      design_docs: [{ id: 1, doc_ref: "DOC-1", title: "A" }, { id: 2, doc_ref: "DOC-2", title: "B" }]
-    }))
+    const result = toolResultPresentation(
+      "list_design_docs",
+      JSON.stringify({
+        design_docs: [
+          { id: 1, doc_ref: "DOC-1", title: "A" },
+          { id: 2, doc_ref: "DOC-2", title: "B" }
+        ]
+      })
+    )
 
     expect(result).toMatchObject({ kind: "text", summary: "2 design docs" })
   })
@@ -141,7 +146,9 @@ describe("typedToolResult", () => {
     expect(typedToolResult("propose_job", JSON.stringify({ slug: "fix-output", title: "Fix output", kind: "job", state: "proposed" }))).toBeNull()
     expect(typedToolResult("propose_epic", JSON.stringify({ slug: "fix-epic", title: "Fix epic", kind: "epic", state: "proposed" }))).toBeNull()
     expect(typedToolResult("propose_epic_with_jobs", JSON.stringify({ slug: "fix-epic", state: "proposed" }))).toBeNull()
-    expect(typedToolResult("check_job_mergeability", JSON.stringify({ pending_action_id: 201, state: "pending", message: "Check mergeability for JOB-851?" }))).toBeNull()
+    expect(
+      typedToolResult("check_job_mergeability", JSON.stringify({ pending_action_id: 201, state: "pending", message: "Check mergeability for JOB-851?" }))
+    ).toBeNull()
   })
 
   it("returns null for unknown tools and malformed typed payloads", () => {
@@ -158,15 +165,11 @@ describe("shortenWorkspacePaths", () => {
   })
 
   it("shortens chat workspace repository roots", () => {
-    expect(
-      shortenWorkspacePaths("/syrus-home/.syrus/chat-workspaces/161/repositories/tkadauke/syrus/app/models/job.rb")
-    ).toBe("app/models/job.rb")
+    expect(shortenWorkspacePaths("/syrus-home/.syrus/chat-workspaces/161/repositories/tkadauke/syrus/app/models/job.rb")).toBe("app/models/job.rb")
   })
 
   it("shortens workflow workspace roots", () => {
-    expect(
-      shortenWorkspacePaths("changed /syrus-home/.syrus/workflows/123/app/models/job.rb")
-    ).toBe("changed app/models/job.rb")
+    expect(shortenWorkspacePaths("changed /syrus-home/.syrus/workflows/123/app/models/job.rb")).toBe("changed app/models/job.rb")
   })
 
   it("keeps exact workspace references readable", () => {

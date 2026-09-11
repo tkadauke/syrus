@@ -148,18 +148,20 @@ export function mcpHealthFromContent(content: unknown): ChatMcpHealth[] {
   const raw = contentRecord(content)?.mcp_health
   if (!Array.isArray(raw)) return []
 
-  return raw.map((item) => {
-    const record = contentRecord(item)
-    if (!record) return null
+  return raw
+    .map((item) => {
+      const record = contentRecord(item)
+      if (!record) return null
 
-    return {
-      name: stringValue(record.name),
-      status: stringValue(record.status) || "unknown",
-      available_tools: stringArray(record.available_tools),
-      pending_tools: stringArray(record.pending_tools),
-      unavailable_tools: stringArray(record.unavailable_tools)
-    }
-  }).filter((item): item is ChatMcpHealth => item != null && item.name.length > 0)
+      return {
+        name: stringValue(record.name),
+        status: stringValue(record.status) || "unknown",
+        available_tools: stringArray(record.available_tools),
+        pending_tools: stringArray(record.pending_tools),
+        unavailable_tools: stringArray(record.unavailable_tools)
+      }
+    })
+    .filter((item): item is ChatMcpHealth => item != null && item.name.length > 0)
 }
 
 export function systemResultMessage(fields: Record<string, string>): ChatSystemMessage {
@@ -181,10 +183,13 @@ export function systemResultTitle(error: boolean, subtype: string) {
 }
 
 export function systemMcpMessage(payload: string): ChatSystemMessage {
-  const servers = payload.split(/\s*,\s*/).map((entry) => {
-    const [name, status] = entry.split("=", 2)
-    return name ? [name, status || "unknown"] : null
-  }).filter((entry): entry is [string, string] => entry != null)
+  const servers = payload
+    .split(/\s*,\s*/)
+    .map((entry) => {
+      const [name, status] = entry.split("=", 2)
+      return name ? [name, status || "unknown"] : null
+    })
+    .filter((entry): entry is [string, string] => entry != null)
   const ready = new Set(["connected", "running", "ready"])
   const transient = new Set(["pending"])
   const pending = servers.filter(([, status]) => transient.has(status))
@@ -200,10 +205,12 @@ export function systemMcpMessage(payload: string): ChatSystemMessage {
 export function systemMcpToolsInitMessage(payload: string): ChatSystemMessage {
   const fields = parseSystemFields(payload)
   const count = Number.parseInt(fields.count || "", 10)
-  const required = payload.match(/(?:^|\s)required=([^\s]*)/)?.[1].split(",").filter(Boolean) || []
-  const pieces = [
-    Number.isFinite(count) ? `${count} MCP tool${count === 1 ? "" : "s"} available` : "MCP tools available"
-  ]
+  const required =
+    payload
+      .match(/(?:^|\s)required=([^\s]*)/)?.[1]
+      .split(",")
+      .filter(Boolean) || []
+  const pieces = [Number.isFinite(count) ? `${count} MCP tool${count === 1 ? "" : "s"} available` : "MCP tools available"]
 
   if (required.length > 0) pieces.push(`required: ${required.slice(0, 4).join(", ")}${required.length > 4 ? ` +${required.length - 4} more` : ""}`)
 

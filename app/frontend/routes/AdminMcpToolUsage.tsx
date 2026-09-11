@@ -51,12 +51,7 @@ export function AdminMcpToolUsage() {
   return (
     <AdminEventPageShell
       actions={
-        <Button
-          className="w-fit"
-          disabled={usage.isFetching}
-          onClick={() => void usage.refetch()}
-          variant="secondary"
-        >
+        <Button className="w-fit" disabled={usage.isFetching} onClick={() => void usage.refetch()} variant="secondary">
           {usage.isFetching ? t("mcp_tool_usage.refreshing") : t("mcp_tool_usage.refresh")}
         </Button>
       }
@@ -122,7 +117,9 @@ function McpToolUsageFilters({ onNavigate, search }: { onNavigate: (params: URLS
         <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.window_label")}</span>
         <Select value={activeWindow} onChange={(event) => setWindow(event.target.value)}>
           {WINDOW_PRESETS.map((preset) => (
-            <option key={preset.value} value={preset.value}>{t(`mcp_tool_usage.window_${preset.value}`)}</option>
+            <option key={preset.value} value={preset.value}>
+              {t(`mcp_tool_usage.window_${preset.value}`)}
+            </option>
           ))}
         </Select>
       </label>
@@ -130,7 +127,9 @@ function McpToolUsageFilters({ onNavigate, search }: { onNavigate: (params: URLS
         <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.surface_label")}</span>
         <Select value={activeSurface} onChange={(event) => setSurface(event.target.value)}>
           {SURFACES.map((value) => (
-            <option key={value} value={value}>{t(`mcp_tool_usage.surface_${value}`)}</option>
+            <option key={value} value={value}>
+              {t(`mcp_tool_usage.surface_${value}`)}
+            </option>
           ))}
         </Select>
       </label>
@@ -207,7 +206,9 @@ function ToolRowsPanel({ heading, rows }: { heading: string; rows: McpToolUsageT
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{heading}</SectionHeading>
-      {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage> : (
+      {rows.length === 0 ? (
+        <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage>
+      ) : (
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
           <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
             <tr>
@@ -246,7 +247,9 @@ function UnusedToolsPanel({ tools }: { tools: string[] }) {
       ) : (
         <ul className="mt-3 flex flex-wrap gap-2">
           {tools.map((tool) => (
-            <li className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-200" key={tool}>{tool}</li>
+            <li className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-200" key={tool}>
+              {tool}
+            </li>
           ))}
         </ul>
       )}
@@ -254,12 +257,22 @@ function UnusedToolsPanel({ tools }: { tools: string[] }) {
   )
 }
 
-function BreakdownPanel({ heading, labelKey, rows }: { heading: string; labelKey: "surface" | "provider" | "server_name" | "sidecar_mode"; rows: McpToolUsageBreakdownRow[] }) {
+function BreakdownPanel({
+  heading,
+  labelKey,
+  rows
+}: {
+  heading: string
+  labelKey: "surface" | "provider" | "server_name" | "sidecar_mode"
+  rows: McpToolUsageBreakdownRow[]
+}) {
   const { t } = useT("admin")
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{heading}</SectionHeading>
-      {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage> : (
+      {rows.length === 0 ? (
+        <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage>
+      ) : (
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
           <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
             <tr>
@@ -303,7 +316,9 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       render: (row) => (
         <>
           <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
-          <div className="mt-1 text-gray-500 dark:text-gray-400">{row.server_name || "-"} · {row.surface} · {row.provider || t("mcp_tool_usage.unknown")}</div>
+          <div className="mt-1 text-gray-500 dark:text-gray-400">
+            {row.server_name || "-"} · {row.surface} · {row.provider || t("mcp_tool_usage.unknown")}
+          </div>
         </>
       )
     },
@@ -314,8 +329,17 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       key: "status",
       render: (row) => (
         <>
-          <span className={`rounded px-2 py-0.5 font-medium ${row.error ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>{row.status}</span>
-          {row.error_message_summary ? <div className="mt-1 max-w-xs break-words text-gray-500 dark:text-gray-400">{row.error_class ? `${row.error_class}: ` : ""}{row.error_message_summary}</div> : null}
+          <span
+            className={`rounded px-2 py-0.5 font-medium ${row.error ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}
+          >
+            {row.status}
+          </span>
+          {row.error_message_summary ? (
+            <div className="mt-1 max-w-xs break-words text-gray-500 dark:text-gray-400">
+              {row.error_class ? `${row.error_class}: ` : ""}
+              {row.error_message_summary}
+            </div>
+          ) : null}
         </>
       )
     },
@@ -326,10 +350,26 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       key: "links",
       render: (row) => (
         <div className="flex flex-col gap-1">
-          {row.job_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.job_path}>{t("mcp_tool_usage.link_job", { id: row.job_id })}</Link> : null}
-          {row.workflow_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.workflow_path}>{t("mcp_tool_usage.link_workflow", { id: row.workflow_id })}</Link> : null}
-          {row.run_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.run_path}>{t("mcp_tool_usage.link_run", { id: row.run_id })}</Link> : null}
-          {row.chat_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.chat_path}>{t("mcp_tool_usage.link_chat")}</Link> : null}
+          {row.job_path ? (
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.job_path}>
+              {t("mcp_tool_usage.link_job", { id: row.job_id })}
+            </Link>
+          ) : null}
+          {row.workflow_path ? (
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.workflow_path}>
+              {t("mcp_tool_usage.link_workflow", { id: row.workflow_id })}
+            </Link>
+          ) : null}
+          {row.run_path ? (
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.run_path}>
+              {t("mcp_tool_usage.link_run", { id: row.run_id })}
+            </Link>
+          ) : null}
+          {row.chat_path ? (
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.chat_path}>
+              {t("mcp_tool_usage.link_chat")}
+            </Link>
+          ) : null}
         </div>
       )
     }
@@ -338,7 +378,9 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{t("mcp_tool_usage.recent_calls_heading")}</SectionHeading>
-      {calls.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.recent_calls_empty")}</AdminEventPanelMessage> : (
+      {calls.length === 0 ? (
+        <AdminEventPanelMessage>{t("mcp_tool_usage.recent_calls_empty")}</AdminEventPanelMessage>
+      ) : (
         <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={calls} />
       )}
     </section>

@@ -3,12 +3,7 @@ import { PageHeading } from "../components/Heading"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import type { ReactNode } from "react"
-import {
-  fetchAdminGithubAppConfirm,
-  fetchAdminGithubAppRegister,
-  type AdminGithubAppRegisterPayload,
-  type AdminGithubAppStatus
-} from "../api/adminGithubApp"
+import { fetchAdminGithubAppConfirm, fetchAdminGithubAppRegister, type AdminGithubAppRegisterPayload, type AdminGithubAppStatus } from "../api/adminGithubApp"
 import { openInNewTab } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -23,10 +18,7 @@ export function AdminGithubAppRegister() {
 
   return (
     <main aria-label={t("aria_github_registration")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <PageHeader
-        title={t("github_app.register_title")}
-        description={t("github_app.register_description")}
-      />
+      <PageHeader title={t("github_app.register_title")} description={t("github_app.register_description")} />
 
       {registration.isPending ? <PanelMessage>{t("github_app.loading_register")}</PanelMessage> : null}
       {registration.isError ? <PanelMessage tone="error">{errorMessage(registration.error, t("github_app.error_load_register"))}</PanelMessage> : null}
@@ -44,10 +36,7 @@ export function AdminGithubAppConfirm() {
 
   return (
     <main aria-label={t("aria_github_registered")} className="mx-auto max-w-6xl space-y-6 p-6">
-      <PageHeader
-        title={t("github_app.confirm_title")}
-        description={t("github_app.confirm_description")}
-      />
+      <PageHeader title={t("github_app.confirm_title")} description={t("github_app.confirm_description")} />
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <h2 className="font-medium text-gray-900 dark:text-gray-100">{t("github_app.next_steps")}</h2>
@@ -79,14 +68,8 @@ function RegisterView({ payload }: { payload: AdminGithubAppRegisterPayload }) {
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <h2 className="font-medium text-gray-900 dark:text-gray-100">{t("github_app.register_with_github")}</h2>
-        <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">
-          {t("github_app.register_instructions")}
-        </p>
-        <Button
-          className="mt-4"
-          onClick={() => setPopupBlocked(openInNewTab(payload.bounce_url) ? null : payload.bounce_url)}
-          variant="primary"
-        >
+        <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">{t("github_app.register_instructions")}</p>
+        <Button className="mt-4" onClick={() => setPopupBlocked(openInNewTab(payload.bounce_url) ? null : payload.bounce_url)} variant="primary">
           {payload.submit_label}
         </Button>
         {popupBlocked ? (
@@ -112,7 +95,14 @@ function StoredRegistration({ app }: { app: AdminGithubAppStatus }) {
         {app.registered ? (
           <>
             <span className="font-mono">{app.slug || `app-${app.id || "unknown"}`}</span>
-            {app.registered_at ? <> registered <RelativeTimestamp value={app.registered_at} />.</> : " registered."}
+            {app.registered_at ? (
+              <>
+                {" "}
+                registered <RelativeTimestamp value={app.registered_at} />.
+              </>
+            ) : (
+              " registered."
+            )}
           </>
         ) : (
           t("github_app.no_stored_registration")
@@ -125,12 +115,18 @@ function StoredRegistration({ app }: { app: AdminGithubAppStatus }) {
 function GithubAppStatus({ app }: { app: AdminGithubAppStatus }) {
   const { t } = useT("admin")
   if (!app.registered) {
-    return <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-mono text-xs uppercase text-gray-700 dark:text-gray-200">{t("github_app.not_registered")}</span>
+    return (
+      <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-mono text-xs uppercase text-gray-700 dark:text-gray-200">
+        {t("github_app.not_registered")}
+      </span>
+    )
   }
 
   return (
     <>
-      <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 font-mono text-xs uppercase text-emerald-700 dark:text-emerald-300">{t("github_app.registered")}</span>
+      <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 font-mono text-xs uppercase text-emerald-700 dark:text-emerald-300">
+        {t("github_app.registered")}
+      </span>
       <span className="ml-2 text-gray-600 dark:text-gray-300">{app.slug || `GitHub App #${app.id || "unknown"}`}</span>
     </>
   )
@@ -148,7 +144,11 @@ function PageHeader({ title, description }: { title: string; description: string
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <section className={`rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</section>
+  return (
+    <section
+      className={`rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}
+    >
+      {children}
+    </section>
+  )
 }
-
-

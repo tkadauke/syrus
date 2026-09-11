@@ -33,10 +33,18 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Label</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Default database</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Agentic access</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Writes</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Label
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Default database
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Agentic access
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Writes
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -44,8 +52,12 @@ function renderExpanded(context: ToolCardContext) {
             <tr key={row.id}>
               <td className="px-2 py-1 text-gray-800 dark:text-gray-200">{row.label ?? `Connection #${row.id}`}</td>
               <td className="px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{row.defaultDatabase ?? "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1"><AccessPill enabled={row.agenticAccessEnabled} label={row.agenticAccessEnabled ? "enabled" : "disabled"} /></td>
-              <td className="whitespace-nowrap px-2 py-1"><AccessPill enabled={row.allowWrites} label={row.allowWrites ? "read-write" : "read-only"} /></td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <AccessPill enabled={row.agenticAccessEnabled} label={row.agenticAccessEnabled ? "enabled" : "disabled"} />
+              </td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <AccessPill enabled={row.allowWrites} label={row.allowWrites ? "read-write" : "read-only"} />
+              </td>
             </tr>
           ))}
         </tbody>

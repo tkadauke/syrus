@@ -24,9 +24,7 @@ describe("chat search/history tool cards", () => {
 
   it("renders chat list rows with repository, timestamps, pagination, and chat links", () => {
     const parsedResult = {
-      chats: [
-        { id: 42, title: "Landing queue notes", repository: "acme/widgets", message_count: 9, updated_at: "2026-09-01T12:00:00Z" }
-      ],
+      chats: [{ id: 42, title: "Landing queue notes", repository: "acme/widgets", message_count: 9, updated_at: "2026-09-01T12:00:00Z" }],
       pagination: { page: 1, per_page: 20, total_count: 1, total_pages: 1, has_next_page: false }
     }
 
@@ -50,12 +48,28 @@ describe("chat search/history tool cards", () => {
   it("renders search hits with match counts, snippets, and message anchors", () => {
     const parsedResult = {
       results: [
-        { chat_session_id: 42, message_id: 100, chat_title: "Landing queue notes", repository: "acme/widgets", role: "assistant", snippet: "Found <b>needle</b> in the queue.", created_at: "2026-09-01T12:00:00Z" },
-        { chat_session_id: 42, message_id: 101, chat_title: "Landing queue notes", repository: "acme/widgets", role: "user", snippet: "Another <b>needle</b>.", created_at: "2026-09-01T12:01:00Z" }
+        {
+          chat_session_id: 42,
+          message_id: 100,
+          chat_title: "Landing queue notes",
+          repository: "acme/widgets",
+          role: "assistant",
+          snippet: "Found <b>needle</b> in the queue.",
+          created_at: "2026-09-01T12:00:00Z"
+        },
+        {
+          chat_session_id: 42,
+          message_id: 101,
+          chat_title: "Landing queue notes",
+          repository: "acme/widgets",
+          role: "user",
+          snippet: "Another <b>needle</b>.",
+          created_at: "2026-09-01T12:01:00Z"
+        }
       ]
     }
 
-    expect(searchChatsToolCard.collapsedSummary?.(context("search_chats", { input: { query: "needle" }, parsedResult }))).toBe("\"needle\" - 2 hits")
+    expect(searchChatsToolCard.collapsedSummary?.(context("search_chats", { input: { query: "needle" }, parsedResult }))).toBe('"needle" - 2 hits')
     render(<>{searchChatsToolCard.renderExpanded(context("search_chats", { input: { query: "needle" }, parsedResult }))}</>)
 
     expect(screen.getAllByRole("link", { name: "Landing queue notes" })[0]).toHaveAttribute("href", "/chats/42#message-100")
@@ -76,7 +90,9 @@ describe("chat search/history tool cards", () => {
       ]
     }
 
-    expect(readChatMessagesToolCard.collapsedSummary?.(context("read_chat_messages", { input: { chat_session_id: 42 }, parsedResult }))).toBe("Current chat - 2 messages")
+    expect(readChatMessagesToolCard.collapsedSummary?.(context("read_chat_messages", { input: { chat_session_id: 42 }, parsedResult }))).toBe(
+      "Current chat - 2 messages"
+    )
     render(<>{readChatMessagesToolCard.renderExpanded(context("read_chat_messages", { input: { chat_session_id: 42 }, parsedResult }))}</>)
 
     expect(screen.getByRole("link", { name: "Current chat" })).toHaveAttribute("href", "/chats/42")

@@ -21,14 +21,20 @@ function jobBorderClass(job: ChatJobStatusJobItem): string {
 function BlockerBanner({ blocker }: { blocker: ChatJobStatusBlocker }) {
   const { t } = useT("chat")
   const label =
-    blocker.reason === "awaiting_review" ? t("job_status_blocker_awaiting_review") :
-      blocker.reason === "landing_failed" ? t("job_status_blocker_landing_failed") :
-        t("job_status_blocker_dependency_failed")
+    blocker.reason === "awaiting_review"
+      ? t("job_status_blocker_awaiting_review")
+      : blocker.reason === "landing_failed"
+        ? t("job_status_blocker_landing_failed")
+        : t("job_status_blocker_dependency_failed")
 
   return (
     <div className="mt-1.5 flex items-center gap-1.5 rounded bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950/50 dark:text-red-300">
       <svg aria-hidden="true" className="h-3 w-3 shrink-0 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-        <path clipRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2V9a1 1 0 0 0-1-1H9z" fillRule="evenodd" />
+        <path
+          clipRule="evenodd"
+          d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2V9a1 1 0 0 0-1-1H9z"
+          fillRule="evenodd"
+        />
       </svg>
       {label}
     </div>
@@ -58,9 +64,7 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-            {job.title || job.slug}
-          </p>
+          <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{job.title || job.slug}</p>
           <div className="mt-0.5 flex items-center gap-2">
             <span onClick={(e) => e.stopPropagation()}>
               <SlugHoverCard kind="job" id={job.job_id}>
@@ -68,9 +72,7 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
               </SlugHoverCard>
             </span>
             {workflowStep ? (
-              <span className="truncate text-xs text-gray-500 dark:text-gray-400">
-                {t("job_status_step", { step: workflowStep.replaceAll("_", " ") })}
-              </span>
+              <span className="truncate text-xs text-gray-500 dark:text-gray-400">{t("job_status_step", { step: workflowStep.replaceAll("_", " ") })}</span>
             ) : null}
             {job.pr_number && job.pr_url ? (
               <a
@@ -96,9 +98,7 @@ function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatus
   const [expanded, setExpanded] = useState(true)
   const { t } = useT("chat")
 
-  const visibleChildren = hideClosedJobs
-    ? epic.children.filter((j) => j.state !== "closed")
-    : epic.children
+  const visibleChildren = hideClosedJobs ? epic.children.filter((j) => j.state !== "closed") : epic.children
 
   const ariaLabel = expanded
     ? t("job_status_collapse_epic", { title: epic.title || epic.slug })
@@ -155,9 +155,7 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
   const queryClient = useQueryClient()
   const { t } = useT("chat")
   const navigate = useNavigate()
-  const [hideClosedJobs, setHideClosedJobs] = useState(
-    () => localStorage.getItem("chat_jobs_hide_closed") === "true"
-  )
+  const [hideClosedJobs, setHideClosedJobs] = useState(() => localStorage.getItem("chat_jobs_hide_closed") === "true")
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["chats", String(chatId), "job_status"],
@@ -193,17 +191,11 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
   const epics = items.filter((item): item is ChatJobStatusEpicItem => item.kind === "epic")
   const jobs = items.filter((item): item is ChatJobStatusJobItem => item.kind === "job")
 
-  const visibleEpics = hideClosedJobs
-    ? epics.filter((epic) => epic.children.some((j) => j.state !== "closed"))
-    : epics
+  const visibleEpics = hideClosedJobs ? epics.filter((epic) => epic.children.some((j) => j.state !== "closed")) : epics
 
-  const visibleJobs = hideClosedJobs
-    ? jobs.filter((j) => j.state !== "closed")
-    : jobs
+  const visibleJobs = hideClosedJobs ? jobs.filter((j) => j.state !== "closed") : jobs
 
-  const hasClosedItems =
-    jobs.some((j) => j.state === "closed") ||
-    epics.some((epic) => epic.children.some((j) => j.state === "closed"))
+  const hasClosedItems = jobs.some((j) => j.state === "closed") || epics.some((epic) => epic.children.some((j) => j.state === "closed"))
 
   function navigateToJob(jobId: number) {
     navigate(`/jobs/${jobId}`)
@@ -215,11 +207,13 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
         <div className="flex justify-end">
           <button
             className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            onClick={() => setHideClosedJobs((h) => {
-              const next = !h
-              localStorage.setItem("chat_jobs_hide_closed", String(next))
-              return next
-            })}
+            onClick={() =>
+              setHideClosedJobs((h) => {
+                const next = !h
+                localStorage.setItem("chat_jobs_hide_closed", String(next))
+                return next
+              })
+            }
             type="button"
           >
             {hideClosedJobs ? t("job_status_show_closed") : t("job_status_hide_closed")}

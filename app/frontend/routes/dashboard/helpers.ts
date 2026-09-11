@@ -1,6 +1,5 @@
 import { type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../../api/dashboard"
 
-
 // Pure dashboard helpers extracted from Dashboard.tsx: link/query-string builders,
 // column/sort resolution, date/currency/pluralization formatting, and small label
 // utilities. No JSX and no hooks — a leaf the dashboard view and its extracted
@@ -55,13 +54,14 @@ export function pageLink(pathname: string, search: string, page: number) {
 
 export function bulkButtonClass(disabled: boolean, tone: "default" | "danger" = "default") {
   if (disabled) return "rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600"
-  if (tone === "danger") return "rounded border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950"
+  if (tone === "danger")
+    return "rounded border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950"
 
   return "rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
 }
 
 export function epicTableColumns(columns: string[]) {
-  return [ "checkbox", ...columns.filter((column) => column !== "checkbox") ]
+  return ["checkbox", ...columns.filter((column) => column !== "checkbox")]
 }
 
 export function uniqueValue(value: string, index: number, values: string[]) {
@@ -114,10 +114,7 @@ export function dashboardColumnLabel(subject: DashboardSubject, column: string, 
 }
 
 export function dashboardVisibleColumns(payload: DashboardPayload) {
-  const allowed = new Set([
-    ...payload.controls.columns.required.map((column) => column.key),
-    ...payload.controls.columns.optional.map((column) => column.key)
-  ])
+  const allowed = new Set([...payload.controls.columns.required.map((column) => column.key), ...payload.controls.columns.optional.map((column) => column.key)])
   const normalized = [
     ...payload.controls.columns.required.map((column) => column.key),
     ...payload.preferences.visible_columns.map((column) => normalizeDashboardColumn(payload.subject, column))
@@ -177,7 +174,6 @@ export function humanizeOption(value: string) {
   return value.replace(/_/g, " ").replace(/^\w/, (match) => match.toUpperCase())
 }
 
-
 export { formatRelativeDate } from "../../lib/relativeTime"
 
 export function dashboardEmptyFallbackPath(payload: DashboardPayload) {
@@ -196,9 +192,7 @@ export function dashboardEmptyState(payload: DashboardPayload, t: (key: string, 
 
   const subject = subjectLabel(payload.subject, 2)
   if (payload.setup && !payload.setup.complete) {
-    const setupDescription = payload.setup.next_step === "credentials"
-      ? t("setup_credentials_description")
-      : t("setup_description")
+    const setupDescription = payload.setup.next_step === "credentials" ? t("setup_credentials_description") : t("setup_description")
 
     return {
       title: t("empty_title", { subject: capitalizeLabel(subject) }),

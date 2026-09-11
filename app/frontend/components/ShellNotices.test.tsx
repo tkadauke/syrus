@@ -114,10 +114,7 @@ describe("ShellNotices", () => {
   })
 
   it("keeps the box and shows the message inline when the install fails", async () => {
-    installBridge(
-      { claudeDetected: true },
-      { installSkill: vi.fn().mockResolvedValue({ ok: false, message: "claude CLI not on PATH" }) }
-    )
+    installBridge({ claudeDetected: true }, { installSkill: vi.fn().mockResolvedValue({ ok: false, message: "claude CLI not on PATH" }) })
 
     render(<ShellNotices />)
 
@@ -226,9 +223,12 @@ describe("ShellNotices", () => {
     installBridge(
       {},
       {
-        getState: vi.fn().mockImplementation(() => new Promise<SyrusShellState>((resolve) => {
-          resolveSnapshot = resolve
-        })),
+        getState: vi.fn().mockImplementation(
+          () =>
+            new Promise<SyrusShellState>((resolve) => {
+              resolveSnapshot = resolve
+            })
+        ),
         onStateChanged: vi.fn().mockImplementation((callback: (state: SyrusShellState) => void) => {
           pushState = callback
           return () => {}

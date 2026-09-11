@@ -102,21 +102,12 @@ function AdminInsightsList({
       <AdminInsightsHeader />
 
       <div className="flex items-center justify-between gap-4">
-        <SectionHeading>
-          {t("suggestions_heading")}
-        </SectionHeading>
+        <SectionHeading>{t("suggestions_heading")}</SectionHeading>
         <nav aria-label={t("filter_aria")} className="flex gap-1">
           {filterTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              onClick={() => handleFilterChange(tab.key)}
-              size="sm"
-              variant={stateFilter === tab.key ? "primary" : "secondary"}
-            >
+            <Button key={tab.key} onClick={() => handleFilterChange(tab.key)} size="sm" variant={stateFilter === tab.key ? "primary" : "secondary"}>
               {tab.label}
-              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                {tab.count}
-              </span>
+              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">{tab.count}</span>
             </Button>
           ))}
         </nav>
@@ -162,9 +153,7 @@ function AdminInsightsList({
                 {t("pagination_previous")}
               </button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
-                {t("pagination_previous")}
-              </span>
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t("pagination_previous")}</span>
             )}
             {page < meta.total_pages ? (
               <button
@@ -175,9 +164,7 @@ function AdminInsightsList({
                 {t("pagination_next")}
               </button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
-                {t("pagination_next")}
-              </span>
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t("pagination_next")}</span>
             )}
           </div>
         </div>
@@ -225,10 +212,10 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
             >
               {suggestion.title}
             </button>
-            <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-              {suggestion.category}
-            </span>
-            <span className={`ml-2 rounded px-1.5 py-0.5 text-xs ${suggestion.proposal_type === "remove_memory" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
+            <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">{suggestion.category}</span>
+            <span
+              className={`ml-2 rounded px-1.5 py-0.5 text-xs ${suggestion.proposal_type === "remove_memory" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}
+            >
               {t(`proposal_${suggestion.proposal_type}`)}
             </span>
           </div>
@@ -241,15 +228,11 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
             {suggestion.repository.slug}
           </Link>
         </td>
-        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
-          {suggestion.user.display_name}
-        </td>
+        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{suggestion.user.display_name}</td>
         <td className="px-4 py-3">
           <SeverityPill severity={suggestion.severity} />
         </td>
-        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
-          {Math.round(suggestion.confidence * 100)}%
-        </td>
+        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{Math.round(suggestion.confidence * 100)}%</td>
         <td className="px-4 py-3">
           <StatePill state={suggestion.state} />
         </td>
@@ -262,12 +245,7 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               {t("view_job")}
             </Link>
             {suggestion.has_memory_suggestion && (
-              <Button
-                disabled={promoteMutation.isPending}
-                onClick={() => promoteMutation.mutate()}
-                size="sm"
-                variant="secondary"
-              >
+              <Button disabled={promoteMutation.isPending} onClick={() => promoteMutation.mutate()} size="sm" variant="secondary">
                 {promoteMutation.isPending ? t("promoting") : t("promote_to_instance")}
               </Button>
             )}
@@ -307,18 +285,14 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
             )}
             {suggestion.proposal_type === "remove_memory" && (
               <div className="mt-2 rounded border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
-                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">
-                  {t("remove_memory_label", { id: suggestion.target_memory_id })}
-                </p>
+                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">{t("remove_memory_label", { id: suggestion.target_memory_id })}</p>
                 {suggestion.stale_memory_text && (
                   <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
                     {suggestion.stale_memory_text}
                   </pre>
                 )}
                 {suggestion.stale_memory_evidence && (
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">
-                    {suggestion.stale_memory_evidence}
-                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">{suggestion.stale_memory_evidence}</p>
                 )}
               </div>
             )}
@@ -326,12 +300,8 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 <p className="font-medium text-gray-700 dark:text-gray-200">{t("retired_heading")}</p>
                 {suggestion.retired_reason && <p className="mt-1 whitespace-pre-wrap">{suggestion.retired_reason}</p>}
-                {suggestion.superseded_by_insight_id && (
-                  <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>
-                )}
-                {suggestion.superseded_by_job_slug && (
-                  <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>
-                )}
+                {suggestion.superseded_by_insight_id && <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>}
+                {suggestion.superseded_by_job_slug && <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>}
               </div>
             )}
           </td>
@@ -349,11 +319,7 @@ function SeverityPill({ severity }: { severity: string }) {
       : severity === "medium"
         ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
         : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`severity_${severity}`)}
-    </span>
-  )
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>{t(`severity_${severity}`)}</span>
 }
 
 function StatePill({ state }: { state: string }) {
@@ -366,11 +332,7 @@ function StatePill({ state }: { state: string }) {
         : state === "retired"
           ? "bg-gray-200 text-gray-500 dark:bg-gray-800/60 dark:text-gray-500"
           : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`state_${state}`)}
-    </span>
-  )
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>{t(`state_${state}`)}</span>
 }
 
 // Default export is what the plugin component loaders require

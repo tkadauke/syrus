@@ -22,14 +22,7 @@ export type SpeechToTextStreamConfig = {
 
 export const MAX_TRANSCRIPTION_DURATION_SECONDS = 120
 export const MAX_TRANSCRIPTION_BYTES = 10 * 1024 * 1024
-export const TRANSCRIPTION_AUDIO_CONTENT_TYPES = [
-  "audio/webm",
-  "audio/mp4",
-  "audio/mpeg",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/ogg"
-]
+export const TRANSCRIPTION_AUDIO_CONTENT_TYPES = ["audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg"]
 
 export function isTranscriptionAudioFile(file: File): boolean {
   return TRANSCRIPTION_AUDIO_CONTENT_TYPES.some((type) => file.type === type || file.type.startsWith(`${type};`))
@@ -64,10 +57,12 @@ export function transcribeChatAudio(input: {
         resolve(xhr.response as { transcript: SpeechToTextTranscript })
       } else {
         const payload = xhr.response as { error?: { code?: string; message?: string } } | null
-        reject(new ApiError(payload?.error?.message || `Transcription failed with ${xhr.status}`, {
-          status: xhr.status,
-          code: payload?.error?.code
-        }))
+        reject(
+          new ApiError(payload?.error?.message || `Transcription failed with ${xhr.status}`, {
+            status: xhr.status,
+            code: payload?.error?.code
+          })
+        )
       }
     }
     xhr.onerror = () => reject(new ApiError("Transcription failed - check your connection.", { status: 0 }))

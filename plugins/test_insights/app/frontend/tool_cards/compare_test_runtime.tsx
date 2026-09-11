@@ -121,7 +121,8 @@ function DeltaCell({ delta }: { delta: Delta }) {
 
   return (
     <span className={`font-mono ${DELTA_CLASSES[tone]}`}>
-      {sign}{Math.round(delta.ms)}ms{delta.percent != null ? ` (${sign}${delta.percent}%)` : ""}
+      {sign}
+      {Math.round(delta.ms)}ms{delta.percent != null ? ` (${sign}${delta.percent}%)` : ""}
     </span>
   )
 }
@@ -142,10 +143,18 @@ function renderExpanded(context: ToolCardContext) {
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">Test</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Baseline avg / p95</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Comparison avg / p95</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Avg delta</th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Test
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Baseline avg / p95
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Comparison avg / p95
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Avg delta
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -160,7 +169,9 @@ function renderExpanded(context: ToolCardContext) {
                 <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">
                   {formatMs(row.comparison.avgDurationMs)} / {formatMs(row.comparison.p95DurationMs)}
                 </td>
-                <td className="whitespace-nowrap px-2 py-1"><DeltaCell delta={row.avgDelta} /></td>
+                <td className="whitespace-nowrap px-2 py-1">
+                  <DeltaCell delta={row.avgDelta} />
+                </td>
               </tr>
             ))}
           </tbody>

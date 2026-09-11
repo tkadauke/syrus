@@ -105,7 +105,9 @@ describe("Modal", () => {
       return (
         <Modal initialFocusRef={secondRef} label="Example" onClose={vi.fn()} open>
           <button type="button">First</button>
-          <button ref={secondRef} type="button">Second</button>
+          <button ref={secondRef} type="button">
+            Second
+          </button>
         </Modal>
       )
     }

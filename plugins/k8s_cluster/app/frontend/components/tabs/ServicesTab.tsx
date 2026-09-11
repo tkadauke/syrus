@@ -9,7 +9,7 @@ import { StatusBadge } from "../StatusBadge"
 export function ServicesTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
   const services = useQuery({
-    queryKey: [ "k8s_cluster", "services", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "services", clusterId, namespace],
     queryFn: () => fetchKubernetesServices(clusterId, namespace)
   })
   // Endpoints share their Service's (namespace, name) by core v1 API
@@ -18,11 +18,11 @@ export function ServicesTab({ clusterId, namespace }: { clusterId: number; names
   // normal outcome, not an error, and an Endpoints fetch failure just
   // leaves the column showing "-" instead of failing the whole tab.
   const endpoints = useQuery({
-    queryKey: [ "k8s_cluster", "endpoints", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "endpoints", clusterId, namespace],
     queryFn: () => fetchKubernetesEndpoints(clusterId, namespace)
   })
   const endpointsByKey = new Map<string, KubernetesEndpointRow>(
-    (endpoints.data?.endpoints ?? []).map((endpoint) => [ `${endpoint.namespace}/${endpoint.name}`, endpoint ])
+    (endpoints.data?.endpoints ?? []).map((endpoint) => [`${endpoint.namespace}/${endpoint.name}`, endpoint])
   )
 
   return (
@@ -57,16 +57,16 @@ export function ServicesTab({ clusterId, namespace }: { clusterId: number; names
                       <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{service.type || "-"}</td>
                       <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">{service.cluster_ip || "-"}</td>
                       <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
-                        {service.ports.length === 0
-                          ? "-"
-                          : service.ports.map((port) => `${port.port}${port.protocol ? `/${port.protocol}` : ""}`).join(", ")}
+                        {service.ports.length === 0 ? "-" : service.ports.map((port) => `${port.port}${port.protocol ? `/${port.protocol}` : ""}`).join(", ")}
                       </td>
                       <td className="px-4 py-2">
                         {endpoint ? (
                           <StatusBadge tone={endpoint.not_ready_addresses > 0 ? "warning" : endpoint.ready_addresses > 0 ? "success" : "neutral"}>
                             {t("services_endpoints_ready", { ready: endpoint.ready_addresses, total: endpoint.ready_addresses + endpoint.not_ready_addresses })}
                           </StatusBadge>
-                        ) : "-"}
+                        ) : (
+                          "-"
+                        )}
                       </td>
                       <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{formatAge(service.created_at)}</td>
                     </tr>

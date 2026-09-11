@@ -67,19 +67,23 @@ describe("RepositoryMembersRoute", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/repositories/1/memberships" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(membershipsPayload({
-          memberships: [
-            ...membershipsPayload().memberships,
-            {
-              id: 12,
-              role: "write",
-              agent_provider: null,
-              created_at: "2026-01-03T00:00:00Z",
-              user: { id: 3, email_address: "writer@example.com", name: "Writer Person" }
-            }
-          ],
-          message: "writer@example.com added as write."
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            membershipsPayload({
+              memberships: [
+                ...membershipsPayload().memberships,
+                {
+                  id: 12,
+                  role: "write",
+                  agent_provider: null,
+                  created_at: "2026-01-03T00:00:00Z",
+                  user: { id: 3, email_address: "writer@example.com", name: "Writer Person" }
+                }
+              ],
+              message: "writer@example.com added as write."
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(membershipsPayload()))
     })
@@ -101,10 +105,7 @@ describe("RepositoryMembersRoute", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0])
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/memberships",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/memberships", expect.objectContaining({ method: "POST" }))
     })
     expect(await screen.findByText("Writer Person")).toBeInTheDocument()
   })
@@ -141,13 +142,14 @@ describe("RepositoryMembersRoute", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/repositories/1/memberships/11" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(membershipsPayload({
-          memberships: [
-            membershipsPayload().memberships[0],
-            { ...membershipsPayload().memberships[1], role: "write" }
-          ],
-          message: "Role updated to write."
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            membershipsPayload({
+              memberships: [membershipsPayload().memberships[0], { ...membershipsPayload().memberships[1], role: "write" }],
+              message: "Role updated to write."
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(membershipsPayload()))
     })
@@ -159,20 +161,17 @@ describe("RepositoryMembersRoute", () => {
     fireEvent.change(selects[0], { target: { value: "write" } })
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/memberships/11",
-        expect.objectContaining({ method: "PATCH" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/memberships/11", expect.objectContaining({ method: "PATCH" }))
     })
   })
 
   describe("team grants", () => {
     it("lists existing team grants", async () => {
-      renderRoute(membershipsPayload({
-        team_grants: [
-          { id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }
-        ]
-      }))
+      renderRoute(
+        membershipsPayload({
+          team_grants: [{ id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }]
+        })
+      )
 
       expect(await screen.findByText("Platform")).toBeInTheDocument()
     })
@@ -181,12 +180,14 @@ describe("RepositoryMembersRoute", () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
         const url = String(input)
         if (url === "/api/v1/app/repositories/1/team_grants" && init?.method === "POST") {
-          return Promise.resolve(jsonResponse(membershipsPayload({
-            team_grants: [
-              { id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }
-            ],
-            message: "Platform added as write."
-          })))
+          return Promise.resolve(
+            jsonResponse(
+              membershipsPayload({
+                team_grants: [{ id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }],
+                message: "Platform added as write."
+              })
+            )
+          )
         }
         return Promise.resolve(jsonResponse(membershipsPayload()))
       })
@@ -208,10 +209,7 @@ describe("RepositoryMembersRoute", () => {
       fireEvent.click(addButtons[addButtons.length - 1])
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/repositories/1/team_grants",
-          expect.objectContaining({ method: "POST" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/team_grants", expect.objectContaining({ method: "POST" }))
       })
       expect(await screen.findByText("Platform")).toBeInTheDocument()
     })
@@ -223,11 +221,13 @@ describe("RepositoryMembersRoute", () => {
         if (url === "/api/v1/app/repositories/1/team_grants/20" && init?.method === "DELETE") {
           return Promise.resolve(jsonResponse(membershipsPayload({ message: "Platform removed." })))
         }
-        return Promise.resolve(jsonResponse(membershipsPayload({
-          team_grants: [
-            { id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }
-          ]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            membershipsPayload({
+              team_grants: [{ id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }]
+            })
+          )
+        )
       })
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
       render(
@@ -245,10 +245,7 @@ describe("RepositoryMembersRoute", () => {
       fireEvent.click(removeButtons[removeButtons.length - 1])
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/repositories/1/team_grants/20",
-          expect.objectContaining({ method: "DELETE" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/team_grants/20", expect.objectContaining({ method: "DELETE" }))
       })
     })
   })
@@ -265,10 +262,14 @@ describe("RepositoryMembersRoute", () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
         const url = String(input)
         if (url === "/api/v1/app/repositories/1/memberships/11" && init?.method === "DELETE") {
-          return Promise.resolve(jsonResponse(membershipsPayload({
-            memberships: [membershipsPayload().memberships[0]],
-            message: "Member removed."
-          })))
+          return Promise.resolve(
+            jsonResponse(
+              membershipsPayload({
+                memberships: [membershipsPayload().memberships[0]],
+                message: "Member removed."
+              })
+            )
+          )
         }
         return Promise.resolve(jsonResponse(membershipsPayload()))
       })
@@ -291,31 +292,30 @@ describe("RepositoryMembersRoute", () => {
         expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
       })
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/repositories/1/memberships/11",
-          expect.objectContaining({ method: "DELETE" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/memberships/11", expect.objectContaining({ method: "DELETE" }))
       })
     })
   })
 
   describe("GitHub permission mismatch signals", () => {
     it("shows a warning badge on a member with a mismatch reason", async () => {
-      renderRoute(membershipsPayload({
-        memberships: [
-          {
-            ...membershipsPayload().memberships[0],
-            github_permission_mismatch_reason: "not_a_github_collaborator",
-            github_permission_mismatch_checked_at: "2026-01-05T00:00:00Z"
-          },
-          membershipsPayload().memberships[1]
-        ]
-      }))
+      renderRoute(
+        membershipsPayload({
+          memberships: [
+            {
+              ...membershipsPayload().memberships[0],
+              github_permission_mismatch_reason: "not_a_github_collaborator",
+              github_permission_mismatch_checked_at: "2026-01-05T00:00:00Z"
+            },
+            membershipsPayload().memberships[1]
+          ]
+        })
+      )
 
       expect(await screen.findByText("GitHub mismatch")).toBeInTheDocument()
     })
 
-    it("does not show a warning badge when there is no mismatch" , async () => {
+    it("does not show a warning badge when there is no mismatch", async () => {
       renderRoute()
 
       await screen.findByText("Ada Lovelace")
@@ -323,17 +323,17 @@ describe("RepositoryMembersRoute", () => {
     })
 
     it("lists GitHub-only collaborators with write+ access and no Syrus membership", async () => {
-      renderRoute(membershipsPayload({
-        github_collaborator_discrepancies: [
-          { id: 1, github_login: "external-dev", github_permission: "write", checked_at: "2026-01-05T00:00:00Z" }
-        ]
-      }))
+      renderRoute(
+        membershipsPayload({
+          github_collaborator_discrepancies: [{ id: 1, github_login: "external-dev", github_permission: "write", checked_at: "2026-01-05T00:00:00Z" }]
+        })
+      )
 
       expect(await screen.findByText("GitHub-only collaborators")).toBeInTheDocument()
       expect(screen.getByText("@external-dev")).toBeInTheDocument()
     })
 
-    it("hides the GitHub-only collaborators section when there are none" , async () => {
+    it("hides the GitHub-only collaborators section when there are none", async () => {
       renderRoute()
 
       await screen.findByText("Ada Lovelace")

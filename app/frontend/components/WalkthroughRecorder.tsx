@@ -23,9 +23,7 @@ import {
 
 // The draw-mode accelerator, formatted for display. macOS shows the glyphs it
 // uses everywhere (⌘⇧A); every other platform spells it out (Ctrl+Shift+A).
-export function isMacPlatform(
-  ua: string = typeof navigator !== "undefined" ? navigator.userAgent : ""
-): boolean {
+export function isMacPlatform(ua: string = typeof navigator !== "undefined" ? navigator.userAgent : ""): boolean {
   return /Mac|iPhone|iPad|iPod/.test(ua)
 }
 
@@ -46,10 +44,7 @@ export function annotationHoldLabel(mac: boolean = isMacPlatform()): string {
 // upgrades the next recording to hold); the plain TAP hint otherwise.
 export type AnnotationIdleHintKind = "hold" | "accessibility" | "tap"
 
-export function annotationIdleHintKind(
-  hold: boolean,
-  reason?: AnnotationHoldFailureReason | null
-): AnnotationIdleHintKind {
+export function annotationIdleHintKind(hold: boolean, reason?: AnnotationHoldFailureReason | null): AnnotationIdleHintKind {
   if (hold) return "hold"
   if (reason === "no-accessibility") return "accessibility"
   return "tap"
@@ -61,10 +56,7 @@ export function annotationIdleHintKind(
 // always-on-top overlay, so the recorder nudges the user with a note. A null /
 // unknown surface (older browsers don't report it) is treated as fine — no note
 // rather than a note that might be wrong.
-export function shouldShowAnnotationSurfaceNote(
-  annotationAvailable: boolean,
-  displaySurface: string | null
-): boolean {
+export function shouldShowAnnotationSurfaceNote(annotationAvailable: boolean, displaySurface: string | null): boolean {
   if (!annotationAvailable) return false
   return displaySurface === "window" || displaySurface === "browser"
 }
@@ -79,16 +71,10 @@ export function shouldShowAnnotationSurfaceNote(
 // Codec preference: VP9 handles static UI + text well at low bitrates and is
 // always available in Chrome/Electron (software encoder). MP4/H.264 exists
 // only where an OS encoder does — probe, never assume. Exported for tests.
-export const RECORDER_MIME_CANDIDATES = [
-  "video/webm;codecs=vp9,opus",
-  "video/webm;codecs=vp8,opus",
-  "video/webm",
-  "video/mp4"
-]
+export const RECORDER_MIME_CANDIDATES = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"]
 
 export function pickRecorderMimeType(
-  isSupported: (type: string) => boolean = (type) =>
-    typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)
+  isSupported: (type: string) => boolean = (type) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)
 ): string | null {
   return RECORDER_MIME_CANDIDATES.find((candidate) => isSupported(candidate)) ?? null
 }
@@ -119,10 +105,7 @@ export type RecordingResult = {
 }
 
 type RecorderState =
-  | { phase: "idle" }
-  | { phase: "starting" }
-  | { phase: "recording"; startedAt: number; micLive: boolean }
-  | { phase: "error"; message: string }
+  { phase: "idle" } | { phase: "starting" } | { phase: "recording"; startedAt: number; micLive: boolean } | { phase: "error"; message: string }
 
 export function useWalkthroughRecorder({
   onFinished,
@@ -186,37 +169,40 @@ export function useWalkthroughRecorder({
     setDisplaySurface(null)
   }, [])
 
-  const stop = useCallback((options: { discard?: boolean } = {}) => {
-    const recorder = recorderRef.current
-    if (!recorder || finishedRef.current) {
-      cleanup()
-      setState({ phase: "idle" })
-      setElapsed(0)
-      return
-    }
-
-    finishedRef.current = true
-    if (options.discard) {
-      recorder.ondataavailable = null
-      recorder.onstop = null
-      try {
-        recorder.stop()
-      } catch {
-        // already inactive — fine
+  const stop = useCallback(
+    (options: { discard?: boolean } = {}) => {
+      const recorder = recorderRef.current
+      if (!recorder || finishedRef.current) {
+        cleanup()
+        setState({ phase: "idle" })
+        setElapsed(0)
+        return
       }
-      cleanup()
-      setState({ phase: "idle" })
-      setElapsed(0)
-      return
-    }
 
-    try {
-      recorder.stop() // onstop assembles + delivers the result
-    } catch {
-      cleanup()
-      setState({ phase: "error", message: "Recording could not be finalized." })
-    }
-  }, [cleanup])
+      finishedRef.current = true
+      if (options.discard) {
+        recorder.ondataavailable = null
+        recorder.onstop = null
+        try {
+          recorder.stop()
+        } catch {
+          // already inactive — fine
+        }
+        cleanup()
+        setState({ phase: "idle" })
+        setElapsed(0)
+        return
+      }
+
+      try {
+        recorder.stop() // onstop assembles + delivers the result
+      } catch {
+        cleanup()
+        setState({ phase: "error", message: "Recording could not be finalized." })
+      }
+    },
+    [cleanup]
+  )
 
   const start = useCallback(async () => {
     if (state.phase === "recording" || state.phase === "starting") return
@@ -291,9 +277,9 @@ export function useWalkthroughRecorder({
       mic = null
     }
 
-    const tracks = [ ...display.getVideoTracks(), ...(mic ? mic.getAudioTracks() : []) ]
+    const tracks = [...display.getVideoTracks(), ...(mic ? mic.getAudioTracks() : [])]
     const combined = new MediaStream(tracks)
-    streamsRef.current = [ display, ...(mic ? [mic] : []) ]
+    streamsRef.current = [display, ...(mic ? [mic] : [])]
 
     const mimeType = pickRecorderMimeType()
     let recorder: MediaRecorder
@@ -459,17 +445,10 @@ export function useNativeRecorderHud({
 export const ANALYZING_HINT_INTERVAL_MS = 4_500
 
 function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  )
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 }
 
-export function useRotatingMessage(
-  messages: string[],
-  intervalMs: number = ANALYZING_HINT_INTERVAL_MS
-): string {
+export function useRotatingMessage(messages: string[], intervalMs: number = ANALYZING_HINT_INTERVAL_MS): string {
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
@@ -488,15 +467,7 @@ export function useRotatingMessage(
 
 // The rotating "analyzing" line shown on the walkthrough chip. Keeps the
 // caller's spinner as a sibling; this renders text only.
-export function AnalyzingHint({
-  messages,
-  intervalMs,
-  className
-}: {
-  messages: string[]
-  intervalMs?: number
-  className?: string
-}) {
+export function AnalyzingHint({ messages, intervalMs, className }: { messages: string[]; intervalMs?: number; className?: string }) {
   const message = useRotatingMessage(messages, intervalMs)
   return (
     <span aria-live="polite" className={className} data-testid="walkthrough-analyzing-hint">
@@ -543,10 +514,7 @@ export function WalkthroughRecorderHUD({
   const finalMinute = elapsed >= RECORDER_WARNING_SECONDS
 
   return (
-    <div
-      className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2"
-      data-testid="walkthrough-recorder-hud-wrap"
-    >
+    <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2" data-testid="walkthrough-recorder-hud-wrap">
       <div
         className="flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-xl dark:border-gray-700 dark:bg-gray-900"
         data-testid="walkthrough-recorder-hud"
@@ -572,16 +540,12 @@ export function WalkthroughRecorderHUD({
         ) : null}
         {annotation ? (
           <span
-            className={`items-center gap-1.5 text-2xs text-gray-500 dark:text-gray-400 ${
-              annotation.drawing ? "inline-flex" : "hidden sm:inline-flex"
-            }`}
+            className={`items-center gap-1.5 text-2xs text-gray-500 dark:text-gray-400 ${annotation.drawing ? "inline-flex" : "hidden sm:inline-flex"}`}
             data-testid="walkthrough-annotate-hint"
           >
             <span
               aria-hidden="true"
-              className={`inline-block h-1.5 w-1.5 flex-none rounded-full ${
-                annotation.drawing ? "bg-red-600" : "bg-gray-400 dark:bg-gray-500"
-              }`}
+              className={`inline-block h-1.5 w-1.5 flex-none rounded-full ${annotation.drawing ? "bg-red-600" : "bg-gray-400 dark:bg-gray-500"}`}
               data-testid="walkthrough-annotate-dot"
             />
             {annotation.drawing ? annotation.drawingHint : annotation.hint}

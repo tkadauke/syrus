@@ -117,7 +117,12 @@ function TogglePanel({
           <h2 className="font-medium text-gray-900 dark:text-gray-100">{title}</h2>
           <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">{description}</p>
           <p className="mt-3 text-xs">
-            {t("console.state")} <span className={`rounded px-2 py-0.5 font-mono uppercase ${warning ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300" : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"}`}>{value}</span>
+            {t("console.state")}{" "}
+            <span
+              className={`rounded px-2 py-0.5 font-mono uppercase ${warning ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300" : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"}`}
+            >
+              {value}
+            </span>
           </p>
         </div>
         <button
@@ -177,14 +182,12 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
       <h2 className="font-medium text-gray-900 dark:text-gray-100">{t("console.github_cache_heading")}</h2>
       <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">{t("console.github_cache_description")}</p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Select
-          fullWidth={false}
-          onChange={(event) => setUserId(event.target.value)}
-          value={userId}
-        >
+        <Select fullWidth={false} onChange={(event) => setUserId(event.target.value)} value={userId}>
           <option value="">{t("console.all_users")}</option>
           {payload.users.map((user) => (
-            <option key={user.id} value={user.id}>{user.email_address}</option>
+            <option key={user.id} value={user.id}>
+              {user.email_address}
+            </option>
           ))}
         </Select>
         <Button disabled={mutation.isPending} onClick={() => mutation.mutate()} variant="primary">
@@ -207,40 +210,20 @@ function MaintenanceSection({ activeRuns }: { activeRuns: number }) {
       </div>
       <p className="px-4 pt-3 text-xs text-gray-600 dark:text-gray-300">{t("console.maintenance_description")}</p>
       <div className="grid gap-4 p-4 md:grid-cols-3">
-        <RestartPanel
-          activeRuns={activeRuns}
-          component="web"
-          description={t("console.restart_web_description")}
-          title={t("console.restart_web_title")}
-        />
+        <RestartPanel activeRuns={activeRuns} component="web" description={t("console.restart_web_description")} title={t("console.restart_web_title")} />
         <RestartPanel
           activeRuns={activeRuns}
           component="worker"
           description={t("console.restart_worker_description")}
           title={t("console.restart_worker_title")}
         />
-        <RestartPanel
-          activeRuns={activeRuns}
-          component="all"
-          description={t("console.restart_all_description")}
-          title={t("console.restart_all_title")}
-        />
+        <RestartPanel activeRuns={activeRuns} component="all" description={t("console.restart_all_description")} title={t("console.restart_all_title")} />
       </div>
     </section>
   )
 }
 
-function RestartPanel({
-  component,
-  title,
-  description,
-  activeRuns
-}: {
-  component: RestartComponent
-  title: string
-  description: string
-  activeRuns: number
-}) {
+function RestartPanel({ component, title, description, activeRuns }: { component: RestartComponent; title: string; description: string; activeRuns: number }) {
   const { t } = useT("admin")
   const [confirming, setConfirming] = useState(false)
   const warnActiveRuns = component !== "web" && activeRuns > 0
@@ -281,7 +264,9 @@ function ActionsTable({ actions }: { actions: ConsoleAction[] }) {
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("console.recent_actions")}</div>
+      <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+        {t("console.recent_actions")}
+      </div>
       {actions.length === 0 ? (
         <PanelMessage>{t("console.no_actions")}</PanelMessage>
       ) : (
@@ -298,7 +283,9 @@ function ActionsTable({ actions }: { actions: ConsoleAction[] }) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {actions.map((action) => (
                 <tr key={action.id}>
-                  <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300"><RelativeTimestamp value={action.performed_at} /></td>
+                  <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
+                    <RelativeTimestamp value={action.performed_at} />
+                  </td>
                   <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-200">{action.user_email}</td>
                   <td className="px-4 py-2 font-mono text-xs">{action.action}</td>
                   <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{JSON.stringify(action.params).slice(0, 200)}</td>
@@ -322,4 +309,3 @@ function ConsoleError({ error }: { error: Error }) {
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
   return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
-

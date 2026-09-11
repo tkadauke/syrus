@@ -32,10 +32,7 @@ export type MemoryRow = {
   }
 }
 
-export type MemoryAuditEventActor =
-  | { kind: "user"; id: number | null; name: string | null }
-  | { kind: "agent"; run_id: number | null }
-  | { kind: "system" }
+export type MemoryAuditEventActor = { kind: "user"; id: number | null; name: string | null } | { kind: "agent"; run_id: number | null } | { kind: "system" }
 
 export type MemoryAuditEvent = {
   id: number

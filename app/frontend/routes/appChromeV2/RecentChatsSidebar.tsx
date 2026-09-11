@@ -6,7 +6,22 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../../api/chats"
+import {
+  cancelCodingCheckout,
+  deleteChat,
+  fetchChat,
+  fetchChats,
+  fetchMoreChatsForGroup,
+  hideChat,
+  markChatRead,
+  markChatUnread,
+  renameChat,
+  updateChatPinned,
+  type ChatMode,
+  type ChatNavRecord,
+  type ChatPayload,
+  type ChatsIndexPayload
+} from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -17,7 +32,6 @@ import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabili
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { updateChatUnread } from "../../lib/chatCache"
 import { chatQueryKey } from "../Chat"
-
 
 // Recent-chats sidebar extracted from AppChromeV2.tsx: the recent-chats list
 // (RecentChatsSidebar) with its activity marker and per-chat actions menu.
@@ -33,7 +47,19 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
   return null
 }
 
-export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, prefix, userPresent }: { featureFlags: Record<string, boolean>; onCloseDrawer: () => void; onNotice: (message: string | null) => void; prefix: string; userPresent: boolean }) {
+export function RecentChatsSidebar({
+  featureFlags,
+  onCloseDrawer,
+  onNotice,
+  prefix,
+  userPresent
+}: {
+  featureFlags: Record<string, boolean>
+  onCloseDrawer: () => void
+  onNotice: (message: string | null) => void
+  prefix: string
+  userPresent: boolean
+}) {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -84,30 +110,29 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
     if (!beforeChat || loadingSections.has(section.key)) return
 
     setLoadingSections((current) => new Set(current).add(section.key))
-    void fetchMoreChatsForGroup(section.repository_id, beforeChat.id).then((payload) => {
-      setLoadedSections((current) => {
-        const existing = current[section.key]
-        const existingIds = new Set([
-          ...section.chats.map((chat) => chat.id),
-          ...(existing?.chats.map((chat) => chat.id) || [])
-        ])
-        const nextChats = payload.chats.filter((chat) => !existingIds.has(chat.id))
+    void fetchMoreChatsForGroup(section.repository_id, beforeChat.id)
+      .then((payload) => {
+        setLoadedSections((current) => {
+          const existing = current[section.key]
+          const existingIds = new Set([...section.chats.map((chat) => chat.id), ...(existing?.chats.map((chat) => chat.id) || [])])
+          const nextChats = payload.chats.filter((chat) => !existingIds.has(chat.id))
 
-        return {
-          ...current,
-          [section.key]: {
-            chats: [...(existing?.chats || []), ...nextChats],
-            has_more: payload.has_more
+          return {
+            ...current,
+            [section.key]: {
+              chats: [...(existing?.chats || []), ...nextChats],
+              has_more: payload.has_more
+            }
           }
-        }
+        })
       })
-    }).finally(() => {
-      setLoadingSections((current) => {
-        const next = new Set(current)
-        next.delete(section.key)
-        return next
+      .finally(() => {
+        setLoadingSections((current) => {
+          const next = new Set(current)
+          next.delete(section.key)
+          return next
+        })
       })
-    })
   }
 
   function hideRecentChat(chat: ChatNavRecord) {
@@ -115,51 +140,59 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
 
     setHidingChatIds((current) => new Set(current).add(chat.id))
     removeChatFromRecentLists(chat.id)
-    void hideChat(chat.id).then(() => {
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-      void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
-      if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
-    }).catch(() => {
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-    }).finally(() => {
-      setHidingChatIds((current) => {
-        const next = new Set(current)
-        next.delete(chat.id)
-        return next
+    void hideChat(chat.id)
+      .then(() => {
+        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+        void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
+        if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
       })
-    })
+      .catch(() => {
+        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      })
+      .finally(() => {
+        setHidingChatIds((current) => {
+          const next = new Set(current)
+          next.delete(chat.id)
+          return next
+        })
+      })
   }
 
   function deleteRecentChat(chat: ChatNavRecord) {
     if (deletingChatIds.has(chat.id)) return
 
     setDeletingChatIds((current) => new Set(current).add(chat.id))
-    void deleteChat(chat.id).then(() => {
-      removeChatFromRecentLists(chat.id)
-      queryClient.removeQueries({ queryKey: ["chats", String(chat.id)] })
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-      void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
-      onNotice(t("chat:chat_deleted"))
-      if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
-    }).catch((error) => {
-      onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_delete"))
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-    }).finally(() => {
-      setDeletingChatIds((current) => {
-        const next = new Set(current)
-        next.delete(chat.id)
-        return next
+    void deleteChat(chat.id)
+      .then(() => {
+        removeChatFromRecentLists(chat.id)
+        queryClient.removeQueries({ queryKey: ["chats", String(chat.id)] })
+        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+        void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
+        onNotice(t("chat:chat_deleted"))
+        if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
       })
-    })
+      .catch((error) => {
+        onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_delete"))
+        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      })
+      .finally(() => {
+        setDeletingChatIds((current) => {
+          const next = new Set(current)
+          next.delete(chat.id)
+          return next
+        })
+      })
   }
 
   function togglePin(chat: ChatNavRecord) {
-    void updateChatPinned(chat.id, !chat.pinned).then(() => {
-      onNotice(null)
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-    }).catch(() => {
-      onNotice(t("chat:unable_to_update_pin"))
-    })
+    void updateChatPinned(chat.id, !chat.pinned)
+      .then(() => {
+        onNotice(null)
+        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      })
+      .catch(() => {
+        onNotice(t("chat:unable_to_update_pin"))
+      })
   }
 
   function removeChatFromRecentLists(chatId: number) {
@@ -168,9 +201,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
 
       return {
         ...current,
-        groups: current.groups
-          .map((group) => ({ ...group, chats: group.chats.filter((chat) => chat.id !== chatId) }))
-          .filter((group) => group.chats.length > 0)
+        groups: current.groups.map((group) => ({ ...group, chats: group.chats.filter((chat) => chat.id !== chatId) })).filter((group) => group.chats.length > 0)
       }
     })
     setLoadedSections((current) => {
@@ -229,14 +260,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
       }}
       ref={sidebarRootRef}
     >
-      {supervisorChat ? (
-        <SupervisorChatLink
-          activeChatId={activeChatId}
-          chat={supervisorChat}
-          onCloseDrawer={onCloseDrawer}
-          prefix={prefix}
-        />
-      ) : null}
+      {supervisorChat ? <SupervisorChatLink activeChatId={activeChatId} chat={supervisorChat} onCloseDrawer={onCloseDrawer} prefix={prefix} /> : null}
       <nav aria-label={t("nav:recent_chats_aria")} className="space-y-4">
         {sections.map((section) => {
           const collapsed = collapsedSections.has(section.key)
@@ -285,22 +309,18 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                       }}
                       onDragOver={(e) => e.preventDefault()}
                     >
-                      <Link
-                        className={`${recentChatLinkClass(active)} pr-9`}
-                        onClick={onCloseDrawer}
-                        to={withRoutePrefix(chat.chat_path, prefix)}
-                      >
+                      <Link className={`${recentChatLinkClass(active)} pr-9`} onClick={onCloseDrawer} to={withRoutePrefix(chat.chat_path, prefix)}>
                         <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
                         {chat.conversation_kind === "group" ? (
                           <span className="contents" data-testid="group-chat-icon">
                             <TeamIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
                           </span>
                         ) : null}
-                        {chat.pinned ? (
-                          <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
-                        ) : null}
+                        {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
-                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat, t("chat:new_title"))}</span>
+                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>
+                          {sidebarChatTitle(chat, t("chat:new_title"))}
+                        </span>
                         <span className="flex shrink-0 items-start gap-1 group-hover:hidden">
                           <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
                           {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
@@ -312,9 +332,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                               <TargetIcon className="h-3.5 w-3.5" />
                             </span>
                           ) : null}
-                          {chat.pending_proposal_count > 0 && (
-                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
-                          )}
+                          {chat.pending_proposal_count > 0 && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />}
                           {chat.coding_checkout_uncommitted && (
                             <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500 dark:bg-amber-400" title={t("nav:title_uncommitted")} />
                           )}
@@ -368,16 +386,27 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
   )
 }
 
-function SupervisorChatLink({ activeChatId, chat, onCloseDrawer, prefix }: { activeChatId: number | null; chat: ChatNavRecord; onCloseDrawer: () => void; prefix: string }) {
+function SupervisorChatLink({
+  activeChatId,
+  chat,
+  onCloseDrawer,
+  prefix
+}: {
+  activeChatId: number | null
+  chat: ChatNavRecord
+  onCloseDrawer: () => void
+  prefix: string
+}) {
   const active = chat.id === activeChatId
   const unread = chat.unread && !active
   const severity = chat.supervisor_unread_severity
   const count = chat.supervisor_unread_count ?? 0
-  const severityClass = severity === "critical"
-    ? "bg-red-600 text-white dark:bg-red-500"
-    : severity === "warning"
-      ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-gray-950"
-      : "bg-info text-white dark:text-gray-950"
+  const severityClass =
+    severity === "critical"
+      ? "bg-red-600 text-white dark:bg-red-500"
+      : severity === "warning"
+        ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-gray-950"
+        : "bg-info text-white dark:text-gray-950"
 
   return (
     <div className="mb-3 border-b border-gray-200 pb-3 dark:border-gray-800">
@@ -386,17 +415,20 @@ function SupervisorChatLink({ activeChatId, chat, onCloseDrawer, prefix }: { act
         onClick={onCloseDrawer}
         to={withRoutePrefix(chat.chat_path, prefix)}
       >
-        <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center rounded border text-2xs font-bold ${active ? "border-white/40 bg-white/15" : "border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"}`}>
+        <span
+          aria-hidden="true"
+          className={`grid h-6 w-6 shrink-0 place-items-center rounded border text-2xs font-bold ${active ? "border-white/40 bg-white/15" : "border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"}`}
+        >
           S
         </span>
         <span className={`min-w-0 flex-1 truncate ${unread ? "font-bold" : ""}`}>Supervisor</span>
-        <span className={`rounded px-1.5 py-0.5 text-2xs font-bold uppercase tracking-normal ${active ? "bg-white/15 text-white dark:bg-slate-900/10 dark:text-slate-950" : "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"}`}>
+        <span
+          className={`rounded px-1.5 py-0.5 text-2xs font-bold uppercase tracking-normal ${active ? "bg-white/15 text-white dark:bg-slate-900/10 dark:text-slate-950" : "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"}`}
+        >
           Admin
         </span>
         {unread ? (
-          <span className={`min-w-5 rounded px-1.5 py-0.5 text-center text-2xs font-bold ${severityClass}`}>
-            {count > 99 ? "99+" : Math.max(count, 1)}
-          </span>
+          <span className={`min-w-5 rounded px-1.5 py-0.5 text-center text-2xs font-bold ${severityClass}`}>{count > 99 ? "99+" : Math.max(count, 1)}</span>
         ) : null}
       </Link>
     </div>
@@ -409,12 +441,7 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
     return (
       <span aria-hidden="true" className="mt-[0.35rem] inline-flex h-2 w-3.5 shrink-0 items-center justify-between" title={t("nav:title_turn_active")}>
         {[0, 1, 2].map((index) => (
-          <span
-            aria-hidden="true"
-            className="h-1 w-1 animate-bounce rounded-full bg-brand"
-            key={index}
-            style={{ animationDelay: `${index * 140}ms` }}
-          />
+          <span aria-hidden="true" className="h-1 w-1 animate-bounce rounded-full bg-brand" key={index} style={{ animationDelay: `${index * 140}ms` }} />
         ))}
       </span>
     )
@@ -426,7 +453,13 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
 function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingModeEnabled: boolean; localModeEnabled: boolean; mode?: ChatMode | null }) {
   if (codingModeEnabled && mode === "coding") {
     return (
-      <svg aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-400 dark:text-indigo-400" data-testid="mode-icon-coding" fill="none" viewBox="0 0 24 24">
+      <svg
+        aria-hidden="true"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-400 dark:text-indigo-400"
+        data-testid="mode-icon-coding"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
         <polyline points="4 17 10 11 4 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
         <line stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" x1="12" x2="20" y1="19" y2="19" />
       </svg>
@@ -434,21 +467,48 @@ function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingMod
   }
   if (localModeEnabled && mode === "local") {
     return (
-      <svg aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500 dark:text-emerald-400" data-testid="mode-icon-local" fill="none" viewBox="0 0 24 24">
+      <svg
+        aria-hidden="true"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500 dark:text-emerald-400"
+        data-testid="mode-icon-local"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
         <path d="M4 17.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
         <path d="M2 19h20" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
       </svg>
     )
   }
   return (
-    <svg aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-300 dark:text-gray-600" data-testid="mode-icon-planning" fill="none" viewBox="0 0 24 24">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    <svg
+      aria-hidden="true"
+      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-300 dark:text-gray-600"
+      data-testid="mode-icon-planning"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
       <path d="M14 2v6h6M16 13H8M16 17H8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
     </svg>
   )
 }
 
-function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelete, onHide, onNotice, onTogglePin, search }: {
+function RecentChatActionsMenu({
+  chat,
+  deleteDisabled = false,
+  disabled,
+  onDelete,
+  onHide,
+  onNotice,
+  onTogglePin,
+  search
+}: {
   chat: ChatNavRecord
   deleteDisabled?: boolean
   disabled: boolean
@@ -484,7 +544,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
     queryFn: () => fetchChat(String(chat.id), search),
     enabled: open && !cachedChatData
   })
-  const chatData = open ? cachedChatData ?? chatBookmarks.data : undefined
+  const chatData = open ? (cachedChatData ?? chatBookmarks.data) : undefined
   const bookmarks = chatData?.bookmarks ?? []
   const loadingBookmarks = open && !chatData && chatBookmarks.isPending
 
@@ -559,100 +619,100 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             ref={floatingRefs.setFloating}
             style={floatingStyles}
           >
-          {loadingBookmarks ? (
-            <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:loading_bookmarks")}</div>
-          ) : bookmarks.length > 0 ? (
-            <>
-              <div className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">{t("chat:bookmarks")}</div>
-              <div className="max-h-48 overflow-y-auto">
-                {bookmarks.map((bookmark) => {
-                  const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
+            {loadingBookmarks ? (
+              <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:loading_bookmarks")}</div>
+            ) : bookmarks.length > 0 ? (
+              <>
+                <div className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">{t("chat:bookmarks")}</div>
+                <div className="max-h-48 overflow-y-auto">
+                  {bookmarks.map((bookmark) => {
+                    const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
 
-                  return (
-                    <a
-                      className="block truncate px-3 py-2 text-gray-700 hover:bg-brand/10 hover:text-brand dark:text-gray-300"
-                      href={active ? `#message-${anchorMessageId}` : withRoutePrefix(`${chat.chat_path}#message-${anchorMessageId}`, prefix)}
-                      key={bookmark.id}
-                      onClick={() => setOpen(false)}
-                    >
-                      {bookmark.label}
-                    </a>
-                  )
-                })}
-              </div>
-            </>
-          ) : (
-            <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:no_bookmarks")}</div>
-          )}
-          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-            onClick={() => {
-              onTogglePin()
-              setOpen(false)
-            }}
-            type="button"
-          >
-            <PinIcon className="h-4 w-4 shrink-0" />
-            {chat.pinned ? t("chat:unpin") : t("chat:pin")}
-          </button>
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-            disabled={markRead.isPending || markUnread.isPending}
-            onClick={() => chat.unread ? markRead.mutate() : markUnread.mutate()}
-            type="button"
-          >
-            {chat.unread ? t("chat:mark_as_read") : t("chat:mark_as_unread")}
-          </button>
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-            onClick={() => {
-              setOpen(false)
-              setRenameOpen(true)
-            }}
-            type="button"
-          >
-            {t("chat:rename")}
-          </button>
-          {chat.coding_checkout_uncommitted ? (
+                    return (
+                      <a
+                        className="block truncate px-3 py-2 text-gray-700 hover:bg-brand/10 hover:text-brand dark:text-gray-300"
+                        href={active ? `#message-${anchorMessageId}` : withRoutePrefix(`${chat.chat_path}#message-${anchorMessageId}`, prefix)}
+                        key={bookmark.id}
+                        onClick={() => setOpen(false)}
+                      >
+                        {bookmark.label}
+                      </a>
+                    )
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:no_bookmarks")}</div>
+            )}
+            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
             <button
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-amber-300 dark:hover:bg-amber-950/40"
-              disabled={discardCodingChanges.isPending}
-              onClick={() => discardCodingChanges.mutate()}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              onClick={() => {
+                onTogglePin()
+                setOpen(false)
+              }}
               type="button"
             >
-              {t("chat:discard_coding_changes")}
+              <PinIcon className="h-4 w-4 shrink-0" />
+              {chat.pinned ? t("chat:unpin") : t("chat:pin")}
             </button>
-          ) : null}
-          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
-          <div className="px-3 py-1.5">
-            <CopyableSlug slug={`CHAT-${chat.id}`} />
-          </div>
-          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
-          <button
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
-            disabled={disabled}
-            onClick={() => {
-              setOpen(false)
-              onHide()
-            }}
-            type="button"
-          >
-            <HideIcon />
-            <span>{t("chat:hide")}</span>
-          </button>
-          <button
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
-            disabled={deleteDisabled}
-            onClick={() => {
-              setOpen(false)
-              setDeleteConfirmOpen(true)
-            }}
-            type="button"
-          >
-            <CloseIcon className="h-4 w-4 shrink-0" />
-            <span>{t("chat:delete")}</span>
-          </button>
+            <button
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              disabled={markRead.isPending || markUnread.isPending}
+              onClick={() => (chat.unread ? markRead.mutate() : markUnread.mutate())}
+              type="button"
+            >
+              {chat.unread ? t("chat:mark_as_read") : t("chat:mark_as_unread")}
+            </button>
+            <button
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              onClick={() => {
+                setOpen(false)
+                setRenameOpen(true)
+              }}
+              type="button"
+            >
+              {t("chat:rename")}
+            </button>
+            {chat.coding_checkout_uncommitted ? (
+              <button
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                disabled={discardCodingChanges.isPending}
+                onClick={() => discardCodingChanges.mutate()}
+                type="button"
+              >
+                {t("chat:discard_coding_changes")}
+              </button>
+            ) : null}
+            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+            <div className="px-3 py-1.5">
+              <CopyableSlug slug={`CHAT-${chat.id}`} />
+            </div>
+            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
+              disabled={disabled}
+              onClick={() => {
+                setOpen(false)
+                onHide()
+              }}
+              type="button"
+            >
+              <HideIcon />
+              <span>{t("chat:hide")}</span>
+            </button>
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
+              disabled={deleteDisabled}
+              onClick={() => {
+                setOpen(false)
+                setDeleteConfirmOpen(true)
+              }}
+              type="button"
+            >
+              <CloseIcon className="h-4 w-4 shrink-0" />
+              <span>{t("chat:delete")}</span>
+            </button>
           </div>
         </FloatingPortal>
       ) : null}
@@ -661,62 +721,94 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
           the containing block for fixed-position descendants — an inline
           `fixed inset-0` overlay here would be sized/clipped to the chat row
           instead of the viewport. */}
-      {renameOpen ? createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <form aria-modal="true" className="w-full max-w-sm rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950" onSubmit={submitRename} role="dialog">
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("chat:rename_chat_title")}</h2>
-              <button aria-label={t("chat:cancel")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" disabled={rename.isPending} onClick={() => setRenameOpen(false)} type="button">
-                <CloseIcon className="h-4 w-4" />
-              </button>
-            </div>
-            <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor={`rename-chat-${chat.id}`}>{t("chat:rename_chat_label")}</label>
-            <Input
-              autoFocus
-              className="mt-1"
-              defaultValue={chat.title || ""}
-              disabled={rename.isPending}
-              id={`rename-chat-${chat.id}`}
-              maxLength={120}
-              name="chat_title"
-              required
-              type="text"
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <Button disabled={rename.isPending} onClick={() => setRenameOpen(false)} variant="secondary">{t("chat:cancel")}</Button>
-              <Button disabled={rename.isPending} type="submit" variant="primary">{t("chat:save")}</Button>
-            </div>
-          </form>
-        </div>,
-        document.body
-      ) : null}
-      {deleteConfirmOpen ? createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
-          <div aria-modal="true" className="w-full max-w-sm rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950" role="dialog">
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("chat:delete_chat_title")}</h2>
-              <button aria-label={t("chat:cancel")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={() => setDeleteConfirmOpen(false)} type="button">
-                <CloseIcon className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{t("chat:delete_confirm_body")}</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button onClick={() => setDeleteConfirmOpen(false)} variant="secondary">{t("chat:cancel")}</Button>
-              <Button
-                disabled={deleteDisabled}
-                onClick={() => {
-                  setDeleteConfirmOpen(false)
-                  onDelete()
-                }}
-                variant="danger"
+      {renameOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
+              <form
+                aria-modal="true"
+                className="w-full max-w-sm rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950"
+                onSubmit={submitRename}
+                role="dialog"
               >
-                {t("chat:delete_confirm")}
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      ) : null}
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("chat:rename_chat_title")}</h2>
+                  <button
+                    aria-label={t("chat:cancel")}
+                    className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                    disabled={rename.isPending}
+                    onClick={() => setRenameOpen(false)}
+                    type="button"
+                  >
+                    <CloseIcon className="h-4 w-4" />
+                  </button>
+                </div>
+                <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor={`rename-chat-${chat.id}`}>
+                  {t("chat:rename_chat_label")}
+                </label>
+                <Input
+                  autoFocus
+                  className="mt-1"
+                  defaultValue={chat.title || ""}
+                  disabled={rename.isPending}
+                  id={`rename-chat-${chat.id}`}
+                  maxLength={120}
+                  name="chat_title"
+                  required
+                  type="text"
+                />
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button disabled={rename.isPending} onClick={() => setRenameOpen(false)} variant="secondary">
+                    {t("chat:cancel")}
+                  </Button>
+                  <Button disabled={rename.isPending} type="submit" variant="primary">
+                    {t("chat:save")}
+                  </Button>
+                </div>
+              </form>
+            </div>,
+            document.body
+          )
+        : null}
+      {deleteConfirmOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
+              <div
+                aria-modal="true"
+                className="w-full max-w-sm rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950"
+                role="dialog"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("chat:delete_chat_title")}</h2>
+                  <button
+                    aria-label={t("chat:cancel")}
+                    className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                    onClick={() => setDeleteConfirmOpen(false)}
+                    type="button"
+                  >
+                    <CloseIcon className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{t("chat:delete_confirm_body")}</p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button onClick={() => setDeleteConfirmOpen(false)} variant="secondary">
+                    {t("chat:cancel")}
+                  </Button>
+                  <Button
+                    disabled={deleteDisabled}
+                    onClick={() => {
+                      setDeleteConfirmOpen(false)
+                      onDelete()
+                    }}
+                    variant="danger"
+                  >
+                    {t("chat:delete_confirm")}
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   )
 }

@@ -38,12 +38,21 @@ const fullPayload = {
   indexes: {
     available: true,
     truncated: false,
-    rows: [{ name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] }]
+    rows: [{ name: "PRIMARY", unique: true, type: "BTREE", columns: ["id"] }]
   },
   foreign_keys: {
     available: true,
     truncated: false,
-    rows: [{ constraint_name: "fk_jobs_repository", direction: "outgoing", from_table: "jobs", from_column: "repository_id", to_table: "repositories", to_column: "id" }]
+    rows: [
+      {
+        constraint_name: "fk_jobs_repository",
+        direction: "outgoing",
+        from_table: "jobs",
+        from_column: "repository_id",
+        to_table: "repositories",
+        to_column: "id"
+      }
+    ]
   }
 }
 

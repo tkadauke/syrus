@@ -125,7 +125,11 @@ function renderMessage(text: string, payload = makePayload(), options: { pinnabl
   )
 }
 
-function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }>, payload = makePayload(), extra: { readOnly?: boolean; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void } = {}) {
+function renderChatMessageItem(
+  item: Extract<ChatRenderItem, { type: "message" }>,
+  payload = makePayload(),
+  extra: { readOnly?: boolean; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void } = {}
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -144,7 +148,10 @@ function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }
   )
 }
 
-function systemMessageItem(system: ChatSystemMessage, overrides: Partial<Extract<ChatRenderItem, { type: "message" }>> = {}): Extract<ChatRenderItem, { type: "message" }> {
+function systemMessageItem(
+  system: ChatSystemMessage,
+  overrides: Partial<Extract<ChatRenderItem, { type: "message" }>> = {}
+): Extract<ChatRenderItem, { type: "message" }> {
   return {
     type: "message",
     id: 7,
@@ -216,17 +223,19 @@ describe("sender attribution", () => {
 
 describe("shell command rendering", () => {
   it("renders a completed `!` command distinctly from a normal chat bubble, with ANSI output resolved to colored text", () => {
-    renderChatMessageItem(userMessage("", {
-      chat_shell_command: {
-        id: 501,
-        command: "git status",
-        output: "[32mnothing to commit, working tree clean[0m",
-        outcome: "succeeded",
-        exit_status: 0,
-        started_at: "2026-09-07T10:00:00Z",
-        finished_at: "2026-09-07T10:00:01Z"
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("", {
+        chat_shell_command: {
+          id: 501,
+          command: "git status",
+          output: "[32mnothing to commit, working tree clean[0m",
+          outcome: "succeeded",
+          exit_status: 0,
+          started_at: "2026-09-07T10:00:00Z",
+          finished_at: "2026-09-07T10:00:01Z"
+        }
+      })
+    )
 
     const card = screen.getByTestId("shell-command-card")
     expect(within(card).getByText("git status")).toBeInTheDocument()
@@ -238,17 +247,19 @@ describe("shell command rendering", () => {
   })
 
   it("shows a failed command's exit status and a distinct outcome badge", () => {
-    renderChatMessageItem(userMessage("", {
-      chat_shell_command: {
-        id: 502,
-        command: "bin/rspec",
-        output: "1 example, 1 failure",
-        outcome: "failed",
-        exit_status: 1,
-        started_at: "2026-09-07T10:00:00Z",
-        finished_at: "2026-09-07T10:00:05Z"
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("", {
+        chat_shell_command: {
+          id: 502,
+          command: "bin/rspec",
+          output: "1 example, 1 failure",
+          outcome: "failed",
+          exit_status: 1,
+          started_at: "2026-09-07T10:00:00Z",
+          finished_at: "2026-09-07T10:00:05Z"
+        }
+      })
+    )
 
     const card = screen.getByTestId("shell-command-card")
     expect(within(card).getByText("exit 1")).toBeInTheDocument()
@@ -256,17 +267,19 @@ describe("shell command rendering", () => {
   })
 
   it("shows a placeholder when a command produced no output", () => {
-    renderChatMessageItem(userMessage("", {
-      chat_shell_command: {
-        id: 503,
-        command: "true",
-        output: "",
-        outcome: "succeeded",
-        exit_status: 0,
-        started_at: "2026-09-07T10:00:00Z",
-        finished_at: "2026-09-07T10:00:00Z"
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("", {
+        chat_shell_command: {
+          id: 503,
+          command: "true",
+          output: "",
+          outcome: "succeeded",
+          exit_status: 0,
+          started_at: "2026-09-07T10:00:00Z",
+          finished_at: "2026-09-07T10:00:00Z"
+        }
+      })
+    )
 
     expect(within(screen.getByTestId("shell-command-card")).getByText("(no output)")).toBeInTheDocument()
   })
@@ -281,11 +294,10 @@ describe("shell command rendering", () => {
 describe("system message retry", () => {
   it("shows a Retry now button under a non-prominent error system message and resends the given text", () => {
     const onRetry = vi.fn()
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
-      makePayload(),
-      { retryText: "does syrus have that feature?", onRetry }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }), makePayload(), {
+      retryText: "does syrus have that feature?",
+      onRetry
+    })
 
     const button = screen.getByRole("button", { name: "Retry now" })
     fireEvent.click(button)
@@ -295,11 +307,10 @@ describe("system message retry", () => {
 
   it("shows a Retry now button under a prominent error system message", () => {
     const onRetry = vi.fn()
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Agent error", body: "Agent turn failed.", prominent: true }),
-      makePayload(),
-      { retryText: "please retry this", onRetry }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Agent error", body: "Agent turn failed.", prominent: true }), makePayload(), {
+      retryText: "please retry this",
+      onRetry
+    })
 
     fireEvent.click(screen.getByRole("button", { name: "Retry now" }))
 
@@ -307,41 +318,39 @@ describe("system message retry", () => {
   })
 
   it("does not render Retry now for non-error tones even when retry text is available", () => {
-    renderChatMessageItem(
-      systemMessageItem({ tone: "warning", label: "MCP unavailable", body: "MCP unavailable: syrus-chat-sidecar down." }),
-      makePayload(),
-      { retryText: "hello", onRetry: vi.fn() }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "warning", label: "MCP unavailable", body: "MCP unavailable: syrus-chat-sidecar down." }), makePayload(), {
+      retryText: "hello",
+      onRetry: vi.fn()
+    })
 
     expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
   })
 
   it("does not render Retry now when there is no retry text to resend", () => {
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
-      makePayload(),
-      { retryText: null, onRetry: vi.fn() }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }), makePayload(), {
+      retryText: null,
+      onRetry: vi.fn()
+    })
 
     expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
   })
 
   it("does not render Retry now in a read-only stream even with retry text available", () => {
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
-      makePayload(),
-      { readOnly: true, retryText: "hello", onRetry: vi.fn() }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }), makePayload(), {
+      readOnly: true,
+      retryText: "hello",
+      onRetry: vi.fn()
+    })
 
     expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
   })
 
   it("disables the button and labels it Retrying… while a retry is in flight", () => {
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
-      makePayload(),
-      { retryText: "hello", retrying: true, onRetry: vi.fn() }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }), makePayload(), {
+      retryText: "hello",
+      retrying: true,
+      onRetry: vi.fn()
+    })
 
     const button = screen.getByRole("button", { name: "Retrying…" })
     expect(button).toBeDisabled()
@@ -351,7 +360,12 @@ describe("system message retry", () => {
 describe("chat workspace source links", () => {
   it("resolves same-origin and absolute workspace file links for the current chat and repo only", () => {
     const payload = makePayload()
-    expect(resolveWorkspaceFileLink(`${window.location.origin}/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/services/system_alerts.rb:62`, payload)).toEqual({
+    expect(
+      resolveWorkspaceFileLink(
+        `${window.location.origin}/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/services/system_alerts.rb:62`,
+        payload
+      )
+    ).toEqual({
       path: "app/services/system_alerts.rb",
       line: 62
     })
@@ -611,7 +625,15 @@ describe("tool result rendering", () => {
           raw_payload: {},
           result_body: JSON.stringify({
             snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
-            chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" }],
+            chat_images: [
+              {
+                id: "chat_image:3",
+                kind: "chat_image",
+                filename: "desktop.png",
+                content_type: "image/png",
+                file_path: "/api/v1/app/chats/12/media/chat_images/3/file"
+              }
+            ],
             whiteboard_element_count: 7
           }),
           result_error: false,
@@ -675,8 +697,20 @@ describe("tool result rendering", () => {
           result_body: JSON.stringify({
             snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
             chat_images: [
-              { id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" },
-              { id: "chat_image:4", kind: "chat_image", filename: "mobile.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/4/file" }
+              {
+                id: "chat_image:3",
+                kind: "chat_image",
+                filename: "desktop.png",
+                content_type: "image/png",
+                file_path: "/api/v1/app/chats/12/media/chat_images/3/file"
+              },
+              {
+                id: "chat_image:4",
+                kind: "chat_image",
+                filename: "mobile.png",
+                content_type: "image/png",
+                file_path: "/api/v1/app/chats/12/media/chat_images/4/file"
+              }
             ],
             whiteboard_element_count: 7
           }),
@@ -803,7 +837,7 @@ describe("tool result rendering", () => {
           display_label: "Set bookmark",
           progress_label: "Making changes",
           raw_payload: {},
-          result_body: "{\"label\":",
+          result_body: '{"label":',
           result_error: false,
           result_kind: "text",
           result_summary: ""
@@ -814,11 +848,11 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.queryByText("{\"label\":")).not.toBeInTheDocument()
+    expect(screen.queryByText('{"label":')).not.toBeInTheDocument()
 
     expandToolGroup("Unknown tool")
 
-    expect(screen.getByText("{\"label\":")).toBeInTheDocument()
+    expect(screen.getByText('{"label":')).toBeInTheDocument()
   })
 
   it("keeps standalone structured tool messages collapsed until expansion", () => {
@@ -946,7 +980,7 @@ describe("pin control", () => {
 
   it("shows an unpin toggle and unpins on click when the message is already pinned", async () => {
     const pin: ChatMessagePin = { id: 1, chat_message_id: 5, text: "Discuss the aqueduct.", role: "assistant", created_at: "2026-08-10T10:00:00Z" }
-    vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [ pin ] })
+    vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [pin] })
     vi.mocked(deleteChatMessagePin).mockResolvedValue({ pins: [] } as unknown as ChatPayload & { pins: ChatMessagePin[] })
     renderMessage("Discuss the aqueduct.", makePayload(), { pinnable: true })
 

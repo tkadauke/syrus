@@ -8,23 +8,23 @@ const migrationPayload: MigrationDiffPayload = {
   before: {
     table_name: "users",
     columns: [
-      { name: "id",         type: "integer" },
-      { name: "legacy_key", type: "string"  },
-      { name: "status",     type: "string"  }
+      { name: "id", type: "integer" },
+      { name: "legacy_key", type: "string" },
+      { name: "status", type: "string" }
     ]
   },
   after: {
     table_name: "users",
     columns: [
-      { name: "id",     type: "integer" },
-      { name: "email",  type: "string"  },
+      { name: "id", type: "integer" },
+      { name: "email", type: "string" },
       { name: "status", type: "integer" }
     ]
   },
   changes: [
-    { type: "added",    column: { name: "email",      type: "string"  } },
-    { type: "removed",  column: { name: "legacy_key", type: "string"  } },
-    { type: "modified", column: { name: "status",     type: "integer" } }
+    { type: "added", column: { name: "email", type: "string" } },
+    { type: "removed", column: { name: "legacy_key", type: "string" } },
+    { type: "modified", column: { name: "status", type: "integer" } }
   ]
 }
 

@@ -15,9 +15,7 @@ function chatPreviewPayload(overrides: Record<string, unknown> = {}) {
     chat_slug: "CHAT-5",
     title: "Launch planning",
     title_pending: false,
-    participants: [
-      { id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" }
-    ],
+    participants: [{ id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" }],
     pending_proposal_count: 0,
     pending_actions_count: 0,
     ...overrides
@@ -78,12 +76,16 @@ describe("ChatPreviewCard", () => {
   })
 
   it("renders a participant avatar row when there is more than one participant", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatPreviewPayload({
-      participants: [
-        { id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" },
-        { id: 2, name: "Alan Turing", avatar_url: null, role: "member" }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        chatPreviewPayload({
+          participants: [
+            { id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" },
+            { id: 2, name: "Alan Turing", avatar_url: null, role: "member" }
+          ]
+        })
+      )
+    )
     renderCard(5)
     await waitFor(() => expect(screen.getByText("Launch planning")).toBeInTheDocument())
     expect(screen.getByText("AL")).toBeInTheDocument()
@@ -104,12 +106,16 @@ describe("ChatPreviewCard", () => {
   })
 
   it("compact: applies line-clamp-1 to title and hides the participant row and see-more link", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatPreviewPayload({
-      participants: [
-        { id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" },
-        { id: 2, name: "Alan Turing", avatar_url: null, role: "member" }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        chatPreviewPayload({
+          participants: [
+            { id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" },
+            { id: 2, name: "Alan Turing", avatar_url: null, role: "member" }
+          ]
+        })
+      )
+    )
     renderCard(5, true)
     await waitFor(() => expect(screen.getByText("Launch planning")).toBeInTheDocument())
     const titleLink = screen.getByRole("link", { name: "Launch planning" })

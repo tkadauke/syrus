@@ -27,9 +27,7 @@ function ErdTableBox({ table }: { table: ErdTable }) {
 
   return (
     <div className="min-w-[200px] rounded border border-gray-300 bg-white text-sm shadow-sm">
-      <div className="rounded-t bg-brand-emphasis px-3 py-1.5 font-mono font-semibold text-white">
-        {table.name}
-      </div>
+      <div className="rounded-t bg-brand-emphasis px-3 py-1.5 font-mono font-semibold text-white">{table.name}</div>
       <table className="w-full border-collapse">
         <tbody>
           {columns.map((col, i) => {

@@ -120,7 +120,9 @@ function collapsedSummary(context: ToolCardContext) {
 function DetailSection({ label, children }: { label: string; children: ReactNode }) {
   return (
     <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
-      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{label}</summary>
+      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        {label}
+      </summary>
       <div className="mt-1 text-gray-700 dark:text-gray-300">{children}</div>
     </details>
   )

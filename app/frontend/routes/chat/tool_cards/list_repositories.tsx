@@ -60,9 +60,15 @@ function renderExpanded(context: ToolCardContext) {
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">Repository</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Default branch</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Epic dependency policy</th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Repository
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Default branch
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Epic dependency policy
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -77,7 +83,9 @@ function renderExpanded(context: ToolCardContext) {
         </table>
       </div>
       {result.page != null && result.totalPages != null ? (
-        <div className="text-2xs text-gray-500 dark:text-gray-400">Page {result.page} of {result.totalPages}</div>
+        <div className="text-2xs text-gray-500 dark:text-gray-400">
+          Page {result.page} of {result.totalPages}
+        </div>
       ) : null}
     </div>
   )

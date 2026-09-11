@@ -28,15 +28,17 @@ describe("search_syrus_docs tool card", () => {
     const parsedResult = {
       query: "prepare",
       count: 1,
-      results: [{
-        rank: 1,
-        title: "Workflow Steps",
-        heading: "Prepare",
-        path: "config/syrus_docs/workflow_steps.md",
-        source: "core",
-        reference: "config/syrus_docs/workflow_steps.md > Prepare",
-        snippet: "Runs setup commands before the agent starts."
-      }]
+      results: [
+        {
+          rank: 1,
+          title: "Workflow Steps",
+          heading: "Prepare",
+          path: "config/syrus_docs/workflow_steps.md",
+          source: "core",
+          reference: "config/syrus_docs/workflow_steps.md > Prepare",
+          snippet: "Runs setup commands before the agent starts."
+        }
+      ]
     }
 
     render(<>{searchSyrusDocsToolCard.renderExpanded(context({ parsedResult }))}</>)
@@ -68,7 +70,9 @@ describe("search_syrus_docs tool card", () => {
   })
 
   it("renders a malformed payload state instead of throwing", () => {
-    expect(searchSyrusDocsToolCard.collapsedSummary?.(context({ parsedResult: { oops: true }, input: { query: "prepare" } }))).toBe('"prepare" returned an unexpected response')
+    expect(searchSyrusDocsToolCard.collapsedSummary?.(context({ parsedResult: { oops: true }, input: { query: "prepare" } }))).toBe(
+      '"prepare" returned an unexpected response'
+    )
 
     render(<>{searchSyrusDocsToolCard.renderExpanded(context({ parsedResult: "not json" }))}</>)
     expect(screen.getByText("Unexpected Syrus Docs search response.")).toBeInTheDocument()

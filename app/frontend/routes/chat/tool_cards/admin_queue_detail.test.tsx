@@ -19,7 +19,10 @@ describe("admin_queue_detail tool card", () => {
   })
 
   it("summarizes and renders the active tab", () => {
-    const parsedResult = { tab: "active", jobs: [{ id: 1, class_name: "RunJob", queue_name: "runs", created_at: "2026-09-01T00:00:00Z", claimed_at: "2026-09-01T00:00:05Z" }] }
+    const parsedResult = {
+      tab: "active",
+      jobs: [{ id: 1, class_name: "RunJob", queue_name: "runs", created_at: "2026-09-01T00:00:00Z", claimed_at: "2026-09-01T00:00:05Z" }]
+    }
     expect(adminQueueDetailToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("1 active job")
 
     render(<>{adminQueueDetailToolCard.renderExpanded(context({ parsedResult }))}</>)
@@ -49,7 +52,18 @@ describe("admin_queue_detail tool card", () => {
   })
 
   it("renders the recurring tab", () => {
-    const parsedResult = { tab: "recurring", tasks: [{ key: "poll_repos", class_name: "PollAllRepositoriesJob", schedule: "*/5 * * * *", last_run_at: "2026-09-06T00:00:00Z", last_finished_at: "2026-09-06T00:00:02Z" }] }
+    const parsedResult = {
+      tab: "recurring",
+      tasks: [
+        {
+          key: "poll_repos",
+          class_name: "PollAllRepositoriesJob",
+          schedule: "*/5 * * * *",
+          last_run_at: "2026-09-06T00:00:00Z",
+          last_finished_at: "2026-09-06T00:00:02Z"
+        }
+      ]
+    }
     expect(adminQueueDetailToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("1 recurring task")
 
     render(<>{adminQueueDetailToolCard.renderExpanded(context({ parsedResult }))}</>)

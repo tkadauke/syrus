@@ -3,16 +3,18 @@ import { diffGutterClass, diffLineClass, diffMarkerClass, parseUnifiedDiff } fro
 
 describe("parseUnifiedDiff", () => {
   it("tracks old and new line numbers across context, additions, and deletions", () => {
-    const lines = parseUnifiedDiff([
-      "diff --git a/app/models/job.rb b/app/models/job.rb",
-      "--- a/app/models/job.rb",
-      "+++ b/app/models/job.rb",
-      "@@ -10,3 +10,4 @@ class Job",
-      " context",
-      "-old",
-      "+new",
-      "+extra"
-    ].join("\n"))
+    const lines = parseUnifiedDiff(
+      [
+        "diff --git a/app/models/job.rb b/app/models/job.rb",
+        "--- a/app/models/job.rb",
+        "+++ b/app/models/job.rb",
+        "@@ -10,3 +10,4 @@ class Job",
+        " context",
+        "-old",
+        "+new",
+        "+extra"
+      ].join("\n")
+    )
 
     expect(lines.map((line) => [line.kind, line.oldLine, line.newLine, line.marker, line.code])).toEqual([
       ["file", null, null, "", "diff --git a/app/models/job.rb b/app/models/job.rb"],

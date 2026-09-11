@@ -67,9 +67,7 @@ describe("AdminConsole maintenance section", () => {
 function renderRoute(children: ReactNode) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/app-shell/admin/console"]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/app-shell/admin/console"]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }

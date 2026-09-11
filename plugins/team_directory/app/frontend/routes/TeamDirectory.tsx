@@ -6,7 +6,17 @@ import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "@app/api/client"
-import { fetchProfile, fetchProfiles, type TeamProfileActivity, type TeamProfileCounts, type TeamProfileDetail, type TeamProfileEpic, type TeamProfileJob, type TeamProfileRepository, type TeamProfileSummary } from "../api/profiles"
+import {
+  fetchProfile,
+  fetchProfiles,
+  type TeamProfileActivity,
+  type TeamProfileCounts,
+  type TeamProfileDetail,
+  type TeamProfileEpic,
+  type TeamProfileJob,
+  type TeamProfileRepository,
+  type TeamProfileSummary
+} from "../api/profiles"
 import { StatusPill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
 import { PanelMessage } from "@app/components/PanelMessage"
@@ -23,15 +33,17 @@ export function TeamDirectoryRoute() {
   return (
     <main aria-label={t("profiles.aria_directory")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <PageHeading>{t('profiles.team_directory')}</PageHeading>
+        <PageHeading>{t("profiles.team_directory")}</PageHeading>
       </header>
 
-      {profiles.isPending ? <PanelMessage>{t('profiles.loading')}</PanelMessage> : null}
+      {profiles.isPending ? <PanelMessage>{t("profiles.loading")}</PanelMessage> : null}
       {profiles.isError ? <ProfilesError error={profiles.error} /> : null}
-      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>{t('profiles.single_user')}</PanelMessage> : null}
+      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>{t("profiles.single_user")}</PanelMessage> : null}
       {profiles.isSuccess && profiles.data.team_user_count > 1 ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {profiles.data.profiles.map((profile) => <ProfileCard key={profile.id} prefix={prefix} profile={profile} />)}
+          {profiles.data.profiles.map((profile) => (
+            <ProfileCard key={profile.id} prefix={prefix} profile={profile} />
+          ))}
         </div>
       ) : null}
     </main>
@@ -52,10 +64,12 @@ export function TeamProfileRoute() {
   return (
     <main aria-label={t("profiles.aria_profile")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <Link className="text-sm text-brand underline hover:no-underline" to={`${prefix}/profiles`}>{t('profiles.team_directory')}</Link>
+        <Link className="text-sm text-brand underline hover:no-underline" to={`${prefix}/profiles`}>
+          {t("profiles.team_directory")}
+        </Link>
       </header>
 
-      {profile.isPending ? <PanelMessage>{t('profiles.loading_profile')}</PanelMessage> : null}
+      {profile.isPending ? <PanelMessage>{t("profiles.loading_profile")}</PanelMessage> : null}
       {profile.isError ? <ProfilesError error={profile.error} /> : null}
       {profile.isSuccess ? <ProfileDetail prefix={prefix} profile={profile.data.profile} /> : null}
     </main>
@@ -69,7 +83,9 @@ function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix:
       <div className="flex items-start gap-3">
         <Avatar avatarUrl={profile.avatar_url} name={profile.display_name} />
         <div className="min-w-0 flex-1">
-          <Link className="text-base font-semibold text-brand hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
+          <Link className="text-base font-semibold text-brand hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>
+            {profile.display_name}
+          </Link>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
             <span>{profile.role_label}</span>
             {profile.github_handle ? <span>@{profile.github_handle}</span> : null}
@@ -91,20 +107,57 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
           <Avatar avatarUrl={profile.avatar_url} name={profile.display_name} size="large" />
           <div className="min-w-0 flex-1">
             <PageHeading>
-              <Link className="text-brand hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
+              <Link className="text-brand hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>
+                {profile.display_name}
+              </Link>
             </PageHeading>
-            {profile.github_handle ? <a className="mt-1 inline-block text-sm text-brand hover:underline" href={`https://github.com/${profile.github_handle}`} rel="noopener noreferrer" target="_blank">@{profile.github_handle}</a> : null}
-            {profile.profile_bio ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">{profile.profile_bio}</p> : null}
+            {profile.github_handle ? (
+              <a
+                className="mt-1 inline-block text-sm text-brand hover:underline"
+                href={`https://github.com/${profile.github_handle}`}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                @{profile.github_handle}
+              </a>
+            ) : null}
+            {profile.profile_bio ? (
+              <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">{profile.profile_bio}</p>
+            ) : null}
             <Counts counts={profile.counts} />
           </div>
         </div>
       </section>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <SummaryList title={t("profiles.owned_epics")} empty={t("profiles.empty_epics")} items={profile.epics} prefix={prefix} renderItem={(epic) => <EpicRow epic={epic} prefix={prefix} />} />
-        <SummaryList title={t("profiles.owned_jobs")} empty={t("profiles.empty_jobs")} items={profile.jobs} prefix={prefix} renderItem={(job) => <JobRow job={job} prefix={prefix} />} />
-        <SummaryList title={t("profiles.repositories")} empty={t("profiles.empty_repositories")} items={profile.repositories} prefix={prefix} renderItem={(repository) => <RepositoryRow prefix={prefix} repository={repository} />} />
-        <SummaryList title={t("profiles.recent_activity")} empty={t("profiles.empty_activity")} items={profile.recent_activity} prefix={prefix} renderItem={(activity) => <ActivityRow activity={activity} prefix={prefix} />} />
+        <SummaryList
+          title={t("profiles.owned_epics")}
+          empty={t("profiles.empty_epics")}
+          items={profile.epics}
+          prefix={prefix}
+          renderItem={(epic) => <EpicRow epic={epic} prefix={prefix} />}
+        />
+        <SummaryList
+          title={t("profiles.owned_jobs")}
+          empty={t("profiles.empty_jobs")}
+          items={profile.jobs}
+          prefix={prefix}
+          renderItem={(job) => <JobRow job={job} prefix={prefix} />}
+        />
+        <SummaryList
+          title={t("profiles.repositories")}
+          empty={t("profiles.empty_repositories")}
+          items={profile.repositories}
+          prefix={prefix}
+          renderItem={(repository) => <RepositoryRow prefix={prefix} repository={repository} />}
+        />
+        <SummaryList
+          title={t("profiles.recent_activity")}
+          empty={t("profiles.empty_activity")}
+          items={profile.recent_activity}
+          prefix={prefix}
+          renderItem={(activity) => <ActivityRow activity={activity} prefix={prefix} />}
+        />
       </div>
     </>
   )
@@ -137,9 +190,15 @@ function SummaryList<T>({ title, empty, items, renderItem }: { title: string; em
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">{title}</SectionHeading>
-      {items.length === 0 ? <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{empty}</p> : (
+      {items.length === 0 ? (
+        <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{empty}</p>
+      ) : (
         <div className="divide-y divide-gray-100 dark:divide-gray-800">
-          {items.map((item, index) => <div className="px-4 py-3" key={index}>{renderItem(item)}</div>)}
+          {items.map((item, index) => (
+            <div className="px-4 py-3" key={index}>
+              {renderItem(item)}
+            </div>
+          ))}
         </div>
       )}
     </section>
@@ -151,8 +210,12 @@ function EpicRow({ epic, prefix }: { epic: TeamProfileEpic; prefix: string }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(epic.path, prefix)}>{epic.title}</Link>
-        <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{epic.display_number} · {epic.repository.slug}</div>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(epic.path, prefix)}>
+          {epic.title}
+        </Link>
+        <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+          {epic.display_number} · {epic.repository.slug}
+        </div>
       </div>
       <StatusPill state={epic.state} />
     </div>
@@ -164,10 +227,14 @@ function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.path, prefix)}>
+          {job.title}
+        </Link>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.owner ? <OwnerProfileLink owner={job.owner} prefix={prefix} /> : null}
-          <span>{job.repository.slug} · updated <RelativeTimestamp fallback="not started" value={job.updated_at} /></span>
+          <span>
+            {job.repository.slug} · updated <RelativeTimestamp fallback="not started" value={job.updated_at} />
+          </span>
         </div>
       </div>
       <StatusPill state={job.state} />
@@ -178,7 +245,10 @@ function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
 function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob["owner"]>; prefix: string }) {
   const { t } = useT("team_directory")
   return (
-    <Link className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium text-gray-600 dark:text-gray-400 hover:text-brand hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+    <Link
+      className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium text-gray-600 dark:text-gray-400 hover:text-brand hover:underline"
+      to={withRoutePrefix(owner.profile_path, prefix)}
+    >
       {owner.display_name}
     </Link>
   )
@@ -186,7 +256,11 @@ function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob
 
 function RepositoryRow({ repository, prefix }: { repository: TeamProfileRepository; prefix: string }) {
   const { t } = useT("team_directory")
-  return <Link className="font-mono text-sm text-brand hover:underline" to={withRoutePrefix(repository.path, prefix)}>{repository.slug}</Link>
+  return (
+    <Link className="font-mono text-sm text-brand hover:underline" to={withRoutePrefix(repository.path, prefix)}>
+      {repository.slug}
+    </Link>
+  )
 }
 
 function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; prefix: string }) {
@@ -194,8 +268,12 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(activity.path, prefix)}>{activity.title}</Link>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{activity.type} · {activity.repository_slug} · <RelativeTimestamp fallback="not started" value={activity.occurred_at} /></div>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(activity.path, prefix)}>
+          {activity.title}
+        </Link>
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {activity.type} · {activity.repository_slug} · <RelativeTimestamp fallback="not started" value={activity.occurred_at} />
+        </div>
       </div>
       <StatusPill state={activity.state} />
     </div>
@@ -205,9 +283,12 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
 function ProfilesError({ error }: { error: Error }) {
   const { t } = useT("team_directory")
   const message = error instanceof ApiError ? error.message : "Unable to load profiles."
-  return <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-300" role="alert">{message}</div>
+  return (
+    <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-300" role="alert">
+      {message}
+    </div>
+  )
 }
-
 
 // Single entry point for the plugin sidebar page. PluginSidebarPageRoute
 // matches `/profiles` and anything beneath it with one component, so the

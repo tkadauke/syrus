@@ -84,7 +84,9 @@ export function RefMovementCoreFields({ core }: { core: RefMovementCore }) {
         <div>
           <SectionLabel>Grade phases</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {core.gradePhases.map((phase) => <Badge key={phase}>{phase}</Badge>)}
+            {core.gradePhases.map((phase) => (
+              <Badge key={phase}>{phase}</Badge>
+            ))}
           </div>
         </div>
       ) : null}

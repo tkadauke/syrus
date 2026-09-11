@@ -13,7 +13,12 @@ describe("ingest_pull_request tool card", () => {
   })
 
   it("summarizes a fresh ingestion", () => {
-    const parsedResult = { pr_number: 42, already_ingested: false, classification: "external_unknown", job: { id: 900, slug: "JOB-900", state: "queued", kind: "direct" } }
+    const parsedResult = {
+      pr_number: 42,
+      already_ingested: false,
+      classification: "external_unknown",
+      job: { id: 900, slug: "JOB-900", state: "queued", kind: "direct" }
+    }
     expect(ingestPullRequestToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("PR #42 ingested as JOB-900")
   })
 
@@ -23,7 +28,12 @@ describe("ingest_pull_request tool card", () => {
   })
 
   it("renders classification and job summary", () => {
-    const parsedResult = { pr_number: 42, already_ingested: false, classification: "external_unknown", job: { id: 900, slug: "JOB-900", state: "queued", kind: "direct" } }
+    const parsedResult = {
+      pr_number: 42,
+      already_ingested: false,
+      classification: "external_unknown",
+      job: { id: 900, slug: "JOB-900", state: "queued", kind: "direct" }
+    }
 
     render(<>{ingestPullRequestToolCard.renderExpanded(context({ parsedResult }))}</>)
 

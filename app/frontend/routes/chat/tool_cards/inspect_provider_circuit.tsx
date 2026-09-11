@@ -128,10 +128,28 @@ function parseProviderCircuit(context: ToolCardContext): ProviderCircuitCard | n
 
   return {
     decision,
-    runs: parsed.runs.flatMap((run, index) => { const row = parseRunRow(run, index); return row ? [row] : [] }),
-    evidence: Array.isArray(parsed.evidence_records) ? parsed.evidence_records.flatMap((record, index) => { const row = parseEvidenceRow(record, index); return row ? [row] : [] }) : [],
-    queuedWorkflows: Array.isArray(consumers.queued_workflows_without_runs) ? consumers.queued_workflows_without_runs.flatMap((workflow, index) => { const row = parseQueuedWorkflow(workflow, index); return row ? [row] : [] }) : [],
-    delayedRetries: Array.isArray(consumers.delayed_auto_retries) ? consumers.delayed_auto_retries.flatMap((retry, index) => { const row = parseDelayedRetry(retry, index); return row ? [row] : [] }) : []
+    runs: parsed.runs.flatMap((run, index) => {
+      const row = parseRunRow(run, index)
+      return row ? [row] : []
+    }),
+    evidence: Array.isArray(parsed.evidence_records)
+      ? parsed.evidence_records.flatMap((record, index) => {
+          const row = parseEvidenceRow(record, index)
+          return row ? [row] : []
+        })
+      : [],
+    queuedWorkflows: Array.isArray(consumers.queued_workflows_without_runs)
+      ? consumers.queued_workflows_without_runs.flatMap((workflow, index) => {
+          const row = parseQueuedWorkflow(workflow, index)
+          return row ? [row] : []
+        })
+      : [],
+    delayedRetries: Array.isArray(consumers.delayed_auto_retries)
+      ? consumers.delayed_auto_retries.flatMap((retry, index) => {
+          const row = parseDelayedRetry(retry, index)
+          return row ? [row] : []
+        })
+      : []
   }
 }
 
@@ -173,7 +191,9 @@ function renderExpanded(context: ToolCardContext) {
               {card.runs.map((run) => (
                 <tr key={run.key}>
                   <Td mono>RUN-{run.id}</Td>
-                  <Td><JobRefLink jobId={run.jobId} /></Td>
+                  <Td>
+                    <JobRefLink jobId={run.jobId} />
+                  </Td>
                   <Td>{run.stepKind || "—"}</Td>
                   <Td>{run.agentOutcome || "—"}</Td>
                   <Td>{run.classification || "—"}</Td>

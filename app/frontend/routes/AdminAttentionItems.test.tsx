@@ -20,9 +20,7 @@ function item(overrides: Record<string, unknown> = {}) {
     reason: null,
     evidence: { grader_name: "rspec", exit_status: "1" },
     adjudication: { verdict: "inconclusive", reason: "no opinion" },
-    actions: [
-      { action_key: "retry_job", label: "Retry from the failed step", detail: "job_id: 42", payload: { job_id: 42 } }
-    ],
+    actions: [{ action_key: "retry_job", label: "Retry from the failed step", detail: "job_id: 42", payload: { job_id: 42 } }],
     repository: { id: 2, slug: "tkadauke/syrus", path: "/repositories/2" },
     job: { id: 42, slug: "JOB-42", title: "Fix flaky spec", state: "landing", path: "/jobs/42" },
     workflow: { id: 900, trigger_kind: "auto_merge", state: "failed", slug: "WF-900", path: "/jobs/42?tab=workflows#workflow-900" },
@@ -37,7 +35,7 @@ function item(overrides: Record<string, unknown> = {}) {
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
-    items: [ item() ],
+    items: [item()],
     pagination: {
       page: 1,
       per_page: 50,
@@ -48,9 +46,7 @@ function payload(overrides: Record<string, unknown> = {}) {
       previous_path: null,
       next_path: null
     },
-    filter_schema: [
-      { field: "state", label: "State", bucket: "enum", operators: [ "is" ], values: [ { value: "open", label: "open" } ] }
-    ],
+    filter_schema: [{ field: "state", label: "State", bucket: "enum", operators: ["is"], values: [{ value: "open", label: "open" }] }],
     filter: { and: [] },
     ...overrides
   }
@@ -60,7 +56,7 @@ function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ "/admin/attention_items" ]}>
+      <MemoryRouter initialEntries={["/admin/attention_items"]}>
         <AdminAttentionItems />
       </MemoryRouter>
     </QueryClientProvider>

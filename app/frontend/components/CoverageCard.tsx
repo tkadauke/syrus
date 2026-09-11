@@ -74,30 +74,28 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
             {thresholdDetails.lines_pct != null && thresholdDetails.threshold_lines != null ? (
               <>
                 <dt>{t("coverage_threshold_lines_actual")}</dt>
-                <dd>{thresholdDetails.lines_pct.toFixed(1)}% <span className="text-gray-400">(threshold: {thresholdDetails.threshold_lines}%)</span></dd>
+                <dd>
+                  {thresholdDetails.lines_pct.toFixed(1)}% <span className="text-gray-400">(threshold: {thresholdDetails.threshold_lines}%)</span>
+                </dd>
               </>
             ) : null}
             {thresholdDetails.pr_delta_pct != null && thresholdDetails.threshold_pr_lines != null ? (
               <>
                 <dt>{t("coverage_threshold_pr_delta_actual")}</dt>
-                <dd>{thresholdDetails.pr_delta_pct.toFixed(1)}% <span className="text-gray-400">(threshold: {thresholdDetails.threshold_pr_lines}%)</span></dd>
+                <dd>
+                  {thresholdDetails.pr_delta_pct.toFixed(1)}% <span className="text-gray-400">(threshold: {thresholdDetails.threshold_pr_lines}%)</span>
+                </dd>
               </>
             ) : null}
           </dl>
         ) : null}
       </div>
 
-      {hitMapAttached ? (
-        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("coverage_hit_map_available")}</p>
-      ) : null}
+      {hitMapAttached ? <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("coverage_hit_map_available")}</p> : null}
 
       {sortedFiles.length > 0 ? (
         <div className="mt-3">
-          <button
-            className="text-sm text-brand hover:underline dark:text-brand-emphasis"
-            onClick={() => setFilesExpanded((v) => !v)}
-            type="button"
-          >
+          <button className="text-sm text-brand hover:underline dark:text-brand-emphasis" onClick={() => setFilesExpanded((v) => !v)} type="button">
             {filesExpanded ? t("coverage_files_hide") : t("coverage_files_show", { count: sortedFiles.length })}
           </button>
           {filesExpanded ? (
@@ -113,7 +111,9 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {sortedFiles.map(([path, stats]) => (
                     <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50" key={path}>
-                      <td className="max-w-xs truncate px-3 py-1.5 font-mono text-gray-700 dark:text-gray-300" title={path}>{path}</td>
+                      <td className="max-w-xs truncate px-3 py-1.5 font-mono text-gray-700 dark:text-gray-300" title={path}>
+                        {path}
+                      </td>
                       <td className="px-3 py-1.5 text-right">
                         <CoveragePct pct={stats.lines_pct} />
                       </td>
@@ -146,11 +146,8 @@ function CoverageBadge({ label, pct }: { label: string; pct: number | null | und
 function CoveragePct({ pct }: { pct: number | null | undefined }) {
   if (pct == null) return <span className="text-gray-400">—</span>
   const tone = pctTone(pct)
-  const cls = tone === "green"
-    ? "text-emerald-700 dark:text-emerald-400"
-    : tone === "amber"
-    ? "text-amber-700 dark:text-amber-400"
-    : "text-red-700 dark:text-red-400"
+  const cls =
+    tone === "green" ? "text-emerald-700 dark:text-emerald-400" : tone === "amber" ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"
   return <span className={cls}>{pct.toFixed(1)}%</span>
 }
 

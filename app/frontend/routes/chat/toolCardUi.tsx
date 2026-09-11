@@ -54,11 +54,7 @@ export function stateTone(state: string | null | undefined): Tone {
 
 export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
   const resolvedTone = tone ?? stateTone(state)
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ${TONE_CLASSES[resolvedTone]}`}>
-      {state.replace(/_/g, " ")}
-    </span>
-  )
+  return <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ${TONE_CLASSES[resolvedTone]}`}>{state.replace(/_/g, " ")}</span>
 }
 
 export function Badge({ children }: { children: ReactNode }) {
@@ -69,7 +65,9 @@ export function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <dt className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="truncate font-mono text-gray-700 dark:text-gray-300" title={value}>{value}</dd>
+      <dd className="truncate font-mono text-gray-700 dark:text-gray-300" title={value}>
+        {value}
+      </dd>
     </div>
   )
 }
@@ -105,7 +103,9 @@ export function InternalLink({ href, children }: { href: string; children: React
 export function Disclosure({ label, children }: { label: string; children: ReactNode }) {
   return (
     <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
-      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{label}</summary>
+      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        {label}
+      </summary>
       <div className="mt-1 text-gray-700 dark:text-gray-300">{children}</div>
     </details>
   )

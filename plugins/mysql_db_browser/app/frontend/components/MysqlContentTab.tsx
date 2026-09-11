@@ -24,13 +24,14 @@ export function MysqlContentTab({ connectionId, database, table }: { connectionI
 
   const content = useQuery({
     queryKey: ["mysql_db_browser", "content", connectionId, database, table, filterQ, sort?.column, sort?.direction, page],
-    queryFn: () => fetchMysqlTableContent(connectionId, database, table, {
-      q: filterQ,
-      sort_by: sort?.column,
-      sort_dir: sort?.direction,
-      page,
-      per_page: PER_PAGE
-    }),
+    queryFn: () =>
+      fetchMysqlTableContent(connectionId, database, table, {
+        q: filterQ,
+        sort_by: sort?.column,
+        sort_dir: sort?.direction,
+        page,
+        per_page: PER_PAGE
+      }),
     placeholderData: keepPreviousData
   })
 
@@ -50,7 +51,11 @@ export function MysqlContentTab({ connectionId, database, table }: { connectionI
       />
 
       {content.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("content_loading")}</p> : null}
-      {content.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(content.error, t("content_error_fallback"))}</p> : null}
+      {content.isError ? (
+        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(content.error, t("content_error_fallback"))}
+        </p>
+      ) : null}
       {content.data && !content.data.available ? <MysqlQueryErrorPanel error={content.data.error} /> : null}
       {content.data?.available ? (
         <>

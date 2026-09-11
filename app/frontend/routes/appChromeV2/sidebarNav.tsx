@@ -1,6 +1,20 @@
 import type { ReactNode } from "react"
 import type { SidebarPluginPage } from "../../api/sidebarPages"
-import { ActivityIcon, DashboardIcon, DatabaseIcon, DocumentIcon, MockupIcon, PluginIcon, RepositoryIcon, ScheduleIcon, ServerIcon, SpendingIcon, TeamIcon, TerminalIcon, TimelineIcon } from "./icons"
+import {
+  ActivityIcon,
+  DashboardIcon,
+  DatabaseIcon,
+  DocumentIcon,
+  MockupIcon,
+  PluginIcon,
+  RepositoryIcon,
+  ScheduleIcon,
+  ServerIcon,
+  SpendingIcon,
+  TeamIcon,
+  TerminalIcon,
+  TimelineIcon
+} from "./icons"
 
 export type SidebarNavContext = {
   simpleMode: boolean
@@ -34,7 +48,7 @@ export type MergedNavItem = {
 // assembled separately).
 export const CORE_NAV_ITEMS: readonly CoreNavItem[] = [
   { id: "dashboard", labelKey: "nav:dashboard", to: () => "/dashboard/jobs", icon: <DashboardIcon />, order: 10 },
-  { id: "repositories", labelKey: "nav:repositories", to: () => "/repositories", icon: <RepositoryIcon />, order: 20 },
+  { id: "repositories", labelKey: "nav:repositories", to: () => "/repositories", icon: <RepositoryIcon />, order: 20 }
 ]
 
 // Known icon references a sidebar_page plugin may declare. Anything else
@@ -51,7 +65,7 @@ const PLUGIN_ICONS: Record<string, ReactNode> = {
   spending: <SpendingIcon />,
   terminal: <TerminalIcon />,
   team: <TeamIcon />,
-  timeline: <TimelineIcon />,
+  timeline: <TimelineIcon />
 }
 
 function resolvePluginIcon(icon: string | null | undefined): ReactNode {
@@ -67,15 +81,13 @@ export function buildSidebarNavItems(
   pluginPages: SidebarPluginPage[],
   translate: (key: string, options?: { defaultValue?: string }) => string
 ): MergedNavItem[] {
-  const coreItems: MergedNavItem[] = CORE_NAV_ITEMS
-    .filter((item) => !item.visible || item.visible(context))
-    .map((item) => ({
-      id: item.id,
-      label: translate(item.labelKey),
-      to: item.to(context),
-      icon: item.icon,
-      order: item.order,
-    }))
+  const coreItems: MergedNavItem[] = CORE_NAV_ITEMS.filter((item) => !item.visible || item.visible(context)).map((item) => ({
+    id: item.id,
+    label: translate(item.labelKey),
+    to: item.to(context),
+    icon: item.icon,
+    order: item.order
+  }))
 
   // Pages that declare section "settings" belong to the settings side nav,
   // not the primary sidebar.
@@ -89,7 +101,7 @@ export function buildSidebarNavItems(
       order: page.order,
       smartFolderApiPath: page.smart_folder_api_path,
       smartFolderSubject: page.smart_folder_subject,
-      badgeApiPath: page.badge_api_path,
+      badgeApiPath: page.badge_api_path
     }))
 
   return [...coreItems, ...pluginItems]
@@ -101,7 +113,7 @@ export function buildSidebarNavItems(
 // visible — are appended at the end, preserving their original relative
 // order, instead of being dropped or randomly placed.
 export function applySidebarNavOrder<T extends { id: string }>(items: T[], order: string[]): T[] {
-  const remaining = new Map(items.map((item) => [ item.id, item ]))
+  const remaining = new Map(items.map((item) => [item.id, item]))
   const ordered: T[] = []
 
   for (const id of order) {

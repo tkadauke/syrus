@@ -21,7 +21,19 @@ import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPil
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { archiveRepositoryFromPath, fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
+import {
+  archiveRepositoryFromPath,
+  fetchRepositoryDetail,
+  pollRepositoryDetail,
+  releaseNeedsTriageRepositoryJob,
+  retryFailedRepositoryJobs,
+  runInsightAnalysis,
+  runRepositoryRecommendation,
+  type InsightScheduleConfigRecord,
+  type RepositoryDetailJob,
+  type RepositoryDetailPayload,
+  type RepositoryFeatureRecommendation
+} from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 
@@ -47,7 +59,17 @@ function repositoryDetailQueryKey(id: string | number, search: string): Reposito
   return ["repositories", String(id), "detail", search] as const
 }
 
-function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: "overview"; detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }; prefix: string; queryKey: RepositoryDetailQueryKey }) {
+function RepositoryDetail({
+  activeTab,
+  detail,
+  prefix,
+  queryKey
+}: {
+  activeTab: "overview"
+  detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }
+  prefix: string
+  queryKey: RepositoryDetailQueryKey
+}) {
   const { t } = useT("settings")
   const setupStatus = useSetupStatus()
   const payload = detail.data
@@ -56,21 +78,21 @@ function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: 
   return (
     <RepositoryPageShell
       activeTab={activeTab}
-      ariaLabel={t('repository.aria_repository')}
-      heading={payload ? (
-        <PageHeading mono>
-          <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">{payload.repository.slug}</a>
-        </PageHeading>
-      ) : null}
+      ariaLabel={t("repository.aria_repository")}
+      heading={
+        payload ? (
+          <PageHeading mono>
+            <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">
+              {payload.repository.slug}
+            </a>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={payload?.tabs ?? []}
       tipBanner={payload ? <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : undefined}
     >
-      {detail.isPending ? (
-        <PanelMessage>
-          {t('repository.loading')}
-        </PanelMessage>
-      ) : null}
+      {detail.isPending ? <PanelMessage>{t("repository.loading")}</PanelMessage> : null}
       {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load repository.")}</PanelMessage> : null}
       {payload ? (
         <>
@@ -80,7 +102,9 @@ function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: 
               <RepositorySummary payload={payload} />
               <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
               <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-              {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
+              {payload.health_history ? (
+                <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+              ) : null}
               {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
               <PluginUiSlot panels={payload.ui_panels} props={{ repository: payload.repository }} />
               <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
@@ -123,23 +147,36 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       <span>{payload.credential_status.label}</span>
       <span className="text-gray-300 dark:text-gray-600">·</span>
       <span>
-        {t('repository.agent_prefix')} {repository.agent_provider_label || `user default (${repository.effective_agent_provider_label})`}
+        {t("repository.agent_prefix")} {repository.agent_provider_label || `user default (${repository.effective_agent_provider_label})`}
       </span>
       {nonzeroCounts.map((count) => (
-        <StatusPill key={count.label} tone={count.tone}>{count.value} {count.label}</StatusPill>
+        <StatusPill key={count.label} tone={count.tone}>
+          {count.value} {count.label}
+        </StatusPill>
       ))}
     </div>
   )
 }
 
-export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+export function RecommendedActions({
+  payload,
+  prefix,
+  queryKey,
+  onNotice
+}: {
+  payload: RepositoryDetailPayload
+  prefix: string
+  queryKey: RepositoryDetailQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const search = queryKey[3]
   const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedRecommendations(payload.repository.id))
   const [currentIndex, setCurrentIndex] = useState(0)
   const recommendationAction = useMutation({
-    mutationFn: (recommendation: RepositoryFeatureRecommendation) => runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
+    mutationFn: (recommendation: RepositoryFeatureRecommendation) =>
+      runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
     onSuccess: (updated) => {
       if ("repository" in updated && "tabs" in updated) {
         queryClient.setQueryData(queryKey, updated)
@@ -182,7 +219,9 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{recommendation.title}</span>
               <span className="text-xs opacity-75">{recommendation.category}</span>
-              <span className="text-xs opacity-75">Tip {activeIndex + 1} of {recommendations.length}</span>
+              <span className="text-xs opacity-75">
+                Tip {activeIndex + 1} of {recommendations.length}
+              </span>
             </div>
             <p className="mt-0.5 text-xs leading-5 opacity-90">{recommendation.body}</p>
           </div>
@@ -210,12 +249,17 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
               </div>
             ) : null}
             {recommendation.cta.kind === "link" ? (
-              <Link className={buttonClass("gray")} to={withRoutePrefix(recommendation.cta.path, prefix)}>{recommendation.cta.label}</Link>
+              <Link className={buttonClass("gray")} to={withRoutePrefix(recommendation.cta.path, prefix)}>
+                {recommendation.cta.label}
+              </Link>
             ) : (
               <button
                 className={buttonClass(recommendation.cta.kind === "job" ? "blue" : "green")}
                 disabled={recommendationAction.isPending}
-                onClick={() => { onNotice(null); recommendationAction.mutate(recommendation) }}
+                onClick={() => {
+                  onNotice(null)
+                  recommendationAction.mutate(recommendation)
+                }}
                 type="button"
               >
                 {recommendationAction.isPending ? "Working..." : recommendation.cta.label}
@@ -225,7 +269,9 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
           </div>
         </div>
       </div>
-      {recommendationAction.isError ? <PanelMessage tone="error">{errorMessage(recommendationAction.error, "Recommendation action failed.")}</PanelMessage> : null}
+      {recommendationAction.isError ? (
+        <PanelMessage tone="error">{errorMessage(recommendationAction.error, "Recommendation action failed.")}</PanelMessage>
+      ) : null}
     </section>
   )
 }
@@ -263,70 +309,64 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
   const repository = payload.repository
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t('repository.details')}>
-      <SectionHeading>
-        {t('repository.details')}
-      </SectionHeading>
+    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t("repository.details")}>
+      <SectionHeading>{t("repository.details")}</SectionHeading>
       <dl className="mt-3 space-y-3">
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.working_repo')}
-          </dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository.working_repo")}</dt>
           <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.slug}</dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.working_branch')}
-          </dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository.working_branch")}</dt>
           <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.default_branch}</dd>
         </div>
         {repository.upstream_slug ? (
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              {t('repository.upstream_repo')}
-            </dt>
-            <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.upstream_slug}{repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}</dd>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository.upstream_repo")}</dt>
+            <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">
+              {repository.upstream_slug}
+              {repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}
+            </dd>
           </div>
         ) : null}
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.trigger_label')}
-          </dt>
-          <dd className="mt-0.5"><code className="rounded bg-gray-100 px-1 dark:bg-gray-800">{repository.trigger_label}</code></dd>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository.trigger_label")}</dt>
+          <dd className="mt-0.5">
+            <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">{repository.trigger_label}</code>
+          </dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.syrus_owner')}
-          </dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository.syrus_owner")}</dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
             {repository.owner_user.profile_path ? (
-              <Link className="text-brand hover:underline dark:text-brand-emphasis" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
+              <Link className="text-brand hover:underline dark:text-brand-emphasis" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>
+                {repository.owner_user.display_name}
+              </Link>
             ) : (
               repository.owner_user.display_name || repository.owner_user.email_address
             )}
           </dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.added')}
-          </dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-300"><RelativeTimestamp value={repository.created_at} /></dd>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository.added")}</dt>
+          <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
+            <RelativeTimestamp value={repository.created_at} />
+          </dd>
         </div>
         {repository.github_rate_limit ? (
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              {t('repository.github_quota')}
-            </dt>
-            <dd className="mt-0.5 text-gray-700 dark:text-gray-300"><strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} ({repository.github_rate_limit.resource})</dd>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository.github_quota")}</dt>
+            <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
+              <strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} (
+              {repository.github_rate_limit.resource})
+            </dd>
           </div>
         ) : null}
         {payload.credential_status.mode === "app" && payload.credential_status.installation_account ? (
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              {t('repository.credential')}
-            </dt>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository.credential")}</dt>
             <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
-              {t('repository.syrus_app_via', { account: payload.credential_status.installation_account })}
+              {t("repository.syrus_app_via", { account: payload.credential_status.installation_account })}
             </dd>
           </div>
         ) : null}
@@ -340,27 +380,37 @@ function SyrusYmlCard({ payload }: { payload: RepositoryDetailPayload }) {
   const summary = payload.syrus_yml
   if (!summary) return null
 
-  const rows = summary.present ? [
-    [t("repository.syrus_yml_prepare"), String(summary.prepare_commands_count)],
-    [t("repository.syrus_yml_graders"), t("repository.syrus_yml_graders_value", { count: summary.graders_count, required: summary.required_graders_count })],
-    [t("repository.syrus_yml_formatters"), formatterModeLabel(summary.formatter_mode, t)],
-    [t("repository.syrus_yml_generated"), String(summary.generated_steps_count)],
-    [t("repository.syrus_yml_visual_review"), visualReviewModeLabel(summary.visual_review_mode, t)],
-    [t("repository.syrus_yml_adversarial_review"), summary.adversarial_review_rounds == null ? t("repository.syrus_yml_not_configured") : t("repository.syrus_yml_rounds", { count: summary.adversarial_review_rounds })],
-    [t("repository.syrus_yml_review_plan"), summary.review_plan_enabled ? t("repository.syrus_yml_enabled") : t("repository.syrus_yml_disabled")],
-    [t("repository.syrus_yml_coverage"), summary.coverage_configured ? t("repository.syrus_yml_configured") : t("repository.syrus_yml_not_configured")],
-    [t("repository.syrus_yml_delivery_tracks"), String(summary.delivery_tracks_count)]
-  ] : [
-    [t("repository.syrus_yml_status"), summary.note || t("repository.syrus_yml_unavailable")]
-  ]
+  const rows = summary.present
+    ? [
+        [t("repository.syrus_yml_prepare"), String(summary.prepare_commands_count)],
+        [
+          t("repository.syrus_yml_graders"),
+          t("repository.syrus_yml_graders_value", { count: summary.graders_count, required: summary.required_graders_count })
+        ],
+        [t("repository.syrus_yml_formatters"), formatterModeLabel(summary.formatter_mode, t)],
+        [t("repository.syrus_yml_generated"), String(summary.generated_steps_count)],
+        [t("repository.syrus_yml_visual_review"), visualReviewModeLabel(summary.visual_review_mode, t)],
+        [
+          t("repository.syrus_yml_adversarial_review"),
+          summary.adversarial_review_rounds == null
+            ? t("repository.syrus_yml_not_configured")
+            : t("repository.syrus_yml_rounds", { count: summary.adversarial_review_rounds })
+        ],
+        [t("repository.syrus_yml_review_plan"), summary.review_plan_enabled ? t("repository.syrus_yml_enabled") : t("repository.syrus_yml_disabled")],
+        [t("repository.syrus_yml_coverage"), summary.coverage_configured ? t("repository.syrus_yml_configured") : t("repository.syrus_yml_not_configured")],
+        [t("repository.syrus_yml_delivery_tracks"), String(summary.delivery_tracks_count)]
+      ]
+    : [[t("repository.syrus_yml_status"), summary.note || t("repository.syrus_yml_unavailable")]]
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label=".syrus.yml configuration">
-      <SectionHeading>
-        .syrus.yml
-      </SectionHeading>
+      <SectionHeading>.syrus.yml</SectionHeading>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {summary.present ? t("repository.syrus_yml_loaded", { source: summary.source }) : summary.note ? t("repository.syrus_yml_not_loaded_with_note", { note: summary.note }) : t("repository.syrus_yml_not_loaded")}
+        {summary.present
+          ? t("repository.syrus_yml_loaded", { source: summary.source })
+          : summary.note
+            ? t("repository.syrus_yml_not_loaded_with_note", { note: summary.note })
+            : t("repository.syrus_yml_not_loaded")}
       </p>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
         {rows.map(([label, value]) => (
@@ -398,7 +448,17 @@ function visualReviewModeLabel(mode: string, t: ReturnType<typeof useT>["t"]) {
   return labels[mode] || mode
 }
 
-function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+function Actions({
+  payload,
+  prefix,
+  queryKey,
+  onNotice
+}: {
+  payload: RepositoryDetailPayload
+  prefix: string
+  queryKey: RepositoryDetailQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("settings")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
@@ -450,10 +510,34 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        {payload.simple_mode ? null : <Link className={buttonClass("green")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t('repository.new_job')}</Link>}
-        <button className={buttonClass("blue")} disabled={disabled} onClick={() => { onNotice(null); poll.mutate() }} type="button">{t('repository.poll_now')}</button>
+        {payload.simple_mode ? null : (
+          <Link className={buttonClass("green")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>
+            {t("repository.new_job")}
+          </Link>
+        )}
+        <button
+          className={buttonClass("blue")}
+          disabled={disabled}
+          onClick={() => {
+            onNotice(null)
+            poll.mutate()
+          }}
+          type="button"
+        >
+          {t("repository.poll_now")}
+        </button>
         {retry.count > 0 ? (
-          <button className={buttonClass("amber")} disabled={disabled || retry.provider_circuit.open} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">Retry {retry.count} failed with {retry.agent_provider_label}</button>
+          <button
+            className={buttonClass("amber")}
+            disabled={disabled || retry.provider_circuit.open}
+            onClick={() => {
+              onNotice(null)
+              retryFailed.mutate()
+            }}
+            type="button"
+          >
+            Retry {retry.count} failed with {retry.agent_provider_label}
+          </button>
         ) : null}
         {payload.agent_insights_enabled && payload.paths.app_run_insight_analysis_repository_path ? (
           payload.active_insight_job ? (
@@ -464,16 +548,17 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
             <button
               className={buttonClass("gray")}
               disabled={disabled || runInsight.isPending}
-              onClick={() => { onNotice(null); runInsight.mutate() }}
+              onClick={() => {
+                onNotice(null)
+                runInsight.mutate()
+              }}
               type="button"
             >
               {runInsight.isPending ? "Starting…" : "Run insight analysis"}
             </button>
           )
         ) : null}
-        {payload.agent_insights_enabled && payload.insight_schedule_config ? (
-          <InsightScheduleBadge config={payload.insight_schedule_config} />
-        ) : null}
+        {payload.agent_insights_enabled && payload.insight_schedule_config ? <InsightScheduleBadge config={payload.insight_schedule_config} /> : null}
         {payload.agent_insights_enabled && payload.paths.repository_insights_path ? (
           <Link className={buttonClass("gray")} to={withRoutePrefix(payload.paths.repository_insights_path, prefix)}>
             View insights
@@ -488,13 +573,35 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
             onClick={() => setMoreOpen((open) => !open)}
             type="button"
           >
-            {t('repository.more')}
+            {t("repository.more")}
           </button>
           {moreOpen ? (
-            <div className="absolute left-0 z-20 mt-2 min-w-40 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1 text-sm shadow-lg" id="repository-actions-menu">
-              <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.new_repository_skill_job_path, prefix)}>{t('repository.launch_skill')}</Link>
-              <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.edit_repository_path, prefix)}>Edit</Link>
-              <button className="block w-full rounded px-3 py-2 text-left text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/50 disabled:text-gray-300 dark:disabled:text-gray-600" disabled={disabled} onClick={archiveRepository} type="button">{t('repository.archive')}</button>
+            <div
+              className="absolute left-0 z-20 mt-2 min-w-40 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1 text-sm shadow-lg"
+              id="repository-actions-menu"
+            >
+              <Link
+                className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => setMoreOpen(false)}
+                to={withRoutePrefix(payload.paths.new_repository_skill_job_path, prefix)}
+              >
+                {t("repository.launch_skill")}
+              </Link>
+              <Link
+                className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => setMoreOpen(false)}
+                to={withRoutePrefix(payload.paths.edit_repository_path, prefix)}
+              >
+                Edit
+              </Link>
+              <button
+                className="block w-full rounded px-3 py-2 text-left text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/50 disabled:text-gray-300 dark:disabled:text-gray-600"
+                disabled={disabled}
+                onClick={archiveRepository}
+                type="button"
+              >
+                {t("repository.archive")}
+              </button>
             </div>
           ) : null}
         </div>
@@ -522,35 +629,47 @@ function CredentialNotice({ payload }: { payload: RepositoryDetailPayload }) {
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <span className="font-medium">
-            {t('repository.connection')}
+          <span className="font-medium">{t("repository.connection")}</span> {t("repository.pat_fallback")}
+          <span className="ml-1">
+            {status.github_app_registered
+              ? "Install the GitHub App for this repository owner to use app credentials here."
+              : "Register the GitHub App to prefer app credentials over PAT fallback."}
           </span>
-          {" "}{t('repository.pat_fallback')}
-          <span className="ml-1">{status.github_app_registered ? "Install the GitHub App for this repository owner to use app credentials here." : "Register the GitHub App to prefer app credentials over PAT fallback."}</span>
-          {status.previous_installation_removed ? (
-            <span className="ml-1">
-              {t('repository.installation_removed')}
-            </span>
-          ) : null}
+          {status.previous_installation_removed ? <span className="ml-1">{t("repository.installation_removed")}</span> : null}
         </div>
-        {status.install_url ? <a className={buttonClass("gray")} href={status.install_url} rel="noopener" target="_blank">{t('repository.install_app')}</a> : null}
-        {status.register_path ? <a className={buttonClass("gray")} href={status.register_path}>{t('repository.register_app')}</a> : null}
+        {status.install_url ? (
+          <a className={buttonClass("gray")} href={status.install_url} rel="noopener" target="_blank">
+            {t("repository.install_app")}
+          </a>
+        ) : null}
+        {status.register_path ? (
+          <a className={buttonClass("gray")} href={status.register_path}>
+            {t("repository.register_app")}
+          </a>
+        ) : null}
       </div>
-      {status.missing_github_ids ? (
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {t('repository.missing_github_ids')}
-        </p>
-      ) : null}
+      {status.missing_github_ids ? <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("repository.missing_github_ids")}</p> : null}
     </section>
   )
 }
 
-function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+function NeedsTriageJobs({
+  payload,
+  prefix,
+  queryKey,
+  onNotice
+}: {
+  payload: RepositoryDetailPayload
+  prefix: string
+  queryKey: RepositoryDetailQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const search = queryKey[3]
   const release = useMutation({
-    mutationFn: (jobId: number) => releaseNeedsTriageRepositoryJob(appendSearch(payload.paths.app_release_needs_triage_job_repository_path, search), jobId, payload.pagination.page),
+    mutationFn: (jobId: number) =>
+      releaseNeedsTriageRepositoryJob(appendSearch(payload.paths.app_release_needs_triage_job_repository_path, search), jobId, payload.pagination.page),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || null)
@@ -562,10 +681,10 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
   return (
     <section>
       <SectionHeading className="mb-3">
-        {t('repository.needs_triage')}
+        {t("repository.needs_triage")}
         {payload.needs_triage_count > payload.needs_triage_jobs.length ? (
           <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-            {t('repository.needs_triage_showing_limited', {
+            {t("repository.needs_triage_showing_limited", {
               shown: payload.needs_triage_jobs.length,
               total: payload.needs_triage_count
             })}
@@ -577,15 +696,9 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-2">
-                  {t('repository.col_job')}
-                </th>
-                <th className="hidden px-4 py-2 sm:table-cell">
-                  {t('repository.col_created')}
-                </th>
-                <th className="px-4 py-2 text-right">
-                  {t('repository.col_action')}
-                </th>
+                <th className="px-4 py-2">{t("repository.col_job")}</th>
+                <th className="hidden px-4 py-2 sm:table-cell">{t("repository.col_created")}</th>
+                <th className="px-4 py-2 text-right">{t("repository.col_action")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -593,17 +706,29 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
                 <tr key={job.id}>
                   <td className="px-4 py-3">
                     <SourceLink job={job} prefix={prefix} />
-                    <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title || `JOB-${job.id}`}</Link>
+                    <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>
+                      {job.issue_title || `JOB-${job.id}`}
+                    </Link>
                     {job.owner_user ? (
                       <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                        {t('repository.owner_prefix')} {job.owner_user.display_name || job.owner_user.email_address}
+                        {t("repository.owner_prefix")} {job.owner_user.display_name || job.owner_user.email_address}
                       </div>
                     ) : null}
                   </td>
-                  <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell"><RelativeTimestamp value={job.created_at} /></td>
+                  <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">
+                    <RelativeTimestamp value={job.created_at} />
+                  </td>
                   <td className="px-4 py-3 text-right">
-                    <button className={buttonClass("blue")} disabled={release.isPending} onClick={() => { onNotice(null); release.mutate(job.id) }} type="button">
-                      {t('repository.release_for_triage')}
+                    <button
+                      className={buttonClass("blue")}
+                      disabled={release.isPending}
+                      onClick={() => {
+                        onNotice(null)
+                        release.mutate(job.id)
+                      }}
+                      type="button"
+                    >
+                      {t("repository.release_for_triage")}
                     </button>
                   </td>
                 </tr>
@@ -611,9 +736,7 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
             </tbody>
           </table>
         ) : (
-          <p className="p-4 text-sm text-gray-600 dark:text-gray-400">
-            {t('repository.no_triage_jobs')}
-          </p>
+          <p className="p-4 text-sm text-gray-600 dark:text-gray-400">{t("repository.no_triage_jobs")}</p>
         )}
       </div>
       {release.isError ? <PanelMessage tone="error">{errorMessage(release.error, "Unable to release job for triage.")}</PanelMessage> : null}
@@ -628,9 +751,7 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 
     return (
       <section>
-        <SectionHeading className="mb-3">
-          {t('repository.recent_jobs')}
-        </SectionHeading>
+        <SectionHeading className="mb-3">{t("repository.recent_jobs")}</SectionHeading>
         <OnboardingEmptyState
           fallbackActionPath={payload.paths.new_job_path}
           fallbackActionText="Create direct job"
@@ -645,30 +766,24 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 
   return (
     <section>
-      <SectionHeading className="mb-3">
-        {t('repository.recent_jobs')}
-      </SectionHeading>
+      <SectionHeading className="mb-3">{t("repository.recent_jobs")}</SectionHeading>
       <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
             <tr>
-              <th className="px-4 py-2">
-                {t('repository.col_state')}
-              </th>
-              <th className="px-4 py-2">
-                {t('repository.col_issue')}
-              </th>
+              <th className="px-4 py-2">{t("repository.col_state")}</th>
+              <th className="px-4 py-2">{t("repository.col_issue")}</th>
+              <th className="hidden px-4 py-2 sm:table-cell">{t("repository.col_runs")}</th>
+              <th className="hidden px-4 py-2 sm:table-cell">{t("repository.col_last")}</th>
               <th className="hidden px-4 py-2 sm:table-cell">
-                {t('repository.col_runs')}
+                <span className="sr-only">Actions</span>
               </th>
-              <th className="hidden px-4 py-2 sm:table-cell">
-                {t('repository.col_last')}
-              </th>
-              <th className="hidden px-4 py-2 sm:table-cell"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
-            {payload.jobs.map((job) => <JobRow job={job} key={job.id} prefix={prefix} />)}
+            {payload.jobs.map((job) => (
+              <JobRow job={job} key={job.id} prefix={prefix} />
+            ))}
           </tbody>
         </table>
       </div>
@@ -683,27 +798,51 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
     <tr>
       <td className="px-4 py-3 align-top">
         <StateStatusPill state={job.state} />
-        {job.priority !== "medium" ? <span className="ml-1"><TonePill tone="gray">{job.priority}</TonePill></span> : null}
+        {job.priority !== "medium" ? (
+          <span className="ml-1">
+            <TonePill tone="gray">{job.priority}</TonePill>
+          </span>
+        ) : null}
       </td>
       <td className="px-4 py-3">
         <SourceLink job={job} prefix={prefix} />
         <ProviderAvailabilityWarning availability={job.provider_availability} className="ml-1 inline-flex align-[-0.125em]" />
-        {job.issue_title ? <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title}</Link> : null}
-        {job.pr_number && job.pr_url ? <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">PR #{job.pr_number}</a> : null}
-        {job.external_pr_number && job.external_pr_url ? <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">PR #{job.external_pr_number}</a> : null}
+        {job.issue_title ? (
+          <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>
+            {job.issue_title}
+          </Link>
+        ) : null}
+        {job.pr_number && job.pr_url ? (
+          <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">
+            PR #{job.pr_number}
+          </a>
+        ) : null}
+        {job.external_pr_number && job.external_pr_url ? (
+          <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">
+            PR #{job.external_pr_number}
+          </a>
+        ) : null}
         <ProviderFailoverNotice failover={job.provider_failover} className="mt-1 flex w-fit" />
         {job.current_step_caption ? <div className="mt-0.5 text-xs italic text-gray-500 dark:text-gray-400">{job.current_step_caption}</div> : null}
         <RepositoryRetryState job={job} />
         <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 sm:hidden">
-          <span>{job.runs_count} {job.runs_count === 1 ? "run" : "runs"}</span>
+          <span>
+            {job.runs_count} {job.runs_count === 1 ? "run" : "runs"}
+          </span>
           <span>·</span>
-          <span><RelativeTimestamp value={job.updated_at} /></span>
+          <span>
+            <RelativeTimestamp value={job.updated_at} />
+          </span>
         </div>
       </td>
       <td className="hidden px-4 py-3 text-gray-600 dark:text-gray-400 sm:table-cell">{job.runs_count}</td>
-      <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell"><RelativeTimestamp value={job.updated_at} /></td>
+      <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">
+        <RelativeTimestamp value={job.updated_at} />
+      </td>
       <td className="hidden px-4 py-3 text-right sm:table-cell">
-        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.job_path, prefix)}>{t('repository.view')}</Link>
+        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.job_path, prefix)}>
+          {t("repository.view")}
+        </Link>
       </td>
     </tr>
   )
@@ -714,19 +853,17 @@ function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
   const retry = job.retry_state
   if (!retry || retry.state_label === "No failure") return null
 
-  const tone = retry.auto_retry_exhausted ? "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800" : retry.provider_circuit_open ? "text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800" : "text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+  const tone = retry.auto_retry_exhausted
+    ? "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800"
+    : retry.provider_circuit_open
+      ? "text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800"
+      : "text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
   return (
     <div className={`mt-1 inline-flex flex-wrap items-center gap-1.5 rounded border px-2 py-1 text-xs ${tone}`}>
       <span className="font-medium">{retry.state_label}</span>
       <span>{retry.classification_label}</span>
-      <span>
-        {t('repository.retries_left', { count: retry.retry_budget_remaining })}
-      </span>
-      {retry.next_auto_retry_at ? (
-        <span>
-          {t('repository.retry_next', { time: formatRelativeDate(new Date(retry.next_auto_retry_at)) })}
-        </span>
-      ) : null}
+      <span>{t("repository.retries_left", { count: retry.retry_budget_remaining })}</span>
+      {retry.next_auto_retry_at ? <span>{t("repository.retry_next", { time: formatRelativeDate(new Date(retry.next_auto_retry_at)) })}</span> : null}
     </div>
   )
 }
@@ -771,27 +908,21 @@ function Pagination({ payload, prefix }: { payload: RepositoryDetailPayload; pre
 
   return (
     <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-      <span>
-        {t('repository.showing', { first: pagination.first_item, last: pagination.last_item, total: pagination.total_jobs })}
-      </span>
+      <span>{t("repository.showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_jobs })}</span>
       <div className="flex gap-2">
         {pagination.previous_path ? (
           <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>
-            {t('repository.previous')}
+            {t("repository.previous")}
           </Link>
         ) : (
-          <span className={disabledPaginationClass()}>
-            {t('repository.previous')}
-          </span>
+          <span className={disabledPaginationClass()}>{t("repository.previous")}</span>
         )}
         {pagination.next_path ? (
           <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>
-            {t('repository.next')}
+            {t("repository.next")}
           </Link>
         ) : (
-          <span className={disabledPaginationClass()}>
-            {t('repository.next')}
-          </span>
+          <span className={disabledPaginationClass()}>{t("repository.next")}</span>
         )}
       </div>
     </div>

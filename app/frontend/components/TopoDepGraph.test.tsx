@@ -18,7 +18,7 @@ function node(id: string, overrides: Partial<GraphNode> = {}): GraphNode {
     epic_id: 1,
     url: `/epics/${id}`,
     is_focal: false,
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -119,13 +119,7 @@ describe("TopoDepGraph", () => {
   })
 
   it("renders a button for each node showing its label", () => {
-    renderGraph(
-      [
-        node("epic_1", { label: "EPIC-1 My Epic" }),
-        node("epic_2", { label: "EPIC-2 Other Epic" }),
-      ],
-      []
-    )
+    renderGraph([node("epic_1", { label: "EPIC-1 My Epic" }), node("epic_2", { label: "EPIC-2 Other Epic" })], [])
     expect(screen.getByText("My Epic")).toBeInTheDocument()
     expect(screen.getByText("Other Epic")).toBeInTheDocument()
   })

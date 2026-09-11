@@ -54,7 +54,16 @@ function repositoryDetailPayload() {
     can_release_triage_jobs: false,
     needs_triage_count: 0,
     needs_triage_jobs: [],
-    credential_status: { mode: "app", label: "GitHub App", installation_account: null, github_app_registered: true, install_url: null, register_path: null, previous_installation_removed: false, missing_github_ids: false },
+    credential_status: {
+      mode: "app",
+      label: "GitHub App",
+      installation_account: null,
+      github_app_registered: true,
+      install_url: null,
+      register_path: null,
+      previous_installation_removed: false,
+      missing_github_ids: false
+    },
     jobs: [],
     pagination: { page: 1, per_page: 20, total_jobs: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
     preview: null,
@@ -227,10 +236,7 @@ describe("RepositoryDetailRoute archive", () => {
     fireEvent.click(archiveButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        ARCHIVE_PATH,
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith(ARCHIVE_PATH, expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -242,13 +248,14 @@ describe("RepositoryDetailRoute archive", () => {
     await openMoreMenu()
 
     const archiveButton = screen.getByRole("button", { name: "Archive" })
-    await act(async () => { fireEvent.click(archiveButton) })
+    await act(async () => {
+      fireEvent.click(archiveButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      ARCHIVE_PATH,
-      expect.objectContaining({ method: "POST" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith(ARCHIVE_PATH, expect.objectContaining({ method: "POST" }))
   })
 })
 
@@ -373,18 +380,25 @@ describe("RepositoryDetailRoute recommendations", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Dismiss Add visual review" }))
 
     expect(screen.queryByText("Add visual review")).not.toBeInTheDocument()
-    expect(JSON.parse(window.localStorage.getItem("syrus:repository:1:dismissed-recommendations") || "[]")).toContain("repository:1:feature_recommendation:visual_review:v1")
+    expect(JSON.parse(window.localStorage.getItem("syrus:repository:1:dismissed-recommendations") || "[]")).toContain(
+      "repository:1:feature_recommendation:visual_review:v1"
+    )
   })
 
   it("invokes a job recommendation CTA and navigates to the created job", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/repositories/1/recommendations/visual_review" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          message: "Recommendation job created.",
-          redirect_to: "/jobs/42",
-          job: { id: 42, slug: "JOB-42", state: "queued", issue_title: "Configure visual review", job_path: "/jobs/42" }
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              message: "Recommendation job created.",
+              redirect_to: "/jobs/42",
+              job: { id: 42, slug: "JOB-42", state: "queued", issue_title: "Configure visual review", job_path: "/jobs/42" }
+            },
+            201
+          )
+        )
       }
       return Promise.resolve(jsonResponse({ ...repositoryDetailPayload(), recommended_actions: [recommendation()] }))
     })
@@ -403,10 +417,7 @@ describe("RepositoryDetailRoute recommendations", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Configure" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/recommendations/visual_review",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/recommendations/visual_review", expect.objectContaining({ method: "POST" }))
     })
     expect(await screen.findByText("Created job")).toBeInTheDocument()
   })
@@ -422,23 +433,25 @@ describe("RepositoryDetailRoute recommendations", () => {
       if (url === "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer" && init?.method === "POST") {
         return Promise.resolve(jsonResponse(updated))
       }
-      return Promise.resolve(jsonResponse({
-        ...repositoryDetailPayload(),
-        recommended_actions: [
-          recommendation({
-            id: "pr_cost_footer",
-            title: "Show PR cost footer",
-            dismissal_key: "repository:1:feature_recommendation:pr_cost_footer:v1",
-            cta: {
-              label: "Enable",
-              kind: "toggle" as const,
-              path: "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer",
-              method: "POST" as const,
-              action_id: "enable_pr_cost_footer"
-            }
-          })
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          ...repositoryDetailPayload(),
+          recommended_actions: [
+            recommendation({
+              id: "pr_cost_footer",
+              title: "Show PR cost footer",
+              dismissal_key: "repository:1:feature_recommendation:pr_cost_footer:v1",
+              cta: {
+                label: "Enable",
+                kind: "toggle" as const,
+                path: "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer",
+                method: "POST" as const,
+                action_id: "enable_pr_cost_footer"
+              }
+            })
+          ]
+        })
+      )
     })
 
     render(
@@ -454,10 +467,7 @@ describe("RepositoryDetailRoute recommendations", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Enable" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer", expect.objectContaining({ method: "POST" }))
     })
     expect(await screen.findByText("Repository setting enabled.")).toBeInTheDocument()
   })
@@ -488,10 +498,15 @@ describe("RepositoryDetailRoute preview", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/repositories/1/preview" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          preview: { id: 9, state: "starting", url: null, expires_at: null, error_message: null },
-          message: "Preview environment starting."
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              preview: { id: 9, state: "starting", url: null, expires_at: null, error_message: null },
+              message: "Preview environment starting."
+            },
+            201
+          )
+        )
       }
       return Promise.resolve(jsonResponse(repositoryDetailPayload()))
     })
@@ -510,10 +525,7 @@ describe("RepositoryDetailRoute preview", () => {
     fireEvent.click(startButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/preview",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/preview", expect.objectContaining({ method: "POST" }))
     })
     expect(await screen.findByText("Starting preview…")).toBeInTheDocument()
   })
@@ -521,7 +533,13 @@ describe("RepositoryDetailRoute preview", () => {
   it("shows the Open Preview link when a repository preview is already running", async () => {
     const payload = {
       ...repositoryDetailPayload(),
-      preview: { id: 9, state: "running" as const, url: "http://preview-9.lvh.me", expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), error_message: null }
+      preview: {
+        id: 9,
+        state: "running" as const,
+        url: "http://preview-9.lvh.me",
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        error_message: null
+      }
     }
 
     vi.spyOn(window, "fetch").mockImplementation((input) => {

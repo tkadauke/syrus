@@ -150,10 +150,7 @@ function PlatformRow({
               {disconnectPending ? t("connected_platforms.disconnecting") : t("connected_platforms.disconnect")}
             </button>
           ) : availablePlatform.configured ? (
-            <Button
-              disabled={connect.isPending}
-              onClick={() => connect.mutate()}
-            >
+            <Button disabled={connect.isPending} onClick={() => connect.mutate()}>
               {connect.isPending
                 ? t("connected_platforms.generating_link")
                 : linkingToken
@@ -173,17 +170,10 @@ function PlatformRow({
         </div>
       </div>
 
-      {linkError ? (
-        <p className="mt-3 text-xs text-red-700 dark:text-red-300">{linkError}</p>
-      ) : null}
+      {linkError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{linkError}</p> : null}
 
       {linkingToken && !identity ? (
-        <LinkingInstructions
-          onLinked={onConnect}
-          onNotice={onNotice}
-          platform={availablePlatform.platform}
-          tokenPayload={linkingToken}
-        />
+        <LinkingInstructions onLinked={onConnect} onNotice={onNotice} platform={availablePlatform.platform} tokenPayload={linkingToken} />
       ) : null}
     </div>
   )
@@ -239,14 +229,8 @@ function LinkingInstructions({
       <p className="mt-1 text-xs">{tokenPayload.instructions.text}</p>
       {tokenPayload.instructions.bot_handle ? (
         <div className="mt-2 flex items-center gap-2">
-          <code className="flex-1 rounded bg-info/10 px-2 py-1 font-mono text-xs break-all">
-            /start {tokenPayload.token}
-          </code>
-          <button
-            className="shrink-0 rounded border border-info/30 px-2 py-1 text-xs text-info hover:bg-info/10"
-            onClick={copyToken}
-            type="button"
-          >
+          <code className="flex-1 rounded bg-info/10 px-2 py-1 font-mono text-xs break-all">/start {tokenPayload.token}</code>
+          <button className="shrink-0 rounded border border-info/30 px-2 py-1 text-xs text-info hover:bg-info/10" onClick={copyToken} type="button">
             {copied ? t("connected_platforms.copied") : t("connected_platforms.copy")}
           </button>
         </div>

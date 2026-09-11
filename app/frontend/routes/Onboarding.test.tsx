@@ -97,9 +97,13 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     // preflight probe); stub a generic response shape broad enough to
     // satisfy all of them so opening the modals doesn't blow up on
     // unrelated code paths.
-    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({
-      credential_test: { credential: "claude", ok: false, message: "", details: {} }
-    })))
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          credential_test: { credential: "claude", ok: false, message: "", details: {} }
+        })
+      )
+    )
   })
 
   afterEach(() => vi.restoreAllMocks())
@@ -141,36 +145,40 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   it("still shows the primary CTA (not an edit link) for an incomplete step", () => {
-    renderOnboarding(bootstrap({
-      setup_status: {
-        ...bootstrap().setup_status!,
-        credential_status: {
-          github: false,
-          github_pat: false,
-          github_app: false,
-          agent: true,
-          active_agent_provider: "claude"
+    renderOnboarding(
+      bootstrap({
+        setup_status: {
+          ...bootstrap().setup_status!,
+          credential_status: {
+            github: false,
+            github_pat: false,
+            github_app: false,
+            agent: true,
+            active_agent_provider: "claude"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByRole("button", { name: "Configure GitHub" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Edit GitHub connection" })).not.toBeInTheDocument()
   })
 
   it("uses semantic brand tokens for the current marker and onboarding actions", () => {
-    const { unmount } = renderOnboarding(bootstrap({
-      setup_status: {
-        ...bootstrap().setup_status!,
-        credential_status: {
-          github: false,
-          github_pat: false,
-          github_app: false,
-          agent: true,
-          active_agent_provider: "claude"
+    const { unmount } = renderOnboarding(
+      bootstrap({
+        setup_status: {
+          ...bootstrap().setup_status!,
+          credential_status: {
+            github: false,
+            github_pat: false,
+            github_app: false,
+            agent: true,
+            active_agent_provider: "claude"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByText(">")).toHaveClass("bg-brand", "text-on-brand")
 

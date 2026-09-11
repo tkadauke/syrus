@@ -113,15 +113,10 @@ export type AdminInsightsPayload = {
 
 export function fetchInsightSuggestions(repositoryId: string | number, page = 1, perPage = 20, state = "all") {
   const params = new URLSearchParams({ page: String(page), per_page: String(perPage), state })
-  return getJson<InsightSuggestionsPayload>(
-    `/api/v1/app/repositories/${repositoryId}/insight_suggestions?${params.toString()}`
-  )
+  return getJson<InsightSuggestionsPayload>(`/api/v1/app/repositories/${repositoryId}/insight_suggestions?${params.toString()}`)
 }
 
-export function acceptInsightSuggestion(
-  id: number,
-  opts: { createJob?: boolean; prompt?: string; agentProvider?: string } = {}
-) {
+export function acceptInsightSuggestion(id: number, opts: { createJob?: boolean; prompt?: string; agentProvider?: string } = {}) {
   return patchJson<InsightSuggestionUpdatePayload>(`/api/v1/app/insight_suggestions/${id}`, {
     action_type: "accept",
     create_job: opts.createJob ?? false,

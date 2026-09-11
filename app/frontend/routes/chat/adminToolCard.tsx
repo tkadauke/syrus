@@ -104,7 +104,11 @@ export function THead({ columns }: { columns: string[] }) {
   return (
     <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
       <tr>
-        {columns.map((column) => <th className="px-2 py-1 font-semibold" key={column} scope="col">{column}</th>)}
+        {columns.map((column) => (
+          <th className="px-2 py-1 font-semibold" key={column} scope="col">
+            {column}
+          </th>
+        ))}
       </tr>
     </thead>
   )
@@ -116,7 +120,10 @@ export function TBody({ children }: { children: ReactNode }) {
 
 export function Td({ children, mono = false, title, maxWidth }: { children: ReactNode; mono?: boolean; title?: string; maxWidth?: boolean }) {
   return (
-    <td className={`px-2 py-1 text-gray-700 dark:text-gray-300 ${maxWidth ? "max-w-[16rem] truncate" : "whitespace-nowrap"} ${mono ? "font-mono" : ""}`} title={title}>
+    <td
+      className={`px-2 py-1 text-gray-700 dark:text-gray-300 ${maxWidth ? "max-w-[16rem] truncate" : "whitespace-nowrap"} ${mono ? "font-mono" : ""}`}
+      title={title}
+    >
       {children}
     </td>
   )

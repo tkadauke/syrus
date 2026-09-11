@@ -8,9 +8,7 @@ import * as useConfirmModule from "../hooks/useConfirm"
 
 function teamsPayload(overrides: Record<string, unknown> = {}) {
   return {
-    teams: [
-      { id: 1, name: "Platform", member_count: 2, repository_count: 1, owned_by_current_user: true, team_path: "/admin/teams/1" }
-    ],
+    teams: [{ id: 1, name: "Platform", member_count: 2, repository_count: 1, owned_by_current_user: true, team_path: "/admin/teams/1" }],
     ...overrides
   }
 }
@@ -23,9 +21,7 @@ function teamDetailPayload(overrides: Record<string, unknown> = {}) {
       { id: 10, role: "owner", created_at: "2026-01-01T00:00:00Z", user: { id: 1, email_address: "owner@example.com", name: "Ada Lovelace" } },
       { id: 11, role: "member", created_at: "2026-01-02T00:00:00Z", user: { id: 2, email_address: "member@example.com", name: "Grace Hopper" } }
     ],
-    repository_grants: [
-      { id: 20, role: "write", created_at: "2026-01-03T00:00:00Z", repository: { id: 5, slug: "acme/widgets" } }
-    ],
+    repository_grants: [{ id: 20, role: "write", created_at: "2026-01-03T00:00:00Z", repository: { id: 5, slug: "acme/widgets" } }],
     ...overrides
   }
 }
@@ -80,13 +76,17 @@ describe("AdminTeamsIndex", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/teams" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(teamsPayload({
-          teams: [
-            ...teamsPayload().teams,
-            { id: 2, name: "Growth", member_count: 1, repository_count: 0, owned_by_current_user: true, team_path: "/admin/teams/2" }
-          ],
-          message: "Growth created."
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            teamsPayload({
+              teams: [
+                ...teamsPayload().teams,
+                { id: 2, name: "Growth", member_count: 1, repository_count: 0, owned_by_current_user: true, team_path: "/admin/teams/2" }
+              ],
+              message: "Growth created."
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(teamsPayload()))
     })
@@ -107,10 +107,7 @@ describe("AdminTeamsIndex", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/teams",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/teams", expect.objectContaining({ method: "POST" }))
     })
     expect(await screen.findByText("Growth")).toBeInTheDocument()
   })
@@ -131,13 +128,17 @@ describe("AdminTeamDetailRoute", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/teams/1/memberships" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(teamDetailPayload({
-          memberships: [
-            ...teamDetailPayload().memberships,
-            { id: 12, role: "member", created_at: "2026-01-04T00:00:00Z", user: { id: 3, email_address: "new@example.com", name: "New Person" } }
-          ],
-          message: "new@example.com added as member."
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            teamDetailPayload({
+              memberships: [
+                ...teamDetailPayload().memberships,
+                { id: 12, role: "member", created_at: "2026-01-04T00:00:00Z", user: { id: 3, email_address: "new@example.com", name: "New Person" } }
+              ],
+              message: "new@example.com added as member."
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(teamDetailPayload()))
     })
@@ -158,10 +159,7 @@ describe("AdminTeamDetailRoute", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/teams/1/memberships",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/teams/1/memberships", expect.objectContaining({ method: "POST" }))
     })
     expect(await screen.findByText("New Person")).toBeInTheDocument()
   })
@@ -217,10 +215,7 @@ describe("AdminTeamDetailRoute", () => {
       fireEvent.click(screen.getByRole("button", { name: "Delete team" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/teams/1",
-          expect.objectContaining({ method: "DELETE" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/teams/1", expect.objectContaining({ method: "DELETE" }))
       })
     })
   })

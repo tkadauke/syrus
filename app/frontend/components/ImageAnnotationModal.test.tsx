@@ -26,8 +26,15 @@ describe("ImageAnnotationModal", () => {
 
     vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,YW5ub3RhdGVk")
     vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
-      bottom: 80, height: 80, left: 0, right: 100, top: 0, width: 100,
-      x: 0, y: 0, toJSON: () => ({})
+      bottom: 80,
+      height: 80,
+      left: 0,
+      right: 100,
+      top: 0,
+      width: 100,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
     Object.defineProperty(HTMLCanvasElement.prototype, "offsetWidth", { configurable: true, value: 100 })
     Object.defineProperty(HTMLCanvasElement.prototype, "offsetHeight", { configurable: true, value: 80 })
@@ -41,7 +48,9 @@ describe("ImageAnnotationModal", () => {
         width = 100
         height = 80
         onload: (() => void) | null = null
-        set src(_value: string) { this.onload?.() }
+        set src(_value: string) {
+          this.onload?.()
+        }
       }
     })
   })
@@ -103,7 +112,7 @@ describe("ImageAnnotationModal", () => {
 
   it("cancels without returning an annotated image", async () => {
     const onClose = vi.fn()
-    const onDone  = vi.fn()
+    const onDone = vi.fn()
     renderModal({ onClose, onDone })
     await waitForLoaded()
 
@@ -202,9 +211,7 @@ describe("ImageAnnotationModal", () => {
 
   it("updates a selected text annotation size and keeps the change undoable", async () => {
     const onDone = vi.fn()
-    const initialShapes: Shape[] = [
-      { id: "s1", kind: "text", x: 20, y: 40, value: "Resize me", color: "#ef4444" }
-    ]
+    const initialShapes: Shape[] = [{ id: "s1", kind: "text", x: 20, y: 40, value: "Resize me", color: "#ef4444" }]
     renderModal({ initialShapes, onDone })
     await waitForLoaded()
 
@@ -232,9 +239,7 @@ describe("ImageAnnotationModal", () => {
   })
 
   it("uses measured canvas text bounds for selecting text annotations", async () => {
-    const initialShapes: Shape[] = [
-      { id: "s1", kind: "text", x: 20, y: 40, value: "Hi", color: "#ef4444", size: "large" }
-    ]
+    const initialShapes: Shape[] = [{ id: "s1", kind: "text", x: 20, y: 40, value: "Hi", color: "#ef4444", size: "large" }]
     renderModal({ initialShapes })
     await waitForLoaded()
 
@@ -321,7 +326,7 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     await waitFor(() => {
       expect(contexts[1].rect).toHaveBeenCalledWith(10, 10, 40, 30)
@@ -336,7 +341,7 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 5, clientY: 5, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 70, clientY: 60, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 70, clientY: 60, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 70, clientY: 60, pointerId: 1 })
 
     await waitFor(() => {
       expect(contexts[1].moveTo).toHaveBeenCalledWith(5, 5)
@@ -352,7 +357,7 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 20, clientY: 20, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 80, clientY: 60, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 80, clientY: 60, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 60, pointerId: 1 })
 
     await waitFor(() => {
       expect(contexts[1].ellipse).toHaveBeenCalled()
@@ -367,7 +372,7 @@ describe("ImageAnnotationModal", () => {
     const rectBefore = vi.mocked(contexts[1].rect).mock.calls.length
 
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
 
     // No additional rect calls after a zero-movement gesture
     expect(vi.mocked(contexts[1].rect).mock.calls.length).toBe(rectBefore)
@@ -399,12 +404,12 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     // Switch to select and click a shape
     fireEvent.click(screen.getByRole("button", { name: "Select" }))
     fireEvent.pointerDown(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
-    fireEvent.pointerUp(canvas,   { clientX: 30, clientY: 25, pointerId: 2 })
+    fireEvent.pointerUp(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
 
     await waitFor(() => {
       // Selection overlay is rendered: setLineDash should be called
@@ -420,18 +425,18 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     // Switch to select, click inside the shape, drag
     fireEvent.click(screen.getByRole("button", { name: "Select" }))
     fireEvent.pointerDown(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 45, pointerId: 2 }) // +20, +20
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 45, pointerId: 2 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 45, pointerId: 2 })
 
     await waitFor(() => {
       // Shape moved by +20,+20: rect should be called with new position (30,30)
       const calls = vi.mocked(contexts[1].rect).mock.calls
-      const movedCall = calls.find(c => c[0] === 30 && c[1] === 30 && c[2] === 40 && c[3] === 30)
+      const movedCall = calls.find((c) => c[0] === 30 && c[1] === 30 && c[2] === 40 && c[3] === 30)
       expect(movedCall).toBeDefined()
     })
   })
@@ -444,23 +449,23 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     // Switch to select and click the shape to select it
     fireEvent.click(screen.getByRole("button", { name: "Select" }))
     fireEvent.pointerDown(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
-    fireEvent.pointerUp(canvas,   { clientX: 30, clientY: 25, pointerId: 2 })
+    fireEvent.pointerUp(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
 
     // The 'br' handle is at approximately (50+pad, 40+pad) = ~(54, 44).
     // Drag br handle from (54,44) to (74,54) → +20,+10 expansion
     fireEvent.pointerDown(canvas, { clientX: 54, clientY: 44, pointerId: 3 })
     fireEvent.pointerMove(canvas, { clientX: 74, clientY: 54, pointerId: 3 })
-    fireEvent.pointerUp(canvas,   { clientX: 74, clientY: 54, pointerId: 3 })
+    fireEvent.pointerUp(canvas, { clientX: 74, clientY: 54, pointerId: 3 })
 
     await waitFor(() => {
       // After resize: w should be 40+20=60, h should be 30+10=40
       const calls = vi.mocked(contexts[1].rect).mock.calls
-      const resizedCall = calls.find(c => c[0] === 10 && c[1] === 10 && c[2] === 60 && c[3] === 40)
+      const resizedCall = calls.find((c) => c[0] === 10 && c[1] === 10 && c[2] === 60 && c[3] === 40)
       expect(resizedCall).toBeDefined()
     })
   })
@@ -473,18 +478,20 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     // Select the shape
     fireEvent.click(screen.getByRole("button", { name: "Select" }))
     fireEvent.pointerDown(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
-    fireEvent.pointerUp(canvas,   { clientX: 30, clientY: 25, pointerId: 2 })
+    fireEvent.pointerUp(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
 
     // Record clearRect calls before delete
     const clearsBefore = vi.mocked(contexts[1].clearRect).mock.calls.length
 
     // Delete the selected shape
-    await act(async () => { fireEvent.keyDown(window, { key: "Delete" }) })
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Delete" })
+    })
 
     // Canvas should be cleared and re-rendered (clearRect called again)
     await waitFor(() => {
@@ -504,14 +511,16 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     fireEvent.click(screen.getByRole("button", { name: "Select" }))
     fireEvent.pointerDown(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
-    fireEvent.pointerUp(canvas,   { clientX: 30, clientY: 25, pointerId: 2 })
+    fireEvent.pointerUp(canvas, { clientX: 30, clientY: 25, pointerId: 2 })
 
     const clearsBefore = vi.mocked(contexts[1].clearRect).mock.calls.length
-    await act(async () => { fireEvent.keyDown(window, { key: "Backspace" }) })
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Backspace" })
+    })
 
     await waitFor(() => {
       expect(vi.mocked(contexts[1].clearRect).mock.calls.length).toBeGreaterThan(clearsBefore)
@@ -526,7 +535,7 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     const clearsBefore = vi.mocked(contexts[1].clearRect).mock.calls.length
     fireEvent.keyDown(window, { key: "Delete" })
@@ -546,21 +555,27 @@ describe("ImageAnnotationModal", () => {
     // Draw a rectangle
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+    })
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
 
     // Undo removes the shape — undo becomes disabled, redo becomes enabled
     fireEvent.click(screen.getByRole("button", { name: "Undo" }))
 
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled()
+    })
     expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled()
 
     // Redo restores the shape — undo enabled again, redo disabled again
     fireEvent.click(screen.getByRole("button", { name: "Redo" }))
 
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+    })
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
 
     // Canvas was re-rendered with the restored shape
@@ -578,18 +593,24 @@ describe("ImageAnnotationModal", () => {
     // Draw a rectangle, then undo it
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+    })
     fireEvent.click(screen.getByRole("button", { name: "Undo" }))
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled()
+    })
 
     // Draw a new shape — redo stack should be cleared
     fireEvent.pointerDown(canvas, { clientX: 5, clientY: 5, pointerId: 2 })
     fireEvent.pointerMove(canvas, { clientX: 30, clientY: 30, pointerId: 2 })
-    fireEvent.pointerUp(canvas,   { clientX: 30, clientY: 30, pointerId: 2 })
+    fireEvent.pointerUp(canvas, { clientX: 30, clientY: 30, pointerId: 2 })
 
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
+    })
     expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
   })
 
@@ -602,15 +623,21 @@ describe("ImageAnnotationModal", () => {
     // Draw a shape, undo via keyboard, then redo via keyboard
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+    })
 
     fireEvent.keyDown(window, { key: "z", ctrlKey: true })
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled()
+    })
 
     fireEvent.keyDown(window, { key: "z", ctrlKey: true, shiftKey: true })
-    await waitFor(() => { expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled() })
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
+    })
     expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
   })
 
@@ -634,7 +661,7 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     // Default tool is rectangle
     expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true")
@@ -655,7 +682,7 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     fireEvent.click(screen.getByRole("button", { name: "Select" }))
     fireEvent.keyDown(window, { key: "Escape" })
@@ -691,11 +718,13 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     fireEvent.click(screen.getByRole("button", { name: "Select" }))
     fireEvent.keyDown(window, { key: "Escape" })
-    await waitFor(() => { expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible() })
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible()
+    })
 
     fireEvent.keyDown(window, { key: "Escape" })
 
@@ -713,7 +742,7 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
 
@@ -739,10 +768,12 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
-    await waitFor(() => { expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible() })
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible()
+    })
 
     fireEvent.click(screen.getByRole("button", { name: "Discard" }))
 
@@ -757,10 +788,12 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
-    await waitFor(() => { expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible() })
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible()
+    })
 
     fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }))
 
@@ -777,7 +810,7 @@ describe("ImageAnnotationModal", () => {
     const canvas = screen.getByLabelText("Annotation canvas")
     fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
@@ -789,9 +822,7 @@ describe("ImageAnnotationModal", () => {
   // --- Shape persistence across open/close cycles ---
 
   it("re-opening with initialShapes renders them and keeps undo stack empty", async () => {
-    const initialShapes: Shape[] = [
-      { id: "s1", kind: "rectangle", x: 10, y: 10, w: 40, h: 30, color: "#ef4444" }
-    ]
+    const initialShapes: Shape[] = [{ id: "s1", kind: "rectangle", x: 10, y: 10, w: 40, h: 30, color: "#ef4444" }]
     renderModal({ initialShapes })
     await waitForLoaded()
 
@@ -825,7 +856,9 @@ describe("ImageAnnotationModal", () => {
 
     // Zoom in first so we have room to zoom out
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
-    await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+    await waitFor(() => {
+      expect(screen.getByText("125%")).toBeInTheDocument()
+    })
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom out" }))
 
@@ -877,17 +910,12 @@ describe("ImageAnnotationModal", () => {
 
     // Zoom in
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
-    await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+    await waitFor(() => {
+      expect(screen.getByText("125%")).toBeInTheDocument()
+    })
 
     // Re-render with a different dataUrl (simulates re-opening a new image)
-    rerender(
-      <ImageAnnotationModal
-        dataUrl="data:image/jpeg;base64,bmV3"
-        name="new.jpg"
-        onClose={vi.fn()}
-        onDone={vi.fn()}
-      />
-    )
+    rerender(<ImageAnnotationModal dataUrl="data:image/jpeg;base64,bmV3" name="new.jpg" onClose={vi.fn()} onDone={vi.fn()} />)
 
     await waitFor(() => {
       expect(screen.getByText("100%")).toBeInTheDocument()
@@ -923,7 +951,9 @@ describe("ImageAnnotationModal", () => {
     // First zoom in via button so pinch-in has room
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
-    await waitFor(() => { expect(screen.getByText("150%")).toBeInTheDocument() })
+    await waitFor(() => {
+      expect(screen.getByText("150%")).toBeInTheDocument()
+    })
 
     const canvas = screen.getByLabelText("Annotation canvas")
 
@@ -951,8 +981,8 @@ describe("ImageAnnotationModal", () => {
     fireEvent.pointerDown(canvas, { clientX: 70, clientY: 40, pointerId: 2 })
     fireEvent.pointerMove(canvas, { clientX: 20, clientY: 40, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 80, clientY: 40, pointerId: 2 })
-    fireEvent.pointerUp(canvas,   { clientX: 20, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 80, clientY: 40, pointerId: 2 })
+    fireEvent.pointerUp(canvas, { clientX: 20, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 40, pointerId: 2 })
 
     expect(vi.mocked(contexts[1].rect).mock.calls.length).toBe(rectCallsBefore)
   })
@@ -964,13 +994,17 @@ describe("ImageAnnotationModal", () => {
     await waitForLoaded()
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
-    await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+    await waitFor(() => {
+      expect(screen.getByText("125%")).toBeInTheDocument()
+    })
 
     const canvas = screen.getByLabelText("Annotation canvas")
     canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: 20, deltaY: 50, bubbles: true }))
 
     // Zoom is unchanged — only pan shifted
-    await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+    await waitFor(() => {
+      expect(screen.getByText("125%")).toBeInTheDocument()
+    })
   })
 
   it("clamps scroll wheel panning to the image edges", async () => {
@@ -979,14 +1013,23 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
-    await waitFor(() => { expect(screen.getByText("150%")).toBeInTheDocument() })
+    await waitFor(() => {
+      expect(screen.getByText("150%")).toBeInTheDocument()
+    })
 
     const canvas = screen.getByLabelText("Annotation canvas")
     const viewport = canvas.parentElement?.parentElement?.parentElement
     expect(viewport).toBeInstanceOf(HTMLElement)
     vi.spyOn(viewport as HTMLElement, "getBoundingClientRect").mockReturnValue({
-      bottom: 40, height: 40, left: 0, right: 60, top: 0, width: 60,
-      x: 0, y: 0, toJSON: () => ({})
+      bottom: 40,
+      height: 40,
+      left: 0,
+      right: 60,
+      top: 0,
+      width: 60,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
 
     canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: -1000, deltaY: -1000, bubbles: true }))
@@ -1002,14 +1045,23 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
-    await waitFor(() => { expect(screen.getByText("150%")).toBeInTheDocument() })
+    await waitFor(() => {
+      expect(screen.getByText("150%")).toBeInTheDocument()
+    })
 
     const canvas = screen.getByLabelText("Annotation canvas")
     const viewport = canvas.parentElement?.parentElement?.parentElement
     expect(viewport).toBeInstanceOf(HTMLElement)
     vi.spyOn(viewport as HTMLElement, "getBoundingClientRect").mockReturnValue({
-      bottom: 40, height: 40, left: 0, right: 300, top: 0, width: 300,
-      x: 0, y: 0, toJSON: () => ({})
+      bottom: 40,
+      height: 40,
+      left: 0,
+      right: 300,
+      top: 0,
+      width: 300,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
 
     canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: -1000, deltaY: -1000, bubbles: true }))
@@ -1028,14 +1080,7 @@ describe("ImageAnnotationModal", () => {
     canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: 0, deltaY: 100, bubbles: true }))
 
     // Reload with a different image — zoom and pan both reset
-    rerender(
-      <ImageAnnotationModal
-        dataUrl="data:image/jpeg;base64,bmV3"
-        name="new.jpg"
-        onClose={vi.fn()}
-        onDone={vi.fn()}
-      />
-    )
+    rerender(<ImageAnnotationModal dataUrl="data:image/jpeg;base64,bmV3" name="new.jpg" onClose={vi.fn()} onDone={vi.fn()} />)
 
     await waitFor(() => {
       expect(screen.getByText("100%")).toBeInTheDocument()
@@ -1050,15 +1095,22 @@ describe("ImageAnnotationModal", () => {
 
     // Simulate a zoomed state by overriding the mock: rect.width=200 (zoom=2 of the 100px canvas)
     vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
-      bottom: 160, height: 160, left: 0, right: 200, top: 0, width: 200,
-      x: 0, y: 0, toJSON: () => ({})
+      bottom: 160,
+      height: 160,
+      left: 0,
+      right: 200,
+      top: 0,
+      width: 200,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
 
     // canvas.width=100, rect.width=200 → scaleX=0.5 → clicking at clientX=60 maps to canvasX=30
     const canvas = screen.getByLabelText("Annotation canvas")
-    fireEvent.pointerDown(canvas, { clientX: 0,  clientY: 0,  pointerId: 1 })
+    fireEvent.pointerDown(canvas, { clientX: 0, clientY: 0, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 60, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 60, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 60, clientY: 40, pointerId: 1 })
 
     await waitFor(() => {
       expect(contexts[1].rect).toHaveBeenCalledWith(0, 0, 30, 20)
@@ -1071,15 +1123,22 @@ describe("ImageAnnotationModal", () => {
 
     // Simulate pan={x:10,y:5}: rect.left=10, rect.top=5 (canvas shifted by pan)
     vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
-      bottom: 85, height: 80, left: 10, right: 110, top: 5, width: 100,
-      x: 10, y: 5, toJSON: () => ({})
+      bottom: 85,
+      height: 80,
+      left: 10,
+      right: 110,
+      top: 5,
+      width: 100,
+      x: 10,
+      y: 5,
+      toJSON: () => ({})
     })
 
     const canvas = screen.getByLabelText("Annotation canvas")
     // Drawing from (10,5) to (60,45): rect offset subtracts: (0,0) to (50,40)
-    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 5,  pointerId: 1 })
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 5, pointerId: 1 })
     fireEvent.pointerMove(canvas, { clientX: 60, clientY: 45, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 60, clientY: 45, pointerId: 1 })
+    fireEvent.pointerUp(canvas, { clientX: 60, clientY: 45, pointerId: 1 })
 
     await waitFor(() => {
       expect(contexts[1].rect).toHaveBeenCalledWith(0, 0, 50, 40)
@@ -1087,9 +1146,7 @@ describe("ImageAnnotationModal", () => {
   })
 
   it("Done passes the current shape list back alongside the annotated data URL", async () => {
-    const initialShapes: Shape[] = [
-      { id: "s1", kind: "rectangle", x: 10, y: 10, w: 40, h: 30, color: "#ef4444" }
-    ]
+    const initialShapes: Shape[] = [{ id: "s1", kind: "rectangle", x: 10, y: 10, w: 40, h: 30, color: "#ef4444" }]
     const onDone = vi.fn()
     renderModal({ initialShapes, onDone })
     await waitForLoaded()
@@ -1114,9 +1171,12 @@ describe("ImageAnnotationModal", () => {
   }
 
   async function waitForLoaded() {
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Done" })).not.toBeDisabled()
-    }, { timeout: 5000 })
+    await waitFor(
+      () => {
+        expect(screen.getByRole("button", { name: "Done" })).not.toBeDisabled()
+      },
+      { timeout: 5000 }
+    )
   }
 
   function mockCanvasContext(): MockContext {
@@ -1126,7 +1186,9 @@ describe("ImageAnnotationModal", () => {
       clearRect: vi.fn(),
       drawImage: vi.fn(),
       ellipse: vi.fn(),
-      fillText: vi.fn((text: string, x: number, y: number) => { context._fillTexts.push({ text, x, y, font: context.font }) }),
+      fillText: vi.fn((text: string, x: number, y: number) => {
+        context._fillTexts.push({ text, x, y, font: context.font })
+      }),
       getImageData: vi.fn(() => ({ data: new Uint8ClampedArray([0]), height: 80, width: 100 }) as ImageData),
       lineTo: vi.fn(),
       moveTo: vi.fn(),

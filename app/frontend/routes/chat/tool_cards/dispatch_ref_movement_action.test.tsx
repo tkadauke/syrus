@@ -41,7 +41,9 @@ describe("dispatch_ref_movement_action tool card", () => {
       blocked_reason: "job_id is required for send_job_upstream"
     }
 
-    expect(dispatchRefMovementActionToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("send job upstream blocked: job_id is required for send_job_upstream")
+    expect(dispatchRefMovementActionToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
+      "send job upstream blocked: job_id is required for send_job_upstream"
+    )
 
     render(<>{dispatchRefMovementActionToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getByText("job_id is required for send_job_upstream")).toBeInTheDocument()

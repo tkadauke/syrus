@@ -31,7 +31,7 @@ function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ "/repositories/1/plugin/issues" ]}>
+      <MemoryRouter initialEntries={["/repositories/1/plugin/issues"]}>
         <Routes>
           <Route element={<RepositoryIssuesTab />} path="/repositories/:repositoryId/plugin/issues" />
         </Routes>

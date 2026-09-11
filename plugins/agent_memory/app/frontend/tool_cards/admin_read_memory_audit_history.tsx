@@ -17,7 +17,10 @@ function parseCard(context: ToolCardContext): AuditHistoryCard | null {
   if (!memoryId) return null
 
   const events = Array.isArray(parsed.audit_events)
-    ? parsed.audit_events.flatMap((entry, index) => { const event = parseAuditEvent(entry, index); return event ? [event] : [] })
+    ? parsed.audit_events.flatMap((entry, index) => {
+        const event = parseAuditEvent(entry, index)
+        return event ? [event] : []
+      })
     : []
 
   return { memoryId, deleted: parsed.deleted === true, events }

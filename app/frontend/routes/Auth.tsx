@@ -53,10 +53,7 @@ export function SignInRoute() {
     setPasskeyLoading(true)
     setPasskeyError(null)
     try {
-      const redirectPath = await signInWithPasskey(
-        fetchPasskeyAuthenticationOptions,
-        authenticateWithPasskey
-      )
+      const redirectPath = await signInWithPasskey(fetchPasskeyAuthenticationOptions, authenticateWithPasskey)
       assignWithPrefix(prefix, redirectPath)
     } catch (err) {
       if (err instanceof DOMException && err.name === "NotAllowedError") {
@@ -70,21 +67,11 @@ export function SignInRoute() {
   }
 
   return (
-    <AuthShell
-      title={t("sign_in.title")}
-      subtitle={t("sign_in.subtitle")}
-    >
+    <AuthShell title={t("sign_in.title")} subtitle={t("sign_in.subtitle")}>
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("sign_in.error"))}</PanelMessage> : null}
         <Field label={t("field.email")}>
-          <Input
-            autoComplete="username"
-            autoFocus
-            onChange={(event) => setEmailAddress(event.target.value)}
-            required
-            type="email"
-            value={emailAddress}
-          />
+          <Input autoComplete="username" autoFocus onChange={(event) => setEmailAddress(event.target.value)} required type="email" value={emailAddress} />
           <EmailValidityHint email={emailAddress} />
         </Field>
         <Field label={t("field.password")}>
@@ -104,21 +91,22 @@ export function SignInRoute() {
           <button className={authPrimaryButtonClass} disabled={submit.isPending} type="submit">
             {submit.isPending ? t("sign_in.submitting") : t("sign_in.submit")}
           </button>
-          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/passwords/new`}>{t("sign_in.forgot")}</Link>
+          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/passwords/new`}>
+            {t("sign_in.forgot")}
+          </Link>
         </div>
       </form>
       {isPasskeySupported() ? (
         <div className="mt-4">
           <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300 dark:border-gray-600" /></div>
-            <div className="relative flex justify-center text-sm"><span className="bg-white dark:bg-gray-900 px-2 text-gray-500 dark:text-gray-400">{t("sign_in.or")}</span></div>
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-white dark:bg-gray-900 px-2 text-gray-500 dark:text-gray-400">{t("sign_in.or")}</span>
+            </div>
           </div>
-          <button
-            type="button"
-            disabled={passkeyLoading}
-            onClick={handlePasskeySignIn}
-            className={authPrimaryButtonClass}
-          >
+          <button type="button" disabled={passkeyLoading} onClick={handlePasskeySignIn} className={authPrimaryButtonClass}>
             {passkeyLoading ? t("sign_in.passkey_submitting") : t("sign_in.passkey_submit")}
           </button>
           {passkeyError ? <p className="text-sm text-red-600 dark:text-red-400 mt-1">{passkeyError}</p> : null}
@@ -139,10 +127,7 @@ export function SignUpRoute() {
   })
 
   return (
-    <AuthShell
-      title={t("sign_up.title")}
-      subtitle={t("sign_up.subtitle")}
-    >
+    <AuthShell title={t("sign_up.title")} subtitle={t("sign_up.subtitle")}>
       {signup.isPending ? <PanelMessage>{t("sign_up.loading")}</PanelMessage> : null}
       {signup.isError ? <PanelMessage tone="error">{errorMessage(signup.error, t("sign_up.error_load"))}</PanelMessage> : null}
       {signup.isSuccess ? <SignUpForm payload={signup.data} prefix={prefix} /> : null}
@@ -158,12 +143,13 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
   const [redirectTo, setRedirectTo] = useState<string | null>(null)
   const [passkeyNudgePending, setPasskeyNudgePending] = useState(false)
   const submit = useMutation({
-    mutationFn: () => signUp({
-      email_address: emailAddress,
-      password,
-      password_confirmation: passwordConfirmation,
-      invitation_token: payload.invitation?.token
-    }),
+    mutationFn: () =>
+      signUp({
+        email_address: emailAddress,
+        password,
+        password_confirmation: passwordConfirmation,
+        invitation_token: payload.invitation?.token
+      }),
     onSuccess: (saved) => {
       if (isPasskeySupported()) {
         setRedirectTo(saved.redirect_to)
@@ -201,11 +187,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
   if (!payload.allowed) {
     return (
       <PanelMessage tone="error">
-        <Trans
-          t={t}
-          i18nKey="sign_up.invite_only"
-          components={{ signin: <Link className="underline hover:no-underline" to={`${prefix}/session/new`} /> }}
-        />
+        <Trans t={t} i18nKey="sign_up.invite_only" components={{ signin: <Link className="underline hover:no-underline" to={`${prefix}/session/new`} /> }} />
       </PanelMessage>
     )
   }
@@ -217,12 +199,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
         <div className="rounded border border-brand/30 bg-brand/10 p-4">
           <p className="text-sm text-brand dark:text-brand-emphasis">{t("sign_up.passkey_nudge")}</p>
           <div className="mt-3 flex gap-2">
-            <button
-              className={`${authPrimaryButtonClass} text-sm`}
-              disabled={passkeyNudgePending}
-              onClick={handlePasskeyNudge}
-              type="button"
-            >
+            <button className={`${authPrimaryButtonClass} text-sm`} disabled={passkeyNudgePending} onClick={handlePasskeyNudge} type="button">
               {passkeyNudgePending ? t("sign_up.passkey_nudge_adding") : t("sign_up.passkey_nudge_add")}
             </button>
             <button
@@ -245,25 +222,11 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
       {payload.first_signup ? <PanelMessage>{t("sign_up.first_admin")}</PanelMessage> : null}
       {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("sign_up.error_create"))}</PanelMessage> : null}
       <Field label={t("field.email")}>
-        <Input
-          autoComplete="username"
-          autoFocus
-          onChange={(event) => setEmailAddress(event.target.value)}
-          required
-          type="email"
-          value={emailAddress}
-        />
+        <Input autoComplete="username" autoFocus onChange={(event) => setEmailAddress(event.target.value)} required type="email" value={emailAddress} />
         <EmailValidityHint email={emailAddress} />
       </Field>
       <Field label={t("field.password")}>
-        <Input
-          autoComplete="new-password"
-          maxLength={72}
-          onChange={(event) => setPassword(event.target.value)}
-          required
-          type="password"
-          value={password}
-        />
+        <Input autoComplete="new-password" maxLength={72} onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
         <PasswordStrengthMeter password={password} />
       </Field>
       <Field label={t("field.confirm_password")}>
@@ -282,7 +245,11 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
           {submit.isPending ? t("sign_up.submitting") : t("sign_up.submit")}
         </button>
         {/* No accounts exist yet on the first signup — nobody to sign in as. */}
-        {payload.first_signup ? null : <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/session/new`}>{t("sign_up.have_account")}</Link>}
+        {payload.first_signup ? null : (
+          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/session/new`}>
+            {t("sign_up.have_account")}
+          </Link>
+        )}
       </div>
     </form>
   )
@@ -307,29 +274,21 @@ export function PasswordRequestRoute() {
   }
 
   return (
-    <AuthShell
-      title={t("password_request.title")}
-      subtitle={t("password_request.subtitle")}
-    >
+    <AuthShell title={t("password_request.title")} subtitle={t("password_request.subtitle")}>
       <form className="space-y-5" onSubmit={onSubmit}>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("password_request.error"))}</PanelMessage> : null}
         <Field label={t("field.email")}>
-          <Input
-            autoComplete="username"
-            autoFocus
-            onChange={(event) => setEmailAddress(event.target.value)}
-            required
-            type="email"
-            value={emailAddress}
-          />
+          <Input autoComplete="username" autoFocus onChange={(event) => setEmailAddress(event.target.value)} required type="email" value={emailAddress} />
           <EmailValidityHint email={emailAddress} />
         </Field>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button className={authPrimaryButtonClass} disabled={submit.isPending} type="submit">
             {submit.isPending ? t("password_request.submitting") : t("password_request.submit")}
           </button>
-          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/session/new`}>{t("back_to_sign_in")}</Link>
+          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/session/new`}>
+            {t("back_to_sign_in")}
+          </Link>
         </div>
       </form>
     </AuthShell>
@@ -356,10 +315,7 @@ export function PasswordResetRoute() {
   }
 
   return (
-    <AuthShell
-      title={t("password_reset.title")}
-      subtitle={t("password_reset.subtitle")}
-    >
+    <AuthShell title={t("password_reset.title")} subtitle={t("password_reset.subtitle")}>
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("password_reset.error"))}</PanelMessage> : null}
         <Field label={t("field.new_password")}>
@@ -389,7 +345,9 @@ export function PasswordResetRoute() {
           <button className={authPrimaryButtonClass} disabled={submit.isPending} type="submit">
             {submit.isPending ? t("password_reset.submitting") : t("password_reset.submit")}
           </button>
-          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/session/new`}>{t("back_to_sign_in")}</Link>
+          <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/session/new`}>
+            {t("back_to_sign_in")}
+          </Link>
         </div>
       </form>
     </AuthShell>
@@ -407,9 +365,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle?: st
           <PageHeading>{title}</PageHeading>
           {subtitle ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">{subtitle}</p> : null}
         </header>
-        <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-          {children}
-        </section>
+        <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">{children}</section>
       </div>
     </main>
   )

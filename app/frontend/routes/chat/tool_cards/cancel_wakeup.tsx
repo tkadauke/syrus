@@ -24,7 +24,9 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <div className="text-gray-700 dark:text-gray-300">Cancelled wakeup <span className="font-mono font-medium">#{result.wakeupId}</span></div>
+      <div className="text-gray-700 dark:text-gray-300">
+        Cancelled wakeup <span className="font-mono font-medium">#{result.wakeupId}</span>
+      </div>
     </CardShell>
   )
 }

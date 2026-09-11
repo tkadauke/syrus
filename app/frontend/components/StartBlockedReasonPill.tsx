@@ -44,7 +44,7 @@ export function StartBlockedReasonPill({
   startBlockedAt,
   nextCheckAt,
   count,
-  diagnosticsPath,
+  diagnosticsPath
 }: {
   reason: string
   details?: StartBlockedDetails | null
@@ -55,18 +55,13 @@ export function StartBlockedReasonPill({
 }) {
   const { t } = useT()
   const baseTone = TONES[reason as StartBlockedReason] ?? "amber"
-  const isStale = startBlockedAt
-    ? Date.now() - new Date(startBlockedAt).getTime() > THROTTLE_URGENCY_THRESHOLD_MS
-    : false
+  const isStale = startBlockedAt ? Date.now() - new Date(startBlockedAt).getTime() > THROTTLE_URGENCY_THRESHOLD_MS : false
   const tone = baseTone === "gray" && isStale ? "amber" : baseTone
   const title = startBlockedTitle(reason, details, nextCheckAt ?? null, count ?? null, t)
 
   return (
     <>
-      <TonePill
-        tone={tone}
-        title={title}
-      >
+      <TonePill tone={tone} title={title}>
         {t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason })}
       </TonePill>
       {diagnosticsPath && reason === "workflow_admission_budget" ? (
@@ -89,7 +84,12 @@ function startBlockedTitle(
   const lines = [t(`common:start_blocked_reason_tooltips.${reason}`, { defaultValue: "" })].filter(Boolean)
   if (details?.message) lines.push(details.message)
   if (details?.dependencies?.length) {
-    lines.push(`Dependencies: ${details.dependencies.map((dependency) => dependency.slug || (dependency.job_id ? `JOB-${dependency.job_id}` : null)).filter(Boolean).join(", ")}`)
+    lines.push(
+      `Dependencies: ${details.dependencies
+        .map((dependency) => dependency.slug || (dependency.job_id ? `JOB-${dependency.job_id}` : null))
+        .filter(Boolean)
+        .join(", ")}`
+    )
   }
   if (admissionBudget) {
     lines.push(...workflowAdmissionDetails(details, nextCheckAt))
@@ -155,9 +155,11 @@ function admissionReasonLine(details: StartBlockedDetails | null | undefined) {
 }
 
 function usesConservativeDefaultEstimate(details: StartBlockedDetails | null | undefined) {
-  return details?.details?.decision_basis === "conservative_defaults" ||
+  return (
+    details?.details?.decision_basis === "conservative_defaults" ||
     details?.details?.prediction_source === "conservative_defaults" ||
     details?.pressure?.candidate?.predicted_command_cost?.source === "conservative_defaults"
+  )
 }
 
 function admissionPressureLine(details: StartBlockedDetails | null | undefined) {

@@ -5,15 +5,7 @@ import { formatRelativeDate, intlLocale } from "../lib/relativeTime"
 // ("2 minutes ago"), with the exact date+time in the viewer's locale on hover.
 // Renders `fallback` (default "-") for a missing or unparseable value; pass a
 // `fallback` for context-specific empty text (e.g. "not started", "never").
-export function RelativeTimestamp({
-  value,
-  className,
-  fallback = "-"
-}: {
-  value: string | null | undefined
-  className?: string
-  fallback?: ReactNode
-}) {
+export function RelativeTimestamp({ value, className, fallback = "-" }: { value: string | null | undefined; className?: string; fallback?: ReactNode }) {
   if (!value) return <>{fallback}</>
 
   const date = new Date(value)

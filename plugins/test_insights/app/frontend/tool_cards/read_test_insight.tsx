@@ -90,7 +90,10 @@ function parseCard(context: ToolCardContext): ReadTestInsightCard | null {
   if (!test) return null
 
   const history = Array.isArray(parsed.history)
-    ? parsed.history.flatMap((entry, index) => { const parsedEntry = parseHistoryEntry(entry, index); return parsedEntry ? [parsedEntry] : [] })
+    ? parsed.history.flatMap((entry, index) => {
+        const parsedEntry = parseHistoryEntry(entry, index)
+        return parsedEntry ? [parsedEntry] : []
+      })
     : []
 
   return {
@@ -119,7 +122,7 @@ function renderExpanded(context: ToolCardContext) {
         <ReasonBadges reasons={card.test.reasons} />
       </div>
       {card.test.suiteName || card.test.filePath ? (
-        <div className="text-gray-500 dark:text-gray-400">{[ card.test.suiteName, card.test.filePath ].filter(Boolean).join(" · ")}</div>
+        <div className="text-gray-500 dark:text-gray-400">{[card.test.suiteName, card.test.filePath].filter(Boolean).join(" · ")}</div>
       ) : null}
       <dl className="grid gap-1 sm:grid-cols-2">
         <Row label="Test ID" value={card.test.id} />
@@ -127,7 +130,10 @@ function renderExpanded(context: ToolCardContext) {
         <Row label="Failure rate" value={formatFailureRate(card.test.failureRate)} />
         <Row label="Avg duration" value={formatMs(card.test.avgDurationMs)} />
         {card.test.recentTotalCount != null ? (
-          <Row label="Recent record" value={`${card.test.recentFailedCount ?? 0} failed / ${card.test.recentPassedCount ?? 0} passed of ${card.test.recentTotalCount}`} />
+          <Row
+            label="Recent record"
+            value={`${card.test.recentFailedCount ?? 0} failed / ${card.test.recentPassedCount ?? 0} passed of ${card.test.recentTotalCount}`}
+          />
         ) : null}
       </dl>
       {card.history.length > 0 ? (
@@ -144,7 +150,11 @@ function renderExpanded(context: ToolCardContext) {
                   <RefLink target={entry.run} />
                   <RefLink target={entry.job} />
                 </div>
-                {entry.failure ? <div className="mt-1"><FailureSnippet failure={entry.failure} /></div> : null}
+                {entry.failure ? (
+                  <div className="mt-1">
+                    <FailureSnippet failure={entry.failure} />
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>

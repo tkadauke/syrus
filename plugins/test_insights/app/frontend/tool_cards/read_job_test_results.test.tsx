@@ -36,9 +36,7 @@ const testRun = {
   ],
   failed_error_case_count: 3,
   failed_error_cases_omitted: 2,
-  slow_cases: [
-    { id: 101, name: "a rather slow test", suite_name: "BSpec", status: "passed", duration_ms: 5000, test_identity_id: 43, flakiness: null }
-  ],
+  slow_cases: [{ id: 101, name: "a rather slow test", suite_name: "BSpec", status: "passed", duration_ms: 5000, test_identity_id: 43, flakiness: null }],
   slow_case_count: 1,
   slow_cases_omitted: 0
 }

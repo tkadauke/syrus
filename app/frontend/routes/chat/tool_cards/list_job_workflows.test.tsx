@@ -19,7 +19,12 @@ describe("list_job_workflows tool card", () => {
   })
 
   it("summarizes the collapsed row with a count", () => {
-    const parsedResult = { workflows: [{ id: 1, state: "succeeded" }, { id: 2, state: "failed" }] }
+    const parsedResult = {
+      workflows: [
+        { id: 1, state: "succeeded" },
+        { id: 2, state: "failed" }
+      ]
+    }
     expect(listJobWorkflowsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 Workflows")
   })
 

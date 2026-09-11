@@ -49,11 +49,21 @@ describe("admin_read_memory_audit_history tool card", () => {
   })
 
   it("summarizes the collapsed row with an event count and memory id", () => {
-    expect(adminReadMemoryAuditHistoryToolCard.collapsedSummary?.(context({ parsedResult: { memory_id: 12, deleted: false, audit_events: [createdEvent, updatedEvent] } }))).toBe("2 audit events for memory #12")
+    expect(
+      adminReadMemoryAuditHistoryToolCard.collapsedSummary?.(
+        context({ parsedResult: { memory_id: 12, deleted: false, audit_events: [createdEvent, updatedEvent] } })
+      )
+    ).toBe("2 audit events for memory #12")
   })
 
   it("renders actor, event type, and kind/content changes", () => {
-    render(<>{adminReadMemoryAuditHistoryToolCard.renderExpanded(context({ parsedResult: { memory_id: 12, deleted: false, audit_events: [createdEvent, updatedEvent] } }))}</>)
+    render(
+      <>
+        {adminReadMemoryAuditHistoryToolCard.renderExpanded(
+          context({ parsedResult: { memory_id: 12, deleted: false, audit_events: [createdEvent, updatedEvent] } })
+        )}
+      </>
+    )
 
     expect(screen.getByText("created")).toBeInTheDocument()
     expect(screen.getByText("updated")).toBeInTheDocument()

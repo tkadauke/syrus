@@ -84,9 +84,7 @@ describe("Markdown", () => {
   })
 
   it("renders indented lists as children of their parent item", () => {
-    const { container } = render(
-      <Markdown text={"1. First track\n   - Child A\n   - Child B\n2. Second track\n   - Child C"} />
-    )
+    const { container } = render(<Markdown text={"1. First track\n   - Child A\n   - Child B\n2. Second track\n   - Child C"} />)
 
     const topList = container.querySelector("ol")
     expect(topList?.children).toHaveLength(2)
@@ -99,7 +97,11 @@ describe("Markdown", () => {
   it("keeps reported markdown section numbers and nested bullet indentation", () => {
     const { container } = render(
       <MemoryRouter>
-        <Markdown text={"1. **Already in flight**\n   - JOB-110 timing spans\n   - State: queued\n\n2. **Throughput/review funnel Epic**\n   - the Tier 1 tool-card work throughput metrics\n   - State: in_progress\n\n3. **Agent Insights infrastructure**\n   - The feature exists\n   - They can use `read_run_worker_health(run_id:)`."} />
+        <Markdown
+          text={
+            "1. **Already in flight**\n   - JOB-110 timing spans\n   - State: queued\n\n2. **Throughput/review funnel Epic**\n   - the Tier 1 tool-card work throughput metrics\n   - State: in_progress\n\n3. **Agent Insights infrastructure**\n   - The feature exists\n   - They can use `read_run_worker_health(run_id:)`."
+          }
+        />
       </MemoryRouter>
     )
 
@@ -109,7 +111,7 @@ describe("Markdown", () => {
     expect(topItems.map((item) => item.querySelector(":scope > strong")?.textContent)).toEqual([
       "Already in flight",
       "Throughput/review funnel Epic",
-      "Agent Insights infrastructure",
+      "Agent Insights infrastructure"
     ])
     expect(topList?.querySelectorAll(":scope > li > ul")).toHaveLength(3)
     expect(screen.getByText("read_run_worker_health(run_id:)").tagName).toBe("CODE")
@@ -214,9 +216,7 @@ describe("Markdown", () => {
   })
 
   it("renders inline TeX math in list items and table cells", () => {
-    const { container } = render(
-      <Markdown text={"- Blend with $x_i^2$\n\n| Name | Formula |\n| --- | --- |\n| smootherstep | $t^3(10 - 15t + 6t^2)$ |"} />
-    )
+    const { container } = render(<Markdown text={"- Blend with $x_i^2$\n\n| Name | Formula |\n| --- | --- |\n| smootherstep | $t^3(10 - 15t + 6t^2)$ |"} />)
 
     expect(container.querySelector("li .syrus-inline-math .katex-html")).toBeInTheDocument()
     expect(container.querySelector("td .syrus-inline-math .katex-html")).toBeInTheDocument()

@@ -14,14 +14,7 @@ function renderExpanded(context: ToolCardContext) {
   const outcome = parseScheduledTaskOutcome(context.parsedResult)
   if (!outcome) return null
 
-  return (
-    <ScheduledTaskOutcomeCard
-      detail="The task was removed and will never fire again."
-      outcome={outcome}
-      pill="deleted"
-      tone="failure"
-    />
-  )
+  return <ScheduledTaskOutcomeCard detail="The task was removed and will never fire again." outcome={outcome} pill="deleted" tone="failure" />
 }
 
 const deleteScheduledTaskToolCard: ToolCardRenderer = {

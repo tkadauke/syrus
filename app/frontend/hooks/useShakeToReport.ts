@@ -36,11 +36,7 @@ export function useShakeToReport(onShake: () => void) {
       if (!previous) return
 
       const magnitude = Math.sqrt(x * x + y * y + z * z)
-      const delta = Math.sqrt(
-        (x - previous.x) ** 2 +
-        (y - previous.y) ** 2 +
-        (z - previous.z) ** 2
-      )
+      const delta = Math.sqrt((x - previous.x) ** 2 + (y - previous.y) ** 2 + (z - previous.z) ** 2)
       const threshold = event.acceleration ? SHAKE_ACCELERATION_THRESHOLD : SHAKE_ACCELERATION_WITH_GRAVITY_THRESHOLD
       const now = event.timeStamp || Date.now()
 

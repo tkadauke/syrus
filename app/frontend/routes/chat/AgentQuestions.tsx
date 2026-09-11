@@ -18,16 +18,34 @@ export const DECLINE_ANSWER = "I decline to answer."
 // multi-select, or null before the step has been answered.
 type AgentAnswerDraft = string | string[] | null
 
-export function AgentQuestions({ questions, queryKey, onNotice }: { questions: ChatAgentQuestion[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+export function AgentQuestions({
+  questions,
+  queryKey,
+  onNotice
+}: {
+  questions: ChatAgentQuestion[]
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   return (
     <section aria-label={t("aria_agent_questions")} className="w-full max-w-3xl space-y-3 rounded border border-info/30 bg-info/10 p-3">
-      {questions.map((question) => <AgentQuestionCard key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} />)}
+      {questions.map((question) => (
+        <AgentQuestionCard key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} />
+      ))}
     </section>
   )
 }
 
-function AgentQuestionCard({ question, queryKey, onNotice }: { question: ChatAgentQuestion; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function AgentQuestionCard({
+  question,
+  queryKey,
+  onNotice
+}: {
+  question: ChatAgentQuestion
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
@@ -77,7 +95,9 @@ function AgentQuestionCard({ question, queryKey, onNotice }: { question: ChatAge
     submit.mutate(drafts as ChatAgentQuestionAnswer[])
   }
 
-  const errorBanner = submit.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(submit.error, "Answer could not be submitted.")}</div> : null
+  const errorBanner = submit.isError ? (
+    <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(submit.error, "Answer could not be submitted.")}</div>
+  ) : null
 
   if (phase === "summary") {
     return (
@@ -93,8 +113,12 @@ function AgentQuestionCard({ question, queryKey, onNotice }: { question: ChatAge
           ))}
         </ol>
         <div className="flex gap-2">
-          <button className={secondaryButton()} disabled={submit.isPending} onClick={goBack} type="button">{t("back")}</button>
-          <button className={primaryButton()} disabled={submit.isPending} onClick={submitAll} type="button">{t("submit_all_answers")}</button>
+          <button className={secondaryButton()} disabled={submit.isPending} onClick={goBack} type="button">
+            {t("back")}
+          </button>
+          <button className={primaryButton()} disabled={submit.isPending} onClick={submitAll} type="button">
+            {t("submit_all_answers")}
+          </button>
         </div>
       </div>
     )
@@ -121,20 +145,32 @@ function AgentQuestionCard({ question, queryKey, onNotice }: { question: ChatAge
         onCommit={(value) => commitStep(stepIndex, value)}
       />
       {!single && stepIndex > 0 ? (
-        <button className={secondaryButton()} disabled={submit.isPending} onClick={goBack} type="button">{t("back")}</button>
+        <button className={secondaryButton()} disabled={submit.isPending} onClick={goBack} type="button">
+          {t("back")}
+        </button>
       ) : null}
     </div>
   )
 }
 
-function AgentQuestionStepField({ subQuestion, draft, disabled, onCommit }: { subQuestion: ChatAgentSubQuestion; draft: AgentAnswerDraft; disabled: boolean; onCommit: (value: string | string[]) => void }) {
+function AgentQuestionStepField({
+  subQuestion,
+  draft,
+  disabled,
+  onCommit
+}: {
+  subQuestion: ChatAgentSubQuestion
+  draft: AgentAnswerDraft
+  disabled: boolean
+  onCommit: (value: string | string[]) => void
+}) {
   const { t } = useT("chat")
   const options = subQuestion.options?.filter((option) => option.trim().length > 0) || []
   const [text, setText] = useState(() => (typeof draft === "string" ? draft : ""))
   const [selected, setSelected] = useState<string[]>(() => (Array.isArray(draft) ? draft : []))
 
   function toggleOption(option: string) {
-    setSelected((current) => current.includes(option) ? current.filter((value) => value !== option) : [...current, option])
+    setSelected((current) => (current.includes(option) ? current.filter((value) => value !== option) : [...current, option]))
   }
 
   function submitText(event: FormEvent<HTMLFormElement>) {
@@ -173,14 +209,22 @@ function AgentQuestionStepField({ subQuestion, draft, disabled, onCommit }: { su
               {option}
             </label>
           ))}
-          <button className={primaryButton()} disabled={disabled || selected.length === 0} onClick={submitSelection} type="button">{t("submit")}</button>
+          <button className={primaryButton()} disabled={disabled || selected.length === 0} onClick={submitSelection} type="button">
+            {t("submit")}
+          </button>
         </div>
       ) : (
         <>
           {options.length > 0 ? (
             <div className="flex flex-col gap-2">
               {options.map((option) => (
-                <button className={`${secondaryButton()} flex w-full justify-start text-left`} disabled={disabled} key={option} onClick={() => onCommit(option)} type="button">
+                <button
+                  className={`${secondaryButton()} flex w-full justify-start text-left`}
+                  disabled={disabled}
+                  key={option}
+                  onClick={() => onCommit(option)}
+                  type="button"
+                >
                   {option}
                 </button>
               ))}
@@ -195,7 +239,9 @@ function AgentQuestionStepField({ subQuestion, draft, disabled, onCommit }: { su
               placeholder={t("ph_custom_response")}
               value={text}
             />
-            <button className={primaryButton()} disabled={disabled || text.trim().length === 0} type="submit">{t("submit")}</button>
+            <button className={primaryButton()} disabled={disabled || text.trim().length === 0} type="submit">
+              {t("submit")}
+            </button>
           </form>
         </>
       )}

@@ -938,7 +938,9 @@ export function fetchHiddenChats(page = 1) {
 
 export function fetchMoreChatsForGroup(repositoryId: number | null, beforeChatId: number) {
   const repositoryParam = repositoryId == null ? "general" : String(repositoryId)
-  return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?repository_id=${encodeURIComponent(repositoryParam)}&before_id=${encodeURIComponent(String(beforeChatId))}`)
+  return getJson<MoreChatsPayload>(
+    `/api/v1/app/chats/more?repository_id=${encodeURIComponent(repositoryParam)}&before_id=${encodeURIComponent(String(beforeChatId))}`
+  )
 }
 
 export function fetchChatSearch(search = "", options: { signal?: AbortSignal } = {}) {
@@ -962,7 +964,9 @@ export function fetchWhiteboardSnapshots(chatSessionId: string | number) {
 }
 
 export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshotId: string | number) {
-  return getJson<WhiteboardSnapshot>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots/${encodeURIComponent(String(snapshotId))}`)
+  return getJson<WhiteboardSnapshot>(
+    `/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots/${encodeURIComponent(String(snapshotId))}`
+  )
 }
 
 export function fetchChatMedia(chatId: string | number) {
@@ -975,7 +979,10 @@ export function postSnapshotPng(jobAttachmentsPath: string, blob: Blob, filename
   return postForm<unknown>(jobAttachmentsPath, formData)
 }
 
-export function createWhiteboardSnapshot(chatSessionId: string | number, input: { scene_json: ChatWhiteboardScene; snapshot_kind: WhiteboardSnapshot["snapshot_kind"]; name?: string | null }) {
+export function createWhiteboardSnapshot(
+  chatSessionId: string | number,
+  input: { scene_json: ChatWhiteboardScene; snapshot_kind: WhiteboardSnapshot["snapshot_kind"]; name?: string | null }
+) {
   return postJson<WhiteboardSnapshot>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots`, input)
 }
 
@@ -1107,7 +1114,6 @@ export function createLocalDaemonSession(chatId: number | string) {
   return postJson<{ daemon_session: LocalDaemonSession }>(`/api/v1/app/chats/${chatId}/local_daemon_session`)
 }
 
-
 export function clearChatHistory(path: string) {
   return deleteJson<ChatPayload>(path)
 }
@@ -1184,7 +1190,6 @@ export function cancelChatShellCommand(chatId: string | number, id: number) {
   return postJson<ChatShellCommandRecord>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/shell_commands/${id}/cancel`)
 }
 
-
 function chatMessagePayload(text: string, attachments: Array<ChatMessageAttachmentInput | ChatDraftAttachment>) {
   const chatMessage: {
     text: string
@@ -1198,7 +1203,10 @@ function chatMessagePayload(text: string, attachments: Array<ChatMessageAttachme
   return { chat_message: chatMessage }
 }
 
-function draftMessageInput(content: string | ChatDraftMessageInput, attachments: Array<ChatMessageAttachmentInput | ChatDraftAttachment>): ChatDraftMessageInput {
+function draftMessageInput(
+  content: string | ChatDraftMessageInput,
+  attachments: Array<ChatMessageAttachmentInput | ChatDraftAttachment>
+): ChatDraftMessageInput {
   return typeof content === "string" ? { text: content, attachments } : content
 }
 
@@ -1285,7 +1293,10 @@ export function fetchChatPreviewPanelAccessToken(path: string) {
 }
 
 export function chatPreviewPanelFileUrl(basePath: string, filePath: string, versionId?: number | null, raw = false) {
-  const encodedPath = filePath.split("/").map((part) => encodeURIComponent(part)).join("/")
+  const encodedPath = filePath
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/")
   const params = new URLSearchParams()
   if (versionId) params.set("v", String(versionId))
   if (raw) params.set("raw", "1")
@@ -1318,20 +1329,19 @@ export function updateChatProposal(path: string, values: ChatProposalUpdateInput
 
 export function searchChatProposals(chatId: string | number, query: string, excludeId: number, options: { signal?: AbortSignal } = {}) {
   const params = new URLSearchParams({ q: query, exclude_id: String(excludeId) })
-  return getJson<{ proposals: ChatProposalSearchResult[] }>(`/api/v1/app/chats/${chatId}/proposals/search?${params}`, options)
-    .then((payload) => payload.proposals || [])
+  return getJson<{ proposals: ChatProposalSearchResult[] }>(`/api/v1/app/chats/${chatId}/proposals/search?${params}`, options).then(
+    (payload) => payload.proposals || []
+  )
 }
 
 export function searchChatJobs(query: string, options: { signal?: AbortSignal } = {}) {
   const params = new URLSearchParams({ q: query, limit: "10" })
-  return getJson<{ jobs: ChatJobDependencySearchResult[] }>(`/api/v1/app/jobs?${params}`, options)
-    .then((payload) => payload.jobs || [])
+  return getJson<{ jobs: ChatJobDependencySearchResult[] }>(`/api/v1/app/jobs?${params}`, options).then((payload) => payload.jobs || [])
 }
 
 export function searchChatEpics(query: string, options: { signal?: AbortSignal } = {}) {
   const params = new URLSearchParams({ q: query, limit: "10" })
-  return getJson<{ epics: ChatEpicDependencySearchResult[] }>(`/api/v1/app/epics?${params}`, options)
-    .then((payload) => payload.epics || [])
+  return getJson<{ epics: ChatEpicDependencySearchResult[] }>(`/api/v1/app/epics?${params}`, options).then((payload) => payload.epics || [])
 }
 
 export function confirmPendingAction(path: string) {
@@ -1445,7 +1455,7 @@ export type RuntimeControlLease = {
 
 export type RuntimeSessionState = "starting" | "building" | "running" | "idle" | "failed" | "stopping" | "stopped"
 
-export const RUNTIME_SESSION_ACTIVE_STATES: RuntimeSessionState[] = [ "starting", "building", "running", "idle", "stopping" ]
+export const RUNTIME_SESSION_ACTIVE_STATES: RuntimeSessionState[] = ["starting", "building", "running", "idle", "stopping"]
 
 export type RuntimeSession = {
   id: number
@@ -1491,7 +1501,11 @@ export function captureRuntimeArtifact(chatId: string | number, sessionId: numbe
   return postJson<{ runtime_session: RuntimeSession }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/capture`)
 }
 
-export function takeRuntimeControl(chatId: string | number, sessionId: number, options: { mode?: RuntimeControlLeaseMode; reason?: string; duration_seconds?: number } = {}) {
+export function takeRuntimeControl(
+  chatId: string | number,
+  sessionId: number,
+  options: { mode?: RuntimeControlLeaseMode; reason?: string; duration_seconds?: number } = {}
+) {
   return postJson<{ runtime_session: RuntimeSession; lease: RuntimeControlLease }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/take_control`, options)
 }
 

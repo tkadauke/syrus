@@ -49,11 +49,13 @@ function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
     return SPARKLINE_H - SPARKLINE_PADDING - ((pct - min) / range) * (SPARKLINE_H - 2 * SPARKLINE_PADDING)
   }
 
-  const pathD = points.map((p, i) => {
-    const x = toSvgX(i)
-    const y = toSvgY(p.lines_pct as number)
-    return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`
-  }).join(" ")
+  const pathD = points
+    .map((p, i) => {
+      const x = toSvgX(i)
+      const y = toSvgY(p.lines_pct as number)
+      return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`
+    })
+    .join(" ")
 
   const lastPoint = points.at(-1)
   const lastPct = lastPoint?.lines_pct
@@ -70,13 +72,7 @@ function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
           width={SPARKLINE_W}
           onMouseLeave={() => setTooltip(null)}
         >
-          <path
-            className="fill-none stroke-brand dark:stroke-brand-emphasis"
-            d={pathD}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.5"
-          />
+          <path className="fill-none stroke-brand dark:stroke-brand-emphasis" d={pathD} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
           {points.map((p, i) => {
             const x = toSvgX(i)
             const y = toSvgY(p.lines_pct as number)
@@ -92,9 +88,7 @@ function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
             )
           })}
         </svg>
-        {lastPct != null ? (
-          <span className="text-xs font-medium text-brand-emphasis">{lastPct.toFixed(1)}%</span>
-        ) : null}
+        {lastPct != null ? <span className="text-xs font-medium text-brand-emphasis">{lastPct.toFixed(1)}%</span> : null}
       </div>
 
       {tooltip ? (

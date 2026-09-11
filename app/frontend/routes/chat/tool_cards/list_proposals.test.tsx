@@ -13,7 +13,12 @@ describe("list_proposals tool card", () => {
   })
 
   it("summarizes the proposal count", () => {
-    const parsedResult = { proposals: [{ slug: "a", state: "proposed", kind: "job" }, { slug: "b", state: "confirmed", kind: "epic" }] }
+    const parsedResult = {
+      proposals: [
+        { slug: "a", state: "proposed", kind: "job" },
+        { slug: "b", state: "confirmed", kind: "epic" }
+      ]
+    }
     expect(listProposalsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 proposals")
   })
 

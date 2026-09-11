@@ -109,7 +109,8 @@ function renderExpanded(context: ToolCardContext) {
                 className={`rounded-full px-2 py-0.5 text-2xs ${dependency.pending ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
                 key={dependency.key}
               >
-                {dependency.label}{dependency.state ? ` · ${dependency.state}` : ""}
+                {dependency.label}
+                {dependency.state ? ` · ${dependency.state}` : ""}
               </span>
             ))}
           </div>
@@ -121,10 +122,16 @@ function renderExpanded(context: ToolCardContext) {
           <div className="mt-1 flex flex-wrap items-center gap-1">
             {job.deploymentStages.map((stage, index) => (
               <span className="flex items-center gap-1" key={stage.name}>
-                <span className={`rounded-full px-2 py-0.5 text-2xs ${stage.reached ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-2xs ${stage.reached ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}
+                >
                   {stage.label}
                 </span>
-                {index < job.deploymentStages.length - 1 ? <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">→</span> : null}
+                {index < job.deploymentStages.length - 1 ? (
+                  <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">
+                    →
+                  </span>
+                ) : null}
               </span>
             ))}
           </div>

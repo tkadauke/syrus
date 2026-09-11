@@ -21,12 +21,14 @@ vi.mock("@rails/actioncable", () => ({
   })
 }))
 
-function makePayload(overrides: {
-  credential_status?: Partial<CredentialsPayload["credential_status"]>
-  chat_providers?: string[]
-  admin?: boolean
-  codex_auth_mode?: string
-} = {}): CredentialsPayload {
+function makePayload(
+  overrides: {
+    credential_status?: Partial<CredentialsPayload["credential_status"]>
+    chat_providers?: string[]
+    admin?: boolean
+    codex_auth_mode?: string
+  } = {}
+): CredentialsPayload {
   return {
     user: {
       id: 1,
@@ -93,10 +95,7 @@ function withoutMessage(payload: CredentialsPayload): CredentialsPayload {
 
 // Stateful router: card saves/clears cache a snapshot AND invalidate, so the
 // follow-up GET must serve whatever state the last mutation produced.
-function mockRoutes(
-  initialPayload: CredentialsPayload,
-  routes: { clear?: () => Response; patch?: () => Response } = {}
-) {
+function mockRoutes(initialPayload: CredentialsPayload, routes: { clear?: () => Response; patch?: () => Response } = {}) {
   const state = { payload: initialPayload }
   const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = String(input)
@@ -112,9 +111,14 @@ function mockRoutes(
       if (response.ok) state.payload = withoutMessage(JSON.parse(await response.clone().text()) as CredentialsPayload)
       return response
     }
-    if (url.endsWith("/test_claude_cli")) return jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
+    if (url.endsWith("/test_claude_cli"))
+      return jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
     if (url.endsWith("/codex_oauth_start")) return jsonResponse({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true })
-    if (url.endsWith("/codex_oauth_exchange")) return jsonResponse({ credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} }, message: "Codex ChatGPT auth.json is valid." })
+    if (url.endsWith("/codex_oauth_exchange"))
+      return jsonResponse({
+        credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} },
+        message: "Codex ChatGPT auth.json is valid."
+      })
     throw new Error(`unexpected fetch: ${method} ${url}`)
   })
   return fetchSpy

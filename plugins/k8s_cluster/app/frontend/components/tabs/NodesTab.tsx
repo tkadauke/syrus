@@ -9,7 +9,7 @@ import { StatusBadge } from "../StatusBadge"
 export function NodesTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const nodes = useQuery({
-    queryKey: [ "k8s_cluster", "nodes", clusterId ],
+    queryKey: ["k8s_cluster", "nodes", clusterId],
     queryFn: () => fetchKubernetesNodes(clusterId)
   })
 

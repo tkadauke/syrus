@@ -49,8 +49,16 @@ export function AdminEventActions({ actions, eventId, eventType, onToggleDetails
           {filing && action.id === "file_job" ? "Filing..." : action.label}
         </button>
       ))}
-      {filedJobId != null ? <a className="text-xs text-gray-600 underline dark:text-gray-300" href={`/jobs/${filedJobId}`}>JOB-{filedJobId}</a> : null}
-      {filedIssueUrl ? <a className="text-xs text-gray-600 underline dark:text-gray-300" href={filedIssueUrl}>Issue filed</a> : null}
+      {filedJobId != null ? (
+        <a className="text-xs text-gray-600 underline dark:text-gray-300" href={`/jobs/${filedJobId}`}>
+          JOB-{filedJobId}
+        </a>
+      ) : null}
+      {filedIssueUrl ? (
+        <a className="text-xs text-gray-600 underline dark:text-gray-300" href={filedIssueUrl}>
+          Issue filed
+        </a>
+      ) : null}
       {error ? <div className="text-xs text-red-600 dark:text-red-400">{error}</div> : null}
     </div>
   )

@@ -25,16 +25,18 @@ describe("admin_list_runs tool card", () => {
 
   it("renders a Run row with a Job link, state, trigger, timing, and cost", () => {
     const parsedResult = {
-      runs: [{
-        id: 501,
-        job_id: 4048,
-        workflow_id: 900,
-        state: "failed",
-        trigger_kind: "ci_failure",
-        started_at: "2026-09-06T00:00:00Z",
-        finished_at: "2026-09-06T00:03:00Z",
-        cost_usd: "0.1234"
-      }]
+      runs: [
+        {
+          id: 501,
+          job_id: 4048,
+          workflow_id: 900,
+          state: "failed",
+          trigger_kind: "ci_failure",
+          started_at: "2026-09-06T00:00:00Z",
+          finished_at: "2026-09-06T00:03:00Z",
+          cost_usd: "0.1234"
+        }
+      ]
     }
 
     render(<>{adminListRunsToolCard.renderExpanded(context({ parsedResult }))}</>)

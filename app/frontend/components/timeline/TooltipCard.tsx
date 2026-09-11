@@ -14,12 +14,8 @@ export function TooltipCard({ x, y, children }: { x: number; y: number; children
   useLayoutEffect(() => {
     const rect = ref.current?.getBoundingClientRect()
 
-    setPosition(clampToViewport(
-      { x, y },
-      { width: rect?.width ?? 0, height: rect?.height ?? 0 },
-      { width: window.innerWidth, height: window.innerHeight }
-    ))
-  }, [ x, y, children ])
+    setPosition(clampToViewport({ x, y }, { width: rect?.width ?? 0, height: rect?.height ?? 0 }, { width: window.innerWidth, height: window.innerHeight }))
+  }, [x, y, children])
 
   return (
     <div

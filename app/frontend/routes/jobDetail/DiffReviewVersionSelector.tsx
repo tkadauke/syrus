@@ -48,9 +48,7 @@ export function DiffReviewVersionSelector({
         ))}
       </Select>
       {selected ? (
-        <p className="max-w-3xl break-words text-xs text-gray-500 dark:text-gray-400">
-          {versionMetadata(t, selected, selected.id === latestVersionId)}
-        </p>
+        <p className="max-w-3xl break-words text-xs text-gray-500 dark:text-gray-400">{versionMetadata(t, selected, selected.id === latestVersionId)}</p>
       ) : null}
     </div>
   )
@@ -58,8 +56,12 @@ export function DiffReviewVersionSelector({
 
 export function versionOptionLabel(t: TFunction<"jobs">, version: DiffReviewVersion, latest: boolean) {
   const pieces = [
-    isAllChangesVersion(version) ? t("review_version_all_changes") : (latest ? t("review_version_latest_prefix", { version: version.version_index }) : t("review_version_prefix", { version: version.version_index })),
-    isAllChangesVersion(version) ? null : (version.label || version.reason || version.trigger_kind || t("review_version_default_reason")),
+    isAllChangesVersion(version)
+      ? t("review_version_all_changes")
+      : latest
+        ? t("review_version_latest_prefix", { version: version.version_index })
+        : t("review_version_prefix", { version: version.version_index }),
+    isAllChangesVersion(version) ? null : version.label || version.reason || version.trigger_kind || t("review_version_default_reason"),
     version.workflow_id ? `WF-${version.workflow_id}` : null,
     version.run_id ? `RUN-${version.run_id}` : null,
     version.created_at ? absoluteDate(version.created_at) : null,
@@ -77,21 +79,12 @@ function versionMetadata(t: TFunction<"jobs">, version: DiffReviewVersion, lates
   const comments = t("review_version_comments", { count: version.comments_count })
   const range = t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) })
   if (isAllChangesVersion(version)) {
-    return [
-      t("review_version_all_changes"),
-      range,
-      comments
-    ].join(t("review_version_separator"))
+    return [t("review_version_all_changes"), range, comments].join(t("review_version_separator"))
   }
 
-  return [
-    latest ? t("review_version_latest") : t("review_version_historical"),
-    trigger,
-    `${workflow}, ${run}`,
-    created,
-    range,
-    comments
-  ].join(t("review_version_separator"))
+  return [latest ? t("review_version_latest") : t("review_version_historical"), trigger, `${workflow}, ${run}`, created, range, comments].join(
+    t("review_version_separator")
+  )
 }
 
 function isAllChangesVersion(version: DiffReviewVersion) {

@@ -6,11 +6,13 @@ import type { ReactElement } from "react"
 import type { CredentialsPayload } from "../../api/credentials"
 import { ClaudeCredentialCard, CodexCredentialCard, GeminiCredentialCard, GithubCredentialCard } from "./CredentialCard"
 
-function makePayload(overrides: {
-  credential_status?: Partial<CredentialsPayload["credential_status"]>
-  codex_auth_mode?: string
-  admin?: boolean
-} = {}): CredentialsPayload {
+function makePayload(
+  overrides: {
+    credential_status?: Partial<CredentialsPayload["credential_status"]>
+    codex_auth_mode?: string
+    admin?: boolean
+  } = {}
+): CredentialsPayload {
   return {
     user: {
       id: 1,
@@ -75,24 +77,33 @@ function renderCard(ui: ReactElement, { bootstrap }: { bootstrap?: unknown } = {
 }
 
 // Route fetch by path + method, mirroring the app's API layer.
-function mockRoutes(routes: {
-  test?: () => Response
-  clear?: () => Response
-  patch?: () => Response
-  claudePreflight?: () => Response
-  githubProbe?: () => Response
-  codexStart?: () => Response
-  codexExchange?: () => Response
-} = {}) {
+function mockRoutes(
+  routes: {
+    test?: () => Response
+    clear?: () => Response
+    patch?: () => Response
+    claudePreflight?: () => Response
+    githubProbe?: () => Response
+    codexStart?: () => Response
+    codexExchange?: () => Response
+  } = {}
+) {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = String(input)
     const method = init?.method ?? "GET"
-    if (url.endsWith("/test_credential")) return routes.test?.() ?? jsonResponse({ credential_test: { credential: "x", ok: true, message: "OK.", details: {} } })
+    if (url.endsWith("/test_credential"))
+      return routes.test?.() ?? jsonResponse({ credential_test: { credential: "x", ok: true, message: "OK.", details: {} } })
     if (url.endsWith("/clear_credential")) return routes.clear?.() ?? jsonResponse(makePayload())
-    if (url.endsWith("/test_claude_cli")) return routes.claudePreflight?.() ?? jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
+    if (url.endsWith("/test_claude_cli"))
+      return routes.claudePreflight?.() ?? jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
     if (url.endsWith("/test_github_token")) return routes.githubProbe?.() ?? jsonResponse({ credential_test: { ok: false, message: "", details: {} } })
-    if (url.endsWith("/codex_oauth_start")) return routes.codexStart?.() ?? jsonResponse({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true })
-    if (url.endsWith("/codex_oauth_exchange")) return routes.codexExchange?.() ?? jsonResponse({ credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} } })
+    if (url.endsWith("/codex_oauth_start"))
+      return routes.codexStart?.() ?? jsonResponse({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true })
+    if (url.endsWith("/codex_oauth_exchange"))
+      return (
+        routes.codexExchange?.() ??
+        jsonResponse({ credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} } })
+      )
     if (url.endsWith("/credentials") && method === "GET") return jsonResponse(makePayload())
     if (url.endsWith("/credentials") && method === "PATCH") return routes.patch?.() ?? jsonResponse(makePayload())
     throw new Error(`unexpected fetch: ${method} ${url}`)
@@ -131,7 +142,10 @@ describe("GithubCredentialCard", () => {
 
   it("tests the SAVED token only via the explicit Test button and shows the result", async () => {
     const fetchSpy = mockRoutes({
-      test: () => jsonResponse({ credential_test: { credential: "github_token", ok: true, message: "Token is valid.", details: { login: "octocat", scopes: ["repo", "workflow"] } } })
+      test: () =>
+        jsonResponse({
+          credential_test: { credential: "github_token", ok: true, message: "Token is valid.", details: { login: "octocat", scopes: ["repo", "workflow"] } }
+        })
     })
     renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true } })} />)
 
@@ -148,7 +162,12 @@ describe("GithubCredentialCard", () => {
 
   it("shows GitHub App status from setup_status, with the admin-only setup action", () => {
     mockRoutes()
-    const bootstrap = { setup_status: { first_successful_job_completed: true, credential_status: { github: true, github_pat: true, github_app: false, agent: true, active_agent_provider: "claude" } } }
+    const bootstrap = {
+      setup_status: {
+        first_successful_job_completed: true,
+        credential_status: { github: true, github_pat: true, github_app: false, agent: true, active_agent_provider: "claude" }
+      }
+    }
     renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true }, admin: true })} />, { bootstrap })
 
     expect(screen.getByText("GitHub App not registered")).toBeInTheDocument()
@@ -157,7 +176,12 @@ describe("GithubCredentialCard", () => {
 
   it("hides the GitHub App action from non-admins and shows registered state", () => {
     mockRoutes()
-    const registered = { setup_status: { first_successful_job_completed: true, credential_status: { github: true, github_pat: true, github_app: true, agent: true, active_agent_provider: "claude" } } }
+    const registered = {
+      setup_status: {
+        first_successful_job_completed: true,
+        credential_status: { github: true, github_pat: true, github_app: true, agent: true, active_agent_provider: "claude" }
+      }
+    }
     renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true } })} />, { bootstrap: registered })
 
     expect(screen.getByText("GitHub App registered")).toBeInTheDocument()
@@ -282,7 +306,9 @@ describe("CodexCredentialCard", () => {
 
   it("shows the ChatGPT-login summary when auth.json is saved, with Re-authorize revealing the flow", () => {
     mockRoutes()
-    renderCard(<CodexCredentialCard onNotice={() => {}} payload={makePayload({ codex_auth_mode: "chatgpt_login", credential_status: { codex_auth_json: true } })} />)
+    renderCard(
+      <CodexCredentialCard onNotice={() => {}} payload={makePayload({ codex_auth_mode: "chatgpt_login", credential_status: { codex_auth_json: true } })} />
+    )
 
     expect(screen.getByText("Connected")).toBeInTheDocument()
     expect(screen.getByText(/ChatGPT login \(auth\.json\) is saved/)).toBeInTheDocument()
@@ -298,7 +324,10 @@ describe("CodexCredentialCard", () => {
         exchangeAttempts += 1
         return exchangeAttempts === 1
           ? jsonResponse({ error: { message: "Exchange blew up." } }, 422)
-          : jsonResponse({ credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} }, message: "Codex ChatGPT auth.json is valid." })
+          : jsonResponse({
+              credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} },
+              message: "Codex ChatGPT auth.json is valid."
+            })
       }
     })
     const onNotice = vi.fn()

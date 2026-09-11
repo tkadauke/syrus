@@ -83,8 +83,12 @@ describe("ShortcutsHelpModal", () => {
       const [modalMounted, setModalMounted] = useState(false)
       return (
         <div>
-          <button onClick={() => setPageMounted(false)} type="button">unmount page shortcut</button>
-          <button onClick={() => setModalMounted(true)} type="button">mount shadowing shortcut</button>
+          <button onClick={() => setPageMounted(false)} type="button">
+            unmount page shortcut
+          </button>
+          <button onClick={() => setModalMounted(true)} type="button">
+            mount shadowing shortcut
+          </button>
           {pageMounted ? <Registrant group="Page" keys="mod+k" label="Page action" /> : null}
           {modalMounted ? <Registrant group="Overlay" keys="mod+k" label="Overlay action" /> : null}
           <ShortcutsHelpModal onClose={() => {}} open />

@@ -104,15 +104,11 @@ function folder(values: Partial<DashboardSmartFolder>): DashboardSmartFolder {
 }
 
 const savedFilter = {
-  and: [
-    { field: "repository", op: "is", value: "tkadauke/syrus" }
-  ]
+  and: [{ field: "repository", op: "is", value: "tkadauke/syrus" }]
 }
 
 const changedFilter = {
-  and: [
-    { field: "repository", op: "is", value: "tkadauke/raytracer" }
-  ]
+  and: [{ field: "repository", op: "is", value: "tkadauke/raytracer" }]
 }
 
 function showFolderActions(name = "Saved work", count = 3) {
@@ -279,9 +275,7 @@ describe("DashboardSmartFolderNav", () => {
   })
 
   it("hides folder save controls when the selected user-defined folder has not changed", () => {
-    renderNav([
-      folder({ active: true, filter: savedFilter })
-    ], {
+    renderNav([folder({ active: true, filter: savedFilter })], {
       payload: { active_smart_folder_id: 101, filter: savedFilter },
       search: "?smart_folder_id=101"
     })
@@ -291,9 +285,7 @@ describe("DashboardSmartFolderNav", () => {
   })
 
   it("shows update and save controls when a selected user-defined folder filter changes", () => {
-    renderNav([
-      folder({ active: true, filter: savedFilter })
-    ], {
+    renderNav([folder({ active: true, filter: savedFilter })], {
       payload: { active_smart_folder_id: 101, filter: changedFilter },
       search: "?smart_folder_id=101&q=changed"
     })
@@ -303,26 +295,27 @@ describe("DashboardSmartFolderNav", () => {
   })
 
   it("hides save controls while user-defined folder navigation is waiting for current rows", () => {
-    renderNav([
-      folder({ id: 101, name: "Review", active: false, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=101" }),
-      folder({ id: 102, name: "Blocked", active: true, filter: changedFilter, path: "/dashboard/jobs?smart_folder_id=102" })
-    ], {
-      payload: {
-        active_smart_folder_id: 102,
-        filter: savedFilter,
-        rows_current_for_search: false
-      },
-      search: "?smart_folder_id=102"
-    })
+    renderNav(
+      [
+        folder({ id: 101, name: "Review", active: false, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=101" }),
+        folder({ id: 102, name: "Blocked", active: true, filter: changedFilter, path: "/dashboard/jobs?smart_folder_id=102" })
+      ],
+      {
+        payload: {
+          active_smart_folder_id: 102,
+          filter: savedFilter,
+          rows_current_for_search: false
+        },
+        search: "?smart_folder_id=102"
+      }
+    )
 
     expect(screen.queryByRole("button", { name: "Update Blocked" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
   })
 
   it("shows only save controls when a selected builtin folder filter changes", () => {
-    renderNav([
-      folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", active: true, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" })
-    ], {
+    renderNav([folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", active: true, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" })], {
       payload: { active_smart_folder_id: 7, filter: changedFilter },
       search: "?smart_folder_id=7&q=changed"
     })
@@ -332,26 +325,27 @@ describe("DashboardSmartFolderNav", () => {
   })
 
   it("hides save controls while builtin folder navigation is waiting for current rows", () => {
-    renderNav([
-      folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", active: false, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" }),
-      folder({ id: 8, name: "Queued", key: "queued", kind: "builtin", active: true, filter: changedFilter, path: "/dashboard/jobs?smart_folder_id=8" })
-    ], {
-      payload: {
-        active_smart_folder_id: 8,
-        filter: savedFilter,
-        rows_current_for_search: false
-      },
-      search: "?smart_folder_id=8"
-    })
+    renderNav(
+      [
+        folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", active: false, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" }),
+        folder({ id: 8, name: "Queued", key: "queued", kind: "builtin", active: true, filter: changedFilter, path: "/dashboard/jobs?smart_folder_id=8" })
+      ],
+      {
+        payload: {
+          active_smart_folder_id: 8,
+          filter: savedFilter,
+          rows_current_for_search: false
+        },
+        search: "?smart_folder_id=8"
+      }
+    )
 
     expect(screen.queryByRole("button", { name: "Update Queued" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
   })
 
   it("shows save controls when filters are applied without a selected folder", () => {
-    renderNav([
-      folder({ filter: savedFilter })
-    ], {
+    renderNav([folder({ filter: savedFilter })], {
       payload: { active_smart_folder_id: null, filter: changedFilter },
       search: "?q=changed"
     })
@@ -386,7 +380,16 @@ describe("DashboardSmartFolderNav", () => {
 
   it("renders a when_present builtin folder like Backlog outside the More disclosure", () => {
     renderNav([
-      folder({ id: 7, name: "Backlog", key: "backlogged_jobs", kind: "builtin", visibility: "when_present", position: 0, count: 2, path: "/dashboard/jobs?smart_folder_id=7" }),
+      folder({
+        id: 7,
+        name: "Backlog",
+        key: "backlogged_jobs",
+        kind: "builtin",
+        visibility: "when_present",
+        position: 0,
+        count: 2,
+        path: "/dashboard/jobs?smart_folder_id=7"
+      }),
       folder({ id: 8, name: "Stale", key: "stale", kind: "builtin", visibility: "on_demand", position: 1, count: 1, path: "/dashboard/jobs?smart_folder_id=8" })
     ])
 
@@ -401,7 +404,16 @@ describe("DashboardSmartFolderNav", () => {
 
   it("navigates to the backlog-filtered Job list when the Backlog folder is followed", () => {
     const { currentLocation } = renderNav([
-      folder({ id: 7, name: "Backlog", key: "backlogged_jobs", kind: "builtin", visibility: "when_present", position: 0, count: 1, path: "/dashboard/jobs?smart_folder_id=7" })
+      folder({
+        id: 7,
+        name: "Backlog",
+        key: "backlogged_jobs",
+        kind: "builtin",
+        visibility: "when_present",
+        position: 0,
+        count: 1,
+        path: "/dashboard/jobs?smart_folder_id=7"
+      })
     ])
 
     fireEvent.click(screen.getByRole("link", { name: "Backlog 1" }))
@@ -410,15 +422,18 @@ describe("DashboardSmartFolderNav", () => {
   })
 
   it("compares selected folder filters independent of object key order", () => {
-    renderNav([
-      folder({
-        active: true,
-        filter: { and: [{ value: "open", op: "is", field: "state" }] }
-      })
-    ], {
-      payload: { active_smart_folder_id: 101, filter: { and: [{ field: "state", op: "is", value: "open" }] } },
-      search: "?smart_folder_id=101&q=unchanged"
-    })
+    renderNav(
+      [
+        folder({
+          active: true,
+          filter: { and: [{ value: "open", op: "is", field: "state" }] }
+        })
+      ],
+      {
+        payload: { active_smart_folder_id: 101, filter: { and: [{ field: "state", op: "is", value: "open" }] } },
+        search: "?smart_folder_id=101&q=unchanged"
+      }
+    )
 
     expect(screen.queryByRole("button", { name: "Update Saved work" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()

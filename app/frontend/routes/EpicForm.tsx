@@ -5,14 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, MouseEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import {
-  createEpic,
-  fetchEditEpicForm,
-  fetchNewEpicForm,
-  type EpicFormPayload,
-  type EpicInput,
-  updateEpic
-} from "../api/epics"
+import { createEpic, fetchEditEpicForm, fetchNewEpicForm, type EpicFormPayload, type EpicInput, updateEpic } from "../api/epics"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
@@ -27,7 +20,7 @@ export function EpicFormRoute({ mode }: { mode: "new" | "edit" }) {
   const prefix = routePrefix(location.pathname)
   const form = useQuery({
     queryKey: ["epics", mode, id],
-    queryFn: () => mode === "new" ? fetchNewEpicForm() : fetchEditEpicForm(id),
+    queryFn: () => (mode === "new" ? fetchNewEpicForm() : fetchEditEpicForm(id)),
     enabled: mode === "new" || id.length > 0
   })
 
@@ -77,19 +70,18 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
     <>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <PageHeading>{mode === "new" ? t("new_epic") : t("edit_epic")}</PageHeading>
-        {mode === "edit" && payload.epic.epic_path ? <Link className="text-sm text-brand underline hover:no-underline" to={withRoutePrefix(payload.epic.epic_path, prefix)}>{t("back_to_epic")}</Link> : null}
+        {mode === "edit" && payload.epic.epic_path ? (
+          <Link className="text-sm text-brand underline hover:no-underline" to={withRoutePrefix(payload.epic.epic_path, prefix)}>
+            {t("back_to_epic")}
+          </Link>
+        ) : null}
       </header>
 
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("save_error"))}</PanelMessage> : null}
 
       <form className="space-y-5" onSubmit={submit}>
         <Field label={t("form_title")}>
-          <Input
-            onChange={(event) => setValues({ ...values, title: event.target.value })}
-            required
-            type="text"
-            value={values.title}
-          />
+          <Input onChange={(event) => setValues({ ...values, title: event.target.value })} required type="text" value={values.title} />
         </Field>
 
         <Field label={t("description")}>
@@ -102,14 +94,12 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
         </Field>
 
         <Field label={t("form_repository")}>
-          <Select
-            onChange={(event) => setValues({ ...values, repository_id: event.target.value })}
-            required
-            value={values.repository_id}
-          >
+          <Select onChange={(event) => setValues({ ...values, repository_id: event.target.value })} required value={values.repository_id}>
             <option value="">{t("select_repository")}</option>
             {payload.repositories.map((repository) => (
-              <option key={repository.id} value={repository.id}>{repository.slug}</option>
+              <option key={repository.id} value={repository.id}>
+                {repository.slug}
+              </option>
             ))}
           </Select>
         </Field>
@@ -125,22 +115,19 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
 
         <div className="flex flex-wrap items-center gap-3">
           {mode === "new" ? (
-            <Button
-              disabled={save.isPending}
-              onClick={createAndStart}
-              variant="primary"
-            >
+            <Button disabled={save.isPending} onClick={createAndStart} variant="primary">
               {save.isPending ? t("saving") : t("create_and_start")}
             </Button>
           ) : null}
-          <Button
-            disabled={save.isPending}
-            type="submit"
-            variant={mode === "new" ? "secondary" : "primary"}
-          >
+          <Button disabled={save.isPending} type="submit" variant={mode === "new" ? "secondary" : "primary"}>
             {save.isPending ? t("saving") : mode === "new" ? t("create") : t("save")}
           </Button>
-          <Link className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(mode === "new" ? payload.dashboard_epics_path : payload.epic.epic_path || payload.dashboard_epics_path, prefix)}>{t("cancel")}</Link>
+          <Link
+            className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+            to={withRoutePrefix(mode === "new" ? payload.dashboard_epics_path : payload.epic.epic_path || payload.dashboard_epics_path, prefix)}
+          >
+            {t("cancel")}
+          </Link>
         </div>
       </form>
     </>

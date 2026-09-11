@@ -3,9 +3,6 @@ import "@excalidraw/excalidraw/index.css"
 import { useT } from "../../hooks/useT"
 import { providerLabel } from "./utils"
 
-
-
-
 // Chat message-stream chrome extracted from Chat.tsx: the timestamp, day
 // divider, decorative wave line, system-messages toggle, and the agent-
 // activity / switching-provider indicators rendered around the message list.
@@ -47,7 +44,11 @@ export function SystemMessagesToggle({ count, expanded, onToggle }: { count: num
   const { t } = useT("chat")
   return (
     <div className="flex justify-center">
-      <button className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={onToggle} type="button">
+      <button
+        className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        onClick={onToggle}
+        type="button"
+      >
         {expanded ? t("hide_system_messages") : t("show_system_messages", { count })}
       </button>
     </div>
@@ -86,10 +87,7 @@ export function getStartingPhrase() {
 }
 
 export function AgentActivityIndicator({ running }: { running: boolean }) {
-  const workingPhrase = useMemo(
-    () => WORKING_PHRASES[Math.floor(Math.random() * WORKING_PHRASES.length)],
-    []
-  )
+  const workingPhrase = useMemo(() => WORKING_PHRASES[Math.floor(Math.random() * WORKING_PHRASES.length)], [])
   const phrase = running ? workingPhrase : getStartingPhrase()
 
   return (
@@ -97,11 +95,7 @@ export function AgentActivityIndicator({ running }: { running: boolean }) {
       <div className="inline-flex items-center gap-2 rounded-full border border-info/20 bg-info/10 px-3 py-1.5 text-xs font-medium text-info shadow-sm dark:border-info/30 dark:bg-info/10 dark:text-info">
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {[0, 1, 2].map((index) => (
-            <span
-              className="h-1.5 w-1.5 animate-bounce rounded-full bg-info"
-              key={index}
-              style={{ animationDelay: `${index * 140}ms` }}
-            />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info" key={index} style={{ animationDelay: `${index * 140}ms` }} />
           ))}
         </span>
         <span title={phrase.english}>{phrase.latin}</span>

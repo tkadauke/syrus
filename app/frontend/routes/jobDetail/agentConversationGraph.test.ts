@@ -31,10 +31,7 @@ function node(overrides: Partial<AgentConversationNode> = {}): AgentConversation
 
 describe("buildConversationRows", () => {
   it("gives every agent_session and external_trigger node its own row", () => {
-    const nodes = [
-      node({ id: "a", kind: "agent_session" }),
-      node({ id: "b", kind: "external_trigger", trigger_kind: "pr_comment" })
-    ]
+    const nodes = [node({ id: "a", kind: "agent_session" }), node({ id: "b", kind: "external_trigger", trigger_kind: "pr_comment" })]
     const rows = buildConversationRows(nodes, [])
     expect(rows).toEqual([[nodes[0]], [nodes[1]]])
   })
@@ -183,7 +180,12 @@ describe("externalTriggerSourceUrl", () => {
     const trigger = node({
       kind: "external_trigger",
       trigger_kind: "ci_failure",
-      detail: { failed_checks: [{ name: "rspec", html_url: null }, { name: "eslint", html_url: "https://github.com/acme/widgets/runs/2" }] }
+      detail: {
+        failed_checks: [
+          { name: "rspec", html_url: null },
+          { name: "eslint", html_url: "https://github.com/acme/widgets/runs/2" }
+        ]
+      }
     })
     expect(externalTriggerSourceUrl(trigger, null)).toBe("https://github.com/acme/widgets/runs/2")
   })

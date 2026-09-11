@@ -41,22 +41,26 @@ describe("AdminFeatures", () => {
         return Promise.resolve(jsonResponse(featuresPayload()))
       }
 
-      return Promise.resolve(jsonResponse(featuresPayload({
-        categories: [
-          {
-            category: "Navigation",
-            features: [
+      return Promise.resolve(
+        jsonResponse(
+          featuresPayload({
+            categories: [
               {
-                slug: "new_dashboard",
                 category: "Navigation",
-                name: "New dashboard",
-                description: "Use the redesigned dashboard.",
-                enabled: true
+                features: [
+                  {
+                    slug: "new_dashboard",
+                    category: "Navigation",
+                    name: "New dashboard",
+                    description: "Use the redesigned dashboard.",
+                    enabled: true
+                  }
+                ]
               }
             ]
-          }
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute(<AdminFeatures />)
@@ -65,21 +69,26 @@ describe("AdminFeatures", () => {
     fireEvent.click(toggle)
     await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"))
 
-    resolvePatch(jsonResponse({
-      feature: {
-        slug: "new_dashboard",
-        category: "Navigation",
-        name: "New dashboard",
-        description: "Use the redesigned dashboard.",
-        enabled: true
-      }
-    }))
+    resolvePatch(
+      jsonResponse({
+        feature: {
+          slug: "new_dashboard",
+          category: "Navigation",
+          name: "New dashboard",
+          description: "Use the redesigned dashboard.",
+          enabled: true
+        }
+      })
+    )
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/features/new_dashboard", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ feature: { enabled: true } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/features/new_dashboard",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ feature: { enabled: true } })
+        })
+      )
     })
     expect(await screen.findByRole("switch", { name: "Enabled" })).toHaveAttribute("aria-checked", "true")
   })
@@ -131,9 +140,7 @@ describe("AdminFeatures", () => {
 function renderRoute(children: ReactNode, path = "/app-shell/admin/features") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[path]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -188,7 +195,7 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       agent_max_turns: 200,
       theme: "light",
       locale: "en",
-    gemini_configured: false,
+      gemini_configured: false
     },
     team_user_count: 1,
     app: {

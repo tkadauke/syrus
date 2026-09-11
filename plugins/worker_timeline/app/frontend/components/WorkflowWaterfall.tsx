@@ -42,7 +42,10 @@ export function WorkflowWaterfall({ payload }: { payload: WorkerTimelineWaterfal
 
   return (
     <div className="space-y-4">
-      <section aria-label={t("detail_summary_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-700 dark:text-gray-300">
+      <section
+        aria-label={t("detail_summary_aria")}
+        className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-700 dark:text-gray-300"
+      >
         <p>{t("detail_summary", { id: workflow.id, trigger_kind: workflow.trigger_kind, status: workflow.status })}</p>
         {!hasStarted ? <p className="mt-1 text-gray-500 dark:text-gray-400">{t("detail_not_started_note")}</p> : null}
       </section>
@@ -80,7 +83,11 @@ export function WorkflowWaterfall({ payload }: { payload: WorkerTimelineWaterfal
         </div>
       )}
 
-      {tooltip ? <TooltipCard x={tooltip.x} y={tooltip.y}>{tooltip.content}</TooltipCard> : null}
+      {tooltip ? (
+        <TooltipCard x={tooltip.x} y={tooltip.y}>
+          {tooltip.content}
+        </TooltipCard>
+      ) : null}
     </div>
   )
 }

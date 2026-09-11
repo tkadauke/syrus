@@ -63,13 +63,15 @@ describe("AttachmentCard", () => {
   })
 
   it("renders an image attachment from the raw file URL without fetching content", async () => {
-    renderCard(attachment({
-      filename: "screenshot.png",
-      content_type: "image/png",
-      byte_size: 1024,
-      file_path: "/api/v1/app/jobs/7/attachments/1/file",
-      content_path: "/api/v1/app/jobs/7/attachments/1/content"
-    }))
+    renderCard(
+      attachment({
+        filename: "screenshot.png",
+        content_type: "image/png",
+        byte_size: 1024,
+        file_path: "/api/v1/app/jobs/7/attachments/1/file",
+        content_path: "/api/v1/app/jobs/7/attachments/1/content"
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "screenshot.png" }))
 
@@ -80,12 +82,14 @@ describe("AttachmentCard", () => {
   })
 
   it("uses a raw link for PDFs even when a content endpoint exists", () => {
-    renderCard(attachment({
-      filename: "report.pdf",
-      content_type: "application/pdf",
-      file_path: "/api/v1/app/jobs/7/attachments/1/file",
-      content_path: "/api/v1/app/jobs/7/attachments/1/content"
-    }))
+    renderCard(
+      attachment({
+        filename: "report.pdf",
+        content_type: "application/pdf",
+        file_path: "/api/v1/app/jobs/7/attachments/1/file",
+        content_path: "/api/v1/app/jobs/7/attachments/1/content"
+      })
+    )
 
     expect(screen.queryByRole("button", { name: "report.pdf" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "report.pdf" })).toHaveAttribute("href", "/api/v1/app/jobs/7/attachments/1/file")
@@ -103,16 +107,18 @@ describe("AttachmentCard", () => {
   })
 
   it("falls back to a plain download link for Google Doc attachments (no content to preview)", () => {
-    renderCard(attachment({
-      kind: "google_doc",
-      attachment_type: "google_doc_link",
-      filename: null,
-      content_type: null,
-      google_doc_url: "https://docs.google.com/document/d/abc/edit",
-      uploaded_file: false,
-      file_path: null,
-      content_path: null
-    }))
+    renderCard(
+      attachment({
+        kind: "google_doc",
+        attachment_type: "google_doc_link",
+        filename: null,
+        content_type: null,
+        google_doc_url: "https://docs.google.com/document/d/abc/edit",
+        uploaded_file: false,
+        file_path: null,
+        content_path: null
+      })
+    )
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument()
     expect(fetchJobAttachmentContent).not.toHaveBeenCalled()

@@ -43,7 +43,8 @@ const EMPTY_FORM: MysqlConnectionInput = {
   password: ""
 }
 
-const INPUT_CLASSES = "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
+const INPUT_CLASSES =
+  "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
 
 type BrowseTarget = { connectionId: number; label: string }
 
@@ -125,7 +126,11 @@ function ConnectionCreateForm({ onNotice }: { onNotice: (message: string | null)
           <TestButton onTest={() => testDraftMysqlConnection(values)} />
         </div>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
+      {create.isError ? (
+        <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(create.error, t("create_error_fallback"))}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -150,7 +155,7 @@ function ConnectionsTable({
           <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("empty")}</p>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-900">
-            {connections.map((connection) => (
+            {connections.map((connection) =>
               editingId === connection.id ? (
                 <MobileConnectionEditCard
                   connection={connection}
@@ -168,7 +173,7 @@ function ConnectionsTable({
                   onNotice={onNotice}
                 />
               )
-            ))}
+            )}
           </div>
         )}
       </section>
@@ -188,31 +193,39 @@ function ConnectionsTable({
               <th className="px-4 py-2">{t("col_password")}</th>
               <th className="px-4 py-2">{t("col_agentic_access")}</th>
               <th className="px-4 py-2">{t("col_allow_writes")}</th>
-              <th className="px-4 py-2"><span className="sr-only">{t("col_actions")}</span></th>
+              <th className="px-4 py-2">
+                <span className="sr-only">{t("col_actions")}</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
             {connections.length === 0 ? (
-              <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={8}>{t("empty")}</td></tr>
-            ) : connections.map((connection) => (
-              editingId === connection.id ? (
-                <ConnectionEditRow
-                  connection={connection}
-                  key={connection.id}
-                  onCancel={() => setEditingId(null)}
-                  onNotice={onNotice}
-                  onSaved={() => setEditingId(null)}
-                />
-              ) : (
-                <ConnectionRow
-                  connection={connection}
-                  key={connection.id}
-                  onBrowse={() => onBrowse(connection)}
-                  onEdit={() => setEditingId(connection.id)}
-                  onNotice={onNotice}
-                />
+              <tr>
+                <td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={8}>
+                  {t("empty")}
+                </td>
+              </tr>
+            ) : (
+              connections.map((connection) =>
+                editingId === connection.id ? (
+                  <ConnectionEditRow
+                    connection={connection}
+                    key={connection.id}
+                    onCancel={() => setEditingId(null)}
+                    onNotice={onNotice}
+                    onSaved={() => setEditingId(null)}
+                  />
+                ) : (
+                  <ConnectionRow
+                    connection={connection}
+                    key={connection.id}
+                    onBrowse={() => onBrowse(connection)}
+                    onEdit={() => setEditingId(connection.id)}
+                    onNotice={onNotice}
+                  />
+                )
               )
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -236,7 +249,9 @@ function ConnectionRow({
   return (
     <tr>
       <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{connection.label}</td>
-      <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{connection.host}:{connection.port}</td>
+      <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+        {connection.host}:{connection.port}
+      </td>
       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{connection.username}</td>
       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{connection.default_database || "-"}</td>
       <td className="px-4 py-3">
@@ -278,7 +293,9 @@ function MobileConnectionCard({
     <article className="space-y-3 px-4 py-4">
       <div>
         <p className="font-medium text-gray-900 dark:text-gray-100">{connection.label}</p>
-        <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{connection.host}:{connection.port}</p>
+        <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
+          {connection.host}:{connection.port}
+        </p>
       </div>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <MobileField label={t("col_username")} value={connection.username} />
@@ -339,11 +356,7 @@ function ConnectionActions({
   return (
     <div>
       <div className={`flex flex-wrap items-start gap-2 ${align === "end" ? "justify-end" : ""}`}>
-        <button
-          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90"
-          onClick={onBrowse}
-          type="button"
-        >
+        <button className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90" onClick={onBrowse} type="button">
           {t("browse_button")}
         </button>
         <TestButton onTest={() => testMysqlConnection(connection.id)} />
@@ -418,12 +431,7 @@ function ConnectionEditForm({
   return (
     <form className="space-y-3" onSubmit={submit}>
       <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
-      <ConnectionFieldsGrid
-        idPrefix={`edit-connection-${connection.id}`}
-        onChange={setValues}
-        passwordHint={t("field_password_hint_edit")}
-        values={values}
-      />
+      <ConnectionFieldsGrid idPrefix={`edit-connection-${connection.id}`} onChange={setValues} passwordHint={t("field_password_hint_edit")} values={values} />
       <div className="flex flex-wrap items-center gap-3">
         <button
           className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -441,7 +449,11 @@ function ConnectionEditForm({
         </button>
         <TestButton onTest={() => testMysqlConnection(connection.id, values.password || undefined)} />
       </div>
-      {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
+      {update.isError ? (
+        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(update.error, t("update_error_fallback"))}
+        </p>
+      ) : null}
     </form>
   )
 }
@@ -574,7 +586,10 @@ function ConnectionFieldsGrid({
           value={values.default_database}
         />
       </label>
-      <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300 sm:col-span-2 lg:col-span-3" htmlFor={`${idPrefix}-agentic-access`}>
+      <label
+        className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300 sm:col-span-2 lg:col-span-3"
+        htmlFor={`${idPrefix}-agentic-access`}
+      >
         <input
           checked={values.agentic_access_enabled}
           className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
@@ -587,7 +602,10 @@ function ConnectionFieldsGrid({
           <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_agentic_access_hint")}</span>
         </span>
       </label>
-      <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300 sm:col-span-2 lg:col-span-3" htmlFor={`${idPrefix}-allow-writes`}>
+      <label
+        className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300 sm:col-span-2 lg:col-span-3"
+        htmlFor={`${idPrefix}-allow-writes`}
+      >
         <input
           checked={values.allow_writes}
           className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
@@ -675,9 +693,15 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
       </div>
 
       <div className="flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-800" role="tablist">
-        <TabButton active={browserTab === "browse"} onClick={() => setBrowserTab("browse")}>{t("tab_browse")}</TabButton>
-        <TabButton active={browserTab === "query"} onClick={() => setBrowserTab("query")}>{t("tab_query")}</TabButton>
-        <TabButton active={browserTab === "live"} onClick={() => setBrowserTab("live")}>{t("tab_live")}</TabButton>
+        <TabButton active={browserTab === "browse"} onClick={() => setBrowserTab("browse")}>
+          {t("tab_browse")}
+        </TabButton>
+        <TabButton active={browserTab === "query"} onClick={() => setBrowserTab("query")}>
+          {t("tab_query")}
+        </TabButton>
+        <TabButton active={browserTab === "live"} onClick={() => setBrowserTab("live")}>
+          {t("tab_live")}
+        </TabButton>
       </div>
 
       {browserTab === "browse" ? (
@@ -710,9 +734,15 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
                 {selected ? (
                   <div className="flex h-full min-h-0 flex-col">
                     <div className="flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-800 px-2" role="tablist">
-                      <TabButton active={tableTab === "content"} onClick={() => setTableTab("content")}>{t("tab_content")}</TabButton>
-                      <TabButton active={tableTab === "structure"} onClick={() => setTableTab("structure")}>{t("tab_structure")}</TabButton>
-                      <TabButton active={tableTab === "builder"} onClick={() => setTableTab("builder")}>{t("tab_builder")}</TabButton>
+                      <TabButton active={tableTab === "content"} onClick={() => setTableTab("content")}>
+                        {t("tab_content")}
+                      </TabButton>
+                      <TabButton active={tableTab === "structure"} onClick={() => setTableTab("structure")}>
+                        {t("tab_structure")}
+                      </TabButton>
+                      <TabButton active={tableTab === "builder"} onClick={() => setTableTab("builder")}>
+                        {t("tab_builder")}
+                      </TabButton>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto">
                       {tableTab === "content" ? (
@@ -797,7 +827,9 @@ function DatabaseNode({
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span aria-hidden className="text-gray-400 dark:text-gray-600">{expanded ? "▾" : "▸"}</span>
+          <span aria-hidden className="text-gray-400 dark:text-gray-600">
+            {expanded ? "▾" : "▸"}
+          </span>
           <span className="truncate font-medium text-gray-900 dark:text-gray-100">{database.name}</span>
         </span>
         {database.system_schema ? (
@@ -810,9 +842,7 @@ function DatabaseNode({
       {expanded ? (
         <div className="pb-1 pl-5 pr-2">
           {tables.isPending ? <p className="py-1 text-xs text-gray-500 dark:text-gray-400">{t("loading_tables")}</p> : null}
-          {tables.isError ? (
-            <p className="py-1 text-xs text-red-700 dark:text-red-300">{errorMessage(tables.error, t("error_loading_tables"))}</p>
-          ) : null}
+          {tables.isError ? <p className="py-1 text-xs text-red-700 dark:text-red-300">{errorMessage(tables.error, t("error_loading_tables"))}</p> : null}
           {tables.isSuccess && !tables.data.available ? (
             <p className="py-1 text-xs text-red-700 dark:text-red-300">{tables.data.error.hint || tables.data.error.message}</p>
           ) : null}
@@ -838,9 +868,7 @@ function DatabaseNode({
                     </li>
                   ))}
                 </ul>
-                {tables.data.truncated ? (
-                  <p className="py-1 text-xs text-amber-700 dark:text-amber-400">{t("tables_truncated")}</p>
-                ) : null}
+                {tables.data.truncated ? <p className="py-1 text-xs text-amber-700 dark:text-amber-400">{t("tables_truncated")}</p> : null}
               </>
             )
           ) : null}
@@ -955,15 +983,7 @@ function TableDetail({ connectionId, database, table }: { connectionId: number; 
   )
 }
 
-function SchemaSection<TRow>({
-  children,
-  heading,
-  section
-}: {
-  children: (rows: TRow[]) => ReactNode
-  heading: string
-  section: MysqlSection<TRow>
-}) {
+function SchemaSection<TRow>({ children, heading, section }: { children: (rows: TRow[]) => ReactNode; heading: string; section: MysqlSection<TRow> }) {
   const { t } = useT("mysql_db_browser")
 
   return (
@@ -989,18 +1009,19 @@ function formatApproxCount(value: number | null) {
 
 function formatBytes(bytes: number) {
   if (!bytes) return "0 B"
-  const units = [ "B", "KB", "MB", "GB", "TB" ]
+  const units = ["B", "KB", "MB", "GB", "TB"]
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
   const value = bytes / 1024 ** exponent
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
 }
 
 function StatusBadge({ children, tone }: { children: ReactNode; tone: "success" | "neutral" | "warning" }) {
-  const classes = tone === "success"
-    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-    : tone === "warning"
-      ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+  const classes =
+    tone === "success"
+      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+      : tone === "warning"
+        ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${classes}`}>{children}</span>
 }
 
@@ -1031,11 +1052,12 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
 }
 
 function Panel({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "error" | "success" }) {
-  const classes = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
-    : tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-      : "border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
+  const classes =
+    tone === "error"
+      ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+      : tone === "success"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+        : "border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
   return <div className={`rounded border px-4 py-3 text-sm ${classes}`}>{children}</div>
 }
 

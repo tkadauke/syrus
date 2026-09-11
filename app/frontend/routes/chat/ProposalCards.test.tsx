@@ -101,10 +101,12 @@ describe("PendingActionGroupCard", () => {
         { id: 502, label: "Reopen JOB-263", state: "failed", execution_error: "Job isn't closed." }
       ]
     })
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      pending_action_groups: [confirmed],
-      message: "Confirmed 1 of 2 pending actions; 1 failed."
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        pending_action_groups: [confirmed],
+        message: "Confirmed 1 of 2 pending actions; 1 failed."
+      })
+    )
     const { onNotice } = renderGroupCard(pendingActionGroup())
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm all" }))
@@ -116,10 +118,12 @@ describe("PendingActionGroupCard", () => {
   })
 
   it("rejects every member on Reject all", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      pending_action_groups: [pendingActionGroup({ state: "rejected" })],
-      message: "Rejected 2 pending actions."
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        pending_action_groups: [pendingActionGroup({ state: "rejected" })],
+        message: "Rejected 2 pending actions."
+      })
+    )
     const { onNotice } = renderGroupCard(pendingActionGroup())
 
     fireEvent.click(screen.getByRole("button", { name: "Reject all" }))
@@ -194,7 +198,9 @@ function payloadFor(queryKey: ChatQueryKey, p: ChatProposal): ChatPayload {
     agent_busy: false,
     switching_provider: false,
     has_more_older: false,
-    messages: [{ type: "message", id: 9, role: "assistant", text: "Proposal", content: {}, bookmarkable: true, created_at: "2026-08-30T00:00:00Z", proposal: p }],
+    messages: [
+      { type: "message", id: 9, role: "assistant", text: "Proposal", content: {}, bookmarkable: true, created_at: "2026-08-30T00:00:00Z", proposal: p }
+    ],
     bookmarks: [],
     recent_chats: [],
     pending_actions: [],
@@ -234,7 +240,9 @@ function payloadFor(queryKey: ChatQueryKey, p: ChatProposal): ChatPayload {
 
 const mediaPayload: ChatMediaPayload = {
   snapshots: [{ id: 42, name: "Annotated layout", snapshot_kind: "manual", element_count: 3, created_at: "2026-08-30T00:00:00Z" }],
-  chat_images: [{ id: 77, title: "Safari capture", filename: "capture.png", content_type: "image/png", image_url: "/api/v1/app/credentials/documents/77/file" }],
+  chat_images: [
+    { id: 77, title: "Safari capture", filename: "capture.png", content_type: "image/png", image_url: "/api/v1/app/credentials/documents/77/file" }
+  ],
   typed_artifacts: [],
   whiteboard_has_unsaved_content: false
 }
@@ -292,15 +300,17 @@ describe("PendingActionCard", () => {
   })
 
   it("shows the agent's reason alongside the argument detail and target link", () => {
-    renderCard(pendingAction({
-      state: "pending",
-      execution_error: undefined,
-      label: "Reconcile state for JOB-825 (mark_implemented_from_ready_pr)",
-      detail: "Mode: mark_implemented_from_ready_pr",
-      reason: "Job is stuck ready with a merged PR.",
-      resource_title: "Fix flaky spec",
-      resource_url: "/jobs/2325"
-    }))
+    renderCard(
+      pendingAction({
+        state: "pending",
+        execution_error: undefined,
+        label: "Reconcile state for JOB-825 (mark_implemented_from_ready_pr)",
+        detail: "Mode: mark_implemented_from_ready_pr",
+        reason: "Job is stuck ready with a merged PR.",
+        resource_title: "Fix flaky spec",
+        resource_url: "/jobs/2325"
+      })
+    )
 
     expect(screen.getByText("Mode: mark_implemented_from_ready_pr")).toBeInTheDocument()
     expect(screen.getByText("Reason:")).toBeInTheDocument()
@@ -317,19 +327,23 @@ describe("PendingActionCard", () => {
 
 describe("ProposalCard layout", () => {
   it("places the slug before dependencies and above the title", () => {
-    renderProposalCard(proposal({
-      title: "Search cards",
-      slug: "search-cards",
-      has_dependencies: true,
-      dependencies: [{
-        slug: "chat-search-fts5",
-        title: "Chat FTS5 infrastructure",
-        state: "confirmed",
-        confirmed: true,
-        anchor_message_id: null,
-        materialized_path: null
-      }]
-    }))
+    renderProposalCard(
+      proposal({
+        title: "Search cards",
+        slug: "search-cards",
+        has_dependencies: true,
+        dependencies: [
+          {
+            slug: "chat-search-fts5",
+            title: "Chat FTS5 infrastructure",
+            state: "confirmed",
+            confirmed: true,
+            anchor_message_id: null,
+            materialized_path: null
+          }
+        ]
+      })
+    )
 
     const slug = screen.getByText("search-cards")
     const dependencyLabel = screen.getByText("Depends on:")
@@ -414,7 +428,8 @@ describe("ProposalCard routing", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
-      if (init?.method === "PATCH") return Promise.resolve(jsonResponse(payloadFor(["chats", "122", ""], proposal({ kind: "job", route_to_backlog: true, route_label: "Backlog" }))))
+      if (init?.method === "PATCH")
+        return Promise.resolve(jsonResponse(payloadFor(["chats", "122", ""], proposal({ kind: "job", route_to_backlog: true, route_label: "Backlog" }))))
 
       return Promise.resolve(jsonResponse({}))
     })
@@ -435,7 +450,8 @@ describe("ProposalCard routing", () => {
 
   it("lets operators confirm a direct Job proposal to backlog from the card", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
+      if (init?.method === "POST")
+        return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
 
       return Promise.resolve(jsonResponse({}))
     })
@@ -452,7 +468,8 @@ describe("ProposalCard routing", () => {
 
   it("lets operators confirm a direct Job proposal for implementation from the card", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
+      if (init?.method === "POST")
+        return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
 
       return Promise.resolve(jsonResponse({}))
     })
@@ -468,28 +485,32 @@ describe("ProposalCard routing", () => {
   })
 
   it("does not show route selection for Epic bundle child edits", async () => {
-    renderProposalCard(proposal({
-      kind: "epic",
-      kind_label: "Epic",
-      epic_bundle: true,
-      children: [{
-        id: 18,
-        title: "Child",
-        slug: "child",
-        body: "Build it.",
-        state: "proposed",
-        state_label: "Proposed",
-        proposed: true,
-        repository_slug: "tkadauke/syrus",
-        dependencies: [],
-        depends_on_job_ids: [],
-        depends_on_epic_ids: [],
-        media_ids: [],
-        dependency_details: [],
-        app_update_path: "/api/v1/app/chats/122/proposals/18",
-        app_reject_path: "/api/v1/app/chats/122/proposals/18/reject"
-      }]
-    }))
+    renderProposalCard(
+      proposal({
+        kind: "epic",
+        kind_label: "Epic",
+        epic_bundle: true,
+        children: [
+          {
+            id: 18,
+            title: "Child",
+            slug: "child",
+            body: "Build it.",
+            state: "proposed",
+            state_label: "Proposed",
+            proposed: true,
+            repository_slug: "tkadauke/syrus",
+            dependencies: [],
+            depends_on_job_ids: [],
+            depends_on_epic_ids: [],
+            media_ids: [],
+            dependency_details: [],
+            app_update_path: "/api/v1/app/chats/122/proposals/18",
+            app_reject_path: "/api/v1/app/chats/122/proposals/18/reject"
+          }
+        ]
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Edit child" }))
 
@@ -550,10 +571,12 @@ describe("ProposalCard live sync", () => {
       const url = String(input)
       if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse({
-          ...payloadFor(["chats", "122", ""], updatedProposal),
-          proposal: updatedProposal
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            ...payloadFor(["chats", "122", ""], updatedProposal),
+            proposal: updatedProposal
+          })
+        )
       }
 
       return Promise.resolve(jsonResponse({}))

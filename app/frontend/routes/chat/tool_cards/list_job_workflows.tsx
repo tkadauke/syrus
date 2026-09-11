@@ -60,13 +60,27 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Workflow</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Trigger</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Summary</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Steps</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Runs</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Duration</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Workflow
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Trigger
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              State
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Summary
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Steps
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Runs
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Duration
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -74,8 +88,12 @@ function renderExpanded(context: ToolCardContext) {
             <tr key={row.key}>
               <td className="whitespace-nowrap px-2 py-1 font-mono font-medium text-gray-900 dark:text-gray-100">WF-{row.id}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.triggerKind ? <Badge>{row.triggerKind}</Badge> : "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1"><StatePill state={row.state} /></td>
-              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-700 dark:text-gray-300" title={row.summary ?? undefined}>{row.summary || "—"}</td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <StatePill state={row.state} />
+              </td>
+              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-700 dark:text-gray-300" title={row.summary ?? undefined}>
+                {row.summary || "—"}
+              </td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.stepCount ?? "—"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.runCount ?? "—"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.duration || "—"}</td>

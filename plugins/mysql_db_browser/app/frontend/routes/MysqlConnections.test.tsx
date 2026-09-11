@@ -66,128 +66,255 @@ function setupFetchMock(initial = [stagingConnection()]) {
       return Promise.resolve(new Response(null, { status: 204 }))
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        generated_at: "2026-01-01T00:00:00Z",
-        databases: [
-          { name: "app_staging", system_schema: false, default_character_set: "utf8mb4", default_collation: "utf8mb4_0900_ai_ci" },
-          { name: "information_schema", system_schema: true, default_character_set: "utf8", default_collation: "utf8_general_ci" }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          databases: [
+            { name: "app_staging", system_schema: false, default_character_set: "utf8mb4", default_collation: "utf8mb4_0900_ai_ci" },
+            { name: "information_schema", system_schema: true, default_character_set: "utf8", default_collation: "utf8_general_ci" }
+          ]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        generated_at: "2026-01-01T00:00:00Z",
-        database: "app_staging",
-        system_schema: false,
-        truncated: false,
-        tables: [
-          { name: "users", type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 12, data_length_bytes: 1024, index_length_bytes: 512, created_at: null, updated_at: null, comment: null }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          generated_at: "2026-01-01T00:00:00Z",
+          database: "app_staging",
+          system_schema: false,
+          truncated: false,
+          tables: [
+            {
+              name: "users",
+              type: "BASE TABLE",
+              engine: "InnoDB",
+              approximate_row_count: 12,
+              data_length_bytes: 1024,
+              index_length_bytes: 512,
+              created_at: null,
+              updated_at: null,
+              comment: null
+            }
+          ]
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        database: "app_staging",
-        table: "users",
-        system_schema: false,
-        generated_at: "2026-01-01T00:00:00Z",
-        info: { available: true, type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 12, data_length_bytes: 1024, index_length_bytes: 512, auto_increment: 13, created_at: null, updated_at: null, collation: "utf8mb4_0900_ai_ci", comment: null },
-        columns: {
-          available: true,
-          truncated: false,
-          rows: [
-            { name: "id", column_type: "bigint", data_type: "bigint", nullable: false, key: "PRI", default: null, extra: "auto_increment", character_max_length: null, numeric_precision: 20, numeric_scale: 0, comment: null },
-            { name: "email", column_type: "varchar(255)", data_type: "varchar", nullable: true, key: null, default: null, extra: null, character_max_length: 255, numeric_precision: null, numeric_scale: null, comment: null }
-          ]
-        },
-        indexes: {
-          available: true,
-          truncated: false,
-          rows: [ { name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] } ]
-        },
-        foreign_keys: {
-          available: true,
-          truncated: false,
-          rows: [
-            { constraint_name: "fk_users_account", direction: "outgoing", from_table: "users", from_column: "account_id", to_table: "accounts", to_column: "id" }
-          ]
-        }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          database: "app_staging",
+          table: "users",
+          system_schema: false,
+          generated_at: "2026-01-01T00:00:00Z",
+          info: {
+            available: true,
+            type: "BASE TABLE",
+            engine: "InnoDB",
+            approximate_row_count: 12,
+            data_length_bytes: 1024,
+            index_length_bytes: 512,
+            auto_increment: 13,
+            created_at: null,
+            updated_at: null,
+            collation: "utf8mb4_0900_ai_ci",
+            comment: null
+          },
+          columns: {
+            available: true,
+            truncated: false,
+            rows: [
+              {
+                name: "id",
+                column_type: "bigint",
+                data_type: "bigint",
+                nullable: false,
+                key: "PRI",
+                default: null,
+                extra: "auto_increment",
+                character_max_length: null,
+                numeric_precision: 20,
+                numeric_scale: 0,
+                comment: null
+              },
+              {
+                name: "email",
+                column_type: "varchar(255)",
+                data_type: "varchar",
+                nullable: true,
+                key: null,
+                default: null,
+                extra: null,
+                character_max_length: 255,
+                numeric_precision: null,
+                numeric_scale: null,
+                comment: null
+              }
+            ]
+          },
+          indexes: {
+            available: true,
+            truncated: false,
+            rows: [{ name: "PRIMARY", unique: true, type: "BTREE", columns: ["id"] }]
+          },
+          foreign_keys: {
+            available: true,
+            truncated: false,
+            rows: [
+              {
+                constraint_name: "fk_users_account",
+                direction: "outgoing",
+                from_table: "users",
+                from_column: "account_id",
+                to_table: "accounts",
+                to_column: "id"
+              }
+            ]
+          }
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/accounts$/.test(url) && method === "GET") {
-      return Promise.resolve(jsonResponse({
-        database: "app_staging",
-        table: "accounts",
-        system_schema: false,
-        generated_at: "2026-01-01T00:00:00Z",
-        info: { available: true, type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 3, data_length_bytes: 100, index_length_bytes: 50, auto_increment: 4, created_at: null, updated_at: null, collation: "utf8mb4_0900_ai_ci", comment: null },
-        columns: {
-          available: true,
-          truncated: false,
-          rows: [
-            { name: "id", column_type: "bigint", data_type: "bigint", nullable: false, key: "PRI", default: null, extra: "auto_increment", character_max_length: null, numeric_precision: 20, numeric_scale: 0, comment: null },
-            { name: "name", column_type: "varchar(255)", data_type: "varchar", nullable: true, key: null, default: null, extra: null, character_max_length: 255, numeric_precision: null, numeric_scale: null, comment: null }
-          ]
-        },
-        indexes: { available: true, truncated: false, rows: [ { name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] } ] },
-        foreign_keys: { available: true, truncated: false, rows: [] }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          database: "app_staging",
+          table: "accounts",
+          system_schema: false,
+          generated_at: "2026-01-01T00:00:00Z",
+          info: {
+            available: true,
+            type: "BASE TABLE",
+            engine: "InnoDB",
+            approximate_row_count: 3,
+            data_length_bytes: 100,
+            index_length_bytes: 50,
+            auto_increment: 4,
+            created_at: null,
+            updated_at: null,
+            collation: "utf8mb4_0900_ai_ci",
+            comment: null
+          },
+          columns: {
+            available: true,
+            truncated: false,
+            rows: [
+              {
+                name: "id",
+                column_type: "bigint",
+                data_type: "bigint",
+                nullable: false,
+                key: "PRI",
+                default: null,
+                extra: "auto_increment",
+                character_max_length: null,
+                numeric_precision: 20,
+                numeric_scale: 0,
+                comment: null
+              },
+              {
+                name: "name",
+                column_type: "varchar(255)",
+                data_type: "varchar",
+                nullable: true,
+                key: null,
+                default: null,
+                extra: null,
+                character_max_length: 255,
+                numeric_precision: null,
+                numeric_scale: null,
+                comment: null
+              }
+            ]
+          },
+          indexes: { available: true, truncated: false, rows: [{ name: "PRIMARY", unique: true, type: "BTREE", columns: ["id"] }] },
+          foreign_keys: { available: true, truncated: false, rows: [] }
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/query_builder/.test(url) && method === "GET") {
       const params = new URLSearchParams(url.split("?")[1] || "")
       const spec = JSON.parse(params.get("spec") || "{}")
-      return Promise.resolve(jsonResponse({
-        available: true,
-        statement: `SELECT ... FROM \`${spec.table}\` LIMIT ${spec.limit ?? 100}`,
-        read_only: true,
-        columns: [ "id", "email" ],
-        rows: [ { id: 1, email: "grace@example.com" } ],
-        row_count: 1,
-        truncated: false,
-        duration_ms: 1,
-        generated_at: "2026-01-01T00:00:00Z",
-        filter_schema: [
-          { field: "users.id", label: "Users: Id", bucket: "number", operators: [ "equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset" ] }
-        ],
-        filter: params.get("q") ? { and: [] } : null
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          statement: `SELECT ... FROM \`${spec.table}\` LIMIT ${spec.limit ?? 100}`,
+          read_only: true,
+          columns: ["id", "email"],
+          rows: [{ id: 1, email: "grace@example.com" }],
+          row_count: 1,
+          truncated: false,
+          duration_ms: 1,
+          generated_at: "2026-01-01T00:00:00Z",
+          filter_schema: [
+            {
+              field: "users.id",
+              label: "Users: Id",
+              bucket: "number",
+              operators: ["equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset"]
+            }
+          ],
+          filter: params.get("q") ? { and: [] } : null
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users\/content/.test(url) && method === "GET") {
       const params = new URLSearchParams(url.split("?")[1] || "")
-      return Promise.resolve(jsonResponse({
-        available: true,
-        statement: "SELECT * FROM `app_staging`.`users` LIMIT 51 OFFSET 0",
-        read_only: true,
-        columns: [ "id", "email" ],
-        rows: [ { id: 1, email: "grace@example.com" }, { id: 2, email: "ada@example.com" } ],
-        row_count: 2,
-        truncated: false,
-        duration_ms: 3,
-        generated_at: "2026-01-01T00:00:00Z",
-        filter_schema: [
-          { field: "id", label: "Id", bucket: "number", operators: [ "equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset" ] },
-          { field: "email", label: "Email", bucket: "string", operators: [ "contains", "does_not_contain", "starts_with", "does_not_start_with", "ends_with", "does_not_end_with", "equals", "not_equals", "is_set", "is_unset" ] }
-        ],
-        filter: params.get("q") ? { and: [] } : null,
-        page: Number(params.get("page")) || 1,
-        per_page: 50,
-        has_more: false
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          statement: "SELECT * FROM `app_staging`.`users` LIMIT 51 OFFSET 0",
+          read_only: true,
+          columns: ["id", "email"],
+          rows: [
+            { id: 1, email: "grace@example.com" },
+            { id: 2, email: "ada@example.com" }
+          ],
+          row_count: 2,
+          truncated: false,
+          duration_ms: 3,
+          generated_at: "2026-01-01T00:00:00Z",
+          filter_schema: [
+            { field: "id", label: "Id", bucket: "number", operators: ["equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset"] },
+            {
+              field: "email",
+              label: "Email",
+              bucket: "string",
+              operators: [
+                "contains",
+                "does_not_contain",
+                "starts_with",
+                "does_not_start_with",
+                "ends_with",
+                "does_not_end_with",
+                "equals",
+                "not_equals",
+                "is_set",
+                "is_unset"
+              ]
+            }
+          ],
+          filter: params.get("q") ? { and: [] } : null,
+          page: Number(params.get("page")) || 1,
+          per_page: 50,
+          has_more: false
+        })
+      )
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/query$/.test(url) && method === "POST") {
-      return Promise.resolve(jsonResponse({
-        available: true,
-        statement: body?.mysql_query?.sql,
-        read_only: true,
-        columns: [ "id" ],
-        rows: [ { id: 1 } ],
-        row_count: 1,
-        truncated: false,
-        duration_ms: 2,
-        generated_at: "2026-01-01T00:00:00Z"
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          available: true,
+          statement: body?.mysql_query?.sql,
+          read_only: true,
+          columns: ["id"],
+          rows: [{ id: 1 }],
+          row_count: 1,
+          truncated: false,
+          duration_ms: 2,
+          generated_at: "2026-01-01T00:00:00Z"
+        })
+      )
     }
 
     throw new Error(`Unhandled fetch: ${method} ${url}`)
@@ -218,15 +345,7 @@ describe("MysqlConnections", () => {
     setupFetchMock()
     renderConnections()
 
-    expect(screen.getByRole("main", { name: "MySQL DB Browser" })).toHaveClass(
-      "flex",
-      "h-full",
-      "flex-col",
-      "gap-6",
-      "overflow-hidden",
-      "p-3",
-      "sm:p-6"
-    )
+    expect(screen.getByRole("main", { name: "MySQL DB Browser" })).toHaveClass("flex", "h-full", "flex-col", "gap-6", "overflow-hidden", "p-3", "sm:p-6")
     expect(await screen.findByText("Staging")).toBeInTheDocument()
     expect(screen.getByText("db.staging.internal:3306")).toBeInTheDocument()
     expect(screen.getByText("Set")).toBeInTheDocument()
@@ -550,7 +669,9 @@ describe("MysqlConnections", () => {
       fireEvent.click(screen.getByRole("button", { name: "Add aggregation" }))
 
       await waitFor(() => {
-        const call = calls.find((c) => c.url.includes("/query_builder") && JSON.parse(new URLSearchParams(c.url.split("?")[1]).get("spec") || "{}").aggregations?.length)
+        const call = calls.find(
+          (c) => c.url.includes("/query_builder") && JSON.parse(new URLSearchParams(c.url.split("?")[1]).get("spec") || "{}").aggregations?.length
+        )
         expect(call).toBeTruthy()
       })
     })

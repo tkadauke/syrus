@@ -4,7 +4,11 @@ import { AnsiText, parseAnsiText } from "./AnsiText"
 
 describe("AnsiText", () => {
   it("renders SGR colors as styled spans without visible escape codes", () => {
-    render(<pre><AnsiText text={"RUN \u001b[32mpassed\u001b[39m and \u001b[33mwarned\u001b[39m"} /></pre>)
+    render(
+      <pre>
+        <AnsiText text={"RUN \u001b[32mpassed\u001b[39m and \u001b[33mwarned\u001b[39m"} />
+      </pre>
+    )
 
     expect(screen.getByText("passed")).toHaveClass("text-emerald-700")
     expect(screen.getByText("warned")).toHaveClass("text-amber-700")
@@ -12,7 +16,11 @@ describe("AnsiText", () => {
   })
 
   it("supports intensity and reset directives", () => {
-    render(<pre><AnsiText text={"\u001b[1mbold\u001b[22m normal \u001b[2mdim\u001b[0m"} /></pre>)
+    render(
+      <pre>
+        <AnsiText text={"\u001b[1mbold\u001b[22m normal \u001b[2mdim\u001b[0m"} />
+      </pre>
+    )
 
     expect(screen.getByText("bold")).toHaveClass("font-semibold")
     expect(screen.getByText("dim")).toHaveClass("opacity-70")

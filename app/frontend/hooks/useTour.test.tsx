@@ -59,25 +59,13 @@ function Probe({ tourId }: { tourId: string }) {
   return (
     <div>
       <span data-testid="run">{String(run)}</span>
-      <button
-        data-testid="finish"
-        onClick={() => handleJoyrideCallback({ status: STATUS.FINISHED })}
-        type="button"
-      >
+      <button data-testid="finish" onClick={() => handleJoyrideCallback({ status: STATUS.FINISHED })} type="button">
         finish
       </button>
-      <button
-        data-testid="skip"
-        onClick={() => handleJoyrideCallback({ status: STATUS.SKIPPED })}
-        type="button"
-      >
+      <button data-testid="skip" onClick={() => handleJoyrideCallback({ status: STATUS.SKIPPED })} type="button">
         skip
       </button>
-      <button
-        data-testid="running"
-        onClick={() => handleJoyrideCallback({ status: STATUS.RUNNING })}
-        type="button"
-      >
+      <button data-testid="running" onClick={() => handleJoyrideCallback({ status: STATUS.RUNNING })} type="button">
         running
       </button>
     </div>
@@ -121,7 +109,9 @@ describe("useTour", () => {
     const bootstrapWithoutSeenTours = buildBootstrap([])
     // Simulate a bootstrap response that omits the seen_tours field entirely
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { seen_tours: _omit, ...currentUserWithoutSeenTours } = bootstrapWithoutSeenTours.current_user as NonNullable<typeof bootstrapWithoutSeenTours.current_user> & { seen_tours: string[] }
+    const { seen_tours: _omit, ...currentUserWithoutSeenTours } = bootstrapWithoutSeenTours.current_user as NonNullable<
+      typeof bootstrapWithoutSeenTours.current_user
+    > & { seen_tours: string[] }
     queryClient.setQueryData(["bootstrap"], {
       ...bootstrapWithoutSeenTours,
       current_user: currentUserWithoutSeenTours

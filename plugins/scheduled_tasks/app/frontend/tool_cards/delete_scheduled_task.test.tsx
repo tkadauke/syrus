@@ -21,9 +21,7 @@ describe("delete_scheduled_task tool card", () => {
   })
 
   it("summarizes the collapsed row with the deleted label and id", () => {
-    expect(deleteScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: deleted }))).toBe(
-      "Deleted 'Nightly main-branch health check' (#12)"
-    )
+    expect(deleteScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: deleted }))).toBe("Deleted 'Nightly main-branch health check' (#12)")
   })
 
   it("renders the deleted outcome", () => {

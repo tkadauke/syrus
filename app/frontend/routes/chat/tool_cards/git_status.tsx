@@ -66,7 +66,9 @@ function renderExpanded(context: ToolCardContext) {
       {rows.map((row, index) => (
         <div className="flex items-center gap-2 truncate" key={`${row.path}-${index}`}>
           <Badge>{CATEGORY_LABEL[row.category]}</Badge>
-          <span className="truncate" title={row.path}>{row.path}</span>
+          <span className="truncate" title={row.path}>
+            {row.path}
+          </span>
         </div>
       ))}
     </div>

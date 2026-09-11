@@ -55,8 +55,22 @@ const backgroundClasses: Record<string, string> = {
 }
 
 const ansi256Colors = [
-  "#000000", "#800000", "#008000", "#808000", "#000080", "#800080", "#008080", "#c0c0c0",
-  "#808080", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"
+  "#000000",
+  "#800000",
+  "#008000",
+  "#808000",
+  "#000080",
+  "#800080",
+  "#008080",
+  "#c0c0c0",
+  "#808080",
+  "#ff0000",
+  "#00ff00",
+  "#ffff00",
+  "#0000ff",
+  "#ff00ff",
+  "#00ffff",
+  "#ffffff"
 ]
 
 export function AnsiText({ text }: { text: string }) {
@@ -182,7 +196,9 @@ function ansiStyleClass(style: AnsiStyle) {
     style.underline ? "underline" : null,
     style.fg ? foregroundClasses[style.fg] : null,
     style.bg ? backgroundClasses[style.bg] : null
-  ].filter(Boolean).join(" ")
+  ]
+    .filter(Boolean)
+    .join(" ")
 }
 
 function ansiInlineStyle(style: AnsiStyle) {
@@ -191,9 +207,7 @@ function ansiInlineStyle(style: AnsiStyle) {
 }
 
 function stripAnsiControls(text: string) {
-  return text
-    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, "")
-    .replace(/\u001b[@-_][0-?]*[ -/]*[@-~]/g, "")
+  return text.replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, "").replace(/\u001b[@-_][0-?]*[ -/]*[@-~]/g, "")
 }
 
 function defaultAnsiStyle(): AnsiStyle {

@@ -15,7 +15,7 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
   const { data, isPending } = useQuery({
     queryKey: ["jobs", String(id)],
     queryFn: () => fetchJobDetail(String(id)),
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   if (isPending) return <JobPreviewSkeleton />
@@ -32,7 +32,13 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
         <CopyableSlug className="text-xs" slug={`JOB-${id}`} />
         <StatusPill state={job.state} />
         {job.state === "queued" && job.start_blocked_reason ? (
-          <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
+          <StartBlockedReasonPill
+            count={job.start_blocked_count}
+            details={job.start_blocked_details}
+            nextCheckAt={job.start_blocked_next_check_at}
+            reason={job.start_blocked_reason}
+            startBlockedAt={job.start_blocked_at}
+          />
         ) : null}
       </div>
       {title && (
@@ -43,9 +49,7 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
           {title}
         </Link>
       )}
-      {!compact && data.deployment_stages?.length ? (
-        <DeploymentStagePipeline stages={data.deployment_stages} />
-      ) : null}
+      {!compact && data.deployment_stages?.length ? <DeploymentStagePipeline stages={data.deployment_stages} /> : null}
       {!compact && truncatedBody && (
         <div className="mb-3 line-clamp-6 text-xs text-gray-600 dark:text-gray-400 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
           <Markdown text={truncatedBody} />
@@ -75,27 +79,27 @@ export const JobCompactCard = forwardRef<
   const spaceInJob = jobPart.indexOf(" ")
   const slug = spaceInJob === -1 ? jobPart : jobPart.slice(0, spaceInJob)
   const title = spaceInJob === -1 ? "" : jobPart.slice(spaceInJob + 1)
-  const interactiveProps = onClick ? {
-    "aria-label": label,
-    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.target !== event.currentTarget) return
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault()
-        onClick()
+  const interactiveProps = onClick
+    ? {
+        "aria-label": label,
+        onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.target !== event.currentTarget) return
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            onClick()
+          }
+        },
+        role: "link",
+        tabIndex: 0
       }
-    },
-    role: "link",
-    tabIndex: 0,
-  } : {}
+    : {}
 
   return (
     <div
       className={[
         "w-48 cursor-pointer rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
-        isFocal
-          ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100"
-          : "border-gray-200 dark:border-gray-700",
-        epicId === null ? "border-l-4 border-l-gray-400 dark:border-l-gray-600" : "",
+        isFocal ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100" : "border-gray-200 dark:border-gray-700",
+        epicId === null ? "border-l-4 border-l-gray-400 dark:border-l-gray-600" : ""
       ]
         .filter(Boolean)
         .join(" ")}

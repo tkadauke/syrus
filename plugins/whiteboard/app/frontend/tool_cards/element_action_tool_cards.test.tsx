@@ -65,9 +65,7 @@ describe("whiteboard element-action tool cards", () => {
     const parsedResult = { id: "el_abc123", version: 1 }
     const input = { type: "rectangle", x: 10, y: 20 }
 
-    expect(card.collapsedSummary?.(context({ toolName: card.toolName, input, parsedResult }))).toBe(
-      `${action} (rectangle) · el_abc123`
-    )
+    expect(card.collapsedSummary?.(context({ toolName: card.toolName, input, parsedResult }))).toBe(`${action} (rectangle) · el_abc123`)
 
     render(<>{card.renderExpanded(context({ toolName: card.toolName, input, parsedResult }))}</>)
     expect(screen.getByText("rectangle")).toBeInTheDocument()

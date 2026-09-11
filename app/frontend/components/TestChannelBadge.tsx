@@ -35,10 +35,7 @@ export function TestChannelDot({ className }: { className?: string }) {
       aria-label={t("test_channel_badge.label")}
       data-testid="test-channel-dot"
       title={t("test_channel_badge.tooltip")}
-      className={
-        className ??
-        "absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-gray-950"
-      }
+      className={className ?? "absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-gray-950"}
     />
   )
 }

@@ -46,12 +46,14 @@ function parseVisualReviewArtifact(raw: unknown): JobVisualReviewArtifact[] {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return []
   const obj = raw as Record<string, unknown>
   if (typeof obj.type !== "string") return []
-  return [{
-    type: obj.type,
-    title: typeof obj.title === "string" ? obj.title : null,
-    image_url: typeof obj.image_url === "string" ? obj.image_url : null,
-    content_type: typeof obj.content_type === "string" ? obj.content_type : null,
-    byte_size: typeof obj.byte_size === "number" ? obj.byte_size : null,
-    created_at: typeof obj.created_at === "string" ? obj.created_at : null
-  }]
+  return [
+    {
+      type: obj.type,
+      title: typeof obj.title === "string" ? obj.title : null,
+      image_url: typeof obj.image_url === "string" ? obj.image_url : null,
+      content_type: typeof obj.content_type === "string" ? obj.content_type : null,
+      byte_size: typeof obj.byte_size === "number" ? obj.byte_size : null,
+      created_at: typeof obj.created_at === "string" ? obj.created_at : null
+    }
+  ]
 }

@@ -26,22 +26,24 @@ describe("DesignDocPreviewCard", () => {
   })
 
   it("renders the copyable slug, linked title, preview text, owner, comment count, version, and updated time", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      design_doc: {
-        id: 20,
-        display_id: "DOC-20",
-        accessible: true,
-        title: "Target Graphs for Project-Aware Workflows",
-        visibility: "public",
-        state: "draft",
-        owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
-        collaborators: [{ id: 2, name: "Grace", email_address: "grace@example.com" }],
-        comments_count: 4,
-        latest_version_number: 21,
-        updated_at: "2026-09-01T12:00:00Z",
-        preview_text: "## Summary\nA short design overview."
-      }
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        design_doc: {
+          id: 20,
+          display_id: "DOC-20",
+          accessible: true,
+          title: "Target Graphs for Project-Aware Workflows",
+          visibility: "public",
+          state: "draft",
+          owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
+          collaborators: [{ id: 2, name: "Grace", email_address: "grace@example.com" }],
+          comments_count: 4,
+          latest_version_number: 21,
+          updated_at: "2026-09-01T12:00:00Z",
+          preview_text: "## Summary\nA short design overview."
+        }
+      })
+    )
 
     renderCard(20)
 
@@ -58,20 +60,22 @@ describe("DesignDocPreviewCard", () => {
   })
 
   it("clamps preview-rendered heading font size so the card stays compact", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      design_doc: {
-        id: 20,
-        display_id: "DOC-20",
-        accessible: true,
-        title: "T",
-        owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
-        collaborators: [],
-        comments_count: 0,
-        latest_version_number: 1,
-        updated_at: "2026-09-01T12:00:00Z",
-        preview_text: "# Heading\nBody text."
-      }
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        design_doc: {
+          id: 20,
+          display_id: "DOC-20",
+          accessible: true,
+          title: "T",
+          owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
+          collaborators: [],
+          comments_count: 0,
+          latest_version_number: 1,
+          updated_at: "2026-09-01T12:00:00Z",
+          preview_text: "# Heading\nBody text."
+        }
+      })
+    )
 
     renderCard(20)
 
@@ -87,26 +91,28 @@ describe("DesignDocPreviewCard", () => {
   })
 
   it("shows a concise collaborator summary when there are many collaborators", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      design_doc: {
-        id: 20,
-        display_id: "DOC-20",
-        accessible: true,
-        title: "T",
-        owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
-        collaborators: [
-          { id: 2, name: "Grace", email_address: "grace@example.com" },
-          { id: 3, name: "Alan", email_address: "alan@example.com" },
-          { id: 4, name: "Barbara", email_address: "barbara@example.com" },
-          { id: 5, name: "Edsger", email_address: "edsger@example.com" },
-          { id: 6, name: "Margaret", email_address: "margaret@example.com" }
-        ],
-        comments_count: 0,
-        latest_version_number: 1,
-        updated_at: "2026-09-01T12:00:00Z",
-        preview_text: "Body"
-      }
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        design_doc: {
+          id: 20,
+          display_id: "DOC-20",
+          accessible: true,
+          title: "T",
+          owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
+          collaborators: [
+            { id: 2, name: "Grace", email_address: "grace@example.com" },
+            { id: 3, name: "Alan", email_address: "alan@example.com" },
+            { id: 4, name: "Barbara", email_address: "barbara@example.com" },
+            { id: 5, name: "Edsger", email_address: "edsger@example.com" },
+            { id: 6, name: "Margaret", email_address: "margaret@example.com" }
+          ],
+          comments_count: 0,
+          latest_version_number: 1,
+          updated_at: "2026-09-01T12:00:00Z",
+          preview_text: "Body"
+        }
+      })
+    )
 
     renderCard(20)
 
@@ -114,9 +120,11 @@ describe("DesignDocPreviewCard", () => {
   })
 
   it("renders a minimal not-accessible state without leaking title, owner, or content", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      design_doc: { id: 99, display_id: "DOC-99", accessible: false }
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        design_doc: { id: 99, display_id: "DOC-99", accessible: false }
+      })
+    )
 
     renderCard(99)
 
@@ -127,20 +135,22 @@ describe("DesignDocPreviewCard", () => {
   })
 
   it("renders an empty document without a preview text block or crashing", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      design_doc: {
-        id: 20,
-        display_id: "DOC-20",
-        accessible: true,
-        title: "Empty doc",
-        owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
-        collaborators: [],
-        comments_count: 0,
-        latest_version_number: 1,
-        updated_at: "2026-09-01T12:00:00Z",
-        preview_text: ""
-      }
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        design_doc: {
+          id: 20,
+          display_id: "DOC-20",
+          accessible: true,
+          title: "Empty doc",
+          owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
+          collaborators: [],
+          comments_count: 0,
+          latest_version_number: 1,
+          updated_at: "2026-09-01T12:00:00Z",
+          preview_text: ""
+        }
+      })
+    )
 
     renderCard(20)
 
@@ -150,20 +160,22 @@ describe("DesignDocPreviewCard", () => {
   })
 
   it("compact: hides preview text, owner, collaborators, and the see-more link", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      design_doc: {
-        id: 20,
-        display_id: "DOC-20",
-        accessible: true,
-        title: "T",
-        owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
-        collaborators: [{ id: 2, name: "Grace", email_address: "grace@example.com" }],
-        comments_count: 1,
-        latest_version_number: 1,
-        updated_at: "2026-09-01T12:00:00Z",
-        preview_text: "Body text"
-      }
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        design_doc: {
+          id: 20,
+          display_id: "DOC-20",
+          accessible: true,
+          title: "T",
+          owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
+          collaborators: [{ id: 2, name: "Grace", email_address: "grace@example.com" }],
+          comments_count: 1,
+          latest_version_number: 1,
+          updated_at: "2026-09-01T12:00:00Z",
+          preview_text: "Body text"
+        }
+      })
+    )
 
     renderCard(20, true)
 

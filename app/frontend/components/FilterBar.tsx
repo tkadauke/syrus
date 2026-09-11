@@ -8,8 +8,51 @@ import { Input } from "./Input"
 import { Select } from "./Select"
 import { DateTimeRangeFilterValueEditor } from "./filterBar/DateTimeRangeFilterValueEditor"
 
-import type { FilterChip, FilterLinkBuilder, FilterLinkUpdates, FilterNode, FilterOption, FilterPath, FilterSchemaField, FilterSuggestion, FilterSuggestionSearchConfig, FilterTree } from "./filterBar/types"
-import { clearFiltersLink, dateRangeSegments, defaultFilterChip, defaultFilterValue, encodeFilterTree, filterChipClass, filterChipLabel, filterLabelClass, filterMetaFor, filterNodeAtPath, filterNotClass, filterOptions, filterPlaceholder, filterSlotInner, filterSlotIsNegated, filterTreeFromPayload, isFilterChip, isMultiValueOp, isPredicateOp, linkFromSearch, normalizedFilterTree, removeFilterNodeAtPath, replaceFilterNodeAtPath, suggestionFilterNode, loadFkOptions, loadFilterSuggestions, toggleFilterNegation, topFilterChildren, translateBucket, translateOp, useFormattedFilterValue } from "./filterBar/helpers"
+import type {
+  FilterChip,
+  FilterLinkBuilder,
+  FilterLinkUpdates,
+  FilterNode,
+  FilterOption,
+  FilterPath,
+  FilterSchemaField,
+  FilterSuggestion,
+  FilterSuggestionSearchConfig,
+  FilterTree
+} from "./filterBar/types"
+import {
+  clearFiltersLink,
+  dateRangeSegments,
+  defaultFilterChip,
+  defaultFilterValue,
+  encodeFilterTree,
+  filterChipClass,
+  filterChipLabel,
+  filterLabelClass,
+  filterMetaFor,
+  filterNodeAtPath,
+  filterNotClass,
+  filterOptions,
+  filterPlaceholder,
+  filterSlotInner,
+  filterSlotIsNegated,
+  filterTreeFromPayload,
+  isFilterChip,
+  isMultiValueOp,
+  isPredicateOp,
+  linkFromSearch,
+  normalizedFilterTree,
+  removeFilterNodeAtPath,
+  replaceFilterNodeAtPath,
+  suggestionFilterNode,
+  loadFkOptions,
+  loadFilterSuggestions,
+  toggleFilterNegation,
+  topFilterChildren,
+  translateBucket,
+  translateOp,
+  useFormattedFilterValue
+} from "./filterBar/helpers"
 export { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren } from "./filterBar/helpers"
 export type { FilterChip, FilterGroup, FilterLinkBuilder, FilterNode, FilterOption, FilterSchemaField, FilterSuggestion, FilterTree } from "./filterBar/types"
 
@@ -52,7 +95,7 @@ export function FilterBar({
   const params = new URLSearchParams(search)
   const appliedTree = useMemo(() => filterTreeFromPayload(filter), [filter])
   const draftChildren = topFilterChildren(draftTree)
-  const activeSuggestionQ = useMemo(() => topFilterChildren(appliedTree).length > 0 ? encodeFilterTree(appliedTree) : "", [appliedTree])
+  const activeSuggestionQ = useMemo(() => (topFilterChildren(appliedTree).length > 0 ? encodeFilterTree(appliedTree) : ""), [appliedTree])
   const [searchedSuggestions, setSearchedSuggestions] = useState<FilterSuggestion[]>([])
   const hasFilters = draftChildren.length > 0 || params.has("q") || params.has("smart_folder_id") || legacyFilterKeys.some((key) => params.has(key))
   const suggestionQuery = addQuery.trim()
@@ -82,7 +125,7 @@ export function FilterBar({
 
   useEffect(() => {
     setDraftTree(appliedTree)
-    setEditingPath((path) => path && filterNodeAtPath(appliedTree, path) ? path : null)
+    setEditingPath((path) => (path && filterNodeAtPath(appliedTree, path) ? path : null))
     setAddMenuOpen(false)
     setAddAlternativePath(null)
     setAddQuery("")
@@ -123,13 +166,15 @@ export function FilterBar({
     let cancelled = false
     const controller = new AbortController()
 
-    void loadFilterSuggestions(suggestionSearch, suggestionQuery, activeSuggestionQ, controller.signal).then((loadedSuggestions) => {
-      if (!cancelled) setSearchedSuggestions(loadedSuggestions)
-    }).catch((error: unknown) => {
-      if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
-        setSearchedSuggestions([])
-      }
-    })
+    void loadFilterSuggestions(suggestionSearch, suggestionQuery, activeSuggestionQ, controller.signal)
+      .then((loadedSuggestions) => {
+        if (!cancelled) setSearchedSuggestions(loadedSuggestions)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
+          setSearchedSuggestions([])
+        }
+      })
 
     return () => {
       cancelled = true
@@ -233,7 +278,7 @@ export function FilterBar({
     const slot = children[index]
     const negated = filterSlotIsNegated(slot)
     const inner = filterSlotInner(slot)
-    const currentOr = inner && "or" in inner && Array.isArray(inner.or) ? inner.or : [inner].filter(Boolean) as FilterNode[]
+    const currentOr = inner && "or" in inner && Array.isArray(inner.or) ? inner.or : ([inner].filter(Boolean) as FilterNode[])
     const nextOr = [...currentOr, defaultFilterChip(meta)]
     const nextPath: FilterPath = [index, nextOr.length - 1]
 
@@ -287,12 +332,18 @@ export function FilterBar({
           {t("filter_bar.add_filter")}
         </button>
         {hasFilters ? (
-          <Link className="text-sm text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" to={clearFiltersLink(pathname, search, legacyFilterKeys, buildLink)}>
+          <Link
+            className="text-sm text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            to={clearFiltersLink(pathname, search, legacyFilterKeys, buildLink)}
+          >
             {t("filter_bar.clear_filters")}
           </Link>
         ) : null}
         {addMenuOpen ? (
-          <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900" ref={addMenuRef}>
+          <div
+            className="absolute left-0 top-full z-20 mt-1 w-72 rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+            ref={addMenuRef}
+          >
             <Input
               autoFocus
               onChange={(event) => setAddQuery(event.target.value)}
@@ -307,7 +358,10 @@ export function FilterBar({
                   <div className="px-3 py-1.5 text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">{t("filter_bar.suggested")}</div>
                   {filteredSuggestions.map((suggestion, suggestionIndex) => (
                     <button
-                      className={filterMenuItemClass("block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200", addMenuNavigation.highlightedIndex === suggestionIndex)}
+                      className={filterMenuItemClass(
+                        "block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200",
+                        addMenuNavigation.highlightedIndex === suggestionIndex
+                      )}
                       key={suggestion.id}
                       onClick={() => addSuggestedFilter(suggestion)}
                       onMouseEnter={() => addMenuNavigation.setHighlightedIndex(suggestionIndex)}
@@ -325,7 +379,10 @@ export function FilterBar({
                 return (
                   <button
                     aria-label={`${fieldLabel} ${translateBucket(field.bucket, t)}`}
-                    className={filterMenuItemClass("flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200", addMenuNavigation.highlightedIndex === index)}
+                    className={filterMenuItemClass(
+                      "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200",
+                      addMenuNavigation.highlightedIndex === index
+                    )}
                     key={field.field}
                     onClick={() => addFilter(field)}
                     onMouseEnter={() => addMenuNavigation.setHighlightedIndex(index)}
@@ -337,7 +394,9 @@ export function FilterBar({
                   </button>
                 )
               })}
-              {filteredSchema.length === 0 && filteredSuggestions.length === 0 ? <div className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matching_filters")}</div> : null}
+              {filteredSchema.length === 0 && filteredSuggestions.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matching_filters")}</div>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -377,9 +436,22 @@ function FilterNodeChip({
   if (isFilterChip(inner)) {
     return (
       <span className={filterChipClass(negated)}>
-        <button aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} className={`shrink-0 ${filterNotClass(negated)}`} onClick={() => onToggleNegation(index)} title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} type="button">¬</button>
+        <button
+          aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")}
+          className={`shrink-0 ${filterNotClass(negated)}`}
+          onClick={() => onToggleNegation(index)}
+          title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")}
+          type="button"
+        >
+          ¬
+        </button>
         <FilterChipButton chip={inner} controls={controls} negated={negated} onClick={() => onEdit([index])} />
-        <button aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(inner, controls) })} className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={() => onRemove([index])} type="button">
+        <button
+          aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(inner, controls) })}
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+          onClick={() => onRemove([index])}
+          type="button"
+        >
           <CloseIcon className="h-3.5 w-3.5" />
         </button>
       </span>
@@ -388,50 +460,93 @@ function FilterNodeChip({
 
   if (inner && "or" in inner && Array.isArray(inner.or)) {
     return (
-      <span className={negated ? "inline-flex flex-wrap items-center gap-1 rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-sm dark:border-rose-800 dark:bg-rose-950" : "inline-flex flex-wrap items-center gap-1 rounded border border-indigo-300 bg-indigo-50 px-1.5 py-0.5 text-sm dark:border-indigo-800 dark:bg-indigo-950"}>
-        <button aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} className={`shrink-0 ${filterNotClass(negated)}`} onClick={() => onToggleNegation(index)} title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} type="button">¬</button>
-        <span className={negated ? "text-xs font-semibold text-rose-700 dark:text-rose-200" : "text-xs font-semibold text-indigo-700 dark:text-indigo-200"}>(</span>
+      <span
+        className={
+          negated
+            ? "inline-flex flex-wrap items-center gap-1 rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-sm dark:border-rose-800 dark:bg-rose-950"
+            : "inline-flex flex-wrap items-center gap-1 rounded border border-indigo-300 bg-indigo-50 px-1.5 py-0.5 text-sm dark:border-indigo-800 dark:bg-indigo-950"
+        }
+      >
+        <button
+          aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")}
+          className={`shrink-0 ${filterNotClass(negated)}`}
+          onClick={() => onToggleNegation(index)}
+          title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")}
+          type="button"
+        >
+          ¬
+        </button>
+        <span className={negated ? "text-xs font-semibold text-rose-700 dark:text-rose-200" : "text-xs font-semibold text-indigo-700 dark:text-indigo-200"}>
+          (
+        </span>
         {inner.or.map((child, childIndex) => (
           <span className="inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1 whitespace-nowrap" key={childIndex}>
-            {childIndex > 0 ? <span className="shrink-0 text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-300">{t("filter_bar.or")}</span> : null}
+            {childIndex > 0 ? (
+              <span className="shrink-0 text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-300">{t("filter_bar.or")}</span>
+            ) : null}
             {isFilterChip(child) ? (
               <span className="inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1 whitespace-nowrap rounded border border-gray-300 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
                 <FilterChipButton chip={child} controls={controls} onClick={() => onEdit([index, childIndex])} />
-                <button aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(child, controls) })} className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200" onClick={() => onRemove([index, childIndex])} type="button">
+                <button
+                  aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(child, controls) })}
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                  onClick={() => onRemove([index, childIndex])}
+                  type="button"
+                >
                   <CloseIcon className="h-3.5 w-3.5" />
                 </button>
               </span>
             ) : (
-              <span className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{t("filter_bar.complex_filter")}</span>
+              <span className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                {t("filter_bar.complex_filter")}
+              </span>
             )}
           </span>
         ))}
-        <span className={negated ? "text-xs font-semibold text-rose-700 dark:text-rose-200" : "text-xs font-semibold text-indigo-700 dark:text-indigo-200"}>)</span>
+        <span className={negated ? "text-xs font-semibold text-rose-700 dark:text-rose-200" : "text-xs font-semibold text-indigo-700 dark:text-indigo-200"}>
+          )
+        </span>
       </span>
     )
   }
 
-  return <span className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{t("filter_bar.complex_filter")}</span>
+  return (
+    <span className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+      {t("filter_bar.complex_filter")}
+    </span>
+  )
 }
 
-function FilterChipButton({ chip, controls, negated = false, onClick }: { chip: FilterChip; controls: FilterSchemaField[]; negated?: boolean; onClick: () => void }) {
+function FilterChipButton({
+  chip,
+  controls,
+  negated = false,
+  onClick
+}: {
+  chip: FilterChip
+  controls: FilterSchemaField[]
+  negated?: boolean
+  onClick: () => void
+}) {
   const { t } = useT("nav")
   const meta = filterMetaFor(controls, chip.field)
   const formattedValue = useFormattedFilterValue(chip, meta)
   const fieldLabel = meta ? t(`filter_fields.${meta.field}`, { defaultValue: meta.label || chip.field }) : chip.field
   const opLabel = translateOp(chip.op, t)
   const label = `${negated ? t("filter_bar.not_prefix") + " " : ""}${fieldLabel} ${opLabel}${isPredicateOp(chip.op) ? "" : ` ${formattedValue}`}`
-  const dateRange = meta?.bucket === "date" && chip.op === "between" && Array.isArray(chip.value)
-    ? dateRangeSegments(chip.value[0], chip.value[1])
-    : null
+  const dateRange = meta?.bucket === "date" && chip.op === "between" && Array.isArray(chip.value) ? dateRangeSegments(chip.value[0], chip.value[1]) : null
 
   return (
     <button aria-label={label} className="inline-flex min-w-0 items-baseline gap-1 text-left" onClick={onClick} type="button">
       <span className="shrink-0 whitespace-nowrap font-medium text-gray-700 dark:text-gray-200">{fieldLabel}</span>
       {isPredicateOp(chip.op) ? null : dateRange && dateRange.from && dateRange.to ? (
         <span className="inline-flex min-w-0 items-baseline gap-1 whitespace-nowrap">
-          <span className="shrink-0 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{opLabel} <span className="font-mono text-gray-900 dark:text-white">{dateRange.from}</span></span>
-          <span className="min-w-0 flex-1 truncate text-xs text-gray-500 dark:text-gray-400">{t("filter_bar.and")} <span className="font-mono text-gray-900 dark:text-white">{dateRange.to}</span></span>
+          <span className="shrink-0 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+            {opLabel} <span className="font-mono text-gray-900 dark:text-white">{dateRange.from}</span>
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs text-gray-500 dark:text-gray-400">
+            {t("filter_bar.and")} <span className="font-mono text-gray-900 dark:text-white">{dateRange.to}</span>
+          </span>
         </span>
       ) : (
         <>
@@ -443,7 +558,19 @@ function FilterChipButton({ chip, controls, negated = false, onClick }: { chip: 
   )
 }
 
-function FilterChipEditor({ chip, editorRef, meta, onAddAlternative, onChange }: { chip: FilterChip; editorRef: RefObject<HTMLDivElement>; meta: FilterSchemaField; onAddAlternative: () => void; onChange: (chip: FilterChip) => void }) {
+function FilterChipEditor({
+  chip,
+  editorRef,
+  meta,
+  onAddAlternative,
+  onChange
+}: {
+  chip: FilterChip
+  editorRef: RefObject<HTMLDivElement>
+  meta: FilterSchemaField
+  onAddAlternative: () => void
+  onChange: (chip: FilterChip) => void
+}) {
   const { t } = useT("nav")
 
   function updateOp(op: string) {
@@ -451,18 +578,31 @@ function FilterChipEditor({ chip, editorRef, meta, onAddAlternative, onChange }:
   }
 
   return (
-    <div aria-label={`${t(`filter_fields.${meta.field}`, { defaultValue: meta.label })} filter settings`} className="absolute left-0 top-full z-30 mt-2 w-[min(36rem,calc(100vw-3rem))] space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" ref={editorRef} role="dialog">
+    <div
+      aria-label={`${t(`filter_fields.${meta.field}`, { defaultValue: meta.label })} filter settings`}
+      className="absolute left-0 top-full z-30 mt-2 w-[min(36rem,calc(100vw-3rem))] space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+      ref={editorRef}
+      role="dialog"
+    >
       <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t(`filter_fields.${meta.field}`, { defaultValue: meta.label })}</div>
       <div className="space-y-3">
         <label className={filterLabelClass()} htmlFor={`filter-op-${meta.field}`}>
           {t("filter_bar.operator")}
           <Select className="mt-1" fullWidth={false} id={`filter-op-${meta.field}`} onChange={(event) => updateOp(event.target.value)} value={chip.op}>
-            {meta.operators.map((op) => <option key={op} value={op}>{translateOp(op, t)}</option>)}
+            {meta.operators.map((op) => (
+              <option key={op} value={op}>
+                {translateOp(op, t)}
+              </option>
+            ))}
           </Select>
         </label>
         <FilterValueEditor chip={chip} meta={meta} onChange={onChange} />
       </div>
-      <button className="rounded border border-dashed border-indigo-300 px-2 py-1 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200 dark:hover:bg-indigo-950" onClick={onAddAlternative} type="button">
+      <button
+        className="rounded border border-dashed border-indigo-300 px-2 py-1 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200 dark:hover:bg-indigo-950"
+        onClick={onAddAlternative}
+        type="button"
+      >
         {t("filter_bar.or_alternative")}
       </button>
     </div>
@@ -480,7 +620,7 @@ function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: F
   if (options.length > 0 && !meta.typeahead) {
     if (multi) return <MultiFilterValueEditor chip={chip} meta={meta} onChange={onChange} options={options} />
 
-    const selected = multi ? Array.isArray(chip.value) ? chip.value.map(String) : [] : [String(chip.value ?? "")]
+    const selected = multi ? (Array.isArray(chip.value) ? chip.value.map(String) : []) : [String(chip.value ?? "")]
     return (
       <label className={filterLabelClass()} htmlFor={`filter-value-${meta.field}`}>
         {t("filter_bar.value")}
@@ -493,7 +633,11 @@ function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: F
           }}
           value={selected[0]}
         >
-          {options.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}
+          {options.map((option) => (
+            <option key={String(option.value)} value={String(option.value)}>
+              {option.label}
+            </option>
+          ))}
         </Select>
       </label>
     )
@@ -537,13 +681,23 @@ function TextFilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; met
   )
 }
 
-function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: FilterChip; meta: FilterSchemaField; multi: boolean; onChange: (chip: FilterChip) => void }) {
+function TypeaheadFilterValueEditor({
+  chip,
+  meta,
+  multi,
+  onChange
+}: {
+  chip: FilterChip
+  meta: FilterSchemaField
+  multi: boolean
+  onChange: (chip: FilterChip) => void
+}) {
   const { t } = useT("nav")
   const [query, setQuery] = useState("")
   const [selectedOptions, setSelectedOptions] = useState<FilterOption[]>([])
   const [options, setOptions] = useState<FilterOption[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
-  const selected = multi ? Array.isArray(chip.value) ? chip.value.map(String) : [] : String(chip.value ?? "") ? [String(chip.value)] : []
+  const selected = multi ? (Array.isArray(chip.value) ? chip.value.map(String) : []) : String(chip.value ?? "") ? [String(chip.value)] : []
   const selectedSet = new Set(selected)
 
   useEffect(() => {
@@ -554,11 +708,13 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
       return
     }
 
-    void loadFkOptions(meta.field, { ids: selected }).then((loadedOptions) => {
-      if (!cancelled) setSelectedOptions(loadedOptions)
-    }).catch(() => {
-      if (!cancelled) setSelectedOptions(selected.map((value) => ({ value, label: value })))
-    })
+    void loadFkOptions(meta.field, { ids: selected })
+      .then((loadedOptions) => {
+        if (!cancelled) setSelectedOptions(loadedOptions)
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedOptions(selected.map((value) => ({ value, label: value })))
+      })
 
     return () => {
       cancelled = true
@@ -574,11 +730,13 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
       return
     }
 
-    void loadFkOptions(meta.field, { q: trimmedQuery }).then((loadedOptions) => {
-      if (!cancelled) setOptions(loadedOptions.filter((option) => !selectedSet.has(String(option.value))))
-    }).catch(() => {
-      if (!cancelled) setOptions([])
-    })
+    void loadFkOptions(meta.field, { q: trimmedQuery })
+      .then((loadedOptions) => {
+        if (!cancelled) setOptions(loadedOptions.filter((option) => !selectedSet.has(String(option.value))))
+      })
+      .catch(() => {
+        if (!cancelled) setOptions([])
+      })
 
     return () => {
       cancelled = true
@@ -614,20 +772,31 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
     <div className={filterLabelClass()}>
       <label htmlFor={`filter-value-${meta.field}-search`}>{t("filter_bar.value")}</label>
       <div className="relative mt-1 normal-case text-gray-700 dark:text-gray-200">
-        <div className="flex max-h-[10rem] min-h-11 w-full flex-wrap items-center gap-1.5 overflow-y-auto rounded border border-gray-300 bg-white px-2 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" onClick={() => inputRef.current?.focus()}>
-          {selected.length > 0 ? (
-            selected.map((value) => {
-              const option = selectedOptions.find((candidate) => String(candidate.value) === value) || { value, label: value }
-              return (
-                <span className="inline-flex items-center gap-1 rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200" key={value}>
-                  {option.label}
-                  <button aria-label={t("filter_bar.remove_value", { label: option.label })} className="inline-flex h-4 w-4 items-center justify-center rounded text-indigo-500 hover:bg-indigo-200 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-100" onClick={() => removeValue(value)} type="button">
-                    <CloseIcon className="h-3 w-3" />
-                  </button>
-                </span>
-              )
-            })
-          ) : null}
+        <div
+          className="flex max-h-[10rem] min-h-11 w-full flex-wrap items-center gap-1.5 overflow-y-auto rounded border border-gray-300 bg-white px-2 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+          onClick={() => inputRef.current?.focus()}
+        >
+          {selected.length > 0
+            ? selected.map((value) => {
+                const option = selectedOptions.find((candidate) => String(candidate.value) === value) || { value, label: value }
+                return (
+                  <span
+                    className="inline-flex items-center gap-1 rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200"
+                    key={value}
+                  >
+                    {option.label}
+                    <button
+                      aria-label={t("filter_bar.remove_value", { label: option.label })}
+                      className="inline-flex h-4 w-4 items-center justify-center rounded text-indigo-500 hover:bg-indigo-200 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-100"
+                      onClick={() => removeValue(value)}
+                      type="button"
+                    >
+                      <CloseIcon className="h-3 w-3" />
+                    </button>
+                  </span>
+                )
+              })
+            : null}
           <Input
             className="min-w-32 flex-1 !rounded-none !border-0 !bg-transparent !p-0 focus:!ring-0"
             id={`filter-value-${meta.field}-search`}
@@ -644,7 +813,10 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
             {options.length > 0 ? (
               options.map((option, index) => (
                 <button
-                  className={filterMenuItemClass("block w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200", navigation.highlightedIndex === index)}
+                  className={filterMenuItemClass(
+                    "block w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200",
+                    navigation.highlightedIndex === index
+                  )}
                   key={String(option.value)}
                   onClick={() => addValue(String(option.value))}
                   onMouseEnter={() => navigation.setHighlightedIndex(index)}
@@ -664,7 +836,17 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
   )
 }
 
-function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: FilterChip; meta: FilterSchemaField; onChange: (chip: FilterChip) => void; options: FilterOption[] }) {
+function MultiFilterValueEditor({
+  chip,
+  meta,
+  onChange,
+  options
+}: {
+  chip: FilterChip
+  meta: FilterSchemaField
+  onChange: (chip: FilterChip) => void
+  options: FilterOption[]
+}) {
   const { t } = useT("nav")
   const [query, setQuery] = useState("")
   const selected = Array.isArray(chip.value) ? chip.value.map(String) : []
@@ -700,9 +882,17 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
         <div className="flex min-h-11 flex-wrap items-center gap-1.5 px-2 py-2 text-sm">
           {selectedOptions.length > 0 ? (
             selectedOptions.map((option) => (
-              <span className="inline-flex items-center gap-1 rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200" key={String(option.value)}>
+              <span
+                className="inline-flex items-center gap-1 rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200"
+                key={String(option.value)}
+              >
                 {option.label}
-                <button aria-label={t("filter_bar.remove_value", { label: option.label })} className="inline-flex h-4 w-4 items-center justify-center rounded text-indigo-500 hover:bg-indigo-200 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-100" onClick={() => removeValue(String(option.value))} type="button">
+                <button
+                  aria-label={t("filter_bar.remove_value", { label: option.label })}
+                  className="inline-flex h-4 w-4 items-center justify-center rounded text-indigo-500 hover:bg-indigo-200 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-100"
+                  onClick={() => removeValue(String(option.value))}
+                  type="button"
+                >
                   <CloseIcon className="h-3 w-3" />
                 </button>
               </span>
@@ -723,7 +913,10 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
         <div className="max-h-56 overflow-y-auto border-t border-gray-200 py-1 dark:border-gray-700">
           {filteredOptions.map((option, index) => (
             <button
-              className={filterMenuItemClass("block w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200", navigation.highlightedIndex === index)}
+              className={filterMenuItemClass(
+                "block w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200",
+                navigation.highlightedIndex === index
+              )}
               key={String(option.value)}
               onClick={() => addValue(String(option.value))}
               onMouseEnter={() => navigation.setHighlightedIndex(index)}
@@ -749,11 +942,25 @@ function NumberFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChang
       <div className="flex items-end gap-2">
         <label className={filterLabelClass()} htmlFor="filter-number-min">
           {t("filter_bar.min")}
-          <Input className="mt-1 w-28" fullWidth={false} id="filter-number-min" onChange={(event) => onChange({ ...chip, value: [event.target.value === "" ? null : Number(event.target.value), value[1] ?? null] })} type="number" value={typeof value[0] === "number" ? value[0] : ""} />
+          <Input
+            className="mt-1 w-28"
+            fullWidth={false}
+            id="filter-number-min"
+            onChange={(event) => onChange({ ...chip, value: [event.target.value === "" ? null : Number(event.target.value), value[1] ?? null] })}
+            type="number"
+            value={typeof value[0] === "number" ? value[0] : ""}
+          />
         </label>
         <label className={filterLabelClass()} htmlFor="filter-number-max">
           {t("filter_bar.max")}
-          <Input className="mt-1 w-28" fullWidth={false} id="filter-number-max" onChange={(event) => onChange({ ...chip, value: [value[0] ?? null, event.target.value === "" ? null : Number(event.target.value)] })} type="number" value={typeof value[1] === "number" ? value[1] : ""} />
+          <Input
+            className="mt-1 w-28"
+            fullWidth={false}
+            id="filter-number-max"
+            onChange={(event) => onChange({ ...chip, value: [value[0] ?? null, event.target.value === "" ? null : Number(event.target.value)] })}
+            type="number"
+            value={typeof value[1] === "number" ? value[1] : ""}
+          />
         </label>
       </div>
     )
@@ -762,7 +969,14 @@ function NumberFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChang
   return (
     <label className={filterLabelClass()} htmlFor="filter-number-value">
       {t("filter_bar.value")}
-      <Input className="mt-1 w-32" fullWidth={false} id="filter-number-value" onChange={(event) => onChange({ ...chip, value: event.target.value === "" ? null : Number(event.target.value) })} type="number" value={typeof chip.value === "number" ? chip.value : ""} />
+      <Input
+        className="mt-1 w-32"
+        fullWidth={false}
+        id="filter-number-value"
+        onChange={(event) => onChange({ ...chip, value: event.target.value === "" ? null : Number(event.target.value) })}
+        type="number"
+        value={typeof chip.value === "number" ? chip.value : ""}
+      />
     </label>
   )
 }

@@ -16,10 +16,7 @@ import { StatusPill } from "../components/StatusPill"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { Button } from "../components/Button"
 import { errorMessage } from "../lib/errorMessage"
-import {
-  pluginRuntimeSessionViewComponentFor,
-  runtimeSessionInputEnabled
-} from "../pluginRuntimeSessionViews"
+import { pluginRuntimeSessionViewComponentFor, runtimeSessionInputEnabled } from "../pluginRuntimeSessionViews"
 
 const LOG_POLL_INTERVAL_MS = 4_000
 const SESSION_POLL_INTERVAL_MS = 5_000
@@ -36,7 +33,7 @@ const RENEW_CHECK_INTERVAL_MS = 5_000
 const RENEW_MARGIN_MS = 15_000
 
 function runtimeSessionsQueryKey(chatId: string | number) {
-  return [ "chats", String(chatId), "runtime_sessions" ] as const
+  return ["chats", String(chatId), "runtime_sessions"] as const
 }
 
 function sessionIsActive(session: RuntimeSession | undefined): boolean {
@@ -48,13 +45,13 @@ function sessionIsActive(session: RuntimeSession | undefined): boolean {
 // while the session is still active. Resets whenever the selected session
 // changes.
 function useRuntimeLogs(chatId: string | number, sessionId: number | null, active: boolean) {
-  const [ entries, setEntries ] = useState<string[]>([])
+  const [entries, setEntries] = useState<string[]>([])
   const cursorRef = useRef<number | string>(0)
 
   useEffect(() => {
     setEntries([])
     cursorRef.current = 0
-  }, [ sessionId ])
+  }, [sessionId])
 
   useEffect(() => {
     if (sessionId == null) return undefined
@@ -68,7 +65,7 @@ function useRuntimeLogs(chatId: string | number, sessionId: number | null, activ
         if (cancelled) return
         cursorRef.current = result.cursor
         if (result.entries.length > 0) {
-          setEntries((previous) => [ ...previous, ...result.entries ].slice(-MAX_LOG_LINES))
+          setEntries((previous) => [...previous, ...result.entries].slice(-MAX_LOG_LINES))
         }
       } catch (_error) {
         // Transient fetch failures just retry on the next tick.
@@ -83,14 +80,14 @@ function useRuntimeLogs(chatId: string | number, sessionId: number | null, activ
       cancelled = true
       window.clearInterval(interval)
     }
-  }, [ chatId, sessionId, active ])
+  }, [chatId, sessionId, active])
 
   return entries
 }
 
 function ProviderMetadata({ session }: { session: RuntimeSession }) {
   const { t } = useT("chat")
-  const entries = Object.entries(session.metadata || {}).filter(([ , value ]) => value !== null && value !== undefined && value !== "")
+  const entries = Object.entries(session.metadata || {}).filter(([, value]) => value !== null && value !== undefined && value !== "")
 
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
@@ -98,7 +95,7 @@ function ProviderMetadata({ session }: { session: RuntimeSession }) {
       <dd>{session.provider_key}</dd>
       <dt className="font-medium text-gray-500 dark:text-gray-400">{t("runtime_workspace_ref")}</dt>
       <dd className="truncate">{session.workspace_ref}</dd>
-      {entries.map(([ key, value ]) => (
+      {entries.map(([key, value]) => (
         <Fragment key={key}>
           <dt className="font-medium text-gray-500 dark:text-gray-400">{key}</dt>
           <dd className="truncate">{String(value)}</dd>
@@ -120,7 +117,7 @@ function ControlPanel({
   onLeaseChange: (lease: RuntimeControlLease | null, session: RuntimeSession) => void
 }) {
   const { t } = useT("chat")
-  const [ error, setError ] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const agentLease = session.active_agent_input_lease
 
   const takeControl = useMutation({
@@ -191,7 +188,7 @@ function ControlPanel({
     // Deliberately depends only on lease identity/expiry, matching
     // useRuntimeLogs above -- not on `renewControl`/`onLeaseChange`, whose
     // identities change every render.
-  }, [ myLease?.id, myLease?.expires_at ])
+  }, [myLease?.id, myLease?.expires_at])
 
   const busy = takeControl.isPending || releaseControl.isPending
   const activeLease = agentLease ?? myLease
@@ -223,33 +220,15 @@ function ControlPanel({
       </div>
       <div className="flex gap-2">
         {agentLease ? (
-          <Button
-            disabled={busy}
-            onClick={() => takeControl.mutate()}
-            size="sm"
-            type="button"
-            variant="danger"
-          >
+          <Button disabled={busy} onClick={() => takeControl.mutate()} size="sm" type="button" variant="danger">
             {t("runtime_abort_agent_control")}
           </Button>
         ) : myLease ? (
-          <Button
-            disabled={busy}
-            onClick={() => releaseControl.mutate()}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
+          <Button disabled={busy} onClick={() => releaseControl.mutate()} size="sm" type="button" variant="secondary">
             {t("runtime_release_control")}
           </Button>
         ) : (
-          <Button
-            disabled={busy}
-            onClick={() => takeControl.mutate()}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
+          <Button disabled={busy} onClick={() => takeControl.mutate()} size="sm" type="button" variant="secondary">
             {t("runtime_take_control")}
           </Button>
         )}
@@ -262,8 +241,8 @@ function ControlPanel({
 function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; session: RuntimeSession }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
-  const [ myLease, setMyLease ] = useState<RuntimeControlLease | null>(null)
-  const [ captureError, setCaptureError ] = useState<string | null>(null)
+  const [myLease, setMyLease] = useState<RuntimeControlLease | null>(null)
+  const [captureError, setCaptureError] = useState<string | null>(null)
   const active = sessionIsActive(session)
   const LiveView = pluginRuntimeSessionViewComponentFor(session.provider_key)
   const hasLiveView = LiveView !== null
@@ -271,12 +250,11 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
 
   useEffect(() => {
     setMyLease(null)
-  }, [ session.id ])
+  }, [session.id])
 
   function patchSession(updated: RuntimeSession) {
-    queryClient.setQueryData<{ runtime_sessions: RuntimeSession[] } | undefined>(
-      runtimeSessionsQueryKey(chatId),
-      (current) => current ? { runtime_sessions: current.runtime_sessions.map((candidate) => candidate.id === updated.id ? updated : candidate) } : current
+    queryClient.setQueryData<{ runtime_sessions: RuntimeSession[] } | undefined>(runtimeSessionsQueryKey(chatId), (current) =>
+      current ? { runtime_sessions: current.runtime_sessions.map((candidate) => (candidate.id === updated.id ? updated : candidate)) } : current
     )
   }
 
@@ -298,30 +276,21 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
           <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{session.display_name}</span>
         </div>
         {session.last_error ? (
-          <span className="text-xs text-red-600 dark:text-red-400" title={session.last_error}>{t("runtime_last_error")}</span>
+          <span className="text-xs text-red-600 dark:text-red-400" title={session.last_error}>
+            {t("runtime_last_error")}
+          </span>
         ) : null}
       </div>
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-            {hasLiveView ? t("runtime_terminal_live") : t("runtime_latest_frame")}
-          </span>
-          <Button
-            disabled={capture.isPending}
-            onClick={() => capture.mutate()}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{hasLiveView ? t("runtime_terminal_live") : t("runtime_latest_frame")}</span>
+          <Button disabled={capture.isPending} onClick={() => capture.mutate()} size="sm" type="button" variant="secondary">
             {t("runtime_capture")}
           </Button>
         </div>
         {LiveView ? (
-          <LiveView
-            inputEnabled={runtimeSessionInputEnabled(session, myLease)}
-            session={session}
-          />
+          <LiveView inputEnabled={runtimeSessionInputEnabled(session, myLease)} session={session} />
         ) : session.latest_frame_url ? (
           <div>
             <img
@@ -366,7 +335,7 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
 
 export function RuntimePanel({ chatId }: { chatId: string | number }) {
   const { t } = useT("chat")
-  const [ selectedId, setSelectedId ] = useState<number | null>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: runtimeSessionsQueryKey(chatId),
@@ -391,7 +360,7 @@ export function RuntimePanel({ chatId }: { chatId: string | number }) {
     // Only re-derive the default selection when the session list itself
     // changes shape -- not on every `selectedId` update, which would
     // override an explicit user click back to the previous default.
-  }, [ sessions.map((session) => session.id).join(",") ])
+  }, [sessions.map((session) => session.id).join(",")])
 
   if (isLoading) return <p className="text-sm text-gray-500 dark:text-gray-400">{t("runtime_loading")}</p>
   if (isError) return <p className="text-sm text-red-600 dark:text-red-400">{t("runtime_error")}</p>

@@ -63,12 +63,31 @@ export function DocumentPreviewModal({ file, onClose }: { file: PreviewableFile;
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{file.title}</h2>
         {markdown ? (
           <div className="flex rounded border border-gray-200 p-0.5 text-xs dark:border-gray-700">
-            <button className={`rounded px-2 py-1 ${mode === "preview" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("preview")} type="button">{t("document_preview.preview")}</button>
-            <button className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("source")} type="button">{t("document_preview.source")}</button>
+            <button
+              className={`rounded px-2 py-1 ${mode === "preview" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`}
+              onClick={() => setMode("preview")}
+              type="button"
+            >
+              {t("document_preview.preview")}
+            </button>
+            <button
+              className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`}
+              onClick={() => setMode("source")}
+              type="button"
+            >
+              {t("document_preview.source")}
+            </button>
           </div>
         ) : null}
-        <a className={buttonClasses("secondary", "sm")} href={file.rawUrl} rel="noreferrer" target="_blank">{t("document_preview.open_raw")}</a>
-        <button aria-label={t("document_preview.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white" onClick={onClose} type="button">
+        <a className={buttonClasses("secondary", "sm")} href={file.rawUrl} rel="noreferrer" target="_blank">
+          {t("document_preview.open_raw")}
+        </a>
+        <button
+          aria-label={t("document_preview.close")}
+          className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white"
+          onClick={onClose}
+          type="button"
+        >
           <CloseIcon className="h-4 w-4" />
         </button>
       </header>
@@ -86,7 +105,12 @@ export function DocumentPreviewModal({ file, onClose }: { file: PreviewableFile;
             <Markdown className="text-gray-800 dark:text-gray-100" text={content.data ?? ""} />
           </div>
         ) : (
-          <pre className="whitespace-pre-wrap break-words bg-white px-5 py-4 font-mono text-xs text-gray-900 dark:bg-gray-950 dark:text-gray-100" data-testid="file-preview-source">{content.data ?? ""}</pre>
+          <pre
+            className="whitespace-pre-wrap break-words bg-white px-5 py-4 font-mono text-xs text-gray-900 dark:bg-gray-950 dark:text-gray-100"
+            data-testid="file-preview-source"
+          >
+            {content.data ?? ""}
+          </pre>
         )}
       </div>
     </Modal>
@@ -94,5 +118,11 @@ export function DocumentPreviewModal({ file, onClose }: { file: PreviewableFile;
 }
 
 function FilePreviewState({ message, tone = "neutral" }: { message: string; tone?: "neutral" | "error" }) {
-  return <div className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>{message}</div>
+  return (
+    <div
+      className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}
+    >
+      {message}
+    </div>
+  )
 }

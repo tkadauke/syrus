@@ -112,19 +112,110 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/*", element: <PluginAdminPageRoute /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
-  { path: "/settings", element: <SettingsSectionRoute><AccountProfileRoute /></SettingsSectionRoute> },
-  { path: "/profile", element: <SettingsSectionRoute><AccountProfileRoute /></SettingsSectionRoute> },
-  { path: "/credentials", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
-  { path: "/settings/hidden_chats", element: <SettingsSectionRoute><HiddenChatsRoute /></SettingsSectionRoute> },
-  { path: "/credentials/edit", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
-  { path: "/settings/agent", element: <SettingsSectionRoute><AgentSettingsRoute /></SettingsSectionRoute> },
-  { path: "/settings/preferences", element: <SettingsSectionRoute><PreferencesRoute /></SettingsSectionRoute> },
-  { path: "/notifications/settings", element: <SettingsSectionRoute><NotificationsSettingsRoute /></SettingsSectionRoute> },
-  { path: "/settings/themes", element: <SettingsSectionRoute><ThemesSettingsRoute /></SettingsSectionRoute> },
-  { path: "/settings/connected_platforms", element: <SettingsSectionRoute><ConnectedPlatformsRoute /></SettingsSectionRoute> },
-  { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
-  { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
-  { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
+  {
+    path: "/settings",
+    element: (
+      <SettingsSectionRoute>
+        <AccountProfileRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/profile",
+    element: (
+      <SettingsSectionRoute>
+        <AccountProfileRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/credentials",
+    element: (
+      <SettingsSectionRoute>
+        <CredentialsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/hidden_chats",
+    element: (
+      <SettingsSectionRoute>
+        <HiddenChatsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/credentials/edit",
+    element: (
+      <SettingsSectionRoute>
+        <CredentialsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/agent",
+    element: (
+      <SettingsSectionRoute>
+        <AgentSettingsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/preferences",
+    element: (
+      <SettingsSectionRoute>
+        <PreferencesRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/notifications/settings",
+    element: (
+      <SettingsSectionRoute>
+        <NotificationsSettingsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/themes",
+    element: (
+      <SettingsSectionRoute>
+        <ThemesSettingsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/connected_platforms",
+    element: (
+      <SettingsSectionRoute>
+        <ConnectedPlatformsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/documents",
+    element: (
+      <SettingsSectionRoute>
+        <PersonalDocumentsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/tags",
+    element: (
+      <SettingsSectionRoute>
+        <Tags />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/design_system",
+    element: (
+      <SettingsSectionRoute>
+        <DesignSystemRoute />
+      </SettingsSectionRoute>
+    )
+  },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
   { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembersRoute /> },
@@ -165,9 +256,7 @@ export function App() {
           </span>
         </NoticeToast>
       ) : null}
-      {justReconnected ? (
-        <NoticeToast onDismiss={clearReconnected} message="Reconnected — data refreshed" />
-      ) : null}
+      {justReconnected ? <NoticeToast onDismiss={clearReconnected} message="Reconnected — data refreshed" /> : null}
     </ConnectionContext.Provider>
   )
 }
@@ -196,7 +285,11 @@ function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | 
   })
 
   if (bootstrap.isPending) {
-    return <main aria-label={t("app_name")} className="p-6 text-sm text-gray-600">{t("loading")}</main>
+    return (
+      <main aria-label={t("app_name")} className="p-6 text-sm text-gray-600">
+        {t("loading")}
+      </main>
+    )
   }
 
   if (bootstrap.isError) {
@@ -257,7 +350,9 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
           <PageHeading className="mt-6">{t("welcome")}</PageHeading>
           <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-400">{cta.description}</p>
           <div className="mt-7">
-            <Link className={authPrimaryButtonClass} to={cta.href}>{cta.label}</Link>
+            <Link className={authPrimaryButtonClass} to={cta.href}>
+              {cta.label}
+            </Link>
           </div>
         </div>
       </main>
@@ -282,15 +377,17 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
       <section className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_32rem] lg:items-center">
         <div className="max-w-3xl">
           <p className="text-sm font-medium uppercase text-brand">{t("eyebrow_hero")}</p>
-          <h1 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight text-gray-950 sm:text-5xl">
-            {t("hero_title")}
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-700">
-            {t("hero_body")}
-          </p>
+          <h1 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight text-gray-950 sm:text-5xl">{t("hero_title")}</h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-700">{t("hero_body")}</p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link className={authPrimaryButtonClass} to={cta.href}>{cta.label}</Link>
-            {showSignIn ? <Link className={landingSecondaryButtonClass()} to={signInPath}>{t("sign_in")}</Link> : null}
+            <Link className={authPrimaryButtonClass} to={cta.href}>
+              {cta.label}
+            </Link>
+            {showSignIn ? (
+              <Link className={landingSecondaryButtonClass()} to={signInPath}>
+                {t("sign_in")}
+              </Link>
+            ) : null}
           </div>
           <p className="mt-3 max-w-xl text-sm text-gray-600">{cta.description}</p>
         </div>
@@ -339,11 +436,11 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-4">
           {workflowSteps.map(([title, body], index) => (
-          <article className="rounded border border-gray-200 bg-white p-4" key={title}>
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-gray-900 text-sm font-semibold text-white">{index + 1}</div>
-            <SectionHeading className="mt-4">{title}</SectionHeading>
-            <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
-          </article>
+            <article className="rounded border border-gray-200 bg-white p-4" key={title}>
+              <div className="flex h-8 w-8 items-center justify-center rounded bg-gray-900 text-sm font-semibold text-white">{index + 1}</div>
+              <SectionHeading className="mt-4">{title}</SectionHeading>
+              <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
+            </article>
           ))}
         </div>
       </section>
@@ -352,9 +449,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
         <div>
           <p className="text-sm font-medium text-brand">{t("eyebrow_why")}</p>
           <h2 className="mt-2 text-2xl font-semibold text-gray-950">{t("why_title")}</h2>
-          <p className="mt-3 text-sm leading-6 text-gray-600">
-            {t("why_body")}
-          </p>
+          <p className="mt-3 text-sm leading-6 text-gray-600">{t("why_body")}</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           {featureCards.map(([title, body]) => (
@@ -371,17 +466,19 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
           <div>
             <p className="text-sm font-medium text-brand">{t("eyebrow_instance")}</p>
             <h2 className="mt-2 text-2xl font-semibold text-gray-950">{cta.label}</h2>
-            <p className="mt-3 text-sm leading-6 text-gray-600">
-              {cta.kind === "invite" ? t("invite_token_hint") : cta.description}
-            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-600">{cta.kind === "invite" ? t("invite_token_hint") : cta.description}</p>
             {!payload.public.first_signup && !payload.public.signups_open && !invitationToken ? (
-              <p className="mt-2 text-sm leading-6 text-gray-600">
-                {t("access_controlled")}
-              </p>
+              <p className="mt-2 text-sm leading-6 text-gray-600">{t("access_controlled")}</p>
             ) : null}
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link aria-label={t("from_instance_access", { label: cta.label })} className={authPrimaryButtonClass} to={cta.href}>{cta.label}</Link>
-              {showSignIn ? <Link className={landingSecondaryButtonClass()} to={signInPath}>{t("sign_in")}</Link> : null}
+              <Link aria-label={t("from_instance_access", { label: cta.label })} className={authPrimaryButtonClass} to={cta.href}>
+                {cta.label}
+              </Link>
+              {showSignIn ? (
+                <Link className={landingSecondaryButtonClass()} to={signInPath}>
+                  {t("sign_in")}
+                </Link>
+              ) : null}
             </div>
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-3 lg:grid-cols-1">
@@ -402,13 +499,19 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
       </section>
 
       <section className="mt-10 flex flex-col gap-3 border-t border-gray-200 pt-6 text-sm text-gray-700 sm:flex-row sm:items-center">
-        <a className="font-medium text-brand underline hover:no-underline" href={payload.public.docs_url}>{t("read_docs")}</a>
+        <a className="font-medium text-brand underline hover:no-underline" href={payload.public.docs_url}>
+          {t("read_docs")}
+        </a>
         <span className="hidden text-gray-300 sm:inline">/</span>
-        <a className="font-medium text-brand underline hover:no-underline" href={payload.public.evaluation_url}>{t("run_locally")}</a>
+        <a className="font-medium text-brand underline hover:no-underline" href={payload.public.evaluation_url}>
+          {t("run_locally")}
+        </a>
         {payload.public.signups_open || invitationToken ? (
           <>
             <span className="hidden text-gray-300 sm:inline">/</span>
-            <Link className="font-medium text-brand underline hover:no-underline" to={signupPath}>{t("create_account")}</Link>
+            <Link className="font-medium text-brand underline hover:no-underline" to={signupPath}>
+              {t("create_account")}
+            </Link>
           </>
         ) : null}
       </section>
@@ -453,23 +556,22 @@ function publicCta(publicState: BootstrapPayload["public"], prefix: string, invi
 }
 
 function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
-  return appRouteDefinitions.flatMap(({ path, element }) => [
-    <Route element={<RouteErrorBoundary key={path}>{simpleModeRouteElement(path, element, initialBootstrap)}</RouteErrorBoundary>} key={path} path={path} />,
-    <Route element={<RouteErrorBoundary key={`/app-shell${path}`}>{simpleModeRouteElement(path, element, initialBootstrap)}</RouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
-  ]).concat([
-    <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
-    <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
-  ])
+  return appRouteDefinitions
+    .flatMap(({ path, element }) => [
+      <Route element={<RouteErrorBoundary key={path}>{simpleModeRouteElement(path, element, initialBootstrap)}</RouteErrorBoundary>} key={path} path={path} />,
+      <Route
+        element={<RouteErrorBoundary key={`/app-shell${path}`}>{simpleModeRouteElement(path, element, initialBootstrap)}</RouteErrorBoundary>}
+        key={`/app-shell${path}`}
+        path={`/app-shell${path}`}
+      />
+    ])
+    .concat([
+      <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
+      <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
+    ])
 }
 
-const SIMPLE_MODE_HIDDEN_PATHS = [
-  "/dashboard/workflows",
-  "/jobs",
-  "/jobs/new",
-  "/jobs/:id",
-  "/jobs/:id/source",
-  "/repositories/:repositoryId/skills/new"
-]
+const SIMPLE_MODE_HIDDEN_PATHS = ["/dashboard/workflows", "/jobs", "/jobs/new", "/jobs/:id", "/jobs/:id/source", "/repositories/:repositoryId/skills/new"]
 
 function simpleModeRouteElement(path: string, element: ReactNode, initialBootstrap: BootstrapPayload | null) {
   if (!SIMPLE_MODE_HIDDEN_PATHS.includes(path)) return element
@@ -534,17 +636,19 @@ function renderPluginSidebarRoutes() {
   const paths = usePluginSidebarPaths({ enabled: !isAuthPath(normalizedAppPath(location.pathname)) })
 
   return paths.flatMap(({ path, section }) => {
-    const element = section === "settings"
-      ? <SettingsSectionRoute><PluginSidebarPageRoute /></SettingsSectionRoute>
-      : <PluginSidebarPageRoute />
+    const element =
+      section === "settings" ? (
+        <SettingsSectionRoute>
+          <PluginSidebarPageRoute />
+        </SettingsSectionRoute>
+      ) : (
+        <PluginSidebarPageRoute />
+      )
 
     // Both variants, the same way renderAppRoutes registers core routes: the
     // shell serves every page under /app-shell as well, and a plugin page that
     // only registered the bare path is unreachable there.
-    return [
-      <Route element={element} key={path} path={path} />,
-      <Route element={element} key={`/app-shell${path}`} path={`/app-shell${path}`} />
-    ]
+    return [<Route element={element} key={path} path={path} />, <Route element={element} key={`/app-shell${path}`} path={`/app-shell${path}`} />]
   })
 }
 
@@ -580,7 +684,10 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-col bg-gray-50 dark:bg-gray-900 lg:flex-row">
       <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:w-56 lg:border-b-0 lg:border-r">
-        <nav aria-label={tCommon("shell.settings_nav_aria")} className="scroll-fade-x flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4 lg:[mask-image:none] lg:[-webkit-mask-image:none]">
+        <nav
+          aria-label={tCommon("shell.settings_nav_aria")}
+          className="scroll-fade-x flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4 lg:[mask-image:none] lg:[-webkit-mask-image:none]"
+        >
           {settingsNavigationItems(t, simpleMode, pluginSettingsItems).map((item) => (
             <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
               {item.label}
@@ -588,20 +695,14 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </aside>
-      <div className="min-w-0 flex-1">
-        {children}
-      </div>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   )
 }
 
 type SettingsNavigationItem = { key: string; label: string; path: string; active: (path: string) => boolean }
 
-function settingsNavigationItems(
-  t: (key: string) => string,
-  simpleMode = false,
-  pluginItems: SettingsNavigationItem[] = []
-): SettingsNavigationItem[] {
+function settingsNavigationItems(t: (key: string) => string, simpleMode = false, pluginItems: SettingsNavigationItem[] = []): SettingsNavigationItem[] {
   const items: SettingsNavigationItem[] = [
     { key: "profile", label: t("nav.profile"), path: "/profile", active: (path) => path === "/settings" || path === "/profile" },
     { key: "credentials", label: t("nav.credentials"), path: "/credentials", active: (path) => path === "/credentials" || path === "/credentials/edit" },
@@ -612,10 +713,15 @@ function settingsNavigationItems(
     { key: "hidden_chats", label: t("nav.hidden_chats"), path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats" },
     { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents" },
     { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags" },
-    { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms" }
+    {
+      key: "connected_platforms",
+      label: t("nav.connected_platforms"),
+      path: "/settings/connected_platforms",
+      active: (path) => path === "/settings/connected_platforms"
+    }
   ]
 
-  const withPlugins = [ ...items, ...pluginItems ]
+  const withPlugins = [...items, ...pluginItems]
   return simpleMode ? withPlugins.filter((item) => item.key !== "templates") : withPlugins
 }
 
@@ -633,7 +739,11 @@ function BootstrapShell({ initialBootstrap }: { initialBootstrap: BootstrapPaylo
   })
 
   if (bootstrap.isPending) {
-    return <main aria-label={t("shell.spa_aria")} className="p-6 text-sm text-gray-600">{t("loading")}</main>
+    return (
+      <main aria-label={t("shell.spa_aria")} className="p-6 text-sm text-gray-600">
+        {t("loading")}
+      </main>
+    )
   }
 
   if (bootstrap.isError) {

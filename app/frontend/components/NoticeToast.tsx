@@ -4,7 +4,17 @@ import { DismissButton } from "./DismissButton"
 
 const AUTO_DISMISS_DELAY_MS = 3_000
 
-export function NoticeToast({ children, message, onDismiss, persistent }: { children?: ReactNode; message?: ReactNode | null; onDismiss: () => void; persistent?: boolean }) {
+export function NoticeToast({
+  children,
+  message,
+  onDismiss,
+  persistent
+}: {
+  children?: ReactNode
+  message?: ReactNode | null
+  onDismiss: () => void
+  persistent?: boolean
+}) {
   const { t } = useT("common")
   const content = children ?? message
   useEffect(() => {

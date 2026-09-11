@@ -83,12 +83,24 @@ function ColumnsSection({ section }: { section: MysqlSection<MysqlColumnRow> }) 
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">Column</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Type</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Nullable</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Key</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Default</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Extra</th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Column
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Type
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Nullable
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Key
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Default
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                Extra
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -146,7 +158,9 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <div className="font-mono font-medium text-gray-800 dark:text-gray-100">{card.database}.{card.table}</div>
+      <div className="font-mono font-medium text-gray-800 dark:text-gray-100">
+        {card.database}.{card.table}
+      </div>
       <div>
         <SectionLabel>Info</SectionLabel>
         <InfoSection section={card.info} />

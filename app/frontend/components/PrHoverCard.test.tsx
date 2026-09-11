@@ -6,9 +6,11 @@ import { PrHoverCard } from "./PrHoverCard"
 
 vi.mock("./PrPreviewCard", () => ({
   PrPreviewCard: ({ jobId, prNumber }: { jobId: number; prNumber: number }) => (
-    <div data-testid="pr-card">PR #{prNumber} for job {jobId}</div>
+    <div data-testid="pr-card">
+      PR #{prNumber} for job {jobId}
+    </div>
   ),
-  PrPreviewSkeleton: () => <div data-testid="pr-skeleton" />,
+  PrPreviewSkeleton: () => <div data-testid="pr-skeleton" />
 }))
 
 function mockMatchMedia(matches: boolean) {
@@ -22,8 +24,8 @@ function mockMatchMedia(matches: boolean) {
       removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
+      dispatchEvent: vi.fn()
+    }))
   })
 }
 
@@ -79,7 +81,9 @@ describe("PrHoverCard on a pointer:fine device", () => {
     const span = screen.getByRole("link", { name: "PR #99" }).parentElement!
     fireEvent.mouseEnter(span)
 
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     expect(screen.getByTestId("pr-card")).toBeInTheDocument()
     expect(screen.getByTestId("pr-card").textContent).toBe("PR #99 for job 42")
@@ -91,7 +95,9 @@ describe("PrHoverCard on a pointer:fine device", () => {
     fireEvent.mouseEnter(span)
     fireEvent.mouseLeave(span)
 
-    await act(async () => { vi.advanceTimersByTime(400) })
+    await act(async () => {
+      vi.advanceTimersByTime(400)
+    })
 
     expect(screen.queryByTestId("pr-card")).not.toBeInTheDocument()
   })
@@ -100,11 +106,15 @@ describe("PrHoverCard on a pointer:fine device", () => {
     renderCard()
     const span = screen.getByRole("link", { name: "PR #99" }).parentElement!
     fireEvent.mouseEnter(span)
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
     expect(screen.getByTestId("pr-card")).toBeInTheDocument()
 
     fireEvent.mouseLeave(span)
-    await act(async () => { vi.advanceTimersByTime(200) })
+    await act(async () => {
+      vi.advanceTimersByTime(200)
+    })
 
     expect(screen.queryByTestId("pr-card")).not.toBeInTheDocument()
   })
@@ -113,12 +123,16 @@ describe("PrHoverCard on a pointer:fine device", () => {
     renderCard()
     const span = screen.getByRole("link", { name: "PR #99" }).parentElement!
     fireEvent.mouseEnter(span)
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     const card = screen.getByTestId("pr-card").parentElement!
     fireEvent.mouseLeave(span)
     fireEvent.mouseEnter(card)
-    await act(async () => { vi.advanceTimersByTime(200) })
+    await act(async () => {
+      vi.advanceTimersByTime(200)
+    })
 
     expect(screen.getByTestId("pr-card")).toBeInTheDocument()
   })
@@ -127,10 +141,14 @@ describe("PrHoverCard on a pointer:fine device", () => {
     renderCard()
     const span = screen.getByRole("link", { name: "PR #99" }).parentElement!
     fireEvent.mouseEnter(span)
-    await act(async () => { vi.advanceTimersByTime(300) })
+    await act(async () => {
+      vi.advanceTimersByTime(300)
+    })
 
     const card = screen.getByTestId("pr-card").parentElement!
-    await act(async () => { fireEvent.mouseLeave(card) })
+    await act(async () => {
+      fireEvent.mouseLeave(card)
+    })
 
     expect(screen.queryByTestId("pr-card")).not.toBeInTheDocument()
   })

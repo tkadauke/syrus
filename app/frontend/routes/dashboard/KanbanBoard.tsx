@@ -1,4 +1,15 @@
-import { EpicProgressBar, EpicStuckBadge, ExternalMetadataLink, ExternalPrBadge, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, workflowLabel } from "./components"
+import {
+  EpicProgressBar,
+  EpicStuckBadge,
+  ExternalMetadataLink,
+  ExternalPrBadge,
+  NeutralStatePill,
+  OwnerBadge,
+  PendingJobTitle,
+  RepositorySlugLink,
+  WorkflowBadges,
+  workflowLabel
+} from "./components"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { TonePill } from "../../components/StatusPill"
 import { PrHoverCard } from "../../components/PrHoverCard"
@@ -14,9 +25,18 @@ import { OnboardingEmptyState, useSetupStatus } from "../../components/Onboardin
 import { NoticeToast } from "../../components/NoticeToast"
 import { Button } from "../../components/Button"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
-import { fetchDashboardRows, releaseDashboardJob, updateDashboardEpicState, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardSubject } from "../../api/dashboard"
+import {
+  fetchDashboardRows,
+  releaseDashboardJob,
+  updateDashboardEpicState,
+  type DashboardEpicItem,
+  type DashboardItem,
+  type DashboardJobItem,
+  type DashboardLane,
+  type DashboardPayload,
+  type DashboardSubject
+} from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
-
 
 // Dashboard kanban board extracted from Dashboard.tsx: DashboardKanban and its
 // lanes/cards with drag-to-move-lane behavior. Entry point rendered by the
@@ -24,7 +44,17 @@ import { errorMessage } from "../../lib/errorMessage"
 
 const KANBAN_CARDS_PER_PAGE = 20
 
-export function DashboardKanban({ payload, prefix, rowsSearch, setupStatus }: { payload: DashboardPayload; prefix: string; rowsSearch: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+export function DashboardKanban({
+  payload,
+  prefix,
+  rowsSearch,
+  setupStatus
+}: {
+  payload: DashboardPayload
+  prefix: string
+  rowsSearch: string
+  setupStatus: ReturnType<typeof useSetupStatus>
+}) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [draggedEpic, setDraggedEpic] = useState<DashboardEpicItem | null>(null)
@@ -40,7 +70,8 @@ export function DashboardKanban({ payload, prefix, rowsSearch, setupStatus }: { 
     }
   })
   const moveEpic = useMutation({
-    mutationFn: ({ epic, targetState }: { epic: DashboardEpicItem; sourceState: string; targetState: string }) => updateDashboardEpicState(epic.paths.app_state_path, targetState),
+    mutationFn: ({ epic, targetState }: { epic: DashboardEpicItem; sourceState: string; targetState: string }) =>
+      updateDashboardEpicState(epic.paths.app_state_path, targetState),
     onSuccess: (updated) => {
       setNotice(updated.message || t("epic_updated"))
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
@@ -55,7 +86,11 @@ export function DashboardKanban({ payload, prefix, rowsSearch, setupStatus }: { 
   }, [payload.lanes])
 
   if ((payload.lanes ?? []).length === 0) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_lanes")}</div>
+    return (
+      <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+        {t("no_lanes")}
+      </div>
+    )
   }
 
   if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
@@ -112,7 +147,11 @@ export function DashboardKanban({ payload, prefix, rowsSearch, setupStatus }: { 
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{errorMessage(moveEpic.error, t("epic_move_error"))}</div> : null}
+      {moveEpic.isError ? (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">
+          {errorMessage(moveEpic.error, t("epic_move_error"))}
+        </div>
+      ) : null}
       <div className="select-none overflow-x-auto pb-2">
         <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${(payload.lanes ?? []).length}, minmax(14rem, 1fr))` }}>
           {optimisticLanes.map((lane) => (
@@ -192,28 +231,27 @@ function KanbanLane({
     >
       <header className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{lane.title}</h3>
-        <span className="rounded bg-white px-2 py-0.5 text-xs text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">{lane.count}</span>
+        <span className="rounded bg-white px-2 py-0.5 text-xs text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
+          {lane.count}
+        </span>
       </header>
       <div className="space-y-2 p-2">
-        {lane.items.length === 0 ? <p className="px-1 py-2 text-sm text-gray-400 dark:text-gray-500">{t("no_items_in_lane", { subject: subjectLabel(subject, 2) })}</p> : null}
+        {lane.items.length === 0 ? (
+          <p className="px-1 py-2 text-sm text-gray-400 dark:text-gray-500">{t("no_items_in_lane", { subject: subjectLabel(subject, 2) })}</p>
+        ) : null}
         {visibleItems.map((item) => (
-          <KanbanCard
-            item={item}
-            key={`${item.type}-${item.id}`}
-            onDragEnd={onDragEnd}
-            onDragStart={onDragStart}
-            prefix={prefix}
-          />
+          <KanbanCard item={item} key={`${item.type}-${item.id}`} onDragEnd={onDragEnd} onDragStart={onDragStart} prefix={prefix} />
         ))}
-        {serverLoadError ? <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{serverLoadError}</div> : null}
-        {canLoadMore ? (
-          <Button
-            aria-label={t("load_more_lane", { lane: lane.title })}
-            className="w-full"
-            disabled={serverLoadPending}
-            onClick={loadMore}
-            variant="secondary"
+        {serverLoadError ? (
+          <div
+            className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+            role="alert"
           >
+            {serverLoadError}
+          </div>
+        ) : null}
+        {canLoadMore ? (
+          <Button aria-label={t("load_more_lane", { lane: lane.title })} className="w-full" disabled={serverLoadPending} onClick={loadMore} variant="secondary">
             {t("load_more")}
           </Button>
         ) : null}
@@ -222,7 +260,17 @@ function KanbanLane({
   )
 }
 
-function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardItem; onDragEnd: () => void; onDragStart: (epic: DashboardEpicItem, event: DragEvent<HTMLElement>) => void; prefix: string }) {
+function KanbanCard({
+  item,
+  onDragEnd,
+  onDragStart,
+  prefix
+}: {
+  item: DashboardItem
+  onDragEnd: () => void
+  onDragStart: (epic: DashboardEpicItem, event: DragEvent<HTMLElement>) => void
+  prefix: string
+}) {
   const { t } = useT("dashboard")
   if (item.type === "job") {
     return <JobKanbanCard item={item} prefix={prefix} />
@@ -232,8 +280,12 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
     const slug = workflowLabel(item)
     return (
       <article className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-        <Link className="text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.path, prefix)}>{slug}</Link>
-        <Link className="mt-1 line-clamp-2 block text-sm text-brand hover:underline" to={withRoutePrefix(item.job.path, prefix)}><PendingJobTitle pending={Boolean(item.job.title_pending)} title={item.job.title} /></Link>
+        <Link className="text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.path, prefix)}>
+          {slug}
+        </Link>
+        <Link className="mt-1 line-clamp-2 block text-sm text-brand hover:underline" to={withRoutePrefix(item.job.path, prefix)}>
+          <PendingJobTitle pending={Boolean(item.job.title_pending)} title={item.job.title} />
+        </Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.state} triggerAriaPrefix="Workflow trigger" triggerKind={item.trigger_kind} />
           <OwnerBadge badge={item.job.owner_badge} />
@@ -255,13 +307,19 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
           <SlugHoverCard id={item.id} kind="epic">
             <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
           </SlugHoverCard>
-          <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+          <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>
+            {item.title}
+          </Link>
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <NeutralStatePill state={item.state} />
           <EpicStuckBadge stuck={item.stuck} />
           <OwnerBadge badge={item.owner_badge} />
-          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />
+          <RepositorySlugLink
+            className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300"
+            prefix={prefix}
+            repository={item.repository}
+          />
         </div>
       </div>
       <EpicProgressBar epic={item} fullWidth />
@@ -288,34 +346,78 @@ function JobKanbanCard({ item, prefix }: { item: DashboardJobItem; prefix: strin
   const unsatisfiedCount = item.unsatisfied_dependencies?.length ?? 0
 
   return (
-    <article className={`rounded border p-3 shadow-sm ${item.priority === "urgent" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40" : item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
+    <article
+      className={`rounded border p-3 shadow-sm ${item.priority === "urgent" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40" : item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}
+    >
       <div className="flex items-start justify-between gap-1">
-        <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
-        {item.needs_attention ? <span aria-label={t("needs_attention_aria")} className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
+        <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}>
+          <PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} />
+        </Link>
+        {item.needs_attention ? (
+          <span
+            aria-label={t("needs_attention_aria")}
+            className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200"
+          >
+            !
+          </span>
+        ) : null}
       </div>
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
         <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
         {item.state === "queued" && item.start_blocked_reason ? (
-          <StartBlockedReasonPill count={item.start_blocked_count} details={item.start_blocked_details} nextCheckAt={item.start_blocked_next_check_at} reason={item.start_blocked_reason} startBlockedAt={item.start_blocked_at} />
+          <StartBlockedReasonPill
+            count={item.start_blocked_count}
+            details={item.start_blocked_details}
+            nextCheckAt={item.start_blocked_next_check_at}
+            reason={item.start_blocked_reason}
+            startBlockedAt={item.start_blocked_at}
+          />
         ) : null}
-        <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />
+        <RepositorySlugLink
+          className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300"
+          prefix={prefix}
+          repository={item.repository}
+        />
         <OwnerBadge badge={item.owner_badge} />
-        {item.priority ? <TonePill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : item.priority === "low" ? "blue" : "gray"}>{humanizeOption(item.priority)}</TonePill> : null}
+        {item.priority ? (
+          <TonePill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : item.priority === "low" ? "blue" : "gray"}>
+            {humanizeOption(item.priority)}
+          </TonePill>
+        ) : null}
         {item.kind ? <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300">{humanizeOption(item.kind)}</span> : null}
-        {item.created_at ? <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300"><RelativeTimestamp value={item.created_at} /></span> : null}
-        {dependencyCount > 0 ? <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300">{unsatisfiedCount > 0 ? `${unsatisfiedCount}/${dependencyCount} deps blocked` : `${dependencyCount} deps clear`}</span> : null}
+        {item.created_at ? (
+          <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300">
+            <RelativeTimestamp value={item.created_at} />
+          </span>
+        ) : null}
+        {dependencyCount > 0 ? (
+          <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300">
+            {unsatisfiedCount > 0 ? `${unsatisfiedCount}/${dependencyCount} deps blocked` : `${dependencyCount} deps clear`}
+          </span>
+        ) : null}
         {item.pr_number ? (
           <PrHoverCard jobId={item.id} prNumber={item.pr_number} prUrl={item.pr_url ?? ""}>
-            <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink>
+            <ExternalMetadataLink
+              className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300"
+              href={item.pr_url}
+            >
+              PR #{item.pr_number}
+            </ExternalMetadataLink>
           </PrHoverCard>
         ) : null}
         <ExternalPrBadge external={item.pr_is_external} />
       </div>
       {item.can_release_from_backlog && item.paths.app_release_from_backlog_path ? (
         <div className="mt-3">
-          <Button disabled={release.isPending} onClick={() => release.mutate()} size="sm" variant="primary">{t("release_from_backlog")}</Button>
+          <Button disabled={release.isPending} onClick={() => release.mutate()} size="sm" variant="primary">
+            {t("release_from_backlog")}
+          </Button>
           <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-          {release.isError ? <div className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(release.error, t("bulk_action_error"))}</div> : null}
+          {release.isError ? (
+            <div className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">
+              {errorMessage(release.error, t("bulk_action_error"))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </article>
@@ -381,7 +483,7 @@ function mergeLoadedLane(lanes: DashboardLane[], fetchedLane: DashboardLane) {
       ...lane,
       ...fetchedLane,
       items: [...lane.items, ...appendedItems],
-      loaded_count: (lane.items.length + appendedItems.length)
+      loaded_count: lane.items.length + appendedItems.length
     }
   })
 }

@@ -84,10 +84,15 @@ describe("UntaggedIssuesBanner", () => {
   it("shows the banner again when the untagged issue counts change after a prior dismissal", () => {
     window.sessionStorage.setItem(UNTAGGED_ISSUES_DISMISSAL_KEY, "12:1:9,2:3")
 
-    renderBanner(makeUntaggedIssues({ total: 15, repositories: [
-      { id: 1, slug: "tkadauke/widgets", count: 12, issues_path: "/repositories/1?tab=github_issues" },
-      { id: 2, slug: "tkadauke/gadgets", count: 3, issues_path: "/repositories/2?tab=github_issues" }
-    ] }))
+    renderBanner(
+      makeUntaggedIssues({
+        total: 15,
+        repositories: [
+          { id: 1, slug: "tkadauke/widgets", count: 12, issues_path: "/repositories/1?tab=github_issues" },
+          { id: 2, slug: "tkadauke/gadgets", count: 3, issues_path: "/repositories/2?tab=github_issues" }
+        ]
+      })
+    )
 
     expect(screen.getByRole("status")).toBeInTheDocument()
   })

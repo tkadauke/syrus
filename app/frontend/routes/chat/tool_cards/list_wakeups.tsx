@@ -44,10 +44,18 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Wakeup</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Fires at</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Remaining</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Prompt</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Wakeup
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Fires at
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Remaining
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Prompt
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -58,7 +66,9 @@ function renderExpanded(context: ToolCardContext) {
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">
                 {row.delayRemainingMinutes != null ? <Badge>{row.delayRemainingMinutes} min</Badge> : "—"}
               </td>
-              <td className="max-w-[24rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={row.promptPreview ?? undefined}>{row.promptPreview || "—"}</td>
+              <td className="max-w-[24rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={row.promptPreview ?? undefined}>
+                {row.promptPreview || "—"}
+              </td>
             </tr>
           ))}
         </tbody>

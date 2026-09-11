@@ -11,12 +11,14 @@ type PluginModule = {
 const routeModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/repo_tabs/*.tsx")
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/repo_tabs\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(routeModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/repo_tabs\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType>()

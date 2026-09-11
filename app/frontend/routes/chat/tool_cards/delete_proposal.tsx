@@ -44,11 +44,11 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       {result.cascadeSlugs.length > 0 ? (
         <div>
-          <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-            Also withdrawn ({result.cascadeSlugs.length})
-          </div>
+          <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">Also withdrawn ({result.cascadeSlugs.length})</div>
           <div className="mt-1 flex flex-wrap gap-1">
-            {result.cascadeSlugs.map((slug) => <Badge key={slug}>{slug}</Badge>)}
+            {result.cascadeSlugs.map((slug) => (
+              <Badge key={slug}>{slug}</Badge>
+            ))}
           </div>
         </div>
       ) : null}

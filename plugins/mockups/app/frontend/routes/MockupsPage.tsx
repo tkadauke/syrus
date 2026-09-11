@@ -34,22 +34,15 @@ export default function MockupsPage() {
     enabled: !!selectedRef
   })
 
-  const select = (mockup: MockupSummary) =>
-    navigate({ pathname: withRoutePrefix(`/mockups/${mockup.slug}`, ""), search: location.search })
+  const select = (mockup: MockupSummary) => navigate({ pathname: withRoutePrefix(`/mockups/${mockup.slug}`, ""), search: location.search })
 
-  const closePreview = () =>
-    navigate({ pathname: withRoutePrefix("/mockups", ""), search: location.search })
+  const closePreview = () => navigate({ pathname: withRoutePrefix("/mockups", ""), search: location.search })
 
   return (
     <main aria-label={t("title")} className="flex h-full min-h-0 flex-col gap-3 p-4">
       <PageHeading>{t("title")}</PageHeading>
 
-      <FilterBar
-        filter={listQuery.data?.filter}
-        filterSchema={listQuery.data?.filter_schema ?? []}
-        pathname="/mockups"
-        search={location.search}
-      />
+      <FilterBar filter={listQuery.data?.filter} filterSchema={listQuery.data?.filter_schema ?? []} pathname="/mockups" search={location.search} />
 
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-h-0 flex-1 overflow-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -74,9 +67,7 @@ export default function MockupsPage() {
                       <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{mockup.slug}</span>
                       <span className="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-100">{mockup.title}</span>
                       <span className="text-xs text-gray-400">{t("file_count", { count: mockup.file_count })}</span>
-                      {mockup.updated_at ? (
-                        <RelativeTimestamp className="text-xs text-gray-400" value={mockup.updated_at} />
-                      ) : null}
+                      {mockup.updated_at ? <RelativeTimestamp className="text-xs text-gray-400" value={mockup.updated_at} /> : null}
                     </button>
                   </li>
                 )

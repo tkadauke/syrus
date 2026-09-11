@@ -129,7 +129,20 @@ function buildPayload(items: DashboardJobItem[], entries: DashboardPayload["land
     landing_queue: { visible: true, paused: false, toggle_path: "", entries },
     ownership: { scope: "mine", owner_id: null, team_user_count: 1, badges_visible: false },
     smart_folders: [
-      { id: 7, name: "Landing queue", key: "landing_queue", kind: "builtin", position: 1, subject_type: "job", visibility: "when_present", count: items.length, active: true, filter: {}, attention_preset: "landing_queue", path: "/dashboard/jobs?smart_folder_id=7" }
+      {
+        id: 7,
+        name: "Landing queue",
+        key: "landing_queue",
+        kind: "builtin",
+        position: 1,
+        subject_type: "job",
+        visibility: "when_present",
+        count: items.length,
+        active: true,
+        filter: {},
+        attention_preset: "landing_queue",
+        path: "/dashboard/jobs?smart_folder_id=7"
+      }
     ],
     active_smart_folder_id: 7,
     items,
@@ -187,10 +200,8 @@ function mockMediaQuery(matches: boolean) {
 
 describe("landing queue bundle attribution (desktop)", () => {
   it("labels a blocker that's part of a job bundle instead of standalone", () => {
-    const items = [ jobItem({ id: 1 }) ]
-    const entries = [
-      { key: "job:1", position: 1, job_ids: [1], blocker_jobs: [bundleBlockerJob()], dependency_edges: [] }
-    ]
+    const items = [jobItem({ id: 1 })]
+    const entries = [{ key: "job:1", position: 1, job_ids: [1], blocker_jobs: [bundleBlockerJob()], dependency_edges: [] }]
     renderTable(items, entries)
 
     fireEvent.click(screen.getByText("1 blocker"))
@@ -200,10 +211,8 @@ describe("landing queue bundle attribution (desktop)", () => {
   })
 
   it("uses singular copy for a bundle with exactly one other member", () => {
-    const items = [ jobItem({ id: 1 }) ]
-    const entries = [
-      { key: "job:1", position: 1, job_ids: [1], blocker_jobs: [ bundleBlockerJob({ bundle_other_job_count: 1 }) ], dependency_edges: [] }
-    ]
+    const items = [jobItem({ id: 1 })]
+    const entries = [{ key: "job:1", position: 1, job_ids: [1], blocker_jobs: [bundleBlockerJob({ bundle_other_job_count: 1 })], dependency_edges: [] }]
     renderTable(items, entries)
 
     fireEvent.click(screen.getByText("1 blocker"))
@@ -212,13 +221,13 @@ describe("landing queue bundle attribution (desktop)", () => {
   })
 
   it("still labels an unbundled blocker as standalone", () => {
-    const items = [ jobItem({ id: 1 }) ]
+    const items = [jobItem({ id: 1 })]
     const entries = [
       {
         key: "job:1",
         position: 1,
         job_ids: [1],
-        blocker_jobs: [ bundleBlockerJob({ bundle_other_job_count: null, epic_id: null }) ],
+        blocker_jobs: [bundleBlockerJob({ bundle_other_job_count: null, epic_id: null })],
         dependency_edges: []
       }
     ]
@@ -230,7 +239,7 @@ describe("landing queue bundle attribution (desktop)", () => {
   })
 
   it("draws a group boundary around a job-bundle landing unit", () => {
-    const items = [ jobItem({ id: 1, landing_queue_entry_key: "job_bundle:9" }), jobItem({ id: 2, landing_queue_entry_key: "job:2" }) ]
+    const items = [jobItem({ id: 1, landing_queue_entry_key: "job_bundle:9" }), jobItem({ id: 2, landing_queue_entry_key: "job:2" })]
     const entries = [
       { key: "job_bundle:9", position: 1, job_ids: [1], blocker_jobs: [], dependency_edges: [] },
       { key: "job:2", position: 2, job_ids: [2], blocker_jobs: [], dependency_edges: [] }
@@ -245,10 +254,8 @@ describe("landing queue bundle attribution (desktop)", () => {
 describe("landing queue bundle attribution (mobile)", () => {
   it("labels a blocker that's part of a job bundle instead of standalone", () => {
     mockMediaQuery(false)
-    const items = [ jobItem({ id: 1 }) ]
-    const entries = [
-      { key: "job:1", position: 1, job_ids: [1], blocker_jobs: [bundleBlockerJob()], dependency_edges: [] }
-    ]
+    const items = [jobItem({ id: 1 })]
+    const entries = [{ key: "job:1", position: 1, job_ids: [1], blocker_jobs: [bundleBlockerJob()], dependency_edges: [] }]
     renderTable(items, entries)
 
     fireEvent.click(screen.getByText("1 blocker"))
@@ -259,7 +266,7 @@ describe("landing queue bundle attribution (mobile)", () => {
 
   it("draws a group boundary around a job-bundle landing unit", () => {
     mockMediaQuery(false)
-    const items = [ jobItem({ id: 1, landing_queue_entry_key: "job_bundle:9" }), jobItem({ id: 2, landing_queue_entry_key: "job:2" }) ]
+    const items = [jobItem({ id: 1, landing_queue_entry_key: "job_bundle:9" }), jobItem({ id: 2, landing_queue_entry_key: "job:2" })]
     const entries = [
       { key: "job_bundle:9", position: 1, job_ids: [1], blocker_jobs: [], dependency_edges: [] },
       { key: "job:2", position: 2, job_ids: [2], blocker_jobs: [], dependency_edges: [] }

@@ -15,7 +15,10 @@ export function jobWorkflowContextBugReportAttachment(payload: JobDetailPayload)
     id: `job-${payload.job.id}-recent-workflows`,
     label: "Recent workflow context",
     description: `Attach the latest ${count} workflow${count === 1 ? "" : "s"} for this Job.`,
-    preview: `${jobSlug(payload.job.id)} - ${payload.job.issue_title || "Untitled Job"}\n${payload.workflows.slice(0, count).map((workflow) => `${workflow.slug} ${workflow.trigger_kind} ${workflow.state}`).join("\n")}`,
+    preview: `${jobSlug(payload.job.id)} - ${payload.job.issue_title || "Untitled Job"}\n${payload.workflows
+      .slice(0, count)
+      .map((workflow) => `${workflow.slug} ${workflow.trigger_kind} ${workflow.state}`)
+      .join("\n")}`,
     defaultChecked: false,
     buildFile: () => new File([serializeJobWorkflowContext(payload)], "job-workflows-context.txt", { type: "text/plain" })
   }

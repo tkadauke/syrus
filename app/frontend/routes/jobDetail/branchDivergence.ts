@@ -89,12 +89,14 @@ function parseCommitList(raw: unknown): BranchDivergenceCommitList | null {
         if (!entry || typeof entry !== "object" || Array.isArray(entry)) return []
         const commit = entry as Record<string, unknown>
         if (typeof commit.sha !== "string" || commit.sha.length === 0) return []
-        return [{
-          sha: commit.sha,
-          author: typeof commit.author === "string" ? commit.author : null,
-          date: typeof commit.date === "string" ? commit.date : null,
-          subject: typeof commit.subject === "string" ? commit.subject : null
-        }]
+        return [
+          {
+            sha: commit.sha,
+            author: typeof commit.author === "string" ? commit.author : null,
+            date: typeof commit.date === "string" ? commit.date : null,
+            subject: typeof commit.subject === "string" ? commit.subject : null
+          }
+        ]
       })
     : []
   if (commits.length === 0) return null

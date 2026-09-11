@@ -110,7 +110,7 @@ export function postBrowserTraces(payloads: BrowserTracePayload[], options: { be
   const body = JSON.stringify({ performance_events: payloads, authenticity_token: csrfToken })
 
   if (options.beacon && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-    const blob = new Blob([ body ], { type: "application/json" })
+    const blob = new Blob([body], { type: "application/json" })
     if (navigator.sendBeacon("/api/v1/app/performance_events", blob)) return true
   }
 
@@ -156,18 +156,21 @@ function observeLongTasks(_options: BrowserObserverOptions): void {
     list.getEntries().forEach((entry) => {
       if (entry.duration < 100) return
 
-      recordBrowserTrace({
-        trace_id: browserTraceId("longtask"),
-        name: "browser.long_task",
-        path: currentTracePath(),
-        duration_ms: roundMs(entry.duration),
-        visibility_state: visibilityState(),
-        metadata: {
-          entry_type: entry.entryType,
-          start_time_ms: roundMs(entry.startTime),
-          source: "performance_observer"
-        }
-      }, { enabled: true })
+      recordBrowserTrace(
+        {
+          trace_id: browserTraceId("longtask"),
+          name: "browser.long_task",
+          path: currentTracePath(),
+          duration_ms: roundMs(entry.duration),
+          visibility_state: visibilityState(),
+          metadata: {
+            entry_type: entry.entryType,
+            start_time_ms: roundMs(entry.startTime),
+            source: "performance_observer"
+          }
+        },
+        { enabled: true }
+      )
     })
   })
 
@@ -188,26 +191,28 @@ function observeSlowEvents(_options: BrowserObserverOptions): void {
       if (entry.duration < 50) return
 
       const inputDelayMs = typeof entry.processingStart === "number" ? Math.max(0, entry.processingStart - entry.startTime) : null
-      const processingDurationMs = typeof entry.processingStart === "number" && typeof entry.processingEnd === "number"
-        ? Math.max(0, entry.processingEnd - entry.processingStart)
-        : null
+      const processingDurationMs =
+        typeof entry.processingStart === "number" && typeof entry.processingEnd === "number" ? Math.max(0, entry.processingEnd - entry.processingStart) : null
 
-      recordBrowserTrace({
-        trace_id: browserTraceId("input"),
-        name: "browser.slow_input",
-        path: currentTracePath(),
-        duration_ms: roundMs(entry.duration),
-        visibility_state: visibilityState(),
-        metadata: {
-          event_name: entry.name,
-          entry_type: entry.entryType,
-          input_delay_ms: inputDelayMs === null ? null : roundMs(inputDelayMs),
-          processing_duration_ms: processingDurationMs === null ? null : roundMs(processingDurationMs),
-          interaction_id: typeof entry.interactionId === "number" && entry.interactionId > 0 ? entry.interactionId : null,
-          target: targetLabel(entry.target),
-          source: "performance_observer"
-        }
-      }, { enabled: true })
+      recordBrowserTrace(
+        {
+          trace_id: browserTraceId("input"),
+          name: "browser.slow_input",
+          path: currentTracePath(),
+          duration_ms: roundMs(entry.duration),
+          visibility_state: visibilityState(),
+          metadata: {
+            event_name: entry.name,
+            entry_type: entry.entryType,
+            input_delay_ms: inputDelayMs === null ? null : roundMs(inputDelayMs),
+            processing_duration_ms: processingDurationMs === null ? null : roundMs(processingDurationMs),
+            interaction_id: typeof entry.interactionId === "number" && entry.interactionId > 0 ? entry.interactionId : null,
+            target: targetLabel(entry.target),
+            source: "performance_observer"
+          }
+        },
+        { enabled: true }
+      )
     })
   })
 
@@ -265,19 +270,22 @@ function observeEventLoopLag(options: BrowserObserverOptions): void {
     if (now - lastReportedAt < minReportIntervalMs) return
 
     lastReportedAt = now
-    recordBrowserTrace({
-      trace_id: browserTraceId("event-loop"),
-      name: "browser.event_loop_lag",
-      path: currentTracePath(),
-      duration_ms: roundMs(lagMs),
-      visibility_state: visibilityState(),
-      metadata: {
-        interval_ms: intervalMs,
-        threshold_ms: thresholdMs,
-        max_plausible_lag_ms: maxPlausibleLagMs,
-        source: "event_loop_sampler"
-      }
-    }, { enabled: true })
+    recordBrowserTrace(
+      {
+        trace_id: browserTraceId("event-loop"),
+        name: "browser.event_loop_lag",
+        path: currentTracePath(),
+        duration_ms: roundMs(lagMs),
+        visibility_state: visibilityState(),
+        metadata: {
+          interval_ms: intervalMs,
+          threshold_ms: thresholdMs,
+          max_plausible_lag_ms: maxPlausibleLagMs,
+          source: "event_loop_sampler"
+        }
+      },
+      { enabled: true }
+    )
   }, intervalMs)
 
   observerCleanups.push(() => {
@@ -320,7 +328,7 @@ function targetLabel(target: EventTarget | null | undefined): string | null {
   const tag = target.tagName.toLowerCase()
   const role = target.getAttribute("role")
   const testId = target.getAttribute("data-testid")
-  const pieces = [ tag ]
+  const pieces = [tag]
   if (role) pieces.push(`[role=${role}]`)
   if (testId) pieces.push(`[data-testid=${testId}]`)
 

@@ -47,7 +47,7 @@ describe("retryTextByMessageId", () => {
       message({ id: 2, role: "system", text: "Claude authentication failed." })
     ]
 
-    expect(retryTextByMessageId(messages)).toEqual(new Map([ [ 2, "does syrus update itself?" ] ]))
+    expect(retryTextByMessageId(messages)).toEqual(new Map([[2, "does syrus update itself?"]]))
   })
 
   it("maps every system message following a user message to that same user text", () => {
@@ -57,10 +57,12 @@ describe("retryTextByMessageId", () => {
       message({ id: 3, role: "system", text: "Agent run failed" })
     ]
 
-    expect(retryTextByMessageId(messages)).toEqual(new Map([
-      [ 2, "hello" ],
-      [ 3, "hello" ]
-    ]))
+    expect(retryTextByMessageId(messages)).toEqual(
+      new Map([
+        [2, "hello"],
+        [3, "hello"]
+      ])
+    )
   })
 
   it("re-anchors to the newer user message once one is sent", () => {
@@ -77,10 +79,7 @@ describe("retryTextByMessageId", () => {
   })
 
   it("does not map a system message that precedes any user message", () => {
-    const messages = [
-      message({ id: 1, role: "system", text: "MCP connected" }),
-      message({ id: 2, role: "user", text: "hi" })
-    ]
+    const messages = [message({ id: 1, role: "system", text: "MCP connected" }), message({ id: 2, role: "user", text: "hi" })]
 
     expect(retryTextByMessageId(messages).has(1)).toBe(false)
   })

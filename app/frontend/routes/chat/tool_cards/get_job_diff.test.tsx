@@ -24,12 +24,30 @@ describe("get_job_diff tool card", () => {
   })
 
   it("summarizes the collapsed row when there is no stored diff", () => {
-    const parsedResult = { job_id: 4221, run_id: null, diff: null, page: 1, total_pages: 0, total_bytes: 0, has_next_page: false, message: "No stored diff is available for this Job yet." }
+    const parsedResult = {
+      job_id: 4221,
+      run_id: null,
+      diff: null,
+      page: 1,
+      total_pages: 0,
+      total_bytes: 0,
+      has_next_page: false,
+      message: "No stored diff is available for this Job yet."
+    }
     expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4221: no stored diff")
   })
 
   it("renders the no-diff message when diff is null", () => {
-    const parsedResult = { job_id: 4221, run_id: null, diff: null, page: 1, total_pages: 0, total_bytes: 0, has_next_page: false, message: "No stored diff is available for this Job yet." }
+    const parsedResult = {
+      job_id: 4221,
+      run_id: null,
+      diff: null,
+      page: 1,
+      total_pages: 0,
+      total_bytes: 0,
+      has_next_page: false,
+      message: "No stored diff is available for this Job yet."
+    }
     render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("JOB-4221")).toBeInTheDocument()

@@ -2,7 +2,6 @@ import type { ReactNode } from "react"
 import { useT } from "../../hooks/useT"
 import { TonePill } from "../../components/StatusPill"
 
-
 // Shared RepositoryDetail primitives extracted from RepositoryDetail.tsx:
 // the status pill, panel message, state-filter class helper, and relative-
 // time formatter reused across the overview, issues, and health sections.

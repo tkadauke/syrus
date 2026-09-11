@@ -86,16 +86,15 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       setOwnersNotice(ownerErrorMessage(owners.data.error, t))
       return
     }
-    setOwnerOptions([
-      owners.data.user ? ({ login: owners.data.user, type: "user" } as OwnerOption) : null,
-      ...(owners.data.orgs || []).map((org) => ({ login: org, type: "org" } as OwnerOption))
-    ].filter((o): o is OwnerOption => o !== null))
+    setOwnerOptions(
+      [
+        owners.data.user ? ({ login: owners.data.user, type: "user" } as OwnerOption) : null,
+        ...(owners.data.orgs || []).map((org) => ({ login: org, type: "org" }) as OwnerOption)
+      ].filter((o): o is OwnerOption => o !== null)
+    )
   }, [owners.isSuccess, owners.data])
 
-  const selectedOwnerType = useMemo(
-    () => ownerOptions.find((o) => o.login === values?.owner)?.type || "org",
-    [ownerOptions, values?.owner]
-  )
+  const selectedOwnerType = useMemo(() => ownerOptions.find((o) => o.login === values?.owner)?.type || "org", [ownerOptions, values?.owner])
 
   // Load repositories once a User/Org is picked.
   useEffect(() => {
@@ -103,25 +102,25 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
     let cancelled = false
     setLoadingRepos(true)
     setReposNotice(null)
-    fetchRepositoryOptions(values.owner, selectedOwnerType).then((data) => {
-      if (cancelled) return
-      setLoadingRepos(false)
-      if (data.error || !data.repos) {
+    fetchRepositoryOptions(values.owner, selectedOwnerType)
+      .then((data) => {
+        if (cancelled) return
+        setLoadingRepos(false)
+        if (data.error || !data.repos) {
+          setRepoOptions([])
+          setReposNotice(repoErrorMessage(data.error, t))
+          return
+        }
+        const options = data.repos.map((repo) => (typeof repo === "string" ? { name: repo, github_repository_id: null, github_owner_id: null } : repo))
+        setRepoOptions(options)
+        if (options.length === 0) setReposNotice(t("add_repository.no_repositories"))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setLoadingRepos(false)
         setRepoOptions([])
-        setReposNotice(repoErrorMessage(data.error, t))
-        return
-      }
-      const options = data.repos.map((repo) =>
-        typeof repo === "string" ? { name: repo, github_repository_id: null, github_owner_id: null } : repo
-      )
-      setRepoOptions(options)
-      if (options.length === 0) setReposNotice(t('add_repository.no_repositories'))
-    }).catch(() => {
-      if (cancelled) return
-      setLoadingRepos(false)
-      setRepoOptions([])
-      setReposNotice(t('add_repository.load_repos_error'))
-    })
+        setReposNotice(t("add_repository.load_repos_error"))
+      })
     return () => {
       cancelled = true
     }
@@ -132,19 +131,21 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
     if (!values?.owner || !values?.name) return
     let cancelled = false
     setLoadingBranches(true)
-    fetchRepositoryBranches(values.owner, values.name).then((data) => {
-      if (cancelled) return
-      setLoadingBranches(false)
-      const branches = data.error ? [] : data.branches || []
-      setBranchOptions(branches)
-      if (branches.length > 0) {
-        setValues((current) => (current ? { ...current, default_branch: suggestBranch(branches, data.default_branch) } : current))
-      }
-    }).catch(() => {
-      if (cancelled) return
-      setLoadingBranches(false)
-      setBranchOptions([])
-    })
+    fetchRepositoryBranches(values.owner, values.name)
+      .then((data) => {
+        if (cancelled) return
+        setLoadingBranches(false)
+        const branches = data.error ? [] : data.branches || []
+        setBranchOptions(branches)
+        if (branches.length > 0) {
+          setValues((current) => (current ? { ...current, default_branch: suggestBranch(branches, data.default_branch) } : current))
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        setLoadingBranches(false)
+        setBranchOptions([])
+      })
     return () => {
       cancelled = true
     }
@@ -167,7 +168,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       onClose()
     },
     onError: (err) => {
-      setError(err instanceof ApiError ? err.message : t('add_repository.save_error'))
+      setError(err instanceof ApiError ? err.message : t("add_repository.save_error"))
     }
   })
 
@@ -200,34 +201,42 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
     setReposNotice(null)
     setDetectedForkParent(null)
     setShowUpstreamFields(false)
-    setValues((current) => (current ? {
-      ...current,
-      owner,
-      name: "",
-      github_owner_id: "",
-      github_repository_id: "",
-      upstream_owner: "",
-      upstream_name: "",
-      upstream_default_branch: ""
-    } : current))
+    setValues((current) =>
+      current
+        ? {
+            ...current,
+            owner,
+            name: "",
+            github_owner_id: "",
+            github_repository_id: "",
+            upstream_owner: "",
+            upstream_name: "",
+            upstream_default_branch: ""
+          }
+        : current
+    )
   }
 
   function chooseRepo(name: string) {
     const selected = repoOptions.find((r) => r.name === name)
     setBranchOptions([])
     const parentFullName = selected?.fork ? selected.parent_full_name : null
-    const [parentOwner, parentName] = parentFullName ? parentFullName.split("/") : [ "", "" ]
+    const [parentOwner, parentName] = parentFullName ? parentFullName.split("/") : ["", ""]
     setDetectedForkParent(parentFullName || null)
     setShowUpstreamFields(!!parentFullName)
-    setValues((current) => (current ? {
-      ...current,
-      name,
-      github_owner_id: selected?.github_owner_id == null ? "" : String(selected.github_owner_id),
-      github_repository_id: selected?.github_repository_id == null ? "" : String(selected.github_repository_id),
-      upstream_owner: parentOwner || "",
-      upstream_name: parentName || "",
-      upstream_default_branch: parentFullName ? (selected?.parent_default_branch || "") : ""
-    } : current))
+    setValues((current) =>
+      current
+        ? {
+            ...current,
+            name,
+            github_owner_id: selected?.github_owner_id == null ? "" : String(selected.github_owner_id),
+            github_repository_id: selected?.github_repository_id == null ? "" : String(selected.github_repository_id),
+            upstream_owner: parentOwner || "",
+            upstream_name: parentName || "",
+            upstream_default_branch: parentFullName ? selected?.parent_default_branch || "" : ""
+          }
+        : current
+    )
   }
 
   function updateUpstream(field: "upstream_owner" | "upstream_name" | "upstream_default_branch", value: string) {
@@ -239,7 +248,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
     event.preventDefault()
     setError(null)
     if (!values || !values.owner || !values.name) {
-      setError(t('add_repository.validation_choose'))
+      setError(t("add_repository.validation_choose"))
       return
     }
     save.mutate()
@@ -258,37 +267,36 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
         <div className="space-y-5 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="add-repository-title">
-              {t('add_repository.title_added')}
+              {t("add_repository.title_added")}
             </h2>
             <button
-              aria-label={t('add_repository.close')}
+              aria-label={t("add_repository.close")}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand"
-              onClick={() => { onSaved?.(); onClose() }}
+              onClick={() => {
+                onSaved?.()
+                onClose()
+              }}
               type="button"
             >
               <CloseIcon className="h-7 w-7" />
             </button>
           </div>
 
-          <Box tone="ok">{t('add_repository.repository_ready', { slug: saved.repository.slug })}</Box>
+          <Box tone="ok">{t("add_repository.repository_ready", { slug: saved.repository.slug })}</Box>
 
           {installedNow ? (
-            <Box tone="ok">
-              {t('add_repository.app_connected', { owner: saved.repository.owner })}
-            </Box>
+            <Box tone="ok">{t("add_repository.app_connected", { owner: saved.repository.owner })}</Box>
           ) : (
             <>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('add_repository.install_optional', { owner: saved.repository.owner })}
-              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t("add_repository.install_optional", { owner: saved.repository.owner })}</p>
               {awaitingInstall ? (
                 <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-                  <Spinner /> {t('add_repository.waiting_for_install')}
+                  <Spinner /> {t("add_repository.waiting_for_install")}
                 </p>
               ) : null}
               {!awaitingInstall && saved.credential_status.generic_install_url ? (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {t('add_repository.install_all_prefix')}{" "}
+                  {t("add_repository.install_all_prefix")}{" "}
                   <button
                     className="font-medium text-brand-emphasis underline hover:no-underline"
                     type="button"
@@ -297,9 +305,9 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                       setAwaitingInstall(true)
                     }}
                   >
-                    {t('add_repository.install_all_button')}
+                    {t("add_repository.install_all_button")}
                   </button>{" "}
-                  {t('add_repository.install_all_suffix')}
+                  {t("add_repository.install_all_suffix")}
                 </p>
               ) : null}
             </>
@@ -315,11 +323,16 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                   setAwaitingInstall(true)
                 }}
               >
-                {t('add_repository.install_on_github')} <span aria-hidden="true">↗</span>
+                {t("add_repository.install_on_github")} <span aria-hidden="true">↗</span>
               </button>
             ) : null}
-            <Button onClick={() => { onSaved?.(); onClose() }}>
-              {t('add_repository.done')}
+            <Button
+              onClick={() => {
+                onSaved?.()
+                onClose()
+              }}
+            >
+              {t("add_repository.done")}
             </Button>
           </div>
         </div>
@@ -328,14 +341,12 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="add-repository-title">
-                {t('add_repository.title')}
+                {t("add_repository.title")}
               </h2>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                {t('add_repository.description')}
-              </p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("add_repository.description")}</p>
             </div>
             <button
-              aria-label={t('add_repository.close')}
+              aria-label={t("add_repository.close")}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand"
               onClick={onClose}
               type="button"
@@ -346,45 +357,72 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
 
           {!values ? (
             <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-              <Spinner /> {t('add_repository.loading')}
+              <Spinner /> {t("add_repository.loading")}
             </p>
           ) : (
             <>
-              <Field label={t('add_repository.field_user_org')}>
+              <Field label={t("add_repository.field_user_org")}>
                 {ownersNotice ? (
                   <Box tone="error">{ownersNotice}</Box>
                 ) : ownersLoading ? (
-                  <Loading>{t('add_repository.loading_accounts')}</Loading>
+                  <Loading>{t("add_repository.loading_accounts")}</Loading>
                 ) : (
-                  <Select aria-label={t('add_repository.field_user_org')} className="font-mono" onChange={(event) => chooseOwner(event.target.value)} value={values.owner}>
-                    <option value="">{t('add_repository.select_user_org')}</option>
-                    {ownerOptions.map((o) => <option key={o.login} value={o.login}>{o.login}</option>)}
+                  <Select
+                    aria-label={t("add_repository.field_user_org")}
+                    className="font-mono"
+                    onChange={(event) => chooseOwner(event.target.value)}
+                    value={values.owner}
+                  >
+                    <option value="">{t("add_repository.select_user_org")}</option>
+                    {ownerOptions.map((o) => (
+                      <option key={o.login} value={o.login}>
+                        {o.login}
+                      </option>
+                    ))}
                   </Select>
                 )}
               </Field>
 
               {values.owner ? (
-                <Field label={t('add_repository.field_repository')}>
+                <Field label={t("add_repository.field_repository")}>
                   {loadingRepos ? (
-                    <Loading>{t('add_repository.loading_repositories')}</Loading>
+                    <Loading>{t("add_repository.loading_repositories")}</Loading>
                   ) : reposNotice ? (
                     <Box tone="error">{reposNotice}</Box>
                   ) : (
-                    <Select aria-label={t('add_repository.field_repository')} className="font-mono" onChange={(event) => chooseRepo(event.target.value)} value={values.name}>
-                      <option value="">{t('add_repository.select_repository')}</option>
-                      {repoOptions.map((r) => <option key={r.name} value={r.name}>{r.name}</option>)}
+                    <Select
+                      aria-label={t("add_repository.field_repository")}
+                      className="font-mono"
+                      onChange={(event) => chooseRepo(event.target.value)}
+                      value={values.name}
+                    >
+                      <option value="">{t("add_repository.select_repository")}</option>
+                      {repoOptions.map((r) => (
+                        <option key={r.name} value={r.name}>
+                          {r.name}
+                        </option>
+                      ))}
                     </Select>
                   )}
                 </Field>
               ) : null}
 
               {values.name ? (
-                <Field label={t('add_repository.field_default_branch')}>
+                <Field label={t("add_repository.field_default_branch")}>
                   {loadingBranches ? (
-                    <Loading>{t('add_repository.loading_branches')}</Loading>
+                    <Loading>{t("add_repository.loading_branches")}</Loading>
                   ) : (
-                    <Select aria-label={t('add_repository.field_default_branch')} className="font-mono" onChange={(event) => setValues((c) => (c ? { ...c, default_branch: event.target.value } : c))} value={values.default_branch}>
-                      {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                    <Select
+                      aria-label={t("add_repository.field_default_branch")}
+                      className="font-mono"
+                      onChange={(event) => setValues((c) => (c ? { ...c, default_branch: event.target.value } : c))}
+                      value={values.default_branch}
+                    >
+                      {branchOptions.map((branch) => (
+                        <option key={branch} value={branch}>
+                          {branch}
+                        </option>
+                      ))}
                     </Select>
                   )}
                 </Field>
@@ -392,22 +430,20 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
 
               {values.name && showUpstreamFields ? (
                 <div className="space-y-3 rounded border border-gray-200 dark:border-gray-700 p-3">
-                  {detectedForkParent ? (
-                    <Box tone="muted">{t('add_repository.upstream_detected_note', { parent: detectedForkParent })}</Box>
-                  ) : null}
+                  {detectedForkParent ? <Box tone="muted">{t("add_repository.upstream_detected_note", { parent: detectedForkParent })}</Box> : null}
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label={t('add_repository.field_upstream_owner')}>
+                    <Field label={t("add_repository.field_upstream_owner")}>
                       <Input
-                        aria-label={t('add_repository.field_upstream_owner')}
+                        aria-label={t("add_repository.field_upstream_owner")}
                         className="font-mono"
                         onChange={(event) => updateUpstream("upstream_owner", event.target.value)}
                         type="text"
                         value={values.upstream_owner}
                       />
                     </Field>
-                    <Field label={t('add_repository.field_upstream_name')}>
+                    <Field label={t("add_repository.field_upstream_name")}>
                       <Input
-                        aria-label={t('add_repository.field_upstream_name')}
+                        aria-label={t("add_repository.field_upstream_name")}
                         className="font-mono"
                         onChange={(event) => updateUpstream("upstream_name", event.target.value)}
                         type="text"
@@ -415,9 +451,9 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                       />
                     </Field>
                   </div>
-                  <Field label={t('add_repository.field_upstream_branch')}>
+                  <Field label={t("add_repository.field_upstream_branch")}>
                     <Input
-                      aria-label={t('add_repository.field_upstream_branch')}
+                      aria-label={t("add_repository.field_upstream_branch")}
                       className="font-mono"
                       onChange={(event) => updateUpstream("upstream_default_branch", event.target.value)}
                       type="text"
@@ -428,19 +464,25 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
               ) : null}
 
               <Box tone="muted">
-                {t('add_repository.defaults_info_prefix', { agent: form.data?.user_agent_provider_label || t('add_repository.defaults_agent_default') })}{" "}
+                {t("add_repository.defaults_info_prefix", { agent: form.data?.user_agent_provider_label || t("add_repository.defaults_agent_default") })}{" "}
                 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs dark:bg-gray-800">{values.trigger_label}</code>{" "}
-                {t('add_repository.defaults_info_suffix')}
+                {t("add_repository.defaults_info_suffix")}
               </Box>
 
               {error ? <Box tone="error">{error}</Box> : null}
 
               <div className="flex items-center justify-end gap-2">
                 <Button onClick={onClose} variant="secondary">
-                  {t('add_repository.cancel')}
+                  {t("add_repository.cancel")}
                 </Button>
                 <Button disabled={save.isPending || !values.owner || !values.name} type="submit">
-                  {save.isPending ? <><Spinner light /> {t('add_repository.adding')}</> : t('add_repository.add_repository')}
+                  {save.isPending ? (
+                    <>
+                      <Spinner light /> {t("add_repository.adding")}
+                    </>
+                  ) : (
+                    t("add_repository.add_repository")
+                  )}
                 </Button>
               </div>
             </>
@@ -476,13 +518,18 @@ function Loading({ children }: { children: React.ReactNode }) {
 }
 
 function Box({ tone, children }: { tone: "muted" | "error" | "ok"; children: React.ReactNode }) {
-  const toneClass = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-    : tone === "ok"
-      ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-      : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
+  const toneClass =
+    tone === "error"
+      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+      : tone === "ok"
+        ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+        : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
   const role = tone === "error" ? "alert" : tone === "ok" ? "status" : undefined
-  return <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={role}>{children}</p>
+  return (
+    <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={role}>
+      {children}
+    </p>
+  )
 }
 
 function Spinner({ light }: { light?: boolean }) {
@@ -497,13 +544,13 @@ function Spinner({ light }: { light?: boolean }) {
 type TFunction = (key: string) => string
 
 function ownerErrorMessage(error: string, t: TFunction) {
-  if (error === "no_token") return t('add_repository.owner_error_no_token')
-  if (error === "unauthorized") return t('add_repository.owner_error_unauthorized')
-  return t('add_repository.owner_error_default')
+  if (error === "no_token") return t("add_repository.owner_error_no_token")
+  if (error === "unauthorized") return t("add_repository.owner_error_unauthorized")
+  return t("add_repository.owner_error_default")
 }
 
 function repoErrorMessage(error: string | undefined, t: TFunction) {
-  if (error === "no_token") return t('add_repository.repo_error_no_token')
-  if (error === "not_found") return t('add_repository.repo_error_not_found')
-  return t('add_repository.repo_error_default')
+  if (error === "no_token") return t("add_repository.repo_error_no_token")
+  if (error === "not_found") return t("add_repository.repo_error_not_found")
+  return t("add_repository.repo_error_default")
 }

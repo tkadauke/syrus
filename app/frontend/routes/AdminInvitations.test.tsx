@@ -19,7 +19,9 @@ describe("AdminInvitations", () => {
     renderRoute(<AdminInvitations />)
 
     const copyButton = await screen.findByRole("button", { name: "Copy signup link for foo@bar.com" }, { timeout: 5000 })
-    act(() => { fireEvent.click(copyButton) })
+    act(() => {
+      fireEvent.click(copyButton)
+    })
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://example.com/users/new?token=abc123")
     expect(screen.getByText("Link copied to clipboard.")).toBeInTheDocument()
@@ -47,9 +49,7 @@ describe("AdminInvitations", () => {
 function renderRoute(children: ReactNode) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }

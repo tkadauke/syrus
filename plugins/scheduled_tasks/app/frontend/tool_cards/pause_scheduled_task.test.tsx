@@ -21,9 +21,7 @@ describe("pause_scheduled_task tool card", () => {
   })
 
   it("summarizes the collapsed row with the paused label and id", () => {
-    expect(pauseScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: paused }))).toBe(
-      "Paused 'Nightly main-branch health check' (#12)"
-    )
+    expect(pauseScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: paused }))).toBe("Paused 'Nightly main-branch health check' (#12)")
   })
 
   it("renders the paused outcome", () => {

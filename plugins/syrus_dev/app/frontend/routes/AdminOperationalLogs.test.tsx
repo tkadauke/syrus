@@ -14,9 +14,12 @@ describe("AdminOperationalLogs", () => {
     renderRoute(<AdminOperationalLogs />)
 
     expect(await screen.findByRole("heading", { name: "Operational Logs" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/operational_logs?since=1h&revision_scope=current&per_page=50", expect.objectContaining({
-      credentials: "same-origin"
-    }))
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/admin/operational_logs?since=1h&revision_scope=current&per_page=50",
+      expect.objectContaining({
+        credentials: "same-origin"
+      })
+    )
     expect(screen.getByRole("button", { name: "Since is 1h" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Revision is Current SHA" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Per page is 50" })).toBeInTheDocument()
@@ -32,9 +35,14 @@ describe("AdminOperationalLogs", () => {
     expect(within(table).getByText("path=/jobs api_key=api_key=[REDACTED]")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }))
-    await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/operational_logs?since=1h&revision_scope=current&per_page=50&page=2", expect.objectContaining({
-      credentials: "same-origin"
-    })))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/admin/operational_logs?since=1h&revision_scope=current&per_page=50&page=2",
+        expect.objectContaining({
+          credentials: "same-origin"
+        })
+      )
+    )
   })
 
   it("applies search filters from the URL", async () => {
@@ -50,17 +58,26 @@ describe("AdminOperationalLogs", () => {
     expect(screen.getByRole("button", { name: "Level is error" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Role is worker" })).toBeInTheDocument()
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/operational_logs?query=migration&since=2h&until=2026-08-05T10%3A00%3A00Z&level=error&role=worker&hostname=worker-a&revision_scope=all&per_page=100", expect.objectContaining({
-      credentials: "same-origin"
-    })))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/admin/operational_logs?query=migration&since=2h&until=2026-08-05T10%3A00%3A00Z&level=error&role=worker&hostname=worker-a&revision_scope=all&per_page=100",
+        expect.objectContaining({
+          credentials: "same-origin"
+        })
+      )
+    )
   })
 
   it("renders disabled and empty states", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(logsPayload({
-      enabled: false,
-      logs: [],
-      error: { code: "operational_log_indexing_disabled", message: "Operational log indexing is disabled for this instance." }
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        logsPayload({
+          enabled: false,
+          logs: [],
+          error: { code: "operational_log_indexing_disabled", message: "Operational log indexing is disabled for this instance." }
+        })
+      )
+    )
 
     renderRoute(<AdminOperationalLogs />)
 
@@ -85,27 +102,31 @@ describe("AdminOperationalLogs", () => {
   })
 
   it("dedupes job_class from context and only shows per-row revision when scope is all", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(logsPayload({
-      revision_scope: "all",
-      logs: [
-        {
-          id: 11,
-          occurred_at: "2026-08-05T10:05:00Z",
-          level: "info",
-          role: "worker",
-          hostname: "worker-b",
-          app_revision: "0123456789ab",
-          pid: 456,
-          source: "run_job",
-          job_id: null,
-          workflow_id: null,
-          run_id: null,
-          request_id: null,
-          message: "RunJob",
-          context: { job_class: "RunJob", queue: "runs" }
-        }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        logsPayload({
+          revision_scope: "all",
+          logs: [
+            {
+              id: 11,
+              occurred_at: "2026-08-05T10:05:00Z",
+              level: "info",
+              role: "worker",
+              hostname: "worker-b",
+              app_revision: "0123456789ab",
+              pid: 456,
+              source: "run_job",
+              job_id: null,
+              workflow_id: null,
+              run_id: null,
+              request_id: null,
+              message: "RunJob",
+              context: { job_class: "RunJob", queue: "runs" }
+            }
+          ]
+        })
+      )
+    )
 
     renderRoute(<AdminOperationalLogs />)
 

@@ -68,80 +68,86 @@ describe("JobDetailView", () => {
   })
 
   it("shows a red usage-limit warning in the job detail header", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        provider_availability: {
-          provider: "codex",
-          label: "Codex",
-          model: null,
-          state: "exhausted",
-          open: true,
-          usage_exhausted: true,
-          retry_after: null,
-          reason: "Provider usage limit exhausted.",
-          message: "Codex usage limit reached. This item uses Codex until usage resets."
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          provider_availability: {
+            provider: "codex",
+            label: "Codex",
+            model: null,
+            state: "exhausted",
+            open: true,
+            usage_exhausted: true,
+            retry_after: null,
+            reason: "Provider usage limit exhausted.",
+            message: "Codex usage limit reached. This item uses Codex until usage resets."
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
   it("shows a provider warning when remaining usage is below the admission threshold", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        provider_availability: {
-          provider: "codex",
-          label: "Codex",
-          model: null,
-          state: "available",
-          open: false,
-          usage_exhausted: false,
-          retry_after: null,
-          reason: null,
-          message: "Codex is available.",
-          pause_enabled: true,
-          pause_threshold_percent: 10,
-          usage: {
-            remaining_percent: 7.5,
-            observed_at: "2026-08-01T12:00:00Z"
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          provider_availability: {
+            provider: "codex",
+            label: "Codex",
+            model: null,
+            state: "available",
+            open: false,
+            usage_exhausted: false,
+            retry_after: null,
+            reason: null,
+            message: "Codex is available.",
+            pause_enabled: true,
+            pause_threshold_percent: 10,
+            usage: {
+              remaining_percent: 7.5,
+              observed_at: "2026-08-01T12:00:00Z"
+            }
           }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByRole("img", { name: /Codex usage is low \(8% remaining; threshold 10%\)/ })).toBeInTheDocument()
   })
 
   it("shows automatic provider failover in the job detail header", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        agent_provider: "claude",
-        provider_failover: {
-          mode: "automatic",
-          automatic: true,
-          original_provider: "claude",
-          original_provider_label: "Claude Code",
-          selected_provider: "codex",
-          selected_provider_label: "Codex",
-          reason: "provider_unavailable",
-          decided_at: "2026-08-01T12:01:00Z",
-          unavailable: {
-            provider: "claude",
-            label: "Claude Code",
-            state: "open",
-            reason: "Provider appears temporarily unavailable.",
-            retry_after: "2026-08-01T12:10:00Z",
-            evidence_source: "provider_circuit",
-            evidence_status: "failed",
-            observed_at: "2026-08-01T12:00:00Z"
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          agent_provider: "claude",
+          provider_failover: {
+            mode: "automatic",
+            automatic: true,
+            original_provider: "claude",
+            original_provider_label: "Claude Code",
+            selected_provider: "codex",
+            selected_provider_label: "Codex",
+            reason: "provider_unavailable",
+            decided_at: "2026-08-01T12:01:00Z",
+            unavailable: {
+              provider: "claude",
+              label: "Claude Code",
+              state: "open",
+              reason: "Provider appears temporarily unavailable.",
+              retry_after: "2026-08-01T12:10:00Z",
+              evidence_source: "provider_circuit",
+              evidence_status: "failed",
+              observed_at: "2026-08-01T12:00:00Z"
+            }
           }
         }
-      }
-    }))
+      })
+    )
 
     const notice = screen.getByText("Claude Code unavailable; running this workflow with Codex.")
     expect(notice).toBeInTheDocument()
@@ -149,32 +155,34 @@ describe("JobDetailView", () => {
   })
 
   it("renders the pressure breakdown and telemetry state for a job blocked on step-profile pressure", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        state: "queued",
-        summary_state: "queued",
-        start_blocked_reason: "workflow_admission_budget",
-        start_blocked_at: "2026-08-11T14:00:00Z",
-        start_blocked_next_check_at: "2026-08-11T14:10:00Z",
-        start_blocked_count: 2,
-        start_blocked_details: {
-          action: "delay_until",
-          reason: "predicted_budget_pressure_high",
-          delay_until: "2026-08-11T14:10:00Z"
-        },
-        start_blocked_breakdown: {
-          reason: "predicted_budget_pressure_high",
-          category: "step_profile_pressure",
-          telemetry_state: "present",
-          telemetry_absent: false,
-          dimensions: [
-            { metric: "cpu_pressure", label: "CPU pressure", current: 132.4, threshold: 100, over_threshold: true },
-            { metric: "memory_used_percent", label: "Memory used", current: 40, threshold: 92, over_threshold: false }
-          ]
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "queued",
+          summary_state: "queued",
+          start_blocked_reason: "workflow_admission_budget",
+          start_blocked_at: "2026-08-11T14:00:00Z",
+          start_blocked_next_check_at: "2026-08-11T14:10:00Z",
+          start_blocked_count: 2,
+          start_blocked_details: {
+            action: "delay_until",
+            reason: "predicted_budget_pressure_high",
+            delay_until: "2026-08-11T14:10:00Z"
+          },
+          start_blocked_breakdown: {
+            reason: "predicted_budget_pressure_high",
+            category: "step_profile_pressure",
+            telemetry_state: "present",
+            telemetry_absent: false,
+            dimensions: [
+              { metric: "cpu_pressure", label: "CPU pressure", current: 132.4, threshold: 100, over_threshold: true },
+              { metric: "memory_used_percent", label: "Memory used", current: 40, threshold: 92, over_threshold: false }
+            ]
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByText("Admission budget blocked")).toBeInTheDocument()
     expect(screen.getByText("This workflow's predicted resource cost exceeds the worker budget.")).toBeInTheDocument()
@@ -184,25 +192,27 @@ describe("JobDetailView", () => {
   })
 
   it("distinctly calls out a telemetry-absent admission block instead of implying a measured reading", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        state: "queued",
-        summary_state: "queued",
-        start_blocked_reason: "workflow_admission_budget",
-        start_blocked_details: {
-          action: "requires_override",
-          reason: "worker_memory_exhausted"
-        },
-        start_blocked_breakdown: {
-          reason: "worker_memory_exhausted",
-          category: "hard_host_pressure",
-          telemetry_state: "absent",
-          telemetry_absent: true,
-          dimensions: []
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "queued",
+          summary_state: "queued",
+          start_blocked_reason: "workflow_admission_budget",
+          start_blocked_details: {
+            action: "requires_override",
+            reason: "worker_memory_exhausted"
+          },
+          start_blocked_breakdown: {
+            reason: "worker_memory_exhausted",
+            category: "hard_host_pressure",
+            telemetry_state: "absent",
+            telemetry_absent: true,
+            dimensions: []
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByText("A worker host is at a hard resource limit.")).toBeInTheDocument()
     expect(screen.getByText(/No worker telemetry has been recorded/)).toBeInTheDocument()
@@ -215,57 +225,63 @@ describe("JobDetailView", () => {
   })
 
   it("shows failing PR checks with a GitHub checks link", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        pr_checks: {
-          state: "failing",
-          sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
-          short_sha: "3bf7b45",
-          checked_at: "2026-08-26T19:20:00Z",
-          checks_url: "https://github.com/acme/widgets/pull/2796/checks"
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          pr_checks: {
+            state: "failing",
+            sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
+            short_sha: "3bf7b45",
+            checked_at: "2026-08-26T19:20:00Z",
+            checks_url: "https://github.com/acme/widgets/pull/2796/checks"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByText("PR checks are failing for 3bf7b45.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "View GitHub checks." })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/2796/checks")
   })
 
   it("does not show passing PR checks", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        pr_checks: {
-          state: "passing",
-          sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
-          short_sha: "3bf7b45",
-          checked_at: "2026-08-26T19:20:00Z",
-          checks_url: "https://github.com/acme/widgets/pull/2796/checks"
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          pr_checks: {
+            state: "passing",
+            sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
+            short_sha: "3bf7b45",
+            checked_at: "2026-08-26T19:20:00Z",
+            checks_url: "https://github.com/acme/widgets/pull/2796/checks"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.queryByText("PR checks are failing for 3bf7b45.")).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "View GitHub checks." })).not.toBeInTheDocument()
   })
 
   it("hides the admin diagnostics link for users who cannot view it", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        state: "queued",
-        start_blocked_reason: "workflow_admission_budget",
-        start_blocked_details: { action: "delay_until", reason: "predicted_budget_pressure_high" },
-        start_blocked_breakdown: {
-          reason: "predicted_budget_pressure_high",
-          category: "step_profile_pressure",
-          telemetry_state: "present",
-          telemetry_absent: false,
-          dimensions: []
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "queued",
+          start_blocked_reason: "workflow_admission_budget",
+          start_blocked_details: { action: "delay_until", reason: "predicted_budget_pressure_high" },
+          start_blocked_breakdown: {
+            reason: "predicted_budget_pressure_high",
+            category: "step_profile_pressure",
+            telemetry_state: "present",
+            telemetry_absent: false,
+            dimensions: []
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.queryByText("View pressure diagnostics")).not.toBeInTheDocument()
   })
@@ -292,60 +308,8 @@ describe("JobDetailView", () => {
   })
 
   it("links the origin chat from the job header", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        source_chat: {
-          chat_id: 4,
-          chat_title: "Roadmap chat",
-          proposal_id: 9,
-          proposal_kind: "syrus_issue",
-          message_id: 12,
-          path: "/chats/4#message-12",
-          label: "Job proposal in Roadmap chat"
-        }
-      }
-    }))
-
-    expect(screen.getByRole("button", { name: "Copy CHAT-4 to clipboard" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Roadmap chat" }))
-      .toHaveAttribute("href", "/app-shell/chats/4#message-12")
-  })
-
-  it("falls back to a generic title when the origin chat has no title", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        source_chat: {
-          chat_id: 4,
-          chat_title: null,
-          proposal_id: 9,
-          proposal_kind: "syrus_issue",
-          message_id: 12,
-          path: "/chats/4#message-12",
-          label: "Job proposal"
-        }
-      }
-    }))
-
-    expect(screen.getByRole("link", { name: "New chat" }))
-      .toHaveAttribute("href", "/app-shell/chats/4#message-12")
-  })
-
-  it("shows a chat preview card on hover for the origin chat slug", async () => {
-    const restoreMedia = mockMediaQuery(true)
-    try {
-      vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-        id: 4,
-        chat_slug: "CHAT-4",
-        title: "Roadmap chat",
-        title_pending: false,
-        participants: [{ id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" }],
-        pending_proposal_count: 0,
-        pending_actions_count: 0
-      }))
-
-      renderJobDetail(jobPayload({
+    renderJobDetail(
+      jobPayload({
         job: {
           ...baseJob(),
           source_chat: {
@@ -358,7 +322,65 @@ describe("JobDetailView", () => {
             label: "Job proposal in Roadmap chat"
           }
         }
-      }))
+      })
+    )
+
+    expect(screen.getByRole("button", { name: "Copy CHAT-4 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Roadmap chat" })).toHaveAttribute("href", "/app-shell/chats/4#message-12")
+  })
+
+  it("falls back to a generic title when the origin chat has no title", () => {
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          source_chat: {
+            chat_id: 4,
+            chat_title: null,
+            proposal_id: 9,
+            proposal_kind: "syrus_issue",
+            message_id: 12,
+            path: "/chats/4#message-12",
+            label: "Job proposal"
+          }
+        }
+      })
+    )
+
+    expect(screen.getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/4#message-12")
+  })
+
+  it("shows a chat preview card on hover for the origin chat slug", async () => {
+    const restoreMedia = mockMediaQuery(true)
+    try {
+      vi.spyOn(window, "fetch").mockResolvedValue(
+        jsonResponse({
+          id: 4,
+          chat_slug: "CHAT-4",
+          title: "Roadmap chat",
+          title_pending: false,
+          participants: [{ id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" }],
+          pending_proposal_count: 0,
+          pending_actions_count: 0
+        })
+      )
+
+      renderJobDetail(
+        jobPayload({
+          job: {
+            ...baseJob(),
+            source_chat: {
+              chat_id: 4,
+              chat_title: "Roadmap chat",
+              proposal_id: 9,
+              proposal_kind: "syrus_issue",
+              message_id: 12,
+              path: "/chats/4#message-12",
+              label: "Job proposal in Roadmap chat"
+            }
+          }
+        })
+      )
 
       const copyChatSlugButton = screen.getByRole("button", { name: "Copy CHAT-4 to clipboard" })
       expect(screen.getAllByText("Roadmap chat")).toHaveLength(1)
@@ -408,22 +430,18 @@ describe("JobDetailView", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <BugReportContext.Provider value={{
-          openBugReport: () => {},
-          registerBugReportAttachments: (attachments) => {
-            registeredAttachments = attachments
-            return () => {}
-          }
-        }}>
+        <BugReportContext.Provider
+          value={{
+            openBugReport: () => {},
+            registerBugReportAttachments: (attachments) => {
+              registeredAttachments = attachments
+              return () => {}
+            }
+          }}
+        >
           <ShortcutsProvider>
             <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-              <JobDetailView
-                activeTab="summary"
-                onSelectTab={() => {}}
-                payload={payload}
-                prefix="/app-shell"
-                queryKey={["jobs", "1", "detail", ""]}
-              />
+              <JobDetailView activeTab="summary" onSelectTab={() => {}} payload={payload} prefix="/app-shell" queryKey={["jobs", "1", "detail", ""]} />
             </MemoryRouter>
           </ShortcutsProvider>
         </BugReportContext.Provider>
@@ -449,62 +467,67 @@ describe("JobDetailView", () => {
   })
 
   it("shows why no pull request was opened", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        state: "closed",
-        summary_state: "closed",
-        closure_reason: "no_changes",
-        finished_at: "2026-07-31T06:00:00Z",
-        no_pr_reason: {
-          kind: "no_effective_changes",
-          message: "No PR was opened because the workflow made no effective changes.",
-          base_branch: "syrus/direct-parent"
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          state: "closed",
+          summary_state: "closed",
+          closure_reason: "no_changes",
+          finished_at: "2026-07-31T06:00:00Z",
+          no_pr_reason: {
+            kind: "no_effective_changes",
+            message: "No PR was opened because the workflow made no effective changes.",
+            base_branch: "syrus/direct-parent"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByText("No PR was opened because the workflow made no effective changes.")).toBeInTheDocument()
   })
 
   it("links scheduled jobs back to their scheduled task", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        kind: "cron",
-        issue_title: null,
-        origin: {
-          key: "scheduled_tasks",
-          id: "12",
-          label: "Update architecture",
-          url: "/scheduled_tasks/12"
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          kind: "cron",
+          issue_title: null,
+          origin: {
+            key: "scheduled_tasks",
+            id: "12",
+            label: "Update architecture",
+            url: "/scheduled_tasks/12"
+          }
         }
-      }
-    }))
+      })
+    )
 
-    expect(screen.getByRole("link", { name: "Scheduled Job" }))
-      .toHaveAttribute("href", "/app-shell/scheduled_tasks/12")
+    expect(screen.getByRole("link", { name: "Scheduled Job" })).toHaveAttribute("href", "/app-shell/scheduled_tasks/12")
   })
 
   it("shows retry affordance for failed pending feedback handling", () => {
-    renderJobDetail(jobPayload({
-      pending_feedback: [
-        {
-          id: 17,
-          github_handle: "reviewer",
-          attributed_to: "external",
-          pr_type: "direct",
-          comment_kind: "issue",
-          body: "Please add the missing regression.",
-          comment_created_at: "2026-07-30T10:00:00Z",
-          handling_state: "failed",
-          handling_workflow_id: 11517,
-          handling_failed_at: "2026-07-30T10:05:00Z",
-          handling_failure_reason: "rate_limit",
-          retryable: true
-        }
-      ]
-    }))
+    renderJobDetail(
+      jobPayload({
+        pending_feedback: [
+          {
+            id: 17,
+            github_handle: "reviewer",
+            attributed_to: "external",
+            pr_type: "direct",
+            comment_kind: "issue",
+            body: "Please add the missing regression.",
+            comment_created_at: "2026-07-30T10:00:00Z",
+            handling_state: "failed",
+            handling_workflow_id: 11517,
+            handling_failed_at: "2026-07-30T10:05:00Z",
+            handling_failure_reason: "rate_limit",
+            retryable: true
+          }
+        ]
+      })
+    )
 
     expect(screen.getByText("Last attempt failed: rate_limit")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Retry addressing PR feedback" })).toBeInTheDocument()
@@ -512,15 +535,16 @@ describe("JobDetailView", () => {
   })
 
   it("links the originating message when origin_chat is present", () => {
-    renderJobDetail(jobPayload({
-      origin_chat: {
-        chat_session_id: 7,
-        message_id: 42
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        origin_chat: {
+          chat_session_id: 7,
+          message_id: 42
+        }
+      })
+    )
 
-    expect(screen.getByRole("link", { name: "View in chat" }))
-      .toHaveAttribute("href", "/app-shell/chats/7#message-42")
+    expect(screen.getByRole("link", { name: "View in chat" })).toHaveAttribute("href", "/app-shell/chats/7#message-42")
   })
 
   it("omits the originating message link when origin_chat is null", () => {
@@ -531,13 +555,15 @@ describe("JobDetailView", () => {
 
   it("renders configured deployment stages at the top of the details section", () => {
     const reachedAt = "2026-07-30T12:00:00Z"
-    renderJobDetail(jobPayload({
-      deployment_stages: [
-        { name: "staging", label: "On Staging", reached: true, reached_at: reachedAt, tag_sha: "tag-sha" },
-        { name: "production", label: "In Production", reached: false, reached_at: null, tag_sha: null },
-        { name: "public", label: "Released to Public", reached: false, reached_at: null, tag_sha: null }
-      ]
-    }))
+    renderJobDetail(
+      jobPayload({
+        deployment_stages: [
+          { name: "staging", label: "On Staging", reached: true, reached_at: reachedAt, tag_sha: "tag-sha" },
+          { name: "production", label: "In Production", reached: false, reached_at: null, tag_sha: null },
+          { name: "public", label: "Released to Public", reached: false, reached_at: null, tag_sha: null }
+        ]
+      })
+    )
 
     const pipeline = screen.getByTestId("deployment-stage-pipeline")
     expect(within(pipeline).getByText("On Staging")).toBeInTheDocument()
@@ -556,9 +582,7 @@ describe("JobDetailView", () => {
     const details = screen.getByRole("heading", { name: "Details" }).closest("section")
     expect(details).toContainElement(pipeline)
     const stateLabel = within(details as HTMLElement).getByText("State")
-    expect(
-      pipeline.compareDocumentPosition(stateLabel) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
+    expect(pipeline.compareDocumentPosition(stateLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it("omits deployment stages when the payload does not include them", () => {
@@ -568,94 +592,146 @@ describe("JobDetailView", () => {
   })
 
   it("skips workflows with null artifacts when rendering coverage", () => {
-    renderJobDetail(jobPayload({
-      coverage: { workflow_id: 1, coverage: { summary: { lines_pct: 92.4, branches_pct: null, functions_pct: null } } }
-    }))
+    renderJobDetail(
+      jobPayload({
+        coverage: { workflow_id: 1, coverage: { summary: { lines_pct: 92.4, branches_pct: null, functions_pct: null } } }
+      })
+    )
 
     expect(screen.getByTestId("coverage-card")).toBeInTheDocument()
     expect(screen.getByText("92.4%")).toBeInTheDocument()
   })
 
   it.each(["implemented", "failed"])("renders the Give feedback button for %s jobs", (state) => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state, summary_state: state }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state, summary_state: state }
+      })
+    )
 
     expect(screen.getByRole("button", { name: "Give feedback" })).toBeInTheDocument()
   })
 
   it("hides the Give feedback button for other job states", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "running", summary_state: "running" }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "running", summary_state: "running" }
+      })
+    )
 
     expect(screen.queryByRole("button", { name: "Give feedback" })).not.toBeInTheDocument()
   })
 
   it("shows the waiting banner when a queued job is blocked by unhealthy main branch", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "queued", main_branch_repair: false },
-      repository: {
-        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
-        main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "queued", main_branch_repair: false },
+        repository: {
+          id: 2,
+          slug: "acme/widgets",
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          review_policy: "self",
+          feedback_policy: "confirm",
+          repository_path: "/repositories/2",
+          edit_repository_path: "/repositories/2/edit",
+          main_health: "broken",
+          landing_paused: true,
+          main_branch_repair_blocks_work: true
+        }
+      })
+    )
 
     expect(screen.getByText("This job is waiting for repository health to recover.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "View repository health" })).toBeInTheDocument()
   })
 
   it("shows the repair banner for a main branch repair job instead of the waiting banner", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "queued", main_branch_repair: true },
-      repository: {
-        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
-        main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "queued", main_branch_repair: true },
+        repository: {
+          id: 2,
+          slug: "acme/widgets",
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          review_policy: "self",
+          feedback_policy: "confirm",
+          repository_path: "/repositories/2",
+          edit_repository_path: "/repositories/2/edit",
+          main_health: "broken",
+          landing_paused: true,
+          main_branch_repair_blocks_work: true
+        }
+      })
+    )
 
     expect(screen.getByText("This job is fixing the broken main branch.")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
   })
 
   it("does not show the waiting banner when main branch health is inconclusive", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "queued", main_branch_repair: false },
-      repository: {
-        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
-        main_health: "inconclusive", landing_paused: true, main_branch_repair_blocks_work: true
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "queued", main_branch_repair: false },
+        repository: {
+          id: 2,
+          slug: "acme/widgets",
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          review_policy: "self",
+          feedback_policy: "confirm",
+          repository_path: "/repositories/2",
+          edit_repository_path: "/repositories/2/edit",
+          main_health: "inconclusive",
+          landing_paused: true,
+          main_branch_repair_blocks_work: true
+        }
+      })
+    )
 
     expect(screen.queryByText("This job is waiting for repository health to recover.")).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
   })
 
   it("does not show the waiting banner when main branch repair does not block work", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "queued", main_branch_repair: false },
-      repository: {
-        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
-        main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: false
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "queued", main_branch_repair: false },
+        repository: {
+          id: 2,
+          slug: "acme/widgets",
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          review_policy: "self",
+          feedback_policy: "confirm",
+          repository_path: "/repositories/2",
+          edit_repository_path: "/repositories/2/edit",
+          main_health: "broken",
+          landing_paused: true,
+          main_branch_repair_blocks_work: false
+        }
+      })
+    )
 
     expect(screen.queryByText("This job is waiting for repository health to recover.")).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
   })
 
   it("shows a clickable link to repository settings when the landing queue is blocked by disabled auto-merge", () => {
-    renderJobDetail(jobPayload({
-      landing_queue_entry: {
-        position: 3,
-        blocked_reason: { key: "auto_merge_not_enabled" },
-        waiting_for_jobs: []
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        landing_queue_entry: {
+          position: 3,
+          blocked_reason: { key: "auto_merge_not_enabled" },
+          waiting_for_jobs: []
+        }
+      })
+    )
 
     expect(screen.getByText(/Auto-merge not enabled for repository/)).toBeInTheDocument()
     const link = screen.getByRole("link", { name: "Enable auto-merge in repository settings" })
@@ -667,7 +743,15 @@ describe("JobDetailView", () => {
     const menuButton = screen.getByRole("button", { name: "⋯" })
 
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
-      right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
+      right: 300,
+      left: 260,
+      top: 0,
+      bottom: 36,
+      width: 40,
+      height: 36,
+      x: 260,
+      y: 0,
+      toJSON: () => ({})
     } as DOMRect)
     vi.spyOn(window, "innerWidth", "get").mockReturnValue(1024)
 
@@ -684,7 +768,15 @@ describe("JobDetailView", () => {
     const menuButton = screen.getByRole("button", { name: "⋯" })
 
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
-      right: 100, left: 60, top: 0, bottom: 36, width: 40, height: 36, x: 60, y: 0, toJSON: () => ({})
+      right: 100,
+      left: 60,
+      top: 0,
+      bottom: 36,
+      width: 40,
+      height: 36,
+      x: 60,
+      y: 0,
+      toJSON: () => ({})
     } as DOMRect)
 
     fireEvent.click(menuButton)
@@ -698,7 +790,15 @@ describe("JobDetailView", () => {
     renderJobDetail(jobPayload())
     const menuButton = screen.getByRole("button", { name: "⋯" })
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
-      right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
+      right: 300,
+      left: 260,
+      top: 0,
+      bottom: 36,
+      width: 40,
+      height: 36,
+      x: 260,
+      y: 0,
+      toJSON: () => ({})
     } as DOMRect)
 
     fireEvent.click(menuButton)
@@ -730,7 +830,15 @@ describe("JobDetailView", () => {
 
     const menuButton = screen.getByRole("button", { name: "⋯" })
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
-      right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
+      right: 300,
+      left: 260,
+      top: 0,
+      bottom: 36,
+      width: 40,
+      height: 36,
+      x: 260,
+      y: 0,
+      toJSON: () => ({})
     } as DOMRect)
 
     fireEvent.click(menuButton)
@@ -785,10 +893,12 @@ describe("JobDetailView", () => {
       }
     }
 
-    renderJobDetail(jobPayload({
-      dependencies: [ parsedDependency, manualDependency ],
-      unsatisfied_dependencies: [ parsedDependency, manualDependency ]
-    }))
+    renderJobDetail(
+      jobPayload({
+        dependencies: [parsedDependency, manualDependency],
+        unsatisfied_dependencies: [parsedDependency, manualDependency]
+      })
+    )
 
     expect(screen.getByText("Blocked on 2 dependencies:")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "Copy JOB-401 to clipboard" })).toHaveLength(2)
@@ -821,16 +931,18 @@ describe("JobDetailView", () => {
       }
     }
 
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "landing", summary_state: "landing" },
-      landing_queue_entry: {
-        position: 10,
-        blocked_reason: null,
-        waiting_for_jobs: []
-      },
-      dependencies: [dependency],
-      unsatisfied_dependencies: [dependency]
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "landing", summary_state: "landing" },
+        landing_queue_entry: {
+          position: 10,
+          blocked_reason: null,
+          waiting_for_jobs: []
+        },
+        dependencies: [dependency],
+        unsatisfied_dependencies: [dependency]
+      })
+    )
 
     expect(screen.getByText("In landing queue: position #10")).toBeInTheDocument()
     expect(screen.queryByText("Blocked on:")).not.toBeInTheDocument()
@@ -859,11 +971,13 @@ describe("JobDetailView", () => {
       }
     }
 
-    renderJobDetail(jobPayload({
-      dependencies: [ epicDependency ],
-      unsatisfied_dependencies: [ epicDependency ],
-      epic_dependency_target_options: []
-    }))
+    renderJobDetail(
+      jobPayload({
+        dependencies: [epicDependency],
+        unsatisfied_dependencies: [epicDependency],
+        epic_dependency_target_options: []
+      })
+    )
 
     expect(screen.getByText("Blocked on:")).toBeInTheDocument()
     const epicLink = screen.getAllByRole("link", { name: /EPIC-155 — Platform migration/ })[0]
@@ -873,12 +987,14 @@ describe("JobDetailView", () => {
   })
 
   it("shows the add epic dependency picker when epics are available", () => {
-    renderJobDetail(jobPayload({
-      epic_dependency_target_options: [
-        { label: "EPIC-10 — Widget redesign", value: 10 },
-        { label: "EPIC-11 — API overhaul", value: 11 }
-      ]
-    }))
+    renderJobDetail(
+      jobPayload({
+        epic_dependency_target_options: [
+          { label: "EPIC-10 — Widget redesign", value: 10 },
+          { label: "EPIC-11 — API overhaul", value: 11 }
+        ]
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add epic dependency" }))
 
@@ -888,9 +1004,11 @@ describe("JobDetailView", () => {
   })
 
   it("expands the feedback panel and disables Submit when the body is empty", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
 
@@ -900,23 +1018,30 @@ describe("JobDetailView", () => {
 
   it("submits feedback, collapses the panel, and shows a success notice", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Tighten the copy." } })
     fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ body: "Tighten the copy." })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/chat_feedback",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ body: "Tighten the copy." })
+        })
+      )
     })
-    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
-      headers: expect.objectContaining({ "Content-Type": "application/json" })
-    }))
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ "Content-Type": "application/json" })
+      })
+    )
     await waitFor(() => {
       expect(screen.queryByPlaceholderText("What should be changed?")).not.toBeInTheDocument()
     })
@@ -925,9 +1050,11 @@ describe("JobDetailView", () => {
 
   it("submits feedback on Cmd-Enter", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
     const textarea = screen.getByPlaceholderText("What should be changed?")
@@ -935,18 +1062,23 @@ describe("JobDetailView", () => {
     fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ body: "Tighten the copy." })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/chat_feedback",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ body: "Tighten the copy." })
+        })
+      )
     })
   })
 
   it("submits feedback on Ctrl-Enter", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
     const textarea = screen.getByPlaceholderText("What should be changed?")
@@ -954,18 +1086,23 @@ describe("JobDetailView", () => {
     fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true })
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ body: "Tighten the copy." })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/chat_feedback",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ body: "Tighten the copy." })
+        })
+      )
     })
   })
 
   it("does not submit feedback on plain Enter", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
     const textarea = screen.getByPlaceholderText("What should be changed?")
@@ -977,9 +1114,11 @@ describe("JobDetailView", () => {
 
   it("shows an inline error when feedback submission fails", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { message: "Job already has active feedback." } }, 422))
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "failed", summary_state: "failed" }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "failed", summary_state: "failed" }
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Try another approach." } })
@@ -990,39 +1129,48 @@ describe("JobDetailView", () => {
   })
 
   it("renders the Request changes button when the action is allowed", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "approved", summary_state: "approved" },
-      actions: { ...jobPayload().actions, can_request_changes: true }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "approved", summary_state: "approved" },
+        actions: { ...jobPayload().actions, can_request_changes: true }
+      })
+    )
 
     expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument()
   })
 
   it("hides the Request changes button when the action is not allowed", () => {
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "running", summary_state: "running" },
-      actions: { ...jobPayload().actions, can_request_changes: false }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "running", summary_state: "running" },
+        actions: { ...jobPayload().actions, can_request_changes: false }
+      })
+    )
 
     expect(screen.queryByRole("button", { name: "Request changes" })).not.toBeInTheDocument()
   })
 
   it("submits a request-changes Job, collapses the panel, and shows a success notice", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Created a new Job to track this feedback." }, 200))
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "approved", summary_state: "approved" },
-      actions: { ...jobPayload().actions, can_request_changes: true }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "approved", summary_state: "approved" },
+        actions: { ...jobPayload().actions, can_request_changes: true }
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Tighten the copy." } })
     fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/request_changes", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ feedback: "Tighten the copy." })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/request_changes",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ feedback: "Tighten the copy." })
+        })
+      )
     })
     await waitFor(() => {
       expect(screen.queryByPlaceholderText("What should be changed?")).not.toBeInTheDocument()
@@ -1032,10 +1180,12 @@ describe("JobDetailView", () => {
 
   it("shows an inline error when request-changes submission fails", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { message: "Feedback can't be blank." } }, 422))
-    renderJobDetail(jobPayload({
-      job: { ...baseJob(), state: "approved", summary_state: "approved" },
-      actions: { ...jobPayload().actions, can_request_changes: true }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "approved", summary_state: "approved" },
+        actions: { ...jobPayload().actions, can_request_changes: true }
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
     fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "x" } })
@@ -1046,9 +1196,7 @@ describe("JobDetailView", () => {
   })
 
   it("shows the blocked reason instead of a false success toast when starting an admission-blocked workflow", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ error: { message: "Blocked: workflow admission budget — see job card for details." } }, 422)
-    )
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { message: "Blocked: workflow admission budget — see job card for details." } }, 422))
     const payload = jobPayload({
       job: { ...baseJob(), state: "open", summary_state: "open" }
     })
@@ -1064,9 +1212,7 @@ describe("JobDetailView", () => {
   // are the decision; Move to backlog just relocates it to another place
   // nothing acts on, so it is not offered here.
   it("offers Accept and Reject for a job the classifier could not place", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Job accepted.", job: { id: 1, state: "queued" } })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job accepted.", job: { id: 1, state: "queued" } }))
     const payload = jobPayload({
       job: {
         ...baseJob(),
@@ -1100,10 +1246,7 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Accept" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/accept_triage",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/accept_triage", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -1118,9 +1261,7 @@ describe("JobDetailView", () => {
   })
 
   it("shows Release from backlog instead of Start Run for backlogged jobs", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Job released from backlog.", job: { id: 1, state: "queued" } })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job released from backlog.", job: { id: 1, state: "queued" } }))
     const payload = jobPayload({
       job: { ...baseJob(), state: "backlog", summary_state: "backlog", kind: "direct" }
     })
@@ -1134,17 +1275,12 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Release from backlog" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/release_from_backlog",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/release_from_backlog", expect.objectContaining({ method: "POST" }))
     })
   })
 
   it("offers a backlog-worded cancel action for a backlogged job and dispatches it to the cancel endpoint", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Cancellation requested.", job: { id: 1, state: "closed" } })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Cancellation requested.", job: { id: 1, state: "closed" } }))
     const payload = jobPayload({
       job: { ...baseJob(), state: "backlog", summary_state: "backlog", kind: "direct" }
     })
@@ -1163,10 +1299,7 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/cancel",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/cancel", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -1192,26 +1325,19 @@ describe("JobDetailView", () => {
   })
 
   it("starts a discussion chat and navigates to it", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Chat started.", redirect_to: "/chats/9" })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Chat started.", redirect_to: "/chats/9" }))
     const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
 
     renderJobDetail(payload)
     fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/start_chat",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/start_chat", expect.objectContaining({ method: "POST" }))
     })
   })
 
   it("shows Retry PR ingestion for a failed external PR job and dispatches it after confirmation", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Retrying PR ingestion...", job: { id: 1, state: "queued" } })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Retrying PR ingestion...", job: { id: 1, state: "queued" } }))
     const payload = jobPayload({
       job: { ...baseJob(), kind: "external_pr", state: "failed", summary_state: "failed", external_pr_number: 55 }
     })
@@ -1228,10 +1354,7 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/retry_pr_ingestion",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/retry_pr_ingestion", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -1248,12 +1371,14 @@ describe("JobDetailView", () => {
   })
 
   it("renders the issue body as markdown", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        issue_body: "## Problem\n\nFix `JobDetail` and read [the docs](/docs).\n\n1. Render markdown"
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          issue_body: "## Problem\n\nFix `JobDetail` and read [the docs](/docs).\n\n1. Render markdown"
+        }
+      })
+    )
 
     const panel = screen.getByRole("heading", { name: "Issue" }).closest("section")
     expect(panel).not.toBeNull()
@@ -1264,12 +1389,14 @@ describe("JobDetailView", () => {
   })
 
   it("constrains the Summary tab grid columns so a wide code block scrolls instead of widening the page", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        issue_body: "```json\n{ \"line\": \"this line is intentionally very long to exceed the column width\" }\n```"
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          issue_body: '```json\n{ "line": "this line is intentionally very long to exceed the column width" }\n```'
+        }
+      })
+    )
 
     const panel = screen.getByRole("heading", { name: "Issue" }).closest("section")
     expect(panel).not.toBeNull()
@@ -1282,24 +1409,32 @@ describe("JobDetailView", () => {
     expect(column).not.toBeNull()
     expect(column).toHaveClass("min-w-0")
 
-    const codeBlock = within(panel as HTMLElement).getByText(/intentionally very long/).closest("pre")
+    const codeBlock = within(panel as HTMLElement)
+      .getByText(/intentionally very long/)
+      .closest("pre")
     expect(codeBlock?.parentElement).toHaveClass("overflow-x-auto")
   })
 
   it("hides workflow terminal actions when the feature flag is disabled", () => {
-    renderJobDetail(jobPayload({
-      workflows: [ workflow({ id: 4, slug: "WF-4" }) ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [workflow({ id: 4, slug: "WF-4" })],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     expect(screen.queryByRole("button", { name: "Open terminal in workspace" })).not.toBeInTheDocument()
   })
 
   it("shows the detected plugin set on a workflow card", () => {
-    const { container } = renderJobDetail(jobPayload({
-      workflows: [ workflow({ id: 4, slug: "WF-4", artifacts: { detected_plugins: [ "ruby", "syrus-rails", "javascript" ] } }) ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    const { container } = renderJobDetail(
+      jobPayload({
+        workflows: [workflow({ id: 4, slug: "WF-4", artifacts: { detected_plugins: ["ruby", "syrus-rails", "javascript"] } })],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     expect(screen.getByText("Detected:")).toBeInTheDocument()
     expect(screen.getByText("ruby")).toBeInTheDocument()
@@ -1314,47 +1449,54 @@ describe("JobDetailView", () => {
   })
 
   it("omits the detected plugin line when nothing was detected", () => {
-    renderJobDetail(jobPayload({
-      workflows: [ workflow({ id: 4, slug: "WF-4", artifacts: { detected_plugins: [] } }) ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [workflow({ id: 4, slug: "WF-4", artifacts: { detected_plugins: [] } })],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     expect(screen.queryByText(/Detected:/)).not.toBeInTheDocument()
   })
 
-
   it("renders ANSI color directives in run transcripts", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      job_id: 1,
-      run_id: 22,
-      agent_diff: null,
-      agent_diff_bytes: 0,
-      logs_count: 1,
-      logs: [
-        {
-          id: 1,
-          sequence: 1,
-          kind: "grade_log",
-          chunk: "RUN \u001b[32mpassed\u001b[39m \u001b[33mwarned\u001b[39m",
-          created_at: "2026-07-01T10:00:00Z"
-        }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        job_id: 1,
+        run_id: 22,
+        agent_diff: null,
+        agent_diff_bytes: 0,
+        logs_count: 1,
+        logs: [
+          {
+            id: 1,
+            sequence: 1,
+            kind: "grade_log",
+            chunk: "RUN \u001b[32mpassed\u001b[39m \u001b[33mwarned\u001b[39m",
+            created_at: "2026-07-01T10:00:00Z"
+          }
+        ]
+      })
+    )
 
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 4,
-          steps: [
-            step({
-              id: 9,
-              runs: [ run({ id: 22, job_log_count: 1 }) ]
-            })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 4,
+            steps: [
+              step({
+                id: 9,
+                runs: [run({ id: 22, job_log_count: 1 })]
+              })
+            ]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
     fireEvent.click(screen.getByRole("button", { name: "Transcript" }))
@@ -1365,24 +1507,29 @@ describe("JobDetailView", () => {
   })
 
   it("shows start/finish timestamps and duration in the run row", () => {
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 6,
-          steps: [
-            step({
-              id: 20,
-              runs: [ run({
-                id: 40,
-                started_at: "2026-07-01T10:00:00Z",
-                finished_at: "2026-07-01T10:05:30Z"
-              }) ]
-            })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 6,
+            steps: [
+              step({
+                id: 20,
+                runs: [
+                  run({
+                    id: 40,
+                    started_at: "2026-07-01T10:00:00Z",
+                    finished_at: "2026-07-01T10:05:30Z"
+                  })
+                ]
+              })
+            ]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
 
@@ -1392,17 +1539,18 @@ describe("JobDetailView", () => {
   })
 
   it("shows a not-started placeholder when a run has no started_at", () => {
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 7,
-          steps: [
-            step({ id: 21, runs: [ run({ id: 41, started_at: null, finished_at: null }) ] })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 7,
+            steps: [step({ id: 21, runs: [run({ id: 41, started_at: null, finished_at: null })] })]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
 
@@ -1410,23 +1558,30 @@ describe("JobDetailView", () => {
   })
 
   it("shows a Summary button in the run row for summarize steps and renders summary as markdown", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      job_id: 1, run_id: 30, agent_diff: null, agent_diff_bytes: 0, logs_count: 1,
-      logs: [{ id: 1, sequence: 1, kind: "assistant", chunk: "done", created_at: "2026-07-01T10:00:00Z" }]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        job_id: 1,
+        run_id: 30,
+        agent_diff: null,
+        agent_diff_bytes: 0,
+        logs_count: 1,
+        logs: [{ id: 1, sequence: 1, kind: "assistant", chunk: "done", created_at: "2026-07-01T10:00:00Z" }]
+      })
+    )
 
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 5,
-          artifacts: { summary: "## Key changes\n\nFixed **all the bugs**." },
-          steps: [
-            step({ id: 10, kind: "summarize", display_name: "Summarize", runs: [ run({ id: 30, job_log_count: 1 }) ] })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 5,
+            artifacts: { summary: "## Key changes\n\nFixed **all the bugs**." },
+            steps: [step({ id: 10, kind: "summarize", display_name: "Summarize", runs: [run({ id: 30, job_log_count: 1 })] })]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Summarize/ }))
 
@@ -1445,19 +1600,18 @@ describe("JobDetailView", () => {
   })
 
   it("renders run agent_summary as markdown in the run row", () => {
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 7,
-          steps: [
-            step({ id: 12, kind: "implement", display_name: "Implement", runs: [
-              run({ id: 32, agent_summary: "## Result\n\nFixed **the bug**." })
-            ] })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 7,
+            steps: [step({ id: 12, kind: "implement", display_name: "Implement", runs: [run({ id: 32, agent_summary: "## Result\n\nFixed **the bug**." })] })]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
 
@@ -1466,37 +1620,42 @@ describe("JobDetailView", () => {
   })
 
   it("renders a generic WorkflowWarning panel and files a fix Job from the (unedited, pre-filled) prompt", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Fix Job JOB-99 filed.", warning: { id: 5, state: "pending", created_job_id: 99 }, job: { id: 99, slug: "JOB-99" } }, 201)
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(
+        jsonResponse({ message: "Fix Job JOB-99 filed.", warning: { id: 5, state: "pending", created_job_id: 99 }, job: { id: 99, slug: "JOB-99" } }, 201)
+      )
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 8,
+            steps: [
+              step({
+                id: 13,
+                kind: "analyze_and_fix",
+                display_name: "Analyze and fix",
+                warnings: [
+                  {
+                    id: 5,
+                    kind: "some_new_kind",
+                    severity: "high",
+                    title: "Something unusual happened",
+                    evidence: { detail: "unexpected" },
+                    suggested_prompt: "Investigate the unusual thing.",
+                    state: "pending",
+                    created_job_id: null,
+                    created_at: null
+                  }
+                ]
+              })
+            ]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
     )
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 8,
-          steps: [
-            step({
-              id: 13,
-              kind: "analyze_and_fix",
-              display_name: "Analyze and fix",
-              warnings: [
-                {
-                  id: 5,
-                  kind: "some_new_kind",
-                  severity: "high",
-                  title: "Something unusual happened",
-                  evidence: { detail: "unexpected" },
-                  suggested_prompt: "Investigate the unusual thing.",
-                  state: "pending",
-                  created_job_id: null,
-                  created_at: null
-                }
-              ]
-            })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
 
     fireEvent.click(screen.getByRole("button", { name: /Analyze and fix/ }))
 
@@ -1508,17 +1667,22 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("button", { name: "File a fix Job" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/workflow_warnings/5/file_job", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ prompt: "Investigate the unusual thing." })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/workflow_warnings/5/file_job",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ prompt: "Investigate the unusual thing." })
+        })
+      )
     })
   })
 
   it("renders agent summary as markdown in the Summary tab", () => {
-    renderJobDetail(jobPayload({
-      summary: { run_id: 1, text: "## Summary\n\nFixed **the bug**.", finished_at: null }
-    }))
+    renderJobDetail(
+      jobPayload({
+        summary: { run_id: 1, text: "## Summary\n\nFixed **the bug**.", finished_at: null }
+      })
+    )
 
     expect(screen.getByRole("heading", { name: "Summary" })).toBeInTheDocument()
     expect(document.querySelector("strong")).toHaveTextContent("the bug")
@@ -1535,9 +1699,11 @@ describe("JobDetailView", () => {
       "source_snapshot_metadata_invalid"
     ].join(" ")
 
-    renderJobDetail(jobPayload({
-      test_plan: { workflow_id: 1, steps: [longStep], notes: "Verify `very_long_inline_code_token_that_should_wrap_in_the_card`." }
-    }))
+    renderJobDetail(
+      jobPayload({
+        test_plan: { workflow_id: 1, steps: [longStep], notes: "Verify `very_long_inline_code_token_that_should_wrap_in_the_card`." }
+      })
+    )
 
     const panel = screen.getByRole("heading", { name: "Test plan" }).closest("section")
     expect(panel).toHaveClass("min-w-0", "overflow-x-auto")
@@ -1548,18 +1714,19 @@ describe("JobDetailView", () => {
   })
 
   it("shows a Test Plan button in the run row for test_plan steps", () => {
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 6,
-          artifacts: { test_plan: { steps: ["Run bin/rspec", "Run bin/test-react"], notes: null } },
-          steps: [
-            step({ id: 11, kind: "test_plan", display_name: "Test plan", runs: [ run({ id: 31, job_log_count: 1 }) ] })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 6,
+            artifacts: { test_plan: { steps: ["Run bin/rspec", "Run bin/test-react"], notes: null } },
+            steps: [step({ id: 11, kind: "test_plan", display_name: "Test plan", runs: [run({ id: 31, job_log_count: 1 })] })]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Test plan/ }))
 
@@ -1578,18 +1745,19 @@ describe("JobDetailView", () => {
   })
 
   it("renders test plan notes as markdown in the step panel", () => {
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 8,
-          artifacts: { test_plan: { steps: [], notes: "Run `bin/rspec` and verify **all** pass." } },
-          steps: [
-            step({ id: 13, kind: "test_plan", display_name: "Test plan", runs: [ run({ id: 33, job_log_count: 0 }) ] })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 8,
+            artifacts: { test_plan: { steps: [], notes: "Run `bin/rspec` and verify **all** pass." } },
+            steps: [step({ id: 13, kind: "test_plan", display_name: "Test plan", runs: [run({ id: 33, job_log_count: 0 })] })]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Test plan/ }))
     fireEvent.click(within(screen.getByText(/Run #33/).closest("div.rounded")! as HTMLElement).getByRole("button", { name: "Test Plan" }))
@@ -1599,57 +1767,76 @@ describe("JobDetailView", () => {
   })
 
   it("shows a Review button in the visual review run row and renders the captured verdict", () => {
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 9,
-          artifacts: {
-            visual_review_iterations: [{
-              iteration: 1,
-              verdict: "needs_work",
-              critique: "The screenshot shows missing weight units.",
-              artifacts: [{
-                type: "visual_review_screenshot_run_34_1",
-                title: "Stats without units",
-                image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1",
-                content_type: "image/jpeg",
-                byte_size: 5678,
-                created_at: "2026-08-22T12:00:00Z"
-              }]
-            }]
-          },
-          steps: [
-            step({ id: 14, kind: "visual_review", display_name: "Visual review", runs: [ run({ id: 34, job_log_count: 0 }) ] })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 9,
+            artifacts: {
+              visual_review_iterations: [
+                {
+                  iteration: 1,
+                  verdict: "needs_work",
+                  critique: "The screenshot shows missing weight units.",
+                  artifacts: [
+                    {
+                      type: "visual_review_screenshot_run_34_1",
+                      title: "Stats without units",
+                      image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1",
+                      content_type: "image/jpeg",
+                      byte_size: 5678,
+                      created_at: "2026-08-22T12:00:00Z"
+                    }
+                  ]
+                }
+              ]
+            },
+            steps: [step({ id: 14, kind: "visual_review", display_name: "Visual review", runs: [run({ id: 34, job_log_count: 0 })] })]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Visual review/ }))
     fireEvent.click(within(screen.getByText(/Run #34/).closest("div.rounded")! as HTMLElement).getByRole("button", { name: "Review" }))
 
     expect(screen.getByRole("heading", { name: "Visual review" })).toBeInTheDocument()
     expect(screen.getByText("The screenshot shows missing weight units.")).toBeInTheDocument()
-    expect(screen.getByRole("img", { name: "Stats without units" })).toHaveAttribute("src", "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1")
+    expect(screen.getByRole("img", { name: "Stats without units" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1"
+    )
   })
 
   it("renders a one-iteration visual review loop as a named grouped phase", () => {
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 10,
-          artifacts: {
-            visual_review_iterations: [{ iteration: 1, verdict: "approved", critique: "Looks clean.", artifacts: [] }]
-          },
-          steps: [
-            step({ id: 15, kind: "implement", display_name: "Implement", position: 1, loop_id: "visual_review", iteration: 1, runs: [ run({ id: 35 }) ] }),
-            step({ id: 16, kind: "visual_review", display_name: "Visual review", position: 2, loop_id: "visual_review", iteration: 1, runs: [ run({ id: 36 }) ] })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 10,
+            artifacts: {
+              visual_review_iterations: [{ iteration: 1, verdict: "approved", critique: "Looks clean.", artifacts: [] }]
+            },
+            steps: [
+              step({ id: 15, kind: "implement", display_name: "Implement", position: 1, loop_id: "visual_review", iteration: 1, runs: [run({ id: 35 })] }),
+              step({
+                id: 16,
+                kind: "visual_review",
+                display_name: "Visual review",
+                position: 2,
+                loop_id: "visual_review",
+                iteration: 1,
+                runs: [run({ id: 36 })]
+              })
+            ]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Visual review/ }))
 
@@ -1659,21 +1846,32 @@ describe("JobDetailView", () => {
   })
 
   it("renders a one-iteration adversarial review loop as a named grouped phase", () => {
-    renderJobDetail(jobPayload({
-      workflows: [
-        workflow({
-          id: 11,
-          artifacts: {
-            adversarial_review_iterations: [{ iteration: 1, verdict: "approved", critique: "Looks clean." }]
-          },
-          steps: [
-            step({ id: 17, kind: "implement", display_name: "Implement", position: 1, loop_id: "adversarial_review", iteration: 1, runs: [ run({ id: 37 }) ] }),
-            step({ id: 18, kind: "adversarial_review", display_name: "Adversarial review", position: 2, loop_id: "adversarial_review", iteration: 1, runs: [ run({ id: 38 }) ] })
-          ]
-        })
-      ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 11,
+            artifacts: {
+              adversarial_review_iterations: [{ iteration: 1, verdict: "approved", critique: "Looks clean." }]
+            },
+            steps: [
+              step({ id: 17, kind: "implement", display_name: "Implement", position: 1, loop_id: "adversarial_review", iteration: 1, runs: [run({ id: 37 })] }),
+              step({
+                id: 18,
+                kind: "adversarial_review",
+                display_name: "Adversarial review",
+                position: 2,
+                loop_id: "adversarial_review",
+                iteration: 1,
+                runs: [run({ id: 38 })]
+              })
+            ]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Adversarial review/ }))
 
@@ -1683,18 +1881,20 @@ describe("JobDetailView", () => {
   })
 
   it("renders an auto-approval note with source and grader step link when approval_evidence is present", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        approval_status: { policy: "self", satisfied: true, pending_description: null, approvals_count: 0 },
-        approval_evidence: {
-          rule: "if_graders_pass",
-          source: "ScheduledTask#7",
-          grader_step_id: 42,
-          grader_step_workflow_path: "/jobs/1?tab=workflows#workflow-9"
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          approval_status: { policy: "self", satisfied: true, pending_description: null, approvals_count: 0 },
+          approval_evidence: {
+            rule: "if_graders_pass",
+            source: "ScheduledTask#7",
+            grader_step_id: 42,
+            grader_step_workflow_path: "/jobs/1?tab=workflows#workflow-9"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByText(/Auto-approved via if_graders_pass/)).toBeInTheDocument()
     expect(screen.getByText(/Source: ScheduledTask#7/)).toBeInTheDocument()
@@ -1702,24 +1902,28 @@ describe("JobDetailView", () => {
   })
 
   it("does not render an auto-approval note when approval_evidence is absent", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        approval_status: { policy: "self", satisfied: true, pending_description: null, approvals_count: 0 }
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          approval_status: { policy: "self", satisfied: true, pending_description: null, approvals_count: 0 }
+        }
+      })
+    )
 
     expect(screen.queryByText(/Auto-approved via/)).not.toBeInTheDocument()
   })
 
   it("renders invalidation evidence links when present", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        validity: "invalid",
-        invalidation_evidence: [ "https://github.com/acme/widgets/pull/12" ]
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          validity: "invalid",
+          invalidation_evidence: ["https://github.com/acme/widgets/pull/12"]
+        }
+      })
+    )
 
     expect(screen.getByText("Invalidation evidence")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "https://github.com/acme/widgets/pull/12" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/12")
@@ -1732,13 +1936,15 @@ describe("JobDetailView", () => {
   })
 
   it("renders a landing blocker override note when granted", () => {
-    renderJobDetail(jobPayload({
-      job: {
-        ...baseJob(),
-        landing_blocker_override_requested_at: "2026-08-10T09:00:00Z",
-        landing_blocker_override_requested_by: { id: 5, display_name: "Ada Admin", email_address: "ada@example.com" }
-      }
-    }))
+    renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          landing_blocker_override_requested_at: "2026-08-10T09:00:00Z",
+          landing_blocker_override_requested_by: { id: 5, display_name: "Ada Admin", email_address: "ada@example.com" }
+        }
+      })
+    )
 
     expect(screen.getByText("Landing blocker override")).toBeInTheDocument()
     expect(screen.getByText(/Granted by Ada Admin at/)).toBeInTheDocument()
@@ -1794,9 +2000,7 @@ describe("JobDetailRoute", () => {
   // key present in the payload's ui_tabs, not just the hardcoded core set.
   it("keeps a plugin-contributed tab selected on a direct visit instead of resetting to Summary", async () => {
     const payload = jobPayload({
-      ui_tabs: [
-        { id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }
-      ]
+      ui_tabs: [{ id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }]
     })
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
 
@@ -1822,9 +2026,7 @@ describe("JobDetailRoute", () => {
 
   it("falls back to Summary for an unclaimed plugin tab URL", async () => {
     const payload = jobPayload({
-      ui_tabs: [
-        { id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }
-      ]
+      ui_tabs: [{ id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }]
     })
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
 
@@ -1849,12 +2051,15 @@ describe("JobDetailRoute", () => {
 
   it("keeps a direct plugin tab URL selected once ui_tabs load", async () => {
     const payload = jobPayload({
-      ui_tabs: [
-        { id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }
-      ]
+      ui_tabs: [{ id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }]
     })
     let resolveDetail: (response: Response) => void = () => {}
-    vi.spyOn(window, "fetch").mockImplementation(() => new Promise<Response>((resolve) => { resolveDetail = resolve }))
+    vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveDetail = resolve
+        })
+    )
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
@@ -1881,9 +2086,7 @@ describe("JobDetailRoute", () => {
 
   it("selects and deep-links a plugin-contributed tab when clicked", async () => {
     const payload = jobPayload({
-      ui_tabs: [
-        { id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }
-      ]
+      ui_tabs: [{ id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }]
     })
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
 
@@ -1917,7 +2120,7 @@ describe("TestPlanPanel", () => {
       <TestPlanPanel
         testPlan={{
           workflow_id: 5,
-          steps: [ "Run bin/rspec spec/services/app/job_detail_payload_spec.rb", "Run bin/test-react" ],
+          steps: ["Run bin/rspec spec/services/app/job_detail_payload_spec.rb", "Run bin/test-react"],
           notes: "Check the Summary tab."
         }}
       />
@@ -1926,10 +2129,7 @@ describe("TestPlanPanel", () => {
     const panel = screen.getByRole("heading", { name: "Test plan" }).closest("section")
     expect(panel).not.toBeNull()
     const listItems = within(panel as HTMLElement).getAllByRole("listitem")
-    expect(listItems.map((item) => item.textContent)).toEqual([
-      "Run bin/rspec spec/services/app/job_detail_payload_spec.rb",
-      "Run bin/test-react"
-    ])
+    expect(listItems.map((item) => item.textContent)).toEqual(["Run bin/rspec spec/services/app/job_detail_payload_spec.rb", "Run bin/test-react"])
     expect(screen.getByText("Check the Summary tab.")).toBeInTheDocument()
   })
 
@@ -1958,10 +2158,7 @@ describe("TestPlanPanel", () => {
 describe("StepAdversarialReviewPanel", () => {
   it("renders critique as markdown", () => {
     render(
-      <StepAdversarialReviewPanel
-        iterations={[{ iteration: 1, verdict: "approved", critique: "**Great** work with `clean` code." }]}
-        onClose={() => {}}
-      />
+      <StepAdversarialReviewPanel iterations={[{ iteration: 1, verdict: "approved", critique: "**Great** work with `clean` code." }]} onClose={() => {}} />
     )
 
     expect(screen.getByText("Great").tagName).toBe("STRONG")
@@ -1969,23 +2166,13 @@ describe("StepAdversarialReviewPanel", () => {
   })
 
   it("shows approved verdict badge on the final iteration", () => {
-    render(
-      <StepAdversarialReviewPanel
-        iterations={[{ iteration: 1, verdict: "approved", critique: "Looks good." }]}
-        onClose={() => {}}
-      />
-    )
+    render(<StepAdversarialReviewPanel iterations={[{ iteration: 1, verdict: "approved", critique: "Looks good." }]} onClose={() => {}} />)
 
     expect(screen.getByText("Approved")).toBeInTheDocument()
   })
 
   it("shows needs-work verdict badge on the final iteration", () => {
-    render(
-      <StepAdversarialReviewPanel
-        iterations={[{ iteration: 1, verdict: "needs_work", critique: "Fix the tests." }]}
-        onClose={() => {}}
-      />
-    )
+    render(<StepAdversarialReviewPanel iterations={[{ iteration: 1, verdict: "needs_work", critique: "Fix the tests." }]} onClose={() => {}} />)
 
     expect(screen.getByText("Needs work")).toBeInTheDocument()
   })
@@ -2039,34 +2226,39 @@ describe("StepVisualReviewPanel", () => {
   it("renders linked screenshots captured by that visual review run", () => {
     render(
       <StepVisualReviewPanel
-        iterations={[{
-          iteration: 1,
-          verdict: "needs_work",
-          critique: "The dashboard hero is blank.",
-          artifacts: [{
-            type: "visual_review_screenshot_run_99_1",
-            title: "Blank dashboard",
-            image_url: "/api/v1/app/workflows/5/visual_artifact?type=visual_review_screenshot_run_99_1",
-            content_type: "image/jpeg",
-            byte_size: 1234,
-            created_at: "2026-08-22T12:00:00Z"
-          }]
-        }]}
+        iterations={[
+          {
+            iteration: 1,
+            verdict: "needs_work",
+            critique: "The dashboard hero is blank.",
+            artifacts: [
+              {
+                type: "visual_review_screenshot_run_99_1",
+                title: "Blank dashboard",
+                image_url: "/api/v1/app/workflows/5/visual_artifact?type=visual_review_screenshot_run_99_1",
+                content_type: "image/jpeg",
+                byte_size: 1234,
+                created_at: "2026-08-22T12:00:00Z"
+              }
+            ]
+          }
+        ]}
         onClose={() => {}}
       />
     )
 
     const image = screen.getByRole("img", { name: "Blank dashboard" })
     expect(image).toHaveAttribute("src", "/api/v1/app/workflows/5/visual_artifact?type=visual_review_screenshot_run_99_1")
-    expect(screen.getByRole("link", { name: "Blank dashboard" })).toHaveAttribute("href", "/api/v1/app/workflows/5/visual_artifact?type=visual_review_screenshot_run_99_1")
+    expect(screen.getByRole("link", { name: "Blank dashboard" })).toHaveAttribute(
+      "href",
+      "/api/v1/app/workflows/5/visual_artifact?type=visual_review_screenshot_run_99_1"
+    )
   })
 })
 
 describe("FeedbackHistoryPanel", () => {
   it("is absent when there are no feedback workflows", () => {
-    renderFeedbackHistory([
-      workflow({ id: 1, trigger_kind: "initial", created_at: "2026-06-01T10:00:00Z" })
-    ])
+    renderFeedbackHistory([workflow({ id: 1, trigger_kind: "initial", created_at: "2026-06-01T10:00:00Z" })])
 
     expect(screen.queryByRole("heading", { name: "Feedback history" })).not.toBeInTheDocument()
   })
@@ -2181,29 +2373,38 @@ describe("ArtifactsTab", () => {
   })
 
   it("shows the artifact title as a section header", () => {
-    renderArtifactsTab([
-      { type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
-    ])
+    renderArtifactsTab([{ type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }])
     expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
   })
 
   it("renders erd_diagram: table names and column lists", () => {
-    renderArtifactsTab([{
-      type: "rails_schema_erd",
-      title: "Schema ERD",
-      created_at: "2026-08-06T10:00:00Z",
-      renderer_type: "erd_diagram",
-      payload: {
-        tables: [
-          { name: "users", columns: [{ name: "id", type: "bigint" }, { name: "email", type: "string" }] },
-          {
-            name: "posts",
-            columns: [{ name: "id", type: "bigint" }, { name: "user_id", type: "bigint" }],
-            foreign_keys: [{ from_column: "user_id", to_table: "users", to_column: "id" }]
-          }
-        ]
+    renderArtifactsTab([
+      {
+        type: "rails_schema_erd",
+        title: "Schema ERD",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "erd_diagram",
+        payload: {
+          tables: [
+            {
+              name: "users",
+              columns: [
+                { name: "id", type: "bigint" },
+                { name: "email", type: "string" }
+              ]
+            },
+            {
+              name: "posts",
+              columns: [
+                { name: "id", type: "bigint" },
+                { name: "user_id", type: "bigint" }
+              ],
+              foreign_keys: [{ from_column: "user_id", to_table: "users", to_column: "id" }]
+            }
+          ]
+        }
       }
-    }])
+    ])
 
     expect(screen.getByText("users")).toBeInTheDocument()
     expect(screen.getByText("posts")).toBeInTheDocument()
@@ -2213,18 +2414,26 @@ describe("ArtifactsTab", () => {
   })
 
   it("renders migration_diff: before and after column lists", () => {
-    renderArtifactsTab([{
-      type: "rails_migration_diff",
-      title: "Migration Diff",
-      created_at: "2026-08-06T10:00:00Z",
-      renderer_type: "migration_diff",
-      payload: {
-        migration_name: "AddAdminToUsers",
-        before: { table_name: "users", columns: [{ name: "id", type: "bigint" }] },
-        after: { table_name: "users", columns: [{ name: "id", type: "bigint" }, { name: "admin", type: "boolean" }] },
-        changes: [{ type: "added", column: { name: "admin", type: "boolean" } }]
+    renderArtifactsTab([
+      {
+        type: "rails_migration_diff",
+        title: "Migration Diff",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "migration_diff",
+        payload: {
+          migration_name: "AddAdminToUsers",
+          before: { table_name: "users", columns: [{ name: "id", type: "bigint" }] },
+          after: {
+            table_name: "users",
+            columns: [
+              { name: "id", type: "bigint" },
+              { name: "admin", type: "boolean" }
+            ]
+          },
+          changes: [{ type: "added", column: { name: "admin", type: "boolean" } }]
+        }
       }
-    }])
+    ])
 
     expect(screen.getAllByText(/users/)).toHaveLength(2)
     expect(screen.getByText(/Before/)).toBeInTheDocument()
@@ -2233,16 +2442,21 @@ describe("ArtifactsTab", () => {
   })
 
   it("renders data_table: headers and rows", () => {
-    renderArtifactsTab([{
-      type: "coverage_summary",
-      title: "Coverage Summary",
-      created_at: "2026-08-06T10:00:00Z",
-      renderer_type: "data_table",
-      payload: {
-        headers: ["File", "Lines", "Covered"],
-        rows: [["app/models/user.rb", "120", "95"], ["app/models/job.rb", "80", "72"]]
+    renderArtifactsTab([
+      {
+        type: "coverage_summary",
+        title: "Coverage Summary",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "data_table",
+        payload: {
+          headers: ["File", "Lines", "Covered"],
+          rows: [
+            ["app/models/user.rb", "120", "95"],
+            ["app/models/job.rb", "80", "72"]
+          ]
+        }
       }
-    }])
+    ])
 
     expect(screen.getByRole("columnheader", { name: "File" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Lines" })).toBeInTheDocument()
@@ -2251,16 +2465,18 @@ describe("ArtifactsTab", () => {
   })
 
   it("renders before_after_diff: before and after text blocks", () => {
-    renderArtifactsTab([{
-      type: "config_diff",
-      title: "Config Change",
-      created_at: "2026-08-06T10:00:00Z",
-      renderer_type: "before_after_diff",
-      payload: {
-        before: "adapter: sqlite3\ndatabase: dev.db",
-        after: "adapter: postgresql\ndatabase: production_db"
+    renderArtifactsTab([
+      {
+        type: "config_diff",
+        title: "Config Change",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "before_after_diff",
+        payload: {
+          before: "adapter: sqlite3\ndatabase: dev.db",
+          after: "adapter: postgresql\ndatabase: production_db"
+        }
       }
-    }])
+    ])
 
     expect(screen.getByText("Before")).toBeInTheDocument()
     expect(screen.getByText("After")).toBeInTheDocument()
@@ -2269,17 +2485,19 @@ describe("ArtifactsTab", () => {
   })
 
   it("renders image_diff: a linked screenshot image", () => {
-    renderArtifactsTab([{
-      type: "visual_review_screenshot",
-      title: "Homepage after fix",
-      created_at: "2026-08-06T10:00:00Z",
-      renderer_type: "image_diff",
-      payload: {
-        image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
-        content_type: "image/png",
-        byte_size: 48213
+    renderArtifactsTab([
+      {
+        type: "visual_review_screenshot",
+        title: "Homepage after fix",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "image_diff",
+        payload: {
+          image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
+          content_type: "image/png",
+          byte_size: 48213
+        }
       }
-    }])
+    ])
 
     const image = screen.getByRole("img", { name: "Homepage after fix" })
     expect(image).toHaveAttribute("src", "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot")
@@ -2287,25 +2505,29 @@ describe("ArtifactsTab", () => {
   })
 
   it("renders before_after_visual_diff: linked before and after screenshots", () => {
-    renderArtifactsTab([{
-      type: "visual_diff_comparison",
-      title: "Before/after visual comparison",
-      created_at: "2026-08-06T10:00:00Z",
-      renderer_type: "before_after_visual_diff",
-      payload: {
-        pairs: [{
-          title: "Dashboard",
-          before: {
-            title: "Dashboard",
-            image_url: "/api/v1/app/workflows/2/visual_artifact?type=before"
-          },
-          after: {
-            title: "Dashboard",
-            image_url: "/api/v1/app/workflows/1/visual_artifact?type=after"
-          }
-        }]
+    renderArtifactsTab([
+      {
+        type: "visual_diff_comparison",
+        title: "Before/after visual comparison",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "before_after_visual_diff",
+        payload: {
+          pairs: [
+            {
+              title: "Dashboard",
+              before: {
+                title: "Dashboard",
+                image_url: "/api/v1/app/workflows/2/visual_artifact?type=before"
+              },
+              after: {
+                title: "Dashboard",
+                image_url: "/api/v1/app/workflows/1/visual_artifact?type=after"
+              }
+            }
+          ]
+        }
       }
-    }])
+    ])
 
     expect(screen.getByText("Merge-base / before")).toBeInTheDocument()
     expect(screen.getByText("PR / after")).toBeInTheDocument()
@@ -2314,26 +2536,30 @@ describe("ArtifactsTab", () => {
   })
 
   it("falls back to raw JSON for image_diff artifacts with no image_url", () => {
-    renderArtifactsTab([{
-      type: "visual_review_screenshot",
-      title: "Homepage after fix",
-      created_at: "2026-08-06T10:00:00Z",
-      renderer_type: "image_diff",
-      payload: {}
-    }])
+    renderArtifactsTab([
+      {
+        type: "visual_review_screenshot",
+        title: "Homepage after fix",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "image_diff",
+        payload: {}
+      }
+    ])
 
     expect(screen.queryByRole("img")).not.toBeInTheDocument()
     expect(screen.getByText("{}")).toBeInTheDocument()
   })
 
   it("falls back to raw JSON for unknown renderer_type", () => {
-    renderArtifactsTab([{
-      type: "unknown_type",
-      title: "Unknown Artifact",
-      created_at: "2026-08-06T10:00:00Z",
-      renderer_type: null,
-      payload: { custom_key: "custom_value" }
-    }])
+    renderArtifactsTab([
+      {
+        type: "unknown_type",
+        title: "Unknown Artifact",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: null,
+        payload: { custom_key: "custom_value" }
+      }
+    ])
 
     expect(screen.getByText(/custom_key/)).toBeInTheDocument()
     expect(screen.getByText(/custom_value/)).toBeInTheDocument()
@@ -2354,20 +2580,23 @@ describe("ArtifactsTab", () => {
   })
 
   it("shows the Artifacts tab in the TabNav with count", () => {
-    renderJobDetail(jobPayload({
-      typed_artifacts: [
-        { type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
-      ]
-    }))
+    renderJobDetail(
+      jobPayload({
+        typed_artifacts: [{ type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }]
+      })
+    )
     expect(screen.getByRole("button", { name: "Artifacts (1)" })).toBeInTheDocument()
   })
 
   it("renders the ArtifactsTab when the artifacts tab is active", () => {
-    renderJobDetail(jobPayload({
-      typed_artifacts: [
-        { type: "rails_schema_erd", title: "Schema ERD", payload: { tables: [] }, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
-      ]
-    }), { activeTab: "artifacts" })
+    renderJobDetail(
+      jobPayload({
+        typed_artifacts: [
+          { type: "rails_schema_erd", title: "Schema ERD", payload: { tables: [] }, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
+        ]
+      }),
+      { activeTab: "artifacts" }
+    )
     expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
   })
 })
@@ -2381,9 +2610,7 @@ describe("PrioritySelector", () => {
   })
 
   it("changes priority without a dialog for non-urgent values", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(jobPayload({ job: { ...baseJob(), priority: "low" } }))
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(jobPayload({ job: { ...baseJob(), priority: "low" } })))
     renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "medium" } }))
 
     fireEvent.change(screen.getByRole("combobox", { name: "Priority" }), { target: { value: "low" } })
@@ -2418,9 +2645,7 @@ describe("PrioritySelector", () => {
   })
 
   it("calls the priority endpoint when the urgent dialog is confirmed", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(jobPayload({ job: { ...baseJob(), priority: "urgent" } }))
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(jobPayload({ job: { ...baseJob(), priority: "urgent" } })))
     renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "high" } }))
 
     fireEvent.change(screen.getByRole("combobox", { name: "Priority" }), { target: { value: "urgent" } })
@@ -2471,11 +2696,19 @@ describe("SourceTab", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = requestUrl(input)
       if (url.includes("source_diff")) {
-        return Promise.resolve(jsonResponse({
-          job_id: 1, base_ref: "28a75d2", head_ref: "6c4ddd6", merge_base_sha: "28a75d2",
-          default_ref: "main", branch_commits: [], truncated: false, diff_error: null,
-          files: [ { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+widget\n" } ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            job_id: 1,
+            base_ref: "28a75d2",
+            head_ref: "6c4ddd6",
+            merge_base_sha: "28a75d2",
+            default_ref: "main",
+            branch_commits: [],
+            truncated: false,
+            diff_error: null,
+            files: [{ path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+widget\n" }]
+          })
+        )
       }
       return Promise.resolve(jsonResponse(jobSourcePayload({})))
     })
@@ -2519,9 +2752,13 @@ describe("SourceTab", () => {
   })
 
   it("falls back to plain source text for unsupported languages", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(jobSourcePayload({
-      file: { path: "README.unknownext", name: "README.unknownext", size: 20, language: "plaintext", content: "class User\n" }
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        jobSourcePayload({
+          file: { path: "README.unknownext", name: "README.unknownext", size: 20, language: "plaintext", content: "class User\n" }
+        })
+      )
+    )
     renderJobSource()
 
     const code = await screen.findByText("class User")
@@ -2579,13 +2816,7 @@ describe("Job detail tour", () => {
       <QueryClientProvider client={queryClient}>
         <ShortcutsProvider>
           <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-            <JobDetailView
-              activeTab="summary"
-              onSelectTab={() => {}}
-              payload={jobPayload()}
-              prefix="/app-shell"
-              queryKey={["jobs", "1", "detail", ""]}
-            />
+            <JobDetailView activeTab="summary" onSelectTab={() => {}} payload={jobPayload()} prefix="/app-shell" queryKey={["jobs", "1", "detail", ""]} />
           </MemoryRouter>
         </ShortcutsProvider>
       </QueryClientProvider>
@@ -2677,10 +2908,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/approve",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/approve", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2718,10 +2946,7 @@ describe("Job Detail keyboard shortcuts", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/approve",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/approve", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2749,10 +2974,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Keep running" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/approve",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/approve", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2768,10 +2990,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/reopen",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/reopen", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2784,10 +3003,7 @@ describe("Job Detail keyboard shortcuts", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/reopen",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/reopen", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2803,10 +3019,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/unapprove",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/unapprove", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2822,10 +3035,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/cancel",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/cancel", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2840,10 +3050,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/stop_landing",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/stop_landing", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2866,10 +3073,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/retry_failed_step",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/retry_failed_step", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2890,10 +3094,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/retry_implementation",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/retry_implementation", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2915,10 +3116,7 @@ describe("Job Detail keyboard shortcuts", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/pin",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/pin", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2932,13 +3130,7 @@ describe("Job Detail keyboard shortcuts", () => {
       <QueryClientProvider client={queryClient}>
         <ShortcutsProvider>
           <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-            <JobDetailView
-              activeTab="summary"
-              onSelectTab={() => {}}
-              payload={withActions}
-              prefix="/app-shell"
-              queryKey={["jobs", "1", "detail", ""]}
-            />
+            <JobDetailView activeTab="summary" onSelectTab={() => {}} payload={withActions} prefix="/app-shell" queryKey={["jobs", "1", "detail", ""]} />
             <ShortcutsHelpModal onClose={() => {}} open />
           </MemoryRouter>
         </ShortcutsProvider>
@@ -2959,28 +3151,32 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
     if (workflow.trigger_kind === "chat_feedback") {
       const body = typeof workflow.artifacts?.chat_feedback === "string" ? workflow.artifacts.chat_feedback : ""
       if (!body) return []
-      return [{
-        kind: "chat_feedback" as const,
-        body,
-        created_at: workflow.created_at,
-        state: workflow.state,
-        feedback_source: typeof workflow.artifacts?.feedback_source === "string" ? workflow.artifacts.feedback_source : null,
-        workflow_id: workflow.id,
-        workflow_slug: workflow.slug,
-        workflow_path: workflow.path
-      }]
+      return [
+        {
+          kind: "chat_feedback" as const,
+          body,
+          created_at: workflow.created_at,
+          state: workflow.state,
+          feedback_source: typeof workflow.artifacts?.feedback_source === "string" ? workflow.artifacts.feedback_source : null,
+          workflow_id: workflow.id,
+          workflow_slug: workflow.slug,
+          workflow_path: workflow.path
+        }
+      ]
     }
     if (workflow.trigger_kind === "pr_comment" || workflow.trigger_kind === "external_pr_feedback") {
-      return [{
-        kind: workflow.trigger_kind as "pr_comment" | "external_pr_feedback",
-        body: "",
-        created_at: workflow.created_at,
-        state: workflow.state,
-        feedback_source: null,
-        workflow_id: workflow.id,
-        workflow_slug: workflow.slug,
-        workflow_path: workflow.path
-      }]
+      return [
+        {
+          kind: workflow.trigger_kind as "pr_comment" | "external_pr_feedback",
+          body: "",
+          created_at: workflow.created_at,
+          state: workflow.state,
+          feedback_source: null,
+          workflow_id: workflow.id,
+          workflow_slug: workflow.slug,
+          workflow_path: workflow.path
+        }
+      ]
     }
     return []
   })
@@ -2992,7 +3188,13 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
   )
 }
 
-function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "review" | "workflows" | "conversation" | "timeline" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
+function renderJobDetail(
+  payload: JobDetailPayload,
+  options: {
+    activeTab?: "summary" | "review" | "workflows" | "conversation" | "timeline" | "attachments" | "source" | "tests" | "artifacts"
+    showLocation?: boolean
+  } = {}
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 
@@ -3016,7 +3218,12 @@ function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summ
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}{location.search}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 function mockMediaQuery(matches: boolean) {
@@ -3054,13 +3261,7 @@ function renderJobSource(payload: JobDetailPayload = jobPayload()) {
     <QueryClientProvider client={queryClient}>
       <ShortcutsProvider>
         <MemoryRouter initialEntries={["/app-shell/jobs/1?tab=source"]}>
-          <JobDetailView
-            activeTab="source"
-            onSelectTab={() => {}}
-            payload={payload}
-            prefix="/app-shell"
-            queryKey={["jobs", "1", "detail", ""]}
-          />
+          <JobDetailView activeTab="source" onSelectTab={() => {}} payload={payload} prefix="/app-shell" queryKey={["jobs", "1", "detail", ""]} />
         </MemoryRouter>
       </ShortcutsProvider>
     </QueryClientProvider>
@@ -3083,21 +3284,21 @@ function mockReviewWorkspaceRequests() {
       return Promise.resolve(jsonResponse({ job_id: 1, diff_review_version_id: 100, latest_version_id: 100, comments: [], by_path: {} }))
     }
 
-    return Promise.resolve(jsonResponse({
-      job_id: 1,
-      base_ref: "base-sha",
-      head_ref: "head-sha",
-      merge_base_sha: "base-sha",
-      default_ref: "main",
-      branch_commits: [],
-      truncated: false,
-      diff_error: null,
-      version: { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial" },
-      versions: [
-        { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial", created_at: null }
-      ],
-      files: []
-    }))
+    return Promise.resolve(
+      jsonResponse({
+        job_id: 1,
+        base_ref: "base-sha",
+        head_ref: "head-sha",
+        merge_base_sha: "base-sha",
+        default_ref: "main",
+        branch_commits: [],
+        truncated: false,
+        diff_error: null,
+        version: { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial" },
+        versions: [{ id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial", created_at: null }],
+        files: []
+      })
+    )
   })
 }
 
@@ -3202,7 +3403,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       source_path: "/jobs/1/source",
       app_detail_path: "/api/v1/app/jobs/1",
       app_source_path: "/api/v1/app/jobs/1/source",
-        app_timeline_path: "/api/v1/app/jobs/1/timeline",
+      app_timeline_path: "/api/v1/app/jobs/1/timeline",
       app_start_path: "/api/v1/app/jobs/1/start",
       app_release_from_backlog_path: "/api/v1/app/jobs/1/release_from_backlog",
       app_run_again_path: "/api/v1/app/jobs/1/run_again",
@@ -3328,7 +3529,8 @@ function baseJob(): JobDetailPayload["job"] {
 }
 
 function jobSourcePayload(overrides: { withFile?: boolean; file?: NonNullable<JobSourcePayload["file"]> } = {}): JobSourcePayload {
-  const file = overrides.file || (overrides.withFile ? { path: "app/models/user.rb", name: "user.rb", size: 15, language: "ruby", content: "class User\nend\n" } : null)
+  const file =
+    overrides.file || (overrides.withFile ? { path: "app/models/user.rb", name: "user.rb", size: 15, language: "ruby", content: "class User\nend\n" } : null)
 
   return {
     job_id: 1,
@@ -3338,9 +3540,7 @@ function jobSourcePayload(overrides: { withFile?: boolean; file?: NonNullable<Jo
     selected_ref: "deadbeef12345678",
     selected_path: file?.path || null,
     merge_base_sha: "aabbccdd1234567",
-    branch_commits: [
-      { sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair source browser", date: "2026-06-28T10:00:00Z" }
-    ],
+    branch_commits: [{ sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair source browser", date: "2026-06-28T10:00:00Z" }],
     tree_items: [
       { path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby" },
       { path: "README.md", name: "README.md", size: 128, language: "markdown" }
@@ -3464,13 +3664,7 @@ describe("PrChecksBanner attribution", () => {
       <QueryClientProvider client={queryClient}>
         <ShortcutsProvider>
           <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-            <JobDetailView
-              activeTab="summary"
-              onSelectTab={() => {}}
-              payload={withChecks}
-              prefix="/app-shell"
-              queryKey={["jobs", "1", "detail", ""]}
-            />
+            <JobDetailView activeTab="summary" onSelectTab={() => {}} payload={withChecks} prefix="/app-shell" queryKey={["jobs", "1", "detail", ""]} />
           </MemoryRouter>
         </ShortcutsProvider>
       </QueryClientProvider>
@@ -3481,7 +3675,12 @@ describe("PrChecksBanner attribution", () => {
   // banner shows both sides of the comparison and which base was used.
   it("shows the evidence behind an inherited verdict", async () => {
     renderWithChecks({
-      state: "failing", sha: "abc1234567", base_sha: "basepayload1234", short_sha: "abc1234", checked_at: null, checks_url: "https://github.com/acme/widgets/pull/1/checks",
+      state: "failing",
+      sha: "abc1234567",
+      base_sha: "basepayload1234",
+      short_sha: "abc1234",
+      checked_at: null,
+      checks_url: "https://github.com/acme/widgets/pull/1/checks",
       attribution: {
         verdict: "inherited",
         failing_names: ["rspec"],
@@ -3501,50 +3700,72 @@ describe("PrChecksBanner attribution", () => {
   })
 
   it("offers a one-shot land-through action for inherited check blockers", async () => {
-    renderWithChecks({
-      state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null,
-      attribution: {
-        verdict: "inherited",
-        failing_names: ["rspec"],
-        base_failing_names: ["rspec"],
-        own_names: [],
-        base_sha: "basesha1234"
+    renderWithChecks(
+      {
+        state: "failing",
+        sha: "abc1234567",
+        short_sha: "abc1234",
+        checked_at: null,
+        checks_url: null,
+        attribution: {
+          verdict: "inherited",
+          failing_names: ["rspec"],
+          base_failing_names: ["rspec"],
+          own_names: [],
+          base_sha: "basesha1234"
+        }
+      },
+      {
+        actions: { ...jobPayload().actions, can_override_inherited_pr_checks: true },
+        landing_queue_entry: {
+          position: 1,
+          blocked_reason: { key: "pr_checks_failing_inherited", params: { slug: "JOB-1", checks: "rspec" } },
+          waiting_for_jobs: [],
+          override_path: "/api/v1/app/jobs/1/override_landing_blocker"
+        }
       }
-    }, {
-      actions: { ...jobPayload().actions, can_override_inherited_pr_checks: true },
-      landing_queue_entry: {
-        position: 1,
-        blocked_reason: { key: "pr_checks_failing_inherited", params: { slug: "JOB-1", checks: "rspec" } },
-        waiting_for_jobs: [],
-        override_path: "/api/v1/app/jobs/1/override_landing_blocker"
-      }
-    })
+    )
 
     expect(await screen.findByRole("button", { name: "Land anyway once" })).toBeInTheDocument()
   })
 
   it("offers a PR/base check recheck action for failing checks", async () => {
-    renderWithChecks({
-      state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null,
-      attribution: {
-        verdict: "unknown",
-        failing_names: ["rspec"],
-        base_failing_names: [],
-        own_names: ["rspec"],
-        base_sha: null
+    renderWithChecks(
+      {
+        state: "failing",
+        sha: "abc1234567",
+        short_sha: "abc1234",
+        checked_at: null,
+        checks_url: null,
+        attribution: {
+          verdict: "unknown",
+          failing_names: ["rspec"],
+          base_failing_names: [],
+          own_names: ["rspec"],
+          base_sha: null
+        }
+      },
+      {
+        actions: { ...jobPayload().actions, can_recheck_pr_checks: true }
       }
-    }, {
-      actions: { ...jobPayload().actions, can_recheck_pr_checks: true }
-    })
+    )
 
     expect(await screen.findByRole("button", { name: "Recheck checks" })).toBeInTheDocument()
   })
 
   it("names a failure the job introduced as its own", async () => {
     renderWithChecks({
-      state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null,
+      state: "failing",
+      sha: "abc1234567",
+      short_sha: "abc1234",
+      checked_at: null,
+      checks_url: null,
       attribution: {
-        verdict: "own", failing_names: ["mine"], base_failing_names: [], own_names: ["mine"], base_sha: null
+        verdict: "own",
+        failing_names: ["mine"],
+        base_failing_names: [],
+        own_names: ["mine"],
+        base_sha: null
       }
     })
 

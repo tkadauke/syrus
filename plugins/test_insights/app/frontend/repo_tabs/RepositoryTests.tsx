@@ -3,7 +3,16 @@ import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { Button } from "@app/components/Button"
 import { Input } from "@app/components/Input"
 import { withRoutePrefix } from "@app/lib/routing"
-import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestHistoryPagination, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../api/tests"
+import {
+  fetchRepositoryTestDetail,
+  fetchRepositoryTests,
+  type RepositoryTestDetailPayload,
+  type RepositoryTestDurationPoint,
+  type RepositoryTestHistoryItem,
+  type RepositoryTestHistoryPagination,
+  type RepositoryTestIdentity,
+  type RepositoryTestsPayload
+} from "../api/tests"
 import { errorMessage } from "@app/lib/errorMessage"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
@@ -37,11 +46,15 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
   return (
     <RepositoryPageShell
       activeTab="test_insights.tests"
-      heading={shell ? (
-        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
-          <a className="hover:underline" href={shell.repository.github_url} rel="noopener" target="_blank">{shell.repository.slug}</a>
-        </h1>
-      ) : null}
+      heading={
+        shell ? (
+          <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+            <a className="hover:underline" href={shell.repository.github_url} rel="noopener" target="_blank">
+              {shell.repository.slug}
+            </a>
+          </h1>
+        ) : null
+      }
       prefix={prefix}
       tabs={shell?.tabs ?? []}
     >
@@ -52,25 +65,24 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
           <div className="flex flex-wrap items-end gap-3">
             <label className="block min-w-[18rem] flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">
               Search tests
-              <Input
-                className="mt-1"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="name, suite, or file"
-                value={query}
-              />
+              <Input className="mt-1" onChange={(event) => setQuery(event.target.value)} placeholder="name, suite, or file" value={query} />
             </label>
             {selectedTestId ? (
-              <Button
-                onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))}
-                variant="secondary"
-              >
+              <Button onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))} variant="secondary">
                 Back to tests
               </Button>
             ) : null}
           </div>
 
           {selectedTestId ? (
-            <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} />
+            <TestDetailPanel
+              detail={testDetail.data}
+              error={testDetail.error}
+              isError={testDetail.isError}
+              isPending={testDetail.isPending}
+              onPageChange={setHistoryPage}
+              prefix={prefix}
+            />
           ) : (
             <TestList error={tests.error} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} query={debouncedQuery} />
           )}
@@ -80,7 +92,21 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
   )
 }
 
-function TestList({ error, isError, isFetching, payload, prefix, query }: { error: unknown; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; query: string }) {
+function TestList({
+  error,
+  isError,
+  isFetching,
+  payload,
+  prefix,
+  query
+}: {
+  error: unknown
+  isError: boolean
+  isFetching: boolean
+  payload?: RepositoryTestsPayload
+  prefix: string
+  query: string
+}) {
   if (!payload) return null
   if (payload.tests.length === 0) {
     return <PanelMessage>{query ? "No tests match this search." : "No test history yet. Search by name once tests have been ingested."}</PanelMessage>
@@ -107,24 +133,35 @@ function TestList({ error, isError, isFetching, payload, prefix, query }: { erro
           {payload.tests.map((test) => (
             <tr className="text-gray-700 dark:text-gray-300" key={test.id}>
               <td className="max-w-md px-4 py-3">
-                <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}>
+                <Link
+                  className="font-medium text-brand-emphasis hover:underline"
+                  to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}
+                >
                   {test.name}
                 </Link>
                 {test.interesting_reasons.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} reason={reason} />)}
+                    {test.interesting_reasons.map((reason) => (
+                      <ReasonBadge key={reason} reason={reason} />
+                    ))}
                   </div>
                 ) : null}
                 {test.file_path ? <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{test.file_path}</div> : null}
               </td>
-              <td className="hidden max-w-xs truncate px-4 py-3 text-gray-500 dark:text-gray-400 md:table-cell" title={test.suite_name}>{test.suite_name}</td>
+              <td className="hidden max-w-xs truncate px-4 py-3 text-gray-500 dark:text-gray-400 md:table-cell" title={test.suite_name}>
+                {test.suite_name}
+              </td>
               <td className="whitespace-nowrap px-4 py-3">
-                <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${test.failed_count > 0 ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
+                <span
+                  className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${test.failed_count > 0 ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}
+                >
                   {test.failed_count}/{test.total_count}
                 </span>
               </td>
               <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(test.avg_duration_ms)}</td>
-              <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}</td>
+              <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">
+                {test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -134,16 +171,31 @@ function TestList({ error, isError, isFetching, payload, prefix, query }: { erro
 }
 
 function ReasonBadge({ reason }: { reason: string }) {
-  const classes = reason === "failing"
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-    : reason === "flaky"
-      ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300"
-      : "border-info/30 bg-info/10 text-info"
+  const classes =
+    reason === "failing"
+      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+      : reason === "flaky"
+        ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300"
+        : "border-info/30 bg-info/10 text-info"
 
   return <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${classes}`}>{reason}</span>
 }
 
-function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string }) {
+function TestDetailPanel({
+  detail,
+  error,
+  isError,
+  isPending,
+  onPageChange,
+  prefix
+}: {
+  detail?: RepositoryTestDetailPayload
+  error: unknown
+  isError: boolean
+  isPending: boolean
+  onPageChange: (page: number) => void
+  prefix: string
+}) {
   if (isPending) return <PanelMessage>Loading test history...</PanelMessage>
   if (isError) return <PanelMessage tone="error">{errorMessage(error, "Unable to load test history.")}</PanelMessage>
   if (!detail) return null
@@ -157,7 +209,9 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{detail.test.suite_name}</p>
             {detail.test.file_path ? <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{detail.test.file_path}</p> : null}
           </div>
-          <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">{detail.test.fingerprint.slice(0, 12)}</span>
+          <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+            {detail.test.fingerprint.slice(0, 12)}
+          </span>
         </div>
         <DurationChart history={detail.history} points={detail.duration_points} prefix={prefix} />
       </section>
@@ -174,7 +228,9 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
-            {detail.history.map((item) => <HistoryRow item={item} key={item.id} prefix={prefix} />)}
+            {detail.history.map((item) => (
+              <HistoryRow item={item} key={item.id} prefix={prefix} />
+            ))}
           </tbody>
         </table>
         <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} />
@@ -191,14 +247,32 @@ function HistoryPagination({ onPageChange, pagination }: { onPageChange: (page: 
 
   return (
     <div className="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
-      <span>Showing {firstItem}–{lastItem} of {pagination.total}</span>
+      <span>
+        Showing {firstItem}–{lastItem} of {pagination.total}
+      </span>
       <div className="flex gap-2">
         {pagination.page > 1 ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page - 1)} type="button">Previous</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Previous</span>}
+          <button
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            onClick={() => onPageChange(pagination.page - 1)}
+            type="button"
+          >
+            Previous
+          </button>
+        ) : (
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Previous</span>
+        )}
         {pagination.page < pagination.total_pages ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page + 1)} type="button">Next</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Next</span>}
+          <button
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            onClick={() => onPageChange(pagination.page + 1)}
+            type="button"
+          >
+            Next
+          </button>
+        ) : (
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Next</span>
+        )}
       </div>
     </div>
   )
@@ -208,13 +282,21 @@ function HistoryRow({ item, prefix }: { item: RepositoryTestHistoryItem; prefix:
   return (
     <tr className="text-gray-700 dark:text-gray-300">
       <td className="whitespace-nowrap px-4 py-3">{item.created_at ? <RelativeTimestamp value={item.created_at} /> : "—"}</td>
-      <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
+      <td className="px-4 py-3">
+        <StatusBadge status={item.status} />
+      </td>
       <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(item.duration_ms)}</td>
       <td className="px-4 py-3">
-        <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(item.run.path, prefix)}>{item.run.slug}</Link>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.job.slug} · {item.grader_name}</div>
+        <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(item.run.path, prefix)}>
+          {item.run.slug}
+        </Link>
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {item.job.slug} · {item.grader_name}
+        </div>
       </td>
-      <td className="hidden max-w-md truncate px-4 py-3 text-gray-500 dark:text-gray-400 lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</td>
+      <td className="hidden max-w-md truncate px-4 py-3 text-gray-500 dark:text-gray-400 lg:table-cell" title={item.failure_message || ""}>
+        {item.failure_message || "—"}
+      </td>
     </tr>
   )
 }
@@ -293,7 +375,13 @@ function DurationChart({ history, points, prefix }: { history: RepositoryTestHis
                   }}
                   onMouseEnter={() => setActive({ point: dot.source, x: dot.x, y: dot.y })}
                 />
-                <circle className={`pointer-events-none stroke-white dark:stroke-gray-900 ${style.dot}`} cx={dot.x} cy={dot.y} r={style.emphasize ? 4.5 : 3} strokeWidth="1" />
+                <circle
+                  className={`pointer-events-none stroke-white dark:stroke-gray-900 ${style.dot}`}
+                  cx={dot.x}
+                  cy={dot.y}
+                  r={style.emphasize ? 4.5 : 3}
+                  strokeWidth="1"
+                />
               </g>
             )
           })}
@@ -338,9 +426,13 @@ function DurationTooltip({ historyItem, point, x, y }: { historyItem?: Repositor
       <div className="mt-1 text-gray-500 dark:text-gray-400">{point.created_at ? new Date(point.created_at).toLocaleString() : "Unknown time"}</div>
       {historyItem ? (
         <div className="mt-1.5 border-t border-gray-100 pt-1.5 dark:border-gray-800">
-          <div className="text-gray-500 dark:text-gray-400">{historyItem.job.slug} · {historyItem.grader_name}</div>
+          <div className="text-gray-500 dark:text-gray-400">
+            {historyItem.job.slug} · {historyItem.grader_name}
+          </div>
           {historyItem.failure_message ? (
-            <div className="mt-1 truncate text-red-600 dark:text-red-300" title={historyItem.failure_message}>{historyItem.failure_message}</div>
+            <div className="mt-1 truncate text-red-600 dark:text-red-300" title={historyItem.failure_message}>
+              {historyItem.failure_message}
+            </div>
           ) : null}
           <div className="mt-1 font-medium text-brand-emphasis">Click to open {historyItem.run.slug} →</div>
         </div>
@@ -404,11 +496,12 @@ function niceTicks(minValue: number, maxValue: number, count: number) {
 }
 
 function StatusBadge({ status }: { status: RepositoryTestHistoryItem["status"] }) {
-  const classes = status === "passed"
-    ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
-    : status === "skipped"
-      ? "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-      : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+  const classes =
+    status === "passed"
+      ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
+      : status === "skipped"
+        ? "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+        : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
   return <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${classes}`}>{status}</span>
 }
 
@@ -442,11 +535,5 @@ export default function RepositoryTestsTab() {
   const [searchParams] = useSearchParams()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
 
-  return (
-    <RepositoryTestsRoute
-      repositoryId={params.repositoryId || ""}
-      prefix={prefix}
-      selectedTestId={searchParams.get("test_id")}
-    />
-  )
+  return <RepositoryTestsRoute repositoryId={params.repositoryId || ""} prefix={prefix} selectedTestId={searchParams.get("test_id")} />
 }

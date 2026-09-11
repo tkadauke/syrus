@@ -42,9 +42,11 @@ describe("EpicForm create buttons", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("submits create-and-start with the start flag", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Epic created and started — child Jobs will dispatch as they are added.", redirect_to: "/epics/3", epic: formPayload().epic })
-    )
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(
+        jsonResponse({ message: "Epic created and started — child Jobs will dispatch as they are added.", redirect_to: "/epics/3", epic: formPayload().epic })
+      )
     renderForm("new")
 
     fireEvent.click(screen.getByRole("button", { name: "Create Epic & Start Implementing" }))
@@ -57,9 +59,7 @@ describe("EpicForm create buttons", () => {
   })
 
   it("submits a plain create without the start flag", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Epic created.", redirect_to: "/epics/3", epic: formPayload().epic })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Epic created.", redirect_to: "/epics/3", epic: formPayload().epic }))
     renderForm("new")
 
     fireEvent.click(screen.getByRole("button", { name: "Create Epic" }))
@@ -70,9 +70,7 @@ describe("EpicForm create buttons", () => {
   })
 
   it("plain-creates on implicit form submission (Enter key) — never create-and-start", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "Epic created.", redirect_to: "/epics/3", epic: formPayload().epic })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Epic created.", redirect_to: "/epics/3", epic: formPayload().epic }))
     renderForm("new")
 
     // The start button must not be a submit button, so the form's default

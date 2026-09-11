@@ -125,9 +125,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     if (!pendingCommentFocus.path) return true
 
     const file = document.querySelector(`[data-diff-file="${CSS.escape(pendingCommentFocus.path)}"]`)
-    const anchor = pendingCommentFocus.anchor_key
-      ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`)
-      : null
+    const anchor = pendingCommentFocus.anchor_key ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`) : null
     ;(anchor || file)?.scrollIntoView({ block: "center" })
     return Boolean(anchor || file)
   }
@@ -149,7 +147,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   if (sourceDiff.data.diff_error) return <PanelMessage tone="error">{sourceDiff.data.diff_error}</PanelMessage>
   if (!activeDiff) return <PanelMessage>{t("review_loading")}</PanelMessage>
   if (historicalVersionSelected && historicalVersion.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
-  if (historicalVersionSelected && historicalVersion.isError) return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
+  if (historicalVersionSelected && historicalVersion.isError)
+    return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
   return (
@@ -169,10 +168,17 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
                 selectedVersionId={activeVersionId}
                 versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
               />
-              <ReviewStatePill label={t("review_pending_state", { count: Object.values(feedback.commentCounts).reduce((sum, count) => sum + count, 0) })} tone="pending" />
+              <ReviewStatePill
+                label={t("review_pending_state", { count: Object.values(feedback.commentCounts).reduce((sum, count) => sum + count, 0) })}
+                tone="pending"
+              />
             </div>
           </div>
-          {payload.summary ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
+          {payload.summary ? (
+            <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} />
+          ) : (
+            <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>
+          )}
         </section>
 
         <ReviewArtifactsPanel payload={payload} reviewArtifacts={reviewArtifacts} />
@@ -187,7 +193,11 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             composingSelection={feedback.composingSelection}
             editingThreadBody={feedback.editingThreadBody}
             editingThreadId={feedback.editingThreadId}
-            emptyState={<div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</div>}
+            emptyState={
+              <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
+                {t("source_no_changed_files")}
+              </div>
+            }
             fileCommentCounts={feedback.commentCounts}
             files={activeDiff.files}
             mode="continuous"
@@ -209,9 +219,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           />
         </section>
       </div>
-      <div className="min-w-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
-        {feedback.panel}
-      </div>
+      <div className="min-w-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">{feedback.panel}</div>
     </div>
   )
 }
@@ -240,7 +248,11 @@ function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetail
                 <div className="min-w-0 overflow-x-auto rounded border border-gray-200 p-3 dark:border-gray-800">
                   <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("section_test_plan")}</p>
                   <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
-                    {payload.test_plan.steps.map((step, index) => <li className="break-words" key={`${index}-${step}`}>{step}</li>)}
+                    {payload.test_plan.steps.map((step, index) => (
+                      <li className="break-words" key={`${index}-${step}`}>
+                        {step}
+                      </li>
+                    ))}
                   </ul>
                 </div>
               ) : null}
@@ -268,17 +280,19 @@ function ReviewStatePill({ label, tone }: { label: string; tone: "pending" | "su
 }
 
 function reviewArtifactSummaries(workflows: JobWorkflow[]) {
-  return workflows.flatMap((workflow) => {
-    const artifacts = workflow.artifacts || {}
-    const summaries: string[] = []
-    const testPlan = stepArtifactTestPlan(artifacts.test_plan)
-    if (testPlan?.notes) summaries.push(testPlan.notes)
-    for (const iteration of stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) || []) {
-      summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
-    }
-    for (const iteration of stepArtifactVisualReview(artifacts.visual_review_iterations) || []) {
-      summaries.push(`Visual review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
-    }
-    return summaries
-  }).slice(0, 6)
+  return workflows
+    .flatMap((workflow) => {
+      const artifacts = workflow.artifacts || {}
+      const summaries: string[] = []
+      const testPlan = stepArtifactTestPlan(artifacts.test_plan)
+      if (testPlan?.notes) summaries.push(testPlan.notes)
+      for (const iteration of stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) || []) {
+        summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+      }
+      for (const iteration of stepArtifactVisualReview(artifacts.visual_review_iterations) || []) {
+        summaries.push(`Visual review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+      }
+      return summaries
+    })
+    .slice(0, 6)
 }

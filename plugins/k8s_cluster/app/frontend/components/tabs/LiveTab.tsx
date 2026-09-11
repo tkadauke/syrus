@@ -51,7 +51,7 @@ export function LiveTab({ clusterId }: { clusterId: number }) {
 function PodStatusLive({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const pods = useQuery({
-    queryKey: [ "k8s_cluster", "live", "pods", clusterId ],
+    queryKey: ["k8s_cluster", "live", "pods", clusterId],
     queryFn: () => fetchKubernetesPods(clusterId),
     refetchInterval: 10_000
   })
@@ -64,7 +64,9 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
     <ul className="divide-y divide-gray-100 dark:divide-gray-900 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
       {pods.data.pods.map((pod) => (
         <li className="flex items-center justify-between gap-3 px-4 py-2 text-sm" key={`${pod.namespace}/${pod.name}`}>
-          <span className="min-w-0 truncate font-medium text-gray-900 dark:text-gray-100">{pod.namespace}/{pod.name}</span>
+          <span className="min-w-0 truncate font-medium text-gray-900 dark:text-gray-100">
+            {pod.namespace}/{pod.name}
+          </span>
           <StatusBadge tone={pod.status === "Running" ? "success" : pod.status === "Failed" ? "error" : "neutral"}>{pod.status || "-"}</StatusBadge>
         </li>
       ))}
@@ -75,7 +77,7 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
 function RecentEventsLive({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const events = useQuery({
-    queryKey: [ "k8s_cluster", "live", "events", clusterId ],
+    queryKey: ["k8s_cluster", "live", "events", clusterId],
     queryFn: () => fetchKubernetesEvents(clusterId),
     refetchInterval: 10_000
   })
@@ -89,7 +91,9 @@ function RecentEventsLive({ clusterId }: { clusterId: number }) {
       {events.data.events.slice(0, 20).map((event, index) => (
         <li className="flex items-center gap-3 px-4 py-2 text-sm" key={`${event.namespace}/${event.name}/${index}`}>
           <StatusBadge tone={event.type === "Warning" ? "warning" : "neutral"}>{event.type || "-"}</StatusBadge>
-          <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{event.reason}: {event.message}</span>
+          <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">
+            {event.reason}: {event.message}
+          </span>
         </li>
       ))}
     </ul>

@@ -24,7 +24,12 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Token is valid for octocat.", details: { login: "octocat", scopes: ["repo", "workflow"], missing_scopes: [] } }
+const okResult = {
+  credential: "github_token",
+  ok: true,
+  message: "Token is valid for octocat.",
+  details: { login: "octocat", scopes: ["repo", "workflow"], missing_scopes: [] }
+}
 
 describe("GithubTokenModal", () => {
   afterEach(() => {
@@ -127,8 +132,10 @@ describe("GithubTokenModal", () => {
           submit_label: "Register GitHub App"
         })
       }
-      if (url.endsWith("/admin/github_app/confirm")) return jsonResponse({ github_app: { registered: false, id: null, slug: null, registered_at: null, install_url: null } })
-      if (url.endsWith("/api/v1/app/bootstrap")) return jsonResponse({ current_user: { admin: true }, setup_status: { credential_status: { github_pat: true, github_app: false } } })
+      if (url.endsWith("/admin/github_app/confirm"))
+        return jsonResponse({ github_app: { registered: false, id: null, slug: null, registered_at: null, install_url: null } })
+      if (url.endsWith("/api/v1/app/bootstrap"))
+        return jsonResponse({ current_user: { admin: true }, setup_status: { credential_status: { github_pat: true, github_app: false } } })
       return jsonResponse({})
     })
 

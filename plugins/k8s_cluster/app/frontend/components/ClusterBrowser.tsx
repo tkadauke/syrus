@@ -19,7 +19,7 @@ const ALL_NAMESPACES = ""
 
 type ClusterTab = "overview" | "workloads" | "services" | "storage" | "nodes" | "events" | "logs" | "live"
 
-const NAMESPACE_SCOPED_TABS: ClusterTab[] = [ "workloads", "services", "storage", "events", "logs" ]
+const NAMESPACE_SCOPED_TABS: ClusterTab[] = ["workloads", "services", "storage", "events", "logs"]
 
 export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number; label: string; onBack: () => void }) {
   const { t } = useT("k8s_cluster")
@@ -53,9 +53,7 @@ export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <Dropdown ariaLabel={t("tab_switcher_label")} onChange={setTab} options={tabOptions} value={tab} />
-        {NAMESPACE_SCOPED_TABS.includes(tab) ? (
-          <NamespacePicker clusterId={clusterId} namespace={namespace} onChange={setNamespace} />
-        ) : null}
+        {NAMESPACE_SCOPED_TABS.includes(tab) ? <NamespacePicker clusterId={clusterId} namespace={namespace} onChange={setNamespace} /> : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -72,28 +70,17 @@ export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number
   )
 }
 
-function NamespacePicker({
-  clusterId,
-  namespace,
-  onChange
-}: {
-  clusterId: number
-  namespace: string
-  onChange: (namespace: string) => void
-}) {
+function NamespacePicker({ clusterId, namespace, onChange }: { clusterId: number; namespace: string; onChange: (namespace: string) => void }) {
   const { t } = useT("k8s_cluster")
   const namespaces = useQuery({
-    queryKey: [ "k8s_cluster", "namespaces", clusterId ],
+    queryKey: ["k8s_cluster", "namespaces", clusterId],
     queryFn: () => fetchKubernetesNamespaces(clusterId)
   })
 
   if (namespaces.isPending) return <PanelMessage>{t("namespace_loading")}</PanelMessage>
   if (namespaces.isError) return <PanelMessage tone="error">{errorMessage(namespaces.error, t("namespace_error_loading"))}</PanelMessage>
 
-  const options = [
-    { value: ALL_NAMESPACES, label: t("all_namespaces") },
-    ...namespaces.data.namespaces.map((ns) => ({ value: ns.name, label: ns.name }))
-  ]
+  const options = [{ value: ALL_NAMESPACES, label: t("all_namespaces") }, ...namespaces.data.namespaces.map((ns) => ({ value: ns.name, label: ns.name }))]
 
   return <Dropdown ariaLabel={t("namespace_filter_label")} onChange={onChange} options={options} value={namespace} />
 }
