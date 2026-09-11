@@ -337,7 +337,7 @@ function ThemeEditor({
                         <label className="block text-xs font-medium text-text-primary" htmlFor={inputId}>{tokenLabel(mode, key)}</label>
                         <div className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-2">
                           <Input
-                            aria-label={`${tokenLabel(mode, key)} swatch`}
+                            aria-label={`Color picker for ${key} token in ${mode} mode`}
                             className="h-10 w-10 rounded border border-border bg-surface p-1"
                             fullWidth={false}
                             onChange={(event) => onTokenChange(mode, key, event.target.value)}
