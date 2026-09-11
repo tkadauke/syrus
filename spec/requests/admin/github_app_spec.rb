@@ -62,6 +62,7 @@ RSpec.describe "Admin GitHub App registration", type: :request do
   end
 
   it "exchanges the manifest code and persists encrypted credentials without a session" do
+    admin.update!(locale: "de")
     state = register_state
     stub_conversion
 
@@ -76,6 +77,7 @@ RSpec.describe "Admin GitHub App registration", type: :request do
     expect(settings.github_app_private_key_pem).to eq(pem)
     expect(settings.github_app_registered_at).to be_present
     expect(response).to redirect_to(admin_github_app_confirm_path)
+    expect(flash[:notice]).to eq("GitHub App registriert")
   end
 
   it "renders a minimal close-me page (not the admin redirect) for the onboarding origin" do

@@ -43,7 +43,7 @@ module Admin
         # to close itself; the modal polls and continues.
         render_for_user(user, :registered)
       else
-        redirect_to admin_github_app_confirm_path, notice: I18n.t("github_app.registered.heading")
+        redirect_to admin_github_app_confirm_path, notice: I18n.t("github_app.registered.heading", locale: user.locale)
       end
     rescue Octokit::Error, Faraday::Error, JSON::ParserError => e
       render_failure(I18n.t("github_app.errors.registration_failed", error: e.message, locale: user&.locale.presence || I18n.default_locale), user: user)
