@@ -1,5 +1,6 @@
 require "rails_helper"
 require "fileutils"
+require "tmpdir"
 
 RSpec.describe SyrusMcp::RunTargetPrepareTool do
   let(:run) { Factories.job.initial_run }
@@ -7,11 +8,16 @@ RSpec.describe SyrusMcp::RunTargetPrepareTool do
   let(:workspace_path) { WorkflowWorkspace.path_for(workflow) }
 
   around do |example|
-    FileUtils.rm_rf(workspace_path)
-    FileUtils.mkdir_p(workspace_path)
-    example.run
-  ensure
-    FileUtils.rm_rf(workspace_path)
+    original_data_root = ENV["SYRUS_DATA_ROOT"]
+    Dir.mktmpdir("syrus-run-target-prepare") do |data_root|
+      ENV["SYRUS_DATA_ROOT"] = data_root
+      FileUtils.rm_rf(workspace_path)
+      FileUtils.mkdir_p(workspace_path)
+      example.run
+    ensure
+      FileUtils.rm_rf(workspace_path)
+      ENV["SYRUS_DATA_ROOT"] = original_data_root
+    end
   end
 
   def call_tool(label, reason: "need project deps")
