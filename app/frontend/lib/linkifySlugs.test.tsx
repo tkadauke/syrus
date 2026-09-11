@@ -91,6 +91,15 @@ describe("linkifySlugs", () => {
     expect(screen.queryByRole("link", { name: "JOB-42" })).not.toBeInTheDocument()
   })
 
+  it("can render every known slug kind as a copyable hover-card reference", () => {
+    render(<MemoryRouter>{linkifySlugs("Waiting for JOB-42, EPIC-7, DOC-9, and CHAT-3", { slugStyle: "copyable" })}</MemoryRouter>)
+
+    for (const slug of ["JOB-42", "EPIC-7", "DOC-9", "CHAT-3"]) {
+      expect(screen.getByRole("button", { name: `Copy ${slug} to clipboard` })).toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: slug })).not.toBeInTheDocument()
+    }
+  })
+
   it("renders one SlugHoverCard per slug with correct kind and id attributes", () => {
     render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, and DOC-9")}</MemoryRouter>)
 
