@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
+import { useConfirm } from "@app/hooks/useConfirm"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { Button, DataTable, DescriptionList, Form } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -319,6 +320,7 @@ function ConnectionActions({
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("mysql_db_browser")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const destroy = useMutation({
     mutationFn: () => deleteMysqlConnection(connection.id),
@@ -340,8 +342,8 @@ function ConnectionActions({
         </Button>
         <Button
           disabled={destroy.isPending}
-          onClick={() => {
-            if (window.confirm(t("confirm_delete", { label: connection.label }))) {
+          onClick={async () => {
+            if (await confirm({ message: t("confirm_delete", { label: connection.label }), destructive: true })) {
               onNotice(null)
               destroy.mutate()
             }
@@ -357,6 +359,7 @@ function ConnectionActions({
           {errorMessage(destroy.error, t("delete_error_fallback"))}
         </p>
       ) : null}
+      {dialog}
     </div>
   )
 }

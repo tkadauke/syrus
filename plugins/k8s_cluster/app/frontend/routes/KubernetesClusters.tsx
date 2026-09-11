@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
+import { useConfirm } from "@app/hooks/useConfirm"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { Button, DataTable, Form } from "@app/components/ui"
@@ -223,6 +224,7 @@ function ClusterActions({
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("k8s_cluster")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const destroy = useMutation({
     mutationFn: () => deleteKubernetesCluster(cluster.id),
@@ -244,8 +246,8 @@ function ClusterActions({
         </Button>
         <Button
           disabled={destroy.isPending}
-          onClick={() => {
-            if (window.confirm(t("confirm_delete", { label: cluster.label }))) {
+          onClick={async () => {
+            if (await confirm({ message: t("confirm_delete", { label: cluster.label }), destructive: true })) {
               onNotice(null)
               destroy.mutate()
             }
@@ -261,6 +263,7 @@ function ClusterActions({
           {errorMessage(destroy.error, t("delete_error_fallback"))}
         </p>
       ) : null}
+      {dialog}
     </div>
   )
 }

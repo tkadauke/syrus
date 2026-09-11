@@ -6,6 +6,13 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
 import { KubernetesClusters } from "./KubernetesClusters"
+import * as useConfirmModule from "@app/hooks/useConfirm"
+
+function mockUseConfirm(confirmed: boolean) {
+  const mockConfirm = vi.fn<ReturnType<typeof useConfirmModule.useConfirm>["confirm"]>().mockResolvedValue(confirmed)
+  vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm, dialog: <></> })
+  return mockConfirm
+}
 
 function stagingCluster(overrides: Record<string, unknown> = {}) {
   return {
@@ -168,11 +175,12 @@ describe("KubernetesClusters", () => {
 
   it("deletes a cluster after confirmation", async () => {
     setupFetchMock()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
+    const mockConfirm = mockUseConfirm(true)
     renderClusters()
 
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
 
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
     await waitFor(() => expect(screen.queryByText("Staging")).not.toBeInTheDocument())
     expect(await screen.findByText("No clusters yet. Add one to get started.")).toBeInTheDocument()
   })

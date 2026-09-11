@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "../components/Button"
 import { NoticeToast } from "../components/NoticeToast"
+import { useConfirm } from "../hooks/useConfirm"
 import { useT } from "../hooks/useT"
 import {
   createLinkingToken,
@@ -99,6 +100,7 @@ function PlatformRow({
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const label = platformLabel(availablePlatform.platform, t)
   const [linkingToken, setLinkingToken] = useState<LinkingTokenPayload | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
@@ -115,8 +117,8 @@ function PlatformRow({
     }
   })
 
-  function handleDisconnect() {
-    if (window.confirm(t("connected_platforms.disconnect_confirm", { platform: label }))) {
+  async function handleDisconnect() {
+    if (await confirm({ message: t("connected_platforms.disconnect_confirm", { platform: label }), destructive: true })) {
       setLinkingToken(null)
       setLinkError(null)
       onDisconnect()
@@ -185,6 +187,7 @@ function PlatformRow({
           tokenPayload={linkingToken}
         />
       ) : null}
+      {dialog}
     </div>
   )
 }

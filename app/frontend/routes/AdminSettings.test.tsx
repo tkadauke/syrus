@@ -13,6 +13,12 @@ vi.mock("../lib/pageReload", () => ({
 import { AdminSettings } from "./AdminSettings"
 import * as useConfirmModule from "../hooks/useConfirm"
 
+function mockUseConfirm(confirmed: boolean) {
+  const mockConfirm = vi.fn<ReturnType<typeof useConfirmModule.useConfirm>["confirm"]>().mockResolvedValue(confirmed)
+  vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm, dialog: <></> })
+  return mockConfirm
+}
+
 function adminPayload(overrides: Record<string, unknown> = {}) {
   return {
     settings: {
@@ -54,11 +60,10 @@ function renderRoute() {
 }
 
 describe("AdminSettings SecretRow", () => {
-  let mockConfirm: ReturnType<typeof vi.fn>
+  let mockConfirm: ReturnType<typeof mockUseConfirm>
 
   beforeEach(() => {
-    mockConfirm = vi.fn().mockResolvedValue(true)
-    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+    mockConfirm = mockUseConfirm(true)
     reloadMock.mockClear()
   })
 
@@ -202,7 +207,7 @@ describe("AdminSettings Discord section", () => {
   })
 
   it("clears the Discord bot token when set", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true)
+    const mockConfirm = mockUseConfirm(true)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/admin/settings/clear_secret" && init?.method === "POST") {
@@ -225,10 +230,45 @@ describe("AdminSettings Discord section", () => {
     const section = await discordSection()
     fireEvent.click(section.getByRole("button", { name: "Clear" }))
 
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings/clear_secret", expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ secret: "discord_bot_token" })
+      }))
+    })
+  })
+
+  it("clears the Telegram bot token through the shared confirm dialog", async () => {
+    const mockConfirm = mockUseConfirm(true)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/admin/settings/clear_secret" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Cleared." })))
+      }
+      return Promise.resolve(jsonResponse(adminPayload({
+        settings: {
+          ...adminPayload().settings,
+          clearable_secrets: [
+            { key: "gemini_api_key", label: "Gemini API key", set: true },
+            { key: "telegram_bot_token", label: "Telegram bot token", set: true },
+            { key: "discord_bot_token", label: "Discord bot token", set: false }
+          ]
+        }
+      })))
+    })
+
+    renderRoute()
+
+    const heading = await screen.findByRole("heading", { name: "Telegram" })
+    const section = within(heading.closest("section") as HTMLElement)
+    fireEvent.click(section.getByRole("button", { name: "Clear" }))
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings/clear_secret", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ secret: "telegram_bot_token" })
       }))
     })
   })
