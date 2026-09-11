@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { useState } from "react"
+import { Component, useState, type ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ShortcutsProvider, useActiveShortcuts, useShortcut } from "./ShortcutsContext"
 
@@ -27,6 +27,19 @@ function ActiveShortcutsProbe() {
       ))}
     </ul>
   )
+}
+
+class TestErrorBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
+  state = { message: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { message: error.message }
+  }
+
+  render() {
+    if (this.state.message) return <div role="alert">{this.state.message}</div>
+    return this.props.children
+  }
 }
 
 describe("useShortcut / ShortcutsProvider", () => {
@@ -213,11 +226,22 @@ describe("useShortcut / ShortcutsProvider", () => {
 
   it("throws when useShortcut is used outside a ShortcutsProvider", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    const preventExpectedRenderError = (event: ErrorEvent) => {
+      if (event.error?.message === "useShortcut must be used within a ShortcutsProvider") event.preventDefault()
+    }
+    window.addEventListener("error", preventExpectedRenderError)
 
-    expect(() => render(<Registrant keys="g" label="Go" onFire={() => {}} />)).toThrow(
-      "useShortcut must be used within a ShortcutsProvider"
-    )
+    try {
+      render(
+        <TestErrorBoundary>
+          <Registrant keys="g" label="Go" onFire={() => {}} />
+        </TestErrorBoundary>
+      )
 
-    consoleError.mockRestore()
+      expect(screen.getByRole("alert")).toHaveTextContent("useShortcut must be used within a ShortcutsProvider")
+    } finally {
+      window.removeEventListener("error", preventExpectedRenderError)
+      consoleError.mockRestore()
+    }
   })
 })
