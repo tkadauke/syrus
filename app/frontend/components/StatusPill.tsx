@@ -69,11 +69,14 @@ export function StatusPill({ state }: { state: string }) {
   )
 }
 
-export function TonePill({ children, tone, active = false, title, ariaLabel }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string }) {
+export function TonePill({ children, tone, active = false, title, ariaLabel, wrap = false }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string; wrap?: boolean }) {
+  const wrappingClasses = wrap ? "max-w-full flex-wrap whitespace-normal break-words text-left" : "whitespace-nowrap"
+  const childClasses = wrap ? "min-w-0 whitespace-normal break-words" : undefined
+
   return (
-    <span aria-label={ariaLabel} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${PILL_TONE_CLASSES[tone]}`} data-status-pill="true" title={title}>
+    <span aria-label={ariaLabel} className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${wrappingClasses} ${PILL_TONE_CLASSES[tone]}`} data-status-pill="true" title={title}>
       {active ? <RunningSpinner /> : null}
-      <span>{children}</span>
+      <span className={childClasses}>{children}</span>
     </span>
   )
 }

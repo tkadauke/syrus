@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { StatusPill } from "./StatusPill"
+import { StatusPill, TonePill } from "./StatusPill"
 import i18n from "../i18n"
 
 describe("StatusPill", () => {
@@ -53,5 +53,13 @@ describe("StatusPill", () => {
     } finally {
       await i18n.changeLanguage("en")
     }
+  })
+
+  it("can opt into wrapped content for sentence-like pills", () => {
+    render(<TonePill tone="gray" wrap>Waiting for JOB-1234 to merge</TonePill>)
+
+    const pill = screen.getByText("Waiting for JOB-1234 to merge").closest("[data-status-pill]")
+    expect(pill).toHaveClass("whitespace-normal", "flex-wrap", "max-w-full")
+    expect(pill).not.toHaveClass("whitespace-nowrap")
   })
 })
