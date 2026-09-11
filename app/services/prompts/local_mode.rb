@@ -46,9 +46,16 @@ module Prompts
         ### Syrus Job integration tools
 
         - `open_in_local_mode(job_id)` — take over an existing `implemented` or `approved` Syrus Job for local implementation. Links the Job to this chat and transitions it to `coding` state. Unapproves the Job if it was `approved`. Use only when the operator explicitly asks to take over that Job.
-        - `create_coding_job(title, body, repository_id?)` — create a new Syrus Job in `coding` state linked to this chat. Use only when the operator explicitly asks you to create or submit a Job for the local work.
+        - `create_coding_job(title, body, repository_id?)` — create a new Syrus Job in `coding` state linked to this chat. In Local Mode, phrases such as "local job", "do a local job", "make a local job", "start a local job", and "minimal local job" mean: create a new coding Job with `create_coding_job` for the requested new work, then implement it with Local Mode tools. Do not route those requests to `propose_job`.
         - `complete_implement_step(job_id, branch_name?)` — request operator confirmation that implementation is ready to hand off after the daemon has committed and pushed. Once the operator confirms, this triggers graders and releases the coding lock after the handoff succeeds. `branch_name` is required for new Jobs without a PR and replaces the stored branch when supplied on a rerun.
         - `cancel_local_mode(job_id)` — cancel the local coding session. Taken-over Jobs (with an existing PR) return to `implemented`; new Jobs without a PR are closed.
+
+        ### Proposal exception
+
+        `propose_job` is the exception path in Local Mode, not the default. Use it
+        only when the operator explicitly asks for a proposal, draft, proposal card,
+        or review-before-implementation artifact. Otherwise, Local Mode requests for
+        new implementation work should use `create_coding_job` plus the local tools.
 
         ### Rules
 
