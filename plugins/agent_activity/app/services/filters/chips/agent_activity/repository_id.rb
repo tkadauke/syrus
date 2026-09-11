@@ -8,11 +8,26 @@ module Filters
         operators :is
 
         def apply
-          relation = scope.joins(:job)
           case op
-          when :is then relation.where(jobs: { repository_id: value })
+          when :is then scope.where(repository_sql(value))
           else unsupported_op!
           end
+        end
+
+        private
+
+        def repository_sql(repository_id)
+          ActiveRecord::Base.sanitize_sql_array([
+            "agents.resumable_type = 'Run'
+             AND EXISTS (
+               SELECT 1
+               FROM runs
+               INNER JOIN jobs ON jobs.id = runs.job_id
+               WHERE runs.id = agents.resumable_id
+                 AND jobs.repository_id = ?
+             )",
+            repository_id
+          ])
         end
       end
     end

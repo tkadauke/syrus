@@ -2574,6 +2574,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["finished_at"], name: "index_spawned_processes_on_finished_at"
     t.index ["hostname"], name: "index_spawned_processes_on_hostname"
     t.index ["kill_requested_by_user_id"], name: "index_spawned_processes_on_kill_requested_by_user_id"
+    t.index ["kind", "agent_id", "started_at", "id"], name: "idx_spawned_processes_agent_activity_recency"
     t.index ["kind", "workdir", "finished_at"], name: "idx_spawned_processes_kind_workdir_active"
     t.index ["kind"], name: "index_spawned_processes_on_kind"
     t.index ["outcome", "started_at"], name: "idx_spawned_processes_outcome_started"

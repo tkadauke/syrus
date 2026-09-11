@@ -39,7 +39,7 @@ module AgentActivity
 
     while_enabled do |scope|
       scope.effect("agent_activity filter subject") do
-        Filters.register_subject(name: :agent_activity, model: Run, chips: FILTER_CHIPS)
+        Filters.register_subject(name: :agent_activity, model: Agent, chips: FILTER_CHIPS)
       end
       AgentActivity::SmartFolders.install_into(scope)
     end

@@ -14,9 +14,26 @@ module Filters
 
         def apply
           case op
-          when :is_one_of then scope.joins(:step).where(steps: { kind: Array(value) })
+          when :is_one_of
+            scope.where(workflow_role_sql(Array(value)))
           else unsupported_op!
           end
+        end
+
+        private
+
+        def workflow_role_sql(kinds)
+          ActiveRecord::Base.sanitize_sql_array([
+            "agents.resumable_type = 'Run'
+             AND EXISTS (
+               SELECT 1
+               FROM runs
+               INNER JOIN steps ON steps.id = runs.step_id
+               WHERE runs.id = agents.resumable_id
+                 AND steps.kind IN (?)
+             )",
+            kinds
+          ])
         end
       end
     end
