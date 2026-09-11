@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_143000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -153,6 +153,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["deleted_by_user_id"], name: "index_agent_memory_entries_on_deleted_by_user_id"
     t.index ["scope_id", "published", "scope"], name: "index_agent_memory_entries_on_scope_id_and_published_and_scope"
     t.index ["user_id", "scope", "scope_id"], name: "index_agent_memory_entries_on_user_id_and_scope_and_scope_id"
+  end
+
+  create_table "agents", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "resumable_id", null: false
+    t.string "resumable_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["resumable_type", "resumable_id"], name: "index_agents_on_resumable", unique: true
   end
 
   create_table "app_settings", force: :cascade do |t|
@@ -3199,5 +3207,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end
