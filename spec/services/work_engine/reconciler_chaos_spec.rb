@@ -183,6 +183,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     end
 
     def reset_shared_repository!
+      @shared_repository = Factories.repository(user: shared_user)
       shared_repository.update!(
         main_branch_health_enabled: true,
         ci_health: "healthy",

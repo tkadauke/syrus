@@ -153,6 +153,8 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
   end
 
   it "can opt into workspace availability diagnostics" do
+    FileUtils.rm_rf(WorkflowWorkspace.data_root.join("workflows"))
+
     result = run_scenario("workspace_missing_diagnostic", max_ticks: 1)
 
     expect(result).to be_stuck
