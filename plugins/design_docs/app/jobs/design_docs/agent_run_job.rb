@@ -31,6 +31,7 @@ module DesignDocs
     def execute(run)
       run.update!(status: "running", started_at: Time.current)
       broadcast(run)
+      agent = Agent.find_or_create_for!(run)
       result = AgentProviders.run_one_shot(
         provider: run.agent_provider,
         user: run.requested_by_user,
@@ -39,7 +40,8 @@ module DesignDocs
         prompt: DesignDocs::AgentRunPrompt.new(run: run).to_s,
         log_sink: ->(*, **) { },
         timeout: DEFAULT_TIMEOUT_SECONDS,
-        max_turns: DEFAULT_MAX_TURNS
+        max_turns: DEFAULT_MAX_TURNS,
+        agent: agent
       )
 
       return fail_run!(run, "timed out after #{DEFAULT_TIMEOUT_SECONDS}s") if result.timed_out
