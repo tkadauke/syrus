@@ -12,6 +12,7 @@ module DesignDocs
     belongs_to :base_version, class_name: "DesignDocs::DesignDocVersion", optional: true
 
     has_one :provider_session, as: :resumable, dependent: :destroy
+    has_one :agent, as: :resumable, dependent: :destroy
     has_many :comments, class_name: "DesignDocs::DesignDocComment", dependent: :nullify
     has_many :suggestions, class_name: "DesignDocs::DesignDocSuggestion", dependent: :nullify
 
@@ -27,6 +28,18 @@ module DesignDocs
 
     def active?
       status.in?(ACTIVE_STATUSES)
+    end
+
+    def spawned_process_owner_payload
+      {
+        type: "design_doc_agent_run",
+        label: "#{design_doc.display_id} · #{design_doc.title}",
+        path: "/design_docs/#{design_doc_id}"
+      }
+    end
+
+    def spawned_process_owner_user
+      requested_by_user
     end
 
     private
