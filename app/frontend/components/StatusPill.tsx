@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { useT } from "../hooks/useT"
+import { Pill, TONE_CHIP_CLASSES } from "./ui/Pill"
 
 export type PillTone = "red" | "green" | "blue" | "gray" | "amber"
 
@@ -8,11 +9,11 @@ export type PillTone = "red" | "green" | "blue" | "gray" | "amber"
 // interactive children) can still reuse the same status colors instead of
 // hand-rolling their own bg/text/ring literals.
 export const PILL_TONE_CLASSES: Record<PillTone, string> = {
-  amber: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800",
-  blue: "bg-info/10 text-info ring-info/30",
-  gray: "bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700",
-  green: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800",
-  red: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800"
+  amber: TONE_CHIP_CLASSES.warning,
+  blue: TONE_CHIP_CLASSES.info,
+  gray: TONE_CHIP_CLASSES.neutral,
+  green: TONE_CHIP_CLASSES.success,
+  red: TONE_CHIP_CLASSES.danger
 }
 
 // Higher-contrast tone → class-string map for bordered notice banners (a
@@ -21,10 +22,10 @@ export const PILL_TONE_CLASSES: Record<PillTone, string> = {
 export type BannerTone = "success" | "warning" | "error" | "neutral"
 
 export const BANNER_TONE_CLASSES: Record<BannerTone, string> = {
-  success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
-  warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100",
-  error: "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100",
-  neutral: "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+  success: "border-success-border bg-success-surface text-success-text",
+  warning: "border-warning-border bg-warning-surface text-warning-text",
+  error: "border-danger-border bg-danger-surface text-danger-text",
+  neutral: "border-neutral-border bg-neutral-surface text-neutral-text"
 }
 
 const STATE_LATIN: Record<string, string> = {
@@ -41,6 +42,7 @@ const STATE_LATIN: Record<string, string> = {
   no_change_needed: "Iam factum est — It was already done",
   // Run / step states
   running:     "Currit — It runs",
+  succeeded:   "Successit — It has succeeded",
   success:     "Successit — It has succeeded",
   failed:      "Defecit — It has failed",
   cancelled:   "Intermissum est — It has been interrupted",
@@ -55,7 +57,7 @@ export function StatusPill({ state }: { state: string }) {
   const { t } = useT()
   const normalized = state.toLowerCase()
   const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
-    normalized.includes("success") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
+    normalized.includes("success") || normalized.includes("succeed") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
       normalized.includes("running") || normalized.includes("queued") ? "blue" :
         normalized.includes("backlog") || normalized.includes("paused") ? "amber" : "gray"
 
@@ -70,20 +72,11 @@ export function StatusPill({ state }: { state: string }) {
 }
 
 export function TonePill({ children, tone, active = false, title, ariaLabel }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string }) {
-  return (
-    <span aria-label={ariaLabel} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${PILL_TONE_CLASSES[tone]}`} data-status-pill="true" title={title}>
-      {active ? <RunningSpinner /> : null}
-      <span>{children}</span>
-    </span>
-  )
-}
+  const semanticTone = tone === "red" ? "danger" : tone === "green" ? "success" : tone === "blue" ? "info" : tone === "amber" ? "warning" : "neutral"
 
-function RunningSpinner() {
   return (
-    <span
-      aria-hidden="true"
-      className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-info/30 border-t-info dark:border-info/30 dark:border-t-info"
-      data-running-spinner="true"
-    />
+    <Pill active={active} aria-label={ariaLabel} className="capitalize" data-status-pill="true" title={title} tone={semanticTone}>
+      {children}
+    </Pill>
   )
 }

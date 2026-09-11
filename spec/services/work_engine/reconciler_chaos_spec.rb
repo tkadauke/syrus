@@ -183,6 +183,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     end
 
     def reset_shared_repository!
+      AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
       shared_repository.update!(
         main_branch_health_enabled: true,
         ci_health: "healthy",

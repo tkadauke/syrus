@@ -2569,9 +2569,10 @@ Bundled plugins:
   `config/syrus_docs/external_platforms.md` for the Gateway connector
   details.
 - `syrus_dev` — installed but disabled by default. It owns Syrus-development-only
-  diagnostics such as Admin → Performance and the `read_performance_diagnostics`
-  / `read_syrus_logs` workflow MCP tools. Enable it only on instances where
-  agents or operators should inspect Syrus's own production behavior.
+  diagnostics and internal tooling such as Admin → Performance, Admin → Design
+  System, and the `read_performance_diagnostics` / `read_syrus_logs` workflow
+  MCP tools. Enable it only on instances where agents or operators should
+  inspect or develop Syrus's own production behavior.
 - `ruby` — default-enabled. Provides Ruby-generic extension points usable by
   any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
   alike), not just Rails: `:grader_augmentor` — registers two providers,

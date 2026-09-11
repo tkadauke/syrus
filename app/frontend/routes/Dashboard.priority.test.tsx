@@ -334,14 +334,14 @@ describe("priority column rendering", () => {
     renderTable([ jobItem(1, "urgent") ])
     const pill = screen.getByText("urgent")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
-    expect(pill.closest("[data-status-pill]")?.className).toContain("red")
+    expect(pill.closest("[data-status-pill]")?.className).toContain("bg-danger-surface")
   })
 
   it("renders an amber pill for high-priority jobs", () => {
     renderTable([ jobItem(2, "high") ])
     const pill = screen.getByText("high")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
-    expect(pill.closest("[data-status-pill]")?.className).toContain("amber")
+    expect(pill.closest("[data-status-pill]")?.className).toContain("bg-warning-surface")
   })
 
   it("renders an info pill for low-priority jobs", () => {
