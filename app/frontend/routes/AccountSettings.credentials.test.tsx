@@ -24,6 +24,7 @@ vi.mock("@rails/actioncable", () => ({
 function makePayload(overrides: {
   credential_status?: Partial<CredentialsPayload["credential_status"]>
   chat_providers?: string[]
+  agent_providers?: string[]
   admin?: boolean
   codex_auth_mode?: string
 } = {}): CredentialsPayload {
@@ -72,7 +73,7 @@ function makePayload(overrides: {
     provider_availability: {},
     options: {
       locales: ["en", "de", "la"],
-      agent_providers: ["claude", "codex"],
+      agent_providers: overrides.agent_providers ?? ["claude", "codex"],
       chat_providers: overrides.chat_providers ?? [],
       roles: ["developer", "product_owner"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
@@ -276,7 +277,7 @@ describe("CredentialsRoute (provider cards)", () => {
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(new Date("2026-08-29T11:00:00Z"))
     mockRoutes({
-      ...makePayload(),
+      ...makePayload({ agent_providers: ["claude", "codex", "gemini"] }),
       provider_availability: {
         claude: {
           provider: "claude",
@@ -334,6 +335,35 @@ describe("CredentialsRoute (provider cards)", () => {
               }
             }
           }
+        },
+        gemini: {
+          provider: "gemini",
+          label: "Gemini",
+          model: null,
+          state: "available",
+          open: false,
+          usage_exhausted: false,
+          retry_after: null,
+          reason: null,
+          message: "Gemini available.",
+          usage: {
+            status: "warning",
+            observed_at: "2026-08-29T11:00:00Z",
+            evidence: {
+              status: "warning",
+              source: "usage_probe",
+              observed_at: "2026-08-29T11:00:00Z",
+              provider: "gemini",
+              details: {
+                snapshot: {
+                  primary: {
+                    label: "daily",
+                    reset_at: "2026-08-29T12:45:00Z"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     })
@@ -352,6 +382,12 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(codexPanel).not.toBeNull()
     expect(within(codexPanel as HTMLElement).getByText(/42% remaining\./)).toBeInTheDocument()
     expect(within(codexPanel as HTMLElement).getByText("Resets in 1 day, 1 hour.")).toHaveAttribute("title", expect.stringContaining("2026"))
+
+    const geminiInput = screen.getByLabelText("Gemini pause threshold (%)")
+    const geminiPanel = geminiInput.closest(".grid")
+    expect(geminiPanel).not.toBeNull()
+    expect(within(geminiPanel as HTMLElement).getByText(/No usage percentage recorded\./)).toBeInTheDocument()
+    expect(within(geminiPanel as HTMLElement).getByText("Resets in 1 hour, 45 minutes.")).toHaveAttribute("title", expect.stringContaining("2026"))
   })
 
   it("serializes the agent-provider failover policy from agent settings", async () => {
