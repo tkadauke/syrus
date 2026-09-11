@@ -4,7 +4,8 @@ import { CloseIcon } from "./CloseIcon"
 import { useT } from "../hooks/useT"
 import { GeminiSetupSheet } from "./GeminiSetupSheet"
 import { Modal } from "./Modal"
-import { ClaudeConnect, StatusBox } from "@plugins/claude_agent/app/frontend/components/credentials/ClaudeConnect"
+import { StatusBox } from "@plugins/claude_agent/app/frontend/components/credentials/ClaudeConnect"
+import { AgentProviderConnectPanel } from "./AgentProviderConnectPanel"
 
 type AgentTab = "claude" | "gemini"
 
@@ -26,8 +27,6 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
     keyHelp: t("chat:gemini_setup_key_help")
   }
   const [tab, setTab] = useState<AgentTab>("claude")
-  const [ambientReady, setAmbientReady] = useState(false)
-  const [connected, setConnected] = useState<string | null>(null)
   const [geminiSheetOpen, setGeminiSheetOpen] = useState(false)
   const [geminiConfigured, setGeminiConfigured] = useState(false)
 
@@ -132,33 +131,16 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               and survived tab flips; keeping the component alive preserves
               that without giving up the shared extraction. */}
           <div className={tab === "claude" ? undefined : "hidden"}>
-            {connected ? (
-              <div className="space-y-5">
-                <StatusBox tone="ok">{connected}</StatusBox>
-                <div className="flex justify-end">
-                  <Button onClick={onClose}>
-                    {t('configure_agent.done')}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              // The connect flow owns the CLI preflight AND the backend-outage
-              // deferral (the updating note replaces the authorize walkthrough
-              // while the containers are down) — shared with the credentials
-              // page's Claude card.
-              <ClaudeConnect
-                onConnected={(result) => {
-                  setConnected(result.message || t('configure_agent.connected_default'))
-                  onSaved?.()
-                }}
-                onPreflight={setAmbientReady}
-                secondaryAction={
-                  <Button onClick={onClose} variant="secondary">
-                    {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
-                  </Button>
-                }
-              />
-            )}
+            <AgentProviderConnectPanel
+              onCancel={onClose}
+              onSaved={onSaved}
+              provider="claude"
+              secondaryAction={(ambientReady) => (
+                <Button onClick={onClose} variant="secondary">
+                  {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
+                </Button>
+              )}
+            />
           </div>
         </div>
       {geminiSheetOpen ? (
