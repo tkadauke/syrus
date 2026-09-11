@@ -33,6 +33,7 @@ module Steps
         step_agent_diff: step_diff
       )
       train.update!(integration_sha: post_sha, state: "grading")
+      publish_run_checkpoint!
 
       if step_diff.blank?
         log("merge_train_reconcile: no reconciliation changes needed at #{post_sha.first(9)}")
