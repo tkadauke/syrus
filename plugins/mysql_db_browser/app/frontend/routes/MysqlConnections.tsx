@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { NoticeToast } from "@app/components/NoticeToast"
+import { DataTable, DescriptionList } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createMysqlConnection,
@@ -145,7 +146,7 @@ function ConnectionsTable({
 
   if (!isDesktop) {
     return (
-      <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+      <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
         {connections.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("empty")}</p>
         ) : (
@@ -176,24 +177,23 @@ function ConnectionsTable({
   }
 
   return (
-    <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-900 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-4 py-2">{t("col_label")}</th>
-              <th className="px-4 py-2">{t("col_host")}</th>
-              <th className="px-4 py-2">{t("col_username")}</th>
-              <th className="px-4 py-2">{t("col_default_database")}</th>
-              <th className="px-4 py-2">{t("col_password")}</th>
-              <th className="px-4 py-2">{t("col_agentic_access")}</th>
-              <th className="px-4 py-2">{t("col_allow_writes")}</th>
-              <th className="px-4 py-2"><span className="sr-only">{t("col_actions")}</span></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
+    <section>
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("col_label")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_host")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_username")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_default_database")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_password")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_agentic_access")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("col_allow_writes")}</DataTable.HeadCell>
+            <DataTable.HeadCell><span className="sr-only">{t("col_actions")}</span></DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
             {connections.length === 0 ? (
-              <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={8}>{t("empty")}</td></tr>
+              <DataTable.Empty colSpan={8}>{t("empty")}</DataTable.Empty>
             ) : connections.map((connection) => (
               editingId === connection.id ? (
                 <ConnectionEditRow
@@ -213,9 +213,8 @@ function ConnectionsTable({
                 />
               )
             ))}
-          </tbody>
-        </table>
-      </div>
+        </DataTable.Body>
+      </DataTable.Root>
     </section>
   )
 }
@@ -234,30 +233,30 @@ function ConnectionRow({
   const { t } = useT("mysql_db_browser")
 
   return (
-    <tr>
-      <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{connection.label}</td>
-      <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{connection.host}:{connection.port}</td>
-      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{connection.username}</td>
-      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{connection.default_database || "-"}</td>
-      <td className="px-4 py-3">
+    <DataTable.Row>
+      <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{connection.label}</DataTable.Cell>
+      <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-300">{connection.host}:{connection.port}</DataTable.Cell>
+      <DataTable.Cell className="text-gray-700 dark:text-gray-300">{connection.username}</DataTable.Cell>
+      <DataTable.Cell className="text-gray-700 dark:text-gray-300">{connection.default_database || "-"}</DataTable.Cell>
+      <DataTable.Cell>
         <StatusBadge tone={connection.has_password ? "success" : "neutral"}>
           {connection.has_password ? t("has_password_yes") : t("has_password_no")}
         </StatusBadge>
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         <StatusBadge tone={connection.agentic_access_enabled ? "success" : "neutral"}>
           {connection.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}
         </StatusBadge>
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         <StatusBadge tone={connection.allow_writes ? "warning" : "neutral"}>
           {connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
         </StatusBadge>
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         <ConnectionActions align="end" connection={connection} onBrowse={onBrowse} onEdit={onEdit} onNotice={onNotice} />
-      </td>
-    </tr>
+      </DataTable.Cell>
+    </DataTable.Row>
   )
 }
 
@@ -280,7 +279,7 @@ function MobileConnectionCard({
         <p className="font-medium text-gray-900 dark:text-gray-100">{connection.label}</p>
         <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{connection.host}:{connection.port}</p>
       </div>
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+      <DescriptionList.Root className="grid-cols-2 text-xs sm:grid-cols-2" density="compact">
         <MobileField label={t("col_username")} value={connection.username} />
         <MobileField label={t("col_default_database")} value={connection.default_database || "-"} />
         <MobileField label={t("col_password")}>
@@ -298,7 +297,7 @@ function MobileConnectionCard({
             {connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
           </StatusBadge>
         </MobileField>
-      </dl>
+      </DescriptionList.Root>
       <ConnectionActions align="start" connection={connection} onBrowse={onBrowse} onEdit={onEdit} onNotice={onNotice} />
     </article>
   )
@@ -306,10 +305,9 @@ function MobileConnectionCard({
 
 function MobileField({ children, label, value }: { children?: ReactNode; label: string; value?: string }) {
   return (
-    <div className="min-w-0">
-      <dt className="text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="mt-0.5 truncate text-gray-700 dark:text-gray-300">{children ?? value}</dd>
-    </div>
+    <DescriptionList.Item descriptionClassName="truncate text-xs text-gray-700 dark:text-gray-300" label={label} termClassName="text-[10px]">
+      {children ?? value}
+    </DescriptionList.Item>
   )
 }
 
@@ -458,11 +456,11 @@ function ConnectionEditRow({
   onSaved: () => void
 }) {
   return (
-    <tr>
-      <td className="px-4 py-4" colSpan={7}>
+    <DataTable.Row>
+      <DataTable.Cell colSpan={8}>
         <ConnectionEditForm connection={connection} onCancel={onCancel} onNotice={onNotice} onSaved={onSaved} />
-      </td>
-    </tr>
+      </DataTable.Cell>
+    </DataTable.Row>
   )
 }
 
@@ -888,32 +886,30 @@ function TableDetail({ connectionId, database, table }: { connectionId: number; 
 
       <SchemaSection heading={t("columns_heading")} section={data.columns}>
         {(columns: MysqlColumn[]) => (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
-              <thead className="text-left uppercase text-gray-500 dark:text-gray-400">
-                <tr>
-                  <th className="py-1 pr-3">{t("col_column_name")}</th>
-                  <th className="py-1 pr-3">{t("col_column_type")}</th>
-                  <th className="py-1 pr-3">{t("col_column_nullable")}</th>
-                  <th className="py-1 pr-3">{t("col_column_key")}</th>
-                  <th className="py-1 pr-3">{t("col_column_default")}</th>
-                  <th className="py-1">{t("col_column_extra")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
+          <DataTable.Root className="text-xs" density="compact">
+            <DataTable.Header>
+              <DataTable.Row>
+                <DataTable.HeadCell>{t("col_column_name")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_column_type")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_column_nullable")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_column_key")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_column_default")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_column_extra")}</DataTable.HeadCell>
+              </DataTable.Row>
+            </DataTable.Header>
+            <DataTable.Body>
                 {columns.map((column) => (
-                  <tr key={column.name}>
-                    <td className="py-1 pr-3 font-mono text-gray-900 dark:text-gray-100">{column.name}</td>
-                    <td className="py-1 pr-3 text-gray-600 dark:text-gray-400">{column.column_type}</td>
-                    <td className="py-1 pr-3 text-gray-600 dark:text-gray-400">{column.nullable ? t("yes") : t("no")}</td>
-                    <td className="py-1 pr-3 text-gray-600 dark:text-gray-400">{column.key || "-"}</td>
-                    <td className="max-w-[160px] truncate py-1 pr-3 text-gray-600 dark:text-gray-400">{column.default ?? "-"}</td>
-                    <td className="py-1 text-gray-600 dark:text-gray-400">{column.extra || "-"}</td>
-                  </tr>
+                  <DataTable.Row key={column.name}>
+                    <DataTable.Cell className="font-mono text-gray-900 dark:text-gray-100">{column.name}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.column_type}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.nullable ? t("yes") : t("no")}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.key || "-"}</DataTable.Cell>
+                    <DataTable.Cell className="max-w-[160px] truncate text-gray-600 dark:text-gray-400">{column.default ?? "-"}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-600 dark:text-gray-400">{column.extra || "-"}</DataTable.Cell>
+                  </DataTable.Row>
                 ))}
-              </tbody>
-            </table>
-          </div>
+            </DataTable.Body>
+          </DataTable.Root>
         )}
       </SchemaSection>
 
