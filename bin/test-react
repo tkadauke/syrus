@@ -2,6 +2,8 @@
 # Runs React/TypeScript unit tests for the SPA migration.
 set -euo pipefail
 
+export VITE_CONFIG_NATIVE_IGNORE_WARNING="${VITE_CONFIG_NATIVE_IGNORE_WARNING:-true}"
+
 # Install node_modules if missing or stale. npm writes node_modules/.package-lock.json,
 # which gives us a cheap freshness check without running npm on every grader pass.
 if [ ! -d node_modules/.bin ] || [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ] || [ package.json -nt node_modules/.package-lock.json ]; then

@@ -10,6 +10,8 @@
 
 set -euo pipefail
 
+export VITE_CONFIG_NATIVE_IGNORE_WARNING="${VITE_CONFIG_NATIVE_IGNORE_WARNING:-true}"
+
 # Detect the default branch ref. Copied from bin/check-migration-collisions
 # rather than extracted, to keep both scripts standalone and dependency-free.
 resolve_default_branch() {
