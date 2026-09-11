@@ -96,4 +96,39 @@ RSpec.describe Agent do
       expect(agent.provider_session).to eq(provider_session)
     end
   end
+
+  describe "spawned process lifecycle" do
+    it "nullifies spawned process attribution when a run-owned agent is destroyed with its resumable" do
+      agent = described_class.find_or_create_for!(run)
+      spawned_process = SpawnedProcess.create!(
+        kind: "agent",
+        command: "codex exec",
+        hostname: "worker-1",
+        started_at: Time.current,
+        run: run,
+        workflow: run.workflow,
+        agent: agent
+      )
+
+      run.destroy!
+
+      expect(spawned_process.reload.agent_id).to be_nil
+    end
+
+    it "nullifies spawned process attribution when a chat-owned agent is destroyed with its resumable" do
+      agent = described_class.find_or_create_for!(chat_session)
+      spawned_process = SpawnedProcess.create!(
+        kind: "agent",
+        command: "claude --print",
+        hostname: "worker-1",
+        started_at: Time.current,
+        chat_session: chat_session,
+        agent: agent
+      )
+
+      chat_session.destroy!
+
+      expect(spawned_process.reload.agent_id).to be_nil
+    end
+  end
 end

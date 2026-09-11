@@ -107,6 +107,74 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(Thread.current[:syrus_current_chat_session]).to be_nil
   end
 
+  it "uses one agent for multiple spawned processes across separate turns in the same chat session" do
+    stub_claude_process(session_ids: %w[chat-agent-turn-1 chat-agent-turn-2])
+
+    described_class.perform_now(chat.id, user_message.id)
+    follow_up = chat.messages.create!(role: "user", content: { text: "And then?" })
+    described_class.perform_now(chat.id, follow_up.id)
+
+    agent_processes = SpawnedProcess.where(chat_session: chat, kind: "agent").order(:id)
+    expect(agent_processes.size).to eq(2)
+    expect(agent_processes.map(&:agent_id).uniq).to eq([ Agent.find_by!(resumable: chat).id ])
+    expect(Agent.where(resumable: chat).count).to eq(1)
+  end
+
+  it "resolves one chat agent when first-turn invocations race" do
+    captured_agents = Queue.new
+    existing = nil
+    first_call_entered = Queue.new
+    release_first_call = Queue.new
+    first_call_created = Queue.new
+    second_call_entered = Queue.new
+    original_create = Agent.method(:create!)
+    create_calls = Queue.new
+
+    allow(Agent).to receive(:create!) do |attributes|
+      create_calls << true
+
+      if create_calls.size == 1
+        first_call_entered << true
+        release_first_call.pop
+        existing = original_create.call(attributes)
+        first_call_created << true
+        existing
+      else
+        second_call_entered << true
+        first_call_created.pop
+        raise ActiveRecord::RecordNotUnique.new("index_agents_on_resumable")
+      end
+    end
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      captured_agents << kwargs[:agent]
+      instance_double(
+        ProcessRunner,
+        run: ProcessRunner::Result.new(
+          exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+          operator_killed: false, aliveness_failed: false, duration_s: 1.0, spawned_process_id: nil
+        )
+      )
+    end
+
+    invoke = lambda do
+      Thread.current[:syrus_current_chat_session] = chat
+      ClaudeInvocation.new(workspace_path, prompt: "P", oauth_token: "x").run
+    ensure
+      Thread.current[:syrus_current_chat_session] = nil
+    end
+
+    first = Thread.new { invoke.call }
+    first_call_entered.pop
+    second = Thread.new { invoke.call }
+    second_call_entered.pop
+    release_first_call << true
+    [ first, second ].each(&:value)
+
+    agents = 2.times.map { captured_agents.pop }
+    expect(agents).to all(eq(existing))
+    expect(Agent.where(resumable: chat).count).to eq(1)
+  end
+
   it "uses the hidden internal prompt for goal continuation system messages" do
     message = chat.messages.create!(
       role: "system",
@@ -2481,5 +2549,28 @@ RSpec.describe ChatTurnJob, :ci_only do
       session_id: nil
     }.merge(overrides)
     AgentInvocation::Result.new(**attrs)
+  end
+
+  def stub_claude_process(session_ids:)
+    ids = Queue.new
+    Array(session_ids).each { |session_id| ids << session_id }
+    allow(Open3).to receive(:popen2e) do |_env, *args, **_opts, &blk|
+      in_rd, in_wr = IO.pipe
+      rd, wr = IO.pipe
+      session_id = ids.pop
+      [
+        { type: "system", subtype: "init", session_id: session_id },
+        { type: "result", num_turns: 1, is_error: false, subtype: "success", result: "done", usage: {} }
+      ].each do |event|
+        wr.write(event.to_json)
+        wr.write("\n")
+      end
+      wr.close
+      fake_wait = Struct.new(:value, :pid).new(Struct.new(:exitstatus).new(0), 0)
+      blk.call(in_wr, rd, fake_wait)
+      in_rd.read
+      in_rd.close
+      rd.close
+    end
   end
 end

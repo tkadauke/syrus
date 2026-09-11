@@ -64,6 +64,7 @@ class ProcessRunner
                  run: nil,
                  workflow: nil,
                  chat_session: nil,
+                 agent: nil,
                  display_command: nil,
                  on_spawned_process: nil)
     @env = env
@@ -82,6 +83,7 @@ class ProcessRunner
     @run = run
     @workflow = workflow
     @chat_session = chat_session
+    @agent = agent
     @display_command = display_command
     @on_spawned_process = on_spawned_process
 
@@ -276,7 +278,8 @@ class ProcessRunner
       silent_timeout_s: @silent_timeout&.to_i,
       run: @run,
       workflow: @workflow,
-      chat_session: @chat_session
+      chat_session: @chat_session,
+      agent: @agent
     )
   end
 
