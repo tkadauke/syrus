@@ -1,4 +1,6 @@
+import type { ToolCardContext } from "@app/pluginToolCards"
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
+import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
 import { Badge, CardShell, displayValue, numberValue, Row } from "@app/routes/chat/toolCardUi"
 import { isPlainObject } from "@app/toolCardParsing"
 
@@ -85,6 +87,36 @@ export function ElementActionCard({
       ) : null}
     </CardShell>
   )
+}
+
+export function elementFailureSummary(context: ToolCardContext, action: string) {
+  return toolFailureCollapsedSummary(context, elementFailureConfig(context, action))
+}
+
+export function ElementFailureCard({ context, action }: { context: ToolCardContext; action: string }) {
+  return <ToolFailureSummaryCard config={elementFailureConfig(context, action)} context={context} />
+}
+
+function elementFailureConfig(context: ToolCardContext, action: string): ToolFailureConfig {
+  return {
+    title: action,
+    attempted: () => elementAttempt(context, action),
+    retrySafety: "caution",
+    recovery: "Check the canvas for a partial edit before retrying."
+  }
+}
+
+function elementAttempt(context: ToolCardContext, action: string) {
+  const input = isPlainObject(context.input) ? context.input : {}
+  const type = displayValue(input.type)
+  const fromId = displayValue(input.from_id)
+  const toId = displayValue(input.to_id)
+  const id = displayValue(input.id) || displayValue(input.element_id)
+
+  if (fromId && toId) return `${action} from ${fromId} to ${toId}`
+  if (id) return `${action} ${id}`
+  if (type) return `${action} (${type})`
+  return action || humanizeToolName(context.toolName)
 }
 
 // read_scene and update_scene both surface the whole scene rather than one
@@ -267,3 +299,5 @@ export function ClearCanvasCard({ result }: { result: ClearCanvasResult }) {
     </CardShell>
   )
 }
+
+export { isPlainObject }
