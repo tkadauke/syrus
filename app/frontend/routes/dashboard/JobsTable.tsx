@@ -932,16 +932,16 @@ function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
 function MobileJobQueueStatus({ job }: { job: DashboardJobItem }) {
   if (!job.landing_queue_blocked_reason && !job.landing_queue_wait_reason && !job.landing_blocker_override_requested_at) return null
 
-  return <LandingQueueStatusContent job={job} />
+  return <LandingQueueStatusContent job={job} wrapPill />
 }
 
-function LandingQueueStatusContent({ job, showEmpty = false }: { job: DashboardJobItem; showEmpty?: boolean }) {
+function LandingQueueStatusContent({ job, showEmpty = false, wrapPill = false }: { job: DashboardJobItem; showEmpty?: boolean; wrapPill?: boolean }) {
   const { t } = useT("dashboard")
 
   if (job.landing_queue_blocked_reason) {
     return (
       <div className="flex flex-wrap items-center gap-1.5">
-        <TonePill tone="red"><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
+        <TonePill tone="red" wrap={wrapPill}><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
         <LandingBlockerOverrideBadge job={job} />
       </div>
     )
@@ -950,7 +950,7 @@ function LandingQueueStatusContent({ job, showEmpty = false }: { job: DashboardJ
   if (job.landing_queue_wait_reason) {
     return (
       <div className="flex flex-wrap items-center gap-1.5">
-        <TonePill tone="gray"><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_wait_reason, t)} /></TonePill>
+        <TonePill tone="gray" wrap={wrapPill}><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_wait_reason, t)} /></TonePill>
         <LandingBlockerOverrideBadge job={job} />
       </div>
     )
