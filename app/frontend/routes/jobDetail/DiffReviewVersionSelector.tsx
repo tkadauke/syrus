@@ -385,18 +385,8 @@ function shortSha(sha: string | null | undefined) {
   return sha ? sha.slice(0, 7) : "unknown"
 }
 
-function endpointShortLabel(ref: string | null | undefined, sha: string | null | undefined) {
-  return truncateMiddle(ref || shortSha(sha), 18)
-}
-
 function endpointTitle(ref: string | null | undefined, sha: string | null | undefined) {
   return [ref, sha].filter(Boolean).join(" @ ") || "unknown"
-}
-
-function truncateMiddle(value: string, maxLength: number) {
-  if (value.length <= maxLength) return value
-  const keep = Math.floor((maxLength - 1) / 2)
-  return `${value.slice(0, keep)}...${value.slice(value.length - keep)}`
 }
 
 function absoluteDate(value: string) {
