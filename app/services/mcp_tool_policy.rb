@@ -3,6 +3,33 @@
 # may use for the given context. Tool exposure rules live in McpToolRegistry;
 # this policy remains the stable authorization facade for callers and tools.
 class McpToolPolicy
+  class LazyToolList
+    include Enumerable
+
+    def initialize(&loader)
+      @loader = loader
+    end
+
+    def each(&block)
+      to_a.each(&block)
+    end
+
+    def to_a
+      @tools ||= @loader.call.freeze
+    end
+    alias to_ary to_a
+
+    def method_missing(name, ...)
+      return super unless to_a.respond_to?(name)
+
+      to_a.public_send(name, ...)
+    end
+
+    def respond_to_missing?(name, include_private = false)
+      to_a.respond_to?(name, include_private) || super
+    end
+  end
+
   # Capabilities that workflow-surface submit tools require. Maps a symbolic
   # capability name to the set of workflow roles that hold it. Roles absent
   # from the list do not have the capability and must not call the tool.
@@ -64,29 +91,21 @@ class McpToolPolicy
   # specifically (not every WORKFLOW_IMPLEMENT run) so an ordinary
   # `implement` step working on an unrelated Job doesn't gain unrelated
   # dispatch tools.
-  REF_MOVEMENT_TOOLS = [
-    Mcp::Tools::ListDeliveryTracksTool,
-    Mcp::Tools::ResolveDeliveryPolicyTool,
-    Mcp::Tools::SelectJobDeliveryTrackTool,
-    Mcp::Tools::ListRefMovementActionsTool,
-    Mcp::Tools::DispatchRefMovementActionTool,
-    Mcp::Tools::ReadRefMovementStatusTool,
-    Mcp::Tools::ClassifyPullRequestTool,
-    Mcp::Tools::IngestPullRequestTool
+  REF_MOVEMENT_TOOLS = LazyToolList.new { ref_movement_tools }
+
+  SUPERVISOR_EXCLUDED_TOOL_NAMES = %w[
+    attach_repository
+    propose_epic
+    propose_job
+    propose_epic_with_jobs
+    list_proposals
+    delete_proposal
+    submit_chat_feedback
+    delegate_issue
+    list_chat_media
   ].freeze
 
-  SUPERVISOR_EXCLUDED_TOOLS = [
-    Mcp::Tools::AttachRepositoryTool,
-    Mcp::Tools::ProposeEpicTool,
-    Mcp::Tools::ProposeJobTool,
-    Mcp::Tools::ProposeEpicWithJobsTool,
-    Mcp::Tools::ListProposalsTool,
-    Mcp::Tools::DeleteProposalTool,
-    Mcp::Tools::SubmitChatFeedbackTool,
-    Mcp::Tools::DelegateIssueTool,
-    Mcp::Tools::ListChatMediaTool
-  ].freeze
-
+  SUPERVISOR_EXCLUDED_TOOLS = LazyToolList.new { supervisor_excluded_tools }
 
   def self.for(context)
     new(context).allowed_tools
@@ -96,6 +115,28 @@ class McpToolPolicy
   # Non-workflow roles always return false so the check is safe to call for any context.
   def self.capability_permitted?(context, capability)
     McpToolRegistry.capability_permitted?(context, capability)
+  end
+
+  def self.ref_movement_tools
+    @ref_movement_tools ||= [
+      Mcp::Tools::ListDeliveryTracksTool,
+      Mcp::Tools::ResolveDeliveryPolicyTool,
+      Mcp::Tools::SelectJobDeliveryTrackTool,
+      Mcp::Tools::ListRefMovementActionsTool,
+      Mcp::Tools::DispatchRefMovementActionTool,
+      Mcp::Tools::ReadRefMovementStatusTool,
+      Mcp::Tools::ClassifyPullRequestTool,
+      Mcp::Tools::IngestPullRequestTool
+    ].freeze
+  end
+
+  def self.supervisor_excluded_tools
+    @supervisor_excluded_tools ||= begin
+      McpToolRegistry.entries(surface: :chat)
+        .select { |entry| SUPERVISOR_EXCLUDED_TOOL_NAMES.include?(entry.tool_name) }
+        .map(&:tool)
+        .freeze
+    end
   end
 
   def self.syrus_repository?(repository)
@@ -150,7 +191,7 @@ class McpToolPolicy
     else
       tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, Mcp::Tools::SubmitReviewPlanTool, SyrusMcp::SubmitArtifactTool, SyrusMcp::RunTargetPrepareTool, SyrusMcp::PatchWorkflowTool, SyrusMcp::SubmitVisualArtifactTool ]
       tools << Mcp::Tools::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
-      tools += REF_MOVEMENT_TOOLS if @context.run&.step&.kind == "run_skill"
+      tools += self.class.ref_movement_tools if @context.run&.step&.kind == "run_skill"
       tools
     end
   end
@@ -196,21 +237,21 @@ class McpToolPolicy
   end
 
   def chat_base_tools
-    Mcp::Sidecar::CHAT_ESSENTIAL_TOOLS +
-      Mcp::Sidecar::CHAT_DEFERRED_TOOLS
+    Mcp::Sidecar.chat_essential_tools +
+      Mcp::Sidecar.chat_deferred_tools
   end
 
   def apply_admin_filter(tools)
     return tools if @context.user.admin?
 
-    tools.reject { |tool| Mcp::Sidecar::CHAT_ADMIN_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar.chat_admin_tools.include?(tool) }
   end
 
   def apply_coding_filter(tools)
     return tools if @context.role == AgentRole::CHAT_CODING && Feature.coding_mode_enabled?
 
     tools.reject do |tool|
-      Mcp::Sidecar::CHAT_CODING_TOOLS.include?(tool) &&
+      Mcp::Sidecar.chat_coding_tools.include?(tool) &&
         !role_specific_tool_allowed_for_current_context?(tool)
     end
   end
@@ -219,7 +260,7 @@ class McpToolPolicy
     return tools if @context.role == AgentRole::CHAT_LOCAL && Feature.local_mode_enabled?
 
     tools.reject do |tool|
-      Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS.include?(tool) &&
+      Mcp::Sidecar.chat_local_mode_tools.include?(tool) &&
         !role_specific_tool_allowed_for_current_context?(tool)
     end
   end
@@ -238,7 +279,7 @@ class McpToolPolicy
   def apply_supervisor_filter(tools)
     return tools unless @context.chat_session&.system_kind_supervisor?
 
-    tools.reject { |tool| SUPERVISOR_EXCLUDED_TOOLS.include?(tool) }
+    tools.reject { |tool| self.class.supervisor_excluded_tools.include?(tool) }
   end
 
   # Insight agents: read-live-state + worker health + memory tools. Whoever
