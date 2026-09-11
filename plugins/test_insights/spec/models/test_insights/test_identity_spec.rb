@@ -82,6 +82,45 @@ RSpec.describe TestInsights::TestIdentity do
       )
     end
 
+    def create_loop_test_case!(identity, status:, iteration:, step_state:, created_at:, workflow:)
+      step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 100 + iteration,
+        loop_id: "grade-loop",
+        iteration: iteration,
+        state: step_state,
+        details: { "name" => "rspec", "required" => true }
+      )
+      run = step.runs.create!(
+        job: workflow.job,
+        trigger_kind: workflow.trigger_kind,
+        state: step_state,
+        iteration: iteration
+      )
+      test_run = TestInsights::TestRun.create!(
+        run: run,
+        repository: repository,
+        grader_name: "rspec",
+        total_count: 1,
+        passed_count: status == "passed" ? 1 : 0,
+        failed_count: status == "failed" ? 1 : 0,
+        skipped_count: 0,
+        error_count: status == "error" ? 1 : 0
+      )
+      TestInsights::TestCase.create!(
+        test_run: test_run,
+        repository: repository,
+        test_identity: identity,
+        suite_name: identity.suite_name,
+        name: identity.name,
+        status: status,
+        duration_ms: 123,
+        created_at: created_at,
+        updated_at: created_at
+      )
+    end
+
     it "refreshes many identity summaries with bounded test case reads" do
       identities = 4.times.map { |index| create_identity!("case #{index}") }
       identities.each_with_index do |identity, index|
@@ -155,6 +194,25 @@ RSpec.describe TestInsights::TestIdentity do
 
       expect(test_identity_updates.size).to eq(1)
       expect(identities.map { |identity| identity.reload.last_status }).to all(eq("passed"))
+    end
+
+    it "excludes self-repaired retry-loop failures from persisted failure summaries" do
+      identity = create_identity!("self repaired")
+      workflow = Factories.job(repository: repository).workflows.last
+      create_loop_test_case!(identity, status: "failed", iteration: 1, step_state: "failed", workflow: workflow, created_at: 2.minutes.ago)
+      passed = create_loop_test_case!(identity, status: "passed", iteration: 2, step_state: "succeeded", workflow: workflow, created_at: 1.minute.ago)
+
+      described_class.refresh_many!([ identity.id ])
+
+      expect(identity.reload).to have_attributes(
+        last_status: "passed",
+        last_seen_at: passed.created_at,
+        last_failed_at: nil,
+        last_passed_at: passed.created_at,
+        recent_sample_count: 1,
+        recent_failed_count: 0,
+        recent_passed_count: 1
+      )
     end
   end
 end

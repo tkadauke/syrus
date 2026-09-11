@@ -30,6 +30,53 @@ RSpec.describe TestInsights::TestCase do
     TestInsights::TestIdentity.ensure_for_repository!(repo, index_search: false)
   end
 
+  def create_identity!(name: "it does the thing", suite_name: "MySpec")
+    TestInsights::TestIdentity.create!(
+      repository: repo,
+      fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: suite_name, name: name),
+      suite_name: suite_name,
+      name: name
+    )
+  end
+
+  def create_loop_case!(identity:, status:, iteration:, step_state:, workflow: job.workflows.last, grader_name: "rspec", loop_id: "grade-loop", created_at: Time.current)
+    step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 100 + iteration,
+      loop_id: loop_id,
+      iteration: iteration,
+      state: step_state,
+      details: { "name" => grader_name, "required" => true }
+    )
+    run = step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      state: step_state,
+      iteration: iteration
+    )
+    scoped_test_run = TestInsights::TestRun.create!(
+      run: run,
+      repository: repo,
+      grader_name: grader_name,
+      total_count: 1,
+      passed_count: status == "passed" ? 1 : 0,
+      failed_count: status == "failed" ? 1 : 0,
+      skipped_count: status == "skipped" ? 1 : 0,
+      error_count: status == "error" ? 1 : 0
+    )
+    TestInsights::TestCase.create!(
+      test_run: scoped_test_run,
+      repository: repo,
+      test_identity: identity,
+      name: identity.name,
+      suite_name: identity.suite_name,
+      status: status,
+      created_at: created_at,
+      updated_at: created_at
+    )
+  end
+
   it "is valid with required attributes" do
     expect(build_case).to be_valid
   end
@@ -86,6 +133,31 @@ RSpec.describe TestInsights::TestCase do
     it "scopes .errored" do
       expect(TestInsights::TestCase.errored.pluck(:status).uniq).to eq([ "error" ])
     end
+
+    it "excludes failures repaired by a later passing grader in the same retry loop from scored history" do
+      identity = create_identity!
+      failed = create_loop_case!(identity: identity, status: "failed", iteration: 1, step_state: "failed", created_at: 2.minutes.ago)
+      passed = create_loop_case!(identity: identity, status: "passed", iteration: 2, step_state: "succeeded", created_at: 1.minute.ago)
+
+      expect(TestInsights::TestCase.wip_repair_failures).to contain_exactly(failed)
+      expect(TestInsights::TestCase.for_scoring.where(id: [ failed.id, passed.id ])).to contain_exactly(passed)
+    end
+
+    it "keeps mixed pass and failure history from different workflows in scored history" do
+      identity = create_identity!
+      failed = create_loop_case!(identity: identity, status: "failed", iteration: 1, step_state: "failed", created_at: 2.minutes.ago)
+      other_workflow = Workflow.create!(
+        job: job,
+        user: job.user,
+        trigger_kind: "retry",
+        agent_provider: job.agent_provider,
+        priority: job.priority
+      )
+      passed = create_loop_case!(identity: identity, status: "passed", iteration: 2, step_state: "succeeded", workflow: other_workflow, created_at: 1.minute.ago)
+
+      expect(TestInsights::TestCase.wip_repair_failures).to be_empty
+      expect(TestInsights::TestCase.for_scoring.where(id: [ failed.id, passed.id ])).to contain_exactly(failed, passed)
+    end
   end
 
   describe ".flakiness_score" do
@@ -124,6 +196,17 @@ RSpec.describe TestInsights::TestCase do
       expect(result[:failed_count]).to eq(1)
       expect(result[:total_count]).to eq(3)
       expect(result[:flaky]).to be(true)
+    end
+
+    it "does not count a self-repaired retry-loop failure as flaky" do
+      identity = create_identity!
+      create_loop_case!(identity: identity, status: "failed", iteration: 1, step_state: "failed", created_at: 2.minutes.ago)
+      create_loop_case!(identity: identity, status: "passed", iteration: 2, step_state: "succeeded", created_at: 1.minute.ago)
+
+      result = TestInsights::TestCase.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result).to include(score: 0.0, failed_count: 0, total_count: 1, flaky: false)
+      expect(result.fetch(:run_statuses)).to eq([ "passed" ])
     end
 
     it "counts error status as failures" do

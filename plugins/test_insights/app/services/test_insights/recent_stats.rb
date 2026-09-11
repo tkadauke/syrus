@@ -14,6 +14,7 @@ module TestInsights
       return stats_by_id if ids.empty?
 
       ranked_cases = TestCase
+        .for_scoring
         .where(test_identity_id: ids)
         .select(
           "test_insight_cases.test_identity_id",
@@ -25,7 +26,11 @@ module TestInsights
       rows = TestCase
         .from("(#{ranked_cases.to_sql}) test_cases")
         .where("syrus_recent_rank <= ?", lookback)
-        .pluck(:test_identity_id, :status, :duration_ms)
+        .pluck(
+          Arel.sql("test_cases.test_identity_id"),
+          Arel.sql("test_cases.status"),
+          Arel.sql("test_cases.duration_ms")
+        )
 
       rows.group_by(&:first).each do |identity_id, grouped_rows|
         stats_by_id[identity_id] = stats_for(grouped_rows)

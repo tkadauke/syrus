@@ -3,6 +3,7 @@ module TestInsights
     self.table_name = "test_insight_cases"
 
     STATUSES = %w[passed failed skipped error].freeze
+    FAILURE_STATUSES = %w[failed error].freeze
     FLAKINESS_LOOKBACK = 20
 
     belongs_to :test_run
@@ -17,12 +18,41 @@ module TestInsights
     scope :failed,  -> { where(status: "failed") }
     scope :skipped, -> { where(status: "skipped") }
     scope :errored, -> { where(status: "error") }
+    scope :wip_repair_failures, -> {
+      where(status: FAILURE_STATUSES)
+        .where(<<~SQL.squish)
+          EXISTS (
+            SELECT 1
+            FROM test_insight_runs original_test_runs
+            INNER JOIN runs original_runs ON original_runs.id = original_test_runs.run_id
+            INNER JOIN steps original_steps ON original_steps.id = original_runs.step_id
+            INNER JOIN test_insight_cases repair_cases
+              ON repair_cases.test_identity_id = test_insight_cases.test_identity_id
+             AND repair_cases.status = 'passed'
+            INNER JOIN test_insight_runs repair_test_runs
+              ON repair_test_runs.id = repair_cases.test_run_id
+             AND repair_test_runs.grader_name = original_test_runs.grader_name
+            INNER JOIN runs repair_runs ON repair_runs.id = repair_test_runs.run_id
+            INNER JOIN steps repair_steps ON repair_steps.id = repair_runs.step_id
+            WHERE original_test_runs.id = test_insight_cases.test_run_id
+              AND original_steps.kind = 'grader'
+              AND original_steps.loop_id IS NOT NULL
+              AND repair_steps.kind = 'grader'
+              AND repair_steps.state = 'succeeded'
+              AND repair_steps.workflow_id = original_steps.workflow_id
+              AND repair_steps.loop_id = original_steps.loop_id
+              AND repair_steps.iteration > original_steps.iteration
+          )
+        SQL
+    }
+    scope :for_scoring, -> { where.not(id: wip_repair_failures.select(:id)) }
 
     # Returns flakiness data for a specific (repository, suite_name, name) tuple.
     # A test is flaky if it has both passed and failed within the lookback window.
     # Returns nil if no history exists.
     def self.flakiness_score(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK)
       statuses = history_scope_for(repository: repository, suite_name: suite_name, name: name)
+        .for_scoring
         .limit(lookback)
         .pluck(:status)
 
@@ -45,6 +75,7 @@ module TestInsights
     # Returns nil if no duration data exists.
     def self.runtime_percentiles(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK)
       durations = history_scope_for(repository: repository, suite_name: suite_name, name: name)
+        .for_scoring
         .where.not(duration_ms: nil)
         .limit(lookback)
         .pluck(:duration_ms)
@@ -106,7 +137,8 @@ module TestInsights
       condition = fallback_pairs.map { "(suite_name = ? AND name = ?)" }.join(" OR ")
       values = fallback_pairs.flat_map { |suite_name, name| [ suite_name, name ] }
 
-      recent = where(repository_id: repository.id)
+      recent = for_scoring
+        .where(repository_id: repository.id)
         .where(condition, *values)
         .order(:suite_name, :name, created_at: :desc, id: :desc)
         .select(:suite_name, :name, :status, :duration_ms, :created_at)
@@ -133,7 +165,8 @@ module TestInsights
       cases_by_identity_id = cases.filter_map { |tc| [ tc.test_identity_id, tc ] if tc.test_identity_id }.to_h
       return {} if cases_by_identity_id.empty?
 
-      ranked_cases = where(test_identity_id: cases_by_identity_id.keys)
+      ranked_cases = for_scoring
+        .where(test_identity_id: cases_by_identity_id.keys)
         .select(
           "test_insight_cases.test_identity_id",
           "test_insight_cases.suite_name",

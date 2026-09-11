@@ -142,6 +142,7 @@ module TestInsights
     def self.latest_status_times_for(ids)
       ids.each_slice(REFRESH_BATCH_SIZE).each_with_object({ failed: {}, passed: {} }) do |slice, result|
         TestCase
+          .for_scoring
           .where(test_identity_id: slice, status: %w[failed error passed])
           .group(:test_identity_id, :status)
           .maximum(:created_at)
@@ -247,7 +248,7 @@ module TestInsights
     end
 
     def recent_stats(lookback: LIST_LOOKBACK)
-      cases = test_cases.order(created_at: :desc).limit(lookback).pluck(:status, :duration_ms)
+      cases = test_cases.for_scoring.order(created_at: :desc).limit(lookback).pluck(:status, :duration_ms)
       total = cases.size
       failed = cases.count { |status, _duration| status == "failed" || status == "error" }
       passed = cases.count { |status, _duration| status == "passed" }
@@ -311,11 +312,11 @@ module TestInsights
     end
 
     def latest_failed_at
-      test_cases.where(status: %w[failed error]).maximum(:created_at)
+      test_cases.for_scoring.where(status: %w[failed error]).maximum(:created_at)
     end
 
     def latest_passed_at
-      test_cases.where(status: "passed").maximum(:created_at)
+      test_cases.for_scoring.where(status: "passed").maximum(:created_at)
     end
   end
 end

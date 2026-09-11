@@ -25,6 +25,7 @@ module TestInsights
         .order(created_at: :desc, id: :desc)
         .limit(@history_limit)
         .to_a
+      @wip_repair_failure_ids = TestCase.wip_repair_failures.where(id: history_cases.map(&:id)).ids.to_set
 
       {
         repository: repository_payload(repository),
@@ -84,10 +85,11 @@ module TestInsights
     end
 
     def stats_for_history(history_cases)
-      total = history_cases.size
-      failed = history_cases.count { |test_case| test_case.status.in?(%w[failed error]) }
-      passed = history_cases.count { |test_case| test_case.status == "passed" }
-      durations = history_cases.filter_map(&:duration_ms)
+      scored_cases = history_cases.reject { |test_case| wip_repair_failure?(test_case) }
+      total = scored_cases.size
+      failed = scored_cases.count { |test_case| test_case.status.in?(%w[failed error]) }
+      passed = scored_cases.count { |test_case| test_case.status == "passed" }
+      durations = scored_cases.filter_map(&:duration_ms)
 
       {
         total_count: total,
@@ -108,7 +110,8 @@ module TestInsights
           type: "TestCase",
           status: test_case.status,
           duration_ms: test_case.duration_ms,
-          created_at: iso8601(test_case.created_at)
+          created_at: iso8601(test_case.created_at),
+          classification: history_classification(test_case)
         },
         test_run: {
           id: test_run.id,
@@ -182,6 +185,14 @@ module TestInsights
       yield
     rescue StandardError
       nil
+    end
+
+    def history_classification(test_case)
+      wip_repair_failure?(test_case) ? "wip_repair_failure" : "scored"
+    end
+
+    def wip_repair_failure?(test_case)
+      @wip_repair_failure_ids&.include?(test_case.id)
     end
 
     def failure_payload(test_case)
