@@ -105,9 +105,16 @@ de:
       fork_sync_enqueued: "%{slug} wird mit seinem Upstream synchronisiert."
       not_fork_syncable: "%{slug} ist kein Fork mit einem Upstream in dieser Instanz."
       no_sha_to_grade: "Noch kein Branch-SHA erfasst — bitte zuerst das Repository abfragen."
+      check_ci_now_enqueued: "CI-Prüfung für %{slug} eingereiht."
+      ci_not_configured: "Keine CI-Prüfungen für %{slug} gefunden."
 
     input_sources:
       saved: "%{source}-Quelle gespeichert."
+
+    platform_identities:
+      not_configured: "%{platform}-Integration ist auf dieser Instanz noch nicht konfiguriert."
+      unlinked: "Plattformkonto getrennt."
+      unsupported_platform: "Nicht unterstützte Plattform."
 
     job_pins:
       pinned: "Aufgabe angeheftet."
@@ -144,6 +151,10 @@ de:
       start_blocked_by_dependencies: "Epic kann noch nicht mit der Umsetzung beginnen — wartet auf Epic-Abhängigkeiten: %{names}."
       start_children_unconfirmed: "Epic kann erst mit der Umsetzung beginnen, wenn seine Kind-Aufgaben bestätigt sind."
       start_claimed_by_other: "Epic ist von einem anderen Benutzer beansprucht."
+      review_approved: "Feature genehmigt."
+      feedback_job_created: "Feedback erhalten — Arbeit ist eingereiht."
+      feedback_blank: "Feedback darf nicht leer sein."
+      review_not_ready: "Feature ist noch nicht bereit zur Prüfung."
       access_forbidden: "Du hast keinen Zugriff auf das Ziel-Repository."
       owner_not_found: "Eigentümer-Benutzer nicht gefunden."
       already_assigned: "Epic ist bereits %{email} zugewiesen."
