@@ -37,6 +37,7 @@ class PollPullRequestJob < ApplicationJob
     @job = Job.find_by(id: job_id)
     return unless @job&.open? && @job.pr_number.present?
     return if @job.repository.archived?
+    return if @job.effective_pr_repository.github_api_rate_limited_for?(user: @job.user)
 
     pr_repo = @job.effective_pr_repository
     @client = GithubClient.for(repository: pr_repo, user: @job.user)
@@ -46,7 +47,7 @@ class PollPullRequestJob < ApplicationJob
     # Reaching this point means the user's GH token is at least
     # readable for pull_request — clear any stale "API blocked"
     # banner. Per-branch errors below mark it again if needed.
-    @job.user.clear_gh_api_blocked!
+    @client.clear_api_blocked!
 
     return close_with("pr_merged") if @pr.merged
     return handle_upstream_pr_reopened if upstream_pr_was_reopened?
@@ -65,7 +66,7 @@ class PollPullRequestJob < ApplicationJob
     # The pull_request fetch itself failed on permissions — record
     # for the banner, then re-raise so SolidQueue's failed_executions
     # table reflects the actual error class for later diagnostics.
-    @job&.user&.mark_gh_api_blocked!(strip_docs_url(e.message))
+    @client&.mark_api_blocked!(strip_docs_url(e.message)) || @job&.user&.mark_gh_api_blocked!(strip_docs_url(e.message))
     raise
   rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
     Rails.logger.warn("[PollPullRequestJob] #{@job&.slug || job_id}: transient GitHub polling failure — #{e.class}: #{e.message}")
@@ -464,7 +465,7 @@ class PollPullRequestJob < ApplicationJob
     # Pre-existing pr_comment Runs that already enqueued this poll
     # shouldn't all die because CI scope is missing.
     reason = strip_docs_url(e.message)
-    @job.user.mark_gh_api_blocked!("check-runs: #{reason}")
+    @client.mark_api_blocked!("check-runs: #{reason}")
     Rails.logger.warn("[PollPullRequestJob] #{@job.slug}: ci_failure path disabled — #{reason[0, 160]}")
   rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
     Rails.logger.warn("[PollPullRequestJob] #{@job.slug}: ci_failure check-runs skipped after transient GitHub failure — #{e.class}: #{e.message}")

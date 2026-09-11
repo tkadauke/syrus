@@ -30,6 +30,30 @@ class Installation < ApplicationRecord
     update!(cached_token: nil, cached_token_expires_at: nil)
   end
 
+  def mark_gh_api_blocked!(reason)
+    reason = reason.to_s[0, 500]
+    return if gh_api_blocked_at && gh_api_blocked_reason == reason
+
+    blocked_at = Time.current
+    update_columns(gh_api_blocked_at: blocked_at, gh_api_blocked_reason: reason)
+    assign_attributes(gh_api_blocked_at: blocked_at, gh_api_blocked_reason: reason)
+  end
+
+  def clear_gh_api_blocked!
+    return unless gh_api_blocked_at
+
+    update_columns(gh_api_blocked_at: nil, gh_api_blocked_reason: nil)
+    assign_attributes(gh_api_blocked_at: nil, gh_api_blocked_reason: nil)
+  end
+
+  def gh_api_blocked?
+    gh_api_blocked_at.present?
+  end
+
+  def github_api_rate_limited?(now: Time.current)
+    gh_rate_limit_remaining.to_i <= 0 && gh_rate_limit_reset_at.present? && gh_rate_limit_reset_at > now
+  end
+
   private
 
   def refresh_token!

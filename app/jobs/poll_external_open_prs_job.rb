@@ -10,11 +10,13 @@ class PollExternalOpenPrsJob < ApplicationJob
   def perform(repository_id)
     @repository = Repository.find_by(id: repository_id)
     return unless @repository && !@repository.archived? && @repository.external_pr_ingestion_enabled?
+    return if @repository.github_api_rate_limited_for?
 
     @client = GithubClient.for(repository: @repository, user: @repository.user)
     @slug = @repository.slug
 
     open_prs = @client.list_open_pull_requests(@slug)
+    @client.clear_api_blocked!
     existing_numbers = Job.tracked_pr_numbers_for(repository: @repository)
 
     open_prs.each do |pr|

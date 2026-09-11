@@ -390,6 +390,14 @@ class Repository < ApplicationRecord
     app_credential_active? ? "app" : "pat"
   end
 
+  def github_api_rate_limited_for?(user: self.user, now: Time.current)
+    if (installation = GithubClient.active_installation_for(repository: self, user: user))
+      installation.github_api_rate_limited?(now:)
+    else
+      user&.github_api_rate_limited?(now:)
+    end
+  end
+
   # Anonymous URL — safe to bake into a saved clone's remote.
   def remote_url
     "https://github.com/#{owner}/#{name}.git"

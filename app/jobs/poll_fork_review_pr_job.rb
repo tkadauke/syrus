@@ -11,9 +11,11 @@ class PollForkReviewPrJob < ApplicationJob
     return unless @job&.open? && @job.fork_review_pr_number.present?
     return if @job.pr_number.present?  # upstream PR already created; normal polling takes over
     return if @job.repository.archived?
+    return if @job.repository.github_api_rate_limited_for?(user: @job.user)
 
     @client = GithubClient.for(repository: @job.repository, user: @job.user)
     @pr = @client.pull_request(@job.repository.slug, @job.fork_review_pr_number)
+    @client.clear_api_blocked!
 
     # Accidental merge: the fork PR was merged on GitHub before Syrus detected an
     # approval signal. Treat the merge as the approval — skip the close step.

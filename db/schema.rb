@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_11_220000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1210,6 +1210,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.text "cached_token"
     t.datetime "cached_token_expires_at"
     t.datetime "created_at", null: false
+    t.datetime "gh_api_blocked_at"
+    t.text "gh_api_blocked_reason"
+    t.integer "gh_rate_limit_limit"
+    t.datetime "gh_rate_limit_observed_at"
+    t.integer "gh_rate_limit_remaining"
+    t.datetime "gh_rate_limit_reset_at"
+    t.string "gh_rate_limit_resource", limit: 32
     t.bigint "github_installation_id", null: false
     t.datetime "installed_at", null: false
     t.datetime "removed_at"
@@ -3199,5 +3206,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end

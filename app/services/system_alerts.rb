@@ -27,7 +27,7 @@ module SystemAlerts
   def self.active_for(user:)
     out = []
     provider_availability = provider_availability_for_alerts(user)
-    out << github_token_blocked(user) if user&.gh_api_blocked?
+    out.concat(github_api_alerts(user)) if user
     out.concat(provider_auth_alerts(user, provider_availability)) if user
     out << codex_usage(user, availability: provider_availability["codex"]) if user
     out << data_root_disk_usage if user&.admin?
@@ -43,6 +43,16 @@ module SystemAlerts
     User.agent_providers.index_with { |provider| App::ProviderAvailability.for_user(user, provider) }
   end
   private_class_method :provider_availability_for_alerts
+
+  def self.github_api_alerts(user)
+    alerts = []
+    alerts << github_token_blocked(user) if user.gh_api_blocked?
+    Installation.active.where(user_id: user.id).where.not(gh_api_blocked_at: nil).find_each do |installation|
+      alerts << github_installation_blocked(installation)
+    end
+    alerts
+  end
+  private_class_method :github_api_alerts
 
   def self.github_token_blocked(user)
     # The `gh_api_blocked_reason` is verbatim text from GitHub's API
@@ -74,6 +84,28 @@ module SystemAlerts
     )
   end
   private_class_method :github_token_blocked
+
+  def self.github_installation_blocked(installation)
+    reason = ERB::Util.html_escape(installation.gh_api_blocked_reason.to_s)
+    reset = installation.gh_rate_limit_reset_at
+    reset_message = reset.present? ? " GitHub reports that the #{ERB::Util.html_escape(installation.gh_rate_limit_resource.presence || "core")} bucket resets at <code>#{ERB::Util.html_escape(reset.utc.iso8601)}</code>." : ""
+    Alert.new(
+      id: "github_installation_api:#{installation.id}",
+      dismissal_key: "github_installation_api:#{installation.id}:#{installation.gh_api_blocked_at&.to_i}",
+      severity: :alarm,
+      title: "GitHub App API access is rate-limited.",
+      message: "Syrus tried to read GitHub through the GitHub App installation for <strong>#{ERB::Util.html_escape(installation.account_login)}</strong> and got back: " \
+               "<code>#{reason}</code>. Polling, PR-feedback detection, and CI-failure detection for repositories on this installation are paused until the limit resets or a later API call succeeds.#{reset_message}",
+      action_steps: [
+        "Wait for GitHub's installation rate-limit reset before forcing more PR or check rechecks.",
+        "Reduce unnecessary polling or install the app on fewer high-churn repositories if this keeps recurring.",
+        "A PAT rotation will not fix this specific alert unless the repository has no usable GitHub App installation."
+      ],
+      cta: { text: "GitHub App settings", path: "/admin/github_app/confirm" },
+      actions: []
+    )
+  end
+  private_class_method :github_installation_blocked
 
   def self.provider_auth_alerts(user, provider_availability)
     provider_availability.filter_map do |provider, availability|

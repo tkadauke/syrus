@@ -31,6 +31,28 @@ RSpec.describe SystemAlerts do
       expect(alert.cta).to eq(text: "Update token", path: "/credentials")
     end
 
+    it "surfaces GitHub App installation rate limits separately from PAT credential guidance" do
+      user = Factories.user
+      installation = Factories.installation(
+        user: user,
+        account_login: "acme",
+        gh_api_blocked_at: Time.current,
+        gh_api_blocked_reason: "API rate limit exceeded for installation ID 123",
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: Time.zone.parse("2026-09-11T23:00:00Z"),
+        gh_rate_limit_resource: "core"
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).detect { |candidate| candidate.id == "github_installation_api:#{installation.id}" }
+
+      expect(alert.title).to eq("GitHub App API access is rate-limited.")
+      expect(alert.message).to include("acme")
+      expect(alert.message).to include("2026-09-11T23:00:00Z")
+      expect(alert.action_steps.join).to include("PAT rotation will not fix")
+      expect(alert.cta).to eq(text: "GitHub App settings", path: "/admin/github_app/confirm")
+    end
+
     it "html-escapes the verbatim API reason before wrapping in <code> (untrusted content)" do
       user = Factories.user
       user.mark_gh_api_blocked!("oops <script>alert(1)</script>")

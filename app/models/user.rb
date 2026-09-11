@@ -726,6 +726,10 @@ class User < ApplicationRecord
     gh_api_blocked_at.present?
   end
 
+  def github_api_rate_limited?(now: Time.current)
+    gh_rate_limit_remaining.to_i <= 0 && gh_rate_limit_reset_at.present? && gh_rate_limit_reset_at > now
+  end
+
   private
 
   PROVIDER_CONFIGURED_CHECKS = {

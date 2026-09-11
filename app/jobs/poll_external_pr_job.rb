@@ -11,10 +11,12 @@ class PollExternalPrJob < ApplicationJob
     return unless @job&.open? && @job.external_pr_number.present?
     return if !@job.external_pr? && @job.pr_number.present?
     return if @job.repository.archived?
+    return if @job.repository.github_api_rate_limited_for?(user: @job.user)
 
     @client = GithubClient.for(repository: @job.repository, user: @job.user)
     @slug = @job.repository.slug
     @pr = @client.pull_request(@slug, @job.external_pr_number)
+    @client.clear_api_blocked!
 
     return close_with("external_pr_merged") if @pr.merged
     return close_with("external_pr_closed") if @pr.state == "closed"

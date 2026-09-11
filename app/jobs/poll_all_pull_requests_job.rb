@@ -19,6 +19,8 @@ class PollAllPullRequestsJob < ApplicationJob
        .merge(Repository.active)
        .open_threads.where.not(pr_number: nil)
        .find_each do |job|
+      next if job.repository.github_api_rate_limited_for?(user: job.user)
+
       PollPullRequestJob.perform_later(job.id)
     end
 
@@ -27,6 +29,8 @@ class PollAllPullRequestsJob < ApplicationJob
        .open_threads.where.not(external_pr_number: nil)
        .where("jobs.pr_number IS NULL OR jobs.kind = ?", "external_pr")
        .find_each do |job|
+      next if job.repository.github_api_rate_limited_for?(user: job.user)
+
       PollExternalPrJob.perform_later(job.id)
     end
 
@@ -37,6 +41,8 @@ class PollAllPullRequestsJob < ApplicationJob
        .merge(Repository.active)
        .open_threads.where(pr_number: nil).where.not(fork_review_pr_number: nil)
        .find_each do |job|
+      next if job.repository.github_api_rate_limited_for?(user: job.user)
+
       PollForkReviewPrJob.perform_later(job.id)
     end
   end

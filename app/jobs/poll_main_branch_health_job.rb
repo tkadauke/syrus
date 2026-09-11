@@ -17,6 +17,7 @@ class PollMainBranchHealthJob < ApplicationJob
     return unless repository
     return if repository.archived?
     return unless repository.main_branch_health_enabled?
+    return if repository.github_api_rate_limited_for?
 
     # Grading main is the instance's work, not the repository owner's; see
     # InstanceIdentity. It still runs as the owner, but a repository with no
@@ -35,6 +36,7 @@ class PollMainBranchHealthJob < ApplicationJob
       handle_transient_github_error!(repository, e)
       return
     end
+    client.clear_api_blocked!
     return unless sha
 
     repository.reset_main_health_poll_error_streak!

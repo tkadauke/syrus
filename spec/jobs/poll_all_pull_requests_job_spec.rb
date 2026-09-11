@@ -23,6 +23,25 @@ RSpec.describe PollAllPullRequestsJob do
     }.not_to have_enqueued_job(PollPullRequestJob).with(closed_with_pr.id)
   end
 
+  it "skips PR feedback polling while the repository's GitHub App installation is rate-limited" do
+    installation = Factories.installation(
+      user: user,
+      account_login: repo.owner,
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_limit: 5_000,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_resource: "core",
+      gh_rate_limit_observed_at: Time.current
+    )
+    repo.update!(installation: installation)
+    job = Factories.job(repository: repo, issue_number: 10)
+    job.update!(pr_number: 10)
+
+    expect {
+      described_class.perform_now
+    }.not_to have_enqueued_job(PollPullRequestJob).with(job.id)
+  end
+
   it "fans out to PollExternalPrJob for open Jobs with only an external PR" do
     open_external_only = Factories.job(repository: repo, issue_number: 4).tap do |j|
       j.update!(external_pr_number: 10)
@@ -48,6 +67,29 @@ RSpec.describe PollAllPullRequestsJob do
     expect {
       described_class.perform_now
     }.not_to have_enqueued_job(PollExternalPrJob).with(closed_external.id)
+  end
+
+  it "skips external and fork PR polling while the repository's GitHub App installation is rate-limited" do
+    installation = Factories.installation(
+      user: user,
+      account_login: repo.owner,
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_observed_at: Time.current
+    )
+    repo.update!(installation: installation)
+    external = Factories.job(repository: repo, issue_number: 11)
+    external.update!(external_pr_number: 11)
+    fork = Factories.job(repository: repo, issue_number: 12)
+    fork.update!(fork_review_pr_number: 12)
+
+    expect {
+      described_class.perform_now
+    }.not_to have_enqueued_job(PollExternalPrJob).with(external.id)
+
+    expect {
+      described_class.perform_now
+    }.not_to have_enqueued_job(PollForkReviewPrJob).with(fork.id)
   end
 
   it "fans out to PollExternalPrJob for external_pr kind Jobs even when pr_number is also set" do

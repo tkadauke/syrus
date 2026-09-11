@@ -34,6 +34,24 @@ RSpec.describe PollAllMergeStatesJob do
     }.not_to have_enqueued_job(PollMergeStateJob).with(closed.id)
   end
 
+  it "skips jobs whose repository GitHub App installation is rate-limited" do
+    user = Factories.user
+    repo = Factories.repository(user: user)
+    installation = Factories.installation(
+      user: user,
+      account_login: repo.owner,
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_observed_at: Time.current
+    )
+    repo.update!(installation: installation)
+    job = Factories.job(repository: repo, pr_number: 17, branch_name: "syrus/issue-17")
+
+    expect {
+      described_class.perform_now
+    }.not_to have_enqueued_job(PollMergeStateJob).with(job.id)
+  end
+
   it "skips Jobs whose Repository is archived" do
     archived_repo = Factories.repository
     archived_repo.archive!

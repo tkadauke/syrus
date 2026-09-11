@@ -19,7 +19,7 @@ class GithubClient
     { request: { open_timeout: 10, timeout: 30 } }
   end
 
-  attr_reader :access_token
+  attr_reader :access_token, :auth_source
 
   def self.active_installation_for(repository:, user: nil)
     raise ArgumentError, "repository is required" unless repository
@@ -375,6 +375,18 @@ class GithubClient
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited on #{repo_slug} PR ##{pr_number}: #{e.message}")
     raise
+  end
+
+  def mark_api_blocked!(reason)
+    rate_limit_subject&.mark_gh_api_blocked!(reason)
+  end
+
+  def clear_api_blocked!
+    rate_limit_subject&.clear_gh_api_blocked!
+  end
+
+  def installation_auth?
+    @auth_source == :installation && @installation.present?
   end
 
   def branch_head_sha(repo_slug, branch)
@@ -1101,12 +1113,13 @@ class GithubClient
     result
   rescue Octokit::TooManyRequests => e
     persist_rate_limit_headers!(e.response_headers)
+    mark_api_rate_limited!(e, e.response_headers)
     write_rate_limit_job_log!(e.response_headers)
     raise
-  end
-
-  def installation_auth?
-    @auth_source == :installation && @installation.present?
+  rescue Octokit::Forbidden => e
+    persist_rate_limit_headers!(e.response_headers)
+    mark_api_rate_limited!(e, e.response_headers) if github_rate_limit_error?(e)
+    raise
   end
 
   def retry_with_refreshed_installation_or_fallback!(original_error)
@@ -1182,7 +1195,8 @@ class GithubClient
   RATE_LIMIT_PERSIST_COALESCE = 10.minutes
 
   def persist_rate_limit_headers!(headers)
-    return unless headers && @user
+    subject = rate_limit_subject
+    return unless headers && subject
     remaining = headers["x-ratelimit-remaining"]
     return unless remaining
 
@@ -1214,18 +1228,20 @@ class GithubClient
       gh_rate_limit_observed_at: Time.current
     }
     rate_limit_persist_scope(
+      subject,
       remaining_i: remaining_i,
       limit_i: limit_i,
       reset_at: reset_at,
       resource: resource
     ).update_all(attributes) # rubocop:disable Rails/SkipsModelValidations
-    @user.assign_attributes(attributes)
+    subject.assign_attributes(attributes)
+    subject.mark_gh_api_blocked!("GitHub API rate limit exceeded for #{rate_limit_subject_label}; resets #{reset_at.utc.iso8601}") if remaining_i.zero?
   rescue => e
     Rails.logger.warn("[GithubClient] rate_limit persist failed: #{e.message}")
   end
 
-  def rate_limit_persist_scope(remaining_i:, limit_i:, reset_at:, resource:)
-    scope = User.where(id: @user.id)
+  def rate_limit_persist_scope(subject, remaining_i:, limit_i:, reset_at:, resource:)
+    scope = subject.class.where(id: subject.id)
     return scope if remaining_i.zero?
 
     scope.where(
@@ -1249,13 +1265,52 @@ class GithubClient
   end
 
   def fresh_matching_rate_limit_snapshot?(remaining_i:, limit_i:, reset_at:, resource:)
-    return false unless @user.gh_rate_limit_observed_at&.> RATE_LIMIT_PERSIST_COALESCE.ago
-    return false unless @user.gh_rate_limit_limit.to_i == limit_i
-    return false unless @user.gh_rate_limit_resource.to_s == resource.to_s
-    return false unless same_second?(@user.gh_rate_limit_reset_at, reset_at)
+    subject = rate_limit_subject
+    return false unless subject
+    return false unless subject.gh_rate_limit_observed_at&.> RATE_LIMIT_PERSIST_COALESCE.ago
+    return false unless subject.gh_rate_limit_limit.to_i == limit_i
+    return false unless subject.gh_rate_limit_resource.to_s == resource.to_s
+    return false unless same_second?(subject.gh_rate_limit_reset_at, reset_at)
     return false if remaining_i.zero?
 
-    @user.gh_rate_limit_remaining.to_i.positive?
+    subject.gh_rate_limit_remaining.to_i.positive?
+  end
+
+  def rate_limit_subject
+    installation_auth? ? @installation : @user
+  end
+
+  def rate_limit_subject_label
+    installation_auth? ? "installation" : "user"
+  end
+
+  def github_rate_limit_error?(error)
+    error.message.to_s.match?(/rate limit exceeded|secondary rate limit|abuse detection/i) ||
+      error.response_headers&.[]("x-ratelimit-remaining").to_i.zero?
+  end
+
+  def mark_api_rate_limited!(error, headers)
+    subject = rate_limit_subject
+    return unless subject
+
+    reset_at = rate_limit_reset_at(headers) || 15.minutes.from_now
+    attributes = {
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_limit: headers&.[]("x-ratelimit-limit")&.to_i,
+      gh_rate_limit_reset_at: reset_at,
+      gh_rate_limit_resource: headers&.[]("x-ratelimit-resource").presence || "core",
+      gh_rate_limit_observed_at: Time.current
+    }.compact
+    subject.class.where(id: subject.id).update_all(attributes) # rubocop:disable Rails/SkipsModelValidations
+    subject.assign_attributes(attributes)
+    subject.mark_gh_api_blocked!(error.message)
+  rescue => e
+    Rails.logger.warn("[GithubClient] rate_limit block persist failed: #{e.message}")
+  end
+
+  def rate_limit_reset_at(headers)
+    reset_epoch = headers&.[]("x-ratelimit-reset").to_i
+    Time.at(reset_epoch) if reset_epoch.positive?
   end
 
   def same_second?(left, right)

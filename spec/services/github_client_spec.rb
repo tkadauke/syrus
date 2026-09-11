@@ -28,6 +28,41 @@ RSpec.describe GithubClient do
       expect(stub).to have_been_requested
     end
 
+    it "records installation rate-limit exhaustion on the installation instead of the user" do
+      reset_at = 30.minutes.from_now.change(usec: 0)
+      installation = Factories.installation(
+        user: user,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+      repository.update!(installation: installation)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(
+          status: 403,
+          headers: {
+            "Content-Type" => "application/json",
+            "X-RateLimit-Remaining" => "0",
+            "X-RateLimit-Limit" => "5000",
+            "X-RateLimit-Reset" => reset_at.to_i.to_s,
+            "X-RateLimit-Resource" => "core"
+          },
+          body: { message: "API rate limit exceeded for installation ID 123" }.to_json
+        )
+
+      expect {
+        GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
+      }.to raise_error(Octokit::Forbidden)
+
+      expect(installation.reload).to be_gh_api_blocked
+      expect(installation.gh_rate_limit_remaining).to eq(0)
+      expect(installation.gh_rate_limit_limit).to eq(5000)
+      expect(installation.gh_rate_limit_resource).to eq("core")
+      expect(installation.gh_rate_limit_reset_at.to_i).to eq(reset_at.to_i)
+      expect(user.reload).not_to be_gh_api_blocked
+      expect(user.gh_rate_limit_remaining).to be_nil
+    end
+
     it "falls back to the user's PAT when the repository has no active installation" do
       installation = Factories.installation(
         user: user,

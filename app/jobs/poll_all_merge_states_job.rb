@@ -12,6 +12,8 @@ class PollAllMergeStatesJob < ApplicationJob
     return if AppSetting.polling_paused?
 
     pollable_jobs.find_each do |job|
+      next if job.repository.github_api_rate_limited_for?(user: job.user)
+
       PollMergeStateJob.perform_later(job.id)
     end
   end
