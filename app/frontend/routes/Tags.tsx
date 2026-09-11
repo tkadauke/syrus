@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
+import { useConfirm } from "../hooks/useConfirm"
 import { NoticeToast } from "../components/NoticeToast"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
@@ -146,6 +147,7 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
 
 function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [name, setName] = useState(tag.name)
   const [color, setColor] = useState(tag.color)
@@ -209,8 +211,8 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
         <button
           className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
           disabled={destroy.isPending}
-          onClick={() => {
-            if (window.confirm(t('tags.confirm_delete', { name: tag.name }))) {
+          onClick={async () => {
+            if (await confirm({ message: t('tags.confirm_delete', { name: tag.name }), destructive: true })) {
               onNotice(null)
               destroy.mutate()
             }
@@ -220,6 +222,7 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
           {destroy.isPending ? t('tags.deleting') : t('tags.delete')}
         </button>
         {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete tag.")}</p> : null}
+        {dialog}
       </td>
     </tr>
   )
@@ -262,4 +265,3 @@ function readableTextColor(hex: string) {
   const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255
   return luminance > 0.62 ? "#111827" : "#ffffff"
 }
-

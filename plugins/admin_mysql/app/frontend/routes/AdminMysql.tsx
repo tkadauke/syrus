@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
 import { Checkbox } from "@app/components/Checkbox"
 import { PageHeading } from "@app/components/Heading"
+import { useConfirm } from "@app/hooks/useConfirm"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSnapshot } from "../api/adminMysql"
@@ -12,6 +13,7 @@ export function AdminMysql() {
   const [limit, setLimit] = useState(50)
   const [includeSlowLog, setIncludeSlowLog] = useState(false)
   const [hideIdle, setHideIdle] = useState(true)
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const mysql = useQuery({
     queryKey: ["admin", "mysql", limit, includeSlowLog],
@@ -25,13 +27,18 @@ export function AdminMysql() {
     }
   })
 
-  function onKill(process: MysqlProcess) {
-    if (!window.confirm(`Kill current query for MySQL thread ${process.id}? The connection will stay open.`)) return
+  async function onKill(process: MysqlProcess) {
+    const confirmed = await confirm({
+      message: `Kill current query for MySQL thread ${process.id}? The connection will stay open.`,
+      destructive: true
+    })
+    if (!confirmed) return
     killQuery.mutate(process.id)
   }
 
   return (
     <main aria-label="MySQL admin" className="mx-auto max-w-[96rem] space-y-6 p-6">
+      {dialog}
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-4 dark:border-gray-700">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin:section_label")}</p>
