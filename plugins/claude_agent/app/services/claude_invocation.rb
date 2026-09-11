@@ -117,7 +117,9 @@ class ClaudeInvocation
     mcp_server_failed = false
     current_run = Thread.current[:syrus_current_run]
     current_chat_session = Thread.current[:syrus_current_chat_session]
-    current_agent = Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session
+    current_agent =
+      Thread.current[:syrus_current_agent] ||
+      (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
     runner_result = ProcessRunner.new(
       env: env,
       command: cmd,

@@ -1,4 +1,5 @@
 require "rails_helper"
+require "rbconfig"
 
 RSpec.describe "Design Docs @syrus agent mentions" do
   include ActiveJob::TestHelper
@@ -191,5 +192,42 @@ RSpec.describe "Design Docs @syrus agent mentions" do
     comment = thread.comments.order(:created_at, :id).last
     expect(comment).to have_attributes(author_kind: "agent", author_user: nil, agent_run: run)
     expect(comment.body).to include("Job/Epic proposal")
+  end
+
+  it "attributes its spawned agent process to a design-doc Agent owner" do
+    doc = create_design_doc
+    thread = create_thread(doc)
+    thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus suggest clearer wording")
+    run = DesignDocs::DesignDocAgentRun.last
+    DesignDocs::AgentRunJob.agent_runner = ->(workspace_path:, **) {
+      ProcessRunner.new(
+        env: {},
+        command: [ RbConfig.ruby, "-e", "exit 0" ],
+        chdir: workspace_path,
+        timeout: 5,
+        kind: "agent",
+        agent: Thread.current[:syrus_current_agent]
+      ).run
+
+      result_fixture(final_text: {
+        action: "comment",
+        summary: "Answered in-thread.",
+        comment_body: "This wording works."
+      }.to_json)
+    }
+
+    perform_enqueued_jobs(only: DesignDocs::AgentRunJob)
+
+    process = SpawnedProcess.find_by!(kind: "agent")
+    agent = Agent.find_by!(resumable: run)
+    payload = Admin::SpawnedProcesses::Payload.new(params: {}, user: owner).show(process.id)
+
+    expect(process).to have_attributes(agent_id: agent.id, run_id: nil, workflow_id: nil, chat_session_id: nil)
+    expect(payload[:owner]).to include(
+      type: "design_doc_agent_run",
+      label: "#{doc.display_id} · #{doc.title}",
+      path: "/design_docs/#{doc.id}"
+    )
+    expect(payload[:user]).to include(id: collaborator.id, email_address: collaborator.email_address)
   end
 end

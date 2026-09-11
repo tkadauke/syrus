@@ -11,6 +11,18 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    callback = ->(_name, _started, _finished, _id, payload) do
+      next if payload[:name] == "SCHEMA"
+
+      queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   def fixture(**overrides)
     SpawnedProcess.create!({
       kind: "agent",
@@ -19,6 +31,34 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
       started_at: 30.seconds.ago,
       last_chunk_at: 5.seconds.ago
     }.merge(overrides))
+  end
+
+  def design_doc_agent_process(requested_by_user:, title:)
+    doc = DesignDocs::DesignDoc.create!(
+      owner_user: requested_by_user,
+      title: title,
+      markdown: "Design notes",
+      visibility: "private"
+    )
+    version = doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: requested_by_user)
+    doc.update!(current_version: version)
+    comment_result = DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: requested_by_user,
+      attributes: { body: "Needs review", start_offset: 0, end_offset: 6, selected_markdown: "Design" }
+    )
+    run = DesignDocs::DesignDocAgentRun.create!(
+      design_doc: doc,
+      thread: comment_result.thread,
+      triggering_comment: comment_result.comment,
+      requested_by_user: requested_by_user,
+      base_version: version,
+      agent_provider: "codex",
+      status: "succeeded",
+      started_at: 1.minute.ago,
+      finished_at: 30.seconds.ago
+    )
+    fixture(agent: Agent.find_or_create_for!(run), finished_at: 20.seconds.ago, outcome: "succeeded", exit_status: 0)
   end
 
   it "401s with a JSON error when signed out" do
@@ -282,6 +322,23 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
       "id" => admin.id,
       "email_address" => admin.email_address
     )
+  end
+
+  it "batches design-doc agent process owners on the index" do
+    sign_in_as(admin)
+    processes = 4.times.map { |index| design_doc_agent_process(requested_by_user: admin, title: "Design #{index}") }
+
+    queries = capture_sql do
+      get "/api/v1/app/admin/processes", params: { smart_folder_id: "" }
+    end
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    serialized = body.fetch("processes").select { |process| processes.map(&:id).include?(process.fetch("id")) }
+    expect(serialized.map { |process| process.dig("owner", "type") }.uniq).to eq([ "design_doc_agent_run" ])
+    expect(serialized.map { |process| process.dig("user", "id") }.uniq).to eq([ admin.id ])
+    expect(queries.grep(/FROM "?design_doc_agent_runs"?/).count).to eq(1)
+    expect(queries.grep(/FROM "?design_docs"?/).count).to eq(1)
   end
 
   it "reports no owner when a process carries no run/workflow/chat attribution" do
