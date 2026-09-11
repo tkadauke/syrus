@@ -6,6 +6,8 @@ import {
   Card,
   Checkbox,
   Cluster,
+  DataTable,
+  DescriptionList,
   Input,
   Inline,
   LinkText,
@@ -169,6 +171,32 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" }).closest("header")).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Work attempts" }).className).toContain("bg-surface-subtle")
     expect(screen.getByRole("region", { name: "Work attempts" })).toHaveAttribute("data-section-divided", "true")
+  })
+
+  it("exports DataTable and DescriptionList compound primitives", () => {
+    render(
+      <>
+        <DataTable.Root aria-label="Jobs">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>Job</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            <DataTable.Row>
+              <DataTable.Cell>JOB-1</DataTable.Cell>
+            </DataTable.Row>
+          </DataTable.Body>
+        </DataTable.Root>
+        <DescriptionList.Root aria-label="Metadata">
+          <DescriptionList.Item label="Repository">tkadauke/syrus</DescriptionList.Item>
+        </DescriptionList.Root>
+      </>
+    )
+
+    expect(screen.getByRole("table", { name: "Jobs" })).toBeInTheDocument()
+    expect(screen.getByText("Repository").tagName).toBe("DT")
+    expect(screen.getByText("tkadauke/syrus").tagName).toBe("DD")
   })
 
   it("exports LinkText for router and external anchor links", () => {
