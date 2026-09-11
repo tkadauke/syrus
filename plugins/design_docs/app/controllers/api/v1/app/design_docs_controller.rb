@@ -197,7 +197,7 @@ module Api
 
         def scoped_design_docs
           default_list_scope(filtered_design_docs(policy_scope(DesignDoc)))
-            .includes(:owner_user, :current_version, :repositories, :collaborator_users, threads: :comments)
+            .includes(*DesignDoc.summary_associations)
             .newest_first
         end
 
@@ -315,7 +315,7 @@ module Api
 
         def find_design_doc_with_summary_associations
           policy_scope(DesignDoc)
-            .includes(:owner_user, :current_version, :repositories, :collaborator_users, threads: :comments)
+            .includes(*DesignDoc.summary_associations)
             .find(params[:id])
         end
 
