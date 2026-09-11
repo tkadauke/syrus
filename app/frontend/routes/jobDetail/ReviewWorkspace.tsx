@@ -52,8 +52,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const rangeDiff = useQuery({
     enabled: sourceDiff.isSuccess && Boolean(selectedRange),
     queryKey: ["jobs", String(jobId), "review_source_diff_range", selectedRange?.baseSha, selectedRange?.headSha],
-    queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId), rangeSearch), { metadata: { job_id: jobId } }),
-    placeholderData: keepPreviousData
+    queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId), rangeSearch), { metadata: { job_id: jobId } })
   })
   const activeVersionId = selectedRange ? rangeDiff.data?.version?.id ?? null : selectedVersionId ?? defaultVersionId
   const historicalVersionSelected = !selectedRange && activeVersionId != null && activeVersionId !== payloadVersionId
