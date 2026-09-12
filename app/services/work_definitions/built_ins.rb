@@ -33,6 +33,19 @@ module WorkDefinitions
     def landing_validation_child? = true
   end
 
+  module CurrentLandingBaseTargetSelection
+    def grader_fanout_changed_files_base_ref(workflow:, default_base_ref:)
+      current_landing_base_ref(workflow).presence || default_base_ref
+    end
+
+    def grader_fanout_changed_files_log(workflow)
+      base_ref = current_landing_base_ref(workflow).presence
+      return unless base_ref
+
+      "[grader_fanout] computing affected landing targets from current base #{base_ref.first(7)}"
+    end
+  end
+
   module AgentConcurrencyExempt
     def agent_concurrency_exempt? = true
   end
@@ -200,6 +213,7 @@ module WorkDefinitions
 
   class AutoMerge < Base
     include BlocksCiFailure
+    include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
     include RequiresApproval
     include ResumesFailedSteps
@@ -209,6 +223,10 @@ module WorkDefinitions
     self.workflow_trigger_kind = "auto_merge"
     self.runtime_role = "first_class"
     self.scope = "job"
+
+    def current_landing_base_ref(workflow)
+      workflow.job&.mergeability_base_sha
+    end
   end
 
   class LandingValidation < Base
@@ -227,6 +245,7 @@ module WorkDefinitions
 
   class ExternalPrMerge < Base
     include BlocksCiFailure
+    include CurrentLandingBaseTargetSelection
     include RequiresApproval
     include ResumesFailedSteps
     include RebuildOnPreempt
@@ -235,10 +254,15 @@ module WorkDefinitions
     self.workflow_trigger_kind = "external_pr_merge"
     self.runtime_role = "first_class"
     self.scope = "job"
+
+    def current_landing_base_ref(workflow)
+      workflow.job&.mergeability_base_sha
+    end
   end
 
   class MergeTrain < Base
     include BlocksCiFailure
+    include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
     include RequiresApproval
     include RequiresEpicReadiness
@@ -250,6 +274,10 @@ module WorkDefinitions
     self.scope = "epic"
 
     def retry_policy = WorkUnits::RetryPolicies::MergeTrain.new
+
+    def current_landing_base_ref(workflow)
+      workflow.artifact("merge_train_base_sha")
+    end
 
     def members_for(job:, artifacts: {}, **)
       train_id = artifacts.to_h["merge_train_id"]
@@ -264,6 +292,7 @@ module WorkDefinitions
 
   class JobBundle < Base
     include BlocksCiFailure
+    include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
     include RequiresApproval
     include RebuildOnPreempt
@@ -275,6 +304,10 @@ module WorkDefinitions
     self.display_label = "Job bundle"
 
     def retry_policy = WorkUnits::RetryPolicies::MergeTrain.new
+
+    def current_landing_base_ref(workflow)
+      workflow.artifact("merge_train_base_sha")
+    end
 
     def members_for(job:, artifacts: {}, **)
       train_id = artifacts.to_h["merge_train_id"]

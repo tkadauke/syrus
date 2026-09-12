@@ -396,6 +396,55 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "computing affected landing targets from predicted base predict"
+    )
+  end
+
+  it "computes auto-merge affected targets from the current mergeability base" do
+    workflow.update!(trigger_kind: "auto_merge")
+    job.update!(mergeability_base_sha: "current-base-sha")
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+          when_files_changed:
+            - app/**/*.rb
+    YAML
+
+    expect(@git).to receive(:run)
+      .with("diff", "--name-only", "current-base-sha...HEAD", chdir: @ws_path.to_s)
+      .and_return("app/models/job.rb\n")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("computing affected landing targets from current base current")
+    expect(chunks).to include("selected rspec (own source scope matched a changed file) [//:grade/rspec]")
+  end
+
+  it "computes merge-train affected targets from the built integration base" do
+    workflow.update!(trigger_kind: "merge_train")
+    workflow.set_artifact!("merge_train_base_sha", "train-base-sha")
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+          when_files_changed:
+            - app/**/*.rb
+    YAML
+
+    expect(@git).to receive(:run)
+      .with("diff", "--name-only", "train-base-sha...HEAD", chdir: @ws_path.to_s)
+      .and_return("app/models/job.rb\n")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "computing affected landing targets from current base train-b"
+    )
   end
 
   it "uses explicit CI-phase graders for CI failure validations" do
@@ -883,8 +932,21 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_FORCED_ARTIFACT_KEY)).to include(
+      include(
+        "name" => "rspec",
+        "target_label" => "//:grade/rspec",
+        "reason" => "target health is unknown",
+        "target_fingerprints" => include(
+          "input_fingerprint" => match(/\A[0-9a-f]{64}\z/),
+          "command_fingerprint" => match(/\A[0-9a-f]{64}\z/),
+          "environment_fingerprint" => match(/\A[0-9a-f]{64}\z/)
+        )
+      )
+    )
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("target health miss for rspec: target health is unknown [//:grade/rspec]")
+    expect(chunks).to include("forced validation for rspec (target health is unknown) [//:grade/rspec]")
   end
 
   it "explains a dependency-triggered selection by the dependency's target label" do
