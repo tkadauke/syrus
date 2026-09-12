@@ -154,6 +154,7 @@ module WorkEngine
           when "exhaust_provider_usage" then exhaust_provider_usage!(value)
           when "refresh_provider_usage" then refresh_provider_usage!(value)
           when "set_provider_status" then set_provider_status!(value)
+          when "set_job_provider" then set_job_provider!(value)
           when "wake_provider_admission" then wake_provider_admission!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
@@ -249,6 +250,17 @@ module WorkEngine
           .order(:id)
           .filter_map { |unit| WorkUnits::DeferredPhaseResume.call(unit.workflow_id) }
           .count(&:started?)
+      end
+
+      # Mirrors the operator switching a job's provider mid-flight: repins
+      # unstarted workflows, then leaves the running-but-blocked one for the
+      # reconciler's stale-provider relaunch. Takes `{ job:, provider: }`.
+      def set_job_provider!(value)
+        attrs = value.to_h
+        job = Job.find(attrs.fetch("job"))
+        provider = attrs.fetch("provider")
+        job.switch_job_provider_setting!(provider.to_s)
+        events << "switched #{job.slug} provider to #{provider}"
       end
 
       def provider_for(value)

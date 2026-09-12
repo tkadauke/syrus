@@ -1,0 +1,45 @@
+name: provider switch relaunches blocked work
+user:
+  agent_provider: codex
+repository:
+  owner: simulation
+  name: provider-switch-relaunch
+jobs:
+  first:
+    title: First job
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: exhaust codex usage once the workflow is running
+    once: true
+    when:
+      workflow:
+        job: first
+        state: running
+    do:
+      exhaust_provider_usage: codex
+  - name: switch job to claude once the unit is provider-blocked
+    once: true
+    when:
+      work_unit:
+        job: first
+        blocked_reason: provider_availability
+    do:
+      set_job_provider:
+        job: first
+        provider: claude
+outcomes:
+  default: success
+expect:
+  jobs:
+    first:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - "event exhaust codex usage once the workflow is running"
+    - "reconciler stale_provider_blocked_work_unit"
