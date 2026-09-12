@@ -390,6 +390,25 @@ module WorkEngine
         end
       end
 
+      class SucceededReviewLoopNeedsWorkWithoutRepair < Base
+        def plan
+          automatic_plan(
+            "resume_review_loop_repair",
+            primary_step,
+            "The review Step succeeded with a needs-work verdict, but the dispatcher handoff never materialized its mandatory repair iteration.",
+            execution_steps: [ "StepDispatcher.advance_from" ],
+            preconditions: {
+              workflow_state: "running",
+              step_state: "succeeded",
+              step_kind: issue.evidence["step_kind"],
+              verdict: issue.evidence["verdict"],
+              loop_id: issue.evidence["loop_id"],
+              next_iteration_missing: issue.evidence["next_iteration"]
+            }
+          )
+        end
+      end
+
       class StaleAutoRetryWorkflow < Base
         def plan
           automatic_plan(
