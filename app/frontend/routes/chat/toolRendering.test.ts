@@ -147,6 +147,16 @@ describe("toolResultPresentation", () => {
     expect(result).toMatchObject({ kind: "text", summary: "" })
   })
 
+  it("summarizes unregistered tool failures from structured error payloads", () => {
+    const result = toolResultPresentation(
+      "delete_proposal",
+      JSON.stringify({ error_class: "ToolTimeout", message: "sidecar timed out while deleting proposal" }),
+      true
+    )
+
+    expect(result).toMatchObject({ kind: "error", summary: "ToolTimeout: sidecar timed out while deleting proposal" })
+  })
+
   it("parses from the explicit parseBody argument instead of the (possibly truncated) display body", () => {
     // Simulates a caller that only has a truncated display preview for
     // `body` (e.g. fullResultBody's output) but kept the complete text

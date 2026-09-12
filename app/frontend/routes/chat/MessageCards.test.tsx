@@ -992,6 +992,57 @@ describe("tool result rendering", () => {
     expect(screen.getByText("DOC-21")).toBeInTheDocument()
     expect(screen.getByText("K8s Cluster Viewer")).toBeInTheDocument()
   })
+
+  it("renders a structured diagnostic card for unregistered tool failures", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Delete proposal",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "delete_proposal",
+          raw_name: "mcp__syrus-chat-sidecar__delete_proposal",
+          detail: "proposal-42",
+          display_label: "Delete proposal",
+          progress_label: "Making changes",
+          raw_payload: { proposal_id: 42 },
+          result_body: JSON.stringify({
+            error_class: "ActiveRecord::RecordInvalid",
+            message: "Validation failed: proposal is already confirmed",
+            retryable: false
+          }),
+          result_json: {
+            error_class: "ActiveRecord::RecordInvalid",
+            message: "Validation failed: proposal is already confirmed",
+            retryable: false
+          },
+          result_error: true,
+          result_kind: "error",
+          result_summary: "ActiveRecord::RecordInvalid: Validation failed: proposal is already confirmed"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Failed")).toBeInTheDocument()
+    expect(screen.getByText("ActiveRecord::RecordInvalid: Validation failed: proposal is already confirmed")).toBeInTheDocument()
+    expect(screen.queryByText("Affected entities")).not.toBeInTheDocument()
+
+    expandToolGroup("Delete proposal")
+
+    expect(screen.getByText("Delete proposal failed")).toBeInTheDocument()
+    expect(screen.getByText("Validation failed: proposal is already confirmed")).toBeInTheDocument()
+    expect(screen.getByText("Do not retry blindly")).toBeInTheDocument()
+    expect(screen.getByText("high side-effect risk")).toBeInTheDocument()
+    expect(screen.getByText("ActiveRecord::RecordInvalid")).toBeInTheDocument()
+    expect(screen.getByText("syrus-chat-sidecar")).toBeInTheDocument()
+    expect(screen.getByText("delete_proposal")).toBeInTheDocument()
+    expect(screen.getByText("proposal:42")).toBeInTheDocument()
+    expect(screen.getByText("Error details")).toBeInTheDocument()
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
 })
 
 describe("pin control", () => {
