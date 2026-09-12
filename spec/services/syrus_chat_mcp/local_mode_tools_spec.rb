@@ -367,6 +367,17 @@ RSpec.describe "Local Mode MCP tools" do
       expect(job.issue_title).to eq("Fix the widget")
     end
 
+    it "rejects creating a second coding job for the same chat" do
+      existing = Factories.job_record(repository: repository, state: "running", kind: "direct", issue_number: nil)
+      existing.update_columns(state: "coding", linked_chat_id: chat_session.id)
+      server = server_with(described_class)
+
+      response = call_tool(server, "create_coding_job", title: "Fix the widget", body: "The widget is broken.")
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(response.dig(:result, :content, 0, :text)).to include("active coding Job")
+    end
+
     it "uses an explicit repository_id when provided" do
       other_repo = Factories.repository(user: user)
       server = server_with(described_class)
