@@ -51,7 +51,8 @@ describe("@app/components/ui", () => {
           <option>Auto</option>
         </Select>
         <Textarea aria-label="Notes" invalid />
-        <Checkbox label="Required" />
+        <Checkbox invalid label="Required" />
+        <Toggle checked={false} invalid label="Feature flag" onChange={vi.fn()} />
       </>
     )
 
@@ -62,6 +63,10 @@ describe("@app/components/ui", () => {
     expect(screen.getByLabelText("Notes")).toHaveAttribute("aria-invalid", "true")
     expect(screen.getByLabelText("Notes").className).toContain("min-h-[calc(var(--control-height-md)*2)]")
     expect(screen.getByLabelText("Required")).toHaveAttribute("type", "checkbox")
+    expect(screen.getByLabelText("Required")).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByLabelText("Required").className).toContain("border-danger")
+    expect(screen.getByRole("switch", { name: "Feature flag" })).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByRole("switch", { name: "Feature flag" }).className).toContain("ring-danger")
   })
 
   it("exports Form field primitives with label association and help/error descriptions", async () => {
@@ -102,7 +107,7 @@ describe("@app/components/ui", () => {
   it("applies Form disabled and layout variants to typed controls", () => {
     render(
       <>
-        <Form.Field controlId="auto-approve" disabled layout="inline">
+        <Form.Field controlId="auto-approve" disabled invalid layout="inline">
           <Form.Label>Auto approve</Form.Label>
           <Form.Checkbox />
         </Form.Field>
@@ -112,9 +117,10 @@ describe("@app/components/ui", () => {
             <option>Codex</option>
           </Form.Select>
         </Form.Field>
-        <Form.Field controlId="agentic-access" disabled>
+        <Form.Field controlId="agentic-access" disabled error="Agentic access must be confirmed">
           <Form.Label>Agentic access</Form.Label>
           <Form.Toggle checked={false} onChange={vi.fn()} />
+          <Form.ErrorText />
         </Form.Field>
         <Form.Actions align="between" data-testid="form-actions">
           <Button>Cancel</Button>
@@ -125,9 +131,14 @@ describe("@app/components/ui", () => {
 
     const checkbox = screen.getByLabelText("Auto approve")
     expect(checkbox).toBeDisabled()
+    expect(checkbox).toHaveAttribute("aria-invalid", "true")
+    expect(checkbox).not.toHaveAttribute("invalid")
     expect(checkbox.closest("[data-disabled]")?.className).toContain("sm:grid-cols-[minmax(10rem,14rem)_minmax(0,1fr)]")
     expect(screen.getByLabelText("Provider")).toHaveAttribute("aria-invalid", "true")
     expect(screen.getByRole("switch", { name: "Agentic access" })).toBeDisabled()
+    expect(screen.getByRole("switch", { name: "Agentic access" })).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByRole("switch", { name: "Agentic access" })).not.toHaveAttribute("invalid")
+    expect(screen.getByRole("switch", { name: "Agentic access" })).toHaveAttribute("aria-describedby", "agentic-access-error")
     expect(screen.getByTestId("form-actions").className).toContain("justify-between")
   })
 
