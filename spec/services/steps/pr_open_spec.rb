@@ -121,6 +121,67 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(job.reload.state).to eq("implemented")
   end
 
+  it "continues when stack footer refresh gets a transient GitHub 502 after opening the PR" do
+    parent = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 41,
+      state: "implemented",
+      branch_name: "syrus/issue-41-parent",
+      pr_number: 3455,
+      pr_repository_id: repository.id
+    )
+    job.update!(state: "running", parent_job: parent, pr_number: nil, pr_repository_id: nil)
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    branch = "syrus/issue-42-#{job.id}"
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, base_ref: "origin/main")
+    opener_client = instance_double(GithubClient)
+    footer_client = instance_double(GithubClient)
+    opener = instance_double(PullRequestOpener, open: 3456)
+    error = Octokit::BadGateway.new(
+      method: :patch,
+      url: "https://api.github.com/repos/#{repository.slug}/pulls/3455",
+      status: 502,
+      body: "Bad Gateway"
+    )
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:push_branch)
+    allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
+    allow(handler).to receive(:pr_title_and_body).and_return([ "Stack child", "Body" ])
+    allow(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(opener_client)
+    allow(PullRequestOpener).to receive(:new).with(repository, client: opener_client).and_return(opener)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(footer_client)
+    allow(footer_client).to receive(:pull_request)
+      .with(repository.slug, 3455, bypass_cache: true)
+      .and_return(double(body: "Parent body"))
+    allow(footer_client).to receive(:pull_request)
+      .with(repository.slug, 3456, bypass_cache: true)
+      .and_return(double(body: "Child body"))
+    allow(footer_client).to receive(:update_pull_request_body)
+      .with(repository.slug, 3455, anything)
+      .and_raise(error)
+    allow(footer_client).to receive(:update_pull_request_body)
+      .with(repository.slug, 3456, anything)
+
+    expect { handler.call }.not_to raise_error
+
+    expect(job.reload.pr_number).to eq(3456)
+    expect(job.state).to eq("implemented")
+    expect(workflow.reload.artifact("stack_footer_refresh_warning")).to include(
+      "job_id" => parent.id,
+      "pr_number" => 3455,
+      "repository" => repository.slug,
+      "error_class" => "Octokit::BadGateway"
+    )
+  end
+
   it "replaces a stale unpublished remote branch with force-with-lease before opening the first PR" do
     job.update!(state: "running", pr_number: nil, fork_review_pr_number: nil)
     pr_open_run = Run.create!(

@@ -42,6 +42,7 @@ module Steps
       if job.pr_number.present?  # idempotent: upstream PR already open (non-fork or post-approval)
         log("pr_open: branch pushed for existing PR ##{job.pr_number}")
         transition_job_to_implemented!
+        refresh_stack_footer
         post_coverage_comment_if_present
         post_dependency_audit_comment_if_present
         return
@@ -612,9 +613,28 @@ module Steps
         pr = client.pull_request(pr_repo.slug, stack_job.pr_number, bypass_cache: true)
         body = PrCostFooter.apply(PrStackFooter.apply(pr.body.to_s, stack_job), stack_job)
         client.update_pull_request_body(pr_repo.slug, stack_job.pr_number, body)
+      rescue Octokit::Error => e
+        raise unless transient_github_error?(e)
+
+        workflow.set_artifact!("stack_footer_refresh_warning", {
+          "job_id" => stack_job.id,
+          "pr_number" => stack_job.pr_number,
+          "repository" => pr_repo.slug,
+          "error_class" => e.class.name,
+          "message" => e.message.to_s,
+          "detected_at" => Time.current.iso8601
+        })
+        log(
+          "pr_open: transient GitHub error refreshing stack footer for " \
+          "#{pr_repo.slug}##{stack_job.pr_number}: #{e.class}: #{e.message}"
+        )
       end
     rescue Octokit::TooManyRequests, Octokit::ServerError => e
       log("[pr_open] failed to refresh stack footer: #{e.class}: #{e.message}")
+    end
+
+    def transient_github_error?(error)
+      error.respond_to?(:response_status) && error.response_status.to_i >= 500
     end
 
     def post_coverage_comment_if_present
