@@ -157,6 +157,8 @@ module WorkEngine
           when "set_provider_status" then set_provider_status!(value)
           when "set_job_provider" then set_job_provider!(value)
           when "merge_pr" then merge_pr!(value)
+          when "report_pr_feedback" then report_pr_feedback!(value)
+          when "report_ci_failure" then report_ci_failure!(value)
           when "wake_provider_admission" then wake_provider_admission!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
@@ -282,6 +284,103 @@ module WorkEngine
         reason = ClosedPullRequestResolution.reason(job: job, pr: pr, client: nil)
         job.close_with_reason!(reason) if job.may_close?
         events << "#{merged ? "merged" : "closed"} PR for #{job.slug} -> #{reason}"
+      end
+
+      # Models a reviewer commenting on the job's PR. The comment payload is
+      # the injected boundary fact; ingestion (dedup, attribution,
+      # actionable classification), watermarking, and the pr_comment
+      # dispatch all run for real. Takes `{ job:, body:, handle: }`.
+      def report_pr_feedback!(value)
+        attrs = value.is_a?(Hash) ? value : {}
+        job = Job.find(attrs.fetch("job"))
+        comment = OpenStruct.new(
+          id: attrs.fetch("comment_id", 90_001),
+          body: attrs.fetch("body", "Please handle the empty-input edge case too."),
+          created_at: Time.current,
+          user: OpenStruct.new(login: attrs.fetch("handle", "operator"))
+        )
+        user = job.owner_user || job.user
+        result = PrCommentIngester.call(
+          job: job, comments: [ comment ], pr_type: "direct",
+          comment_kind: "issue", user: user,
+          agent_provider: job.workflow_agent_provider
+        )
+        if result.qualifying_records.empty?
+          events << "reported PR feedback on #{job.slug}: no qualifying comments"
+          return
+        end
+
+        cutoff = [ job.last_seen_comment_at, job.last_feedback_addressed_at ].compact.max
+        workflow = nil
+        job.with_lock do
+          job.reload
+          Job::ApprovalUnapprover.call(job: job, user: job.user) if job.may_unapprove?
+          workflow = WorkUnits::Launcher.instantiate(
+            kind: "pr_comment",
+            job: job,
+            artifacts: {
+              "pr_comments" => result.qualifying_records.map { |r| { "id" => r.id, "body" => r.body } },
+              "feedback_cutoff" => cutoff&.iso8601,
+              "pr_feedback_iteration" => job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1,
+              "pr_feedback_auto" => true
+            },
+            agent_provider: job.workflow_agent_provider
+          )
+          job.update!(last_seen_comment_at: comment.created_at)
+        end
+        return unless workflow
+
+        WorkUnits::Launcher.start!(workflow)
+        events << "dispatched pr_comment workflow for #{job.slug}"
+      end
+
+      # Models CI reporting failure on the job's PR head. Dispatches the real
+      # CiFailure workflow; set_pr_checks separately to keep the world
+      # consistent. Skips when the sha was already handled, like the poller.
+      # Takes `{ job:, failed_checks:, base_sha:, base_healthy: }`. The base
+      # is recorded at a known-healthy sha by default -- the precondition the
+      # poller verifies before dispatching, which a simulation has no
+      # main-grader history for. Pass `base_healthy: false` to exercise the
+      # ci_repair_safety suppression instead.
+      def report_ci_failure!(value)
+        attrs = value.is_a?(Hash) ? value : {}
+        job = Job.find(attrs.fetch("job"))
+        head_sha = job.mergeability_head_sha.presence || job.head_sha.presence || "simulated-head"
+        if job.last_ci_handled_sha == head_sha
+          events << "CI already handled for #{job.slug} at #{head_sha[0, 7]}"
+          return
+        end
+
+        base_sha = attrs["base_sha"].presence || "simulated-base"
+        record_simulated_base_health!(job, base_sha) unless attrs.key?("base_healthy") && !attrs["base_healthy"]
+        failed_checks = attrs.fetch("failed_checks", [ { "name" => "rspec", "conclusion" => "failure" } ])
+        result = WorkUnits::Launcher.create_and_start!(
+          kind: "ci_failure",
+          job: job,
+          artifacts: {
+            "head_sha" => head_sha,
+            "base_sha" => base_sha,
+            "failed_checks" => failed_checks
+          },
+          agent_provider: job.workflow_agent_provider
+        )
+        if result.run
+          job.update!(last_ci_handled_sha: head_sha)
+          events << "dispatched ci_failure workflow for #{job.slug}"
+        else
+          events << "ci_failure workflow for #{job.slug} deferred at start"
+        end
+      end
+
+      def record_simulated_base_health!(job, base_sha)
+        MainBranchHealthCheck.create!(
+          repository: job.repository,
+          sha: base_sha,
+          ci_health: "healthy",
+          grader_health: "healthy",
+          checked_at: Time.current,
+          source: "grader_workflow"
+        )
       end
 
       def provider_for(value)

@@ -1,0 +1,36 @@
+name: ci failure dispatch and repair
+jobs:
+  first:
+    title: First job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: CI fails once implemented
+    once: true
+    when:
+      job:
+        id: first
+        state: implemented
+        has_pr: true
+    do:
+      set_pr_checks:
+        job: first
+        state: failing
+      report_ci_failure:
+        job: first
+        failed_checks:
+          - name: rspec
+            conclusion: failure
+outcomes:
+  default: success
+expect:
+  jobs:
+    first:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - "dispatched ci_failure workflow for "

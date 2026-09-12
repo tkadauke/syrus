@@ -1,0 +1,34 @@
+name: pr review feedback dispatch and repair
+user:
+  github_handle: simowner
+jobs:
+  first:
+    title: First job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: reviewer asks for an edge case once implemented
+    once: true
+    when:
+      job:
+        id: first
+        state: implemented
+        has_pr: true
+    do:
+      report_pr_feedback:
+        job: first
+        handle: simowner
+        body: Please handle the empty-input edge case too.
+outcomes:
+  default: success
+expect:
+  jobs:
+    first:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - "dispatched pr_comment workflow for "

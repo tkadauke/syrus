@@ -70,7 +70,8 @@ module WorkEngine
         User.create!(
           email_address: attrs.fetch("email", "simulation-#{SecureRandom.hex(6)}@example.com"),
           password: attrs.fetch("password", "supersecret"),
-          agent_provider: attrs.fetch("agent_provider", "codex")
+          agent_provider: attrs.fetch("agent_provider", "codex"),
+          github_handle: attrs["github_handle"]
         )
       end
 
