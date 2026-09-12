@@ -438,6 +438,7 @@ class PollPullRequestJob < ApplicationJob
     # (pr_checks_state) AND collects failure details for ci_failure workflows.
     detail = @client.check_runs_detail_for(@slug, head_sha)
     cache_pr_checks_state(head_sha, detail)
+    record_target_health_from_ci_checks(head_sha, detail)
     return if ci_infrastructure_failure_only?(head_sha, detail)
     return if main_health_broken?
 
@@ -492,6 +493,14 @@ class PollPullRequestJob < ApplicationJob
       attrs[:landing_failure_reason] = nil
     end
     @job.update_columns(attrs)
+  end
+
+  def record_target_health_from_ci_checks(head_sha, detail)
+    TargetHealthCiCheckRecorder.record!(
+      job: @job,
+      head_sha: head_sha,
+      detail: detail
+    )
   end
 
   def pr_checks_cache_fresh?(head_sha, state)

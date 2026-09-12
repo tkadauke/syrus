@@ -324,6 +324,7 @@ class GraderConclusionCache
 
   def self.metadata_for(workflow:, step:)
     {
+      "health_source" => "syrus_target_run",
       "trigger_kind" => workflow.trigger_kind,
       "iteration" => step.iteration,
       "loop_id" => step.loop_id

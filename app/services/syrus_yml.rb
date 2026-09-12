@@ -650,6 +650,9 @@ class SyrusYml
       hot
       opportunistic_build
       main_build
+      ci_checks
+      ci_check_names
+      github_checks
     ].each do |key|
       metadata[key] = item[key] if item.key?(key)
     end
