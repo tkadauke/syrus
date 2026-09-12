@@ -67,6 +67,7 @@ RSpec.describe "MySQL fresh install compatibility", :ci_only do
 
     expect(initializer).to include("def add_foreign_key(*)")
     expect(initializer).to include("ActiveRecord::ConnectionAdapters::SchemaStatements.prepend")
+    expect(ActiveRecord::SchemaDumper.instance_method(:foreign_keys).owner).to eq(SyrusForeignKeyPolicy)
     expect(schema).not_to include("add_foreign_key")
   end
 
