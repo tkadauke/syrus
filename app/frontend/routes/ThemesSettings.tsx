@@ -101,9 +101,8 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   })
 
   const saveMutation = useMutation({
-    mutationFn: () => {
-      if (!draft) throw new Error("No theme selected.")
-      return updateTheme(draft.id, { name: draft.name, tokens: draft.tokens })
+    mutationFn: (themeDraft: ThemeDraft) => {
+      return updateTheme(themeDraft.id, { name: themeDraft.name, tokens: themeDraft.tokens })
     },
     onSuccess: (payload) => {
       setContrastIssues([])
@@ -255,7 +254,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
           onNameChange={updateDraftName}
           onSave={() => {
             if (!draftTokensValid(draft)) return
-            saveMutation.mutate()
+            saveMutation.mutate(draft)
           }}
           onTokenChange={updateDraftToken}
           saving={saveMutation.isPending}
