@@ -34,6 +34,10 @@ module WorkDefinitions
     def enforce_required_target_health_for_unaffected_graders?(_workflow) = true
   end
 
+  module RecordsGraderTargetSelectionInputs
+    def record_grader_target_selection_inputs? = true
+  end
+
   module CurrentLandingBaseTargetSelection
     def enforce_required_target_health_for_unaffected_graders?(_workflow) = true
 
@@ -99,6 +103,7 @@ module WorkDefinitions
 
   class Initial < Base
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -111,6 +116,7 @@ module WorkDefinitions
 
   class PrComment < Base
     include ActiveRepairWork
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -124,6 +130,7 @@ module WorkDefinitions
 
   class ChatFeedback < Base
     include ActiveRepairWork
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -137,6 +144,7 @@ module WorkDefinitions
 
   class CiFailure < Base
     include ActiveRepairWork
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -218,6 +226,7 @@ module WorkDefinitions
     include BlocksCiFailure
     include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include ResumesFailedSteps
     include RebuildOnPreempt
@@ -235,6 +244,7 @@ module WorkDefinitions
   class LandingValidation < Base
     include BlocksCiFailure
     include LandingValidationChild
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include ManagesOwnJobLifecycle
     include CancelPreemptable
@@ -249,6 +259,7 @@ module WorkDefinitions
   class ExternalPrMerge < Base
     include BlocksCiFailure
     include CurrentLandingBaseTargetSelection
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include ResumesFailedSteps
     include RebuildOnPreempt
@@ -267,6 +278,7 @@ module WorkDefinitions
     include BlocksCiFailure
     include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include RequiresEpicReadiness
     include RebuildOnPreempt
@@ -297,6 +309,7 @@ module WorkDefinitions
     include BlocksCiFailure
     include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include RebuildOnPreempt
 
@@ -326,6 +339,7 @@ module WorkDefinitions
   class MergeTrainValidation < Base
     include BlocksCiFailure
     include LandingValidationChild
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include RequiresEpicReadiness
     include ManagesOwnJobLifecycle
@@ -349,6 +363,7 @@ module WorkDefinitions
   class JobBundleValidation < Base
     include BlocksCiFailure
     include LandingValidationChild
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include ManagesOwnJobLifecycle
     include CancelPreemptable
@@ -373,6 +388,7 @@ module WorkDefinitions
     include ActiveRepairWork
     include RetryWorkflowAttempt
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -387,6 +403,7 @@ module WorkDefinitions
     include ActiveRepairWork
     include RetryWorkflowAttempt
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -453,6 +470,7 @@ module WorkDefinitions
 
   class CodingHandoff < Base
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -465,6 +483,7 @@ module WorkDefinitions
 
   class LocalModeHandoff < Base
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -477,6 +496,7 @@ module WorkDefinitions
 
   class MainGrader < Base
     include AgentConcurrencyExempt
+    include RecordsGraderTargetSelectionInputs
 
     self.kind = "main_grader"
     self.workflow_trigger_kind = "main_grader"
@@ -505,8 +525,6 @@ module WorkDefinitions
     def grader_fanout_reuse_enabled?(workflow)
       grader_fanout_baseline_selection_reason(workflow).blank?
     end
-
-    def record_grader_target_selection_inputs? = true
   end
 
   class MainBranchRepair < Base

@@ -155,6 +155,34 @@ RSpec.describe Prompts::CiFailure do
     expect(out).to include("Full log: https://github.com/x/y/runs/1")
   end
 
+  it "renders mapped target context with concrete repair suggestions" do
+    out = build(failed_checks: [
+      {
+        name: "Backend CI",
+        conclusion: "failure",
+        html_url: "https://github.com/x/y/runs/1",
+        summary: "Backend failed",
+        target_context: {
+          target_label: "//:backend",
+          target_kind: "repo_check",
+          project_id: "web",
+          source_scope: [ "app/**/*.rb" ],
+          dependencies: [ "//:shared" ],
+          suggested_fixes: [
+            "Add an explicit `deps:` edge to //:backend.",
+            "Move the grader into the nested `.syrus.yml`."
+          ]
+        }
+      }
+    ]).to_s
+
+    expect(out).to include("Target context:")
+    expect(out).to include('"target_label": "//:backend"')
+    expect(out).to include('"project_id": "web"')
+    expect(out).to include("Add an explicit `deps:` edge to //:backend.")
+    expect(out.index("Target context:")).to be < out.index("Structured error context:")
+  end
+
   describe "injected_context" do
     it "is omitted when not provided" do
       out = build.to_s

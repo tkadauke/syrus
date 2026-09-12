@@ -109,7 +109,24 @@ module Prompts
         GitHub summary:
         #{summary}
 
+        #{target_context_block(check)}
+
         Structured error context:
+        ```json
+        #{JSON.pretty_generate(context)}
+        ```
+      BLOCK
+    end
+
+    def target_context_block(check)
+      context = value(check, :target_context)
+      context = context.to_h if context.respond_to?(:to_h)
+      context = {} unless context.is_a?(Hash)
+      context = context.deep_stringify_keys
+      return nil if context.blank?
+
+      <<~BLOCK.strip
+        Target context:
         ```json
         #{JSON.pretty_generate(context)}
         ```
