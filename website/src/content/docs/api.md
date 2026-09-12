@@ -139,6 +139,41 @@ curl -X POST https://syrus.example.com/api/v1/app/jobs/123/chat_feedback \
 
 Blank feedback or a non-actionable Job returns `422` with a JSON error.
 
+## Target Graph Inspection
+
+User-scoped app API clients can inspect compiled project and target graph data
+for repository and workflow debugging:
+
+- `GET /api/v1/app/repositories/:id/target_graph`
+- `GET /api/v1/app/jobs/:job_id/target_graph`
+- `GET /api/v1/app/workflows/:workflow_id/target_graph`
+
+Read access follows the same repository and Job visibility rules as the app UI.
+The repository endpoint compiles the default branch. The Job endpoint uses the
+latest Workflow unless `workflow_id` is provided, and the Workflow endpoint
+inspects that concrete Workflow.
+
+The endpoints accept `limit`, `offset`, `project_id`, `kind`, and `q`.
+`limit` defaults to 500 and is capped at 2,000. Responses include projects,
+windowed targets, dependency edges, compiler diagnostics, and page-scoped target
+health:
+
+```bash
+curl "https://syrus.example.com/api/v1/app/jobs/123/target_graph?limit=100&kind=grader" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+Each target includes its label, kind, project id, source scope, dependencies,
+owning config path, executable flag, and executable metadata such as command,
+phases, requiredness, timeout, and raw target metadata. Workflow-scoped
+responses also include selection overlays when the Workflow recorded them:
+`selected`, `skipped`, or `cached`, with the recorded reason and any available
+target-health references.
+
+`health.targets` and `health.summary` are scoped to the current target window,
+not the whole repository graph. Page through the target list to inspect more
+health rows without asking the server to serialize an unbounded graph.
+
 ## Diff Review Comments
 
 User-scoped app API clients can persist Syrus-owned diff review comments
