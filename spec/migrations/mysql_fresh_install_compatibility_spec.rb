@@ -66,8 +66,19 @@ RSpec.describe "MySQL fresh install compatibility", :ci_only do
     schema = Rails.root.join("db/schema.rb").read
 
     expect(initializer).to include("def add_foreign_key(*)")
+    expect(initializer).to include("def foreign_keys(*)")
     expect(initializer).to include("ActiveRecord::ConnectionAdapters::SchemaStatements.prepend")
+    expect(initializer).to include("ActiveRecord::SchemaDumper.prepend")
     expect(schema).not_to include("add_foreign_key")
+  end
+
+  it "does not dump database-level foreign keys into schema.rb" do
+    dumper = ActiveRecord::Base.connection.create_schema_dumper({})
+    stream = StringIO.new
+
+    dumper.send(:foreign_keys, "github_api_usage_rollups", stream)
+
+    expect(stream.string).to be_empty
   end
 
   it "does not add new foreign key declarations after the no-FK policy migration" do
