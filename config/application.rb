@@ -9,6 +9,7 @@ require "rails/all"
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "syrus/plugin_api"
 require "syrus/plugin/grade_detector"
+require "syrus/plugin/grader_type"
 require "syrus/plugin/focused_test_command"
 
 # Require the gems listed in Gemfile, including any gems

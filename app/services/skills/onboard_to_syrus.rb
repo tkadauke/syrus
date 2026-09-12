@@ -138,6 +138,8 @@ module Skills
     end
 
     def grade_candidate_summary(candidate)
+      return "#{candidate.name} (`type: #{candidate.type}`, evidence: #{candidate.evidence})" if candidate.type.present?
+
       extras = []
       extras << "phases: #{candidate.phases.join(',')}" if candidate.phases.present?
       extras << "when_files_changed: #{candidate.when_files_changed.join(',')}" if candidate.when_files_changed.present?
@@ -209,7 +211,17 @@ module Skills
         ones — CI is the strongest signal for "this is the command that
         actually validates this repository."
 
-        Each `grade.steps` entry uses this shape (see the `.syrus.yml`
+        Plugin-defined grader types should be preferred when the matching
+        language plugin has one, because the plugin owns focused-test and BRR
+        defaults:
+
+        ```yaml
+        grade:
+          steps:
+            - type: rspec
+        ```
+
+        Custom grader commands use this shape (see the `.syrus.yml`
         reference for the full schema):
 
         ```yaml
@@ -225,10 +237,10 @@ module Skills
 
         Prefer a command the repository itself already exposes (an npm
         script, a Rake task, a Makefile target, a CI step) over inventing
-        an ad hoc tool invocation. Default every step to `required: true`;
-        only mark one `required: false` when you have a concrete reason to
-        believe it's advisory-only (e.g. a known-flaky or best-effort
-        check).
+        an ad hoc tool invocation when no plugin-defined type applies.
+        Default every step to `required: true`; only mark one `required:
+        false` when you have a concrete reason to believe it's
+        advisory-only (e.g. a known-flaky or best-effort check).
 
         ## Step 4 — write or report
 
@@ -268,7 +280,8 @@ module Skills
     def grade_step_schema_table
       <<~TABLE.strip
         - `name` — required; alphanumeric characters and hyphens only, unique within `grade.steps`
-        - `run` — required; the shell command to run
+        - `type` — optional; plugin-defined grader type, for example `rspec`
+        - `run` — required for custom graders; the shell command to run
         - `required` — optional, defaults to `true`; set `false` for advisory-only checks
         - `timeout_minutes` — optional, defaults to 15 (max 90)
       TABLE

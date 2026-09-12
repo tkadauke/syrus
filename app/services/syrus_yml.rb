@@ -436,9 +436,30 @@ class SyrusYml
     raise ParseError, "grade.steps: must be an array" unless raw.is_a?(Array)
 
     seen = Set.new
-    raw.each_with_index.map do |step, index|
-      parse_grade_step(step, index, seen, default_failures: default_failures)
+    raw.each_with_index.flat_map do |step, index|
+      parse_grade_step_entry(step, index, seen, default_failures: default_failures)
     end
+  end
+
+  def parse_grade_step_entry(raw, index, seen, default_failures:)
+    label = "grade.steps[#{index}]"
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    type = raw["type"].to_s.strip.presence
+    if type.blank? || type == "custom"
+      return [ parse_grade_step(raw, index, seen, default_failures: default_failures) ]
+    end
+
+    raise ParseError, "#{label}.run: cannot be used with plugin grader type #{type.inspect}; use type: custom for shell commands" if raw["run"].present?
+
+    steps = expand_plugin_grade_type(type, raw, label, default_failures: default_failures)
+    raise ParseError, "#{label}: plugin grader type #{type.inspect} produced no grade steps" if steps.empty?
+
+    steps.each_with_index do |step, expanded_index|
+      raise ParseError, "#{label}: plugin grader type #{type.inspect} produced an invalid grade step" unless step.is_a?(GradeStep)
+      validate_grade_step!(step, "#{label}.expanded[#{expanded_index}]", seen)
+    end
+    steps
   end
 
   def parse_grade_step(raw, index, seen, default_failures:)
@@ -475,6 +496,25 @@ class SyrusYml
       base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry"),
       deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps")
     )
+  end
+
+  def expand_plugin_grade_type(type, raw, label, default_failures:)
+    providers = Syrus::PluginRegistry.providers_for(:grader_type)
+    provider = providers.find { |candidate| candidate.type_name.to_s == type }
+    raise ParseError, "#{label}.type: unknown grader type #{type.inspect}" unless provider
+
+    Array(provider.grade_steps(config: raw.deep_stringify_keys, default_failures: default_failures))
+  rescue ArgumentError => e
+    raise ParseError, "#{label}.type #{type.inspect}: #{e.message}"
+  end
+
+  def validate_grade_step!(step, label, seen)
+    name = step.name.to_s.strip
+    run = step.run.to_s.strip
+    raise ParseError, "#{label}.name: is required" if name.empty?
+    raise ParseError, "#{label}.name: must match #{GRADE_NAME_PATTERN.inspect}" unless name.match?(GRADE_NAME_PATTERN)
+    raise ParseError, "#{label}.run: is required" if run.empty?
+    remember_unique_name!(seen, name, label)
   end
 
   def parse_base_retry(raw, label)

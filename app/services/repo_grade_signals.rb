@@ -22,7 +22,7 @@ class RepoGradeSignals
   # `evidence` is the human-readable signal that matched (a file/dir
   # name, or a config section header) — surfaced so a report or gap
   # analysis can cite why a candidate was suggested.
-  Candidate = Data.define(:name, :run, :required, :timeout_minutes, :evidence, :phases, :when_files_changed, :junit_output, :failures, :base_retry)
+  Candidate = Data.define(:name, :run, :type, :required, :timeout_minutes, :evidence, :phases, :when_files_changed, :junit_output, :failures, :base_retry)
   Result = Data.define(:candidates, :ci_workflow_paths, :ci_run_commands)
 
   # Static rule metadata (name/run/human-readable signal description),
@@ -31,7 +31,7 @@ class RepoGradeSignals
   RuleDescription = Data.define(:name, :run, :signals)
 
   RULE_DESCRIPTIONS = [
-    RuleDescription.new(name: "rspec", run: "bin/rspec", signals: "a spec/ directory or .rspec file"),
+    RuleDescription.new(name: "rspec", run: "type: rspec", signals: "a spec/ directory or .rspec file"),
     RuleDescription.new(name: "jest", run: "npx jest", signals: "a jest.config.* file"),
     RuleDescription.new(name: "pytest", run: "pytest", signals: "pytest.ini, a [tool.pytest.ini_options] section in pyproject.toml, or a [tool:pytest] section in setup.cfg"),
     RuleDescription.new(name: "go-test", run: "go test ./...", signals: "a go.mod file with *_test.go files present"),
@@ -84,6 +84,7 @@ class RepoGradeSignals
       raw.fetch("name"),
       raw.fetch("run"),
       raw["evidence"],
+      type: raw["type"],
       phases: raw["phases"],
       when_files_changed: raw["when_files_changed"],
       junit_output: raw["junit_output"],
@@ -96,10 +97,10 @@ class RepoGradeSignals
     nil
   end
 
-  def candidate(name, run, evidence, phases: nil, when_files_changed: nil, junit_output: nil, failures: nil, base_retry: nil, timeout_minutes: DEFAULT_TIMEOUT_MINUTES, required: DEFAULT_REQUIRED)
+  def candidate(name, run, evidence, type: nil, phases: nil, when_files_changed: nil, junit_output: nil, failures: nil, base_retry: nil, timeout_minutes: DEFAULT_TIMEOUT_MINUTES, required: DEFAULT_REQUIRED)
     return nil unless evidence
 
-    Candidate.new(name: name, run: run, required: required.nil? ? DEFAULT_REQUIRED : required,
+    Candidate.new(name: name, run: run, type: type, required: required.nil? ? DEFAULT_REQUIRED : required,
                   timeout_minutes: timeout_minutes || DEFAULT_TIMEOUT_MINUTES, evidence: evidence,
                   phases: Array(phases).presence, when_files_changed: Array(when_files_changed).presence,
                   junit_output: junit_output,

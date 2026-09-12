@@ -25,6 +25,7 @@ module Syrus
       platform_delivery
       prepare_detector
       grade_detector
+      grader_type
       review_criteria_provider
       autofix_command
       dependency_audit_command
@@ -70,6 +71,7 @@ module Syrus
       platform_delivery:       -> { Syrus::Plugin::PlatformDelivery },
       prepare_detector:        -> { Syrus::Plugin::PrepareDetector },
       grade_detector:          -> { Syrus::Plugin::GradeDetector },
+      grader_type:             -> { Syrus::Plugin::GraderType },
       review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider },
       autofix_command:         -> { Syrus::Plugin::AutofixCommand },
       dependency_audit_command: -> { Syrus::Plugin::DependencyAuditCommand },

@@ -32,20 +32,17 @@ RSpec.describe RepoGradeSignals do
 
         result = described_class.for(@dir)
 
-        expect(candidate_names(result)).to contain_exactly("rspec", "rspec-focused", "rubocop")
+        expect(candidate_names(result)).to contain_exactly("rspec", "rubocop")
         rspec = result.candidates.find { |c| c.name == "rspec" }
-        expect(rspec.run).to eq("bundle exec rspec")
+        expect(rspec.run).to eq("type: rspec")
+        expect(rspec.type).to eq("rspec")
         expect(rspec.evidence).to eq("spec/")
         expect(rspec.required).to be(true)
         expect(rspec.timeout_minutes).to eq(15)
-        expect(rspec.phases).to eq(%w[landing ci])
-        expect(rspec.junit_output).to eq(".syrus/grade-output/rspec-junit.xml")
-        expect(rspec.failures).to eq("allow_inherited")
-        expect(rspec.base_retry).to eq("strategy" => "plugin")
-
-        focused = result.candidates.find { |c| c.name == "rspec-focused" }
-        expect(focused.phases).to eq(%w[review])
-        expect(focused.when_files_changed).to eq([ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ])
+        expect(rspec.phases).to be_nil
+        expect(rspec.junit_output).to be_nil
+        expect(rspec.failures).to be_nil
+        expect(rspec.base_retry).to be_nil
       end
 
       it "detects rspec from a bare .rspec file with no spec/ directory" do
@@ -117,7 +114,7 @@ RSpec.describe RepoGradeSignals do
 
         result = described_class.for(@dir)
 
-        expect(candidate_names(result)).to contain_exactly("rspec", "rspec-focused", "rubocop", "jest", "eslint")
+        expect(candidate_names(result)).to contain_exactly("rspec", "rubocop", "jest", "eslint")
       end
     end
 

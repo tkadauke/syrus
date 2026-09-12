@@ -1113,6 +1113,33 @@ The Ruby plugin uses this to propose ordinary RSpec defaults: a full
 landing/CI grader, a review-phase focused grader, `failures:
 allow_inherited`, and plugin-backed BRR.
 
+## `grader_type`
+
+Language/framework plugins use this extension point to implement declarative
+`.syrus.yml` grader types. Core parses a grade entry such as:
+
+```yaml
+grade:
+  - type: rspec
+```
+
+and asks the matching provider to expand it into one or more concrete
+`SyrusYml::GradeStep` values:
+
+```ruby
+.type_name # => "rspec"
+.grade_steps(config:, default_failures:) # => Array<SyrusYml::GradeStep>
+```
+
+Use this when the plugin can own the framework conventions: full-suite command,
+focused-review command, phase split, inherited-failure policy, and BRR strategy.
+Custom shell graders remain the default whenever `run:` is present, and
+`type: custom` is an explicit alias for that concrete command form.
+
+The Ruby plugin provides the first built-in grader type, `rspec`. It expands to
+full RSpec for landing/CI and focused RSpec for review, both with
+plugin-backed BRR.
+
 ## `focused_test_command`
 
 Base-revision retry (BRR) uses this extension point when a grader with

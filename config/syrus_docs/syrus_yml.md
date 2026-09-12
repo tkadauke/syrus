@@ -91,8 +91,9 @@ grade:
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
-| `name` | yes | — | Alphanumeric + hyphens; must be unique |
-| `run` | yes | — | Shell command |
+| `type` | no | `custom` when `run` is present | Plugin-defined grader type, for example `rspec`; `custom` keeps the shell-command form |
+| `name` | yes for custom | — | Alphanumeric + hyphens; must be unique |
+| `run` | yes for custom | — | Shell command |
 | `phases` | no | `review`, `landing`, `ci` | Phase or phases where this grader runs |
 | `ci` | no | — | Legacy alternate command; expanded into a `<name>-ci` grader in the `ci` phase |
 | `description` | no | — | Human-readable label |
@@ -102,6 +103,33 @@ grade:
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 | `base_retry` | no | cache-only | Focused command or strategy for base-revision retry |
+
+There are two grader declaration families:
+
+```yaml
+# Plugin-defined: the language/framework plugin owns concrete commands,
+# phase splits, focused-test behavior, and BRR defaults.
+grade:
+  - type: rspec
+```
+
+```yaml
+# Custom: a concrete shell command. `type: custom` is optional when `run:` is
+# present, but allowed for clarity.
+grade:
+  - type: custom
+    name: rspec
+    run: bin/rspec-fast
+    failures: allow_inherited
+    base_retry:
+      strategy: files_as_args
+```
+
+Plugin-defined graders may expand to more than one concrete grader. The Ruby
+plugin's `type: rspec` expands to a full RSpec grader for landing/CI plus a
+focused review grader, both with plugin-backed base-revision retry. A
+plugin-owned grader must not also set `run:`; use `type: custom` for bespoke
+wrapper scripts.
 
 `run` is the everyday command for every non-CI context, so it should already
 be the fast, parallel one. For Ruby projects, prefer putting formatter,
@@ -199,8 +227,11 @@ Supported forms:
   to the grader's `run` command. Use this only for wrappers that really forward
   positional file arguments to the test runner.
 - `strategy: plugin` asks a language/framework plugin to synthesize the focused
-  command. Ruby provides this for ordinary RSpec projects; JavaScript provides
-  it for Vitest tests.
+  command. Plugin-defined graders such as `type: rspec` set this automatically
+  when they can provide a deterministic focused command. For custom graders,
+  prefer `files_as_args` or an explicit `command:` template unless the command
+  follows the plugin's ordinary framework conventions. Ruby provides this for
+  ordinary RSpec projects; JavaScript provides it for Vitest tests.
 - `command: bin/rspec-individual {files}` uses an explicit command template.
   `{files}` expands to the shell-quoted unique failed test files and
   `{failed_count}` expands to the number of failed cases. A string

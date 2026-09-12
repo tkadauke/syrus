@@ -127,9 +127,7 @@ RSpec.describe Skills::OnboardToSyrus do
       instructions = described_class.definition(workspace_path: @dir).instructions
 
       expect(instructions).to match(/Detected prepare command: `bundle install`/)
-      expect(instructions).to include("rspec (`bundle exec rspec`, evidence: spec/, phases: landing,ci")
-      expect(instructions).to include("base_retry: {\"strategy\":\"plugin\"}")
-      expect(instructions).to include("rspec-focused (`bundle exec rspec`, evidence: spec/, phases: review")
+      expect(instructions).to include("rspec (`type: rspec`, evidence: spec/)")
       expect(instructions).to include("rubocop (`bundle exec rubocop`, evidence: .rubocop.yml)")
     end
 

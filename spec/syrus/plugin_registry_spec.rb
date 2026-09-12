@@ -69,7 +69,7 @@ RSpec.describe Syrus::PluginRegistry do
         :agent_provider, :chat_provider, :mcp_tool_set, :input_source, :prompt_injector,
         :artifact_renderer, :coverage_analyzer, :preview_provider,
         :admin_page, :sidebar_page, :chat_mcp_tool_set, :source_control_provider,
-        :build_system_graph_provider
+        :build_system_graph_provider, :grader_type
       )
     end
   end

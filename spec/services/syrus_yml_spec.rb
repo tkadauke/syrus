@@ -51,6 +51,92 @@ RSpec.describe SyrusYml do
     ])
   end
 
+  it "treats graders with run as custom by default" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/test
+    YAML
+
+    expect(config.grade.steps.first.name).to eq("tests")
+    expect(config.grade.steps.first.run).to eq("bin/test")
+  end
+
+  it "allows explicit custom grader type for shell commands" do
+    config = parse(<<~YAML)
+      grade:
+        - type: custom
+          name: tests
+          run: bin/test
+    YAML
+
+    expect(config.grade.steps.first.name).to eq("tests")
+    expect(config.grade.steps.first.run).to eq("bin/test")
+  end
+
+  it "expands plugin-defined grader types" do
+    provider = Class.new do
+      include Syrus::Plugin::GraderType
+
+      def self.type_name
+        "example"
+      end
+
+      def self.grade_steps(config:, default_failures:)
+        [
+          SyrusYml::GradeStep.new(
+            name: config["name"] || "example",
+            run: "bin/example",
+            ci: nil,
+            phases: %w[review landing ci],
+            description: nil,
+            required: true,
+            timeout_minutes: 15,
+            when_files_changed: nil,
+            junit_output: nil,
+            failures: default_failures,
+            base_retry: nil,
+            deps: []
+          )
+        ]
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([ provider ])
+
+    config = parse(<<~YAML)
+      grade:
+        failures: allow_inherited
+        steps:
+          - type: example
+            name: smoke
+    YAML
+
+    expect(config.grade.steps.first.name).to eq("smoke")
+    expect(config.grade.steps.first.run).to eq("bin/example")
+    expect(config.grade.steps.first.failures).to eq("allow_inherited")
+  end
+
+  it "rejects plugin-defined grader types with run commands" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          - type: rspec
+            run: bundle exec rspec
+      YAML
+    }.to raise_error(described_class::ParseError, /cannot be used with plugin grader type/)
+  end
+
+  it "rejects unknown plugin-defined grader types" do
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([])
+
+    expect {
+      parse(<<~YAML)
+        grade:
+          - type: missing
+      YAML
+    }.to raise_error(described_class::ParseError, /unknown grader type "missing"/)
+  end
+
   it "defaults grade.rerun_only_failed to false in the full form" do
     config = parse(<<~YAML)
       grade:

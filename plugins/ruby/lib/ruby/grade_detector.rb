@@ -18,21 +18,8 @@ module Ruby
       [
         {
           name: "rspec",
-          run: "bundle exec rspec",
-          phases: %w[landing ci],
-          junit_output: ".syrus/grade-output/rspec-junit.xml",
-          failures: "allow_inherited",
-          base_retry: { "strategy" => "plugin" },
-          evidence: rspec_evidence
-        },
-        {
-          name: "rspec-focused",
-          run: "bundle exec rspec",
-          phases: %w[review],
-          when_files_changed: [ "app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb" ],
-          junit_output: ".syrus/grade-output/rspec-focused-junit.xml",
-          failures: "allow_inherited",
-          base_retry: { "strategy" => "plugin" },
+          run: "type: rspec",
+          type: "rspec",
           evidence: rspec_evidence
         }
       ]

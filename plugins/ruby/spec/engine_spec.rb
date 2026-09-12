@@ -19,7 +19,7 @@ RSpec.describe Ruby::Engine do
           description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
                              "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
                              "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
-                             "require_relative-graph affected-test analysis, RSpec grade detection, RSpec focused base-retry commands",
+                             "require_relative-graph affected-test analysis, RSpec grade detection, RSpec typed graders, RSpec focused base-retry commands",
           homepage:         "https://github.com/tkadauke/syrus",
           category:         "language",
           prepare_priority: 10,
@@ -28,6 +28,7 @@ RSpec.describe Ruby::Engine do
             grader_augmentor:         [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
             prepare_detector:         Ruby::PrepareDetector,
             grade_detector:           Ruby::GradeDetector,
+            grader_type:              Ruby::RspecGraderType,
             review_criteria_provider: Ruby::ReviewCriteriaProvider,
             "test_insights:parser" => Ruby::RspecParser,
             autofix_command:          Ruby::RubocopAutofix,
@@ -53,12 +54,13 @@ RSpec.describe Ruby::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides all 10 extension point keys" do
+    it "provides all 11 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :coverage_analyzer,
         :grader_augmentor,
         :prepare_detector,
         :grade_detector,
+        :grader_type,
         :review_criteria_provider,
         "test_insights:parser",
         :autofix_command,
@@ -86,6 +88,10 @@ RSpec.describe Ruby::Engine do
 
     it "registers GradeDetector as the :grade_detector" do
       expect(registration.provides[:grade_detector]).to eq(Ruby::GradeDetector)
+    end
+
+    it "registers RspecGraderType as the :grader_type" do
+      expect(registration.provides[:grader_type]).to eq(Ruby::RspecGraderType)
     end
 
     it "registers SimpleCovAnalyzer as the :coverage_analyzer" do

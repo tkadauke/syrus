@@ -118,6 +118,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:grade_detector)
     end
 
+    it "includes :grader_type" do
+      expect(described_class::EXTENSION_POINTS).to include(:grader_type)
+    end
+
     it "includes :review_criteria_provider" do
       expect(described_class::EXTENSION_POINTS).to include(:review_criteria_provider)
     end
@@ -282,11 +286,26 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::INTERFACE_FOR[:grade_detector].call).to eq(Syrus::Plugin::GradeDetector)
     end
 
+    it "maps :grader_type to Syrus::Plugin::GraderType" do
+      expect(described_class::INTERFACE_FOR[:grader_type].call).to eq(Syrus::Plugin::GraderType)
+    end
+
     it "gives grade detector providers the class contract used by the registry" do
       provider = Class.new { include Syrus::Plugin::GradeDetector }
 
       expect(provider).to respond_to(:grade_candidates)
       expect { provider.grade_candidates("/tmp") }.to raise_error(NotImplementedError, /grade_candidates is required/)
+    end
+
+    it "gives grader type providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::GraderType }
+
+      expect(provider).to respond_to(:type_name)
+      expect(provider).to respond_to(:grade_steps)
+      expect { provider.type_name }.to raise_error(NotImplementedError, /type_name is required/)
+      expect {
+        provider.grade_steps(config: {}, default_failures: "strict")
+      }.to raise_error(NotImplementedError, /grade_steps is required/)
     end
 
     it "gives affected test analyzer providers the class contract used by the registry" do

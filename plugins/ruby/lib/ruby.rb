@@ -5,6 +5,7 @@ require "ruby/bundler_audit_command"
 require "ruby/simple_cov_analyzer"
 require "ruby/prepare_detector"
 require "ruby/grade_detector"
+require "ruby/rspec_grader_type"
 require "ruby/review_criteria_provider"
 require "ruby/rspec_parser"
 require "ruby/affected_test_analyzer"
@@ -34,6 +35,7 @@ module Ruby
              grader_augmentor: [ "Ruby::GraderAugmentor", "Ruby::RubocopGraderAugmentor" ],
              prepare_detector: "Ruby::PrepareDetector",
              grade_detector: "Ruby::GradeDetector",
+             grader_type: "Ruby::RspecGraderType",
              review_criteria_provider: "Ruby::ReviewCriteriaProvider",
              "test_insights:parser" => "Ruby::RspecParser",
              autofix_command: "Ruby::RubocopAutofix",
