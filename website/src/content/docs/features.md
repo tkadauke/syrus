@@ -164,6 +164,19 @@ to the prior handoff Job when appropriate. The
 `complete_implement_step` chat tool signals that a coding session on an
 existing Job branch is complete and ready for review, grading, summarize, and
 PR open.
+
+Existing Jobs can also be taken over from Coding Mode with the
+`open_in_coding_mode` chat tool, the same backend path the Job detail page uses
+for **Open in Coding Mode**. A coding chat can own only one active Job at a
+time: takeover is rejected if the chat already has another active coding Job
+or an active coding checkout for different work, and a Job already linked to a
+different chat cannot be claimed. Taken-over Jobs stay in the `coding` state
+while the chat owns implementation. Canceling the chat checkout detaches the
+Job in the same backend operation: Syrus discards the coding checkout, clears
+the chat link, and returns the taken-over Job to `implemented`. Fresh
+chat-authored Coding Mode Jobs keep their existing cancel semantics rather
+than being converted into taken-over Jobs.
+
 The `reset_workspace` chat tool is available for abandoned experiments or for
 starting a new unrelated task from the latest default branch: without
 confirmation it only reports the checkout path, current branch/ref, dirty state,

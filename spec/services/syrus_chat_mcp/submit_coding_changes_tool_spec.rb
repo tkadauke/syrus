@@ -205,6 +205,17 @@ RSpec.describe Mcp::Tools::SubmitCodingChangesTool do
     expect(response.dig(:result, :content, 0, :text)).to include("not found")
   end
 
+  it "rejects submit while the chat is attached to a taken-over coding Job" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                               branch_name: "syrus/job-1", pr_number: 10)
+    job.update_columns(state: "coding", linked_chat_id: chat_session.id)
+
+    response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("complete_implement_step")
+  end
+
   it "enqueues CodingHandoffConfirmJob and leaves result nil on confirmation" do
     response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])

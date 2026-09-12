@@ -311,6 +311,31 @@ matching MCP tools. `/feedback` and `/propose` are hidden in Supervisor chats,
 where the agent recommends operational next steps in prose instead of starting
 new work.
 
+## Coding Mode existing-Job takeover
+
+Coding Mode exposes `open_in_coding_mode(job_id)` to let a chat agent take over
+an existing `implemented` or `approved` Job when the operator explicitly asks
+for that Job. The tool reuses the same `JobCodingMode::Takeover` service as the
+Job detail **Open in Coding Mode** action: approved Jobs are unapproved first,
+the Job moves into `coding`, `linked_chat_id` records the owning chat, and the
+chat checkout is materialized on the Job branch. If checkout setup fails after
+the database claim, the service releases the Job back to `implemented` so there
+is no chat-owned Job without a usable checkout.
+
+The takeover service enforces the one-active-Job rule for Coding Mode. It
+rejects a takeover when the chat already owns another active coding Job, when
+the chat has an active coding checkout for different work, when the target Job
+is already linked to a different chat, or when incompatible runtime work owns
+the Job. Queued initial workflow work is the explicit exception: the workflow
+trigger-kind registry marks it as a coding takeover hold, so a parked first
+attempt does not block an operator from taking over implementation in chat.
+
+Canceling a Coding Mode checkout uses `JobCodingMode::CancelTakeover`. For a
+taken-over Job, this single backend operation discards the chat checkout and
+calls `release_coding_mode_takeover!`, clearing the link and returning the Job
+to `implemented`. If the checkout belongs to fresh chat-authored work rather
+than a taken-over Job, cancel keeps the existing checkout-discard behavior.
+
 Repository skill commands, one per skill resolved for the chat's attached
 repository (`/skill-name key=value ...`), are appended to the palette
 dynamically — they are not part of the fixed command list above and vary per

@@ -14,6 +14,8 @@ module JobCodingMode
   def lock_for_coding_mode!(chat_session)
     return false unless Feature.coding_mode_enabled?
     return false if linked_chat_id.present?
+    return false if Job.where(linked_chat_id: chat_session.id, state: "coding").where.not(id: id).exists?
+    return false if chat_session.coding_checkout_branch.present? && chat_session.coding_checkout_branch != branch_name
 
     Job::ApprovalUnapprover.call(job: self, user: chat_session.user) if may_unapprove?
     return false unless may_claim_for_coding?

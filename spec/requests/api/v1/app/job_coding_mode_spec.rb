@@ -65,6 +65,7 @@ RSpec.describe "App API job coding mode", type: :request do
       post path(job), as: :json
 
       expect(job.reload.linked_chat_id).to eq(ChatSession.last.id)
+      expect(job).to be_coding
     end
 
     it "initializes the job branch checkout" do
@@ -84,6 +85,7 @@ RSpec.describe "App API job coding mode", type: :request do
       }.not_to change(ChatSession, :count)
 
       expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
+      expect(job.reload).to be_coding
     end
 
     it "unapproves an approved job before linking" do
@@ -95,7 +97,7 @@ RSpec.describe "App API job coding mode", type: :request do
 
       post path(approved_job), as: :json
 
-      expect(approved_job.reload).to be_implemented
+      expect(approved_job.reload).to be_coding
     end
 
     it "does not create a duplicate chat session when called twice for approved job" do
@@ -114,6 +116,27 @@ RSpec.describe "App API job coding mode", type: :request do
       }.not_to change(ChatSession, :count)
 
       expect(parse_body["redirect_to"]).to eq("/chats/#{first_chat_id}")
+    end
+
+    it "rejects a job with active workflow ownership" do
+      workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "running")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+      Run.create!(job: job, user: user, step: step, trigger_kind: "retry", state: "running")
+
+      post path(job), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("active workflow ownership")
+      expect(job.reload).to be_implemented
+    end
+
+    it "allows takeover when the only active workflow is a queued initial hold" do
+      Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+
+      post path(job), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(job.reload).to be_coding
     end
 
     it "returns 404 for a job owned by another user" do
