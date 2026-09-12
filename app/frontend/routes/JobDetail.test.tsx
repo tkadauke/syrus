@@ -2700,6 +2700,19 @@ describe("Job detail navigation", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1?tab=workflows&job_nav=nav-token")
   })
 
+  it("keeps path-based source tab navigation on the source route", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      activeTab: "source",
+      initialEntry: "/app-shell/jobs/2/source?diff_base=aaa&diff_head=bbb&job_nav=nav-token",
+      showLocation: true
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/3/source?job_nav=nav-token")
+  })
+
   it("navigates with N and P while ignoring form and editable focus", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {

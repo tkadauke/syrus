@@ -69,6 +69,10 @@ describe("job navigation context", () => {
   it("carries Job Detail tab state but drops source-specific diff params", () => {
     expect(jobNavigationHref("/jobs/3", "/app-shell", "nav-token", "?tab=source&diff_base=aaa&diff_head=bbb")).toBe("/app-shell/jobs/3?tab=source&job_nav=nav-token")
   })
+
+  it("preserves the path-based source tab while dropping source-specific diff params", () => {
+    expect(jobNavigationHref("/jobs/3", "/app-shell", "nav-token", "?diff_base=aaa&diff_head=bbb", "/app-shell/jobs/2/source")).toBe("/app-shell/jobs/3/source?job_nav=nav-token")
+  })
 })
 
 function dashboardJob(id: number) {
