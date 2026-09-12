@@ -216,6 +216,7 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
   const { t } = useT("chat")
   const showNavigation = Boolean(onPrevious && onNext && (hasPrevious || hasNext))
   const [desktopControlsVisible, setDesktopControlsVisible] = useState(true)
+  const initialGraceActiveRef = useRef(true)
   const hoveringRef = useRef(false)
   const touchStartXRef = useRef<number | null>(null)
 
@@ -238,8 +239,10 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
   }, [hasNext, hasPrevious, onClose, onNext, onPrevious])
 
   useEffect(() => {
+    initialGraceActiveRef.current = true
     setDesktopControlsVisible(true)
     const timeout = window.setTimeout(() => {
+      initialGraceActiveRef.current = false
       if (!hoveringRef.current) setDesktopControlsVisible(false)
     }, LIGHTBOX_INITIAL_CONTROLS_MS)
     return () => window.clearTimeout(timeout)
@@ -252,6 +255,7 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
 
   function hideDesktopControls() {
     hoveringRef.current = false
+    if (initialGraceActiveRef.current) return
     setDesktopControlsVisible(false)
   }
 
@@ -333,26 +337,26 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
           <img alt={name} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain shadow-lg dark:bg-gray-900" src={src} />
         </div>
         <div
-          className="relative flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] items-center justify-center overflow-hidden rounded bg-white shadow-lg dark:bg-gray-900 md:hidden"
+          className="relative flex max-h-[calc(100dvh-5rem)] w-[calc(100vw-2rem)] items-center justify-center overflow-hidden rounded bg-white shadow-lg dark:bg-gray-900 md:hidden"
           data-image-lightbox-swipe-area
           onTouchEnd={handleTouchEnd}
           onTouchStart={handleTouchStart}
         >
           {hasPrevious && previousSrc ? <img aria-hidden="true" alt="" className="absolute left-0 h-full w-10 object-cover opacity-70" src={previousSrc} /> : null}
           {hasNext && nextSrc ? <img aria-hidden="true" alt="" className="absolute right-0 h-full w-10 object-cover opacity-70" src={nextSrc} /> : null}
-          <img alt={name} className={`relative z-[1] max-h-[calc(100dvh-2rem)] ${mobileImageWidthClass} object-contain`} src={src} />
-          {showNavigation && imageCount > 1 ? (
-            <div aria-label="Image carousel position" className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full bg-gray-950/35 px-2 py-1">
-              {Array.from({ length: imageCount }).map((_, index) => (
-                <span
-                  aria-hidden="true"
-                  className={`h-1.5 w-1.5 rounded-full ${index === imageIndex ? "bg-white" : "bg-white/45"}`}
-                  key={index}
-                />
-              ))}
-            </div>
-          ) : null}
+          <img alt={name} className={`relative z-[1] max-h-[calc(100dvh-5rem)] ${mobileImageWidthClass} object-contain`} src={src} />
         </div>
+        {showNavigation && imageCount > 1 ? (
+          <div aria-label="Image carousel position" className="fixed bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full bg-gray-950/35 px-2 py-1 md:hidden">
+            {Array.from({ length: imageCount }).map((_, index) => (
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${index === imageIndex ? "bg-white" : "bg-white/45"}`}
+                key={index}
+              />
+            ))}
+          </div>
+        ) : null}
       </section>
     </div>
   )
