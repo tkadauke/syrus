@@ -147,5 +147,11 @@
   "tool_suggested_change_summary": "Aenderung fuer {{doc}} vorgeschlagen{{state}}",
   "tool_suggestion": "Vorschlag",
   "tool_summary": "Zusammenfassung",
-  "tool_conflict": "Konflikt"
+  "tool_conflict": "Konflikt",
+  "tool_pending_suggestions": "Ausstehende Vorschlaege",
+  "tool_open_threads": "Offene Threads",
+  "tool_content": "Inhalt",
+  "tool_design_doc_count_one": "{{count}} Design-Dokument",
+  "tool_design_doc_count_other": "{{count}} Design-Dokumente",
+  "tool_untitled_design_doc": "Unbenanntes Design-Dokument"
 }

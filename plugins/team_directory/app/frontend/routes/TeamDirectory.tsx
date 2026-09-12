@@ -195,7 +195,7 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(activity.path, prefix)}>{activity.title}</Link>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{activity.type} · {activity.repository_slug} · <RelativeTimestamp fallback="not started" value={activity.occurred_at} /></div>
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{activity.type} · {activity.repository_slug} · <RelativeTimestamp fallback={t('profiles.not_started')} value={activity.occurred_at} /></div>
       </div>
       <StatusPill state={activity.state} />
     </div>
@@ -204,7 +204,7 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
 
 function ProfilesError({ error }: { error: Error }) {
   const { t } = useT("team_directory")
-  const message = error instanceof ApiError ? error.message : "Unable to load profiles."
+  const message = error instanceof ApiError ? error.message : t('profiles.load_error')
   return <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-300" role="alert">{message}</div>
 }
 

@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, Row } from "@app/routes/chat/toolCardUi"
-import { contentMetadata, DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
+import { contentMetadata, DesignDocHeader, parseDesignDocSummary, t, type DesignDocSummary } from "../designDocToolCard"
 
 // Plugin-owned tool card for read_design_doc (the pending-action tool-card work). Lives
 // entirely inside the design_docs plugin -- core discovers it by directory
@@ -37,10 +37,10 @@ function renderExpanded(context: ToolCardContext) {
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{doc.summary.title}</div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {doc.summary.pendingSuggestionsCount != null ? (
-          <Row label="Pending suggestions" value={String(doc.summary.pendingSuggestionsCount)} />
+          <Row label={t("tool_pending_suggestions")} value={String(doc.summary.pendingSuggestionsCount)} />
         ) : null}
-        {doc.summary.openThreadsCount != null ? <Row label="Open threads" value={String(doc.summary.openThreadsCount)} /> : null}
-        {metadata ? <Row label="Content" value={metadata} /> : null}
+        {doc.summary.openThreadsCount != null ? <Row label={t("tool_open_threads")} value={String(doc.summary.openThreadsCount)} /> : null}
+        {metadata ? <Row label={t("tool_content")} value={metadata} /> : null}
       </dl>
     </CardShell>
   )
