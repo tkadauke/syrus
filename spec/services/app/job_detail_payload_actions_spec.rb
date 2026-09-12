@@ -175,6 +175,58 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe "#actions_json Coding Mode takeover" do
+    around do |example|
+      setting = AppSetting.current
+      original_mode = setting.mode
+      setting.update!(mode: "advanced", mode_configured_at: Time.current)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      original_enabled = feature.enabled
+      feature.update!(enabled: true)
+      Feature.clear_cache!
+      example.run
+    ensure
+      setting&.update!(mode: original_mode || "advanced")
+      feature&.update!(enabled: original_enabled)
+      Feature.clear_cache!
+    end
+
+    it "offers Coding Mode feedback in advanced mode when ordinary request changes is off" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", branch_name: "syrus/job-1")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions.fetch(:can_request_changes)).to be(false)
+      expect(actions.fetch(:can_open_in_coding_mode)).to be(true)
+      expect(actions.fetch(:open_in_coding_mode_blocked_reason)).to be_nil
+    end
+
+    it "allows queued initial takeover holds" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", branch_name: "syrus/job-2")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "queued")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions.fetch(:can_open_in_coding_mode)).to be(true)
+      expect(actions.fetch(:open_in_coding_mode_blocked_reason)).to be_nil
+    end
+
+    it "blocks incompatible active workflow ownership" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", branch_name: "syrus/job-3")
+      workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "queued")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions.fetch(:can_open_in_coding_mode)).to be(false)
+      expect(actions.fetch(:open_in_coding_mode_blocked_reason)).to include("active workflow ownership")
+    end
+  end
+
   describe "#feedback_history_json" do
     it "returns chat feedback workflow artifacts in chronological order" do
       job = Factories.job_record(repository: repo)

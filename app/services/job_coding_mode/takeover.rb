@@ -2,18 +2,20 @@ module JobCodingMode
   class Takeover
     Error = Class.new(StandardError)
 
-    Result = Data.define(:job, :chat_session, :created_chat)
+    Result = Data.define(:job, :chat_session, :created_chat, :queued_message)
 
-    def self.call(job:, user:, chat_session: nil)
-      new(job: job, user: user, chat_session: chat_session).call
+    def self.call(job:, user:, chat_session: nil, initial_prompt: nil)
+      new(job: job, user: user, chat_session: chat_session, initial_prompt: initial_prompt).call
     end
 
-    def initialize(job:, user:, chat_session: nil)
+    def initialize(job:, user:, chat_session: nil, initial_prompt: nil)
       @job = job
       @user = user
       @chat_session = chat_session
+      @initial_prompt = initial_prompt.to_s.strip
       @created_chat = false
       @claimed_job = false
+      @queued_message = nil
     end
 
     def call
@@ -48,7 +50,10 @@ module JobCodingMode
         @job.release_coding_mode_takeover! if @claimed_job && @job.reload.coding?
         raise
       end
-      Result.new(job: @job.reload, chat_session: @chat_session.reload, created_chat: @created_chat)
+
+      enqueue_initial_prompt! if @initial_prompt.present?
+
+      Result.new(job: @job.reload, chat_session: @chat_session.reload, created_chat: @created_chat, queued_message: @queued_message)
     end
 
     private
@@ -106,6 +111,18 @@ module JobCodingMode
       @job.runs.active.exists? || @job.active_runtime_workflows.any? do |workflow|
         !workflow.coding_takeover_hold?
       end
+    end
+
+    def enqueue_initial_prompt!
+      @queued_message = @chat_session.chat_queued_messages.create!(
+        content: {
+          "text" => @initial_prompt,
+          "source" => "job_detail_coding_mode_feedback",
+          "job_id" => @job.id
+        }
+      )
+      @chat_session.touch
+      ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat_session)
     end
   end
 end

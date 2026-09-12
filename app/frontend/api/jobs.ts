@@ -789,6 +789,7 @@ export type JobActions = {
   can_view_resource_admission_diagnostics: boolean
   can_manage_tags: boolean
   can_open_in_coding_mode: boolean
+  open_in_coding_mode_blocked_reason?: string | null
   can_start_preview: boolean
   can_deploy: boolean
   can_run_visual_review: boolean
@@ -1427,6 +1428,10 @@ export async function submitJobFeedback(jobId: number, body: string): Promise<vo
 
 export function submitJobRequestChanges(path: string, feedback: string) {
   return postJson<JobCommandPayload>(path, { feedback })
+}
+
+export function openJobInCodingMode(path: string, feedback?: string) {
+  return postJson<JobCommandPayload>(path, feedback ? { feedback } : undefined)
 }
 
 export type PendingFeedbackActionPayload = {

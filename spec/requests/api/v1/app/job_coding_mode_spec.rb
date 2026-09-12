@@ -76,6 +76,41 @@ RSpec.describe "App API job coding mode", type: :request do
         .with(chat, repo, "syrus/fix-login-1")
     end
 
+    it "uses feedback as the first coding chat prompt" do
+      expect {
+        post path(job), params: { feedback: "Please tighten the header spacing." }, as: :json
+      }.to have_enqueued_job(ChatTurnJob)
+
+      chat = ChatSession.last
+      message = chat.messages.where(role: "user").sole
+      expect(message.content).to include(
+        "text" => "Please tighten the header spacing.",
+        "source" => "job_detail_coding_mode_feedback",
+        "job_id" => job.id
+      )
+      expect(chat.chat_queued_messages.sole.delivered_at).to be_present
+      expect(parse_body["message"]).to eq("Opened Coding Mode chat and queued your feedback.")
+    end
+
+    it "queues feedback on a reused busy coding chat without starting another turn" do
+      existing_chat = ChatSession.create!(user: user, mode: "coding", turn_in_flight: true)
+      job.update_columns(linked_chat_id: existing_chat.id)
+
+      expect {
+        post path(job), params: { feedback: "Start from the feedback form." }, as: :json
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:ok)
+      queued = existing_chat.reload.queued_messages.sole
+      expect(queued.content).to include(
+        "text" => "Start from the feedback form.",
+        "source" => "job_detail_coding_mode_feedback",
+        "job_id" => job.id
+      )
+      expect(existing_chat.messages).to be_empty
+      expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
+    end
+
     it "reuses an existing linked chat session" do
       existing_chat = ChatSession.create!(user: user, mode: "coding")
       job.update_columns(linked_chat_id: existing_chat.id)

@@ -45,7 +45,7 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
   const visibleActions = visibleKeys.map((key) => actions.find((action) => action.key === key)).filter((action): action is HeaderAction => Boolean(action))
   const overflowActions = actions.filter((action) => !visibleKeys.includes(action.key))
   const canGiveFeedback = ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
-  const canRequestChanges = payload.actions.can_request_changes && onToggleRequestChangesPanel
+  const canRequestChanges = (payload.actions.can_request_changes || payload.actions.can_open_in_coding_mode) && onToggleRequestChangesPanel
 
   // Keyboard shortcuts mirror the availability check of the button each one
   // stands in for -- found via the same `actions` list, so a shortcut can
@@ -195,37 +195,50 @@ export function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
   )
 }
 
-export function RequestChangesPanel({ error, isPending, onCancel, onSubmit }: { error: Error | null; isPending: boolean; onCancel: () => void; onSubmit: (feedback: string) => void }) {
+export function RequestChangesPanel({ canOpenInCodingMode, canSubmitRequestChanges, codingModeBlockedReason, error, isCodingModePending, isPending, onCancel, onSubmit, onSubmitToCodingMode }: { canOpenInCodingMode: boolean; canSubmitRequestChanges: boolean; codingModeBlockedReason?: string | null; error: Error | null; isCodingModePending: boolean; isPending: boolean; onCancel: () => void; onSubmit: (feedback: string) => void; onSubmitToCodingMode: (feedback: string) => void }) {
   const { t } = useT("jobs")
   const [feedback, setFeedback] = useState("")
   const trimmedFeedback = feedback.trim()
+  const submitting = isPending || isCodingModePending
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!trimmedFeedback) return
+    if (!trimmedFeedback || !canSubmitRequestChanges) return
 
     onSubmit(trimmedFeedback)
+  }
+
+  function submitToCodingMode() {
+    if (!trimmedFeedback || submitting || !canOpenInCodingMode) return
+
+    onSubmitToCodingMode(trimmedFeedback)
   }
 
   return (
     <section aria-labelledby="job-request-changes-title" className="rounded border border-brand/30 bg-brand/10 p-4">
       <form className="space-y-3" onSubmit={submit}>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-request-changes-title">{t("request_changes_panel_title")}</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{t("request_changes_panel_description")}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-300">{t(canSubmitRequestChanges ? "request_changes_panel_description" : "request_changes_coding_mode_panel_description")}</p>
         <textarea
           className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-          disabled={isPending}
+          disabled={submitting}
           onChange={(event) => setFeedback(event.target.value)}
           placeholder={t("request_changes_placeholder")}
           rows={4}
           value={feedback}
         />
         {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("request_changes_error"))}</p> : null}
+        {!canOpenInCodingMode && codingModeBlockedReason ? <p className="text-xs text-gray-600 dark:text-gray-400">{codingModeBlockedReason}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button disabled={isPending} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
-          <Button disabled={isPending || !trimmedFeedback} type="submit" variant="primary">
-            {isPending ? t("submitting") : t("submit_request_changes")}
+          <Button disabled={submitting} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
+          <Button disabled={submitting || !trimmedFeedback || !canOpenInCodingMode} onClick={submitToCodingMode} title={canOpenInCodingMode ? undefined : codingModeBlockedReason || t("open_in_coding_mode_unavailable")} type="button" variant="secondary">
+            {isCodingModePending ? t("submitting") : t("submit_request_changes_in_coding_mode")}
           </Button>
+          {canSubmitRequestChanges ? (
+            <Button disabled={submitting || !trimmedFeedback} type="submit" variant="primary">
+              {isPending ? t("submitting") : t("submit_request_changes")}
+            </Button>
+          ) : null}
         </div>
       </form>
     </section>
