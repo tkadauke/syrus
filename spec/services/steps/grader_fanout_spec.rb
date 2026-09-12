@@ -127,6 +127,30 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_steps.first.details["name"]).to eq("rspec")
   end
 
+  it "records target selection inputs for initial workflows so later CI repair can diagnose skipped targets" do
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/app
+          when_files_changed: ["app/**/*.rb"]
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed: ["docs/**/*.md"]
+    YAML
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)).to contain_exactly(
+      include("name" => "app-tests", "target_label" => "//:grade/app-tests", "affected" => true),
+      include("name" => "docs-tests", "target_label" => "//:grade/docs-tests", "affected" => false)
+    )
+    expect(step.reload.details[Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY]).to contain_exactly(
+      include("name" => "app-tests", "target_label" => "//:grade/app-tests", "affected" => true),
+      include("name" => "docs-tests", "target_label" => "//:grade/docs-tests", "affected" => false)
+    )
+  end
+
   it "retries transient step materialization deadlocks" do
     write_config(<<~YAML)
       grade:
