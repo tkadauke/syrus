@@ -588,10 +588,24 @@ requiredness, fingerprints, and target-health record references when available.
 These overlays come from workflow artifacts such as
 `grader_target_selections` and `target_health_skipped_targets`; absent artifacts
 mean the graph still returns, just without runtime selection annotations.
+
+Job and Workflow target-graph responses also include an `explanations` envelope
+for operator debugging. It groups the same runtime facts by affected project,
+selected executable target, skipped target, cached target, and preview/project
+choice. Cached entries include `target_health_record_id` and
+`target_health_record_refs` so the UI can point back to the exact health proof
+that allowed the target to be skipped. Preview/project entries surface
+multi-project preview choices as `ambiguous` when an operator or agent must
+choose a project, and `unavailable` with a reason when no affected preview
+project can be used.
+
 The app UI exposes a repository Target Graph tab for default-branch graph
 inspection and a Job Target Graph tab that uses the Job endpoint so operators
 can expand from selected, skipped, and cached workflow targets when fanout has
-recorded those artifacts.
+recorded those artifacts. The Job/Workflow Target Graph tab renders the
+`explanations` envelope above the graph so operators can read selection,
+skip/cache, target-health, and ambiguous preview/project decisions without
+inspecting raw workflow artifacts.
 
 Health detail is intentionally page-scoped so large graphs remain bounded.
 `health.targets` contains latest `TargetHealthRecord` details only for targets
