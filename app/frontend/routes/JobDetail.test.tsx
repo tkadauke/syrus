@@ -1007,6 +1007,27 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument()
   })
 
+  it("opens an implemented Job directly in Coding Mode chat from the actions menu", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      redirect_to: "/chats/42",
+      message: "Opened Coding Mode chat."
+    }, 200))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" },
+      actions: { ...jobPayload().actions, can_open_in_coding_mode: true }
+    }), { showLocation: true })
+
+    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in Coding Mode" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/open_in_coding_mode", expect.objectContaining({
+        method: "POST"
+      }))
+    })
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chats/42"))
+  })
+
   it("hides the Request changes button when the action is not allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "running", summary_state: "running" },

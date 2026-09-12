@@ -45,14 +45,17 @@ module Prompts
            git add -A && git commit -m "concise description"
            ```
         5. At the end of a turn, when you have reached a coherent stopping
-           point with committed work, recommend handing off with
-           `submit_coding_changes`; the operator still must confirm the actual
-           submit.
-        6. When the operator signals that this session is complete, hand off:
-           - For an attached existing Job, push that Job branch and call
-             `complete_implement_step(job_id: <id>)`.
-           - For new chat-authored work, call `submit_coding_changes` from the
-             active branch. New Coding Mode checkouts start on the repository
+           point with committed work, recommend handing off through the
+           applicable submit lane below; the operator still must confirm the
+           actual submit.
+        6. When the operator signals that this session is complete, hand off
+           through exactly one submit lane:
+           - Attached existing Job: call `complete_implement_step(job_id:
+             <id>)`. Do not use `submit_coding_changes` for a Job already
+             shown in the attached Jobs context.
+           - New chat-authored work with no attached Job: call
+             `submit_coding_changes` from the active branch. New Coding Mode
+             checkouts start on the repository
              default branch; the confirmed handoff captures HEAD to an immutable
              `syrus/chat-<chat_id>-handoff-<pending_action_id>` branch, so do
              not create or push a persistent `syrus-chat-<id>` branch. After
@@ -87,7 +90,7 @@ module Prompts
       sections << coding_checkout_section(snapshot) if snapshot
       sections << "**Checkout setup warning:** #{setup_error}" if setup_error.present?
 
-      jobs = chat_session&.attached_jobs&.includes(:repository)&.order(:created_at, :id)&.to_a
+      jobs = attached_coding_jobs
       sections << attached_jobs_section(jobs, workspace) if jobs&.any?
 
       sections.compact.join("\n\n")
@@ -110,6 +113,14 @@ module Prompts
       lines << "- Default branch: `#{snapshot[:default_branch]}`"
       lines << "- Prep status: #{prepare_status_label(snapshot)}"
       lines.join("\n")
+    end
+
+    def attached_coding_jobs
+      return unless chat_session
+
+      attached = chat_session.attached_jobs.includes(:repository).order(:created_at, :id).to_a
+      linked = Job.where(linked_chat_id: chat_session.id, state: "coding").includes(:repository).order(:created_at, :id).to_a
+      (attached + linked).uniq(&:id)
     end
 
     def prepare_status_label(snapshot)
