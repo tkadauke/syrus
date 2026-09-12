@@ -660,19 +660,24 @@ visible, searchable, and auditable. The live agent receives the summary plus
 recent raw messages and can use Syrus tools when exact older details are needed.
 In the V2 layout, the
 sidebar search field opens a dedicated search
-page where operators can search Jobs, Epics, and chat messages from
-one ranked result list, then narrow results to a single type. Search terms
+page where operators can search Jobs, Epics, chat messages, and enabled
+plugin-contributed sources such as Tests and Design Docs from one ranked result
+list, then narrow results to a single type. Search terms
 use the `query=` URL parameter and Google-style matching: unquoted words are independent required terms, and
 quoted words search for an exact phrase. Matching chat messages are grouped
 by conversation, with the strongest snippet shown first and additional
 matches expandable inline. The global results page also supports the same
 predicate FilterBar used on dashboard lists: combined results expose common
 repository and timestamp filters, while single-type views expose the relevant
-Job or Epic filters. These filters keep the relevance order intact and are
+Job, Epic, Test, or Design Doc filters. Design Doc results include their
+`DOC-N` slug, state, repository context, owner, current version, updated
+timestamp, and link directly to the Design Doc editor. These filters keep the
+relevance order intact and are
 encoded in the `q=` URL parameter; older plain-text `q=` search links still
 open as text searches when no `query=` parameter is present. Job and Epic
 results show a copyable `JOB-N` / `EPIC-N` slug that opens the same preview
-popup used elsewhere in the app on hover. The older chat search page remains
+popup used elsewhere in the app on hover; plugin slugs such as `DOC-N` use
+their plugin-provided preview cards. The older chat search page remains
 available for chat-specific repository, Epic, Job, and attachment filters.
 Operators can also share a chat with teammates on the same Syrus instance:
 the `/share` slash command copies a stable link to a read-only transcript
