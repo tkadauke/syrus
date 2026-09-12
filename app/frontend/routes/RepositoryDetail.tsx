@@ -72,7 +72,7 @@ function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: 
           {t('repository.loading')}
         </PanelMessage>
       ) : null}
-      {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load repository.")}</PanelMessage> : null}
+      {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("repository.error_load"))}</PanelMessage> : null}
       {payload ? (
         <>
           <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -113,18 +113,18 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   const { t } = useT("settings")
   const repository = payload.repository
   const nonzeroCounts = [
-    { label: "running", value: payload.counts.running, tone: "blue" as const },
-    { label: "queued", value: payload.counts.queued, tone: "gray" as const },
-    { label: "failed 7d", value: payload.counts.failed_7d, tone: "red" as const }
+    { label: t("repository.count_running"), value: payload.counts.running, tone: "blue" as const },
+    { label: t("repository.count_queued"), value: payload.counts.queued, tone: "gray" as const },
+    { label: t("repository.count_failed_7d"), value: payload.counts.failed_7d, tone: "red" as const }
   ].filter((count) => count.value > 0)
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-      <StatusPill tone={repository.polling_enabled ? "green" : "gray"}>{repository.polling_enabled ? "polling enabled" : "polling paused"}</StatusPill>
+      <StatusPill tone={repository.polling_enabled ? "green" : "gray"}>{repository.polling_enabled ? t("repository.polling_enabled") : t("repository.polling_paused")}</StatusPill>
       <span>{payload.credential_status.label}</span>
       <span className="text-gray-300 dark:text-gray-600">·</span>
       <span>
-        {t('repository.agent_prefix')} {repository.agent_provider_label || `user default (${repository.effective_agent_provider_label})`}
+        {t('repository.agent_prefix')} {repository.agent_provider_label || t("repository.user_default_agent", { provider: repository.effective_agent_provider_label })}
       </span>
       {nonzeroCounts.map((count) => (
         <StatusPill key={count.label} tone={count.tone}>{count.value} {count.label}</StatusPill>
@@ -134,6 +134,7 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
 }
 
 export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const search = queryKey[3]
@@ -146,7 +147,7 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
         queryClient.setQueryData(queryKey, updated)
         onNotice(updated.message || null)
       } else {
-        onNotice(updated.message || "Recommendation job created.")
+        onNotice(updated.message || t("repository.recommendation_job_created"))
         navigate(withRoutePrefix(updated.redirect_to, prefix))
       }
     }
@@ -176,14 +177,14 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
   }
 
   return (
-    <section aria-label="Recommended actions" className="space-y-2">
+    <section aria-label={t("repository.recommended_actions")} className="space-y-2">
       <div className={`rounded border px-3 py-2 text-sm ${recommendationToneClass(recommendation.tone)}`} key={recommendation.id}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{recommendation.title}</span>
               <span className="text-xs opacity-75">{recommendation.category}</span>
-              <span className="text-xs opacity-75">Tip {activeIndex + 1} of {recommendations.length}</span>
+              <span className="text-xs opacity-75">{t("repository.tip_position", { index: activeIndex + 1, count: recommendations.length })}</span>
             </div>
             <p className="mt-0.5 text-xs leading-5 opacity-90">{recommendation.body}</p>
           </div>
@@ -191,7 +192,7 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
             {hasMultiple ? (
               <div className="flex items-center gap-1">
                 <button
-                  aria-label="Previous tip"
+                  aria-label={t("repository.previous_tip")}
                   className="inline-flex h-7 w-7 items-center justify-center rounded border border-current/20 hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
                   disabled={recommendationAction.isPending}
                   onClick={() => setCurrentIndex((index) => (index - 1 + recommendations.length) % recommendations.length)}
@@ -200,7 +201,7 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
                   <ChevronIcon className="h-4 w-4 rotate-180" />
                 </button>
                 <button
-                  aria-label="Next tip"
+                  aria-label={t("repository.next_tip")}
                   className="inline-flex h-7 w-7 items-center justify-center rounded border border-current/20 hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
                   disabled={recommendationAction.isPending}
                   onClick={() => setCurrentIndex((index) => (index + 1) % recommendations.length)}
@@ -219,14 +220,14 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
                 onClick={() => { onNotice(null); recommendationAction.mutate(recommendation) }}
                 type="button"
               >
-                {recommendationAction.isPending ? "Working..." : recommendation.cta.label}
+                {recommendationAction.isPending ? t("repository.working") : recommendation.cta.label}
               </button>
             )}
-            <DismissButton label={`Dismiss ${recommendation.title}`} onClick={() => dismiss(recommendation)} />
+            <DismissButton label={t("repository.dismiss_recommendation", { title: recommendation.title })} onClick={() => dismiss(recommendation)} />
           </div>
         </div>
       </div>
-      {recommendationAction.isError ? <PanelMessage tone="error">{errorMessage(recommendationAction.error, "Recommendation action failed.")}</PanelMessage> : null}
+      {recommendationAction.isError ? <PanelMessage tone="error">{errorMessage(recommendationAction.error, t("repository.recommendation_action_failed"))}</PanelMessage> : null}
     </section>
   )
 }
@@ -328,7 +329,7 @@ function SyrusYmlCard({ payload }: { payload: RepositoryDetailPayload }) {
   ]
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label=".syrus.yml configuration">
+    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t("repository.syrus_yml_aria")}>
       <SectionHeading>
         .syrus.yml
       </SectionHeading>
@@ -406,7 +407,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       if ("repository" in updated && "tabs" in updated) {
         queryClient.setQueryData(queryKey, updated)
       }
-      onNotice((updated as { message?: string | null }).message || "Insight analysis started.")
+      onNotice((updated as { message?: string | null }).message || t("repository.insight_started"))
     }
   })
   const disabled = poll.isPending || retryFailed.isPending || archive.isPending
@@ -425,12 +426,12 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
         {payload.simple_mode ? null : <Link className={buttonClass("green")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t('repository.new_job')}</Link>}
         <button className={buttonClass("blue")} disabled={disabled} onClick={() => { onNotice(null); poll.mutate() }} type="button">{t('repository.poll_now')}</button>
         {retry.count > 0 ? (
-          <button className={buttonClass("amber")} disabled={disabled || retry.provider_circuit.open} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">Retry {retry.count} failed with {retry.agent_provider_label}</button>
+          <button className={buttonClass("amber")} disabled={disabled || retry.provider_circuit.open} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">{t("repository.retry_failed_with", { count: retry.count, provider: retry.agent_provider_label })}</button>
         ) : null}
         {payload.agent_insights_enabled && payload.paths.app_run_insight_analysis_repository_path ? (
           payload.active_insight_job ? (
             <Link className={buttonClass("gray")} to={withRoutePrefix(payload.active_insight_job.job_path, prefix)}>
-              Insight analysis running
+              {t("repository.insight_running")}
             </Link>
           ) : (
             <button
@@ -439,7 +440,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
               onClick={() => { onNotice(null); runInsight.mutate() }}
               type="button"
             >
-              {runInsight.isPending ? "Starting…" : "Run insight analysis"}
+              {runInsight.isPending ? t("repository.insight_starting") : t("repository.run_insight")}
             </button>
           )
         ) : null}
@@ -448,7 +449,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
         ) : null}
         {payload.agent_insights_enabled && payload.paths.repository_insights_path ? (
           <Link className={buttonClass("gray")} to={withRoutePrefix(payload.paths.repository_insights_path, prefix)}>
-            View insights
+            {t("repository.view_insights")}
           </Link>
         ) : null}
         <div className="relative" ref={moreMenuRef}>
@@ -465,7 +466,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
           {moreOpen ? (
             <div className="absolute left-0 z-20 mt-2 min-w-40 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1 text-sm shadow-lg" id="repository-actions-menu">
               <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.new_repository_skill_job_path, prefix)}>{t('repository.launch_skill')}</Link>
-              <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.edit_repository_path, prefix)}>Edit</Link>
+              <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.edit_repository_path, prefix)}>{t("repository.edit")}</Link>
               <button className="block w-full rounded px-3 py-2 text-left text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/50 disabled:text-gray-300 dark:disabled:text-gray-600" disabled={disabled} onClick={archiveRepository} type="button">{t('repository.archive')}</button>
             </div>
           ) : null}
@@ -473,13 +474,13 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       </div>
       {retry.provider_circuit.open ? (
         <PanelMessage tone="warning">
-          {retry.agent_provider_label} retries are paused: {retry.provider_circuit.reason || "provider appears degraded"}.
+          {t("repository.retries_paused", { provider: retry.agent_provider_label, reason: retry.provider_circuit.reason || t("repository.provider_degraded") })}
         </PanelMessage>
       ) : null}
-      {poll.isError ? <PanelMessage tone="error">{errorMessage(poll.error, "Repository poll failed.")}</PanelMessage> : null}
-      {retryFailed.isError ? <PanelMessage tone="error">{errorMessage(retryFailed.error, "Retry failed jobs command failed.")}</PanelMessage> : null}
-      {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, "Archive failed.")}</PanelMessage> : null}
-      {runInsight.isError ? <PanelMessage tone="error">{errorMessage(runInsight.error, "Failed to start insight analysis.")}</PanelMessage> : null}
+      {poll.isError ? <PanelMessage tone="error">{errorMessage(poll.error, t("repository.poll_failed"))}</PanelMessage> : null}
+      {retryFailed.isError ? <PanelMessage tone="error">{errorMessage(retryFailed.error, t("repository.retry_failed_command_failed"))}</PanelMessage> : null}
+      {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, t("repository.archive_failed"))}</PanelMessage> : null}
+      {runInsight.isError ? <PanelMessage tone="error">{errorMessage(runInsight.error, t("repository.insight_start_failed"))}</PanelMessage> : null}
       {dialog}
     </>
   )
@@ -498,7 +499,7 @@ function CredentialNotice({ payload }: { payload: RepositoryDetailPayload }) {
             {t('repository.connection')}
           </span>
           {" "}{t('repository.pat_fallback')}
-          <span className="ml-1">{status.github_app_registered ? "Install the GitHub App for this repository owner to use app credentials here." : "Register the GitHub App to prefer app credentials over PAT fallback."}</span>
+          <span className="ml-1">{status.github_app_registered ? t("repository.install_app_owner_hint") : t("repository.register_app_hint")}</span>
           {status.previous_installation_removed ? (
             <span className="ml-1">
               {t('repository.installation_removed')}
@@ -588,7 +589,7 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
           </p>
         )}
       </div>
-      {release.isError ? <PanelMessage tone="error">{errorMessage(release.error, "Unable to release job for triage.")}</PanelMessage> : null}
+      {release.isError ? <PanelMessage tone="error">{errorMessage(release.error, t("repository.release_triage_failed"))}</PanelMessage> : null}
     </section>
   )
 }
@@ -605,9 +606,9 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
         </SectionHeading>
         <OnboardingEmptyState
           fallbackActionPath={payload.paths.new_job_path}
-          fallbackActionText="Create direct job"
-          fallbackDescription={`No jobs have run for this repository. Create a direct job now, or label a GitHub issue with ${payload.repository.trigger_label} for polling.`}
-          fallbackTitle="No jobs yet"
+          fallbackActionText={t("repository.empty_jobs_action")}
+          fallbackDescription={t("repository.empty_jobs_description", { label: payload.repository.trigger_label })}
+          fallbackTitle={t("repository.empty_jobs_title")}
           prefix={prefix}
           setupStatus={setupStatus}
         />
@@ -635,7 +636,7 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
               <DataTable.HeadCell className="hidden sm:table-cell">
                 {t('repository.col_last')}
               </DataTable.HeadCell>
-              <DataTable.HeadCell className="hidden sm:table-cell"><span className="sr-only">Actions</span></DataTable.HeadCell>
+              <DataTable.HeadCell className="hidden sm:table-cell"><span className="sr-only">{t("repository.col_actions")}</span></DataTable.HeadCell>
             </DataTable.Row>
           </DataTable.Header>
           <DataTable.Body>
@@ -659,13 +660,13 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
         <SourceLink job={job} prefix={prefix} />
         <ProviderAvailabilityWarning availability={job.provider_availability} className="ml-1 inline-flex align-[-0.125em]" />
         {job.issue_title ? <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title}</Link> : null}
-        {job.pr_number && job.pr_url ? <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">PR #{job.pr_number}</a> : null}
-        {job.external_pr_number && job.external_pr_url ? <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">PR #{job.external_pr_number}</a> : null}
+        {job.pr_number && job.pr_url ? <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">{t("repository.pr_number", { number: job.pr_number })}</a> : null}
+        {job.external_pr_number && job.external_pr_url ? <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">{t("repository.pr_number", { number: job.external_pr_number })}</a> : null}
         <ProviderFailoverNotice failover={job.provider_failover} className="mt-1 flex w-fit" />
         {job.current_step_caption ? <div className="mt-0.5 text-xs italic text-gray-500 dark:text-gray-400">{job.current_step_caption}</div> : null}
         <RepositoryRetryState job={job} />
         <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 sm:hidden">
-          <span>{job.runs_count} {job.runs_count === 1 ? "run" : "runs"}</span>
+          <span>{t("repository.runs_count", { count: job.runs_count })}</span>
           <span>·</span>
           <span><RelativeTimestamp value={job.updated_at} /></span>
         </div>
