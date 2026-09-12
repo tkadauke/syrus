@@ -47,12 +47,16 @@ module Api
 
         def smart_folders(scope)
           ::SmartFolder.ensure_builtins_for_subject!(::AgentActivity::SmartFolders::SUBJECT)
+          base_scope = ::AgentActivity::SessionsQuery.visible_relation(scope: scope, user: Current.user)
           ::Admin::SmartFolderNavigation.new(
             subject: ::AgentActivity::SmartFolders::SUBJECT,
             user: Current.user,
             active_folder: active_smart_folder,
-            base_scope: ::AgentActivity::SessionsQuery.visible_relation(scope: scope, user: Current.user),
-            filter_class: ::AgentActivity::Filter
+            base_scope: base_scope,
+            filter_class: ::AgentActivity::Filter,
+            count_provider: ->(folder) do
+              ::AgentActivity::SessionsQuery.count_for_smart_folder(base_scope, folder)
+            end
           ).folders
         end
 
