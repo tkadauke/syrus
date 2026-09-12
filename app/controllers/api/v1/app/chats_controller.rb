@@ -1124,6 +1124,46 @@ module Api
           render_error("server_error", "Could not cancel coding checkout: #{e.message}", status: :internal_server_error)
         end
 
+        def create_coding_handoff
+          chat_session = find_chat_session
+          unless Feature.coding_mode_enabled?
+            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            return
+          end
+
+          unless chat_session.coding?
+            render_error("validation_failed", "Coding handoff is only available in Coding Mode chat sessions.", status: :unprocessable_content)
+            return
+          end
+
+          job = attached_coding_job(chat_session)
+          unless job&.coding? && job.linked_chat_id == chat_session.id
+            render_error("not_found", "No active coding Job is attached to this chat.", status: :not_found)
+            return
+          end
+
+          if chat_session.coding_checkout_uncommitted?
+            render_error("validation_failed", "Commit or discard checkout changes before submitting this Job.", status: :unprocessable_content)
+            return
+          end
+
+          chat_session.pending_actions.pending.where(action: "complete_implement_step").detect { |action| action.payload.to_h["job_id"].to_i == job.id } ||
+            chat_session.pending_actions.create!(
+              action: "complete_implement_step",
+              state: "pending",
+              payload: coding_handoff_payload(job, chat_session),
+              requested_by: "operator"
+            )
+
+          render json: chat_payload(chat_session.reload, message: "Implementation handoff is pending confirmation.")
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue ActiveRecord::RecordNotFound
+          raise
+        rescue StandardError => e
+          render_error("server_error", "Could not submit coding handoff: #{e.message}", status: :internal_server_error)
+        end
+
         def coding_files
           chat_session = find_chat_session
           unless Feature.coding_mode_enabled?
@@ -1655,6 +1695,12 @@ module Api
 
         def find_pending_action(chat_session)
           chat_session.pending_actions.find(params[:pending_action_id])
+        end
+
+        def coding_handoff_payload(job, chat_session)
+          payload = { "job_id" => job.id }
+          payload["branch_name"] = chat_session.coding_checkout_branch if job.pr_number.blank? && chat_session.coding_checkout_branch.present?
+          payload
         end
 
         def find_pending_action_group(chat_session)

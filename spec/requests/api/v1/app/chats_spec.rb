@@ -2071,6 +2071,57 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body.dig("chat", "coding_checkout_branch")).to eq("syrus-chat-99")
     end
 
+    it "includes the attached coding Job in the chat payload" do
+      sign_in_as(user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        mode: "coding",
+        coding_checkout_branch: "syrus/job-1",
+        coding_checkout_uncommitted: true
+      )
+      job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                                 branch_name: "syrus/job-1", pr_number: 10)
+      job.update_columns(state: "coding", linked_chat_id: chat.id)
+      enable_coding_mode!
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["attached_coding_job"]).to include(
+        "id" => job.id,
+        "slug" => job.slug,
+        "title" => job.issue_title,
+        "state" => "coding",
+        "branch_name" => "syrus/job-1",
+        "checkout_branch" => "syrus/job-1",
+        "checkout_uncommitted" => true,
+        "can_submit" => false,
+        "can_cancel" => true,
+        "app_path" => "/jobs/#{job.id}"
+      )
+    end
+
+    it "does not expose a linked Job that is no longer in active coding takeover" do
+      sign_in_as(user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        mode: "coding",
+        coding_checkout_branch: nil,
+        coding_checkout_uncommitted: false
+      )
+      job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                                 branch_name: "syrus/job-1", pr_number: 10)
+      job.update_columns(linked_chat_id: chat.id)
+      enable_coding_mode!
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["attached_coding_job"]).to be_nil
+    end
+
     it "only marks the coding relay ready when address and token are present" do
       sign_in_as(user)
       chat = ChatSession.create!(
@@ -2100,6 +2151,70 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body.dig("paths", "app_cancel_coding_checkout_path")).to eq(
         "/api/v1/app/chats/#{chat.id}/coding_checkout"
       )
+      expect(parse_body.dig("paths", "app_create_coding_handoff_path")).to eq(
+        "/api/v1/app/chats/#{chat.id}/coding_handoff"
+      )
+    end
+  end
+
+  describe "POST /api/v1/app/chats/:id/coding_handoff" do
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    it "creates a complete_implement_step pending action for the attached coding Job" do
+      sign_in_as(user)
+      enable_coding_mode!
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        mode: "coding",
+        coding_checkout_branch: "syrus/job-1",
+        coding_checkout_uncommitted: false
+      )
+      job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                                 branch_name: "syrus/job-1", pr_number: nil)
+      job.update_columns(state: "coding", linked_chat_id: chat.id)
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/coding_handoff"
+      }.to change(ChatPendingAction, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      action = chat.pending_actions.last
+      expect(action).to have_attributes(action: "complete_implement_step", state: "pending", requested_by: "operator")
+      expect(action.payload).to eq("job_id" => job.id, "branch_name" => "syrus/job-1")
+      expect(parse_body["pending_actions"]).to contain_exactly(include(
+        "id" => action.id,
+        "label" => "Hand off #{job.slug}",
+        "detail" => "Branch: syrus/job-1"
+      ))
+    end
+
+    it "rejects submit while the attached checkout has uncommitted work" do
+      sign_in_as(user)
+      enable_coding_mode!
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        mode: "coding",
+        coding_checkout_branch: "syrus/job-1",
+        coding_checkout_uncommitted: true
+      )
+      job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                                 branch_name: "syrus/job-1", pr_number: 10)
+      job.update_columns(state: "coding", linked_chat_id: chat.id)
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/coding_handoff"
+      }.not_to change(ChatPendingAction, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("Commit or discard checkout changes before submitting this Job.")
     end
   end
 
@@ -2215,6 +2330,38 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(job.reload).to be_implemented
       expect(job.linked_chat_id).to be_nil
       expect(chat.reload.coding_checkout_branch).to be_nil
+    end
+
+    it "cancels stale pending handoff actions when detaching the coding Job" do
+      sign_in_as(user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        mode: "coding",
+        coding_checkout_branch: "syrus/job-1",
+        coding_checkout_uncommitted: false
+      )
+      job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                                 branch_name: "syrus/job-1", pr_number: 10)
+      job.update_columns(state: "coding", linked_chat_id: chat.id)
+      action = chat.pending_actions.create!(
+        action: "complete_implement_step",
+        state: "pending",
+        payload: { "job_id" => job.id },
+        requested_by: "operator"
+      )
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:cancel_coding_checkout!).with(chat, repository) do
+        chat.update!(coding_checkout_branch: nil, coding_checkout_uncommitted: false)
+      end
+
+      delete "/api/v1/app/chats/#{chat.id}/coding_checkout"
+
+      expect(response).to have_http_status(:ok)
+      expect(action.reload).to be_cancelled
+      expect(job.reload).to be_implemented
+      expect(parse_body["pending_actions"]).to be_empty
+      expect(parse_body["attached_coding_job"]).to be_nil
     end
 
     it "404s when the coding_mode feature flag is off" do
