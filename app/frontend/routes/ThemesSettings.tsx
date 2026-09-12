@@ -103,7 +103,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
       const base = colorTheme ?? builtInThemes[0] ?? allThemes[0]
       if (!base) throw new Error(t("themes.error_no_theme"))
 
-      return createTheme({ name: uniqueDraftName(customThemes), tokens: cloneTokens(base.tokens) })
+      return createTheme({ name: uniqueDraftName(customThemes, t), tokens: cloneTokens(base.tokens) })
     },
     onSuccess: (payload) => {
       queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => mergeCustomTheme(current, payload.theme))
@@ -185,8 +185,8 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
 
   async function requestDeleteTheme(theme: ThemeDraft) {
     const confirmed = await confirm({
-      message: `Delete ${theme.name}?`,
-      confirmLabel: "Delete",
+      message: t("themes.confirm_delete", { name: theme.name }),
+      confirmLabel: t("themes.delete"),
       destructive: true
     })
     if (confirmed) deleteMutation.mutate(theme)
@@ -438,13 +438,13 @@ function mergeCustomThemes(current: ThemesPayload, customThemes: ColorTheme[]): 
   return { themes: [...builtIns, ...customThemes, ...existingCustoms] }
 }
 
-function uniqueDraftName(customThemes: ColorTheme[]) {
+function uniqueDraftName(customThemes: ColorTheme[], t: (key: string, options?: Record<string, unknown>) => string) {
   const existing = new Set(customThemes.map((theme) => theme.name))
   let index = customThemes.length + 1
-  let name = `Custom Theme ${index}`
+  let name = t("themes.default_name", { index })
   while (existing.has(name)) {
     index += 1
-    name = `Custom Theme ${index}`
+    name = t("themes.default_name", { index })
   }
   return name
 }
