@@ -1,0 +1,62 @@
+name: review loop repair step without run
+repository:
+  owner: simulation
+  name: review-loop-repair-step-without-run
+jobs:
+  job:
+    title: Review loop repair step without run
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: queued
+      chain_template:
+        - type: step
+          kind: prepare
+        - type: step
+          kind: implement
+        - type: loop
+          max_iterations: 2
+          steps:
+            - implement
+            - adversarial_review
+        - type: step
+          kind: pr_open
+      artifacts:
+        adversarial_reviews:
+          - verdict: needs_work
+            critique: Simulated review requested one repair iteration.
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: adversarial_review
+          state: succeeded
+          loop_id: review-loop
+          iteration: 1
+          run:
+            state: succeeded
+        - kind: implement
+          state: queued
+          loop_id: review-loop
+          iteration: 2
+          depends_on_ids: []
+          created_at: "2026-09-09T13:20:00Z"
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - queued_step_without_run

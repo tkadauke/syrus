@@ -44,7 +44,12 @@ module WorkUnits
         )
       end
 
-      run = StepDispatcher.resume_deferred_phase(workflow.id, step.id, check_phase_admission: false)
+      run = StepDispatcher.create_run_and_enqueue(
+        step,
+        workflow,
+        parent_session_id: step.upstream_session_id,
+        check_phase_admission: false
+      )
       Result.new(workflow: workflow, run: run, work_unit: work_unit, status: run ? "started" : "not_started", reason: nil)
     end
 

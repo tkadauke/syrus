@@ -271,7 +271,7 @@ module WorkEngine
           agent_provider: config.fetch("agent_provider", job.agent_provider),
           priority: job.priority,
           state: "queued",
-          chain_template: Array(config["steps"]).map { |step| { "type" => "step", "kind" => step.fetch("kind") } },
+          chain_template: config["chain_template"] || Array(config["steps"]).map { |step| { "type" => "step", "kind" => step.fetch("kind") } },
           artifacts: config.fetch("artifacts", {})
         )
         workflow.save!(validate: false)
@@ -281,15 +281,18 @@ module WorkEngine
             workflow: workflow,
             kind: step_config.fetch("kind"),
             position: step_config.fetch("position", index),
-            state: step_config.fetch("state", "queued")
+            state: step_config.fetch("state", "queued"),
+            iteration: step_config.fetch("iteration", 1),
+            loop_id: step_config["loop_id"]
           ).tap do |step|
             step.update_columns(created_at: parse_optional_time(step_config["created_at"])) if step_config["created_at"].present?
+            step.update_columns(depends_on_ids: step_config["depends_on_ids"]) if step_config.key?("depends_on_ids")
             create_run!(job, workflow, step, step_config["run"]) if step_config["run"]
           end
         end
         steps.each_cons(2) do |step, next_step|
           step.update!(next_step: next_step)
-          next_step.update!(depends_on_ids: [ step.id ])
+          next_step.update!(depends_on_ids: [ step.id ]) unless next_step.depends_on_ids.present?
         end
         attach_work_unit!(job, workflow, config)
         workflow
