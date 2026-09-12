@@ -40,6 +40,26 @@ function payload(overrides: Partial<TargetGraphPayload> = {}): TargetGraphPayloa
     ],
     page: { offset: 0, limit: 180, total: 3, next_offset: null },
     health: { scope: "page", targets: {}, summary: {} },
+    filter: { and: [] },
+    filter_schema: [
+      {
+        field: "kind",
+        label: "Kind",
+        bucket: "enum",
+        operators: ["is"],
+        values: [
+          { value: "library", label: "Library" },
+          { value: "builder", label: "Builder" }
+        ]
+      },
+      {
+        field: "path",
+        label: "Path",
+        bucket: "string",
+        operators: ["contains"],
+        values: []
+      }
+    ],
     diagnostics: { source: ".syrus.yml", target_labels: [] },
     error: null,
     ...overrides
@@ -47,7 +67,12 @@ function payload(overrides: Partial<TargetGraphPayload> = {}): TargetGraphPayloa
 }
 
 function renderRoute(responsePayload: TargetGraphPayload = payload(), initialEntry = "/app-shell/repositories/1/target_graph") {
-  const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(responsePayload)))
+  const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input: RequestInfo | URL) => {
+    const path = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
+    const url = new URL(path, "http://example.test")
+    const filter = decodeFilterTree(url.searchParams.get("q")) || responsePayload.filter
+    return Promise.resolve(jsonResponse({ ...responsePayload, filter }))
+  })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -99,12 +124,44 @@ describe("RepositoryTargetGraphRoute", () => {
     const fetchSpy = renderRoute()
 
     await screen.findAllByText("//:grade/tests")
-    fireEvent.change(screen.getByLabelText("Target label or search"), { target: { value: "//:assets" } })
+    fireEvent.change(screen.getByLabelText("Target label or path search"), { target: { value: "//:assets" } })
     fireEvent.click(screen.getByRole("button", { name: "Focus" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenLastCalledWith(
         "/api/v1/app/repositories/1/target_graph?mode=neighborhood&focus_label=%2F%2F%3Aassets&direction=both&depth=1&limit=180",
+        expect.any(Object)
+      )
+    })
+  })
+
+  it("applies shared FilterBar chips through the URL-backed q filter", async () => {
+    const fetchSpy = renderRoute()
+
+    await screen.findAllByText("//:grade/tests")
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Kind list" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Kind is Library" }))
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "builder" } })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        `/api/v1/app/repositories/1/target_graph?mode=neighborhood&q=${encodeURIComponent(encodeFilterTree({ and: [{ field: "kind", op: "is", value: "builder" }] }))}&direction=both&depth=1&limit=180`,
+        expect.any(Object)
+      )
+    })
+  })
+
+  it("uses search instead of q for text search in browse mode so filters remain linkable", async () => {
+    const fetchSpy = renderRoute(payload(), "/app-shell/repositories/1/target_graph?mode=window")
+
+    await screen.findAllByText("//:grade/tests")
+    fireEvent.change(screen.getByLabelText("Target label or path search"), { target: { value: "app/frontend" } })
+    fireEvent.click(screen.getByRole("button", { name: "Search" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/repositories/1/target_graph?search=app%2Ffrontend&direction=both&depth=1&limit=180&offset=0",
         expect.any(Object)
       )
     })
@@ -164,6 +221,20 @@ describe("target graph route helpers", () => {
     })
   })
 
+  it("separates FilterBar q from legacy plain q text search", () => {
+    const filter = encodeFilterTree({ and: [{ field: "kind", op: "is", value: "builder" }] })
+
+    expect(targetGraphQueryFromSearch(`?q=${encodeURIComponent(filter)}&search=frontend`)).toMatchObject({
+      filter,
+      search: "frontend",
+      q: undefined
+    })
+    expect(targetGraphQueryFromSearch("?q=grade/tests")).toMatchObject({
+      q: "grade/tests",
+      filter: undefined
+    })
+  })
+
   it("builds dependency and dependent rows from returned edges", () => {
     expect(buildGraphRows(payload().targets, payload().edges)).toEqual([
       expect.objectContaining({ target: expect.objectContaining({ label: "//:app" }), dependents: ["//:grade/tests"] }),
@@ -172,3 +243,23 @@ describe("target graph route helpers", () => {
     ])
   })
 })
+
+function encodeFilterTree(tree: Record<string, unknown>) {
+  const json = JSON.stringify(tree)
+  const bytes = new TextEncoder().encode(json)
+  let binary = ""
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
+function decodeFilterTree(value: string | null) {
+  if (!value) return null
+  try {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/")
+    const base64 = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+    return JSON.parse(new TextDecoder().decode(bytes))
+  } catch {
+    return null
+  }
+}
