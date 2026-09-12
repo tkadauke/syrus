@@ -14,6 +14,10 @@ RSpec.describe "desktop connect flow" do
     File.read(File.join(desktop_root, relative_path), encoding: "UTF-8")
   end
 
+  def desktop_i18n
+    read("src/i18n.ts")
+  end
+
   it "keeps the two instanceUrl copies byte-identical" do
     # The renderer (live preview) and the main process (authoritative
     # normalization) cannot share a module across tsconfig rootDir
@@ -90,7 +94,8 @@ RSpec.describe "desktop connect flow" do
     # Debounced, and stale results are discarded by sequence number.
     expect(form).to include("PROBE_DEBOUNCE_MS")
     expect(form).to include("probeSeq")
-    expect(form).to include("Syrus found at")
+    expect(form).to include('t("onboarding.connect.found", { url: probe.url })')
+    expect(desktop_i18n).to include("Syrus found at")
   end
 
   it "rejects partial numeric hosts instead of previewing a mangled address" do

@@ -28,7 +28,7 @@ import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
 import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetail/queryKeys"
-import { CommandButton, type JobCommand, useJobCommand } from "./jobDetail/command"
+import { CommandButton, useJobCommand, type JobCommand } from "./jobDetail/command"
 import { TagsPanel, NeedsAttentionBanner, TriageDecisionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
 import { DeliveryPanel, deliveryPanelRelevant } from "./jobDetail/Delivery"
 import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel, RequestChangesPanel } from "./jobDetail/JobHeader"
@@ -926,11 +926,12 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
   const blockerKey = payload.landing_queue_entry?.blocked_reason?.key
   const prChecksBlocker = blockerKey === "pr_checks_failing_inherited" || blockerKey === "pr_checks_failing_base_unknown" || blockerKey === "pr_checks_failing_base_stale"
   const overridePath = payload.landing_queue_entry?.override_path
+  const overrideCommandPath = overridePath || null
   const recheckPath = payload.paths.app_recheck_pr_checks_path
   const canOverride = Boolean(
     prChecksBlocker &&
       (payload.actions.can_override_pr_checks_landing_blocker || payload.actions.can_override_inherited_pr_checks) &&
-      overridePath &&
+      overrideCommandPath &&
       blockerKey
   )
   const canRecheck = Boolean(payload.actions.can_recheck_pr_checks && recheckPath)
@@ -958,14 +959,14 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
                 {t("recheck_pr_checks")}
               </CommandButton>
             ) : null}
-            {canOverride ? (
+            {canOverride && overrideCommandPath && blockerKey ? (
               <CommandButton
                 command={command}
                 input={{
                   method: "post",
-                  path: overridePath!,
+                  path: overrideCommandPath,
                   body: {
-                    blocker_key: blockerKey!,
+                    blocker_key: blockerKey,
                     reason: t("pr_checks_override_reason")
                   },
                   confirm: t("pr_checks_override_confirm")

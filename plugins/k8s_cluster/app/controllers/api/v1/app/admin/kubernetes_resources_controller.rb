@@ -133,7 +133,7 @@ module Api
           def require_k8s_cluster_enabled
             return if ::K8sCluster.enabled?
 
-            render_error("plugin_disabled", "The k8s_cluster plugin is disabled.", status: :not_found)
+            render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "k8s_cluster"), status: :not_found)
           end
         end
       end

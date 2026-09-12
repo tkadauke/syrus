@@ -18,14 +18,14 @@ module Api
           repository = find_repository
           env = repository.preview_environments.order(created_at: :desc).first
           unless env
-            render_error("not_found", "No preview environment found for this repository.", status: :not_found)
+            render_error("not_found", I18n.t("api.repository_preview.not_found"), status: :not_found)
             return
           end
 
           begin
             logs = PreviewLogClient.call(env, lines: params.fetch(:lines, PreviewLogReader::DEFAULT_LINES))
           rescue PreviewLogClient::Unavailable
-            render_error("preview_logs_unavailable", "Preview logs are temporarily unavailable.", status: :service_unavailable)
+            render_error("preview_logs_unavailable", I18n.t("api.preview.logs_unavailable"), status: :service_unavailable)
             return
           end
 
@@ -38,27 +38,27 @@ module Api
         def create
           repository = find_repository
           if repository.archived?
-            render_error("validation_failed", "Preview is not available for archived repositories.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.repository_preview.archived"), status: :unprocessable_content)
             return
           end
           if repository.preview_environments.active.exists?
-            render_error("conflict", "A preview environment is already active for this repository.", status: :conflict)
+            render_error("conflict", I18n.t("api.repository_preview.already_active"), status: :conflict)
             return
           end
           env = repository.preview_environments.create!(state: "starting")
-          render json: { preview: preview_json(env), message: "Preview environment starting." }, status: :created
+          render json: { preview: preview_json(env), message: I18n.t("api.preview.starting") }, status: :created
         end
 
         def destroy
           repository = find_repository
           env = repository.preview_environments.active.first
           unless env
-            render_error("not_found", "No active preview environment found for this repository.", status: :not_found)
+            render_error("not_found", I18n.t("api.repository_preview.active_not_found"), status: :not_found)
             return
           end
           env.begin_stopping! if env.may_begin_stopping?
           env.save!
-          render json: { preview: preview_json(env.reload), message: "Preview environment stopping." }
+          render json: { preview: preview_json(env.reload), message: I18n.t("api.preview.stopping") }
         end
 
         private

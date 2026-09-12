@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import i18n from "i18next"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill, truncateLines } from "@app/routes/chat/toolCardUi"
 
@@ -49,8 +50,12 @@ export function parseMemory(value: unknown): MemoryPayload | null {
 }
 
 export function scopeText(memory: MemoryPayload): string {
-  if (memory.scope === "repository") return `repository${memory.scopeId ? ` #${memory.scopeId}` : ""}`
+  if (memory.scope === "repository") return memory.scopeId ? t("tool_scope_repository_id", { id: memory.scopeId }) : t("tool_scope_repository")
   return memory.scope ?? "—"
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`agent_memory:${key}`, options)
 }
 
 export function KindBadge({ kind }: { kind: string | null }) {
@@ -73,7 +78,7 @@ export function ContentPreview({ content, maxLines = 4 }: { content: string; max
     <div className="space-y-1">
       <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{preview}</div>
       {truncated ? (
-        <Disclosure label={`Show full content (${totalLines} lines)`}>
+        <Disclosure label={t("tool_show_full_content", { count: totalLines })}>
           <div className="whitespace-pre-wrap break-words">{content}</div>
         </Disclosure>
       ) : null}
@@ -90,14 +95,14 @@ export function MemoryDetailBody({ memory }: { memory: MemoryPayload }) {
         {memory.deletedAt ? <StatePill state="deleted" tone="failure" /> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Memory ID" value={memory.id} />
-        <Row label="Scope" value={scopeText(memory)} />
-        {memory.author ? <Row label="Author" value={memory.author} /> : null}
-        {memory.confidence != null ? <Row label="Confidence" value={String(memory.confidence)} /> : null}
-        {memory.updatedAt ? <Row label="Updated" value={memory.updatedAt} /> : null}
+        <Row label={t("tool_memory_id")} value={memory.id} />
+        <Row label={t("tool_scope")} value={scopeText(memory)} />
+        {memory.author ? <Row label={t("tool_author")} value={memory.author} /> : null}
+        {memory.confidence != null ? <Row label={t("tool_confidence")} value={String(memory.confidence)} /> : null}
+        {memory.updatedAt ? <Row label={t("tool_updated")} value={memory.updatedAt} /> : null}
       </dl>
       <div>
-        <SectionLabel>Content</SectionLabel>
+        <SectionLabel>{t("tool_content")}</SectionLabel>
         <ContentPreview content={memory.content} />
       </div>
     </CardShell>
@@ -133,7 +138,7 @@ export function memoryListSummary(context: ToolCardContext): string | null {
   const rows = memoryRows(context)
   if (!rows) return null
 
-  return `${rows.length} memor${rows.length === 1 ? "y" : "ies"}`
+  return t("tool_memory_count", { count: rows.length })
 }
 
 export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; emptyMessage: string }) {
@@ -144,11 +149,11 @@ export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; 
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Kind</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Scope</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Content</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Updated</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_kind")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_scope")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_state")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_content")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_updated")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -204,7 +209,7 @@ export function parseAuditEvent(value: unknown, index: number): AuditEvent | nul
 
 export function AuditEventActor({ event }: { event: AuditEvent }) {
   if (!event.actorKind) return <span className="text-gray-400 dark:text-gray-500">—</span>
-  const detail = event.actorUserId ? `user #${event.actorUserId}` : event.actorRunId ? `run #${event.actorRunId}` : null
+  const detail = event.actorUserId ? t("tool_actor_user", { id: event.actorUserId }) : event.actorRunId ? t("tool_actor_run", { id: event.actorRunId }) : null
   return <span className="text-gray-600 dark:text-gray-300">{event.actorKind}{detail ? ` (${detail})` : ""}</span>
 }
 
@@ -227,10 +232,10 @@ export function AuditEventChange({ event }: { event: AuditEvent }) {
 
   return (
     <div className="mt-1 space-y-1">
-      {kindChanged ? <div className="text-gray-500 dark:text-gray-400">kind: {event.previousKind ?? "—"} → {event.newKind ?? "—"}</div> : null}
-      {confidenceChanged ? <div className="text-gray-500 dark:text-gray-400">confidence: {event.previousConfidence ?? "—"} → {event.newConfidence ?? "—"}</div> : null}
+      {kindChanged ? <div className="text-gray-500 dark:text-gray-400">{t("tool_kind_change", { previous: event.previousKind ?? "—", next: event.newKind ?? "—" })}</div> : null}
+      {confidenceChanged ? <div className="text-gray-500 dark:text-gray-400">{t("tool_confidence_change", { previous: event.previousConfidence ?? "—", next: event.newConfidence ?? "—" })}</div> : null}
       {contentChanged ? (
-        <Disclosure label="Content change">
+        <Disclosure label={t("tool_content_change")}>
           {event.previousContent != null ? <div className="whitespace-pre-wrap break-words text-red-700 line-through dark:text-red-300">{event.previousContent}</div> : null}
           {event.newContent != null ? <div className="whitespace-pre-wrap break-words text-emerald-700 dark:text-emerald-300">{event.newContent}</div> : null}
         </Disclosure>

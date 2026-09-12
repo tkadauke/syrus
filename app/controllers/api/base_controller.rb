@@ -11,6 +11,7 @@ module Api
     include JsonErrorRendering
 
     before_action :authenticate_via_api_token
+    around_action :switch_locale
 
     rescue_from ActiveRecord::RecordNotFound do |e|
       render_error("not_found", e.message, status: :not_found)
@@ -32,6 +33,11 @@ module Api
       end
       refresh_performance_logging_user_context if @current_api_user
       authenticated
+    end
+
+    def switch_locale(&action)
+      locale = current_api_user&.locale.presence || I18n.default_locale
+      I18n.with_locale(locale, &action)
     end
 
     def request_http_token_authentication(realm = "Syrus API", message = nil)

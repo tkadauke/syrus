@@ -86,7 +86,7 @@ module Api
         def require_scheduled_tasks_enabled
           return if ::ScheduledTasks.enabled?
 
-          render_error("plugin_disabled", "The scheduled_tasks plugin is disabled.", status: :not_found)
+          render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "scheduled_tasks"), status: :not_found)
         end
 
         def find_task

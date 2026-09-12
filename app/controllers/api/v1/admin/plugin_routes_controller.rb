@@ -11,10 +11,10 @@ module Api
             if disabled_route
               return render_legacy_plugin_disabled(disabled_route.plugin_name) if legacy_plugin_disabled_code(disabled_route.plugin_name)
 
-              return render_error("plugin_disabled", "The #{disabled_route.plugin_name} plugin is disabled.", status: :not_found)
+              return render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: disabled_route.plugin_name), status: :not_found)
             end
 
-            return render_error("not_found", "Plugin route not found", status: :not_found)
+            return render_error("not_found", I18n.t("api.plugins.route_not_found"), status: :not_found)
           end
 
           dispatch_plugin_route!(route)

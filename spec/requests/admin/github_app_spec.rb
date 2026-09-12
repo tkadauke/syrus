@@ -35,6 +35,7 @@ RSpec.describe "Admin GitHub App registration", type: :request do
   end
 
   it "serves the manifest bounce page without a session" do
+    admin.update!(locale: "de")
     state = register_state
 
     reset!
@@ -42,6 +43,7 @@ RSpec.describe "Admin GitHub App registration", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(%(action="https://github.com/settings/apps/new?state=#{CGI.escape(state)}"))
+    expect(response.body).to include("Weiter zu GitHub")
     expect(response.body).to include('name="manifest"')
     expect(response.body).to include("document.forms[0].submit()")
     expect(response.body).not_to include('id="syrus-spa-root"')
@@ -60,6 +62,7 @@ RSpec.describe "Admin GitHub App registration", type: :request do
   end
 
   it "exchanges the manifest code and persists encrypted credentials without a session" do
+    admin.update!(locale: "de")
     state = register_state
     stub_conversion
 
@@ -74,9 +77,11 @@ RSpec.describe "Admin GitHub App registration", type: :request do
     expect(settings.github_app_private_key_pem).to eq(pem)
     expect(settings.github_app_registered_at).to be_present
     expect(response).to redirect_to(admin_github_app_confirm_path)
+    expect(flash[:notice]).to eq("GitHub App registriert")
   end
 
   it "renders a minimal close-me page (not the admin redirect) for the onboarding origin" do
+    admin.update!(locale: "la")
     state = register_state(origin: "onboarding")
     stub_conversion(id: 99)
 
@@ -85,8 +90,8 @@ RSpec.describe "Admin GitHub App registration", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response).not_to redirect_to(admin_github_app_confirm_path)
-    expect(response.body).to include("GitHub App registered")
-    expect(response.body).to include("close this window")
+    expect(response.body).to include("GitHub App relata est")
+    expect(response.body).to include("Hanc fenestram claudere potes")
     expect(response.body).not_to include('id="syrus-spa-root"')
     expect(AppSetting.current.reload.github_app_id).to eq(99)
   end
@@ -117,12 +122,13 @@ RSpec.describe "Admin GitHub App registration", type: :request do
   end
 
   it "renders the failure page when GitHub returns no manifest code" do
+    admin.update!(locale: "de")
     state = register_state
 
     get "/admin/github_app/callback", params: { state: state }
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(response.body).to include("GitHub did not return a manifest code.")
+    expect(response.body).to include("GitHub hat keinen Manifest-Code zurückgegeben.")
   end
 
   it "does not expose a GitHub App webhook route" do

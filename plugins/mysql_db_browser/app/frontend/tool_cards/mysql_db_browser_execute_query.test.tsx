@@ -83,7 +83,7 @@ describe("mysql_db_browser_execute_query tool card", () => {
     expect(screen.getByRole("columnheader", { name: "state" })).toBeInTheDocument()
     expect(screen.getByText("queued")).toBeInTheDocument()
     expect(screen.getByText("NULL")).toBeInTheDocument()
-    expect(screen.getByText("read-only")).toBeInTheDocument()
+    expect(screen.getByText("Read-only")).toBeInTheDocument()
   })
 
   it("renders a wide result table with every column", () => {

@@ -336,6 +336,7 @@
     "no_triage_jobs": "Nulla officia exspectant liberationem triagii.",
     "recent_jobs": "Officia Recentia",
     "col_state": "Status",
+    "col_issue": "Quaestio",
     "col_runs": "Cursus",
     "col_last": "Ultimum",
     "view": "Videre",
@@ -419,7 +420,8 @@
     "syrus_yml_unavailable": "Nulla configuratio .syrus.yml praesto est",
     "syrus_yml_loaded": "Ex {{source}} onerata.",
     "syrus_yml_not_loaded": "Non onerata.",
-    "syrus_yml_not_loaded_with_note": "Non onerata: {{note}}"
+    "syrus_yml_not_loaded_with_note": "Non onerata: {{note}}",
+    "needs_triage_showing_limited": "Ostenduntur {{shown}} ex {{total}}"
   },
   "delivery": {
     "aria_section": "Semitae Traditionis",

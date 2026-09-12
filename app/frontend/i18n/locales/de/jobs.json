@@ -728,5 +728,11 @@
   "pr_checks_attribution_unknown": "Noch nicht zuordenbar",
   "pr_checks_attribution_base": "Verglichen mit Basis {{sha}}",
   "pr_checks_attribution_failing": "Hier rot",
-  "pr_checks_attribution_base_failing": "Auf Basis rot"
+  "pr_checks_attribution_base_failing": "Auf Basis rot",
+  "recheck_pr_checks": "Prüfungen erneut prüfen",
+  "pr_checks_head_sha": "Head {{sha}}",
+  "pr_checks_payload_base_sha": "PR-Basis {{sha}}",
+  "pr_checks_override_once": "Einmal trotzdem landen",
+  "pr_checks_override_confirm": "Diesen Job einmal landen, obwohl seine fehlgeschlagenen PR-Prüfungen bereits auf der Basis fehlschlagen?",
+  "pr_checks_override_reason": "Operator hat bestätigt, dass die übernommenen fehlgeschlagenen PR-Prüfungen für diesen Landeversuch akzeptabel sind."
 }

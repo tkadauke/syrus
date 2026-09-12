@@ -207,7 +207,8 @@
     "cancelled": "abgebrochen",
     "invalid": "ungültig",
     "unmergeable": "nicht mergebar",
-    "mergeable": "mergebar"
+    "mergeable": "mergebar",
+    "skipped": "übersprungen"
   },
   "trigger_kind": {
     "initial": "Initial",
@@ -301,7 +302,9 @@
     "waiting_to_merge": "Warte auf Merge von {{slug}}",
     "waiting_epic_to_complete": "Warte auf Abschluss von Epic #{{number}}",
     "pr_not_mergeable": "PR nicht mergeierbar",
-    "pr_checks_failing_inherited": "PR-Checks schlagen bei {{slug}} fehl – bereits auf dem Basis-Branch rot ({{checks}})"
+    "pr_checks_failing_inherited": "PR-Checks schlagen bei {{slug}} fehl – bereits auf dem Basis-Branch rot ({{checks}})",
+    "pr_checks_failing_base_unknown": "PR-Prüfungen auf {{slug}} schlagen fehl; Basiszustand ist unbekannt ({{checks}})",
+    "pr_checks_failing_base_stale": "PR-Prüfungen auf {{slug}} schlagen fehl; Basisnachweis ist veraltet ({{checks}})"
   },
   "close": "Schließen",
   "search_aria": "Suche",

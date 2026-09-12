@@ -65,9 +65,12 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/memberships", type:
     end
 
     it "rejects an unknown email" do
+      owner.update!(locale: "de")
+
       post "/api/v1/app/repositories/#{repository.id}/memberships", params: { email: "nobody@example.com", role: "write" }, as: :json
 
       expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("Kein Benutzer mit dieser E-Mail-Adresse gefunden.")
     end
 
     it "rejects an invalid role" do

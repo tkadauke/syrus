@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { FooterRow, OnboardingScreen, ValidationHint } from "./primitives"
+import { t } from "../i18n"
 
 type PortConflictProps = {
   port: number
@@ -14,12 +15,12 @@ export function PortConflict({ port, onContinue, onBack }: PortConflictProps) {
 
   return (
     <OnboardingScreen
-      title={`Port ${port} is taken`}
-      subtitle={`Something else on this machine is already using port ${port} (often a development server). Pick another port for Syrus.`}
+      title={t("port_conflict.title", { port })}
+      subtitle={t("port_conflict.subtitle", { port })}
     >
       <div className="mt-6 flex items-center justify-center gap-2">
         <label className="text-sm font-normal text-slate-700 dark:text-slate-300" htmlFor="syrus-port">
-          Serve Syrus on port
+          {t("port_conflict.label")}
         </label>
         <input
           id="syrus-port"
@@ -34,16 +35,16 @@ export function PortConflict({ port, onContinue, onBack }: PortConflictProps) {
       <div className="flex justify-center">
         {/* Explains WHY Continue is disabled instead of silently gating it. */}
         <ValidationHint state={draft.trim() === "" ? "empty" : valid ? "valid" : "invalid"}>
-          {valid ? `Syrus will listen on http://localhost:${parsed}.` : "Pick a port between 1024 and 65535."}
+          {valid ? t("port_conflict.valid", { port: parsed }) : t("port_conflict.invalid")}
         </ValidationHint>
       </div>
 
       <FooterRow>
         <button type="button" className="secondary-button" onClick={onBack}>
-          Back
+          {t("common.back")}
         </button>
         <button type="button" className="primary-button" disabled={!valid} onClick={() => onContinue(parsed)}>
-          Continue
+          {t("common.continue")}
         </button>
       </FooterRow>
     </OnboardingScreen>

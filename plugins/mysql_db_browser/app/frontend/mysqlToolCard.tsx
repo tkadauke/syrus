@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import i18n from "i18next"
 import { isPlainObject } from "@app/pluginToolCards"
 import { displayValue, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
@@ -29,14 +30,18 @@ export function parseMysqlError(value: unknown): MysqlError | null {
 export function MysqlErrorNotice({ error }: { error: MysqlError }) {
   return (
     <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-      <div className="font-mono">{error.message ?? error.className ?? "Unknown error"}</div>
+      <div className="font-mono">{error.message ?? error.className ?? t("tool_unknown_error")}</div>
       {error.hint ? <div className="mt-1 text-red-600 dark:text-red-400">{error.hint}</div> : null}
     </div>
   )
 }
 
 export function TruncatedNotice({ label }: { label: string }) {
-  return <div className="text-2xs text-gray-500 dark:text-gray-400">{label} truncated -- narrow the query for a complete view.</div>
+  return <div className="text-2xs text-gray-500 dark:text-gray-400">{t("tool_truncated_notice", { label })}</div>
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`mysql_db_browser:${key}`, options)
 }
 
 export function AccessPill({ enabled, label }: { enabled: boolean; label: string }) {

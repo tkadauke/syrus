@@ -1,3 +1,4 @@
+import i18n from "i18next"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { displayValue, EmptyState } from "@app/routes/chat/toolCardUi"
 import { formatBytes } from "@app/lib/format"
@@ -24,13 +25,17 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  return `${card.tables.length} table${card.tables.length === 1 ? "" : "s"} in ${card.database}`
+  return t("tool_tables_count", { count: card.tables.length, database: card.database })
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`mysql_db_browser:${key}`, options)
 }
 
 function renderExpanded(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
-  if (card.tables.length === 0) return <EmptyState>No tables in {card.database}.</EmptyState>
+  if (card.tables.length === 0) return <EmptyState>{t("tool_no_tables_in_database", { database: card.database })}</EmptyState>
 
   return (
     <div className="mt-1 space-y-1">
@@ -38,11 +43,11 @@ function renderExpanded(context: ToolCardContext) {
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">Table</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Type</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Engine</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Rows (approx)</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Data size</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_table")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_type")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_engine")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_rows_approx")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_data_size")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -58,7 +63,7 @@ function renderExpanded(context: ToolCardContext) {
           </tbody>
         </table>
       </TableShell>
-      {card.truncated ? <TruncatedNotice label="Table list" /> : null}
+      {card.truncated ? <TruncatedNotice label={t("tool_table_list")} /> : null}
     </div>
   )
 }

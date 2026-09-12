@@ -39,7 +39,7 @@ module Api
           def require_mysql_db_browser_enabled
             return if ::MysqlDbBrowser.enabled?
 
-            render_error("plugin_disabled", "The mysql_db_browser plugin is disabled.", status: :not_found)
+            render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "mysql_db_browser"), status: :not_found)
           end
         end
       end

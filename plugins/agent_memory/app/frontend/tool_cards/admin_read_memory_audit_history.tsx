@@ -1,3 +1,4 @@
+import i18n from "i18next"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
 import { AuditEventActor, AuditEventChange, AuditEventTypePill, parseAuditEvent, type AuditEvent } from "../memoryToolCard"
@@ -27,7 +28,11 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  return `${card.events.length} audit event${card.events.length === 1 ? "" : "s"} for memory #${card.memoryId}`
+  return t("tool_audit_event_count", { count: card.events.length, id: card.memoryId })
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`agent_memory:${key}`, options)
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -37,14 +42,14 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Row label="Memory ID" value={card.memoryId} />
+        <Row label={t("tool_memory_id")} value={card.memoryId} />
         {card.deleted ? <StatePill state="deleted" tone="failure" /> : null}
       </div>
       {card.events.length === 0 ? (
-        <EmptyState>No audit events recorded.</EmptyState>
+        <EmptyState>{t("tool_no_audit_events")}</EmptyState>
       ) : (
         <div>
-          <SectionLabel>Audit trail (oldest first)</SectionLabel>
+          <SectionLabel>{t("tool_audit_trail")}</SectionLabel>
           <ul className="mt-1 space-y-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950">
             {card.events.map((event) => (
               <li className="border-b border-gray-100 pb-2 last:border-0 last:pb-0 dark:border-gray-800" key={event.key}>

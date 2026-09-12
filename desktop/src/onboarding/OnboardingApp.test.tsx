@@ -62,7 +62,7 @@ describe("OnboardingApp install log", () => {
   it("replaces consecutive transient progress lines instead of appending them", async () => {
     const bridge = stubBridge(installingState)
     const { container } = render(<OnboardingApp />)
-    await screen.findByText("Installing Syrus…")
+    await screen.findByText("Installing Syrus...")
 
     act(() => {
       bridge.emitLogLine("Pulling images...")
@@ -77,7 +77,7 @@ describe("OnboardingApp install log", () => {
   it("keeps the last transient line when a plain line follows it", async () => {
     const bridge = stubBridge(installingState)
     const { container } = render(<OnboardingApp />)
-    await screen.findByText("Installing Syrus…")
+    await screen.findByText("Installing Syrus...")
 
     act(() => {
       bridge.emitLogLine({ line: "Downloading Syrus image — 99% (740 MB / 745 MB)", transient: true })

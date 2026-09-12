@@ -16,12 +16,14 @@ RSpec.describe "API: /api/v1/admin/throughput", type: :request do
   end
 
   it "answers plugin_disabled when the plugin is disabled" do
+    admin.update!(locale: "de")
     PluginRecord.find_by!(name: "throughput").update!(enabled: false)
 
     get "/api/v1/admin/throughput", headers: auth(admin_token)
 
     expect(response).to have_http_status(:not_found)
     expect(parse_body.dig("error", "code")).to eq("plugin_disabled")
+    expect(parse_body.dig("error", "message")).to eq("Das Plugin throughput ist deaktiviert.")
   end
 
   it "buckets instance-wide jobs created, closed, implemented, and pr_merged cycle time" do

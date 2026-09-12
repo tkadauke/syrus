@@ -178,6 +178,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
 
     it "rejects an agent provider the user hasn't configured" do
       stub_repo_local_tree([])
+      user.update!(locale: "la")
       sign_in_as(user)
 
       expect {
@@ -187,6 +188,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
       }.not_to change(Job, :count)
 
       expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("Hic agens non configuratus est.")
     end
   end
 end

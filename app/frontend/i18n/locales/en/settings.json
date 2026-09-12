@@ -337,6 +337,7 @@
     "needs_triage_showing_limited": "Showing {{shown}} of {{total}}",
     "recent_jobs": "Recent jobs",
     "col_state": "State",
+    "col_issue": "Issue",
     "col_runs": "Runs",
     "col_last": "Last",
     "view": "View",

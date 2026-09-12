@@ -14,7 +14,7 @@ module Api
           document.user = Current.user
 
           if document.save
-            render json: documents_payload(repository.reload).merge(message: "Document added."), status: :created
+            render json: documents_payload(repository.reload).merge(message: I18n.t("api.repository_documents.added")), status: :created
           else
             render_error("validation_failed", document.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -27,7 +27,7 @@ module Api
           document.file.purge if document.file.attached?
           document.destroy!
 
-          render json: documents_payload(repository.reload).merge(message: "Document removed.")
+          render json: documents_payload(repository.reload).merge(message: I18n.t("api.repository_documents.removed"))
         end
 
         def file

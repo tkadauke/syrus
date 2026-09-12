@@ -336,6 +336,7 @@
     "no_triage_jobs": "Keine Aufgaben warten auf Triage-Freigabe.",
     "recent_jobs": "Aktuelle Aufgaben",
     "col_state": "Status",
+    "col_issue": "Issue",
     "col_runs": "Läufe",
     "col_last": "Zuletzt",
     "view": "Ansehen",
@@ -419,7 +420,8 @@
     "syrus_yml_unavailable": "Keine .syrus.yml-Konfiguration verfügbar",
     "syrus_yml_loaded": "Aus {{source}} geladen.",
     "syrus_yml_not_loaded": "Nicht geladen.",
-    "syrus_yml_not_loaded_with_note": "Nicht geladen: {{note}}"
+    "syrus_yml_not_loaded_with_note": "Nicht geladen: {{note}}",
+    "needs_triage_showing_limited": "Zeige {{shown}} von {{total}}"
   },
   "delivery": {
     "aria_section": "Delivery-Tracks",

@@ -42,6 +42,16 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
     expect(parse_body.dig("error", "code")).to eq("speech_to_text_disabled")
   end
 
+  it "localizes disabled speech-to-text responses" do
+    user.update!(locale: "la")
+    sign_in_as(user)
+
+    post "/api/v1/app/chats/#{chat.id}/speech_to_text"
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "message")).to eq("Vox-in-textum colloquii non est activa.")
+  end
+
   it "returns a deterministic backend-unavailable response when backend STT is not configured" do
     sign_in_as(user)
     enable_speech_to_text!

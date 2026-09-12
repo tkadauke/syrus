@@ -66,7 +66,7 @@ module Api
         def require_design_docs_enabled
           return if ::DesignDocs.enabled?
 
-          render_error("plugin_disabled", "The design_docs plugin is disabled.", status: :not_found)
+          render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "design_docs"), status: :not_found)
         end
 
         def find_design_doc

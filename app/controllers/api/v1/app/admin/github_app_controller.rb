@@ -12,7 +12,7 @@ module Api
             # desktop shell to hand the URL to the OS browser.
             render json: status_payload.merge(
               bounce_url: admin_github_app_manifest_url(state: state, syrus_external: 1),
-              submit_label: AppSetting.github_app_registered? ? "Re-register GitHub App" : "Register GitHub App"
+              submit_label: AppSetting.github_app_registered? ? I18n.t("api.admin_github_app.reregister") : I18n.t("api.admin_github_app.register")
             )
           end
 
