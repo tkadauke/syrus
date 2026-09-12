@@ -3,6 +3,7 @@ import { FilterBar, type FilterChip, type FilterSchemaField, type FilterTree } f
 import { encodeFilterTree, linkFromSearch } from "./filterBar/helpers"
 import type { FilterLinkUpdates } from "./filterBar/types"
 import { PageHeading } from "./Heading"
+import { DataTable } from "./ui"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -104,14 +105,14 @@ export function AdminEventSortableHeader({
   }
 
   return (
-    <th className={className}>
+    <DataTable.HeadCell className={className}>
       <button className="group inline-flex items-center gap-1 text-left font-medium uppercase hover:text-gray-900 dark:hover:text-gray-100" onClick={sort} type="button">
         <span>{children}</span>
         <span className={`text-2xs ${active ? "text-gray-700 dark:text-gray-200" : "text-gray-300 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-400"}`}>
           {active ? (currentDirection === "asc" ? "↑" : "↓") : "↕"}
         </span>
       </button>
-    </th>
+    </DataTable.HeadCell>
   )
 }
 
@@ -131,7 +132,7 @@ export function AdminEventLogTable<Row>({
   renderExpanded,
   rows,
   search,
-  tableClassName = "min-w-full table-fixed divide-y divide-gray-200 text-sm dark:divide-gray-700"
+  tableClassName = "table-fixed"
 }: {
   columns: Array<AdminEventLogTableColumn<Row>>
   getRowKey: (row: Row) => string | number
@@ -144,22 +145,21 @@ export function AdminEventLogTable<Row>({
   const [expandedKey, setExpandedKey] = useState<string | number | null>(null)
 
   return (
-    <div className="overflow-x-auto">
-      <table className={tableClassName}>
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
+    <DataTable.Root className={tableClassName}>
+      <DataTable.Header>
+          <DataTable.Row>
             {columns.map((column) => (
               column.sort && onNavigate ? (
                 <AdminEventSortableHeader className={column.headerClassName || column.className} column={column.sort} key={column.key} search={search || ""} onNavigate={onNavigate}>
                   {column.header}
                 </AdminEventSortableHeader>
               ) : (
-                <th className={column.headerClassName || column.className} key={column.key}>{column.header}</th>
+                <DataTable.HeadCell className={column.headerClassName || column.className} key={column.key}>{column.header}</DataTable.HeadCell>
               )
             ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map((row) => {
             const rowKey = getRowKey(row)
             const expanded = expandedKey === rowKey
@@ -167,26 +167,25 @@ export function AdminEventLogTable<Row>({
 
             return (
               <Fragment key={rowKey}>
-                <tr>
+                <DataTable.Row>
                   {columns.map((column) => (
-                    <td className={column.className} key={column.key}>
+                    <DataTable.Cell className={column.className} key={column.key}>
                       {column.render(row, { expanded, toggleExpanded })}
-                    </td>
+                    </DataTable.Cell>
                   ))}
-                </tr>
+                </DataTable.Row>
                 {expanded && renderExpanded ? (
-                  <tr>
-                    <td className="bg-gray-50 px-4 py-4 dark:bg-gray-950/40" colSpan={columns.length}>
+                  <DataTable.Row groupHeader>
+                    <DataTable.Cell className="bg-gray-50 px-4 py-4 dark:bg-gray-950/40" colSpan={columns.length}>
                       {renderExpanded(row)}
-                    </td>
-                  </tr>
+                    </DataTable.Cell>
+                  </DataTable.Row>
                 ) : null}
               </Fragment>
             )
           })}
-        </tbody>
-      </table>
-    </div>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 

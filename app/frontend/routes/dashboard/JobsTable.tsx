@@ -12,6 +12,7 @@ import { Button, buttonClasses } from "../../components/Button"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Checkbox } from "../../components/Checkbox"
+import { DataTable, Select } from "../../components/ui"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
@@ -307,14 +308,14 @@ function BulkJobActions({ controls, selectedIds, onClear }: { controls: Dashboar
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("unpause")} type="button">{t("unpause")}</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("claim")}</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("release")}</button>
-        <select aria-label={t("assign_owner")} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" disabled={disabled} onChange={(event) => setOwnerUserId(event.target.value)} value={ownerUserId}>
+        <Select aria-label={t("assign_owner")} className="px-2 py-1 text-xs" disabled={disabled} fullWidth={false} onChange={(event) => setOwnerUserId(event.target.value)} value={ownerUserId}>
           <option value="">{t("assign_owner")}</option>
           {controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
-        </select>
+        </Select>
         <button className={bulkButtonClass(disabled || !ownerUserId)} disabled={disabled || !ownerUserId} onClick={() => run("assign_owner")} type="button">{t("assign")}</button>
-        <select aria-label={t("priority")} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" disabled={disabled} onChange={(event) => setPriority(event.target.value)} value={priority}>
+        <Select aria-label={t("priority")} className="px-2 py-1 text-xs" disabled={disabled} fullWidth={false} onChange={(event) => setPriority(event.target.value)} value={priority}>
           {(controls.priorities ?? [{ value: "urgent", label: "Urgent" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+        </Select>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("set_priority")} type="button">{t("set_priority")}</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button>
         <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button>
@@ -424,18 +425,17 @@ function JobsTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
+    <DataTable.Root>
+      <DataTable.Header>
+          <DataTable.Row>
             {columns.map((column) => (
-              <th aria-sort={columnAriaSort("job", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column} title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}>
+              <DataTable.HeadCell aria-sort={columnAriaSort("job", column, sortState)} checkbox={column === "checkbox"} key={column} title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}>
                 {column === "checkbox" ? <Checkbox aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
-              </th>
+              </DataTable.HeadCell>
             ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {groupByEpic ? (
             landingQueueGroups.map((group, index) => (
               <LandingQueueJobGroup
@@ -455,15 +455,14 @@ function JobsTable({
               const separatorClass = startsNewEpicGroup(items, index, groupByEpic) ? "border-t-4 border-gray-300 dark:border-gray-600" : ""
               const urgentClass = job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
               return (
-                <tr className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={job.id}>
+                <DataTable.Row className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={job.id}>
                   {columns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
-                </tr>
+                </DataTable.Row>
               )
             })
           )}
-        </tbody>
-      </table>
-    </div>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 
@@ -515,8 +514,8 @@ function LandingQueueJobGroup({
   return (
     <>
       {blockerCount > 0 ? (
-        <tr className={topSeparator ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined}>
-          <td className="bg-gray-50 px-4 py-2 dark:bg-gray-950/40" colSpan={columns.length}>
+        <DataTable.Row className={topSeparator ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined} groupHeader>
+          <DataTable.Cell className="bg-gray-50 px-4 py-2 dark:bg-gray-950/40" colSpan={columns.length}>
             <button
               aria-expanded={expanded}
               className="inline-flex items-center gap-2 rounded px-1 py-0.5 text-xs font-semibold text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-300 dark:hover:text-gray-100"
@@ -526,24 +525,24 @@ function LandingQueueJobGroup({
               <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
               <span>{t(blockerCount === 1 ? "blocker_one" : "blocker_other", { count: blockerCount })}</span>
             </button>
-          </td>
-        </tr>
+          </DataTable.Cell>
+        </DataTable.Row>
       ) : null}
       {rows.map((row, index) => {
         const separatorClass = blockerCount === 0 && topSeparator && index === 0 ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined
         if (row.kind === "blocker") {
           return (
-            <tr className={`bg-gray-50/70 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400${separatorClass ? ` ${separatorClass}` : ""}`} key={`blocker-${group.key}-${row.id}`}>
+            <DataTable.Row className={`bg-gray-50/70 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400${separatorClass ? ` ${separatorClass}` : ""}`} key={`blocker-${group.key}-${row.id}`}>
               {columns.map((column) => <LandingQueueBlockerCell column={column} job={row.job} attribution={row.attribution} key={column} prefix={prefix} />)}
-            </tr>
+            </DataTable.Row>
           )
         }
 
         const urgentClass = row.job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
         return (
-          <tr className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={row.job.id}>
+          <DataTable.Row className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={row.job.id}>
             {columns.map((column) => <JobCell column={column} job={row.job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />)}
-          </tr>
+          </DataTable.Row>
         )
       })}
     </>
@@ -551,13 +550,13 @@ function LandingQueueJobGroup({
 }
 
 function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: LandingQueueBlockerJob; column: string; attribution: string | null; prefix: string }) {
-  if (column === "checkbox") return <td className="px-4 py-3 align-top" />
-  if (column === "landing_queue_position") return <td className="px-4 py-3" />
-  if (column === "landing_queue_blocked_reason") return <td className="px-4 py-3" />
-  if (column === "landing_queue_wait_reason") return <td className="px-4 py-3" />
+  if (column === "checkbox") return <DataTable.Cell className="align-top" />
+  if (column === "landing_queue_position") return <DataTable.Cell />
+  if (column === "landing_queue_blocked_reason") return <DataTable.Cell />
+  if (column === "landing_queue_wait_reason") return <DataTable.Cell />
   if (column === "issue" || column === "title") {
     return (
-      <td className="max-w-md px-4 py-3">
+      <DataTable.Cell className="max-w-md">
         <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <SlugHoverCard id={job.id} kind="job">
@@ -571,32 +570,32 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
           {attribution ? <span className="rounded border border-gray-200 px-1.5 py-0.5 text-2xs text-gray-500 dark:border-gray-700 dark:text-gray-400">{attribution}</span> : null}
         </div>
-      </td>
+      </DataTable.Cell>
     )
   }
   if (column === "state") {
     return (
-      <td className="px-4 py-3">
+      <DataTable.Cell>
         <NeutralStatePill state={job.state} />
-      </td>
+      </DataTable.Cell>
     )
   }
   if (column === "repository") {
-    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></td>
+    return <DataTable.Cell><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></DataTable.Cell>
   }
   if (column === "latest") {
-    if (job.latest_workflow_id == null) return <td className="px-4 py-3" />
+    if (job.latest_workflow_id == null) return <DataTable.Cell />
     return (
-      <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind ?? ""} ${job.latest_workflow_state ?? ""}`} className="px-4 py-3">
+      <DataTable.Cell aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind ?? ""} ${job.latest_workflow_state ?? ""}`}>
         <WorkflowBadges state={job.latest_workflow_state ?? ""} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
-      </td>
+      </DataTable.Cell>
     )
   }
   if (column === "started" || column === "started_at") return <TimestampCell value={job.started_at} />
   if (column === "created_at") return <TimestampCell value={job.created_at} />
-  if (column === "commits_behind_base") return <td className="px-4 py-3" />
+  if (column === "commits_behind_base") return <DataTable.Cell />
 
-  return <td className="px-4 py-3 text-gray-400 dark:text-gray-500">-</td>
+  return <DataTable.Cell className="text-gray-400 dark:text-gray-500">-</DataTable.Cell>
 }
 
 function groupByLandingQueueEntry(items: DashboardJobItem[], entries: DashboardLandingQueueEntry[], t: (key: string, opts?: Record<string, unknown>) => string) {
@@ -846,11 +845,11 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
 function JobCell({ job, column, selected, onToggleOne, prefix }: { job: DashboardJobItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
   const { t } = useT("dashboard")
   if (column === "checkbox") {
-    return <td className="px-4 py-3 align-top"><Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} /></td>
+    return <DataTable.Cell className="align-top"><Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} /></DataTable.Cell>
   }
   if (column === "issue" || column === "title") {
     return (
-      <td className="max-w-md px-4 py-3">
+      <DataTable.Cell className="max-w-md">
         <div className="flex min-w-0 items-center gap-1.5">
           <ProviderAvailabilityWarning availability={job.provider_availability} />
           <Link className="block min-w-0 max-w-full truncate font-medium text-brand hover:underline" title={job.title} to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
@@ -876,24 +875,24 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
             <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
           ) : null}
         </MetadataLine>
-      </td>
+      </DataTable.Cell>
     )
   }
   if (column === "state") {
     return (
-      <td className="px-4 py-3">
+      <DataTable.Cell>
         <NeutralStatePill state={job.state} />
-      </td>
+      </DataTable.Cell>
     )
   }
   if (column === "landing_queue_position") {
     return (
-      <td className="px-4 py-3">
+      <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</span>
           <CommitsBehindBadge count={job.commits_behind_base} />
         </div>
-      </td>
+      </DataTable.Cell>
     )
   }
   if (column === "landing_queue_blocked_reason") {
@@ -903,17 +902,17 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     return <LandingQueueStatusCell job={job} />
   }
   if (column === "blocked_reason") {
-    return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? translateBlockedReason(job.blocked_reason, t) : "-"}</td>
+    return <DataTable.Cell className="text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? translateBlockedReason(job.blocked_reason, t) : "-"}</DataTable.Cell>
   }
   if (column === "repository") {
-    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></td>
+    return <DataTable.Cell><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></DataTable.Cell>
   }
-  if (column === "owner") return <td className="px-4 py-3"><DashboardOwnerLabel job={job} prefix={prefix} /></td>
+  if (column === "owner") return <DataTable.Cell><DashboardOwnerLabel job={job} prefix={prefix} /></DataTable.Cell>
   if (column === "latest") return <LatestWorkflowCell job={job} />
   if (column === "deployment") return <DeploymentStageCell job={job} prefix={prefix} />
-  if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{job.workflows_count}</td>
+  if (column === "workflows_count") return <DataTable.Cell className="text-gray-700 dark:text-gray-200">{job.workflows_count}</DataTable.Cell>
   if (column === "priority") return <PriorityPillCell priority={job.priority} />
-  if (column === "commits_behind_base") return <td className="px-4 py-3"><CommitsBehindBadge count={job.commits_behind_base} /></td>
+  if (column === "commits_behind_base") return <DataTable.Cell><CommitsBehindBadge count={job.commits_behind_base} /></DataTable.Cell>
 
   return <TimestampCell value={jobDateValue(job, column)} />
 }
@@ -923,33 +922,33 @@ function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
 
   if (job.landing_queue_blocked_reason) {
     return (
-      <td className="px-4 py-3">
+      <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
           <TonePill tone="red">{translateBlockedReason(job.landing_queue_blocked_reason, t)}</TonePill>
           <LandingBlockerOverrideBadge job={job} />
         </div>
-      </td>
+      </DataTable.Cell>
     )
   }
 
   if (job.landing_queue_wait_reason) {
     return (
-      <td className="px-4 py-3">
+      <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
           <TonePill tone="gray">{translateBlockedReason(job.landing_queue_wait_reason, t)}</TonePill>
           <LandingBlockerOverrideBadge job={job} />
         </div>
-      </td>
+      </DataTable.Cell>
     )
   }
 
   return (
-    <td className="px-4 py-3">
+    <DataTable.Cell>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
         <LandingBlockerOverrideBadge job={job} />
       </div>
-    </td>
+    </DataTable.Cell>
   )
 }
 
@@ -985,20 +984,20 @@ export const PRIORITY_TONE: Record<string, "red" | "amber" | "blue"> = {
 
 function PriorityPillCell({ priority }: { priority: string }) {
   const tone = PRIORITY_TONE[priority]
-  if (!tone) return <td className="px-4 py-3" />
-  return <td className="px-4 py-3"><TonePill tone={tone}>{priority}</TonePill></td>
+  if (!tone) return <DataTable.Cell />
+  return <DataTable.Cell><TonePill tone={tone}>{priority}</TonePill></DataTable.Cell>
 }
 
 function DeploymentStageCell({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
   const stage = job.latest_deployment_stage
-  if (!stage) return <td className="px-4 py-3 text-gray-400 dark:text-gray-500">—</td>
+  if (!stage) return <DataTable.Cell className="text-gray-400 dark:text-gray-500">—</DataTable.Cell>
 
   return (
-    <td className="px-4 py-3">
+    <DataTable.Cell>
       <Link className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:bg-emerald-900/70 ${PILL_TONE_CLASSES.green}`} title={stage.reached_at ?? undefined} to={withRoutePrefix(job.paths.job_path, prefix)}>
         {stage.label || stage.name}
       </Link>
-    </td>
+    </DataTable.Cell>
   )
 }
 
@@ -1016,20 +1015,20 @@ function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJob
 
 function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
   if (job.latest_workflow_id == null) {
-    return <td className="px-4 py-3" />
+    return <DataTable.Cell />
   }
 
   if (!job.latest_workflow_trigger_kind) {
-    return <td className="px-4 py-3"><StatusPill state={job.latest_workflow_state} /></td>
+    return <DataTable.Cell><StatusPill state={job.latest_workflow_state} /></DataTable.Cell>
   }
 
   return (
-    <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`} className="px-4 py-3">
+    <DataTable.Cell aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`}>
       <div className="flex flex-col items-start gap-1.5">
         <WorkflowBadges state={job.latest_workflow_state} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
         <RetryStateInline job={job} />
       </div>
-    </td>
+    </DataTable.Cell>
   )
 }
 

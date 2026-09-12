@@ -1,6 +1,7 @@
 import { type RepositoryDetailQueryKey, appendSearch, buttonClass, PanelMessage, StatusPill } from "./repositoryDetail/shared"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
+import { DataTable, DescriptionList } from "../components/ui"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { DismissButton } from "../components/DismissButton"
 import { PluginUiSlot } from "../pluginUiSlots"
@@ -267,70 +268,42 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
       <SectionHeading>
         {t('repository.details')}
       </SectionHeading>
-      <dl className="mt-3 space-y-3">
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.working_repo')}
-          </dt>
-          <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.slug}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.working_branch')}
-          </dt>
-          <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.default_branch}</dd>
-        </div>
+      <DescriptionList.Root className="mt-3" density="compact">
+        <DescriptionList.Item descriptionClassName="font-mono text-gray-700 dark:text-gray-300" label={t('repository.working_repo')}>
+          {repository.slug}
+        </DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="font-mono text-gray-700 dark:text-gray-300" label={t('repository.working_branch')}>
+          {repository.default_branch}
+        </DescriptionList.Item>
         {repository.upstream_slug ? (
-          <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              {t('repository.upstream_repo')}
-            </dt>
-            <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.upstream_slug}{repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}</dd>
-          </div>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-700 dark:text-gray-300" label={t('repository.upstream_repo')}>
+            {repository.upstream_slug}{repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}
+          </DescriptionList.Item>
         ) : null}
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.trigger_label')}
-          </dt>
-          <dd className="mt-0.5"><code className="rounded bg-gray-100 px-1 dark:bg-gray-800">{repository.trigger_label}</code></dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.syrus_owner')}
-          </dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
-            {repository.owner_user.profile_path ? (
-              <Link className="text-brand hover:underline dark:text-brand-emphasis" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
-            ) : (
-              repository.owner_user.display_name || repository.owner_user.email_address
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.added')}
-          </dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-300"><RelativeTimestamp value={repository.created_at} /></dd>
-        </div>
+        <DescriptionList.Item label={t('repository.trigger_label')}>
+          <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">{repository.trigger_label}</code>
+        </DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="text-gray-700 dark:text-gray-300" label={t('repository.syrus_owner')}>
+          {repository.owner_user.profile_path ? (
+            <Link className="text-brand hover:underline dark:text-brand-emphasis" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
+          ) : (
+            repository.owner_user.display_name || repository.owner_user.email_address
+          )}
+        </DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="text-gray-700 dark:text-gray-300" label={t('repository.added')}>
+          <RelativeTimestamp value={repository.created_at} />
+        </DescriptionList.Item>
         {repository.github_rate_limit ? (
-          <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              {t('repository.github_quota')}
-            </dt>
-            <dd className="mt-0.5 text-gray-700 dark:text-gray-300"><strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} ({repository.github_rate_limit.resource})</dd>
-          </div>
+          <DescriptionList.Item descriptionClassName="text-gray-700 dark:text-gray-300" label={t('repository.github_quota')}>
+            <strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} ({repository.github_rate_limit.resource})
+          </DescriptionList.Item>
         ) : null}
         {payload.credential_status.mode === "app" && payload.credential_status.installation_account ? (
-          <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              {t('repository.credential')}
-            </dt>
-            <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
-              {t('repository.syrus_app_via', { account: payload.credential_status.installation_account })}
-            </dd>
-          </div>
+          <DescriptionList.Item descriptionClassName="text-gray-700 dark:text-gray-300" label={t('repository.credential')}>
+            {t('repository.syrus_app_via', { account: payload.credential_status.installation_account })}
+          </DescriptionList.Item>
         ) : null}
-      </dl>
+      </DescriptionList.Root>
     </section>
   )
 }
@@ -362,14 +335,13 @@ function SyrusYmlCard({ payload }: { payload: RepositoryDetailPayload }) {
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {summary.present ? t("repository.syrus_yml_loaded", { source: summary.source }) : summary.note ? t("repository.syrus_yml_not_loaded_with_note", { note: summary.note }) : t("repository.syrus_yml_not_loaded")}
       </p>
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+      <DescriptionList.Root className="mt-3 sm:grid-cols-2" density="compact">
         {rows.map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</dt>
-            <dd className="mt-0.5 text-gray-700 dark:text-gray-300">{value}</dd>
-          </div>
+          <DescriptionList.Item descriptionClassName="text-gray-700 dark:text-gray-300" key={label} label={label}>
+            {value}
+          </DescriptionList.Item>
         ))}
-      </dl>
+      </DescriptionList.Root>
     </section>
   )
 }
@@ -572,26 +544,26 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
           </span>
         ) : null}
       </SectionHeading>
-      <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div>
         {payload.needs_triage_jobs.length > 0 ? (
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2">
+          <DataTable.Root>
+            <DataTable.Header>
+              <DataTable.Row>
+                <DataTable.HeadCell>
                   {t('repository.col_job')}
-                </th>
-                <th className="hidden px-4 py-2 sm:table-cell">
+                </DataTable.HeadCell>
+                <DataTable.HeadCell className="hidden sm:table-cell">
                   {t('repository.col_created')}
-                </th>
-                <th className="px-4 py-2 text-right">
+                </DataTable.HeadCell>
+                <DataTable.HeadCell align="right">
                   {t('repository.col_action')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+                </DataTable.HeadCell>
+              </DataTable.Row>
+            </DataTable.Header>
+            <DataTable.Body>
               {payload.needs_triage_jobs.map((job) => (
-                <tr key={job.id}>
-                  <td className="px-4 py-3">
+                <DataTable.Row key={job.id}>
+                  <DataTable.Cell>
                     <SourceLink job={job} prefix={prefix} />
                     <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title || `JOB-${job.id}`}</Link>
                     {job.owner_user ? (
@@ -599,19 +571,19 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
                         {t('repository.owner_prefix')} {job.owner_user.display_name || job.owner_user.email_address}
                       </div>
                     ) : null}
-                  </td>
-                  <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell"><RelativeTimestamp value={job.created_at} /></td>
-                  <td className="px-4 py-3 text-right">
+                  </DataTable.Cell>
+                  <DataTable.Cell className="hidden text-gray-500 dark:text-gray-400 sm:table-cell"><RelativeTimestamp value={job.created_at} /></DataTable.Cell>
+                  <DataTable.Cell align="right">
                     <button className={buttonClass("blue")} disabled={release.isPending} onClick={() => { onNotice(null); release.mutate(job.id) }} type="button">
                       {t('repository.release_for_triage')}
                     </button>
-                  </td>
-                </tr>
+                  </DataTable.Cell>
+                </DataTable.Row>
               ))}
-            </tbody>
-          </table>
+            </DataTable.Body>
+          </DataTable.Root>
         ) : (
-          <p className="p-4 text-sm text-gray-600 dark:text-gray-400">
+          <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
             {t('repository.no_triage_jobs')}
           </p>
         )}
@@ -648,30 +620,28 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
       <SectionHeading className="mb-3">
         {t('repository.recent_jobs')}
       </SectionHeading>
-      <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <th className="px-4 py-2">
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTable.Row>
+              <DataTable.HeadCell>
                 {t('repository.col_state')}
-              </th>
-              <th className="px-4 py-2">
+              </DataTable.HeadCell>
+              <DataTable.HeadCell>
                 {t('repository.col_issue')}
-              </th>
-              <th className="hidden px-4 py-2 sm:table-cell">
+              </DataTable.HeadCell>
+              <DataTable.HeadCell className="hidden sm:table-cell">
                 {t('repository.col_runs')}
-              </th>
-              <th className="hidden px-4 py-2 sm:table-cell">
+              </DataTable.HeadCell>
+              <DataTable.HeadCell className="hidden sm:table-cell">
                 {t('repository.col_last')}
-              </th>
-              <th className="hidden px-4 py-2 sm:table-cell"><span className="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+              </DataTable.HeadCell>
+              <DataTable.HeadCell className="hidden sm:table-cell"><span className="sr-only">Actions</span></DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {payload.jobs.map((job) => <JobRow job={job} key={job.id} prefix={prefix} />)}
-          </tbody>
-        </table>
-      </div>
+          </DataTable.Body>
+        </DataTable.Root>
       <Pagination payload={payload} prefix={prefix} />
     </section>
   )
@@ -680,12 +650,12 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
   const { t } = useT("settings")
   return (
-    <tr>
-      <td className="px-4 py-3 align-top">
+    <DataTable.Row>
+      <DataTable.Cell className="align-top">
         <StateStatusPill state={job.state} />
         {job.priority !== "medium" ? <span className="ml-1"><TonePill tone="gray">{job.priority}</TonePill></span> : null}
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         <SourceLink job={job} prefix={prefix} />
         <ProviderAvailabilityWarning availability={job.provider_availability} className="ml-1 inline-flex align-[-0.125em]" />
         {job.issue_title ? <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title}</Link> : null}
@@ -699,13 +669,13 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
           <span>·</span>
           <span><RelativeTimestamp value={job.updated_at} /></span>
         </div>
-      </td>
-      <td className="hidden px-4 py-3 text-gray-600 dark:text-gray-400 sm:table-cell">{job.runs_count}</td>
-      <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell"><RelativeTimestamp value={job.updated_at} /></td>
-      <td className="hidden px-4 py-3 text-right sm:table-cell">
+      </DataTable.Cell>
+      <DataTable.Cell className="hidden text-gray-600 dark:text-gray-400 sm:table-cell">{job.runs_count}</DataTable.Cell>
+      <DataTable.Cell className="hidden text-gray-500 dark:text-gray-400 sm:table-cell"><RelativeTimestamp value={job.updated_at} /></DataTable.Cell>
+      <DataTable.Cell align="right" className="hidden sm:table-cell">
         <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.job_path, prefix)}>{t('repository.view')}</Link>
-      </td>
-    </tr>
+      </DataTable.Cell>
+    </DataTable.Row>
   )
 }
 

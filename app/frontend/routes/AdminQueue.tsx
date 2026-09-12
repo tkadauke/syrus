@@ -1,5 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { Button, Input, Notice, Page, Section, SectionHeading, Surface, Text, buttonClasses } from "../components/ui"
+import { Button, DataTable, DescriptionList, Input, Notice, Page, Section, SectionHeading, Text, buttonClasses } from "../components/ui"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useColorTokens } from "../lib/colorTokens"
@@ -227,30 +227,28 @@ function JobsTable({ jobs, showClaimed = false, emptyLabel }: { jobs: QueueJob[]
   if (jobs.length === 0) return <PanelMessage>{emptyLabel}</PanelMessage>
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("queue.col_class")}</th>
-            <th className="px-4 py-2">{t("queue.col_queue")}</th>
-            <th className="px-4 py-2">{t("queue.col_arguments")}</th>
-            <th className="px-4 py-2">{t("queue.col_created")}</th>
-            {showClaimed ? <th className="px-4 py-2">{t("queue.col_claimed")}</th> : null}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root>
+      <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("queue.col_class")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_queue")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_arguments")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_created")}</DataTable.HeadCell>
+            {showClaimed ? <DataTable.HeadCell>{t("queue.col_claimed")}</DataTable.HeadCell> : null}
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {jobs.map((job) => (
-            <tr key={job.id}>
-              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{job.class_name}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{job.queue_name}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{formatArguments(job.arguments)}</td>
-              <td className="px-4 py-2 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={job.created_at} /></td>
-              {showClaimed ? <td className="px-4 py-2 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={job.claimed_at} /></td> : null}
-            </tr>
+            <DataTable.Row key={job.id}>
+              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{job.class_name}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{job.queue_name}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-300">{formatArguments(job.arguments)}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={job.created_at} /></DataTable.Cell>
+              {showClaimed ? <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={job.claimed_at} /></DataTable.Cell> : null}
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 
@@ -261,30 +259,28 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
   if (failures.length === 0) return <PanelMessage>{t("queue.no_failures", { since: payload.since ? formatRelativeDate(new Date(payload.since)) : "-" })}</PanelMessage>
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("queue.col_created")}</th>
-            <th className="px-4 py-2">{t("queue.col_class")}</th>
-            <th className="px-4 py-2">{t("queue.col_exception")}</th>
-            <th className="px-4 py-2">{t("queue.col_message")}</th>
-            <th className="px-4 py-2">{t("queue.col_arguments")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root>
+      <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("queue.col_created")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_class")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_exception")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_message")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_arguments")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {failures.map((failure: QueueFailure) => (
-            <tr key={failure.id}>
-              <td className="px-4 py-2 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={failure.created_at} /></td>
-              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{failure.class_name || "-"}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{failure.exception_class || "-"}</td>
-              <td className="max-w-md px-4 py-2 text-gray-700 dark:text-gray-200">{failure.message || "-"}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{formatArguments(failure.arguments)}</td>
-            </tr>
+            <DataTable.Row key={failure.id}>
+              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={failure.created_at} /></DataTable.Cell>
+              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{failure.class_name || "-"}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{failure.exception_class || "-"}</DataTable.Cell>
+              <DataTable.Cell className="max-w-md text-gray-700 dark:text-gray-200">{failure.message || "-"}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-300">{formatArguments(failure.arguments)}</DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 
@@ -294,30 +290,28 @@ function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
   if (tasks.length === 0) return <PanelMessage>{t("queue.no_recurring")}</PanelMessage>
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("queue.col_key")}</th>
-            <th className="px-4 py-2">{t("queue.col_class")}</th>
-            <th className="px-4 py-2">{t("queue.col_schedule")}</th>
-            <th className="px-4 py-2">{t("queue.col_last_run")}</th>
-            <th className="px-4 py-2">{t("queue.col_last_finished")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root>
+      <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("queue.col_key")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_class")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_schedule")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_last_run")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_last_finished")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {tasks.map((task) => (
-            <tr key={task.key}>
-              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{task.key}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{task.class_name || "-"}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{task.schedule}</td>
-              <td className="px-4 py-2 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={task.last_run_at} /></td>
-              <td className="px-4 py-2 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={task.last_finished_at} /></td>
-            </tr>
+            <DataTable.Row key={task.key}>
+              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{task.key}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{task.class_name || "-"}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-300">{task.schedule}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={task.last_run_at} /></DataTable.Cell>
+              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={task.last_finished_at} /></DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 
@@ -461,48 +455,46 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
         </div>
       </summary>
       <div className="border-t border-border px-4 py-3">
-        <div className="grid gap-3 text-xs sm:grid-cols-3">
-          <HealthStat label={t("queue.col_version")} value={current?.version || sample?.version || "-"} />
-          <HealthStat label={t("queue.last_sample")} value={sample ? formatRelativeDate(new Date(sample.observed_at)) : "-"} />
-          <HealthStat label={t("queue.memory_available")} value={formatBytes(sample?.memory_available_bytes)} />
-          <HealthStat label={t("queue.data_root_available")} value={formatBytes(sample?.data_root_available_bytes)} />
-          <HealthStat label={t("queue.one_hour_max")} value={oneHour ? compactTrend(oneHour) : "-"} />
-        </div>
+        <DescriptionList.Root className="text-xs sm:grid-cols-3" density="compact">
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.col_version")}>{current?.version || sample?.version || "-"}</DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.last_sample")}>{sample ? formatRelativeDate(new Date(sample.observed_at)) : "-"}</DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.memory_available")}>{formatBytes(sample?.memory_available_bytes)}</DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.data_root_available")}>{formatBytes(sample?.data_root_available_bytes)}</DescriptionList.Item>
+          <DescriptionList.Item descriptionClassName="font-mono text-gray-900 dark:text-gray-100" label={t("queue.one_hour_max")}>{oneHour ? compactTrend(oneHour) : "-"}</DescriptionList.Item>
+        </DescriptionList.Root>
         <WorkerHealthCharts buckets={chartBuckets} hostname={host.hostname} />
         <details className="mt-3">
           <summary className="cursor-pointer text-xs font-medium text-text-muted hover:text-text-primary">{t("queue.worker_health_exact_values")}</summary>
           <WorkerHealthTrendTable windows={host.windows} />
         {minuteBuckets.length > 0 ? (
-          <Surface className="mt-3 overflow-x-auto" padding="none">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
-              <thead className="bg-gray-50 dark:bg-gray-800 text-left font-medium uppercase text-gray-500 dark:text-gray-400">
-                <tr>
-                  <th className="px-3 py-2">{t("queue.col_minute")}</th>
-                  <th className="px-3 py-2">{t("queue.col_samples")}</th>
-                  <th className="px-3 py-2">{t("queue.metric_cpu")}</th>
-                  <th className="px-3 py-2">{t("queue.metric_memory")}</th>
-                  <th className="px-3 py-2">{t("queue.metric_disk")}</th>
-                  <th className="px-3 py-2">{t("queue.metric_load")}</th>
-                  <th className="px-3 py-2">{t("queue.metric_cpu_pressure")}</th>
-                  <th className="px-3 py-2">{t("queue.metric_io_pressure")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-3">
+            <DataTable.Header>
+                <DataTable.Row>
+                  <DataTable.HeadCell>{t("queue.col_minute")}</DataTable.HeadCell>
+                  <DataTable.HeadCell>{t("queue.col_samples")}</DataTable.HeadCell>
+                  <DataTable.HeadCell>{t("queue.metric_cpu")}</DataTable.HeadCell>
+                  <DataTable.HeadCell>{t("queue.metric_memory")}</DataTable.HeadCell>
+                  <DataTable.HeadCell>{t("queue.metric_disk")}</DataTable.HeadCell>
+                  <DataTable.HeadCell>{t("queue.metric_load")}</DataTable.HeadCell>
+                  <DataTable.HeadCell>{t("queue.metric_cpu_pressure")}</DataTable.HeadCell>
+                  <DataTable.HeadCell>{t("queue.metric_io_pressure")}</DataTable.HeadCell>
+                </DataTable.Row>
+              </DataTable.Header>
+              <DataTable.Body>
                 {minuteBuckets.map((bucket) => (
-                  <tr key={bucket.minute}>
-                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{formatRelativeDate(new Date(bucket.minute))}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{bucket.sample_count}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_used_percent)}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.memory_used_percent)}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.data_root_used_percent)}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.load_1m, "number")}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_pressure_some)}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.io_pressure_some)}</td>
-                  </tr>
+                  <DataTable.Row key={bucket.minute}>
+                    <DataTable.Cell className="text-gray-600 dark:text-gray-300">{formatRelativeDate(new Date(bucket.minute))}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-700 dark:text-gray-200">{bucket.sample_count}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_used_percent)}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(bucket.memory_used_percent)}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(bucket.data_root_used_percent)}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(bucket.load_1m, "number")}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_pressure_some)}</DataTable.Cell>
+                    <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(bucket.io_pressure_some)}</DataTable.Cell>
+                  </DataTable.Row>
                 ))}
-              </tbody>
-            </table>
-          </Surface>
+              </DataTable.Body>
+            </DataTable.Root>
         ) : null}
         </details>
       </div>
@@ -609,34 +601,32 @@ function WorkerHealthTrendTable({ windows }: { windows: WorkerHealthPayload["hos
   if (rows.length === 0) return null
 
   return (
-    <Surface className="mt-3 overflow-x-auto" padding="none">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-3 py-2">{t("queue.col_window")}</th>
-            <th className="px-3 py-2">{t("queue.col_samples")}</th>
-            <th className="px-3 py-2">{t("queue.metric_cpu")}</th>
-            <th className="px-3 py-2">{t("queue.metric_memory")}</th>
-            <th className="px-3 py-2">{t("queue.metric_disk")}</th>
-            <th className="px-3 py-2">{t("queue.metric_load")}</th>
-            <th className="px-3 py-2">{t("queue.col_alerts")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-3">
+      <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("queue.col_window")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_samples")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.metric_cpu")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.metric_memory")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.metric_disk")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.metric_load")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_alerts")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map(([window, summary]) => (
-            <tr key={window}>
-              <td className="px-3 py-2 font-mono text-gray-700 dark:text-gray-200">{window}</td>
-              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{summary.sample_count}</td>
-              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(summary.cpu_used_percent)}</td>
-              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(summary.memory_used_percent)}</td>
-              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(summary.data_root_used_percent)}</td>
-              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(summary.load_1m, "number")}</td>
-              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{summary.warning_count + summary.critical_count}</td>
-            </tr>
+            <DataTable.Row key={window}>
+              <DataTable.Cell className="font-mono text-gray-700 dark:text-gray-200">{window}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{summary.sample_count}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.cpu_used_percent)}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.memory_used_percent)}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.data_root_used_percent)}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{formatSummary(summary.load_1m, "number")}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{summary.warning_count + summary.critical_count}</DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </Surface>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 
@@ -655,32 +645,30 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
   if (workers.length === 0) return <PanelMessage>{t("queue.no_workers")}</PanelMessage>
 
   return (
-    <Surface className="overflow-x-auto" padding="none">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("queue.col_host")}</th>
-            <th className="px-4 py-2">{t("queue.col_pid")}</th>
-            <th className="px-4 py-2">{t("queue.col_queues")}</th>
-            <th className="px-4 py-2">{t("queue.col_threads")}</th>
-            <th className="px-4 py-2">{t("queue.col_heartbeat")}</th>
-            <th className="px-4 py-2">{t("queue.col_state")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root>
+      <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("queue.col_host")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_pid")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_queues")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_threads")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_heartbeat")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_state")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {workers.map((worker) => (
-            <tr key={`${worker.hostname}-${worker.pid}`}>
-              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{worker.hostname || "-"}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{worker.pid}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{formatQueues(worker.queues)}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{worker.threads ?? "-"}</td>
-              <td className="px-4 py-2 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={worker.last_heartbeat_at} /></td>
-              <td className={`px-4 py-2 ${worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</td>
-            </tr>
+            <DataTable.Row key={`${worker.hostname}-${worker.pid}`}>
+              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{worker.hostname || "-"}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{worker.pid}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs text-gray-600 dark:text-gray-300">{formatQueues(worker.queues)}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{worker.threads ?? "-"}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={worker.last_heartbeat_at} /></DataTable.Cell>
+              <DataTable.Cell className={worker.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{worker.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </Surface>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 
@@ -690,30 +678,28 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
   if (processes.length === 0) return <PanelMessage>{t("queue.no_processes")}</PanelMessage>
 
   return (
-    <Surface className="overflow-x-auto" padding="none">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("queue.col_kind")}</th>
-            <th className="px-4 py-2">{t("queue.col_host")}</th>
-            <th className="px-4 py-2">{t("queue.col_pid")}</th>
-            <th className="px-4 py-2">{t("queue.col_heartbeat")}</th>
-            <th className="px-4 py-2">{t("queue.col_state")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root>
+      <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("queue.col_kind")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_host")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_pid")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_heartbeat")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("queue.col_state")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {processes.map((process) => (
-            <tr key={`${process.kind}-${process.hostname}-${process.pid}`}>
-              <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{process.kind}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{process.hostname || "-"}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{process.pid}</td>
-              <td className="px-4 py-2 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={process.last_heartbeat_at} /></td>
-              <td className={`px-4 py-2 ${process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</td>
-            </tr>
+            <DataTable.Row key={`${process.kind}-${process.hostname}-${process.pid}`}>
+              <DataTable.Cell className="font-medium text-gray-900 dark:text-gray-100">{process.kind}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{process.hostname || "-"}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-700 dark:text-gray-200">{process.pid}</DataTable.Cell>
+              <DataTable.Cell className="text-gray-600 dark:text-gray-300"><RelativeTimestamp value={process.last_heartbeat_at} /></DataTable.Cell>
+              <DataTable.Cell className={process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}>{process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </Surface>
+        </DataTable.Body>
+      </DataTable.Root>
   )
 }
 

@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import type { TFunction } from "i18next"
+import { DataTable } from "@app/components/ui"
 
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {
   const { t } = useT("test_insights")
@@ -96,20 +97,20 @@ function TestList({ error, isError, isFetching, payload, prefix, query, t }: { e
         {isFetching ? <span>{t("repo_updating_results")}</span> : null}
         {isError ? <span className="text-red-600 dark:text-red-300">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
       </div>
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("repo_col_test")}</th>
-            <th className="hidden px-4 py-2 md:table-cell">{t("repo_col_suite")}</th>
-            <th className="px-4 py-2">{t("repo_col_recent_failures")}</th>
-            <th className="hidden px-4 py-2 sm:table-cell">{t("repo_col_duration")}</th>
-            <th className="hidden px-4 py-2 sm:table-cell">{t("repo_col_last_seen")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
+      <DataTable.Root wrapperClassName="rounded-none border-0">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("repo_col_test")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="hidden md:table-cell">{t("repo_col_suite")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("repo_col_recent_failures")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="hidden sm:table-cell">{t("repo_col_duration")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="hidden sm:table-cell">{t("repo_col_last_seen")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {payload.tests.map((test) => (
-            <tr className="text-gray-700 dark:text-gray-300" key={test.id}>
-              <td className="max-w-md px-4 py-3">
+            <DataTable.Row className="text-gray-700 dark:text-gray-300" key={test.id}>
+              <DataTable.Cell className="max-w-md">
                 <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}>
                   {test.name}
                 </Link>
@@ -119,19 +120,19 @@ function TestList({ error, isError, isFetching, payload, prefix, query, t }: { e
                   </div>
                 ) : null}
                 {test.file_path ? <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{test.file_path}</div> : null}
-              </td>
-              <td className="hidden max-w-xs truncate px-4 py-3 text-gray-500 dark:text-gray-400 md:table-cell" title={test.suite_name}>{test.suite_name}</td>
-              <td className="whitespace-nowrap px-4 py-3">
+              </DataTable.Cell>
+              <DataTable.Cell className="hidden max-w-xs truncate text-gray-500 dark:text-gray-400 md:table-cell" title={test.suite_name}>{test.suite_name}</DataTable.Cell>
+              <DataTable.Cell className="whitespace-nowrap">
                 <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${test.failed_count > 0 ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
                   {test.failed_count}/{test.total_count}
                 </span>
-              </td>
-              <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(test.avg_duration_ms)}</td>
-              <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}</td>
-            </tr>
+              </DataTable.Cell>
+              <DataTable.Cell className="hidden whitespace-nowrap text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(test.avg_duration_ms)}</DataTable.Cell>
+              <DataTable.Cell className="hidden whitespace-nowrap text-gray-500 dark:text-gray-400 sm:table-cell">{test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}</DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </DataTable.Root>
     </div>
   )
 }
@@ -166,20 +167,20 @@ function TestDetailPanel({ detail, error, isError, isPending, onPageChange, pref
       </section>
 
       <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-            <tr>
-              <th className="px-4 py-2">{t("repo_col_time")}</th>
-              <th className="px-4 py-2">{t("repo_col_status")}</th>
-              <th className="hidden px-4 py-2 sm:table-cell">{t("repo_col_duration")}</th>
-              <th className="px-4 py-2">{t("repo_col_run")}</th>
-              <th className="hidden px-4 py-2 lg:table-cell">{t("repo_col_failure")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
+        <DataTable.Root wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("repo_col_time")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("repo_col_status")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="hidden sm:table-cell">{t("repo_col_duration")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("repo_col_run")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="hidden lg:table-cell">{t("repo_col_failure")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {detail.history.map((item) => <HistoryRow item={item} key={item.id} prefix={prefix} />)}
-          </tbody>
-        </table>
+          </DataTable.Body>
+        </DataTable.Root>
         <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} t={t} />
       </section>
     </div>
@@ -209,16 +210,16 @@ function HistoryPagination({ onPageChange, pagination, t }: { onPageChange: (pag
 
 function HistoryRow({ item, prefix }: { item: RepositoryTestHistoryItem; prefix: string }) {
   return (
-    <tr className="text-gray-700 dark:text-gray-300">
-      <td className="whitespace-nowrap px-4 py-3">{item.created_at ? <RelativeTimestamp value={item.created_at} /> : "—"}</td>
-      <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
-      <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(item.duration_ms)}</td>
-      <td className="px-4 py-3">
+    <DataTable.Row className="text-gray-700 dark:text-gray-300">
+      <DataTable.Cell className="whitespace-nowrap">{item.created_at ? <RelativeTimestamp value={item.created_at} /> : "—"}</DataTable.Cell>
+      <DataTable.Cell><StatusBadge status={item.status} /></DataTable.Cell>
+      <DataTable.Cell className="hidden whitespace-nowrap text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(item.duration_ms)}</DataTable.Cell>
+      <DataTable.Cell>
         <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(item.run.path, prefix)}>{item.run.slug}</Link>
         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.job.slug} · {item.grader_name}</div>
-      </td>
-      <td className="hidden max-w-md truncate px-4 py-3 text-gray-500 dark:text-gray-400 lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</td>
-    </tr>
+      </DataTable.Cell>
+      <DataTable.Cell className="hidden max-w-md truncate text-gray-500 dark:text-gray-400 lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</DataTable.Cell>
+    </DataTable.Row>
   )
 }
 

@@ -12,6 +12,12 @@ export { PageHeading, SectionHeading } from "../Heading"
 export { Cluster, Inline, Stack, Toolbar } from "./Layout"
 export type { ClusterProps, InlineProps, LayoutAlign, LayoutGap, LayoutJustify, StackProps, ToolbarProps } from "./Layout"
 
+export { DataTable } from "./DataTable"
+export type { DataTableAlign, DataTableCellProps, DataTableDensity, DataTableEmptyProps, DataTableHeadCellProps, DataTableRootProps, DataTableRowProps, DataTableSortDirection } from "./DataTable"
+
+export { DescriptionList } from "./DescriptionList"
+export type { DescriptionListDensity, DescriptionListItemProps, DescriptionListRootProps } from "./DescriptionList"
+
 export { LinkText, linkTextClasses } from "./LinkText"
 export type { LinkTextProps } from "./LinkText"
 

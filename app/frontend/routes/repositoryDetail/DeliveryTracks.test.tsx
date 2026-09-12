@@ -71,6 +71,7 @@ describe("DeliveryTracksSection", () => {
     expect(screen.getByText("2")).toBeInTheDocument()
     expect(screen.getByText("healthy")).toBeInTheDocument()
     expect(screen.getByText(/develop.*main/)).toBeInTheDocument()
+    expect(screen.getAllByRole("table")[0].parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
   })
 
   it("renders ref-movement action availability and blocked reasons", () => {

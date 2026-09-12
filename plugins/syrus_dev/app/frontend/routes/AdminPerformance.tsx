@@ -4,6 +4,7 @@ import { explainSql, fetchAdminPerformance, type AdminPerformancePayload, type B
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
+import { DataTable, DescriptionList } from "@app/components/ui"
 
 type RevisionScope = "current" | "all"
 type PerformanceTab = "overview" | "browser" | "requests" | "jobs" | "sql" | "phases" | "events"
@@ -130,36 +131,36 @@ function RegressionTable({ payload }: { payload: AdminPerformancePayload }) {
 
   return (
     <TableSection empty={payload.baseline?.revision ? t("performance.no_regressions") : t("performance.no_baseline")} rowCount={rows.length} title={title}>
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("performance.col_kind")}</th>
-            <th className="px-4 py-2">{t("performance.col_item")}</th>
-            <th className="px-4 py-2">{t("performance.col_status")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_current")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_baseline")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_delta")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <PerformanceDataTable>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("performance.col_kind")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_item")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_status")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_current")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_baseline")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_delta")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map((row) => (
-            <tr key={`${row.kind}-${row.key}`}>
-              <td className="whitespace-nowrap px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300">{row.kind}</td>
-              <td className="max-w-3xl px-4 py-2 font-mono text-xs text-gray-900 dark:text-gray-100">
+            <DataTable.Row key={`${row.kind}-${row.key}`}>
+              <DataTable.Cell className="whitespace-nowrap font-medium text-gray-600 dark:text-gray-300">{row.kind}</DataTable.Cell>
+              <DataTable.Cell className="max-w-3xl font-mono text-gray-900 dark:text-gray-100">
                 <div className="truncate" title={row.label}>{row.label}</div>
-              </td>
-              <td className="whitespace-nowrap px-4 py-2 text-xs">
+              </DataTable.Cell>
+              <DataTable.Cell className="whitespace-nowrap">
                 <span className={comparisonPillClass(row.status)}>{row.status}</span>
-              </td>
+              </DataTable.Cell>
               <NumberCell value={formatMs(row.current_average_duration_ms)} />
               <NumberCell value={formatMs(row.baseline_average_duration_ms)} />
               <NumberCell value={formatDelta(row)} />
               <NumberCell value={`${row.current_count} / ${row.baseline_count ?? "-"}`} />
-            </tr>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </PerformanceDataTable>
     </TableSection>
   )
 }
@@ -180,41 +181,41 @@ function SlowRequestsTable({ onInspect, rows }: { onInspect: (row: SlowRequestSu
   const { t } = useT("syrus_dev")
   return (
     <TableSection empty={t("performance.no_slow_requests")} rowCount={rows.length} title={t("performance.slow_requests")}>
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("performance.col_request")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_total")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_avg")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_max")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_sql")}</th>
-            <th className="px-4 py-2">{t("performance.col_last_seen")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_actions")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <PerformanceDataTable>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("performance.col_request")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_sql")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_last_seen")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_actions")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map((row) => (
-            <tr key={`${row.method}-${row.path}-${row.controller}-${row.action}`}>
-              <td className="max-w-xl px-4 py-2">
+            <DataTable.Row key={`${row.method}-${row.path}-${row.controller}-${row.action}`}>
+              <DataTable.Cell className="max-w-xl">
                 <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.method} {row.path}</div>
                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{row.controller}#{row.action}</div>
-              </td>
+              </DataTable.Cell>
               <NumberCell value={row.count} />
               <NumberCell value={formatMs(row.total_duration_ms)} />
               <NumberCell value={formatMs(row.average_duration_ms)} />
               <NumberCell value={formatMs(row.max_duration_ms)} />
               <NumberCell value={`${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}`} />
-              <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
-              <td className="whitespace-nowrap px-4 py-2 text-right">
+              <DataTable.Cell className="text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</DataTable.Cell>
+              <DataTable.Cell align="right" className="whitespace-nowrap">
                 <button className={smallActionClass()} onClick={() => onInspect(row)} type="button">
                   {t("performance.details")}
                 </button>
-              </td>
-            </tr>
+              </DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </PerformanceDataTable>
     </TableSection>
   )
 }
@@ -223,39 +224,39 @@ function SlowJobsTable({ rows }: { rows: SlowJobSummary[] }) {
   const { t } = useT("syrus_dev")
   return (
     <TableSection empty={t("performance.no_slow_jobs")} rowCount={rows.length} title={t("performance.slow_jobs")}>
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("performance.col_job")}</th>
-            <th className="px-4 py-2">{t("performance.col_queue")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_total")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_avg")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_max")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_sql")}</th>
-            <th className="px-4 py-2">{t("performance.col_recent_job")}</th>
-            <th className="px-4 py-2">{t("performance.col_last_seen")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <PerformanceDataTable>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("performance.col_job")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_queue")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_sql")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_recent_job")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_last_seen")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map((row) => (
-            <tr key={`${row.job_class}-${row.queue_name}`}>
-              <td className="max-w-xl px-4 py-2">
+            <DataTable.Row key={`${row.job_class}-${row.queue_name}`}>
+              <DataTable.Cell className="max-w-xl">
                 <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.job_class ?? "-"}</div>
                 {row.recent_trigger_reasons?.length ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("performance.triggered_by", { reasons: row.recent_trigger_reasons.join(", ") })}</div> : null}
-              </td>
-              <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{row.queue_name ?? "-"}</td>
+              </DataTable.Cell>
+              <DataTable.Cell className="whitespace-nowrap font-mono text-gray-600 dark:text-gray-300">{row.queue_name ?? "-"}</DataTable.Cell>
               <NumberCell value={row.count} />
               <NumberCell value={formatMs(row.total_duration_ms)} />
               <NumberCell value={formatMs(row.average_duration_ms)} />
               <NumberCell value={formatMs(row.max_duration_ms)} />
               <NumberCell value={`${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}`} />
-              <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{row.recent_active_job_id ?? "-"}</td>
-              <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
-            </tr>
+              <DataTable.Cell className="whitespace-nowrap font-mono text-gray-600 dark:text-gray-300">{row.recent_active_job_id ?? "-"}</DataTable.Cell>
+              <DataTable.Cell className="whitespace-nowrap text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </PerformanceDataTable>
     </TableSection>
   )
 }
@@ -347,42 +348,42 @@ function RequestSqlTable({ fingerprints, onExplain }: { fingerprints: NonNullabl
   if (fingerprints.length === 0) return <PanelMessage>{t("performance.request_sql_no_fingerprints")}</PanelMessage>
 
   return (
-    <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-      <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-        <tr>
-          <th className="px-4 py-2">{t("performance.col_sql")}</th>
-          <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
-          <th className="px-4 py-2 text-right">{t("performance.col_total")}</th>
-          <th className="px-4 py-2 text-right">{t("performance.col_avg")}</th>
-          <th className="px-4 py-2 text-right">{t("performance.col_max")}</th>
-          <th className="px-4 py-2 text-right">{t("performance.col_actions")}</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <PerformanceDataTable>
+      <DataTable.Header>
+        <DataTable.Row>
+          <DataTable.HeadCell>{t("performance.col_sql")}</DataTable.HeadCell>
+          <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
+          <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
+          <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
+          <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
+          <DataTable.HeadCell align="right">{t("performance.col_actions")}</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
         {fingerprints.map((row, index) => {
           const count = row.count ?? 0
           const total = row.total_duration_ms ?? null
           const average = total != null && count > 0 ? total / count : null
           return (
-            <tr key={`${row.fingerprint}-${index}`}>
-              <td className="max-w-4xl px-4 py-2">
+            <DataTable.Row key={`${row.fingerprint}-${index}`}>
+              <DataTable.Cell className="max-w-4xl">
                 <div className="text-xs font-medium text-gray-700 dark:text-gray-200">{row.name || t("performance.sql_unknown")}</div>
                 <div className="mt-1 max-h-20 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">{row.sample_sql || row.fingerprint}</div>
-              </td>
+              </DataTable.Cell>
               <NumberCell value={count || "-"} />
               <NumberCell value={formatMs(total)} />
               <NumberCell value={formatMs(average)} />
               <NumberCell value={formatMs(row.max_duration_ms)} />
-              <td className="whitespace-nowrap px-4 py-2 text-right">
+              <DataTable.Cell align="right" className="whitespace-nowrap">
                 <button className={smallActionClass()} disabled={!row.sample_sql} onClick={() => row.sample_sql && onExplain(row.sample_sql)} type="button">
                   {t("performance.explain")}
                 </button>
-              </td>
-            </tr>
+              </DataTable.Cell>
+            </DataTable.Row>
           )
         })}
-      </tbody>
-    </table>
+      </DataTable.Body>
+    </PerformanceDataTable>
   )
 }
 
@@ -390,37 +391,37 @@ function SlowPhasesTable({ rows }: { rows: SlowPhaseSummary[] }) {
   const { t } = useT("syrus_dev")
   return (
     <TableSection empty={t("performance.no_slow_phases")} rowCount={rows.length} title={t("performance.slow_phases")}>
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("performance.col_phase")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_total")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_avg")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_max")}</th>
-            <th className="px-4 py-2">{t("performance.col_metadata")}</th>
-            <th className="px-4 py-2">{t("performance.col_last_seen")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <PerformanceDataTable>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("performance.col_phase")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_metadata")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_last_seen")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map((row) => {
             const metadata = compactJson(row.recent_metadata)
             return (
-              <tr key={row.phase}>
-                <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-gray-100">{row.phase}</td>
+              <DataTable.Row key={row.phase}>
+                <DataTable.Cell className="font-mono text-gray-900 dark:text-gray-100">{row.phase}</DataTable.Cell>
                 <NumberCell value={row.count} />
                 <NumberCell value={formatMs(row.total_duration_ms)} />
                 <NumberCell value={formatMs(row.average_duration_ms)} />
                 <NumberCell value={formatMs(row.max_duration_ms)} />
-                <td className="max-w-md overflow-hidden px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">
+                <DataTable.Cell className="max-w-md overflow-hidden font-mono text-gray-600 dark:text-gray-300">
                   <div className="truncate" title={metadata !== "-" ? metadata : undefined}>{metadata}</div>
-                </td>
-                <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
-              </tr>
+                </DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</DataTable.Cell>
+              </DataTable.Row>
             )
           })}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </PerformanceDataTable>
     </TableSection>
   )
 }
@@ -429,29 +430,29 @@ function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTrace
   const { t } = useT("syrus_dev")
   return (
     <TableSection empty={t("performance.no_browser_traces")} rowCount={rows.length} title={t("performance.browser_traces")}>
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("performance.col_trace")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_browser_total")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_browser_avg")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_browser_max")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_backend_api")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_frontend_overhead")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_spans")}</th>
-            <th className="px-4 py-2">{t("performance.col_request_ids")}</th>
-            <th className="px-4 py-2">{t("performance.col_last_seen")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_actions")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <PerformanceDataTable>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("performance.col_trace")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_browser_total")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_browser_avg")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_browser_max")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_backend_api")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_frontend_overhead")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_spans")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_request_ids")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_last_seen")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_actions")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map((row) => (
-            <tr key={`${row.name}-${row.path}`}>
-              <td className="max-w-xl px-4 py-2">
+            <DataTable.Row key={`${row.name}-${row.path}`}>
+              <DataTable.Cell className="max-w-xl">
                 <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.name}</div>
                 <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400" title={row.path ?? undefined}>{row.path ?? "-"}</div>
-              </td>
+              </DataTable.Cell>
               <NumberCell value={row.count} />
               <NumberCell value={formatMs(row.total_duration_ms)} />
               <NumberCell value={formatMs(row.average_duration_ms)} />
@@ -459,19 +460,19 @@ function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTrace
               <NumberCell value={`${formatMs(row.average_api_duration_ms)} / ${formatMs(row.max_api_duration_ms)}`} />
               <NumberCell value={`${formatMs(frontendOverhead(row.average_duration_ms, row.average_api_duration_ms))} / ${formatMs(frontendOverhead(row.max_duration_ms, row.max_api_duration_ms))}`} />
               <NumberCell value={`${formatMs(row.average_span_duration_ms)} / ${formatMs(row.max_span_duration_ms)}`} />
-              <td className="max-w-md px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">
+              <DataTable.Cell className="max-w-md font-mono text-gray-600 dark:text-gray-300">
                 <div className="truncate" title={row.recent_api_request_ids.join(", ")}>{row.recent_api_request_ids.join(", ") || "-"}</div>
-              </td>
-              <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
-              <td className="whitespace-nowrap px-4 py-2 text-right">
+              </DataTable.Cell>
+              <DataTable.Cell className="whitespace-nowrap text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</DataTable.Cell>
+              <DataTable.Cell align="right" className="whitespace-nowrap">
                 <button aria-label={t("performance.browser_trace_details_action", { name: row.name })} className={smallActionClass()} onClick={() => onInspect(row)} type="button">
                   {t("performance.details")}
                 </button>
-              </td>
-            </tr>
+              </DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </PerformanceDataTable>
     </TableSection>
   )
 }
@@ -555,29 +556,29 @@ function SqlFingerprintsTable({ onExplain, rows }: { onExplain: (sql: string) =>
   const { t } = useT("syrus_dev")
   return (
     <TableSection empty={t("performance.no_sql")} rowCount={rows.length} title={t("performance.sql_fingerprints")}>
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("performance.col_sql")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_total")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_avg")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_max")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_actions")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <PerformanceDataTable>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("performance.col_sql")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_count")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_total")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_avg")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_max")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_actions")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map((row) => (
-            <tr key={row.fingerprint}>
-              <td className="max-w-4xl px-4 py-2">
+            <DataTable.Row key={row.fingerprint}>
+              <DataTable.Cell className="max-w-4xl">
                 <div className="text-xs font-medium text-gray-700 dark:text-gray-200">{row.name || t("performance.sql_unknown")}</div>
                 <div className="mt-1 max-h-16 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">{row.sample_sql || row.fingerprint}</div>
-              </td>
+              </DataTable.Cell>
               <NumberCell value={row.count} />
               <NumberCell value={formatMs(row.total_duration_ms)} />
               <NumberCell value={formatMs(row.average_duration_ms)} />
               <NumberCell value={formatMs(row.max_duration_ms)} />
-              <td className="whitespace-nowrap px-4 py-2 text-right">
+              <DataTable.Cell align="right" className="whitespace-nowrap">
                 <button
                   className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
                   disabled={!row.sample_sql}
@@ -586,11 +587,11 @@ function SqlFingerprintsTable({ onExplain, rows }: { onExplain: (sql: string) =>
                 >
                   {t("performance.explain")}
                 </button>
-              </td>
-            </tr>
+              </DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </PerformanceDataTable>
     </TableSection>
   )
 }
@@ -685,34 +686,34 @@ function EventsTable({ rows }: { rows: PerformanceEvent[] }) {
   const { t } = useT("syrus_dev")
   return (
     <TableSection empty={t("performance.no_events")} rowCount={rows.length} title={t("performance.recent_events")}>
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("performance.col_time")}</th>
-            <th className="px-4 py-2">{t("performance.col_revision")}</th>
-            <th className="px-4 py-2">{t("performance.col_event")}</th>
-            <th className="px-4 py-2 text-right">{t("performance.col_duration")}</th>
-            <th className="px-4 py-2">{t("performance.col_context")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+      <PerformanceDataTable>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("performance.col_time")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_revision")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_event")}</DataTable.HeadCell>
+            <DataTable.HeadCell align="right">{t("performance.col_duration")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("performance.col_context")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {rows.map((row, index) => (
-            <tr key={`${row.occurred_at}-${row.event}-${index}`}>
-              <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.occurred_at)}</td>
-              <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{shortRevision(row.app_revision)}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-gray-100">{shortEvent(row.event)}</td>
+            <DataTable.Row key={`${row.occurred_at}-${row.event}-${index}`}>
+              <DataTable.Cell className="whitespace-nowrap text-gray-600 dark:text-gray-300">{formatDate(row.occurred_at)}</DataTable.Cell>
+              <DataTable.Cell className="whitespace-nowrap font-mono text-gray-600 dark:text-gray-300">{shortRevision(row.app_revision)}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-gray-900 dark:text-gray-100">{shortEvent(row.event)}</DataTable.Cell>
               <NumberCell value={formatMs(row.duration_ms)} />
-              <td className="max-w-4xl px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
+              <DataTable.Cell className="max-w-4xl text-gray-600 dark:text-gray-300">
                 <div className="font-mono">{row.phase || row.path || row.job_class || row.name || row.fingerprint || "-"}</div>
                 {row.queue_name ? <div className="mt-1">{t("performance.job_context", { queue: row.queue_name, active_job_id: row.active_job_id || "-" })}</div> : null}
                 {row.trigger_reasons?.length ? <div className="mt-1">{t("performance.triggered_by", { reasons: row.trigger_reasons.join(", ") })}</div> : null}
                 {row.sql_count != null ? <div className="mt-1">{t("performance.sql_context", { count: row.sql_count, duration: formatMs(row.sql_duration_ms) })}</div> : null}
                 {row.api_requests?.length ? <div className="mt-1">{t("performance.browser_api_context", { count: row.api_requests.length, ids: row.api_requests.map((request) => request.request_id).filter(Boolean).join(", ") || "-" })}</div> : null}
-              </td>
-            </tr>
+              </DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
+        </DataTable.Body>
+      </PerformanceDataTable>
     </TableSection>
   )
 }
@@ -756,14 +757,13 @@ function PlanNodeCard({ depth = 0, node }: { depth?: number; node: PlanNode }) {
           <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium uppercase dark:bg-black/20">{node.risk}</span>
         </div>
         {node.metrics.length > 0 ? (
-          <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <DescriptionList.Root className="mt-3 sm:grid-cols-2 lg:grid-cols-4" density="compact">
             {node.metrics.map(([label, value]) => (
-              <div className="rounded bg-white/70 px-2 py-1 dark:bg-black/20" key={label}>
-                <dt className="text-[11px] uppercase opacity-70">{label}</dt>
-                <dd className="mt-0.5 break-words font-mono text-xs">{value ?? "-"}</dd>
-              </div>
+              <DescriptionList.Item className="rounded bg-white/70 px-2 py-1 dark:bg-black/20" descriptionClassName="break-words font-mono text-xs" key={label} label={label} termClassName="text-[11px] opacity-70">
+                {value ?? "-"}
+              </DescriptionList.Item>
             ))}
-          </dl>
+          </DescriptionList.Root>
         ) : null}
       </article>
       {node.children.length > 0 ? (
@@ -781,20 +781,18 @@ function ExplainRowsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
   if (rows.length === 0 || columns.length === 0) return <PanelMessage>{t("performance.explain_no_rows")}</PanelMessage>
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="min-w-full divide-y divide-gray-200 text-xs dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>{columns.map((column) => <th className="px-3 py-2" key={column}>{column}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root className="text-xs" density="compact">
+      <DataTable.Header>
+        <DataTable.Row>{columns.map((column) => <DataTable.HeadCell key={column}>{column}</DataTable.HeadCell>)}</DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
           {rows.map((row, index) => (
-            <tr key={index}>
-              {columns.map((column) => <td className="max-w-xl whitespace-pre-wrap break-words px-3 py-2 font-mono text-gray-700 dark:text-gray-200" key={column}>{stringValue(row[column])}</td>)}
-            </tr>
+            <DataTable.Row key={index}>
+              {columns.map((column) => <DataTable.Cell className="max-w-xl whitespace-pre-wrap break-words font-mono text-gray-700 dark:text-gray-200" key={column}>{stringValue(row[column])}</DataTable.Cell>)}
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </div>
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 
@@ -957,7 +955,7 @@ function TableSection({ children, empty, rowCount, title }: { children: ReactNod
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">{title}</div>
-      {rowCount > 0 ? <div className="overflow-x-auto">{children}</div> : <PanelMessage>{empty}</PanelMessage>}
+      {rowCount > 0 ? children : <PanelMessage>{empty}</PanelMessage>}
     </section>
   )
 }
@@ -967,20 +965,18 @@ function SimpleRowsTable({ empty, rows }: { empty: string; rows: Array<Record<st
   if (rows.length === 0 || columns.length === 0) return <PanelMessage>{empty}</PanelMessage>
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>{columns.map((column) => <th className="px-4 py-2" key={column}>{column}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+    <DataTable.Root density="compact">
+      <DataTable.Header>
+        <DataTable.Row>{columns.map((column) => <DataTable.HeadCell key={column}>{column}</DataTable.HeadCell>)}</DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
           {rows.map((row, index) => (
-            <tr key={index}>
-              {columns.map((column) => <td className="max-w-3xl break-words px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200" key={column}>{row[column]}</td>)}
-            </tr>
+            <DataTable.Row key={index}>
+              {columns.map((column) => <DataTable.Cell className="max-w-3xl break-words font-mono text-gray-700 dark:text-gray-200" key={column}>{row[column]}</DataTable.Cell>)}
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </div>
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 
@@ -1001,7 +997,15 @@ function Metric({ context, title, tone = "idle", value }: { context?: string; ti
 }
 
 function NumberCell({ value }: { value: ReactNode }) {
-  return <td className="whitespace-nowrap px-4 py-2 text-right font-mono text-xs text-gray-700 dark:text-gray-200">{value}</td>
+  return <DataTable.Cell align="right" className="whitespace-nowrap font-mono text-gray-700 dark:text-gray-200">{value}</DataTable.Cell>
+}
+
+function PerformanceDataTable({ children }: { children: ReactNode }) {
+  return (
+    <DataTable.Root density="compact" wrapperClassName="rounded-none border-0">
+      {children}
+    </DataTable.Root>
+  )
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
