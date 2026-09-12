@@ -192,6 +192,50 @@ describe("AccountSettings form primitives", () => {
     expect(screen.getByText("Profile bio")).toHaveAttribute("for", bio.id)
   })
 
+  it("submits the same profile payload fields through the migrated form primitives", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/credentials" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(credentialsPayload({ message: "Credentials updated." })))
+      }
+
+      return Promise.resolve(jsonResponse(credentialsPayload()))
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <AccountProfileRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: "Ada Operator" } })
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Ada" } })
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Operator" } })
+    fireEvent.change(screen.getByLabelText("Company"), { target: { value: "Analytical Engines" } })
+    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "London" } })
+    fireEvent.change(screen.getByLabelText("Website"), { target: { value: "https://example.com" } })
+    fireEvent.change(screen.getByLabelText("GitHub handle"), { target: { value: "ada" } })
+    fireEvent.change(screen.getByLabelText("Avatar URL"), { target: { value: "https://example.com/avatar.png" } })
+    fireEvent.change(screen.getByLabelText("Profile bio"), { target: { value: "Keeps forms honest." } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
+      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
+        name: "Ada Operator",
+        first_name: "Ada",
+        last_name: "Operator",
+        profile_company: "Analytical Engines",
+        profile_location: "London",
+        profile_website: "https://example.com",
+        github_handle: "ada",
+        avatar_url: "https://example.com/avatar.png",
+        profile_bio: "Keeps forms honest."
+      }))
+    })
+  })
+
   it("describes agent settings with Form help text", async () => {
     renderRoute(credentialsPayload(), <AgentSettingsRoute />)
 
