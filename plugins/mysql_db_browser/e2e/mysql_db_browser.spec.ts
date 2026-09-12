@@ -171,12 +171,35 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
   await page.goto("/db_browser")
   await expect(page.getByRole("heading", { name: "DB Browser" })).toBeVisible()
 
-  await page.getByLabel("Label", { exact: true }).fill(connectionLabel)
+  const labelInput = page.getByLabel("Label", { exact: true })
+  await expect(labelInput).toHaveAttribute("id", /.+/)
+  const labelInputId = await labelInput.getAttribute("id")
+  await expect(page.locator(`label[for="${labelInputId}"]`)).toHaveText("Label")
+  await expect(page.getByLabel("Allow agentic query access")).toBeVisible()
+  await expect(page.getByText("Lets workflow and chat agents browse this connection's schema and run queries against it")).toBeVisible()
+
+  await labelInput.fill(connectionLabel)
   await page.getByLabel("Host", { exact: true }).fill("127.0.0.1")
   await page.getByLabel("Port", { exact: true }).fill("3306")
   await page.getByLabel("Username", { exact: true }).fill("reporting")
   await page.getByLabel("Password", { exact: true }).fill("not-a-real-password")
+  const createRequest = page.waitForRequest((request) => (
+    request.method() === "POST" &&
+    new URL(request.url()).pathname === "/api/v1/app/admin/mysql_connections"
+  ))
   await page.getByRole("button", { name: "Add connection", exact: true }).click()
+  expect((await createRequest).postDataJSON()).toEqual({
+    mysql_connection: {
+      label: connectionLabel,
+      host: "127.0.0.1",
+      port: 3306,
+      username: "reporting",
+      default_database: "",
+      agentic_access_enabled: false,
+      allow_writes: false,
+      password: "not-a-real-password"
+    }
+  })
 
   const connectionRow = page.getByRole("row", { name: new RegExp(connectionLabel) })
   await expect(connectionRow).toBeVisible()
