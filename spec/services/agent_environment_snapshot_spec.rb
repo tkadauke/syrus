@@ -272,7 +272,7 @@ RSpec.describe AgentEnvironmentSnapshot do
       register_real_ruby_and_javascript_plugins
       @workspace_path.join("Gemfile").write("")
       @workspace_path.join("package.json").write("{}")
-      PluginRecord.find_by!(name: "ruby").update!(enabled: false)
+      PluginRecord.find_or_create_by!(name: "ruby").update!(enabled: false)
 
       snapshot = snapshot_for_workspace
 
@@ -335,6 +335,21 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include("last_failure=npm ci failed")
     ensure
       feature&.update!(enabled: previous_enabled)
+    end
+
+    it "renders Local Mode tool routing instead of proposal drafting guidance" do
+      repo = repository(owner: "rome", name: "forums", default_branch: "trunk")
+      chat = ChatSession.create!(user: repo.user, repository: repo, mode: "local")
+
+      snapshot = described_class.for_chat(repository: repo, chat_session: chat)
+
+      expect(snapshot).to include("Local Mode tools can read and write the connected local repository")
+      expect(snapshot).to include("create a coding Job with `create_coding_job`")
+      expect(snapshot).to include("the connected local repository is writable through Local Mode tools")
+      expect(snapshot).to include("do not draft proposals for Local Mode work unless the operator explicitly asks")
+      expect(snapshot).not_to include("draft proposals or schedules for operator confirmation")
+      expect(snapshot).not_to include("attached checkouts under `/syrus-home/.syrus/chat-workspaces/*/repositories/` are read-only")
+      expect(snapshot).not_to include("Propose Syrus Jobs or Epics for code changes")
     end
 
     it "renders confirmed proposal activity with canonical Syrus IDs" do

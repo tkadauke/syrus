@@ -119,6 +119,23 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("submit_chat_feedback")
   end
 
+  it "tells Local Mode chats to route local job phrases to create_coding_job" do
+    chat = ChatSession.create!(user: repo.user, repository: repo, mode: "local")
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("## Local Mode")
+    expect(out).to include('"local job", "do a local job", "make a local job", "start a local job", and "minimal local job"')
+    expect(out).to include("create a new coding Job with `create_coding_job`")
+    expect(out).to include("Do not route those requests to `propose_job`")
+    expect(out).to include("`propose_job` is the exception path in Local Mode, not the default")
+    expect(out).to include("only when the operator explicitly asks for a proposal, draft, proposal card,\nor review-before-implementation artifact")
+    expect(out).not_to include("The durable products of this session are proposals")
+    expect(out).not_to include("Use `propose_job` for direct Syrus Job creation")
+    expect(out).not_to include("What \"proposing\" means:")
+    expect(out).not_to include("draft proposals, schedules, bookmarks, or whiteboard edits")
+  end
+
   it "instructs admin chats to diagnose before requesting repair actions" do
     admin = Factories.user(admin: true)
     chat = ChatSession.create!(user: admin, system_kind: "supervisor")
@@ -565,6 +582,13 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Local Mode is intentionally powerful")
     expect(out).to include("Never push, force-push, delete branches, rewrite history, or publish local")
     expect(out).to include("complete_implement_step` creates an operator confirmation action")
+    expect(out).to include("You are Syrus Chat in Local Mode")
+    expect(out).to include("Local Mode tools can read and write the connected local repository")
+    expect(out).to include("The durable product of Local Mode is the chat record")
+    expect(out).not_to include("you're the planning surface")
+    expect(out).not_to include("Attached repository checkouts are READ-ONLY for you.")
+    expect(out).not_to include("No\ncommit or push tool is available")
+    expect(out).not_to include("propose a Syrus Job or Epic and wait for the operator to confirm it")
   end
 
   it "omits Local Mode guidance when the chat session has no mode" do

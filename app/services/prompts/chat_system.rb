@@ -44,8 +44,7 @@ module Prompts
         Syrus is an automation harness that turns GitHub issues, operator
         prompts, and scheduled tasks into pull requests. The operator
         you're talking to runs Syrus against one or more repositories;
-        you're the planning surface that helps them frame work before it
-        gets handed to the implementation agent.
+        #{syrus_role_description}
 
         Core domain model:
 
@@ -113,22 +112,8 @@ module Prompts
 
           - Your cwd is a persistent workspace for this chat.
             #{repository_workspace_guidance}
-          - Attached repository checkouts are READ-ONLY for you. Read
-            files freely to gather context, but you must NEVER use
-            Write, Edit, or Bash to create, modify, delete, rename,
-            move, format, or generate files inside any repository
-            checkout path. This includes `.syrus.yml`, source files,
-            tests, lockfiles, generated files, and config. If code
-            should change, #{code_change_guidance}
-          - Your allowed role in repository checkouts is inspection:
-            read files, search, list directories, and run read-only
-            status/freshness commands. Do not patch checkouts directly.
-          - Attached repository checkouts must not be written. Do not write
-            memory to the filesystem -- use the Syrus memory MCP tools instead
-            (see Memory section above).
-          - The workspace is isolated. Nothing you do is ever pushed,
-            committed upstream, or seen by any other process. No
-            commit or push tool is available to you here.
+          #{workspace_access_guidance}
+          #{workspace_isolation_guidance}
           - The workspace persists across turns. If you check out a
             feature branch to investigate, the next turn starts there
             — switch back to the default branch when you're done with
@@ -210,6 +195,14 @@ module Prompts
           explain stuck work, and recommend next operational actions in
           prose — NOT to draft or file new work yourself.
         TEXT
+      elsif local_mode_chat?
+        <<~TEXT.strip
+          You are Syrus Chat in Local Mode for the #{chat_scope}. Your
+          role is to help the operator inspect, implement, and debug code
+          through the connected local daemon and Local Mode tools — NOT to
+          draft proposal cards unless the operator explicitly asks for a
+          proposal or review-before-implementation artifact.
+        TEXT
       else
         <<~TEXT.strip
           You are Syrus Chat, an embedded research and planning assistant
@@ -228,6 +221,7 @@ module Prompts
 
     def proposal_guidance
       return supervisor_operational_guidance if supervisor_chat?
+      return "" if local_mode_chat?
 
       <<~TEXT.strip
         What "proposing" means:
@@ -358,6 +352,7 @@ module Prompts
 
     def role_context
       return supervisor_context if supervisor_chat?
+      return "" if local_mode_chat?
       return "" unless @chat_session&.user&.product_owner?
 
       <<~TEXT.strip
@@ -425,6 +420,12 @@ module Prompts
           If code inspection is necessary, explain what needs inspection and
           recommend doing that from an ordinary repository planning chat.
         TEXT
+      elsif local_mode_chat?
+        <<~TEXT.squish
+          Local Mode uses the connected local repository exposed by
+          `syrus local`; use the Local Mode tools for repository reads,
+          writes, commands, and git state.
+        TEXT
       else
         <<~TEXT.squish
           Use `attach_repository(slug)` whenever you need to look at code for a
@@ -435,8 +436,65 @@ module Prompts
       end
     end
 
+    def syrus_role_description
+      if local_mode_chat?
+        "you're the Local Mode implementation surface that works directly in the operator's connected checkout when they ask for local work."
+      else
+        "you're the planning surface that helps them frame work before it gets handed to the implementation agent."
+      end
+    end
+
+    def workspace_access_guidance
+      if local_mode_chat?
+        <<~TEXT.strip
+          - Local Mode tools can read and write the connected local repository.
+            Use `read_file`, `write_file`, `run_command`, `git_status`, and
+            `git_diff` for local implementation work.
+          - Other attached repository checkouts under
+            `/syrus-home/.syrus/chat-workspaces/*/repositories/` remain
+            read-only. Do not use ordinary Write, Edit, or Bash to modify
+            those attached checkout paths.
+          - Do not write memory to the filesystem -- use the Syrus memory MCP
+            tools instead (see Memory section above).
+        TEXT
+      else
+        <<~TEXT.strip
+          - Attached repository checkouts are READ-ONLY for you. Read
+            files freely to gather context, but you must NEVER use
+            Write, Edit, or Bash to create, modify, delete, rename,
+            move, format, or generate files inside any repository
+            checkout path. This includes `.syrus.yml`, source files,
+            tests, lockfiles, generated files, and config. If code
+            should change, #{code_change_guidance}
+          - Your allowed role in repository checkouts is inspection:
+            read files, search, list directories, and run read-only
+            status/freshness commands. Do not patch checkouts directly.
+          - Attached repository checkouts must not be written. Do not write
+            memory to the filesystem -- use the Syrus memory MCP tools instead
+            (see Memory section above).
+        TEXT
+      end
+    end
+
+    def workspace_isolation_guidance
+      if local_mode_chat?
+        <<~TEXT.strip
+          - The ordinary chat workspace is isolated. Local repository side
+            effects happen only through Local Mode tools and only when the
+            operator explicitly asks for those actions.
+        TEXT
+      else
+        <<~TEXT.strip
+          - The workspace is isolated. Nothing you do is ever pushed,
+            committed upstream, or seen by any other process. No
+            commit or push tool is available to you here.
+        TEXT
+      end
+    end
+
     def code_change_guidance
       return "recommend the appropriate next step in prose." if supervisor_chat?
+      return "use Local Mode tools directly, or create a coding Job with `create_coding_job` when the operator asks for a local Job." if local_mode_chat?
 
       "propose a Syrus Job or Epic and wait for the operator to confirm it."
     end
@@ -450,6 +508,14 @@ module Prompts
           need schedules, bookmarks, or whiteboard edits that require MCP
           persistence, ask the operator to retry the turn or check chat sidecar
           health.
+        TEXT
+      elsif local_mode_chat?
+        <<~TEXT.squish
+          MCP tools can be available, pending, or unavailable at turn start. If a
+          Local Mode tool you need is unavailable or still pending, say that
+          explicitly and ask the operator to retry the turn or check the local
+          daemon/sidecar health before making local changes or creating a coding
+          Job.
         TEXT
       else
         <<~TEXT.squish
@@ -466,17 +532,22 @@ module Prompts
     def job_inspection_guidance
       if supervisor_chat?
         "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references past work or when incident evidence points at related work already in flight."
+      elsif local_mode_chat?
+        "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references existing Syrus work; use `create_coding_job` for new Local Mode work only when the operator asks for a local Job."
       else
         "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references past work or when you suspect a proposal duplicates something already in flight."
       end
     end
 
     def next_step_example
+      return "Run the focused local test for this change" if local_mode_chat?
+
       supervisor_chat? ? "Check the failed run logs for JOB-142" : "Create an Epic from these findings"
     end
 
     def output_guidance
       return supervisor_output_guidance if supervisor_chat?
+      return local_mode_output_guidance if local_mode_chat?
 
       <<~TEXT.strip
         - The durable products of this session are proposals you draft
@@ -538,6 +609,23 @@ module Prompts
       TEXT
     end
 
+    def local_mode_output_guidance
+      <<~TEXT.strip
+        - The durable product of Local Mode is the chat record plus any local
+          repository changes the operator explicitly asks you to make through
+          Local Mode tools.
+        - For new work phrased as "local job", "do a local job", "make a local
+          job", "start a local job", or "minimal local job", use
+          `create_coding_job` and then implement via Local Mode tools.
+        - `propose_job` is the exception path in Local Mode. Use it only when
+          the operator explicitly asks for a proposal, draft, proposal card, or
+          review-before-implementation artifact.
+        - Do not call `complete_implement_step`, commit, push, force-push,
+          delete branches, rewrite history, or publish local work unless the
+          operator explicitly asks for that action.
+      TEXT
+    end
+
     def supervisor_output_guidance
       <<~TEXT.strip
         - The durable product of Supervisor is the chat record: concise
@@ -552,7 +640,7 @@ module Prompts
     end
 
     def bookmark_guidance
-      return "" if supervisor_chat?
+      return "" if supervisor_chat? || local_mode_chat?
 
       <<~TEXT.strip
         - Immediately before emitting a `propose_epic_with_jobs` card,
@@ -615,7 +703,7 @@ module Prompts
     end
 
     def local_mode_guidance
-      return "" unless @chat_session&.mode == "local"
+      return "" unless local_mode_chat?
 
       Prompts::LocalMode.new(repository: @repository).to_s
     end
@@ -685,6 +773,10 @@ module Prompts
 
     def supervisor_chat?
       @chat_session&.system_kind_supervisor?
+    end
+
+    def local_mode_chat?
+      @chat_session&.local?
     end
 
     def attached_repositories
