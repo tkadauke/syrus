@@ -2,6 +2,10 @@ require "rails_helper"
 
 RSpec.describe "plugin admin page contracts" do
   it "declares installed admin pages with frontend, i18n, and SPA route metadata" do
+    if Syrus::PluginRegistry.boot_snapshot
+      Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot)
+    end
+
     manifests = Syrus::PluginRegistry.all_plugins
     admin_page_manifests = manifests.select { |manifest| manifest.provides.key?(:admin_page) }
 
