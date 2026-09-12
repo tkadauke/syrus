@@ -21,10 +21,13 @@ export type DesignDocSummary = {
   visibility: "private" | "public"
   state: "draft" | "accepted" | "archived"
   owner: DesignDocUser | null
+  collaborators: DesignDocUser[]
   repository_ids: number[]
   repositories: DesignDocRepository[]
+  comments_count: number
   current_version_number: number | null
   origin_chat_session_id: number | null
+  preview_text: string
   updated_at: string
   created_at: string
 }
@@ -162,6 +165,16 @@ export type DesignDocsIndexPayload = {
   active_smart_folder_id: number | null
   filter: Record<string, unknown>
   filter_schema: FilterSchemaField[]
+  preferences: {
+    visible_columns: string[]
+    raw: Record<string, unknown>
+  }
+  controls: {
+    columns: {
+      required: Array<{ key: string; title: string }>
+      optional: Array<{ key: string; title: string }>
+    }
+  }
   smart_folders: AdminSmartFolder[]
   design_docs: DesignDocSummary[]
 }
@@ -211,6 +224,10 @@ export type DesignDocInput = {
 
 export function fetchDesignDocs(search = "") {
   return getJson<DesignDocsIndexPayload>(`/api/v1/app/design_docs${search}`)
+}
+
+export function updateDesignDocPreferences(input: { visible_columns?: string[] }) {
+  return patchJson<{ message: string; preferences: DesignDocsIndexPayload["preferences"] }>("/api/v1/app/design_docs/preferences", { preferences: input })
 }
 
 export function fetchRepositoryDesignDocs(repositoryId: string | number, search = "") {

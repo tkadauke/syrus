@@ -41,7 +41,7 @@ module DesignDocs
       return { design_doc_ids: [], originated_design_doc_ids: [], attached_design_doc_ids: [], design_docs: [] } unless chat_session
 
       docs = visible_design_docs_for(chat_session)
-        .includes(:owner_user, :current_version, :repositories)
+        .includes(*DesignDoc.summary_associations)
         .newest_first
         .to_a
       originated_ids = docs.select { |doc| doc.origin_chat_session_id == chat_session.id }.map(&:id)

@@ -109,6 +109,74 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("smart_folders").map { |folder| folder.fetch("name") }).to include("My docs", "Recently updated")
   end
 
+  it "returns default configurable table columns and lightweight row summaries" do
+    doc = create_design_doc(title: "Table plan", markdown: "# Table plan\n\nDense index layout")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    doc.repositories << repository
+    ::DesignDocs::CreateComment.call(
+      design_doc: doc.reload,
+      user: owner,
+      attributes: { body: "Needs a table", start_offset: 0, end_offset: 12, selected_markdown: "# Table plan" }
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("controls", "columns", "required").map { |column| column.fetch("key") }).to eq([ "title" ])
+    expect(body.dig("controls", "columns", "optional").map { |column| column.fetch("key") }).to eq(%w[
+      doc_slug state repository owner collaborators comments latest_version updated_at actions
+    ])
+    expect(body.dig("preferences", "visible_columns")).to eq(%w[
+      title doc_slug state repository owner collaborators comments latest_version updated_at actions
+    ])
+    row = body.fetch("design_docs").find { |candidate| candidate.fetch("id") == doc.id }
+    expect(row).to include(
+      "display_id" => "DOC-#{doc.id}",
+      "comments_count" => 1,
+      "current_version_number" => 2,
+      "preview_text" => "Dense index layout"
+    )
+    expect(row.fetch("collaborators").map { |user| user.fetch("id") }).to eq([ collaborator.id ])
+  end
+
+  it "preloads summary associations for the index table instead of counting comments per row" do
+    docs = 3.times.map do |index|
+      doc = create_design_doc(title: "Indexed doc #{index}", markdown: "Body #{index}")
+      doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+      ::DesignDocs::CreateComment.call(
+        design_doc: doc.reload,
+        user: owner,
+        attributes: { body: "Comment #{index}", start_offset: 0, end_offset: 4, selected_markdown: "Body" }
+      )
+      doc
+    end
+    sign_in_as(owner)
+
+    queries = capture_sql { get "/api/v1/app/design_docs" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("design_docs").pluck("id")).to include(*docs.map(&:id))
+    comment_queries = queries.select { |sql| sql.match?(/\bFROM [`"]?design_doc_comments[`"]?/i) }
+    expect(comment_queries.size).to be <= 1
+    expect(queries.grep(/COUNT\(\*\).*design_doc_comments/i)).to be_empty
+  end
+
+  it "persists Design Docs visible column choices using dashboard preference storage" do
+    sign_in_as(owner)
+
+    patch "/api/v1/app/design_docs/preferences", params: {
+      preferences: {
+        visible_columns: %w[doc_slug state owner actions]
+      }
+    }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("preferences", "visible_columns")).to eq(%w[title doc_slug state owner actions])
+    expect(owner.reload.dashboard_preferences.dig("design_docs", "visible_columns")).to eq(%w[title doc_slug state owner actions])
+  end
+
   it "keeps archived docs out of the default list but visible through explicit state filters" do
     active = create_design_doc(title: "Active draft")
     archived = create_design_doc(title: "Archived draft", state: "archived")
