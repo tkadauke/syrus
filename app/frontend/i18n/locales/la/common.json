@@ -24,6 +24,9 @@
     "title": "Commentarium",
     "close": "Formam commentarii claudere",
     "comment": "Commentarium",
+    "edit": "Edere",
+    "delete": "Delere",
+    "edit_comment_aria": "Commentarium {{id}} edere",
     "create_comment": "Commentarium crea",
     "create_error": "Commentarium diff creari non potuit."
   },

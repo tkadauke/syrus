@@ -19,6 +19,8 @@
     "created": "Theme erstellt.",
     "saved": "Theme gespeichert.",
     "deleted": "Theme gelöscht.",
+    "confirm_delete": "{{name}} löschen?",
+    "default_name": "Eigenes Theme {{index}}",
     "order_saved": "Theme-Reihenfolge gespeichert.",
     "loading": "Themes werden geladen...",
     "error_load": "Themes konnten nicht geladen werden.",
