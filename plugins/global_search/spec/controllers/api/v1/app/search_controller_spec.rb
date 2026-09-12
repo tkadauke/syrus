@@ -5,31 +5,18 @@ RSpec.describe Api::V1::App::SearchController do
 
   before { allow(Current).to receive(:user).and_return(user) }
 
-  describe "SEARCH_ROWS_DISPATCH" do
-    it "maps each supported type to a private method" do
+  describe ".source_for" do
+    it "wraps each built-in type in the common source interface" do
       controller_instance = described_class.new
-      described_class::SEARCH_ROWS_DISPATCH.each do |type, method_name|
-        expect(controller_instance.respond_to?(method_name, true)).to be(true),
-          "expected #{described_class}##{method_name} to exist for type '#{type}'"
+
+      described_class::BUILT_IN_TYPES.each do |type|
+        source = described_class.source_for(type, controller: controller_instance)
+
+        expect(source).to respond_to(:search_rows)
+        expect(source).to respond_to(:row_id_key)
+        expect(source).to respond_to(:filtered_scope)
+        expect(source).to respond_to(:result_json)
       end
-    end
-
-    it "covers all declared TYPES" do
-      expect(described_class::SEARCH_ROWS_DISPATCH.keys).to match_array(described_class::BUILT_IN_TYPES)
-    end
-  end
-
-  describe "RESULT_JSON_DISPATCH" do
-    it "maps each supported type to a private method" do
-      controller_instance = described_class.new
-      described_class::RESULT_JSON_DISPATCH.each do |type, method_name|
-        expect(controller_instance.respond_to?(method_name, true)).to be(true),
-          "expected #{described_class}##{method_name} to exist for type '#{type}'"
-      end
-    end
-
-    it "covers all declared TYPES" do
-      expect(described_class::RESULT_JSON_DISPATCH.keys).to match_array(described_class::BUILT_IN_TYPES)
     end
   end
 
@@ -52,6 +39,7 @@ RSpec.describe Api::V1::App::SearchController do
 
       expect(described_class.types.last).to eq("widget")
       expect(described_class.filter_subjects["widget"]).to eq(:job)
+      expect(described_class.type_options.last).to eq(type: "widget", label: "Widgets")
     end
 
     it "drops a plugin type when the plugin is disabled" do
