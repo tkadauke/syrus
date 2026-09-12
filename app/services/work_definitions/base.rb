@@ -126,6 +126,7 @@ module WorkDefinitions
     def grader_fanout_changed_files_log(_workflow) = nil
     def grader_fanout_baseline_selection_reason(_workflow) = nil
     def grader_fanout_reuse_enabled?(_workflow) = true
+    def enforce_required_target_health_for_unaffected_graders?(_workflow) = false
     def record_grader_target_selection_inputs? = false
     def landing_lock? = kind.in?(LANDING_LOCK_KINDS)
     def requires_approval? = false
