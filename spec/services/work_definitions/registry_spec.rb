@@ -38,6 +38,29 @@ RSpec.describe WorkDefinitions do
     expect(child_definitions.map(&:new)).to all(have_attributes(parent_kind: be_present))
   end
 
+  it "records grader target selections for PR and landing validation workflows that CI repair may diagnose later" do
+    %w[
+      initial
+      retry
+      checkpoint_resume
+      pr_comment
+      chat_feedback
+      ci_failure
+      coding_handoff
+      local_mode_handoff
+      auto_merge
+      landing_validation
+      external_pr_merge
+      merge_train
+      merge_train_validation
+      job_bundle
+      job_bundle_validation
+      main_grader
+    ].each do |kind|
+      expect(described_class.for(kind).record_grader_target_selection_inputs?).to be(true), kind
+    end
+  end
+
   it "requires every work definition to declare scheduler policy hooks" do
     job = Factories.job_record
 
