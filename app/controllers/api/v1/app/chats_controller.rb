@@ -1726,7 +1726,6 @@ module Api
           {
             id: chat_session.id,
             title: chat_session.title,
-            title_pending: chat_session.title.blank? && chat_session.title_pending?,
             system_kind: chat_session.system_kind,
             pinned: chat_session.pinned?,
             pinned_context: chat_session.pinned_context,
