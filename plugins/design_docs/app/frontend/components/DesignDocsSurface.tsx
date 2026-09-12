@@ -72,6 +72,7 @@ type AnchorHighlight = {
 type RailEntry =
   | { kind: "thread"; id: string; anchorStart: number; thread: DesignDocThread }
   | { kind: "suggestion"; id: string; anchorStart: number; suggestion: DesignDocSuggestion }
+type DesignDocT = ReturnType<typeof useT>["t"]
 
 const INLINE_SUGGESTION_DIFF_MAX_CHARS = 1600
 const INLINE_SUGGESTION_DIFF_MAX_TOKENS = 360
@@ -86,7 +87,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   repositoryId?: string | number
 }) {
   const params = useParams()
-  const { t } = useT("nav")
+  const { t } = useT("design_docs")
+  const { t: tNav } = useT("nav")
   const location = useLocation()
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
@@ -141,13 +143,13 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const smartFolders = showIndexControls ? (
     <AdminSmartFolderNav
       activeFolderId={activeSmartFolderId}
-      allLabel="All design docs"
+      allLabel={t("smart_folder_all")}
       allPath={mode === "repository" ? location.pathname : "/design_docs"}
       allowSaveWithoutActiveFolder
-      ariaLabel="Design Docs smart folders"
+      ariaLabel={t("smart_folders_aria")}
       currentFilter={currentFilter}
       folders={indexQuery.data?.smart_folders ?? []}
-      heading="Folders"
+      heading={t("smart_folders_heading")}
       onMutationSuccess={() => {
         void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
       }}
@@ -165,8 +167,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
 
   const createMutation = useMutation({
     mutationFn: () => createDesignDoc({
-      title: "Untitled design doc",
-      markdown: "# Untitled design doc\n\n",
+      title: t("new_doc_title"),
+      markdown: t("new_doc_markdown"),
       visibility: "private",
       state: "draft",
       origin_chat_session_id: chatId,
@@ -174,7 +176,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
     }),
     onSuccess: (payload) => {
       void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
-      setNotice("Design doc created.")
+      setNotice(t("notice_created"))
       if (mode === "chat") setSelectedId(payload.design_doc.id)
       else navigate(docPath(payload.design_doc.id))
     }
@@ -185,13 +187,13 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
       {showPageHeader ? (
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            {compact ? <SectionHeading>Design Docs</SectionHeading> : <PageHeading>Design Docs</PageHeading>}
+            {compact ? <SectionHeading>{t("title")}</SectionHeading> : <PageHeading>{t("title")}</PageHeading>}
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              {mode === "repository" ? "Docs associated with this repository." : "Collaborative Markdown design documents."}
+              {mode === "repository" ? t("repository_description") : t("index_description")}
             </p>
           </div>
           <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
-            New doc
+            {t("new_doc")}
           </Button>
         </header>
       ) : null}
@@ -200,9 +202,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
         <div className="px-0">
           <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-              <span>{t("filters_layout.folders_and_filters")}</span>
-              <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("filters_layout.show")}</span>
-              <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("filters_layout.hide")}</span>
+              <span>{tNav("filters_layout.folders_and_filters")}</span>
+              <span className="text-gray-400 group-open:hidden dark:text-gray-500">{tNav("filters_layout.show")}</span>
+              <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{tNav("filters_layout.hide")}</span>
             </summary>
             <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
               {filterBar}
@@ -224,9 +226,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
         </div>
       ) : (
         <section className="min-w-0">
-          {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, "Unable to load design doc.")}</Panel> : null}
-          {!effectiveId && !detailQuery.isError ? <Panel>{mode === "chat" ? "No design docs are attached to this chat." : "Select a design doc to review or edit."}</Panel> : null}
-          {detailQuery.isPending && effectiveId ? <Panel>Loading design doc...</Panel> : null}
+          {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, t("error_load_doc"))}</Panel> : null}
+          {!effectiveId && !detailQuery.isError ? <Panel>{mode === "chat" ? t("empty_chat") : t("select_doc")}</Panel> : null}
+          {detailQuery.isPending && effectiveId ? <Panel>{t("loading_doc")}</Panel> : null}
           {selectedDoc ? (
             <DesignDocEditor
               doc={selectedDoc}
@@ -251,7 +253,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
     return (
       <RepositoryPageShell
         activeTab="design_docs.repository"
-        ariaLabel="Design docs"
+        ariaLabel={t("aria_page")}
         heading={repositoryPayload ? (
           <PageHeading mono>
             <Link className="hover:underline" to={`${prefix}${repositoryPayload.repository.repository_path}`}>{repositoryPayload.repository.slug}</Link>
@@ -266,7 +268,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   }
 
   return (
-    <main aria-label="Design docs" className={compact ? "space-y-4" : "mx-auto max-w-[96rem] space-y-6 p-6"}>
+    <main aria-label={t("aria_page")} className={compact ? "space-y-4" : "mx-auto max-w-[96rem] space-y-6 p-6"}>
       {content}
     </main>
   )
@@ -279,13 +281,13 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
   onSelect: (id: number) => void
   preferences: RepositoryDesignDocsPayload["preferences"] | null
 }) {
+  const { t } = useT("design_docs")
   const queryClient = useQueryClient()
-  const { t: designDocsT } = useT("design_docs")
   const isDesktop = useMediaQuery("(min-width: 768px)", true)
   const [columnsOpen, setColumnsOpen] = useState(false)
   const columnsMenuRef = useDismissiblePopup<HTMLDivElement>(columnsOpen, () => setColumnsOpen(false))
-  const requiredColumns = controls?.columns.required ?? [{ key: "title", title: "Title" }]
-  const optionalColumns = controls?.columns.optional ?? defaultDesignDocOptionalColumns()
+  const requiredColumns = controls?.columns.required ?? [{ key: "title", title: t("columns.title") }]
+  const optionalColumns = controls?.columns.optional ?? defaultDesignDocOptionalColumns(t)
   const columns = designDocVisibleColumns({ requiredColumns, optionalColumns, preferences })
   const menuColumns = designDocOptionalColumnOrder({ optionalColumns, preferences })
     .map((key) => optionalColumns.find((column) => column.key === key))
@@ -315,16 +317,16 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
     updatePreferences.mutate({ visible_columns: next })
   }
 
-  if (loading) return <Panel>Loading design docs...</Panel>
-  if (docs.length === 0) return <Panel>No visible design docs match these filters.</Panel>
+  if (loading) return <Panel>{t("loading_docs")}</Panel>
+  if (docs.length === 0) return <Panel>{t("empty_filtered")}</Panel>
 
   return (
-    <section className="min-w-0 space-y-3" aria-label={designDocsT("index_aria")}>
+    <section className="min-w-0 space-y-3" aria-label={t("index_aria")}>
       {isDesktop ? (
         <div className="flex justify-end">
           <div className="relative" ref={columnsMenuRef}>
             <Button
-              aria-label={designDocsT("columns_button")}
+              aria-label={t("columns.menu")}
               aria-controls="design-docs-columns-menu"
               aria-expanded={columnsOpen}
               aria-haspopup="menu"
@@ -338,7 +340,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
             {columnsOpen ? (
               <div className="absolute right-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="design-docs-columns-menu" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{designDocsT("visible_columns")}</legend>
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("columns.visible")}</legend>
                   {menuColumns.map((column) => {
                     const checked = columns.includes(column.key)
                     return (
@@ -351,13 +353,13 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
                           />
                           <span className="truncate">{column.title}</span>
                         </label>
-                        <button aria-label={designDocsT("move_column_left", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">{designDocsT("move_column_up")}</button>
-                        <button aria-label={designDocsT("move_column_right", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">{designDocsT("move_column_down")}</button>
+                        <button aria-label={t("columns.move_up", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">{t("columns.up")}</button>
+                        <button aria-label={t("columns.move_down", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">{t("columns.down")}</button>
                       </div>
                     )
                   })}
                 </fieldset>
-                {updatePreferences.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, "Unable to update columns.")}</p> : null}
+                {updatePreferences.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("columns.error_update"))}</p> : null}
               </div>
             ) : null}
           </div>
@@ -385,7 +387,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
                   role="link"
                   tabIndex={0}
                 >
-                  {columns.map((column) => <DesignDocTableCell column={column} doc={doc} key={column} onSelect={onSelect} />)}
+                  {columns.map((column) => <DesignDocTableCell column={column} doc={doc} key={column} onSelect={onSelect} t={t} />)}
                 </tr>
               ))}
             </tbody>
@@ -407,8 +409,8 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
                 </div>
                 <StatusLabel value={doc.state} />
               </div>
-              <p className="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">{repositoryLabel(doc)}</p>
-              <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{doc.owner?.name ?? "Unassigned"}</p>
+              <p className="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">{repositoryLabel(doc, t)}</p>
+              <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{doc.owner?.name ?? t("unknown_owner")}</p>
             </button>
           ))}
         </div>
@@ -417,15 +419,15 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
   )
 }
 
-function DesignDocTableCell({ column, doc, onSelect }: { column: string; doc: DesignDocSummary; onSelect: (id: number) => void }) {
+function DesignDocTableCell({ column, doc, onSelect, t }: { column: string; doc: DesignDocSummary; onSelect: (id: number) => void; t: DesignDocT }) {
   return (
     <td className={designDocColumnClass(column, "cell")}>
-      {designDocCellContent(column, doc, onSelect)}
+      {designDocCellContent(column, doc, onSelect, t)}
     </td>
   )
 }
 
-function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (id: number) => void): ReactNode {
+function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (id: number) => void, t: DesignDocT): ReactNode {
   if (column === "title") {
     return (
       <div className="min-w-0">
@@ -452,11 +454,11 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
     )
   }
   if (column === "state") return <StatusLabel value={doc.state} />
-  if (column === "repository") return <span className="block truncate text-gray-700 dark:text-gray-200">{repositoryLabel(doc)}</span>
-  if (column === "owner") return <span className="block truncate text-gray-700 dark:text-gray-200">{doc.owner?.name ?? "Unassigned"}</span>
-  if (column === "collaborators") return <span className="block truncate text-gray-600 dark:text-gray-300">{doc.collaborators?.map((user) => user.name).join(", ") || "None"}</span>
+  if (column === "repository") return <span className="block truncate text-gray-700 dark:text-gray-200">{repositoryLabel(doc, t)}</span>
+  if (column === "owner") return <span className="block truncate text-gray-700 dark:text-gray-200">{doc.owner?.name ?? t("unknown_owner")}</span>
+  if (column === "collaborators") return <span className="block truncate text-gray-600 dark:text-gray-300">{doc.collaborators?.map((user) => user.name).join(", ") || t("none")}</span>
   if (column === "comments") return <span className="tabular-nums text-gray-700 dark:text-gray-200">{doc.comments_count ?? 0}</span>
-  if (column === "latest_version") return <span className="tabular-nums text-gray-700 dark:text-gray-200">{doc.current_version_number ? `v${doc.current_version_number}` : "None"}</span>
+  if (column === "latest_version") return <span className="tabular-nums text-gray-700 dark:text-gray-200">{doc.current_version_number ? `v${doc.current_version_number}` : t("none")}</span>
   if (column === "updated_at") return <RelativeTimestamp value={doc.updated_at} />
   if (column === "actions") {
     return (
@@ -468,7 +470,7 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
         size="sm"
         variant="secondary"
       >
-        Open
+        {t("open")}
       </Button>
     )
   }
@@ -476,17 +478,17 @@ function designDocCellContent(column: string, doc: DesignDocSummary, onSelect: (
   return null
 }
 
-function defaultDesignDocOptionalColumns() {
+function defaultDesignDocOptionalColumns(t: DesignDocT) {
   return [
     { key: "doc_slug", title: "DOC" },
-    { key: "state", title: "State" },
-    { key: "repository", title: "Repository" },
-    { key: "owner", title: "Owner" },
-    { key: "collaborators", title: "Collaborators" },
-    { key: "comments", title: "Comments" },
-    { key: "latest_version", title: "Latest version" },
-    { key: "updated_at", title: "Updated" },
-    { key: "actions", title: "Actions" }
+    { key: "state", title: t("columns.state") },
+    { key: "repository", title: t("columns.repository") },
+    { key: "owner", title: t("columns.owner") },
+    { key: "collaborators", title: t("columns.collaborators") },
+    { key: "comments", title: t("columns.comments") },
+    { key: "latest_version", title: t("columns.latest_version") },
+    { key: "updated_at", title: t("columns.updated_at") },
+    { key: "actions", title: t("columns.actions") }
   ]
 }
 
@@ -532,8 +534,8 @@ function designDocColumnClass(column: string, kind: "header" | "cell") {
   return `${base} ${width}`
 }
 
-function repositoryLabel(doc: DesignDocSummary) {
-  return doc.repositories.map((repository) => repository.slug).join(", ") || "No repositories"
+function repositoryLabel(doc: DesignDocSummary, t: DesignDocT) {
+  return doc.repositories.map((repository) => repository.slug).join(", ") || t("no_repositories")
 }
 
 function uniqueValue(value: string, index: number, values: string[]) {
@@ -557,6 +559,7 @@ function emptySelection(): SelectionRange {
 }
 
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
+  const { t } = useT("design_docs")
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
   const [title, setTitle] = useState(doc.title)
@@ -581,7 +584,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const canArchive = !isArchived && doc.permissions.can_archive
   const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
   const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
-  const saveLabel = effectiveChangeMode === "edit" ? "Save" : "Suggest changes"
+  const saveLabel = effectiveChangeMode === "edit" ? t("save") : t("suggest_changes")
   const saveDisabled = effectiveChangeMode === "suggest" && !canSuggest
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
@@ -628,7 +631,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       setSummary("")
       setSummaryVisible(false)
-      onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
+      onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? t("notice_saved_suggestion") : t("notice_saved"))
     }
   })
   const autosaveMutation = useMutation({
@@ -655,21 +658,21 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   })
   const metadataMutation = useMutation({
     mutationFn: (input: { visibility?: "private" | "public"; state?: "draft" | "accepted" | "archived"; repository_ids?: number[]; collaborator_user_ids?: number[] }) => updateDesignDoc(doc.id, input),
-    onSuccess: (payload) => onDocChange(payload.design_doc, "Design doc controls updated.")
+    onSuccess: (payload) => onDocChange(payload.design_doc, t("notice_controls_updated"))
   })
   const commentMutation = useMutation({
     mutationFn: () => createDesignDocComment(doc.id, { body: commentBody, ...anchorPayload(selection) }),
     onSuccess: (payload) => {
       setCommentBody("")
       setSelection(emptySelection())
-      onDocChange(payload.design_doc, "Comment added.")
+      onDocChange(payload.design_doc, t("notice_comment_added"))
     }
   })
   const replyMutation = useMutation({
     mutationFn: ({ threadId, body }: { threadId: number; body: string }) => createDesignDocComment(doc.id, { thread_id: threadId, body }),
     onSuccess: (payload, variables) => {
       setReplyBodies((current) => ({ ...current, [variables.threadId]: "" }))
-      onDocChange(payload.design_doc, "Reply added.")
+      onDocChange(payload.design_doc, t("notice_reply_added"))
     }
   })
   const reviewMutation = useMutation({
@@ -685,12 +688,12 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       if (textareaRef.current) textareaRef.current.scrollTop = 0
       window.requestAnimationFrame(() => editorShellRef.current?.scrollIntoView?.({ block: "start" }))
       persistedDraftRef.current = persistedDraftFingerprint(payload.design_doc.id, payload.design_doc.title, nextDraft)
-      onDocChange(payload.design_doc, payload.message || "Suggestion reviewed.")
+      onDocChange(payload.design_doc, payload.message || t("notice_suggestion_reviewed"))
     }
   })
   const resolveMutation = useMutation({
     mutationFn: (threadId: number) => resolveDesignDocThread(doc.id, threadId),
-    onSuccess: (_payload, threadId) => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.id === threadId ? { ...thread, state: "resolved" } : thread) }, "Thread resolved.")
+    onSuccess: (_payload, threadId) => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.id === threadId ? { ...thread, state: "resolved" } : thread) }, t("notice_thread_resolved"))
   })
   const highlights = useMemo(() => buildAnchorHighlights(doc), [doc])
   const activeHighlights = useMemo(
@@ -760,7 +763,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
 
   function applyFormattingCommand(command: DesignDocFormattingCommand) {
     const activeSelection = selection.end >= selection.start ? selection : { start: 0, end: 0, text: "", selectedText: "", rect: null }
-    const options = command === "link" ? { href: window.prompt("Link URL", "https://example.com") || "" } : {}
+    const options = command === "link" ? { href: window.prompt(t("prompt_link_url"), "https://example.com") || "" } : {}
     const result = applyDesignDocFormattingCommand(draft, activeSelection, command, options)
     if (!result.applied) return
 
@@ -1018,7 +1021,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         <Panel>
           <div className="flex flex-wrap items-center gap-2">
             <StatusLabel value="archived" />
-            <p className="text-sm text-gray-700 dark:text-gray-300">This design doc is archived. Content, comments, suggestions, and reviews are read only.</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">{t("archived_read_only")}</p>
           </div>
         </Panel>
       ) : null}
@@ -1027,7 +1030,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         <div className="overflow-visible rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-            {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
+            {summaryVisible ? <Input aria-label={t("aria_change_summary")} className="min-w-[12rem] flex-1" placeholder={t("optional_change_summary")} value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
           ) : null}
           <DesignDocFormattingToolbar
@@ -1044,10 +1047,10 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           <div className="relative" ref={editorShellRef}>
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
-              <span className="sr-only">Markdown editor</span>
+              <span className="sr-only">{t("markdown_editor")}</span>
               <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} mirrorRef={markdownMirrorRef} scrollTop={markdownScrollTop} />
               <textarea
-                aria-label="Markdown editor"
+                aria-label={t("markdown_editor")}
                 className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
                 onBlur={() => updateSelection()}
                 onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
@@ -1062,7 +1065,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             </label>
           ) : (
             <div
-              aria-label="Rich Text editor"
+              aria-label={t("rich_text_editor")}
               className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
               contentEditable={!isArchived}
               onBlur={() => {
@@ -1178,53 +1181,66 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
 }) {
+  const { t } = useT("design_docs")
   const titleBarRef = useRef<HTMLElement | null>(null)
   const shareButtonRef = useRef<HTMLButtonElement | null>(null)
-  const [shareMenuAlignment, setShareMenuAlignment] = useState<"left" | "right">("left")
+  const [shareMenuStyle, setShareMenuStyle] = useState<React.CSSProperties>({})
+
+  function positionShareMenu() {
+    const rect = shareButtonRef.current?.getBoundingClientRect()
+    const containerRect = shareButtonRef.current?.parentElement?.getBoundingClientRect()
+    if (!rect || !containerRect) {
+      setShareMenuStyle({})
+      return
+    }
+
+    const edgePadding = 16
+    const menuWidth = Math.min(320, Math.max(0, window.innerWidth - edgePadding * 2))
+    const boundary = titleBarRef.current?.getBoundingClientRect()
+    const viewportBoundaryLeft = edgePadding
+    const viewportBoundaryRight = window.innerWidth - edgePadding
+    const clampedBoundaryLeft = Math.max(boundary?.left ?? viewportBoundaryLeft, viewportBoundaryLeft)
+    const clampedBoundaryRight = Math.min(boundary?.right ?? viewportBoundaryRight, viewportBoundaryRight)
+    const boundaryLeft = clampedBoundaryLeft < clampedBoundaryRight ? clampedBoundaryLeft : viewportBoundaryLeft
+    const boundaryRight = clampedBoundaryLeft < clampedBoundaryRight ? clampedBoundaryRight : viewportBoundaryRight
+    const minLeft = boundaryLeft
+    const maxLeft = Math.max(minLeft, boundaryRight - menuWidth)
+    const viewportLeft = Math.min(Math.max(rect.left, minLeft), maxLeft)
+
+    setShareMenuStyle({
+      left: `${Math.round(viewportLeft - containerRect.left)}px`,
+      width: `${Math.round(menuWidth)}px`
+    })
+  }
 
   function toggleShareMenu() {
     const nextOpen = !shareOpen
-    if (nextOpen) {
-      const rect = shareButtonRef.current?.getBoundingClientRect()
-      if (rect) {
-        const menuWidth = 320
-        const edgePadding = 16
-        const boundary = titleBarRef.current?.getBoundingClientRect()
-        const boundaryLeft = boundary?.left ?? 0
-        const boundaryRight = boundary?.right ?? window.innerWidth
-        const fitsLeftAligned = rect.left + menuWidth <= boundaryRight - edgePadding
-        const fitsRightAligned = rect.right - menuWidth >= boundaryLeft + edgePadding
-        const spaceToRight = boundaryRight - rect.left
-        const spaceToLeft = rect.right - boundaryLeft
-
-        setShareMenuAlignment(fitsLeftAligned || (!fitsRightAligned && spaceToRight >= spaceToLeft) ? "left" : "right")
-      }
-    }
+    if (nextOpen) positionShareMenu()
     setShareOpen(nextOpen)
   }
 
   return (
-    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
+    <section aria-label={t("aria_title_bar")} className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
-          <Input aria-label="Design doc title" disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
+          <Input aria-label={t("aria_title_input")} disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
           <p className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
             <CopyableSlug className="text-xs font-medium" slug={doc.display_id} />
-            <span> / saved <RelativeTimestamp value={doc.updated_at} /></span>
+            <span>{t("saved_prefix")} <RelativeTimestamp value={doc.updated_at} /></span>
           </p>
         </div>
         <StatusLabel value={doc.visibility} />
         <StatusLabel value={doc.state} />
         <div className="relative min-w-0">
           <div className="flex max-w-full flex-wrap items-center gap-1.5">
-            {selectedRepositories.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">No repositories</span> : null}
+            {selectedRepositories.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("no_repositories")}</span> : null}
             {selectedRepositories.map((repository) => (
               <span className="max-w-[11rem] truncate rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-300" key={repository.id}>
                 {repository.slug}
               </span>
             ))}
             {canManageMetadata ? (
-            <Button aria-expanded={repositoryPickerOpen} aria-label="Add repository" className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
+            <Button aria-expanded={repositoryPickerOpen} aria-label={t("aria_add_repository")} className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
               <span aria-hidden="true" className="text-base leading-none">+</span>
             </Button>
             ) : null}
@@ -1232,9 +1248,9 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
           {repositoryPickerOpen && canManageMetadata ? (
             <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                Repositories
+                {t("repositories")}
                 <select
-                  aria-label="Repository associations"
+                  aria-label={t("aria_repository_associations")}
                   className="mt-1 block min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                   multiple
                   value={repoIds}
@@ -1244,42 +1260,43 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
                 </select>
               </label>
               <div className="mt-3 flex justify-end">
-                <Button onClick={onMetadataSave} size="sm" variant="secondary">Save repositories</Button>
+                <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_repositories")}</Button>
               </div>
             </div>
           ) : null}
         </div>
         <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
+          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">{t("share")}</Button> : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
             <div
-              className={`absolute z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950 ${shareMenuAlignment === "left" ? "left-0" : "right-0"}`}
+              className="absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
               data-testid="design-doc-share-menu"
+              style={shareMenuStyle}
             >
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                Visibility
-                <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
-                  <option value="private">Private</option>
-                  <option value="public">Public</option>
+                {t("visibility")}
+                <Select aria-label={t("aria_share_visibility")} className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
+                  <option value="private">{t("visibility_private")}</option>
+                  <option value="public">{t("visibility_public")}</option>
                 </Select>
               </label>
               <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                Explicit collaborators
-                <Input aria-label="Collaborator user IDs" className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
+                {t("explicit_collaborators")}
+                <Input aria-label={t("aria_collaborator_user_ids")} className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
               </label>
-              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Owner: {doc.owner?.name || doc.owner?.email_address || "Unknown"}</p>
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</p>
               <div className="mt-3 flex justify-end">
-                <Button onClick={onMetadataSave} size="sm" variant="secondary">Save sharing</Button>
+                <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_sharing")}</Button>
               </div>
             </div>
           ) : null}
         </div>
         {canArchive ? (
-          <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">Archive</Button>
+          <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">{t("archive")}</Button>
         ) : null}
         {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
         <Select
-          aria-label="Version selection"
+          aria-label={t("aria_version_selection")}
           className="ml-auto max-w-[12rem]"
           fullWidth={false}
           onFocus={onVersionsOpen}
@@ -1287,8 +1304,8 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
           value={selectedVersionId}
           onChange={(event) => onVersionChange(event.target.value)}
         >
-          <option value="current">Current v{doc.current_version_number ?? "?"}</option>
-          {versionsOpen && versionsLoading ? <option value="loading">Loading...</option> : null}
+          <option value="current">{t("version_current", { number: doc.current_version_number ?? "?" })}</option>
+          {versionsOpen && versionsLoading ? <option value="loading">{t("loading")}</option> : null}
           {versions.map((version) => (
             <option key={version.id} value={version.id}>v{version.version_number}{version.change_summary ? ` - ${version.change_summary}` : ""}</option>
           ))}
@@ -1366,34 +1383,35 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   setEditorMode: (mode: EditorMode) => void
   onCommand: (command: DesignDocFormattingCommand) => void
 }) {
+  const { t } = useT("design_docs")
   const wideToolbar = useMediaQuery("(min-width: 768px)", true)
   const [moreOpen, setMoreOpen] = useState(false)
   const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
   const range = selection.end >= selection.start ? selection : { start: 0, end: 0 }
   const blockOptions: Array<{ command: ToolbarBlockCommand; label: string }> = [
-    { command: "paragraph", label: "Paragraph" },
+    { command: "paragraph", label: t("toolbar.paragraph") },
     { command: "heading_1", label: "H1" },
     { command: "heading_2", label: "H2" },
     { command: "heading_3", label: "H3" },
     { command: "heading_4", label: "H4" },
-    { command: "blockquote", label: "Quote" },
-    { command: "fenced_code", label: "Code block" }
+    { command: "blockquote", label: t("toolbar.quote") },
+    { command: "fenced_code", label: t("toolbar.code_block") }
   ]
   const inlineItems: Array<{ command: DesignDocFormattingCommand; icon: string; label: string; className?: string }> = [
-    { command: "bold", icon: "B", label: "Bold", className: "font-black" },
-    { command: "italic", icon: "I", label: "Italic", className: "font-serif italic" },
-    { command: "inline_code", icon: "`", label: "Inline code", className: "font-mono" },
-    { command: "link", icon: "[]", label: "Link" },
-    { command: "strikethrough", icon: "S", label: "Strikethrough", className: "line-through" }
+    { command: "bold", icon: "B", label: t("toolbar.bold"), className: "font-black" },
+    { command: "italic", icon: "I", label: t("toolbar.italic"), className: "font-serif italic" },
+    { command: "inline_code", icon: "`", label: t("toolbar.inline_code"), className: "font-mono" },
+    { command: "link", icon: "[]", label: t("toolbar.link") },
+    { command: "strikethrough", icon: "S", label: t("toolbar.strikethrough"), className: "line-through" }
   ]
   const listItems: Array<{ command: DesignDocFormattingCommand; icon: string; label: string }> = [
-    { command: "unordered_list", icon: "-.", label: "Bulleted list" },
-    { command: "ordered_list", icon: "1.", label: "Numbered list" }
+    { command: "unordered_list", icon: "-.", label: t("toolbar.bulleted_list") },
+    { command: "ordered_list", icon: "1.", label: t("toolbar.numbered_list") }
   ]
   const moreItems: Array<{ command: DesignDocFormattingCommand; label: string }> = [
-    { command: "table", label: "Table" },
-    { command: "horizontal_rule", label: "Divider" },
-    { command: "nested_list", label: "Indent list item" }
+    { command: "table", label: t("toolbar.table") },
+    { command: "horizontal_rule", label: t("toolbar.divider") },
+    { command: "nested_list", label: t("toolbar.indent_list_item") }
   ]
   const selectedBlock = currentBlockCommand(draft, range)
 
@@ -1409,13 +1427,13 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
 
   return (
     <div
-      aria-label="Formatting toolbar"
+      aria-label={t("aria_formatting_toolbar")}
       className="sticky top-0 z-20 flex min-w-0 items-center gap-2 rounded-t border-b border-gray-200 bg-gray-50 px-3 py-2 max-lg:top-14 dark:border-gray-700 dark:bg-gray-950/40"
       data-testid="design-doc-formatting-toolbar"
       role="toolbar"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto" data-testid="design-doc-formatting-toolbar-scroll">
-        <div aria-label="Editor mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
+        <div aria-label={t("aria_editor_mode")} className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
           {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
             <button
               aria-selected={editorMode === candidate}
@@ -1425,14 +1443,14 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
               role="tab"
               type="button"
             >
-              {candidate === "markdown" ? "Markdown" : "Rich Text"}
+              {candidate === "markdown" ? t("editor_mode.markdown") : t("editor_mode.rich_text")}
             </button>
           ))}
         </div>
 
-        <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
+        <div aria-label={t("aria_change_mode")} className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
           {readOnly ? (
-            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Read only</span>
+            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">{t("read_only")}</span>
           ) : canWriteCanonical ? (
             (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
               <button
@@ -1442,16 +1460,16 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
                 onClick={() => setChangeMode(candidate)}
                 type="button"
               >
-                {candidate === "edit" ? "Edit" : "Suggest"}
+                {candidate === "edit" ? t("edit") : t("suggest")}
               </button>
             ))
           ) : (
-            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
+            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">{t("suggest")}</span>
           )}
         </div>
 
         <Select
-          aria-label="Block type"
+          aria-label={t("aria_block_type")}
           className="h-8 min-w-[8.5rem] shrink-0 py-1 text-xs"
           fullWidth={false}
           value={selectedBlock}
@@ -1462,14 +1480,14 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
           ))}
         </Select>
 
-        <ToolbarButtonGroup label="Inline formatting">
+        <ToolbarButtonGroup label={t("aria_inline_formatting")}>
           {inlineItems.map((item) => (
             <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} iconClassName={item.className} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
           ))}
         </ToolbarButtonGroup>
 
         {wideToolbar ? (
-          <ToolbarButtonGroup label="List formatting">
+          <ToolbarButtonGroup label={t("aria_list_formatting")}>
             {listItems.map((item) => (
               <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
             ))}
@@ -1478,7 +1496,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
       </div>
 
       <div className="relative shrink-0" ref={moreMenuRef}>
-        <ToolbarIconButton ariaExpanded={moreOpen} disabled={readOnly} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
+        <ToolbarIconButton ariaExpanded={moreOpen} disabled={readOnly} icon="..." label={t("toolbar.more_formatting")} onClick={() => setMoreOpen((open) => !open)} />
         {moreOpen ? (
           <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
             {!wideToolbar ? listItems.map((item) => (
@@ -1505,8 +1523,8 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
                 {item.label}
               </button>
             ))}
-            <button className="block w-full border-t border-border px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">Table row actions</button>
-            <button className="block w-full px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">Table column actions</button>
+            <button className="block w-full border-t border-border px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">{t("toolbar.table_row_actions")}</button>
+            <button className="block w-full px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">{t("toolbar.table_column_actions")}</button>
           </div>
         ) : null}
       </div>
@@ -1563,6 +1581,8 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   selection: SelectionRange
   onOpenComposer: () => void
 }) {
+  const { t } = useT("design_docs")
+
   if (disabled) return null
 
   return (
@@ -1571,12 +1591,12 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
       style={selection.rect ? selectionAffordanceStyle(selection.rect) : { left: "1rem", top: "1rem" }}
     >
       <Button
-        aria-label="Comment on selection"
+        aria-label={t("aria_comment_on_selection")}
         className="h-9 w-9 rounded-full shadow-lg"
         onClick={onOpenComposer}
         onMouseDown={(event) => event.preventDefault()}
         size="icon"
-        title="Comment on selection"
+        title={t("aria_comment_on_selection")}
         variant="secondary"
       >
         <CommentIcon />
@@ -1654,6 +1674,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
   onResolve: (threadId: number) => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
+  const { t } = useT("design_docs")
   const viewingHistory = historicalVersionLoading || historicalVersion != null
   const interactionsReadOnly = readOnly || viewingHistory
   const hasSelection = selection.end > selection.start && !interactionsReadOnly && canComment
@@ -1669,25 +1690,25 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
 
   return (
     <Panel className="relative min-h-[36rem]">
-      <SectionHeading as="h3">Threads</SectionHeading>
+      <SectionHeading as="h3">{t("threads")}</SectionHeading>
       {historicalVersion ? (
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Viewing comments and suggestions as of v{historicalVersion.version.version_number}. Read only.
+          {t("viewing_version_read_only", { number: historicalVersion.version.version_number })}
         </p>
       ) : null}
       <div className="relative mt-3 space-y-3">
         {hasSelection ? (
           <div className="rounded border border-brand/30 bg-brand/5 p-3 dark:border-brand/40 dark:bg-brand/10">
-            <p className="text-xs font-medium text-text-secondary">New comment on selection</p>
+            <p className="text-xs font-medium text-text-secondary">{t("new_comment_on_selection")}</p>
             <p className="mt-2 line-clamp-3 rounded bg-surface p-2 text-xs text-text-secondary ring-1 ring-border">
               {selection.selectedText || selection.text}
             </p>
             <div className="mt-3 flex gap-2">
               <Input
-                aria-label="New thread comment"
+                aria-label={t("aria_new_thread_comment")}
                 onChange={(event) => onCommentChange(event.target.value)}
                 onKeyDown={submitCommentOnShortcut}
-                placeholder="Comment"
+                placeholder={t("comment")}
                 ref={composerRef}
                 value={commentBody}
               />
@@ -1697,13 +1718,13 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
                 size="sm"
                 variant="secondary"
               >
-                Comment
+                {t("comment")}
               </Button>
             </div>
           </div>
         ) : null}
-        {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
-        {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
+        {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p> : null}
+        {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? t("empty_threads_for_version") : t("empty_threads")}</p> : null}
         <div
           className="overflow-hidden max-xl:!pb-0"
           data-testid="design-doc-rail-clip"
@@ -1764,6 +1785,8 @@ function CommentThreadCard({ focused, readOnly = false, replyBody, style, thread
   onReplyChange: (threadId: number, body: string) => void
   onResolve: (threadId: number) => void
 }) {
+  const { t } = useT("design_docs")
+
   return (
     <div
       className={`rounded border p-3 transition ${focused ? "border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/30" : "border-gray-200 dark:border-gray-700"}`}
@@ -1781,15 +1804,15 @@ function CommentThreadCard({ focused, readOnly = false, replyBody, style, thread
           size="sm"
           variant="secondary"
         >
-          Resolve
+          {t("resolve")}
         </Button>
       )} />
       <ThreadAgentRunStatus run={thread.agent_run} />
-      <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || "Selection"}</p>
+      <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || t("selection")}</p>
       <ThreadComments comments={thread.comments} />
       {readOnly ? null : (
         <ThreadReplyForm
-          label={`Reply to thread ${thread.id}`}
+          label={t("reply_to_thread", { id: thread.id })}
           replyBody={replyBody}
           threadId={thread.id}
           onReply={onReply}
@@ -1813,6 +1836,7 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
   onReplyChange: (threadId: number, body: string) => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
+  const { t } = useT("design_docs")
   const thread = suggestion.thread
 
   return (
@@ -1830,7 +1854,7 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
       {thread ? <ThreadComments comments={thread.comments} /> : null}
       {thread && !readOnly ? (
         <ThreadReplyForm
-          label={`Reply to suggestion ${suggestion.id}`}
+          label={t("reply_to_suggestion", { id: suggestion.id })}
           replyBody={replyBody}
           threadId={thread.id}
           onReply={onReply}
@@ -1847,7 +1871,7 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
             size="sm"
             variant="success"
           >
-            Accept
+            {t("accept")}
           </Button>
           <Button
             onClick={(event) => {
@@ -1857,10 +1881,10 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
             size="sm"
             variant="secondary"
           >
-            Reject
+            {t("reject")}
           </Button>
         </div>
-      ) : <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Pending owner review.</p>}
+      ) : <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("pending_owner_review")}</p>}
     </div>
   )
 }
@@ -1875,11 +1899,13 @@ function InlineSuggestionDiff({ suggestion }: { suggestion: DesignDocSuggestion 
 }
 
 function BlockSuggestionDiff({ suggestion }: { suggestion: DesignDocSuggestion }) {
+  const { t } = useT("design_docs")
+
   return (
     <div className="mt-2 overflow-hidden rounded border border-border text-xs">
-      <div className="border-b border-border bg-warning/10 px-2 py-1 font-medium text-warning">Current</div>
+      <div className="border-b border-border bg-warning/10 px-2 py-1 font-medium text-warning">{t("current")}</div>
       <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words bg-surface p-2 font-mono text-text-secondary">{suggestion.original_markdown}</pre>
-      <div className="border-y border-border bg-success/10 px-2 py-1 font-medium text-success">Proposed</div>
+      <div className="border-y border-border bg-success/10 px-2 py-1 font-medium text-success">{t("proposed")}</div>
       <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words bg-surface p-2 font-mono text-text-primary">{suggestion.proposed_markdown}</pre>
     </div>
   )
@@ -1910,15 +1936,17 @@ function ThreadComments({ comments }: { comments: DesignDocThread["comments"] })
 }
 
 function ThreadAgentRunStatus({ run }: { run: DesignDocThread["agent_run"] }) {
+  const { t } = useT("design_docs")
+
   if (!run) return null
 
   const message = run.status === "queued" || run.status === "running"
-    ? "Syrus is drafting..."
+    ? t("agent_run.drafting")
     : run.status === "failed"
-      ? `Syrus failed${run.error_message ? `: ${run.error_message}` : "."}`
+      ? (run.error_message ? t("agent_run.failed_with_error", { error: run.error_message }) : t("agent_run.failed"))
       : run.status === "canceled"
-        ? "Syrus canceled."
-        : run.result_summary || "Syrus finished."
+        ? t("agent_run.canceled")
+        : run.result_summary || t("agent_run.finished")
   const tone = run.status === "failed"
     ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
     : run.status === "queued" || run.status === "running"
@@ -1935,6 +1963,8 @@ function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }:
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
 }) {
+  const { t } = useT("design_docs")
+
   function submitReplyOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
     if (replyBody.trim().length === 0) return
@@ -1951,7 +1981,7 @@ function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }:
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => onReplyChange(threadId, event.target.value)}
         onKeyDown={submitReplyOnShortcut}
-        placeholder="Reply"
+        placeholder={t("reply")}
         value={replyBody}
       />
       <Button
@@ -1963,7 +1993,7 @@ function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }:
         size="sm"
         variant="secondary"
       >
-        Reply
+        {t("reply")}
       </Button>
     </div>
   )
@@ -2040,7 +2070,9 @@ function Panel({ children, className = "", tone = "default" }: { children: React
 }
 
 function StatusLabel({ value }: { value: string }) {
-  return <span className="shrink-0 rounded border border-gray-200 px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:text-gray-300">{value}</span>
+  const { t } = useT("design_docs")
+  const key = value.toLowerCase().replace(/\s+/g, "_")
+  return <span className="shrink-0 rounded border border-gray-200 px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:text-gray-300">{t(`status.${key}`, { defaultValue: value })}</span>
 }
 
 function scopeDocs(docs: DesignDocSummary[], chatId?: number, designDocIds: number[] = []) {
