@@ -160,6 +160,7 @@ class McpToolRegistry
           },
           required_roles: [ AgentRole::CHAT_CODING, AgentRole::CHAT_LOCAL ],
           mutation: true),
+        chat(Mcp::Tools::OpenInCodingModeTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         chat(Mcp::Tools::SubmitCodingChangesTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         chat(Mcp::Tools::RuntimeListSessionsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
         chat(Mcp::Tools::RuntimeStartTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
