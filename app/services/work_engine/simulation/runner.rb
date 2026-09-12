@@ -153,6 +153,7 @@ module WorkEngine
           when "advance_main" then advance_main!(value)
           when "exhaust_provider_usage" then exhaust_provider_usage!(value)
           when "refresh_provider_usage" then refresh_provider_usage!(value)
+          when "set_provider_status" then set_provider_status!(value)
           when "wake_provider_admission" then wake_provider_admission!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
@@ -218,6 +219,15 @@ module WorkEngine
 
       def refresh_provider_usage!(value)
         record_simulated_provider_usage!(provider_for(value), status: "available")
+      end
+
+      # Generic form of the two above, for provider states beyond the
+      # usage-quota axis (auth_error, rate_limited, ...). Takes
+      # `{ provider:, status: }`; a bare provider name records "available".
+      def set_provider_status!(value)
+        attrs = value.is_a?(Hash) ? value : {}
+        provider = attrs["provider"].presence || (value.is_a?(String) ? value : nil) || "codex"
+        record_simulated_provider_usage!(provider, status: attrs["status"].presence || "available")
       end
 
       def wake_provider_admission!(value)

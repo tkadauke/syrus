@@ -1,0 +1,74 @@
+name: provider auth error pauses then resumes
+user:
+  agent_provider: codex
+repository:
+  owner: simulation
+  name: provider-auth-pause-then-resume
+jobs:
+  first:
+    title: First job
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+  second:
+    title: Second job
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: break codex auth once workflows are running
+    once: true
+    when:
+      any:
+        - workflow:
+            job: first
+            state: running
+        - workflow:
+            job: second
+            state: running
+    do:
+      set_provider_status:
+        provider: codex
+        status: auth_error
+  - name: restore codex auth once units are provider-blocked
+    once: true
+    when:
+      any:
+        - work_unit:
+            job: first
+            blocked_reason: provider_availability
+        - work_unit:
+            job: second
+            blocked_reason: provider_availability
+    do:
+      refresh_provider_usage: codex
+  - name: wake provider admission once auth is restored
+    once: true
+    when:
+      any:
+        - work_unit:
+            job: first
+            blocked_reason: provider_availability
+        - work_unit:
+            job: second
+            blocked_reason: provider_availability
+    do:
+      wake_provider_admission: codex
+outcomes:
+  default: success
+expect:
+  jobs:
+    first:
+      - implemented
+    second:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - "event break codex auth once workflows are running"
+    - "deferred phases resumed"
