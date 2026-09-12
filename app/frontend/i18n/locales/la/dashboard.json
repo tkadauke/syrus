@@ -20,6 +20,8 @@
   "columns": "Columnae",
   "visible_columns": "Columnae visibiles",
   "kanban_lanes": "Viae Kanbani",
+  "job_navigation_context_dashboard": "Tabula",
+  "job_navigation_context_kanban": "Via Kanbani",
   "preferences_error": "Tabulae praeferentiae mutari non possunt.",
   "system_readiness": "Status systematis",
   "lane_label": "Via {{title}}",

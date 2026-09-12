@@ -20,6 +20,8 @@
   "columns": "Columns",
   "visible_columns": "Visible columns",
   "kanban_lanes": "Kanban lanes",
+  "job_navigation_context_dashboard": "Dashboard",
+  "job_navigation_context_kanban": "Kanban lane",
   "preferences_error": "Unable to update dashboard preferences.",
   "system_readiness": "System readiness",
   "lane_label": "{{title}} lane",
