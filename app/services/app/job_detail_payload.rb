@@ -914,6 +914,7 @@ module App
       mutable_runtime_job = @job.open? && !@job.backlog?
       reviewable_job = @job.implemented? && !job_has_approval_blocking_runtime_work?
       has_tracked_pr = @job.pr_number.present? || @job.external_pr_number.present?
+      coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
         can_start: creator && writable && @job.direct? && mutable_runtime_job && job_runs_count.zero? && !active_runtime_work,
         can_release_from_backlog: writable && @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
@@ -956,11 +957,8 @@ module App
         can_view_timeline: @user.admin?,
         can_view_resource_admission_diagnostics: @user.admin?,
         can_manage_tags: writable,
-        can_open_in_coding_mode: writable && Feature.coding_mode_enabled? &&
-          (@job.implemented? || @job.approved?) &&
-          @job.branch_name.present? &&
-          @job.linked_chat_id.nil? &&
-          !active_runtime_work,
+        can_open_in_coding_mode: coding_mode_takeover_blocked_reason.nil?,
+        open_in_coding_mode_blocked_reason: coding_mode_takeover_blocked_reason,
         can_start_preview: @job.previewable? && preview_provider_configured?,
         can_deploy: @job.deployable? && deploy_configured?,
         can_run_visual_review: visual_review_enabled && visual_review_actionable,
@@ -1002,6 +1000,34 @@ module App
     # JobDependency that can never resolve.
     def request_changes_eligible?
       @job.previewable? || (@job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(@job.closure_reason))
+    end
+
+    def coding_mode_takeover_blocked_reason(writable:)
+      return "You do not have permission to open this Job in Coding Mode." unless writable
+      return "Coding Mode is not enabled on this instance." unless Feature.coding_mode_enabled?
+      return "Only implemented or approved Jobs can be opened in Coding Mode." unless @job.implemented? || @job.approved? || (@job.coding? && @job.linked_chat_id.present?)
+      return "Job does not have a branch yet." if @job.branch_name.blank?
+      return "#{@job.slug} has active workflow ownership and cannot be opened in Coding Mode yet." if job_has_active_runtime_work?
+
+      if @job.linked_chat_id.present?
+        existing = ChatSession.find_by(id: @job.linked_chat_id, user_id: @user.id)
+        if existing&.coding?
+          active_job = Job.where(linked_chat_id: existing.id, state: "coding").where.not(id: @job.id).first
+          return "#{active_job.slug} is already linked to this coding chat." if active_job
+
+          checkout_branch = existing.coding_checkout_branch.to_s
+          return nil if checkout_branch.blank? || checkout_branch == @job.branch_name
+
+          checkout_job = Job.where(repository_id: @job.repository_id, branch_name: checkout_branch).where.not(id: @job.id).first
+          return "This chat already has an active coding checkout for #{checkout_job.slug}." if checkout_job
+
+          return "This chat already has an active coding checkout. Cancel it before taking over #{@job.slug}."
+        end
+
+        return "#{@job.slug} is already linked to a different chat session."
+      end
+
+      nil
     end
 
     def paths_json
