@@ -11,7 +11,8 @@ module DesignDocs
     end
 
     def self.global_search_available?
-      defined?(::GlobalSearch) && ::GlobalSearch.respond_to?(:enabled?) && ::GlobalSearch.enabled?
+      manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == "global_search" }
+      manifest&.enabled? && Syrus::PluginRegistry.health.healthy?("global_search")
     end
   end
 end
