@@ -386,6 +386,7 @@ function JobsTable({
   t: (key: string, opts?: Record<string, unknown>) => string
 }) {
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const tableColumns = useMemo(() => columns.filter((column) => column !== "landing_queue_wait_reason"), [columns])
   // Only group by Epic when the rows are actually in queue order — in any
   // other sort the Epics aren't contiguous, so a separator would mislead.
   const groupByEpic = sortState.column === "landing_queue_position"
@@ -428,7 +429,7 @@ function JobsTable({
     <DataTable.Root>
       <DataTable.Header>
           <DataTable.Row>
-            {columns.map((column) => (
+            {tableColumns.map((column) => (
               <DataTable.HeadCell aria-sort={columnAriaSort("job", column, sortState)} checkbox={column === "checkbox"} key={column} title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}>
                 {column === "checkbox" ? <Checkbox aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
               </DataTable.HeadCell>
@@ -439,7 +440,7 @@ function JobsTable({
           {groupByEpic ? (
             landingQueueGroups.map((group, index) => (
               <LandingQueueJobGroup
-                columns={columns}
+                columns={tableColumns}
                 expanded={expandedBlockerGroups.has(group.key)}
                 group={group}
                 key={group.key}
@@ -456,7 +457,7 @@ function JobsTable({
               const urgentClass = job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
               return (
                 <DataTable.Row className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={job.id}>
-                  {columns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
+                  {tableColumns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
                 </DataTable.Row>
               )
             })
@@ -890,7 +891,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
       <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</span>
-          <CommitsBehindBadge count={job.commits_behind_base} />
+          <LandingQueueStatusBadges job={job} showEmpty={false} />
         </div>
       </DataTable.Cell>
     )
@@ -918,38 +919,41 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
 }
 
 function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
+  return (
+    <DataTable.Cell>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <LandingQueueStatusBadges job={job} />
+      </div>
+    </DataTable.Cell>
+  )
+}
+
+function LandingQueueStatusBadges({ job, showEmpty = true }: { job: DashboardJobItem; showEmpty?: boolean }) {
   const { t } = useT("dashboard")
 
   if (job.landing_queue_blocked_reason) {
     return (
-      <DataTable.Cell>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <TonePill tone="red">{translateBlockedReason(job.landing_queue_blocked_reason, t)}</TonePill>
-          <LandingBlockerOverrideBadge job={job} />
-        </div>
-      </DataTable.Cell>
+      <>
+        <TonePill tone="red">{translateBlockedReason(job.landing_queue_blocked_reason, t)}</TonePill>
+        <LandingBlockerOverrideBadge job={job} />
+      </>
     )
   }
 
   if (job.landing_queue_wait_reason) {
     return (
-      <DataTable.Cell>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <TonePill tone="gray">{translateBlockedReason(job.landing_queue_wait_reason, t)}</TonePill>
-          <LandingBlockerOverrideBadge job={job} />
-        </div>
-      </DataTable.Cell>
+      <>
+        <TonePill tone="gray">{translateBlockedReason(job.landing_queue_wait_reason, t)}</TonePill>
+        <LandingBlockerOverrideBadge job={job} />
+      </>
     )
   }
 
-  return (
-    <DataTable.Cell>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
-        <LandingBlockerOverrideBadge job={job} />
-      </div>
-    </DataTable.Cell>
-  )
+  const overrideBadge = <LandingBlockerOverrideBadge job={job} />
+  if (job.landing_blocker_override_requested_at) return overrideBadge
+  if (!showEmpty) return null
+
+  return <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
 }
 
 function LandingBlockerOverrideBadge({ job }: { job: DashboardJobItem }) {

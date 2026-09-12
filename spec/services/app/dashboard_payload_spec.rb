@@ -968,12 +968,13 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result.dig(:landing_queue, :status)).to be_nil
     end
 
-    it "shows required landing queue columns with neutral queue status copy" do
+    it "shows required landing queue status in the Queue column" do
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
       required = result[:controls][:columns][:required]
 
-      expect(required.map { |column| column[:key] }).to include("landing_queue_wait_reason")
-      expect(required.find { |column| column[:key] == "landing_queue_wait_reason" }[:title]).to eq("Queue status")
+      expect(required.map { |column| column[:key] }).to include("landing_queue_position")
+      expect(required.find { |column| column[:key] == "landing_queue_position" }[:title]).to eq("Queue")
+      expect(required.map { |column| column[:key] }).not_to include("landing_queue_wait_reason")
       expect(required.map { |column| column[:key] }).not_to include("landing_queue_blocked_reason")
     end
   end

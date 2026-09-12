@@ -117,7 +117,6 @@ function buildPayload(items: DashboardJobItem[], entries: DashboardPayload["land
         required: [
           { key: "checkbox", title: "Checkbox" },
           { key: "landing_queue_position", title: "Queue" },
-          { key: "landing_queue_wait_reason", title: "Queue status" },
           { key: "issue", title: "Issue" }
         ],
         optional: []
