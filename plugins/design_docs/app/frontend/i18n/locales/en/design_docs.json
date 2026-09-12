@@ -7,5 +7,6 @@
   "preview_collaborators": "Collaborators: {{names}}",
   "preview_comment_count_one": "{{count}} comment",
   "preview_comment_count_other": "{{count}} comments",
-  "preview_version": "v{{number}}"
+  "preview_version": "v{{number}}",
+  "tool_card_filter_placeholder": "Filter design docs"
 }

@@ -1,5 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, FilterableList, StatePill } from "@app/routes/chat/toolCardUi"
+import { useT } from "@app/hooks/useT"
 
 // Demonstrates the plugin-owned tool-card extension point (the Tier 1 tool-card work /
 // the relevant change): this file lives entirely inside the design_docs plugin and is
@@ -32,12 +33,18 @@ function renderExpanded(context: ToolCardContext) {
   const docs = designDocs(context)
   if (!docs || docs.length === 0) return null
 
+  return <DesignDocsList docs={docs} />
+}
+
+function DesignDocsList({ docs }: { docs: DesignDocListItem[] }) {
+  const { t } = useT("design_docs")
+
   return (
     <CardShell>
       <FilterableList
         itemText={(doc) => [doc.doc_ref, doc.id, doc.title, doc.state].filter(Boolean).join(" ")}
         items={docs}
-        placeholder="Filter design docs"
+        placeholder={t("tool_card_filter_placeholder")}
       >
         {(visibleDocs) => (
           <ul className="space-y-1 rounded border border-gray-200 bg-white p-2 text-xs dark:border-gray-800 dark:bg-gray-950">
