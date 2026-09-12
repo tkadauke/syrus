@@ -18,11 +18,12 @@ RSpec.describe "App API target graph inspection", type: :request do
     end
   end
 
-  def create_target_health(target_label:, status: "passed", fingerprint_prefix: "a")
+  def create_target_health(target_label:, status: "passed", fingerprint_prefix: "a", workflow: nil)
     TargetHealthRecord.create!(
       repository: repository,
       target_label: target_label,
       project_id: TargetGraph::ROOT_PROJECT_ID,
+      workflow: workflow,
       commit_sha: fingerprint_prefix * 40,
       input_fingerprint: "#{fingerprint_prefix}i".ljust(64, fingerprint_prefix),
       command_fingerprint: "#{fingerprint_prefix}c".ljust(64, fingerprint_prefix),
@@ -81,6 +82,8 @@ RSpec.describe "App API target graph inspection", type: :request do
       )
       expect(body["health"]).to include("scope" => "page")
       expect(body["health"]["summary"]).to include("passed" => 1)
+      expect(body["filter"]).to eq("and" => [])
+      expect(body["filter_schema"].map { |field| field["field"] }).to include("project_id", "label", "kind", "status", "path", "job_id", "workflow_id")
     end
 
     it "returns a bounded neighborhood around a focused target" do
@@ -117,6 +120,48 @@ RSpec.describe "App API target graph inspection", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["targets"].map { |target| target["label"] }).to eq([ "//:assets" ])
+    end
+
+    it "applies FilterBar tree filters while preserving legacy plain q search" do
+      with_graph_checkout(graph_yaml)
+      create_target_health(target_label: "//:assets", status: "failed", fingerprint_prefix: "d")
+      filter = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "path", "op" => "contains", "value" => "app/frontend" },
+          { "field" => "status", "op" => "is", "value" => "failed" }
+        ]
+      )
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph", params: { q: filter }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["filter"]).to eq(
+        "and" => [
+          { "field" => "path", "op" => "contains", "value" => "app/frontend" },
+          { "field" => "status", "op" => "is", "value" => "failed" }
+        ]
+      )
+      expect(body["targets"].map { |target| target["label"] }).to eq([ "//:assets" ])
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph", params: { q: "grade/tests" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["filter"]).to eq("and" => [])
+      expect(parse_body["targets"].map { |target| target["label"] }).to eq([ "//:grade/tests" ])
+    end
+
+    it "filters targets by the workflow that produced latest health" do
+      with_graph_checkout(graph_yaml)
+      job = Factories.job_with_run(repository: repository, user: user)
+      workflow = job.workflows.sole
+      create_target_health(target_label: "//:grade/tests", workflow: workflow)
+      filter = Filters::QueryParam.encode("and" => [ { "field" => "workflow_id", "op" => "equals", "value" => workflow.id } ])
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph", params: { q: filter }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["targets"].map { |target| target["label"] }).to eq([ "//:grade/tests" ])
     end
 
     it "windows large graphs without returning every target" do
