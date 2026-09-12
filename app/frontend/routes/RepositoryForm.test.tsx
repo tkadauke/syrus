@@ -22,6 +22,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       pr_cost_footer_enabled: true,
       auto_merge_enabled: false,
       trust_clean_rebase_grade: false,
+      land_on_inherited_check_failure: false,
       main_branch_health_enabled: false,
       main_branch_repair_enabled: false,
       main_branch_repair_blocks_work: true,
@@ -146,12 +147,15 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     const polling = (await screen.findAllByLabelText("Polling enabled"))[0]
     const prepare = screen.getByLabelText("Run prepare step on this repository's Workflows")
     const autoMerge = screen.getByLabelText("Auto-merge approved Syrus PRs")
+    const distributedDag = screen.getByLabelText("Use distributed workflow DAG execution for eligible steps")
 
-    for (const checkbox of [polling, prepare, autoMerge]) {
+    for (const checkbox of [polling, prepare, autoMerge, distributedDag]) {
       const label = checkbox.closest("label")
       expect(label).toHaveClass("flex")
       expect(label).not.toHaveClass("inline-flex")
     }
+
+    expect(screen.getByText("Requires the instance-wide distributed workflow feature and worker-slot admission to be enabled.")).toBeInTheDocument()
   })
 
   it("keeps monitoring enabled when enabling main branch repair or broken-main pausing", async () => {
