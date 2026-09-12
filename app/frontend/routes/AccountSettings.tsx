@@ -38,6 +38,7 @@ import { PanelMessage } from "../components/PanelMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import { deletePasskey, fetchPasskeyRegistrationOptions, fetchPasskeys, registerPasskey, type PasskeyRecord } from "../api/passkeys"
 import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
+import type { ProviderAvailability } from "../api/providerAvailability"
 
 const queryKey = ["credentials"] as const
 type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences"
@@ -741,6 +742,7 @@ function ProviderAvailabilitySettings({
       {payload.options.agent_providers.map((provider) => {
         const availability = payload.provider_availability?.[provider]
         const threshold = values.provider_availability_pause_thresholds?.[provider] ?? 10
+        const usageReset = providerUsageReset(availability)
         const usageTextClass = availability?.usage_exhausted
           ? "text-red-700 dark:text-red-300"
           : "text-gray-500 dark:text-gray-400"
@@ -770,6 +772,12 @@ function ProviderAvailabilitySettings({
                   : availability?.usage?.remaining_percent != null
                   ? t("account_settings.provider_availability_remaining", { percent: Math.round(availability.usage.remaining_percent) })
                   : t("account_settings.provider_availability_no_usage")}
+                {usageReset ? (
+                  <span title={usageReset.absolute}>
+                    {" "}
+                    {t("account_settings.provider_availability_resets_in", { time: usageReset.relative })}
+                  </span>
+                ) : null}
                 {availability?.override_active ? ` ${t("account_settings.provider_availability_override_active")}` : ""}
               </p>
             </div>
@@ -802,4 +810,84 @@ function ProviderAvailabilitySettings({
 
 function titleize(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
+}
+
+function providerUsageReset(availability?: ProviderAvailability) {
+  const now = new Date()
+  const resetAt = futureResetCandidate(providerUsageResetCandidates(availability, now), now) ||
+    futureResetCandidate([parseTimestamp(availability?.retry_after)], now)
+
+  if (!resetAt) return null
+
+  return {
+    absolute: resetAt.toLocaleString(),
+    relative: formatRelativeReset(resetAt, now)
+  }
+}
+
+function futureResetCandidate(candidates: Array<Date | null>, now: Date) {
+  return candidates
+    .filter((date): date is Date => Boolean(date))
+    .filter((date) => date.getTime() >= now.getTime())
+    .sort((a, b) => a.getTime() - b.getTime())[0]
+}
+
+function providerUsageResetCandidates(availability: ProviderAvailability | undefined, now: Date) {
+  return [
+    ...Object.values(availability?.usage?.windows || {}).map((window) => parseTimestamp(window?.reset_at)),
+    ...usageSnapshotResetCandidates(availability?.usage?.evidence?.details, availability?.usage?.observed_at, now),
+    ...usageSnapshotResetCandidates(availability?.evidence?.current?.details, availability?.evidence?.current?.observed_at, now)
+  ]
+}
+
+function usageSnapshotResetCandidates(details: Record<string, unknown> | null | undefined, observedAtValue: string | null | undefined, now: Date) {
+  const snapshot = recordValue(details?.snapshot)
+  if (!snapshot) return []
+
+  const observedAt = parseTimestamp(observedAtValue) || now
+  return [
+    parseTimestamp(stringValue(recordValue(snapshot.primary)?.reset_at)),
+    parseTimestamp(stringValue(recordValue(snapshot.secondary)?.reset_at)),
+    resetAfterMinutes(snapshot.session_reset_minutes, observedAt),
+    resetAfterMinutes(snapshot.weekly_reset_minutes, observedAt)
+  ]
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" ? value : null
+}
+
+function resetAfterMinutes(value: unknown, observedAt: Date) {
+  const minutes = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
+  if (!Number.isFinite(minutes)) return null
+
+  return new Date(observedAt.getTime() + minutes * 60_000)
+}
+
+function parseTimestamp(value?: string | null) {
+  if (!value) return null
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatRelativeReset(resetAt: Date, now = new Date()) {
+  const remainingMinutes = Math.max(0, Math.ceil((resetAt.getTime() - now.getTime()) / 60_000))
+  if (remainingMinutes <= 0) return "less than a minute"
+
+  const days = Math.floor(remainingMinutes / (24 * 60))
+  const hours = Math.floor((remainingMinutes % (24 * 60)) / 60)
+  const minutes = remainingMinutes % 60
+
+  if (days > 0) return [pluralizeTime(days, "day"), hours > 0 ? pluralizeTime(hours, "hour") : null].filter(Boolean).join(", ")
+  if (hours > 0) return [pluralizeTime(hours, "hour"), minutes > 0 ? pluralizeTime(minutes, "minute") : null].filter(Boolean).join(", ")
+  return pluralizeTime(minutes, "minute")
+}
+
+function pluralizeTime(value: number, unit: string) {
+  return `${value} ${unit}${value === 1 ? "" : "s"}`
 }
