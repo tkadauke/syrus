@@ -62,6 +62,7 @@
   "optional_change_summary": "Optionale Aenderungszusammenfassung",
   "owner": "Besitzer: {{name}}",
   "pending_owner_review": "Wartet auf Pruefung durch den Besitzer.",
+  "preview_collaborators": "Mitwirkende: {{names}}",
   "preview_comment_count_one": "{{count}} Kommentar",
   "preview_comment_count_other": "{{count}} Kommentare",
   "preview_not_accessible": "Nicht zugaenglich",
