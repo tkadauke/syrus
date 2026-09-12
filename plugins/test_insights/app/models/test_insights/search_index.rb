@@ -22,6 +22,13 @@ module TestInsights
         end
       end
 
+      def rebuild!
+        connection.transaction do
+          connection.execute("DELETE FROM test_identity_fts")
+          TestIdentity.includes(:repository).find_each { |test_identity| insert(test_identity) }
+        end
+      end
+
       def delete(test_identity_id)
         connection.exec_delete(
           "DELETE FROM test_identity_fts WHERE test_identity_id = ?",

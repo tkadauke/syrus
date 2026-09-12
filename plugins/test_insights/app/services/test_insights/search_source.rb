@@ -17,6 +17,8 @@ module TestInsights
     SQL
 
     def self.search_tables = { "test_identity_fts" => TABLE_SQL }
+    def self.backfill_search_table(_name) = SearchIndex.rebuild!
+    def self.rebuild_search_table(name) = backfill_search_table(name)
 
     def self.search_type = "test_case"
     def self.filter_subject = :test_case
