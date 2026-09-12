@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { memo, useState } from "react"
-import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
+import { memo, useRef, useState } from "react"
+import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
@@ -129,6 +129,8 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
   const images = (attachments || []).filter((attachment): attachment is ChatMessageImageAttachment => attachment.mime_type.startsWith("image/"))
   const [lightboxImageIndex, setLightboxImageIndex] = useState<number | null>(null)
   const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
+  const previousLightboxImage = lightboxImageIndex != null && lightboxImageIndex > 0 ? images[lightboxImageIndex - 1] : null
+  const nextLightboxImage = lightboxImageIndex != null && lightboxImageIndex < images.length - 1 ? images[lightboxImageIndex + 1] : null
 
   if (images.length === 0) return null
 
@@ -154,10 +156,14 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
         <ImageLightbox
           hasNext={lightboxImageIndex != null && lightboxImageIndex < images.length - 1}
           hasPrevious={lightboxImageIndex != null && lightboxImageIndex > 0}
+          imageCount={images.length}
+          imageIndex={lightboxImageIndex ?? 0}
           name={lightboxImage.name || "Image attachment"}
+          nextSrc={nextLightboxImage ? attachmentDataUrl(nextLightboxImage) : null}
           onClose={() => setLightboxImageIndex(null)}
           onNext={() => setLightboxImageIndex((index) => index == null ? index : Math.min(index + 1, images.length - 1))}
           onPrevious={() => setLightboxImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
+          previousSrc={previousLightboxImage ? attachmentDataUrl(previousLightboxImage) : null}
           src={attachmentDataUrl(lightboxImage)}
         />
       ) : null}
@@ -195,13 +201,25 @@ type ImageLightboxProps = {
   extraAction?: { label: string; onClick: () => void }
   hasPrevious?: boolean
   hasNext?: boolean
+  previousSrc?: string | null
+  nextSrc?: string | null
+  imageIndex?: number
+  imageCount?: number
   onPrevious?: () => void
   onNext?: () => void
 }
 
-export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = false, hasNext = false, onPrevious, onNext }: ImageLightboxProps) {
+const LIGHTBOX_INITIAL_CONTROLS_MS = 2_000
+const LIGHTBOX_SWIPE_THRESHOLD_PX = 48
+
+export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = false, hasNext = false, previousSrc = null, nextSrc = null, imageIndex = 0, imageCount = 1, onPrevious, onNext }: ImageLightboxProps) {
   const { t } = useT("chat")
   const showNavigation = Boolean(onPrevious && onNext && (hasPrevious || hasNext))
+  const [desktopControlsVisible, setDesktopControlsVisible] = useState(true)
+  const initialGraceActiveRef = useRef(true)
+  const hoveringRef = useRef(false)
+  const touchStartXRef = useRef<number | null>(null)
+
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") onClose()
@@ -220,10 +238,61 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [hasNext, hasPrevious, onClose, onNext, onPrevious])
 
+  useEffect(() => {
+    initialGraceActiveRef.current = true
+    setDesktopControlsVisible(true)
+    const timeout = window.setTimeout(() => {
+      initialGraceActiveRef.current = false
+      if (!hoveringRef.current) setDesktopControlsVisible(false)
+    }, LIGHTBOX_INITIAL_CONTROLS_MS)
+    return () => window.clearTimeout(timeout)
+  }, [src])
+
+  function showDesktopControls() {
+    hoveringRef.current = true
+    setDesktopControlsVisible(true)
+  }
+
+  function hideDesktopControls() {
+    hoveringRef.current = false
+    if (initialGraceActiveRef.current) return
+    setDesktopControlsVisible(false)
+  }
+
+  function handleTouchStart(event: TouchEvent) {
+    touchStartXRef.current = event.changedTouches[0]?.clientX ?? null
+  }
+
+  function handleTouchEnd(event: TouchEvent) {
+    const startX = touchStartXRef.current
+    touchStartXRef.current = null
+    const endX = event.changedTouches[0]?.clientX
+    if (startX == null || endX == null) return
+
+    const deltaX = endX - startX
+    if (Math.abs(deltaX) < LIGHTBOX_SWIPE_THRESHOLD_PX) return
+    if (deltaX < 0 && hasNext) onNext?.()
+    if (deltaX > 0 && hasPrevious) onPrevious?.()
+  }
+
+  const controlsVisibilityClass = desktopControlsVisible
+    ? "md:pointer-events-auto md:opacity-100"
+    : "md:pointer-events-none md:opacity-0"
+  const mobileImageWidthClass = showNavigation ? "max-w-[calc(100vw-5rem)]" : "max-w-[calc(100vw-2rem)]"
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
-      <section aria-label={name} aria-modal="true" className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()} role="dialog">
-        <div className="absolute right-2 top-2 flex items-center gap-2">
+      <section
+        aria-label={name}
+        aria-modal="true"
+        className="relative max-h-full max-w-full"
+        onClick={(event) => event.stopPropagation()}
+        onFocusCapture={showDesktopControls}
+        onMouseEnter={showDesktopControls}
+        onMouseLeave={hideDesktopControls}
+        role="dialog"
+      >
+        <div className={`absolute right-2 top-2 z-10 flex items-center gap-2 opacity-100 transition-opacity duration-150 ${controlsVisibilityClass}`} aria-label="Image preview controls">
           {extraAction ? (
             <button
               className="rounded bg-white/90 px-2 py-1.5 text-xs font-medium text-gray-700 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
@@ -246,7 +315,7 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
           <>
             <button
               aria-label={t("aria_previous_image")}
-              className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+              className={`absolute left-2 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900 md:flex ${controlsVisibilityClass}`}
               disabled={!hasPrevious}
               onClick={onPrevious}
               type="button"
@@ -255,7 +324,7 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
             </button>
             <button
               aria-label={t("aria_next_image")}
-              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+              className={`absolute right-2 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900 md:flex ${controlsVisibilityClass}`}
               disabled={!hasNext}
               onClick={onNext}
               type="button"
@@ -264,7 +333,30 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
             </button>
           </>
         ) : null}
-        <img alt={name} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain shadow-lg dark:bg-gray-900" src={src} />
+        <div className="hidden md:block">
+          <img alt={name} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain shadow-lg dark:bg-gray-900" src={src} />
+        </div>
+        <div
+          className="relative flex max-h-[calc(100dvh-5rem)] w-[calc(100vw-2rem)] items-center justify-center overflow-hidden rounded bg-white shadow-lg dark:bg-gray-900 md:hidden"
+          data-image-lightbox-swipe-area
+          onTouchEnd={handleTouchEnd}
+          onTouchStart={handleTouchStart}
+        >
+          {hasPrevious && previousSrc ? <img aria-hidden="true" alt="" className="absolute left-0 h-full w-10 object-cover opacity-70" src={previousSrc} /> : null}
+          {hasNext && nextSrc ? <img aria-hidden="true" alt="" className="absolute right-0 h-full w-10 object-cover opacity-70" src={nextSrc} /> : null}
+          <img alt={name} className={`relative z-[1] max-h-[calc(100dvh-5rem)] ${mobileImageWidthClass} object-contain`} src={src} />
+        </div>
+        {showNavigation && imageCount > 1 ? (
+          <div aria-label="Image carousel position" className="fixed bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full bg-gray-950/35 px-2 py-1 md:hidden">
+            {Array.from({ length: imageCount }).map((_, index) => (
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${index === imageIndex ? "bg-white" : "bg-white/45"}`}
+                key={index}
+              />
+            ))}
+          </div>
+        ) : null}
       </section>
     </div>
   )
