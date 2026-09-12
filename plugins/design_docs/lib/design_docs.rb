@@ -14,6 +14,8 @@ module DesignDocs
     default_enabled true
     disableable true
     optionally_depends_on [ "global_search" ]
+    events "design_doc.upserted" => :async,
+           "design_doc.deleted" => :async
     provides sidebar_page: "DesignDocs::SidebarPages",
              repo_page_tab: "DesignDocs::RepoPageTabs",
              workspace_tab: "DesignDocs::WorkspaceTabs",
