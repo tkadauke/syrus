@@ -1,4 +1,5 @@
 import { isPlainObject } from "@app/pluginToolCards"
+import i18n from "i18next"
 import { Badge, displayValue, InternalLink, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation for the design_docs plugin's chat tool cards (the pending-action tool-card work
@@ -66,5 +67,9 @@ export function contentMetadata(markdown: unknown): string | null {
   if (!text) return null
 
   const words = text.split(/\s+/).filter(Boolean).length
-  return `${words} word${words === 1 ? "" : "s"}`
+  return t("tool_word_count", { count: words })
+}
+
+export function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`design_docs:${key}`, options)
 }

@@ -137,5 +137,15 @@
   "visibility": "Sichtbarkeit",
   "visibility_private": "Privat",
   "visibility_public": "Oeffentlich",
-  "viewing_version_read_only": "Kommentare und Vorschlaege ab v{{number}} werden angezeigt. Schreibgeschuetzt."
+  "viewing_version_read_only": "Kommentare und Vorschlaege ab v{{number}} werden angezeigt. Schreibgeschuetzt.",
+  "tool_word_count_one": "{{count}} Wort",
+  "tool_word_count_other": "{{count}} Woerter",
+  "tool_commented_on": "Kommentiert in {{doc}}",
+  "tool_comment": "Kommentar",
+  "tool_created_summary": "{{doc}} erstellt — {{title}}",
+  "tool_created": "Erstellt",
+  "tool_suggested_change_summary": "Aenderung fuer {{doc}} vorgeschlagen{{state}}",
+  "tool_suggestion": "Vorschlag",
+  "tool_summary": "Zusammenfassung",
+  "tool_conflict": "Konflikt"
 }

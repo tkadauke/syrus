@@ -62,7 +62,8 @@ module ScheduledTasks
     route :get,    "/api/v1/admin/cron_templates", to: "api/v1/admin/cron_templates#index"
     route :get,    "/api/v1/admin/cron_templates/:id", to: "api/v1/admin/cron_templates#show"
 
-    frontend routes: { "scheduled_tasks/ScheduledTasksPage" => "app/frontend/routes/ScheduledTasksPage.tsx" }
+    frontend routes: { "scheduled_tasks/ScheduledTasksPage" => "app/frontend/routes/ScheduledTasksPage.tsx" },
+             i18n: [ "app/frontend/i18n/locales/*/scheduled_tasks.json" ]
 
     # Schedules only fire while the plugin is on; the rows outlive it being
     # disabled, so cleanup is installed with `always`.

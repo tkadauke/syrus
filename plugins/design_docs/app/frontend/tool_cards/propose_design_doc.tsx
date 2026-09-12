@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue } from "@app/routes/chat/toolCardUi"
-import { DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
+import { DesignDocHeader, parseDesignDocSummary, t, type DesignDocSummary } from "../designDocToolCard"
 
 // Plugin-owned tool card for propose_design_doc (the pending-action tool-card work).
 // propose_design_doc only ever creates a new draft doc (mutation_mode is
@@ -21,7 +21,7 @@ function collapsedSummary(context: ToolCardContext) {
   const result = proposeDesignDoc(context)
   if (!result) return null
 
-  return `Created ${result.summary.docRef} — ${result.summary.title}`
+  return t("tool_created_summary", { doc: result.summary.docRef, title: result.summary.title })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -31,7 +31,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Created</Badge>
+        <Badge>{t("tool_created")}</Badge>
       </div>
       <DesignDocHeader doc={result.summary} />
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{result.summary.title}</div>

@@ -1,0 +1,11 @@
+{
+  "erd_empty": "No tables found in schema.",
+  "foreign_key": "foreign key",
+  "unknown": "unknown",
+  "migration_before": "Before",
+  "migration_after": "After",
+  "migration_changes": "Changes",
+  "change_added": "added",
+  "change_removed": "removed",
+  "change_modified": "modified"
+}

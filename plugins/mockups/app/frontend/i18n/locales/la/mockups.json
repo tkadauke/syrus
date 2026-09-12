@@ -10,5 +10,11 @@
   "preview_unavailable": "Hoc exemplar monstrari non potuit.",
   "preview_access_pending": "Aditus praevisionis paratur…",
   "version": "Versio",
-  "download": "Depromere"
+  "download": "Depromere",
+  "tool_panel_number": "Tabula #{{id}}",
+  "tool_entry_file": "Fasciculus initii",
+  "tool_files": "Fasciculi",
+  "tool_open_mockup": "Exemplar aperire",
+  "tool_path": "Semita",
+  "tool_replacements": "Substitutiones"
 }

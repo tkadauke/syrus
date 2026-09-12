@@ -1,0 +1,11 @@
+{
+  "erd_empty": "Nullae tabulae in schemate inventae.",
+  "foreign_key": "clavis externa",
+  "unknown": "ignotum",
+  "migration_before": "Ante",
+  "migration_after": "Post",
+  "migration_changes": "Mutationes",
+  "change_added": "additum",
+  "change_removed": "remotum",
+  "change_modified": "mutatum"
+}

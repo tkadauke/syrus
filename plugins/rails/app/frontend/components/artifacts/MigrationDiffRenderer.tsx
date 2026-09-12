@@ -1,4 +1,5 @@
 import type { MigrationDiffChange, MigrationDiffPayload } from "@app/api/artifacts"
+import { useT } from "@app/hooks/useT"
 
 // Renders a Rails migration diff as a two-column before/after table.
 // Added columns are highlighted green, removed columns red, modified amber.
@@ -15,6 +16,7 @@ function hasColumn(change: MigrationDiffChange): change is MigrationDiffChange &
 }
 
 export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPayload }) {
+  const { t } = useT("syrus_rails")
   const { migration_name, before, after, changes: rawChanges } = payload
   const changes = (rawChanges ?? []).filter(hasColumn)
   const beforeColumns = before?.columns ?? []
@@ -26,12 +28,12 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
     <div className="space-y-3">
       <div className="font-mono text-sm font-semibold text-gray-700">{migration_name}</div>
       <div className="grid grid-cols-2 gap-4">
-        <ColumnTable title="Before" tableName={before?.table_name} columns={beforeColumns} changeMap={changeMap} side="before" />
-        <ColumnTable title="After" tableName={after?.table_name} columns={afterColumns} changeMap={changeMap} side="after" />
+        <ColumnTable title={t("migration_before")} tableName={before?.table_name} columns={beforeColumns} changeMap={changeMap} side="before" />
+        <ColumnTable title={t("migration_after")} tableName={after?.table_name} columns={afterColumns} changeMap={changeMap} side="after" />
       </div>
       {changes.length > 0 && (
         <div className="space-y-1">
-          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Changes</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t("migration_changes")}</div>
           <ul className="space-y-0.5">
             {changes.map((change) => (
               <li key={`${change.type}-${change.column.name}`} className="flex items-center gap-2 text-sm">
@@ -94,11 +96,12 @@ function rowHighlight(changeType: string | undefined, side: "before" | "after", 
 }
 
 function ChangePill({ type }: { type: string }) {
+  const { t } = useT("syrus_rails")
   if (type === "added") {
-    return <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">added</span>
+    return <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">{t("change_added")}</span>
   }
   if (type === "removed") {
-    return <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">removed</span>
+    return <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">{t("change_removed")}</span>
   }
-  return <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">modified</span>
+  return <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">{t("change_modified")}</span>
 }

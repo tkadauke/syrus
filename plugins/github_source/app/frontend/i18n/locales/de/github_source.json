@@ -7,12 +7,15 @@
     "showing_prefix": "Anzeigen:",
     "github_quota_prefix": "GitHub-Kontingent:",
     "view_on_github": "Auf GitHub ansehen",
+    "command_failed": "GitHub-Issue-Befehl fehlgeschlagen.",
     "state_open": "Offen",
     "state_closed": "Geschlossen",
     "refresh": "Aktualisieren",
     "refreshing": "Wird aktualisiert…",
     "close_selected": "Ausgewählte schließen",
     "delegate_selected": "Ausgewählte delegieren",
+    "select": "Auswählen",
+    "select_issue": "Issue #{{number}} auswählen",
     "col_issue": "GitHub-Issue",
     "col_actions": "Aktionen",
     "comment": "Kommentar",
@@ -21,6 +24,12 @@
     "cancel": "Abbrechen",
     "post_comment": "Kommentar posten",
     "delegate": "Delegieren",
-    "delegated": "Delegiert"
+    "delegated": "Delegiert",
+    "load_error": "Issues konnten nicht geladen werden.",
+    "empty_open_action": "GitHub-Issues ansehen",
+    "empty_closed_action": "Offene Issues anzeigen",
+    "empty_open_description": "Es sind keine offenen Issues zum Delegieren verfügbar. Erstelle oder markiere ein Issue mit {{label}}, oder nutze einen direkten Job für erste Arbeit.",
+    "empty_closed_description": "In dieser Repository-Ansicht sind keine geschlossenen Issues verfügbar.",
+    "empty_title": "Keine {{state}} Issues gefunden"
   }
 }

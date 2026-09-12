@@ -7,12 +7,15 @@
     "showing_prefix": "Ostenditur:",
     "github_quota_prefix": "Quota GitHub:",
     "view_on_github": "In GitHub videre",
+    "command_failed": "Mandatum quaestionis GitHub defecit.",
     "state_open": "Apertum",
     "state_closed": "Clausum",
     "refresh": "Renovare",
     "refreshing": "Renovans...",
     "close_selected": "Selecta claudere",
     "delegate_selected": "Selecta delegare",
+    "select": "Selige",
+    "select_issue": "Quaestionem #{{number}} selige",
     "col_issue": "Quaestio",
     "col_actions": "Actiones",
     "comment": "Commentum",
@@ -21,6 +24,12 @@
     "cancel": "Omittere",
     "post_comment": "Commentum mittere",
     "delegate": "Delegare",
-    "delegated": "Delegatum"
+    "delegated": "Delegatum",
+    "load_error": "Quaestiones onerari non potuerunt.",
+    "empty_open_action": "Quaestiones GitHub videre",
+    "empty_closed_action": "Quaestiones apertas ostendere",
+    "empty_open_description": "Nullae quaestiones apertae delegandae praesto sunt. Crea aut nota quaestionem cum {{label}}, aut utere opere directo ad primum opus.",
+    "empty_closed_description": "Nullae quaestiones clausae in hac conspectu repositorii praesto sunt.",
+    "empty_title": "Nullae quaestiones {{state}} inventae"
   }
 }

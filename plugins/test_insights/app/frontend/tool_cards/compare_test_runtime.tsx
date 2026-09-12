@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, EmptyState, numberValue } from "@app/routes/chat/toolCardUi"
-import { formatMs, parseTestIdentityRef, TableShell, TestIdentityLink, type TestIdentityRef } from "../testInsightToolCard"
+import { formatMs, parseTestIdentityRef, t, TableShell, TestIdentityLink, type TestIdentityRef } from "../testInsightToolCard"
 
 // Plugin-owned tool card for compare_test_runtime (the pending-action tool-card work). Lives entirely
 // inside the test_insights plugin -- core discovers it by directory
@@ -57,18 +57,18 @@ function parseRow(value: unknown): ComparisonRow | null {
 }
 
 function describeSource(value: unknown): SourceDescriptor {
-  if (!isPlainObject(value)) return { label: "unknown" }
+  if (!isPlainObject(value)) return { label: t("unknown") }
 
   const type = displayValue(value.type)
-  if (type === "run") return { label: displayValue(value.run_slug) ?? `run ${displayValue(value.run_id) ?? "?"}` }
-  if (type === "job") return { label: displayValue(value.job_slug) ?? `job ${displayValue(value.job_id) ?? "?"}` }
+  if (type === "run") return { label: displayValue(value.run_slug) ?? t("run_with_id", { id: displayValue(value.run_id) ?? "?" }) }
+  if (type === "job") return { label: displayValue(value.job_slug) ?? t("job_with_id", { id: displayValue(value.job_id) ?? "?" }) }
   if (type === "window") {
     const starts = displayValue(value.starts_at)
     const ends = displayValue(value.ends_at)
-    return { label: starts && ends ? `${starts} → ${ends}` : "time window" }
+    return { label: starts && ends ? `${starts} → ${ends}` : t("time_window") }
   }
 
-  return { label: displayValue(value.label) ?? "unknown" }
+  return { label: displayValue(value.label) ?? t("unknown") }
 }
 
 type CompareCard = {
@@ -97,7 +97,7 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  return `${card.rows.length} test${card.rows.length === 1 ? "" : "s"}: ${card.baseline.label} vs ${card.comparison.label}`
+  return t("tool_compare_summary", { count: card.rows.length, baseline: card.baseline.label, comparison: card.comparison.label })
 }
 
 function deltaTone(delta: Delta): "regressed" | "improved" | "flat" {
@@ -129,23 +129,23 @@ function DeltaCell({ delta }: { delta: Delta }) {
 function renderExpanded(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
-  if (card.rows.length === 0) return <EmptyState>No matching tests to compare.</EmptyState>
+  if (card.rows.length === 0) return <EmptyState>{t("tool_compare_empty")}</EmptyState>
 
   return (
     <div className="mt-1 space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-        <Badge>baseline: {card.baseline.label}</Badge>
-        <Badge>comparison: {card.comparison.label}</Badge>
+        <Badge>{t("tool_baseline_badge", { label: card.baseline.label })}</Badge>
+        <Badge>{t("tool_comparison_badge", { label: card.comparison.label })}</Badge>
         {card.graderName ? <Badge>{card.graderName}</Badge> : null}
       </div>
       <TableShell>
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">Test</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Baseline avg / p95</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Comparison avg / p95</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Avg delta</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_test")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_baseline_avg_p95")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_comparison_avg_p95")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_avg_delta")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">

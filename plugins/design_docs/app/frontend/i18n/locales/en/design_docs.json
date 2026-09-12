@@ -137,5 +137,15 @@
   "visibility": "Visibility",
   "visibility_private": "Private",
   "visibility_public": "Public",
-  "viewing_version_read_only": "Viewing comments and suggestions as of v{{number}}. Read only."
+  "viewing_version_read_only": "Viewing comments and suggestions as of v{{number}}. Read only.",
+  "tool_word_count_one": "{{count}} word",
+  "tool_word_count_other": "{{count}} words",
+  "tool_commented_on": "Commented on {{doc}}",
+  "tool_comment": "Comment",
+  "tool_created_summary": "Created {{doc}} — {{title}}",
+  "tool_created": "Created",
+  "tool_suggested_change_summary": "Suggested change to {{doc}}{{state}}",
+  "tool_suggestion": "Suggestion",
+  "tool_summary": "Summary",
+  "tool_conflict": "Conflict"
 }
