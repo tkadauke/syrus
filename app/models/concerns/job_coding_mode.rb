@@ -7,10 +7,12 @@ module JobCodingMode
     linked_chat_id.present?
   end
 
-  # Claim this Job for a Coding Mode chat session. Unapproves the Job first
-  # if it is currently approved so the coding session can replace the
-  # implement step. Returns false when the feature flag is off, the Job is
-  # already locked, or the state is incompatible (i.e. not queued/implemented).
+  # Claim this Job for a Coding Mode chat session. `linked_chat_id` is the
+  # Job-side ownership lock: one active coding chat may own at most one coding
+  # Job attachment, and one coding Job may be owned by at most one chat.
+  # Unapproves the Job first if it is currently approved so the coding session
+  # can replace the implement step. Returns false when the feature flag is off,
+  # the Job is already locked, or the state is incompatible.
   def lock_for_coding_mode!(chat_session)
     return false unless Feature.coding_mode_enabled?
     return false if linked_chat_id.present?
