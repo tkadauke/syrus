@@ -755,12 +755,15 @@ describe("MediaGallery images", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Open old.png" }))
     const dialog = screen.getByRole("dialog", { name: "old.png" })
-    expect(within(dialog).getByLabelText("Image carousel position").children).toHaveLength(2)
+    const carouselPosition = within(dialog).getByLabelText("Image carousel position")
+    expect(carouselPosition.children).toHaveLength(2)
+    expect(carouselPosition).toHaveClass("fixed", "bottom-4")
     expect(screen.getByRole("button", { name: "Next image" })).toHaveClass("hidden")
 
     const swipeArea = dialog.querySelector("[data-image-lightbox-swipe-area]")
     expect(swipeArea).not.toBeNull()
     if (!swipeArea) return
+    expect(swipeArea.contains(carouselPosition)).toBe(false)
 
     fireEvent.touchStart(swipeArea, { changedTouches: [{ clientX: 220 }] })
     fireEvent.touchEnd(swipeArea, { changedTouches: [{ clientX: 80 }] })
