@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
 import { stubVirtualizerMeasurements } from "../test/virtualizerMeasurements"
@@ -59,6 +59,11 @@ function renderRoute(responsePayload: TargetGraphPayload = payload(), initialEnt
     </QueryClientProvider>
   )
   return fetchSpy
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <span data-testid="location">{location.pathname}{location.search}</span>
 }
 
 describe("RepositoryTargetGraphRoute", () => {
@@ -124,6 +129,7 @@ describe("RepositoryTargetGraphRoute", () => {
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={["/app-shell/jobs/1?tab=target_graph"]}>
           <JobTargetGraphPanel jobId={1} prefix="/app-shell" />
+          <LocationProbe />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -134,6 +140,16 @@ describe("RepositoryTargetGraphRoute", () => {
       "/api/v1/app/jobs/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=180",
       expect.any(Object)
     )
+
+    fireEvent.click(screen.getByRole("button", { name: "Selected" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1?tab=target_graph&focus_state=selected")
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/jobs/1/target_graph?mode=neighborhood&focus_state=selected&direction=both&depth=1&limit=180",
+        expect.any(Object)
+      )
+    })
   })
 })
 
