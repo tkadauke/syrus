@@ -140,7 +140,8 @@ export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { pa
   const [currentIndex, setCurrentIndex] = useState(0)
   const recommendationAction = useMutation({
     mutationFn: (recommendation: RepositoryFeatureRecommendation) => runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
-    onSuccess: (updated) => {
+    onSuccess: (updated, recommendation) => {
+      dismiss(recommendation)
       if ("repository" in updated && "tabs" in updated) {
         queryClient.setQueryData(queryKey, updated)
         onNotice(updated.message || null)

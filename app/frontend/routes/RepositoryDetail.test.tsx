@@ -409,6 +409,7 @@ describe("RepositoryDetailRoute recommendations", () => {
       )
     })
     expect(await screen.findByText("Created job")).toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem("syrus:repository:1:dismissed-recommendations") || "[]")).toContain("repository:1:feature_recommendation:visual_review:v1")
   })
 
   it("invokes a toggle recommendation CTA and refreshes the detail payload", async () => {
@@ -460,6 +461,8 @@ describe("RepositoryDetailRoute recommendations", () => {
       )
     })
     expect(await screen.findByText("Repository setting enabled.")).toBeInTheDocument()
+    expect(screen.queryByText("Show PR cost footer")).not.toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem("syrus:repository:1:dismissed-recommendations") || "[]")).toContain("repository:1:feature_recommendation:pr_cost_footer:v1")
   })
 
   it("renders settings recommendation CTAs as links", async () => {
