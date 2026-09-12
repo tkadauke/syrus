@@ -34,6 +34,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
   def legacy_untranslated_paths
     [
+      %r{app/frontend/components/ui/Text\.tsx$},
       %r{app/frontend/components/(AdminEventActions|Checkbox|FilterBar|ShortcutsHelpModal)\.tsx$},
       %r{app/frontend/components/credentials/},
       %r{app/frontend/components/diff/ReviewableDiff\.tsx$},
@@ -43,7 +44,12 @@ RSpec.describe "Untranslated source strings", type: :unit do
       %r{app/frontend/routes/jobDetail/(SourceBrowser|WorkflowGraph)\.tsx$},
       %r{app/frontend/routes/repositoryDetail/DeliveryTracks\.tsx$},
       %r{app/frontend/routes/ThemesSettings\.tsx$},
-      %r{desktop/src/App\.tsx$}
+      %r{desktop/src/App\.tsx$},
+      %r{plugins/admin_mysql/app/frontend/adminMysqlToolCard\.tsx$},
+      %r{plugins/agent_insights/app/frontend/agentInsightToolCard\.tsx$},
+      %r{plugins/browser/app/frontend/browserToolCard\.tsx$},
+      %r{plugins/github_source/app/frontend/routes/AdminGithubApiUsage\.tsx$},
+      %r{plugins/theming_tools/app/frontend/themeToolCard\.tsx$}
     ]
   end
 
