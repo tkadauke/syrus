@@ -1,5 +1,5 @@
 import { createContext, forwardRef, useContext, useEffect, useId, useMemo, useState } from "react"
-import type { ComponentPropsWithoutRef, HTMLAttributes, LabelHTMLAttributes, ReactNode } from "react"
+import type { HTMLAttributes, LabelHTMLAttributes, ReactNode } from "react"
 import { Checkbox, type CheckboxProps } from "../Checkbox"
 import { Input, type InputProps } from "../Input"
 import { Select, type SelectProps } from "../Select"
@@ -205,14 +205,9 @@ const FormCheckbox = forwardRef<HTMLInputElement, CheckboxProps>(function FormCh
   return <Checkbox ref={ref} {...controlProps(props, context)} />
 })
 
-type FormToggleProps = Omit<ComponentPropsWithoutRef<typeof Toggle>, "invalid"> & {
-  invalid?: boolean
-}
-
-const FormToggle = forwardRef<HTMLButtonElement, FormToggleProps>(function FormToggle(props, ref) {
+const FormToggle = forwardRef<HTMLButtonElement, ToggleProps>(function FormToggle(props, ref) {
   const context = useFormFieldContext("Form.Toggle")
-  const { invalid: _invalid, ...toggleProps } = controlProps(props, context)
-  return <Toggle ref={ref} {...toggleProps} />
+  return <Toggle ref={ref} {...controlProps(props, context)} />
 })
 
 export const Form = {

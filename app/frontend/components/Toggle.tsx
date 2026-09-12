@@ -3,6 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react"
 
 export interface ToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange" | "value" | "type"> {
   checked: boolean
+  invalid?: boolean
   onChange: (checked: boolean) => void
   label?: ReactNode
 }
@@ -12,15 +13,16 @@ export interface ToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 // accessible pattern for a toggle. Wrapping in a <label> (button is a
 // labelable element) works the same way Checkbox wraps its <input>.
 export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(function Toggle(
-  { checked, onChange, label, className = "", disabled, ...props },
+  { checked, invalid = false, onChange, label, className = "", disabled, ...props },
   ref
 ) {
   const button = (
     <button
       aria-checked={checked}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-gray-950 ${
+      aria-invalid={invalid || undefined}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-gray-950 ${
         checked ? "bg-brand" : "bg-border"
-      } ${className}`.trim()}
+      } ${invalid ? "ring-1 ring-danger focus-visible:ring-danger" : "focus-visible:ring-brand"} ${className}`.trim()}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       ref={ref}
