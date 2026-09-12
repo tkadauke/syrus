@@ -2191,6 +2191,32 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(chat_json).to include("id" => chat.id)
     end
 
+    it "discards checkout and releases a taken-over coding Job together" do
+      sign_in_as(user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        mode: "coding",
+        coding_checkout_branch: "syrus/job-1",
+        coding_checkout_uncommitted: true
+      )
+      job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                                 branch_name: "syrus/job-1", pr_number: 10)
+      job.update_columns(state: "coding", linked_chat_id: chat.id)
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:cancel_coding_checkout!).with(chat, repository) do
+        chat.update!(coding_checkout_branch: nil, coding_checkout_uncommitted: false)
+      end
+
+      delete "/api/v1/app/chats/#{chat.id}/coding_checkout"
+
+      expect(response).to have_http_status(:ok)
+      expect(ChatWorkspace).to have_received(:cancel_coding_checkout!).with(chat, repository)
+      expect(job.reload).to be_implemented
+      expect(job.linked_chat_id).to be_nil
+      expect(chat.reload.coding_checkout_branch).to be_nil
+    end
+
     it "404s when the coding_mode feature flag is off" do
       sign_in_as(user)
       chat = ChatSession.create!(

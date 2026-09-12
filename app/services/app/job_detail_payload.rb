@@ -958,7 +958,9 @@ module App
         can_manage_tags: writable,
         can_open_in_coding_mode: writable && Feature.coding_mode_enabled? &&
           (@job.implemented? || @job.approved?) &&
-          @job.branch_name.present?,
+          @job.branch_name.present? &&
+          @job.linked_chat_id.nil? &&
+          !active_runtime_work,
         can_start_preview: @job.previewable? && preview_provider_configured?,
         can_deploy: @job.deployable? && deploy_configured?,
         can_run_visual_review: visual_review_enabled && visual_review_actionable,

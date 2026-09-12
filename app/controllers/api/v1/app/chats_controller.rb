@@ -1114,15 +1114,12 @@ module Api
             return
           end
 
-          if chat_session.coding_checkout_branch.blank?
-            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
-            return
-          end
-
-          ChatWorkspace.cancel_coding_checkout!(chat_session, repository)
+          JobCodingMode::CancelTakeover.call(chat_session: chat_session, repository: repository)
           render json: chat_payload(chat_session.reload, message: "Coding checkout cancelled.")
         rescue ActiveRecord::RecordNotFound
           raise
+        rescue JobCodingMode::CancelTakeover::Error => e
+          render_error("not_found", e.message, status: :not_found)
         rescue StandardError => e
           render_error("server_error", "Could not cancel coding checkout: #{e.message}", status: :internal_server_error)
         end

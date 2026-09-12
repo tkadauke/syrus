@@ -118,6 +118,10 @@ class Workflow < ApplicationRecord
     Workflow::TriggerKind.template_for(trigger_kind).solid_queue_priority(self)
   end
 
+  def coding_takeover_hold?
+    queued? && Workflow::TriggerKind.coding_takeover_hold?(trigger_kind)
+  end
+
   def enforce_job_workflow_runaway_limits_on_create!
     job.enforce_workflow_runaway_limits!(created_workflow: self)
   end
