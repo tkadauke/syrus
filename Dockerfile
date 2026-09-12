@@ -386,8 +386,34 @@ RUN set -eu; \
     install -m 0755 "/tmp/${sccache_dir}/sccache" /usr/local/bin/sccache; \
     rm -rf "/tmp/${sccache_tarball}" "/tmp/${sccache_dir}"; \
     for name in cc c++ gcc g++ clang clang++; do \
-      ln -sf /usr/local/bin/sccache "/usr/local/bin/${name}"; \
+      ln -sf /usr/local/bin/syrus-sccache-compiler "/usr/local/bin/${name}"; \
     done
+
+COPY <<'EOF' /usr/local/bin/syrus-sccache-compiler
+#!/bin/sh
+name="$(basename "$0")"
+real="/usr/bin/$name"
+err="$(mktemp)"
+
+if /usr/local/bin/sccache "$real" "$@" 2>"$err"; then
+  rm -f "$err"
+  exit 0
+fi
+
+status=$?
+if grep -Eiq 'server startup failed|cache storage failed|connection refused|timed out|temporary' "$err"; then
+  cat "$err" >&2
+  echo "[syrus-sccache] sccache unavailable; falling back to $real" >&2
+  rm -f "$err"
+  exec "$real" "$@"
+fi
+
+cat "$err" >&2
+rm -f "$err"
+exit "$status"
+EOF
+
+RUN chmod 0755 /usr/local/bin/syrus-sccache-compiler
 
 # Tailscale — connectivity plugin runs the daemon in the worker container.
 # The web pod uses the `app` stage and does not need the binaries.

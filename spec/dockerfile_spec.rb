@@ -123,8 +123,11 @@ RSpec.describe "Dockerfile" do
     expect(stage).to include("arm64) sccache_arch=aarch64-unknown-linux-musl")
     expect(stage).to include("install -m 0755 \"/tmp/${sccache_dir}/sccache\" /usr/local/bin/sccache")
 
+    expect(stage).to include("COPY <<'EOF' /usr/local/bin/syrus-sccache-compiler")
+    expect(stage).to include('exec "$real" "$@"')
+    expect(stage).to include("sccache unavailable; falling back")
     expect(stage).to include("for name in cc c++ gcc g++ clang clang++; do")
-    expect(stage).to include('ln -sf /usr/local/bin/sccache "/usr/local/bin/${name}"')
+    expect(stage).to include('ln -sf /usr/local/bin/syrus-sccache-compiler "/usr/local/bin/${name}"')
 
     # The `app` stage is the web pod image — it never compiles C/C++, so the
     # compiler cache has no reason to ship there.

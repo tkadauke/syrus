@@ -10,6 +10,7 @@ This masquerade is always present in the worker image. Whether it does anything 
 
 - **No `SCCACHE_BUCKET` configured** — sccache falls back to a local per-pod disk cache. Still speeds up same-pod, same-workspace reruns (e.g. iteration 2 of a grade loop rerunning the same command), but gives no cross-pod or cross-Job benefit. This is the safe default before an operator provisions a bucket — nothing hard-fails.
 - **`SCCACHE_BUCKET` configured** — sccache reads/writes a shared S3-compatible bucket, giving cross-worker and cross-Job cache hits.
+- **Configured bucket unavailable** — the worker's compiler wrapper lets sccache try first, then falls back to the real `/usr/bin/*` compiler when the cache daemon/backend cannot start. Builds get slower and cache stats may be absent, but dependency installs and graders should continue.
 
 ## Operator setup
 
@@ -187,6 +188,7 @@ This capture always runs (best-effort, non-fatal) regardless of whether `sccache
 `BuildCache::CacheMismatchDetector` runs after every captured snapshot and files a `WorkflowWarning` (`kind: "sccache_config_mismatch"`, visible on the Job details page with a one-click "file a fix Job" action — see `config/syrus_docs/workflow_warnings.md`) when the daemon's reported state doesn't match what Syrus configured it for:
 
 - **Shared cache expected, but `cache_location` reports local disk** — `SCCACHE_BUCKET` was forwarded into the command's env, but the stats snapshot still reports a local-disk cache. Per-Workflow daemon isolation (above) should make this rare going forward; a recurrence usually means the S3/MinIO backend vars aren't actually reaching the worker pod, or the daemon's connection to the bucket is failing silently.
+- **Native gem or C/C++ builds fail while the cache endpoint is down** — the worker image should not fail closed here. Compiler invocations go through `/usr/local/bin/syrus-sccache-compiler`, which falls back to the real compiler on sccache startup/backend failures. If this regresses, check the Dockerfile wrapper before changing a repository's `.syrus.yml`.
 - **`basedirs_safe` expected, but stats report `basedirs: []`** — `SCCACHE_BASEDIRS` was forwarded (the repository opted in), but the daemon's stats show it was never applied.
 
 Both warnings are best-effort and never fail the Workflow — they're an operator signal, not a grading gate.

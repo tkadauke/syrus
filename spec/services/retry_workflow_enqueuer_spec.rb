@@ -502,10 +502,6 @@ RSpec.describe RetryWorkflowEnqueuer do
     end
   end
 
-  # A rebase whose force_push failed used to be "retried" by re-running the
-  # entire initial chain -- prepare, implement, both reviews, every grader,
-  # pr_open -- discarding a finished, PR-opened implementation to recover from
-  # a failed push. the relevant change did exactly that in production.
   describe "which kind a retry re-runs" do
     # A rebase whose force_push failed used to be "retried" by re-running the
     # entire initial chain -- prepare, implement, both reviews, every grader,
@@ -537,6 +533,15 @@ RSpec.describe RetryWorkflowEnqueuer do
 
       expect(WorkUnits::Launcher).to receive(:instantiate)
         .with(hash_including(kind: "stack_rebase")).and_call_original
+
+      described_class.call(job: job)
+    end
+
+    it "re-runs a failed main_branch_repair as a main_branch_repair" do
+      add_failed_workflow!("main_branch_repair")
+
+      expect(WorkUnits::Launcher).to receive(:instantiate)
+        .with(hash_including(kind: "main_branch_repair")).and_call_original
 
       described_class.call(job: job)
     end
