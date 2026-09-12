@@ -110,7 +110,7 @@ function InvitationsTable({ invitations, onNotice }: { invitations: AdminInvitat
             <th className="px-4 py-2">{t("invitations.col_share_url")}</th>
             <th className="px-4 py-2">{t("invitations.col_expires")}</th>
             <th className="px-4 py-2">{t("invitations.col_invited_by")}</th>
-            <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
+            <th className="px-4 py-2"><span className="sr-only">{t("invitations.col_actions")}</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -208,5 +208,4 @@ function InvitationsError({ error }: { error: Error }) {
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
   return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
-
 
