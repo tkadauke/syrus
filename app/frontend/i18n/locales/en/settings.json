@@ -19,6 +19,8 @@
     "created": "Theme created.",
     "saved": "Theme saved.",
     "deleted": "Theme deleted.",
+    "confirm_delete": "Delete {{name}}?",
+    "default_name": "Custom Theme {{index}}",
     "order_saved": "Theme order saved.",
     "loading": "Loading themes...",
     "error_load": "Unable to load themes.",
