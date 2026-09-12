@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
+import { Badge, CardShell, FilterableList, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
 
 const SNIPPET_CHARS = 360
 
@@ -151,7 +151,13 @@ function renderExpanded(context: ToolCardContext) {
       ) : (
         <div className="space-y-1">
           <SectionLabel>Ranked results</SectionLabel>
-          <ResultList results={card.results} />
+          <FilterableList
+            itemText={(result) => [result.title, result.heading, result.path, result.source, result.reference, result.snippet].filter(Boolean).join(" ")}
+            items={card.results}
+            placeholder="Filter doc results"
+          >
+            {(results) => <ResultList results={results} />}
+          </FilterableList>
         </div>
       )}
     </CardShell>

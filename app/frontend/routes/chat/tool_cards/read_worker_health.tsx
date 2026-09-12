@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
+import { CardShell, Disclosure, FilterableList, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
 import { formatPercent, HealthPill, parseHealthLevel, Table, TBody, Td, THead, type HealthLevel } from "../adminToolCard"
 
 // Core-owned tool card for read_worker_health (the tool-card work). Renders
@@ -127,46 +127,64 @@ function renderExpanded(context: ToolCardContext) {
       {card.current.length === 0 ? (
         <EmptyState>No live workers found.</EmptyState>
       ) : (
-        <Table>
-          <THead columns={["Host", "Role", "Health", "CPU", "Memory", "Disk", "IO pressure", "Heartbeat"]} />
-          <TBody>
-            {card.current.map((worker) => (
-              <tr key={worker.key}>
-                <Td mono>{worker.hostname}</Td>
-                <Td>{worker.role || "—"}</Td>
-                <Td>
-                  <span className="inline-flex items-center gap-1" title={worker.healthReasons.join("; ") || undefined}>
-                    <HealthPill level={worker.healthLevel} />
-                    {worker.stale ? <span className="text-2xs text-gray-500 dark:text-gray-400">(stale)</span> : null}
-                  </span>
-                </Td>
-                <Td mono>{formatPercent(worker.cpuPercent)}</Td>
-                <Td mono>{formatPercent(worker.memoryPercent)}</Td>
-                <Td mono>{formatPercent(worker.diskPercent)}</Td>
-                <Td mono>{formatPercent(worker.ioPressureSome)}</Td>
-                <Td mono>{worker.lastHeartbeatAt || "—"}</Td>
-              </tr>
-            ))}
-          </TBody>
-        </Table>
+        <FilterableList
+          itemText={(worker) => [worker.hostname, worker.role, worker.version, worker.healthLevel, worker.healthReasons.join(" "), worker.lastHeartbeatAt].filter(Boolean).join(" ")}
+          items={card.current}
+          placeholder="Filter live workers"
+        >
+          {(workers) => (
+            <Table>
+              <THead columns={["Host", "Role", "Health", "CPU", "Memory", "Disk", "IO pressure", "Heartbeat"]} />
+              <TBody>
+                {workers.map((worker) => (
+                  <tr key={worker.key}>
+                    <Td mono>{worker.hostname}</Td>
+                    <Td>{worker.role || "—"}</Td>
+                    <Td>
+                      <span className="inline-flex items-center gap-1" title={worker.healthReasons.join("; ") || undefined}>
+                        <HealthPill level={worker.healthLevel} />
+                        {worker.stale ? <span className="text-2xs text-gray-500 dark:text-gray-400">(stale)</span> : null}
+                      </span>
+                    </Td>
+                    <Td mono>{formatPercent(worker.cpuPercent)}</Td>
+                    <Td mono>{formatPercent(worker.memoryPercent)}</Td>
+                    <Td mono>{formatPercent(worker.diskPercent)}</Td>
+                    <Td mono>{formatPercent(worker.ioPressureSome)}</Td>
+                    <Td mono>{worker.lastHeartbeatAt || "—"}</Td>
+                  </tr>
+                ))}
+              </TBody>
+            </Table>
+          )}
+        </FilterableList>
       )}
       {card.hosts.length > 0 ? (
         <Disclosure label="Host trend history">
           <div>
             <SectionLabel>Warning/critical samples by window</SectionLabel>
-            <Table>
-              <THead columns={["Host", "Status", "Last 1h", "Last 24h"]} />
-              <TBody>
-                {card.hosts.map((host) => (
-                  <tr key={host.key}>
-                    <Td mono>{host.hostname}</Td>
-                    <Td>{host.status || "—"}</Td>
-                    <Td><WindowCell window={host.window1h} /></Td>
-                    <Td><WindowCell window={host.window24h} /></Td>
-                  </tr>
-                ))}
-              </TBody>
-            </Table>
+            <div className="mt-1">
+              <FilterableList
+                itemText={(host) => [host.hostname, host.status].filter(Boolean).join(" ")}
+                items={card.hosts}
+                placeholder="Filter host history"
+              >
+                {(hosts) => (
+                  <Table>
+                    <THead columns={["Host", "Status", "Last 1h", "Last 24h"]} />
+                    <TBody>
+                      {hosts.map((host) => (
+                        <tr key={host.key}>
+                          <Td mono>{host.hostname}</Td>
+                          <Td>{host.status || "—"}</Td>
+                          <Td><WindowCell window={host.window1h} /></Td>
+                          <Td><WindowCell window={host.window24h} /></Td>
+                        </tr>
+                      ))}
+                    </TBody>
+                  </Table>
+                )}
+              </FilterableList>
+            </div>
           </div>
         </Disclosure>
       ) : null}
