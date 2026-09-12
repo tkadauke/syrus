@@ -6,8 +6,8 @@ import { linkifySlugs } from "../../lib/linkifySlugs"
 import { bulkButtonClass, columnAriaSort, formatCurrency, humanizeOption, jobDateValue, withRoutePrefix } from "./helpers"
 import type { DashboardSortState } from "./helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { Button, buttonClasses } from "../../components/Button"
 import { CopyableSlug } from "../../components/CopyableSlug"
@@ -23,6 +23,7 @@ import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type Dashb
 import { fetchPreview, startPreview, stopPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
+import { createDashboardJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../../lib/jobNavigationContext"
 
 
 // Dashboard jobs table extracted from Dashboard.tsx: JobsDashboardTable and its
@@ -508,7 +509,7 @@ function JobsTable({
               const urgentClass = job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
               return (
                 <DataTable.Row className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={job.id}>
-                  {columns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
+                  {columns.map((column) => <JobCell column={column} job={job} key={column} navigationItems={items} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
                 </DataTable.Row>
               )
             })
@@ -593,7 +594,7 @@ function LandingQueueJobGroup({
         const urgentClass = row.job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
         return (
           <DataTable.Row className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={row.job.id}>
-            {columns.map((column) => <JobCell column={column} job={row.job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />)}
+            {columns.map((column) => <JobCell column={column} job={row.job} key={column} navigationItems={group.jobs} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />)}
           </DataTable.Row>
         )
       })}
@@ -776,7 +777,7 @@ function MobileJobsList({
             />
           ))
         ) : (
-          items.map((job, index) => <MobileJobRow job={job} key={job.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} topSeparator={startsNewEpicGroup(items, index, groupByEpic)} />)
+          items.map((job, index) => <MobileJobRow job={job} key={job.id} navigationItems={items} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} topSeparator={startsNewEpicGroup(items, index, groupByEpic)} />)
         )}
       </div>
     </div>
@@ -806,7 +807,7 @@ function MobileLandingQueueJobGroup({ expanded, group, onToggleBlockers, onToggl
       {rows.map((row) => row.kind === "blocker" ? (
         <MobileLandingQueueBlockerRow attribution={row.attribution} job={row.job} key={`blocker-${group.key}-${row.id}`} prefix={prefix} />
       ) : (
-        <MobileJobRow job={row.job} key={row.job.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />
+        <MobileJobRow job={row.job} key={row.job.id} navigationItems={group.jobs} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />
       ))}
     </div>
   )
@@ -843,7 +844,35 @@ function MobileLandingQueueBlockerRow({ attribution, job, prefix }: { attributio
   )
 }
 
-function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false }: { job: DashboardJobItem; selected: boolean; onToggleOne: (id: number) => void; prefix: string; topSeparator?: boolean }) {
+function DashboardJobNavigationLink({ ariaLabel, children, className, currentJob, items, prefix, title }: { ariaLabel?: string; children: ReactNode; className: string; currentJob: DashboardJobItem; items: DashboardJobItem[]; prefix: string; title?: string }) {
+  const { t } = useT("dashboard")
+  const navigate = useNavigate()
+  const fallbackHref = withRoutePrefix(currentJob.paths.job_path, prefix)
+
+  function onClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+
+    const context = createDashboardJobNavigationContext({
+      currentJobId: currentJob.id,
+      items,
+      label: t("job_navigation_context_dashboard"),
+      sourcePath: `${window.location.pathname}${window.location.search}`
+    })
+    const token = storeJobNavigationContext(context)
+    if (!token) return
+
+    event.preventDefault()
+    navigate(jobNavigationHref(currentJob.paths.job_path, prefix, token))
+  }
+
+  return (
+    <Link aria-label={ariaLabel} className={className} onClick={onClick} title={title} to={fallbackHref}>
+      {children}
+    </Link>
+  )
+}
+
+function MobileJobRow({ job, navigationItems, selected, onToggleOne, prefix, topSeparator = false }: { job: DashboardJobItem; navigationItems: DashboardJobItem[]; selected: boolean; onToggleOne: (id: number) => void; prefix: string; topSeparator?: boolean }) {
   const { t } = useT("dashboard")
 
   return (
@@ -862,7 +891,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           <OwnerBadge badge={job.owner_badge} />
         </div>
         <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-          <Link aria-label={job.title} className="block min-w-0 max-w-full truncate rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" title={job.title} to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
+          <DashboardJobNavigationLink ariaLabel={job.title} className="block min-w-0 max-w-full truncate rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" currentJob={job} items={navigationItems} prefix={prefix} title={job.title}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></DashboardJobNavigationLink>
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
@@ -896,7 +925,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
   )
 }
 
-function JobCell({ job, column, selected, onToggleOne, prefix }: { job: DashboardJobItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
+function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }: { job: DashboardJobItem; column: string; navigationItems: DashboardJobItem[]; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
   const { t } = useT("dashboard")
   if (column === "checkbox") {
     return <DataTable.Cell className="align-top"><Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} /></DataTable.Cell>
@@ -906,7 +935,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
       <DataTable.Cell className="max-w-md">
         <div className="flex min-w-0 items-center gap-1.5">
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          <Link className="block min-w-0 max-w-full truncate font-medium text-brand hover:underline" title={job.title} to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
+          <DashboardJobNavigationLink className="block min-w-0 max-w-full truncate font-medium text-brand hover:underline" currentJob={job} items={navigationItems} prefix={prefix} title={job.title}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></DashboardJobNavigationLink>
           {job.needs_attention ? <span aria-label={t("needs_attention_aria")} className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">

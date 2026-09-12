@@ -3,9 +3,9 @@ import { PageHeading, SectionHeading } from "../components/Heading"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
-import { type FormEvent, type ReactNode } from "react"
+import { type FormEvent, type MouseEvent, type ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button, buttonClasses } from "../components/Button"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
@@ -49,6 +49,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { ChatBubbleIcon } from "./jobDetail/JobHeader"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { EpicDeploymentStagePipeline } from "../components/DeploymentStagePipeline"
+import { createEpicJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../lib/jobNavigationContext"
 
 type EpicCommand =
   | { kind: "state"; transition: EpicStateTransition }
@@ -697,7 +698,7 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
         <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-700">
           {jobs.map((job) => (
             <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={job.id}>
-              <JobIdentity epicRepositorySlug={epicRepositorySlug} job={job} prefix={prefix} />
+              <JobIdentity epicRepositorySlug={epicRepositorySlug} job={job} jobs={jobs} prefix={prefix} />
               <StatePill state={job.state} />
             </li>
           ))}
@@ -709,7 +710,7 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
   )
 }
 
-function JobIdentity({ epicRepositorySlug, job, prefix }: { epicRepositorySlug?: string; job: EpicDetailJob; prefix: string }) {
+function JobIdentity({ epicRepositorySlug, job, jobs, prefix }: { epicRepositorySlug?: string; job: EpicDetailJob; jobs: EpicDetailJob[]; prefix: string }) {
   return (
     <div className="min-w-0 space-y-0.5">
       <div className="flex flex-wrap items-center gap-2">
@@ -718,9 +719,9 @@ function JobIdentity({ epicRepositorySlug, job, prefix }: { epicRepositorySlug?:
         </SlugHoverCard>
         <ProviderAvailabilityWarning availability={job.provider_availability} />
         {job.title ? (
-          <Link className="break-words text-gray-700 hover:underline dark:text-gray-200" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
+          <EpicJobNavigationLink className="break-words text-gray-700 hover:underline dark:text-gray-200" currentJob={job} jobs={jobs} prefix={prefix}>{job.title}</EpicJobNavigationLink>
         ) : (
-          <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(job.path, prefix)}>{job.slug}</Link>
+          <EpicJobNavigationLink className="text-brand underline hover:no-underline" currentJob={job} jobs={jobs} prefix={prefix}>{job.slug}</EpicJobNavigationLink>
         )}
         {job.pr_number && job.pr_url ? (
           <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url}>
@@ -744,6 +745,34 @@ function JobIdentity({ epicRepositorySlug, job, prefix }: { epicRepositorySlug?:
         ) : null}
       </div>
     </div>
+  )
+}
+
+function EpicJobNavigationLink({ children, className, currentJob, jobs, prefix }: { children: ReactNode; className: string; currentJob: EpicDetailJob; jobs: EpicDetailJob[]; prefix: string }) {
+  const { t } = useT("epics")
+  const navigate = useNavigate()
+  const fallbackHref = withRoutePrefix(currentJob.path, prefix)
+
+  function onClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+
+    const context = createEpicJobNavigationContext({
+      currentJobId: currentJob.id,
+      items: jobs,
+      label: t("job_navigation_context_epic"),
+      sourcePath: `${window.location.pathname}${window.location.search}`
+    })
+    const token = storeJobNavigationContext(context)
+    if (!token) return
+
+    event.preventDefault()
+    navigate(jobNavigationHref(currentJob.path, prefix, token))
+  }
+
+  return (
+    <Link className={className} onClick={onClick} to={fallbackHref}>
+      {children}
+    </Link>
   )
 }
 

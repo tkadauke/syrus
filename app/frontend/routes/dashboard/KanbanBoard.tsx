@@ -4,9 +4,9 @@ import { TonePill } from "../../components/StatusPill"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { dashboardEmptyState, humanizeOption, subjectLabel, withRoutePrefix } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import type { DragEvent } from "react"
+import type { DragEvent, MouseEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
@@ -16,6 +16,7 @@ import { Button } from "../../components/Button"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { fetchDashboardRows, releaseDashboardJob, updateDashboardEpicState, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardSubject } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
+import { createDashboardJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../../lib/jobNavigationContext"
 
 
 // Dashboard kanban board extracted from Dashboard.tsx: DashboardKanban and its
@@ -200,6 +201,7 @@ function KanbanLane({
           <KanbanCard
             item={item}
             key={`${item.type}-${item.id}`}
+            laneItems={visibleItems}
             onDragEnd={onDragEnd}
             onDragStart={onDragStart}
             prefix={prefix}
@@ -222,10 +224,10 @@ function KanbanLane({
   )
 }
 
-function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardItem; onDragEnd: () => void; onDragStart: (epic: DashboardEpicItem, event: DragEvent<HTMLElement>) => void; prefix: string }) {
+function KanbanCard({ item, laneItems, onDragEnd, onDragStart, prefix }: { item: DashboardItem; laneItems: DashboardItem[]; onDragEnd: () => void; onDragStart: (epic: DashboardEpicItem, event: DragEvent<HTMLElement>) => void; prefix: string }) {
   const { t } = useT("dashboard")
   if (item.type === "job") {
-    return <JobKanbanCard item={item} prefix={prefix} />
+    return <JobKanbanCard item={item} navigationItems={laneItems.filter((candidate): candidate is DashboardJobItem => candidate.type === "job")} prefix={prefix} />
   }
 
   if (item.type === "workflow") {
@@ -269,7 +271,35 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
   )
 }
 
-function JobKanbanCard({ item, prefix }: { item: DashboardJobItem; prefix: string }) {
+function DashboardJobNavigationLink({ children, className, currentJob, items, prefix }: { children: ReactNode; className: string; currentJob: DashboardJobItem; items: DashboardJobItem[]; prefix: string }) {
+  const { t } = useT("dashboard")
+  const navigate = useNavigate()
+  const fallbackHref = withRoutePrefix(currentJob.paths.job_path, prefix)
+
+  function onClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+
+    const context = createDashboardJobNavigationContext({
+      currentJobId: currentJob.id,
+      items,
+      label: t("job_navigation_context_kanban"),
+      sourcePath: `${window.location.pathname}${window.location.search}`
+    })
+    const token = storeJobNavigationContext(context)
+    if (!token) return
+
+    event.preventDefault()
+    navigate(jobNavigationHref(currentJob.paths.job_path, prefix, token))
+  }
+
+  return (
+    <Link className={className} onClick={onClick} to={fallbackHref}>
+      {children}
+    </Link>
+  )
+}
+
+function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobItem; navigationItems: DashboardJobItem[]; prefix: string }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
@@ -290,7 +320,7 @@ function JobKanbanCard({ item, prefix }: { item: DashboardJobItem; prefix: strin
   return (
     <article className={`rounded border p-3 shadow-sm ${item.priority === "urgent" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40" : item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
       <div className="flex items-start justify-between gap-1">
-        <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
+        <DashboardJobNavigationLink className="line-clamp-2 text-sm font-medium text-brand hover:underline" currentJob={item} items={navigationItems} prefix={prefix}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></DashboardJobNavigationLink>
         {item.needs_attention ? <span aria-label={t("needs_attention_aria")} className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
       </div>
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">

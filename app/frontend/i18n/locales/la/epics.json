@@ -70,6 +70,7 @@
   "empty_value": "(vacuum)",
 
   "jobs_section": "Opera",
+  "job_navigation_context_epic": "Opera epicae",
   "no_jobs": "Nulla opera in hac Epica.",
   "deployment_stage_pending": "Pendens",
   "deployment_stage_partial": "{{reached}}/{{total}} opera",

@@ -20,6 +20,8 @@
   "columns": "Spalten",
   "visible_columns": "Sichtbare Spalten",
   "kanban_lanes": "Kanban-Spalten",
+  "job_navigation_context_dashboard": "Übersicht",
+  "job_navigation_context_kanban": "Kanban-Spalte",
   "preferences_error": "Übersichtseinstellungen konnten nicht aktualisiert werden.",
   "system_readiness": "Systemstatus",
   "lane_label": "{{title}}-Spalte",
