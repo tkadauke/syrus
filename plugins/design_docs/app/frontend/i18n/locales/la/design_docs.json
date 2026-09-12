@@ -7,5 +7,6 @@
   "preview_collaborators": "Collaboratores: {{names}}",
   "preview_comment_count_one": "{{count}} commentarium",
   "preview_comment_count_other": "{{count}} commentaria",
-  "preview_version": "v{{number}}"
+  "preview_version": "v{{number}}",
+  "tool_card_filter_placeholder": "Documenta consilii filtra"
 }
