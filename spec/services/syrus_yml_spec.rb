@@ -2195,6 +2195,20 @@ RSpec.describe SyrusYml do
       ])
     end
 
+    it "preserves CI check mapping metadata on explicit targets" do
+      config = parse(<<~YAML)
+        targets:
+          - name: backend
+            kind: repo_check
+            run: bin/check-backend
+            ci_checks: ["Backend CI", "backend / linux"]
+      YAML
+
+      expect(config.targets.first.metadata).to eq(
+        "ci_checks" => [ "Backend CI", "backend / linux" ]
+      )
+    end
+
     it "rejects duplicate target names in one file" do
       expect {
         parse(<<~YAML)
