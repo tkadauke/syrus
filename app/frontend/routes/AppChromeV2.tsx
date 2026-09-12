@@ -1124,13 +1124,13 @@ function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boo
         <div className="space-y-3 pl-7 pt-1">
           <AdminSmartFolderNav
             activeFolderId={payload.data.active_smart_folder_id}
-            allLabel={t("nav:smart_folders_all", { label: item.label.toLowerCase() })}
+            allLabel={t("nav:sidebar_smart_folders_all", { label: item.label.toLowerCase() })}
             allPath={item.rawTo}
             allowSaveWithoutActiveFolder
-            ariaLabel={t("nav:smart_folders_aria", { label: item.label })}
+            ariaLabel={t("nav:sidebar_smart_folders_aria", { label: item.label })}
             currentFilter={payload.data.filter}
             folders={payload.data.smart_folders}
-            heading={t("nav:smart_folders_heading")}
+            heading={t("nav:sidebar_smart_folders_heading")}
             onMutationSuccess={() => {
               void queryClient.invalidateQueries({ queryKey: ["sidebar", "smart_folders", item.id] })
             }}

@@ -25,9 +25,9 @@
   "close_sidebar": "Close sidebar",
   "resize_sidebar": "Resize sidebar",
   "system_alert_action_failed": "Action failed.",
-  "smart_folders_all": "All {{label}}",
-  "smart_folders_aria": "{{label}} smart folders",
-  "smart_folders_heading": "Folders",
+  "sidebar_smart_folders_all": "All {{label}}",
+  "sidebar_smart_folders_aria": "{{label}} smart folders",
+  "sidebar_smart_folders_heading": "Folders",
   "shell": {
     "update_ready": "Relaunch to update",
     "update_version": "Version {{version}} ready",
