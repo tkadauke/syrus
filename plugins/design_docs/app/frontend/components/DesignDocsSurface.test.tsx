@@ -1934,7 +1934,7 @@ describe("DesignDocsSurface", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("DOC-1")
   })
 
-  it("opens the share popup toward available space inside the wrapped title bar", async () => {
+  it("clamps the share popup inside the viewport when the title bar wraps", async () => {
     mockFetch()
     renderSurface("/chats/237")
 
@@ -1966,8 +1966,10 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(shareButton)
 
     const shareMenu = screen.getByTestId("design-doc-share-menu")
-    expect(shareMenu).toHaveClass("left-0")
-    expect(shareMenu).not.toHaveClass("right-0")
+    const menuLeft = Number.parseFloat(shareMenu.style.left)
+    const menuWidth = Number.parseFloat(shareMenu.style.width)
+    expect(menuLeft).toBeGreaterThanOrEqual(16)
+    expect(menuLeft + menuWidth).toBeLessThanOrEqual(window.innerWidth - 16)
   })
 
   it("reviews suggestions and exposes version history from the title bar", async () => {
