@@ -581,22 +581,24 @@ class GithubClient
   # pr_checks_state on the Job (for LandingQueueProcessor) and collect failure
   # details for ci_failure workflows.
   #
-  # Returns: { pending?: bool, any_failed?: bool, all_passed?: bool, failed_checks: [...] }
+  # Returns: { pending?: bool, any_failed?: bool, all_passed?: bool, failed_checks: [...], completed_checks: [...] }
   # failed_checks entries: { name:, conclusion:, summary:, log:, html_url: }
   def check_runs_detail_for(repo_slug, sha)
     runs = Array(track_rate_limits { @client.check_runs_for_ref(repo_slug, sha) }.check_runs)
-    return { pending?: false, any_failed?: false, all_passed?: false, failed_checks: [] } if runs.empty?
+    return { pending?: false, any_failed?: false, all_passed?: false, failed_checks: [], completed_checks: [] } if runs.empty?
 
     pending = runs.any? { |cr| cr.status != "completed" }
+    completed_runs = runs.select { |cr| cr.status == "completed" }
     failed_runs = runs.select { |cr| cr.status == "completed" && FAILED_CONCLUSIONS.include?(cr.conclusion) }
     any_failed = failed_runs.any?
     all_passed = !pending && runs.all? { |cr| PASSING_CONCLUSIONS.include?(cr.conclusion) }
+    completed_checks = completed_runs.map { |cr| normalized_check_run(cr) }
     failed_checks = failed_runs.map do |cr|
-      check = { name: cr.name, conclusion: cr.conclusion, summary: cr.output&.summary, log: cr.output&.text, html_url: cr.html_url }
+      check = normalized_check_run(cr).merge(log: cr.output&.text)
       check.merge(actions_failure_metadata_for(repo_slug, cr))
     end
 
-    { pending?: pending, any_failed?: any_failed, all_passed?: all_passed, failed_checks: failed_checks }
+    { pending?: pending, any_failed?: any_failed, all_passed?: all_passed, failed_checks: failed_checks, completed_checks: completed_checks }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{sha} check_runs_detail: #{e.message}")
     raise
@@ -949,6 +951,18 @@ class GithubClient
     end
 
     { any?: true, pending?: pending, any_failed?: any_failed, any_cancelled?: any_cancelled, all_passed?: all_passed, failed_checks: failed_checks }
+  end
+
+  def normalized_check_run(check_run)
+    {
+      name: check_run.name.to_s,
+      status: check_run.status.to_s,
+      conclusion: check_run.conclusion.to_s,
+      summary: check_run.output&.summary.to_s.presence,
+      url: check_run.html_url.to_s.presence,
+      html_url: check_run.html_url.to_s.presence,
+      app_slug: check_run.app&.slug.to_s.presence
+    }.compact
   end
 
   def filter_main_branch_check_runs(repo_slug, sha, runs)

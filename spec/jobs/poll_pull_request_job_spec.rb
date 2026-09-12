@@ -1015,6 +1015,20 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect { described_class.perform_now(job.id) }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
     end
 
+    it "records target health from passing CI checks without enqueueing CI repair" do
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "success",
+          html_url: "u", output: { summary: "ok" } }
+      ])
+      expect(TargetHealthCiCheckRecorder).to receive(:record!).with(
+        job: job,
+        head_sha: sha,
+        detail: hash_including(completed_checks: [ include(name: "test", conclusion: "success") ])
+      ).and_return([])
+
+      expect { described_class.perform_now(job.id) }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+    end
+
     it "keeps polling non-CI feedback when check-runs hit a transient network failure" do
       stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/#{sha}/check-runs")
         .with(query: hash_including({}))
