@@ -7,7 +7,7 @@ import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type PreviewPanelPayload, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Select } from "../../components/Select"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
@@ -249,7 +249,7 @@ function GlobeIcon({ className = "" }: { className?: string }) {
   )
 }
 
-function previewVersionUrl(panel: ChatPreviewPanel, versionId: number | null, accessToken: string | null) {
+function previewVersionUrl(panel: PreviewPanelPayload, versionId: number | null, accessToken: string | null) {
   if (!versionId && !accessToken) return panel.url
 
   const url = new URL(panel.url)
@@ -258,13 +258,13 @@ function previewVersionUrl(panel: ChatPreviewPanel, versionId: number | null, ac
   return url.toString()
 }
 
-function previewExportUrl(panel: ChatPreviewPanel, versionId: number | null) {
+function previewExportUrl(panel: PreviewPanelPayload, versionId: number | null) {
   if (!versionId) return panel.app_export_path
 
   return `${panel.app_export_path}?${new URLSearchParams({ v: String(versionId) }).toString()}`
 }
 
-function selectedPreviewVersion(panel: ChatPreviewPanel, selectedVersionId: number | null): ChatPreviewPanelVersion | null {
+function selectedPreviewVersion(panel: PreviewPanelPayload, selectedVersionId: number | null): ChatPreviewPanelVersion | null {
   return panel.versions.find((version) => version.id === selectedVersionId) ?? panel.versions[0] ?? null
 }
 
@@ -277,7 +277,7 @@ function PreviewVersionSelector({
   selectedVersionId,
   onChange
 }: {
-  panel: ChatPreviewPanel
+  panel: PreviewPanelPayload
   selectedVersionId: number | null
   onChange: (versionId: number) => void
 }) {
@@ -362,11 +362,15 @@ function PreviewVersionSelector({
 function PreviewShareControl({
   panel,
   queryKey,
-  onNotice
+  onNotice,
+  onVisibilityChange,
+  onVisibilityUpdated
 }: {
-  panel: ChatPreviewPanel
-  queryKey: ChatQueryKey
+  panel: PreviewPanelPayload
+  queryKey: readonly unknown[]
   onNotice: (message: string | null) => void
+  onVisibilityChange?: (visibility: ChatPreviewPanelVisibility) => Promise<unknown>
+  onVisibilityUpdated?: (updated: unknown) => void
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -389,9 +393,15 @@ function PreviewShareControl({
   }, [dropdownOpen])
 
   const updateVisibility = useMutation({
-    mutationFn: (visibility: ChatPreviewPanelVisibility) => updateChatPreviewPanelVisibility(panel.app_visibility_path, visibility),
+    mutationFn: (visibility: ChatPreviewPanelVisibility) => (
+      onVisibilityChange ? onVisibilityChange(visibility) : updateChatPreviewPanelVisibility(panel.app_visibility_path, visibility)
+    ),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      if (onVisibilityUpdated) {
+        onVisibilityUpdated(updated)
+      } else {
+        queryClient.setQueryData(queryKey, updated)
+      }
     }
   })
 
@@ -489,7 +499,7 @@ function PreviewShareControl({
 // "I can already open this chat" across that origin boundary. Fetched once
 // per mount/panel id; no silent background refresh (see preview_panels.md) —
 // on expiry the panel just stops resolving until the chat is reloaded.
-function usePreviewPanelAccessToken(panel: ChatPreviewPanel, enabled = true) {
+function usePreviewPanelAccessToken(panel: PreviewPanelPayload, enabled = true) {
   const isPrivate = panel.visibility !== "public"
   return useQuery({
     queryKey: ["preview_panel_access_token", panel.id],
@@ -504,14 +514,18 @@ function usePreviewPanelAccessToken(panel: ChatPreviewPanel, enabled = true) {
 // PreviewProxyMiddleware) is the real security boundary; sandbox is
 // defense-in-depth on top of it. Never add allow-same-origin — combined with
 // allow-scripts that would let framed content reach for the parent origin.
-function PreviewPanelFrame({
+export function PreviewPanelFrame({
   panel,
   queryKey,
-  onNotice
+  onNotice,
+  onVisibilityChange,
+  onVisibilityUpdated
 }: {
-  panel: ChatPreviewPanel
-  queryKey: ChatQueryKey
+  panel: PreviewPanelPayload
+  queryKey: readonly unknown[]
   onNotice: (message: string | null) => void
+  onVisibilityChange?: (visibility: ChatPreviewPanelVisibility) => Promise<unknown>
+  onVisibilityUpdated?: (updated: unknown) => void
 }) {
   const { t } = useT("chat")
   const [selectedVersionId, setSelectedVersionId] = useState(panel.current_version_id)
@@ -542,7 +556,13 @@ function PreviewPanelFrame({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-gray-200 px-2 py-1.5 dark:border-gray-700">
         <PreviewVersionSelector onChange={setSelectedVersionId} panel={panel} selectedVersionId={selectedVersionId} />
-        <PreviewShareControl onNotice={onNotice} panel={panel} queryKey={queryKey} />
+        <PreviewShareControl
+          onNotice={onNotice}
+          onVisibilityChange={onVisibilityChange}
+          onVisibilityUpdated={onVisibilityUpdated}
+          panel={panel}
+          queryKey={queryKey}
+        />
         <div className="ml-auto flex items-center gap-1">
           <a
             aria-label={t("preview_export_aria", { title: panel.title })}
@@ -609,7 +629,7 @@ function PreviewPanelNativeViewer({
   viewerKind,
   rawEntryUrl
 }: {
-  panel: ChatPreviewPanel
+  panel: PreviewPanelPayload
   selectedVersionId: number | null
   entryPath: string
   viewerKind: string
