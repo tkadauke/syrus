@@ -1,0 +1,40 @@
+name: remote moved under push rebases and retries
+user:
+  github_handle: simowner
+jobs:
+  first:
+    title: First job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: reviewer asks for an edge case once implemented
+    once: true
+    when:
+      job:
+        id: first
+        state: implemented
+        has_pr: true
+    do:
+      report_pr_feedback:
+        job: first
+        handle: simowner
+        body: Please handle the empty-input edge case too.
+outcomes:
+  default: success
+  steps:
+    push:
+      - status: failure
+        failure_code: remote_branch_advanced_rebase_conflict
+expect:
+  jobs:
+    first:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - "dispatched pr_comment workflow for "
+    - "push_agent_rebase -> success"
+    - "push_after_rebase -> success"

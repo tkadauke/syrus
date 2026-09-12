@@ -533,7 +533,7 @@ module WorkEngine
         when "worker_died"
           fail_run!(run, agent_outcome: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
         when "failure"
-          fail_run!(run, agent_outcome: "error")
+          fail_run!(run, agent_outcome: "error", failure_code: simulated_failure_code(outcome))
         else
           raise ArgumentError, "unknown simulation outcome #{outcome.inspect} for #{run.slug}"
         end
@@ -558,11 +558,39 @@ module WorkEngine
         drain_step_success!(step)
       end
 
-      def fail_run!(run, agent_outcome:)
+      def fail_run!(run, agent_outcome:, failure_code: nil)
+        if failure_code.present?
+          stamp_simulated_failure_code!(run, failure_code)
+        end
         run.agent_outcome = agent_outcome
         run.fail!
         run.save!
         drain_run_failure!(run.reload)
+      end
+
+      # Stamps the failure code a real step handler would have stamped for
+      # this failure (see Steps::Base#mark_failure_code!), so Try branches
+      # match for real. The code itself -- e.g. the remote moving under a
+      # push -- is the injected external fact, exactly like an outcome.
+      def stamp_simulated_failure_code!(run, failure_code)
+        problem = Problem::Kind.resolve(failure_code)
+        return if problem.nil?
+
+        step = run.step
+        return unless step
+
+        step.update!(
+          details: step.details.to_h.merge(
+            "failure_code" => failure_code,
+            "problem_code" => problem.code
+          )
+        )
+      end
+
+      def simulated_failure_code(outcome)
+        return nil unless outcome.is_a?(Hash)
+
+        outcome["failure_code"].presence || outcome[:failure_code].presence
       end
 
       def drain_step_success!(step)
