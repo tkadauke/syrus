@@ -1,0 +1,37 @@
+name: auto retry budget exhausts then stops
+runner:
+  # Isolate the AutoRetryAttempt budget path: the harness's own per-tick
+  # failed-job retry would otherwise retry forever outside any budget.
+  # Note worker_died carries its own larger budget (MAX_WORKER_DIED_ATTEMPTS),
+  # so this scenario fails with timeouts, which use the standard budget of 3.
+  auto_retry_failed_jobs: false
+jobs:
+  first:
+    title: First job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+  steps:
+    implement:
+      - status: failure
+        error_class: Timeout::Error
+        error_message: execution expired
+expect:
+  jobs:
+    first:
+      - failed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    # The budget story must have played out: three bounded attempts ran
+    # ("auto retry 3"), then the job stayed failed instead of retrying
+    # forever (unbounded retries hit max ticks) or stopping at once
+    # (fail-fast never reaches attempt 3). The executor's budget-exhausted
+    # skip itself is ephemeral repair output, so termination plus the
+    # third attempt is the observable pin.
+    - "auto retry 3"
+    - "-> started"
