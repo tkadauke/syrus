@@ -7,12 +7,12 @@ import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
 import { Input } from "../components/Input"
+import { FilterBar } from "../components/FilterBar"
 import { TonePill, type PillTone } from "../components/StatusPill"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { errorMessage } from "../lib/errorMessage"
 
 const DEFAULT_LIMIT = 180
-const TARGET_KINDS = ["", "default", "library", "builder", "prepare", "grader", "formatter", "generator"]
 const FOCUS_STATES = ["selected", "failing", "skipped", "cached"] as const
 const DIRECTIONS = ["both", "dependencies", "dependents"] as const
 
@@ -75,13 +75,18 @@ export function targetGraphQueryFromSearch(search: string): TargetGraphQuery {
   const mode = params.get("mode") === "window" ? "window" : "neighborhood"
   const focusState = FOCUS_STATES.find((state) => state === params.get("focus_state"))
   const direction = DIRECTIONS.find((value) => value === params.get("direction")) || "both"
+  const rawQ = params.get("q") || undefined
+  const filter = rawQ && decodesAsFilterTree(rawQ) ? rawQ : undefined
   return {
     mode,
     focusLabel: params.get("focus_label") || undefined,
     focusState,
     projectId: params.get("project_id") || undefined,
     kind: params.get("kind") || undefined,
-    q: params.get("q") || undefined,
+    q: filter ? undefined : rawQ,
+    filter,
+    search: params.get("search") || undefined,
+    workflowId: params.get("workflow_id") || undefined,
     direction,
     depth: clampNumber(params.get("depth"), 1, 0, 4),
     limit: clampNumber(params.get("limit"), DEFAULT_LIMIT, 25, 500),
@@ -96,7 +101,10 @@ export function targetGraphSearchFromQuery(query: TargetGraphQuery, persistentSe
   if (query.focusState) params.set("focus_state", query.focusState)
   if (query.projectId) params.set("project_id", query.projectId)
   if (query.kind) params.set("kind", query.kind)
-  if (query.q) params.set("q", query.q)
+  if (query.filter) params.set("q", query.filter)
+  else if (query.q) params.set("q", query.q)
+  if (query.search) params.set("search", query.search)
+  if (query.workflowId) params.set("workflow_id", query.workflowId)
   if (query.direction && query.direction !== "both") params.set("direction", query.direction)
   if (query.depth !== undefined && query.depth !== 1) params.set("depth", String(query.depth))
   if (query.limit !== undefined && query.limit !== DEFAULT_LIMIT) params.set("limit", String(query.limit))
@@ -120,7 +128,7 @@ export function TargetGraphExplorer({
 }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const [draft, setDraft] = useState(query.q || query.focusLabel || "")
+  const [draft, setDraft] = useState(query.search || query.q || query.focusLabel || "")
   const rows = useMemo(() => buildGraphRows(payload.targets, payload.edges), [payload.targets, payload.edges])
   const visibleLabels = useMemo(() => new Set(payload.targets.map((target) => target.label)), [payload.targets])
 
@@ -131,16 +139,29 @@ export function TargetGraphExplorer({
   function submitSearch(event: FormEvent) {
     event.preventDefault()
     const value = draft.trim()
-    updateQuery({ focusLabel: value || undefined, focusState: undefined, q: query.mode === "window" ? value || undefined : undefined, offset: 0 })
+    updateQuery({
+      focusLabel: query.mode === "neighborhood" ? value || undefined : undefined,
+      focusState: undefined,
+      q: undefined,
+      search: query.mode === "window" ? value || undefined : undefined,
+      offset: 0
+    })
   }
 
   return (
     <div className="space-y-4">
       {payload.error ? <PanelMessage tone="error">{payload.error}</PanelMessage> : null}
+      <FilterBar
+        buildLink={targetGraphFilterLink}
+        filter={payload.filter}
+        filterSchema={payload.filter_schema ?? []}
+        legacyFilterKeys={["project_id", "kind"]}
+        pathname={location.pathname}
+        search={location.search}
+      />
       <TargetGraphToolbar
         draft={draft}
         overlaysAvailable={Boolean(payload.workflow)}
-        payload={payload}
         query={query}
         onDraftChange={setDraft}
         onSubmit={submitSearch}
@@ -162,7 +183,7 @@ export function TargetGraphExplorer({
             visibleLabels={visibleLabels}
             onFocus={(label) => {
               setDraft(label)
-              updateQuery({ mode: "neighborhood", focusLabel: label, focusState: undefined, offset: 0 })
+              updateQuery({ mode: "neighborhood", focusLabel: label, focusState: undefined, q: undefined, search: undefined, offset: 0 })
             }}
           />
         </section>
@@ -180,7 +201,6 @@ export function TargetGraphExplorer({
 function TargetGraphToolbar({
   draft,
   overlaysAvailable,
-  payload,
   query,
   onDraftChange,
   onSubmit,
@@ -188,7 +208,6 @@ function TargetGraphToolbar({
 }: {
   draft: string
   overlaysAvailable: boolean
-  payload: TargetGraphPayload
   query: TargetGraphQuery
   onDraftChange: (value: string) => void
   onSubmit: (event: FormEvent) => void
@@ -196,27 +215,16 @@ function TargetGraphToolbar({
 }) {
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_repeat(4,minmax(8rem,12rem))]">
+      <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_repeat(2,minmax(8rem,12rem))]">
         <form className="flex min-w-0 gap-2" onSubmit={onSubmit}>
           <Input
-            aria-label="Target label or search"
+            aria-label="Target label or path search"
             onChange={(event) => onDraftChange(event.target.value)}
-            placeholder="//app:target"
+            placeholder="//app:target or app/**/*.rb"
             value={draft}
           />
-          <button className="rounded bg-brand px-3 py-2 text-sm font-medium text-on-brand hover:opacity-90" type="submit">Focus</button>
+          <button className="rounded bg-brand px-3 py-2 text-sm font-medium text-on-brand hover:opacity-90" type="submit">{query.mode === "window" ? "Search" : "Focus"}</button>
         </form>
-        <SelectControl label="Project" value={query.projectId || ""} onChange={(value) => onUpdate({ projectId: value || undefined, offset: 0 })}>
-          <option value="">All projects</option>
-          {payload.projects.map((project) => (
-            <option key={project.id} value={project.id}>{project.label || project.id}</option>
-          ))}
-        </SelectControl>
-        <SelectControl label="Kind" value={query.kind || ""} onChange={(value) => onUpdate({ kind: value || undefined, offset: 0 })}>
-          {TARGET_KINDS.map((kind) => (
-            <option key={kind || "all"} value={kind}>{kind || "All kinds"}</option>
-          ))}
-        </SelectControl>
         <SelectControl label="Depth" value={String(query.depth ?? 1)} onChange={(value) => onUpdate({ depth: Number(value), offset: 0 })}>
           {[0, 1, 2, 3, 4].map((depth) => <option key={depth} value={depth}>{depth}</option>)}
         </SelectControl>
@@ -238,7 +246,7 @@ function TargetGraphToolbar({
             key={state}
             onClick={() => {
               onDraftChange("")
-              onUpdate({ mode: "neighborhood", focusLabel: undefined, focusState: state, offset: 0 })
+              onUpdate({ mode: "neighborhood", focusLabel: undefined, focusState: state, search: undefined, q: undefined, offset: 0 })
             }}
             title={disabled ? "Available on Job and Workflow target graphs after fanout records runtime selections." : undefined}
             type="button"
@@ -426,6 +434,30 @@ function clampNumber(value: string | null, fallback: number, min: number, max: n
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return fallback
   return Math.min(Math.max(Math.trunc(parsed), min), max)
+}
+
+function decodesAsFilterTree(value: string) {
+  try {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/")
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+    const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
+    const decoded = new TextDecoder().decode(bytes)
+    const parsed = JSON.parse(decoded) as unknown
+    return Boolean(parsed && typeof parsed === "object" && ("and" in parsed || "or" in parsed || "not" in parsed || "field" in parsed))
+  } catch {
+    return false
+  }
+}
+
+function targetGraphFilterLink(path: string, search: string, updates: Record<string, string | number | null | undefined>) {
+  const params = new URLSearchParams(search)
+  for (const [key, value] of Object.entries(updates)) {
+    if (value == null || String(value).length === 0) params.delete(key)
+    else params.set(key, String(value))
+  }
+  params.delete("offset")
+  const query = params.toString()
+  return query ? `${path}?${query}` : path
 }
 
 function stateLabel(state: (typeof FOCUS_STATES)[number]) {

@@ -119,6 +119,8 @@ module App
       @workflow = workflow
     end
 
+    attr_reader :graph, :workflow
+
     def as_json
       selected_targets = filtered_targets
       page_targets = selected_targets.slice(offset, limit) || []
@@ -137,6 +139,8 @@ module App
           total: selected_targets.size,
           next_offset: offset + limit < selected_targets.size ? offset + limit : nil
         },
+        filter: filter_tree,
+        filter_schema: filter_schema,
         health: health_json(page_health_by_label),
         workflow: workflow && self.class.workflow_json(workflow),
         diagnostics: diagnostics&.to_h,
@@ -144,9 +148,57 @@ module App
       }
     end
 
+    def latest_health_by_label(labels)
+      labels = Array(labels).map(&:to_s)
+      return {} if labels.empty?
+
+      TargetHealthRecord.where(repository: repository, target_label: labels)
+                        .includes(:workflow)
+                        .latest_first
+                        .to_a
+                        .uniq(&:target_label)
+                        .index_by(&:target_label)
+    end
+
+    def all_latest_health_by_label
+      @all_latest_health_by_label ||= latest_health_by_label(graph.targets.keys.map(&:to_s))
+    end
+
+    def overlays
+      @overlays ||= begin
+        entries = {}
+        selection_entries.each do |entry|
+          label = entry["target_label"].to_s
+          entries[label] = entries.fetch(label, {}).merge(
+            state: entry["affected"] ? "selected" : "skipped",
+            reason: entry["reason"],
+            name: entry["name"],
+            required: entry["required"],
+            target_fingerprints: entry["target_fingerprints"]
+          ).compact
+        end
+
+        health_skip_entries.each do |entry|
+          label = entry["target_label"].to_s
+          entries[label] = entries.fetch(label, {}).merge(
+            state: "cached",
+            reason: entry["reason"],
+            name: entry["name"],
+            required: entry["required"],
+            target_health_record_id: entry["target_health_record_id"],
+            commit_sha: entry["commit_sha"],
+            checked_at: entry["checked_at"],
+            target_health_record_refs: entry["target_health_record_refs"]
+          ).compact
+        end
+
+        entries
+      end
+    end
+
     private
 
-    attr_reader :repository, :graph, :diagnostics, :params, :workflow
+    attr_reader :repository, :diagnostics, :params
 
     def source_json
       workflow ? self.class.workflow_source_json(workflow) : { scope: "repository", ref: repository.default_branch }
@@ -173,7 +225,8 @@ module App
       targets = graph.targets.values
                      .select { |target| project_filter.blank? || target.project_id == project_filter }
                      .select { |target| kind_filter.blank? || target.kind == kind_filter }
-                     .select { |target| label_query.blank? || target.label.to_s.include?(label_query) }
+                     .select { |target| target_matches_search?(target) }
+                     .select { |target| filter_matches?(target) }
 
       targets = neighborhood_targets(targets) if neighborhood_mode?
       targets.sort_by { |target| target.label.to_s }
@@ -241,49 +294,6 @@ module App
         artifacts: record.artifacts.presence,
         metadata: record.metadata.presence
       }.compact
-    end
-
-    def latest_health_by_label(labels)
-      labels = Array(labels).map(&:to_s)
-      return {} if labels.empty?
-
-      TargetHealthRecord.where(repository: repository, target_label: labels)
-                        .latest_first
-                        .to_a
-                        .uniq(&:target_label)
-                        .index_by(&:target_label)
-    end
-
-    def overlays
-      @overlays ||= begin
-        entries = {}
-        selection_entries.each do |entry|
-          label = entry["target_label"].to_s
-          entries[label] = entries.fetch(label, {}).merge(
-            state: entry["affected"] ? "selected" : "skipped",
-            reason: entry["reason"],
-            name: entry["name"],
-            required: entry["required"],
-            target_fingerprints: entry["target_fingerprints"]
-          ).compact
-        end
-
-        health_skip_entries.each do |entry|
-          label = entry["target_label"].to_s
-          entries[label] = entries.fetch(label, {}).merge(
-            state: "cached",
-            reason: entry["reason"],
-            name: entry["name"],
-            required: entry["required"],
-            target_health_record_id: entry["target_health_record_id"],
-            commit_sha: entry["commit_sha"],
-            checked_at: entry["checked_at"],
-            target_health_record_refs: entry["target_health_record_refs"]
-          ).compact
-        end
-
-        entries
-      end
     end
 
     def selection_entries
@@ -395,6 +405,233 @@ module App
 
     def project_filter = params[:project_id].to_s.presence
     def kind_filter = params[:kind].to_s.presence
-    def label_query = params[:q].to_s.presence
+    def label_query
+      @label_query ||= begin
+        value = params[:search].to_s.presence
+        value ||= params[:q].to_s.presence unless encoded_filter_tree?
+        value
+      end
+    end
+
+    def target_matches_search?(target)
+      return true if label_query.blank?
+
+      searchable_target_values(target).any? { |value| value.include?(label_query) }
+    end
+
+    def searchable_target_values(target)
+      [
+        target.label.to_s,
+        target.owner_config_path,
+        graph.project(target.project_id)&.path,
+        *target.source_scope
+      ].compact.map(&:to_s)
+    end
+
+    def encoded_filter_tree?
+      decoded_filter_tree.present? && params[:q].present?
+    end
+
+    def filter_tree
+      @filter_tree ||= begin
+        Filters::Ast.serialize(Filters::Ast.parse(decoded_filter_tree || {}))
+      rescue ArgumentError
+        Filters::Ast.serialize(Filters::Ast::EMPTY)
+      end
+    end
+
+    def decoded_filter_tree
+      @decoded_filter_tree ||= Filters::QueryParam.decode(params[:q])
+    end
+
+    def filter_schema
+      [
+        enum_filter_schema("project_id", "Project", projects_filter_values),
+        enum_filter_schema("kind", "Kind", target_kind_values),
+        string_filter_schema("label", "Label"),
+        string_filter_schema("path", "Path"),
+        enum_filter_schema("status", "Status", TargetHealthRecord::STATUSES + %w[selected skipped cached]),
+        number_filter_schema("job_id", "Job"),
+        number_filter_schema("workflow_id", "Workflow")
+      ]
+    end
+
+    def projects_filter_values
+      graph.projects.values.sort_by(&:id).map do |project|
+        { "value" => project.id, "label" => project.label.presence || project.id }
+      end
+    end
+
+    def target_kind_values
+      graph.targets.values.map(&:kind).uniq.sort
+    end
+
+    def enum_filter_schema(field, label, values)
+      {
+        "field" => field,
+        "label" => label,
+        "bucket" => "enum",
+        "operators" => %w[is is_not is_one_of is_none_of is_set is_unset],
+        "values" => Filters::Schema.humanize_values(values)
+      }
+    end
+
+    def string_filter_schema(field, label)
+      {
+        "field" => field,
+        "label" => label,
+        "bucket" => "string",
+        "operators" => %w[contains does_not_contain starts_with does_not_start_with ends_with does_not_end_with equals not_equals is_set is_unset]
+      }
+    end
+
+    def number_filter_schema(field, label)
+      {
+        "field" => field,
+        "label" => label,
+        "bucket" => "number",
+        "operators" => %w[equals not_equals greater_than less_than between is_set is_unset]
+      }
+    end
+
+    def filter_matches?(target)
+      TargetFilterEvaluator.new(self, target).matches?(Filters::Ast.parse(filter_tree))
+    rescue ArgumentError
+      true
+    end
+
+    class TargetFilterEvaluator
+      def initialize(payload, target)
+        @payload = payload
+        @target = target
+      end
+
+      def matches?(node)
+        if node.is_a?(Filters::Ast::AndNode)
+          node.children.all? { |child| matches?(child) }
+        elsif node.is_a?(Filters::Ast::OrNode)
+          node.children.any? { |child| matches?(child) }
+        elsif node.is_a?(Filters::Ast::NotNode)
+          !matches?(node.child)
+        elsif node.is_a?(Filters::Ast::Chip)
+          TargetFilterChip.new(payload, target, node).matches?
+        else
+          true
+        end
+      end
+
+      private
+
+      attr_reader :payload, :target
+    end
+
+    class TargetFilterChip
+      def initialize(payload, target, chip)
+        @payload = payload
+        @target = target
+        @chip = chip
+      end
+
+      def matches?
+        case chip.field
+        when "project_id" then enum_match?(target.project_id)
+        when "kind" then enum_match?(target.kind)
+        when "label" then string_match?(target.label.to_s)
+        when "path" then string_match?(path_values)
+        when "status" then enum_match?(status_values)
+        when "job_id" then number_match?(job_id_value)
+        when "workflow_id" then number_match?(workflow_id_value)
+        else true
+        end
+      end
+
+      private
+
+      attr_reader :payload, :target, :chip
+
+      def enum_match?(candidate)
+        values = Array(candidate).compact.map(&:to_s)
+        expected = Array(chip.value).compact.map(&:to_s)
+
+        case chip.op
+        when "is" then values.include?(chip.value.to_s)
+        when "is_not" then values.exclude?(chip.value.to_s)
+        when "is_one_of" then (values & expected).any?
+        when "is_none_of" then (values & expected).empty?
+        when "is_set" then values.any?(&:present?)
+        when "is_unset" then values.empty? || values.all?(&:blank?)
+        else true
+        end
+      end
+
+      def string_match?(candidate)
+        values = Array(candidate).compact.map(&:to_s)
+        expected = chip.value.to_s
+
+        case chip.op
+        when "contains" then values.any? { |value| value.include?(expected) }
+        when "does_not_contain" then values.none? { |value| value.include?(expected) }
+        when "starts_with" then values.any? { |value| value.start_with?(expected) }
+        when "does_not_start_with" then values.none? { |value| value.start_with?(expected) }
+        when "ends_with" then values.any? { |value| value.end_with?(expected) }
+        when "does_not_end_with" then values.none? { |value| value.end_with?(expected) }
+        when "equals" then values.include?(expected)
+        when "not_equals" then values.exclude?(expected)
+        when "is_set" then values.any?(&:present?)
+        when "is_unset" then values.empty? || values.all?(&:blank?)
+        else true
+        end
+      end
+
+      def number_match?(candidate)
+        value = integer_or_nil(candidate)
+
+        case chip.op
+        when "equals" then value && value == integer_or_nil(chip.value)
+        when "not_equals" then value.nil? || value != integer_or_nil(chip.value)
+        when "greater_than" then value && value > integer_or_nil(chip.value).to_i
+        when "less_than" then value && value < integer_or_nil(chip.value).to_i
+        when "between"
+          min, max = Array(chip.value).map { |entry| integer_or_nil(entry) }
+          value && (!min || value >= min) && (!max || value <= max)
+        when "is_set" then value.present?
+        when "is_unset" then value.nil?
+        else true
+        end
+      end
+
+      def path_values
+        [
+          target.owner_config_path,
+          payload.graph.project(target.project_id)&.path,
+          *target.source_scope
+        ].compact.map(&:to_s)
+      end
+
+      def status_values
+        [
+          payload.overlays.dig(target.label.to_s, :state),
+          payload.all_latest_health_by_label[target.label.to_s]&.status
+        ].compact
+      end
+
+      def job_id_value
+        payload.workflow&.job_id || health_workflow&.job_id
+      end
+
+      def workflow_id_value
+        payload.workflow&.id || payload.all_latest_health_by_label[target.label.to_s]&.workflow_id
+      end
+
+      def health_workflow
+        payload.all_latest_health_by_label[target.label.to_s]&.workflow
+      end
+
+      def integer_or_nil(value)
+        Integer(value)
+      rescue ArgumentError, TypeError
+        nil
+      end
+    end
   end
 end

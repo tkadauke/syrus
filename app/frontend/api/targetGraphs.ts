@@ -1,5 +1,6 @@
 import { getJson } from "./client"
 import type { RepositoryTab } from "./repositories"
+import type { FilterSchemaField } from "../components/FilterBar"
 
 export type TargetGraphProject = {
   id: string
@@ -85,6 +86,8 @@ export type TargetGraphPayload = {
     targets: Record<string, TargetGraphHealth | null>
     summary: Record<string, number>
   }
+  filter?: Record<string, unknown> | null
+  filter_schema?: FilterSchemaField[]
   diagnostics?: {
     source?: string
     target_labels?: string[]
@@ -100,6 +103,9 @@ export type TargetGraphQuery = {
   projectId?: string
   kind?: string
   q?: string
+  search?: string
+  filter?: string
+  workflowId?: string
   direction?: "both" | "dependencies" | "dependents"
   depth?: number
   limit?: number
@@ -125,7 +131,10 @@ function targetGraphApiPath(path: string, query: TargetGraphQuery) {
   if (query.focusState) params.set("focus_state", query.focusState)
   if (query.projectId) params.set("project_id", query.projectId)
   if (query.kind) params.set("kind", query.kind)
-  if (query.q) params.set("q", query.q)
+  if (query.filter) params.set("q", query.filter)
+  else if (query.q) params.set("q", query.q)
+  if (query.search) params.set("search", query.search)
+  if (query.workflowId) params.set("workflow_id", query.workflowId)
   if (query.direction) params.set("direction", query.direction)
   if (query.depth !== undefined) params.set("depth", String(query.depth))
   if (query.limit !== undefined) params.set("limit", String(query.limit))

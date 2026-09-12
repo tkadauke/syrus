@@ -552,18 +552,26 @@ The app API exposes the compiled graph for operator UIs and debugging tools:
 
 All three endpoints use the normal app API authentication and repository/Job
 visibility rules. They accept `limit` and `offset` for target windowing
-(`limit` defaults to 500 and is capped at 2,000), plus optional `project_id`,
-`kind`, and `q` filters. They also accept `mode=neighborhood` for progressive
-graph rendering. In neighborhood mode, `focus_label` names the root target,
-`focus_state` can be `failing`, `selected`, `skipped`, or `cached`,
-`direction` can be `both`, `dependencies`, or `dependents`, and `depth` is
-capped at 4. Repository-scoped graphs can seed from project filters, explicit
-labels, and failing target health; `selected`/`skipped`/`cached` are runtime
-workflow overlays, so clients should use the Job or Workflow endpoint for
-those states. The response includes the repository, source scope (`repository`
-or `workflow`), compiled projects, the current target window or neighborhood,
-dependency edges for the returned targets, compiler diagnostics, and any
-compile error.
+(`limit` defaults to 500 and is capped at 2,000). FilterBar-backed views pass
+the usual encoded filter tree in `q`; supported chips cover project, target
+label, target kind, health/runtime status, path/source scope, Job, and
+Workflow. Older plain-text `q=label` links remain valid when `q` is not a
+decodable filter tree. New clients should use `search` for plain label/path
+text so it can compose with `q` filter chips. Legacy flat `project_id` and
+`kind` params are still accepted.
+
+The endpoints also accept `mode=neighborhood` for progressive graph rendering.
+In neighborhood mode, `focus_label` names the root target, `focus_state` can be
+`failing`, `selected`, `skipped`, or `cached`, `direction` can be `both`,
+`dependencies`, or `dependents`, and `depth` is capped at 4.
+Repository-scoped graphs can seed from project filters, explicit labels, and
+failing target health; `selected`/`skipped`/`cached` are runtime workflow
+overlays, so clients should use the Job or Workflow endpoint for those states.
+The response includes the repository, source scope (`repository` or
+`workflow`), compiled projects, the current target window or neighborhood,
+dependency edges for the returned targets, the active `filter` tree,
+`filter_schema` metadata for the shared FilterBar, compiler diagnostics, and
+any compile error.
 
 Each target entry includes `label`, `kind`, `project_id`, `source_scope`,
 dependency labels, owning config path, an `executable` boolean, and
