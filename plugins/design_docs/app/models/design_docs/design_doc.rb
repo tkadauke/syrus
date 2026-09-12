@@ -23,6 +23,8 @@ module DesignDocs
     before_validation :normalize_title
     before_validation :normalize_markdown
     before_destroy :clear_current_version_reference, prepend: true
+    after_commit :publish_search_upsert, on: [ :create, :update ]
+    after_destroy_commit :publish_search_delete
 
     validates :title, presence: true
     validates :markdown, presence: true
@@ -122,6 +124,14 @@ module DesignDocs
 
     def clear_current_version_reference
       update_column(:current_version_id, nil) if current_version_id.present?
+    end
+
+    def publish_search_upsert
+      Syrus::Events.publish("design_doc.upserted", design_doc_id: id)
+    end
+
+    def publish_search_delete
+      Syrus::Events.publish("design_doc.deleted", design_doc_id: id)
     end
   end
 end
