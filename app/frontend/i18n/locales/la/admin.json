@@ -42,6 +42,11 @@
   "nav_group_system": "Systema",
   "nav_group_product_data": "Data Producti",
   "section_label": "Administratio",
+  "event_actions": {
+    "action_failed": "Actio defecit.",
+    "filing": "Creatur...",
+    "issue_filed": "Quaestio creata"
+  },
   "overview": {
     "heading": "Conspectus",
     "loading": "Onerans...",
@@ -980,6 +985,10 @@
     "col_scope": "Ambitus",
     "col_jobs": "Opera",
     "col_units": "Unitates",
+    "wait_until": " usque ad {{time}}",
+    "blocked_reason": "impeditum: {{reason}}",
+    "preempted_reason": "praeventum: {{reason}}",
+    "pause_requested": "pausa petita",
     "aria_pagination": "Paginatio unitatum operis",
     "page_of": "Pagina {{page}} ex {{total}}",
     "previous": "Prior",

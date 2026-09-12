@@ -13,6 +13,7 @@
   "settings": "Settings",
   "my_profile": "My Profile",
   "admin": "Admin",
+  "admin_title": "Curia — The Roman Senate house",
   "sign_out": "Sign out",
   "theme": "Theme",
   "color_theme": "Color theme",
@@ -23,6 +24,10 @@
   "open_sidebar": "Open sidebar",
   "close_sidebar": "Close sidebar",
   "resize_sidebar": "Resize sidebar",
+  "system_alert_action_failed": "Action failed.",
+  "smart_folders_all": "All {{label}}",
+  "smart_folders_aria": "{{label}} smart folders",
+  "smart_folders_heading": "Folders",
   "shell": {
     "update_ready": "Relaunch to update",
     "update_version": "Version {{version}} ready",

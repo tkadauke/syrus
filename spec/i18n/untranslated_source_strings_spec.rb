@@ -35,10 +35,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
   def legacy_untranslated_paths
     [
       %r{app/frontend/components/ui/Text\.tsx$},
-      %r{app/frontend/components/(AdminEventActions|Checkbox|FilterBar|ShortcutsHelpModal)\.tsx$},
       %r{app/frontend/components/credentials/},
       %r{app/frontend/components/diff/ReviewableDiff\.tsx$},
-      %r{app/frontend/routes/(AdminInvitations|AdminQueue|AdminStuck|AdminTranscript|AdminWorkUnits|AppChromeV2|Chat|Repositories|RepositoryDetail|Tags)\.tsx$},
+      %r{app/frontend/routes/(AdminInvitations|AdminQueue|AdminStuck|AdminTranscript)\.tsx$},
       %r{app/frontend/routes/appChromeV2/},
       %r{app/frontend/routes/chat/},
       %r{app/frontend/routes/jobDetail/(SourceBrowser|WorkflowGraph)\.tsx$},
@@ -56,12 +55,18 @@ RSpec.describe "Untranslated source strings", type: :unit do
   def legacy_untranslated_literals
     @legacy_untranslated_literals ||= <<~LITERALS.lines.map(&:strip).reject(&:blank?).to_set
       app/frontend/components/CoverageCard.tsx|jsx_text|(threshold: %)
+      app/frontend/components/AdminEventActions.tsx|jsx_text|JOB-
+      app/frontend/components/Checkbox.tsx|jsx_text|in a
+      app/frontend/components/ShortcutsHelpModal.tsx|jsx_text|(items: T[]): ShortcutGroupSummary
       app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|active job
       app/frontend/routes/AdminMcpToolUsage.tsx|jsx_text|· ·
       app/frontend/routes/AdminReconcilerActivity.tsx|jsx_text|Run #
       app/frontend/routes/AdminUsers.tsx|jsx_text|[`#$`, job.state, job.kind,
       app/frontend/routes/AdminUsers.tsx|jsx_text|[`#$`, run.state, run.trigger_kind,
       app/frontend/routes/AdminWorkflowActivity.tsx|jsx_text|Run #
+      app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WI-
+      app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WU-
+      app/frontend/routes/AppChromeV2.tsx|jsx_text|queryClient.getQueryData
       app/frontend/routes/EpicDetail.tsx|jsx_text|· Goal #
       app/frontend/routes/JobDetail.tsx|jsx_text|( )
       app/frontend/routes/JobDetail.tsx|jsx_text|· Goal #
