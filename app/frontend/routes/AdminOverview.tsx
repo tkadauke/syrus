@@ -98,6 +98,7 @@ function AdminOverviewPage({
   const data = overview.data
   const captureRate = data.agent_session_capture_rate.rate
   const overdueRecurring = data.recurring.overdue || []
+  const recurringCount = data.recurring.count ?? overdueRecurring.length
   const dataRoot = data.data_root_disk_usage
   const workerHealthTone = aggregateWorkerHealthTone(data.workers, data.worker_health)
   const content = renderContent?.(data, prefix)
@@ -114,7 +115,7 @@ function AdminOverviewPage({
           <Metric title={t("overview.active_runs")} value={data.active_runs.total} context={triggerContext(data.active_runs.by_trigger, t("overview.all_idle"))} href={withRoutePrefix("/admin/queue/active", prefix)} />
           <Metric title={t("overview.queued_runs")} value={data.queued_runs.total} context={data.queued_runs.total > 0 ? t("overview.waiting_for_worker") : t("overview.queue_empty")} href={withRoutePrefix("/admin/queue/pending", prefix)} />
           <Metric title={t("overview.workers")} value={data.workers.unreachable ? "?" : data.workers.total ?? 0} context={workersContext(data.workers, t, data.worker_health)} href={withRoutePrefix("/admin/queue/workers", prefix)} tone={workerHealthTone} />
-          <Metric title={t("overview.recurring_jobs")} value={overdueRecurring.length} context={overdueRecurring.length > 0 ? overdueRecurring.map((task) => task.key).join(", ") : t("overview.all_firing")} href={withRoutePrefix("/admin/queue/recurring", prefix)} tone={overdueRecurring.length > 0 ? "alarm" : "ok"} />
+          <Metric title={t("overview.recurring_jobs")} value={recurringCount} context={overdueRecurring.length > 0 ? overdueRecurring.map((task) => task.key).join(", ") : t("overview.all_firing")} href={withRoutePrefix("/admin/queue/recurring", prefix)} tone={overdueRecurring.length > 0 ? "alarm" : "ok"} />
           <Metric title={t("overview.failed_runs")} value={data.recent_failures_24h.total} context={triggerContext(data.recent_failures_24h.by_trigger, t("overview.no_failures"))} href={withRoutePrefix("/admin/queue/failed", prefix)} tone={data.recent_failures_24h.total > 0 ? "warn" : "ok"} />
           <Metric title={t("overview.provider_circuits")} value={data.provider_circuits.length} context={data.provider_circuits.length > 0 ? data.provider_circuits.map((circuit) => circuit.provider).join(", ") : t("overview.all_closed")} tone={data.provider_circuits.length > 0 ? "alarm" : "ok"} />
           <Metric title={t("overview.github_rate_limits")} value={data.github_rate_limits.length} context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : t("overview.all_healthy")} tone={data.github_rate_limits.length > 0 ? "warn" : "ok"} />

@@ -71,6 +71,10 @@ module Admin
       requested_page == "scoped_chat_events"
     end
 
+    def recurring_diagnostics_page?
+      requested_page == "recurring"
+    end
+
     def low_rate_limit_users
       User.where("gh_rate_limit_remaining IS NOT NULL AND gh_rate_limit_limit > 0").select do |u|
         u.gh_rate_limit_remaining.to_f / u.gh_rate_limit_limit < 0.10
@@ -162,8 +166,12 @@ module Admin
     end
 
     def recurring_payload
-      last_run_at_by_task_key = ::SolidQueue::RecurringExecution.group(:task_key).maximum(:run_at)
-      overdue = ::SolidQueue::RecurringTask.pluck(:key).filter_map do |key|
+      task_keys = ::SolidQueue::RecurringTask.pluck(:key)
+      payload = { count: task_keys.size }
+      return payload unless recurring_diagnostics_page?
+
+      last_run_at_by_task_key = ::SolidQueue::RecurringExecution.where(task_key: task_keys).group(:task_key).maximum(:run_at)
+      overdue = task_keys.filter_map do |key|
         last_run_at = last_run_at_by_task_key[key]
         if last_run_at.nil?
           { key: key, age_seconds: nil, never_run: true }
@@ -172,7 +180,7 @@ module Admin
           { key: key, age_seconds: age.to_i } if age > 10.minutes
         end
       end
-      { overdue: overdue }
+      payload.merge(overdue: overdue)
     rescue ActiveRecord::StatementInvalid,
            ActiveRecord::ConnectionNotEstablished,
            ActiveRecord::ActiveRecordError

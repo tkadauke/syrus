@@ -6,7 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
-import { updateRecentChatCache } from "../../lib/chatCache"
+import { mergeChatPayloadUpdate, updateRecentChatCache } from "../../lib/chatCache"
 import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Select } from "../../components/Select"
@@ -1172,8 +1172,8 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
   const mode = useMutation({
     mutationFn: (value: string) => updateChatMode(payload.chat.id, value as ChatMode || null),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      updateRecentChatCache(queryClient, updated.chat)
+      const chatPayload = mergeChatPayloadUpdate(queryClient, queryKey, updated)
+      updateRecentChatCache(queryClient, chatPayload.chat)
     }
   })
 

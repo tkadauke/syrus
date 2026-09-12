@@ -9,8 +9,8 @@ import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../../components/WalkthroughRecorder"
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
-import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
+import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
+import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatPayloadUpdate, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -271,7 +271,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       onNotice(errorMessage(error, "Shell command could not be started."))
     }
   })
-  const systemAction = useMutation<ChatPayload | ChatCreatedPayload | ChatBranchPayload | ShareChatPayload, Error, ChatSystemAction>({
+  const systemAction = useMutation<ChatPayloadUpdate | ChatCreatedPayload | ChatBranchPayload | ShareChatPayload, Error, ChatSystemAction>({
     mutationFn: (action) => {
       if (action.kind === "rename") return renameChat(appendSearch(payload.paths.app_rename_path, search), action.title)
       if (action.kind === "clear") return clearChatHistory(appendSearch(payload.paths.app_clear_path, search))
@@ -304,8 +304,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         return
       }
 
-      const chatPayload = updated as ChatPayload
-      queryClient.setQueryData(queryKey, chatPayload)
+      const chatPayload = mergeChatPayloadUpdate(queryClient, queryKey, updated as ChatPayloadUpdate)
       updateRecentChatCache(queryClient, chatPayload.chat)
       refreshRecentChats(queryClient)
       setText("")
@@ -2395,8 +2394,8 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
   const mode = useMutation({
     mutationFn: (value: ChatMode) => updateChatMode(chatId, value),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      updateRecentChatCache(queryClient, updated.chat)
+      const chatPayload = mergeChatPayloadUpdate(queryClient, queryKey, updated)
+      updateRecentChatCache(queryClient, chatPayload.chat)
     }
   })
 
@@ -2482,7 +2481,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
   const updateModel = useMutation({
     mutationFn: (model: string | null) => updateChatModel(chatId, model),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
     }
   })
 
@@ -2572,7 +2571,7 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
   const updateEffort = useMutation({
     mutationFn: (effort: string | null) => updateChatEffort(chatId, effort),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
     },
     onError: () => {
       onNotice(t("effort_update_error"))

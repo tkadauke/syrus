@@ -555,12 +555,17 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "toggles chat pinning for the owner only" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, title: "Plan")
+    chat.messages.create!(role: "user", content: { "text" => "This transcript should not be reloaded." })
 
-    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { pinned: true } }
+    queries = capture_sql do
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { pinned: true } }
+    end
 
     expect(response).to have_http_status(:ok)
     expect(chat.reload.pinned?).to eq(true)
     expect(parse_body.dig("chat", "pinned")).to eq(true)
+    expect(parse_body).not_to have_key("messages")
+    expect(queries.grep(/FROM ["`]?chat_messages["`]?/i)).to be_empty
 
     patch "/api/v1/app/chats/#{chat.id}", params: { pinned: false }
 
@@ -1235,7 +1240,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.reload.mode).to eq("local")
     expect(parse_body.dig("chat", "mode")).to eq("local")
-    expect(parse_body["local_mode_enabled"]).to eq(true)
+    expect(parse_body).not_to have_key("messages")
   end
 
   it "rejects an unknown mode value" do
@@ -1270,6 +1275,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_effort).to be_nil
     expect(parse_body.dig("chat", "chat_effort")).to be_nil
+    expect(parse_body).not_to have_key("messages")
   end
 
   it "rejects an unknown chat_effort value" do
@@ -3301,6 +3307,50 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["bookmarks"]).to eq([])
     expect(parse_body.dig("paths", "app_bookmarks_index_path")).to eq("/api/v1/app/chats/#{chat.id}/bookmarks")
     expect(queries.grep(/FROM [`"]?chat_bookmarks[`"]?/i)).to be_empty
+  end
+
+  it "serializes a heavy chat payload without repeated counts or duplicate participant/question loads" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    3.times do |index|
+      chat.messages.create!(role: index.even? ? "user" : "assistant", content: { "text" => "Message #{index}" })
+    end
+    tool_message = chat.messages.create!(role: "tool_use", tool_use_id: "tool-1", tool_name: "mcp__syrus-chat-sidecar__pause_landing_queue", content: { "name" => "pause_landing_queue" })
+    3.times do |index|
+      participant = Factories.user
+      chat.chat_participants.create!(user: participant, role: index.zero? ? "owner" : "member", joined_at: (index + 1).minutes.ago)
+    end
+    chat.proposals.create!(slug: "optimize-chat", title: "Optimize chat", body: "Trim payload SQL.", repository: repository)
+    chat.pending_actions.create!(action: "pause_landing_queue", state: "pending", tool_call_message: tool_message)
+    chat.chat_goals.create!(prompt: "Keep improving chat performance.", completion_condition: "Payload is fast.", mode_snapshot: { "mode" => "planning" })
+    chat.scratchpad_items.create!(content: "Follow-up note", position: 0)
+    chat.queued_messages.create!(content: { "text" => "Queued follow-up" })
+    3.times do |index|
+      chat.agent_questions.create!(questions: [ { "question" => "Historical #{index}?" } ], asked_at: (index + 1).hours.ago, answered_at: Time.current)
+    end
+    chat.agent_questions.create!(questions: [ { "question" => "Ship it?", "options" => [ "Yes", "No" ] } ], asked_at: Time.current)
+    chat.create_whiteboard!(scene_json: { "elements" => [], "appState" => {}, "files" => {} }, version: 1)
+    PreviewPanel.create!(chat_session: chat, title: "Payload preview").create_version!("index.html" => "<h1>Preview</h1>")
+
+    queries = capture_sql { get "/api/v1/app/chats/#{chat.id}" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["messages"].size).to eq(4)
+    expect(body.dig("chat", "participants").size).to eq(4)
+    expect(body["pending_actions"]).to contain_exactly(include("action" => "pause_landing_queue"))
+    expect(body["scratchpad_items"]).to contain_exactly(include("content" => "Follow-up note"))
+    expect(body["queued_messages"]).to contain_exactly(include("text" => "Queued follow-up"))
+    expect(body["agent_questions"]).to contain_exactly(include("questions" => [ include("question" => "Ship it?") ]))
+    expect(body["whiteboard"]).to include("loaded" => false)
+    expect(body["preview_panels"]).to contain_exactly(include("title" => "Payload preview"))
+
+    expect(queries.grep(/SELECT COUNT\(\*\) FROM ["`]?chat_proposals["`]?/i).size).to be <= 2
+    expect(queries.grep(/SELECT COUNT\(\*\) FROM ["`]?chat_pending_actions["`]?/i).size).to be <= 2
+    expect(queries.grep(/FROM ["`]?chat_goals["`]?/i).size).to be <= 2
+    expect(queries.grep(/FROM ["`]?chat_scratchpad_items["`]?/i).size).to be <= 2
+    expect(queries.grep(/FROM ["`]?chat_agent_questions["`]?/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]?chat_participants["`]?/i).size).to be <= 2
   end
 
   it "loads bookmarks on demand through the bookmarks endpoint" do
@@ -6202,13 +6252,18 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "updates chat_model to a valid Claude model and returns it in the payload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository)
+    chat.messages.create!(role: "user", content: { "text" => "Do not reload me." })
 
-    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_model: "claude-sonnet-4-6" } }
+    queries = capture_sql do
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_model: "claude-sonnet-4-6" } }
+    end
 
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_model).to eq("claude-sonnet-4-6")
     expect(parse_body.dig("chat", "chat_model")).to eq("claude-sonnet-4-6")
     expect(parse_body["message"]).to eq("Chat model updated.")
+    expect(parse_body).not_to have_key("messages")
+    expect(queries.grep(/FROM ["`]?chat_messages["`]?/i)).to be_empty
 
     patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_model: "" } }
 

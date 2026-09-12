@@ -68,20 +68,35 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   const [contrastIssues, setContrastIssues] = useState<ContrastIssue[]>([])
   const [orderedThemes, setOrderedThemes] = useState<ColorTheme[]>([])
   const orderedThemesRef = useRef<ColorTheme[]>([])
+  const previousDraftThemeIdRef = useRef<number | null>(null)
   const dragIndex = useRef<number | null>(null)
 
   useEffect(() => {
     setOrderedThemes(customThemes)
     orderedThemesRef.current = customThemes
 
+    setSelectedId((currentSelectedId) => {
+      if (currentSelectedId && customThemes.some((theme) => theme.id === currentSelectedId)) return currentSelectedId
+      return customThemes[0]?.id ?? null
+    })
+  }, [customThemes])
+
+  useEffect(() => {
     const selected = (
       selectedId
         ? customThemes.find((theme) => theme.id === selectedId)
         : undefined
     ) ?? customThemes[0]
-    setSelectedId(selected?.id ?? null)
-    setDraft(selected ? draftFromTheme(selected) : null)
-    setContrastIssues([])
+
+    const selectedDraftId = selected?.id ?? null
+    setDraft((current) => {
+      if (current?.id === selectedDraftId) return current
+      return selected ? draftFromTheme(selected) : null
+    })
+    if (previousDraftThemeIdRef.current !== selectedDraftId) {
+      setContrastIssues([])
+      previousDraftThemeIdRef.current = selectedDraftId
+    }
   }, [customThemes, selectedId])
 
   const createMutation = useMutation({

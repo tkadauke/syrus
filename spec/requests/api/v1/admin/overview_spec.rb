@@ -1,12 +1,18 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/admin/overview", type: :request do
+  before(:all) { ensure_solid_queue_test_tables! }
+  after(:all) { drop_solid_queue_test_tables! }
+
   let!(:admin) { Factories.user }
   let!(:admin_token) { admin.generate_api_token! }
   def auth = { "Authorization" => "Bearer #{admin_token}" }
   def parse_body = JSON.parse(response.body)
 
-  before { Rails.cache.clear }
+  before do
+    clear_solid_queue_test_tables!
+    Rails.cache.clear
+  end
 
   describe "GET /api/v1/admin/overview" do
     it "401s without a token" do
@@ -32,6 +38,8 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).not_to have_key("provider_session_capture_rate")
       expect(body).to have_key("workers")
       expect(body).to have_key("recurring")
+      expect(body["recurring"]).to include("count" => 0)
+      expect(body["recurring"]).not_to have_key("overdue")
       expect(body).not_to have_key("stuck")
       expect(body).not_to have_key("stuck_pagination")
       expect(body).not_to have_key("stuck_snapshot")
