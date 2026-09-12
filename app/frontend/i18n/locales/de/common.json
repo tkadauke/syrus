@@ -22,7 +22,13 @@
   },
   "diff_review_composer": {
     "title": "Kommentar",
-    "close": "Kommentarformular schließen"
+    "close": "Kommentarformular schließen",
+    "comment": "Kommentar",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "edit_comment_aria": "Kommentar {{id}} bearbeiten",
+    "create_comment": "Kommentar erstellen",
+    "create_error": "Diff-Kommentar konnte nicht erstellt werden."
   },
   "onboarding": {
     "loading": "Setup-Status wird geladen...",
@@ -312,5 +318,14 @@
   "loading_search_aria": "Suchergebnisse werden geladen",
   "onboarding_aria": "Einführung",
   "terminal_aria": "Terminal",
-  "page_title_terminal": "Terminal"
+  "page_title_terminal": "Terminal",
+  "save": "Speichern",
+  "cancel": "Abbrechen",
+  "diff_review": {
+    "changed_files": "Geänderte Dateien",
+    "close_changed_files": "Geänderte Dateien schließen",
+    "browse_changed_files": "Geänderte Dateien durchsuchen",
+    "large_file_hidden": "Das Diff dieser Datei ist groß (~{{rowCount}} gerenderte Zeilen) und standardmäßig ausgeblendet.",
+    "load_file_diff": "Diff für diese Datei laden"
+  }
 }

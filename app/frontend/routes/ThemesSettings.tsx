@@ -16,10 +16,10 @@ import { errorMessage } from "../lib/errorMessage"
 const themesQueryKey = ["themes"] as const
 const modes = ["light", "dark"] as const
 
-const tokenGroups: Array<{ label: string; keys: string[] }> = [
-  { label: "Surfaces, Text, Borders", keys: ["surface", "surface-raised", "border", "text-primary", "text-secondary"] },
-  { label: "Brand", keys: ["brand", "brand-emphasis", "on-brand"] },
-  { label: "Status", keys: ["success", "warning", "danger", "info", "neutral"] }
+const tokenGroups: Array<{ labelKey: string; keys: string[] }> = [
+  { labelKey: "surfaces_text_borders", keys: ["surface", "surface-raised", "border", "text-primary", "text-secondary"] },
+  { labelKey: "brand", keys: ["brand", "brand-emphasis", "on-brand"] },
+  { labelKey: "status", keys: ["success", "warning", "danger", "info", "neutral"] }
 ]
 
 const tokenKeys = tokenGroups.flatMap((group) => group.keys)
@@ -47,7 +47,7 @@ export function ThemesSettingsRoute() {
     <main aria-label={t("nav.themes")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header>
         <PageHeading>{t("nav.themes")}</PageHeading>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Manage your custom color themes.</p>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("themes.description")}</p>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -57,6 +57,7 @@ export function ThemesSettingsRoute() {
 }
 
 function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const { colorTheme, previewColorTheme, setColorTheme } = useTheme()
   const themesQuery = useQuery({ queryKey: themesQueryKey, queryFn: fetchThemes })
@@ -102,15 +103,15 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   const createMutation = useMutation({
     mutationFn: () => {
       const base = colorTheme ?? builtInThemes[0] ?? allThemes[0]
-      if (!base) throw new Error("No theme is available to clone.")
+      if (!base) throw new Error(t("themes.error_no_theme"))
 
-      return createTheme({ name: uniqueDraftName(customThemes), tokens: cloneTokens(base.tokens) })
+      return createTheme({ name: uniqueDraftName(customThemes, t), tokens: cloneTokens(base.tokens) })
     },
     onSuccess: (payload) => {
       queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => mergeCustomTheme(current, payload.theme))
       setSelectedId(payload.theme.id)
       void setColorTheme(payload.theme)
-      onNotice("Theme created.")
+      onNotice(t("themes.created"))
     },
     onError: () => onNotice(null)
   })
@@ -124,7 +125,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
       queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => mergeCustomTheme(current, payload.theme))
       setDraft(draftFromTheme(payload.theme))
       void setColorTheme(payload.theme)
-      onNotice("Theme saved.")
+      onNotice(t("themes.saved"))
     },
     onError: (error) => {
       setContrastIssues(contrastIssuesFromError(error))
@@ -142,7 +143,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
       setSelectedId(nextCustomThemes[0]?.id ?? null)
       const fallback = payload.fallback_theme_id ? allThemes.find((theme) => theme.id === payload.fallback_theme_id) : null
       if (fallback) void setColorTheme(fallback)
-      onNotice("Theme deleted.")
+      onNotice(t("themes.deleted"))
     },
     onError: () => onNotice(null)
   })
@@ -151,7 +152,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
     mutationFn: (themes: ColorTheme[]) => reorderThemes(themes.map((theme) => theme.id)),
     onSuccess: (payload) => {
       queryClient.setQueryData<ThemesPayload>(themesQueryKey, (current) => current ? mergeCustomThemes(current, payload.themes) : current)
-      onNotice("Theme order saved.")
+      onNotice(t("themes.order_saved"))
     },
     onError: () => {
       setOrderedThemes(customThemes)
@@ -213,20 +214,20 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
     reorderMutation.mutate(nextThemes)
   }
 
-  if (themesQuery.isPending) return <PanelMessage>Loading themes...</PanelMessage>
-  if (themesQuery.isError) return <PanelMessage tone="error">{errorMessage(themesQuery.error, "Unable to load themes.")}</PanelMessage>
+  if (themesQuery.isPending) return <PanelMessage>{t("themes.loading")}</PanelMessage>
+  if (themesQuery.isError) return <PanelMessage tone="error">{errorMessage(themesQuery.error, t("themes.error_load"))}</PanelMessage>
 
   return (
     <div className="space-y-6">
-      <section aria-label="Custom themes" className="space-y-3">
+      <section aria-label={t("themes.custom_aria")} className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <SectionHeading>Custom Themes</SectionHeading>
-          <Button disabled={createMutation.isPending || allThemes.length === 0} onClick={() => createMutation.mutate()} size="sm">New</Button>
+          <SectionHeading>{t("themes.custom_heading")}</SectionHeading>
+          <Button disabled={createMutation.isPending || allThemes.length === 0} onClick={() => createMutation.mutate()} size="sm">{t("themes.new")}</Button>
         </div>
-        {createMutation.isError ? <PanelMessage tone="error">{errorMessage(createMutation.error, "Unable to create theme.")}</PanelMessage> : null}
-        {reorderMutation.isError ? <PanelMessage tone="error">{errorMessage(reorderMutation.error, "Unable to save theme order.")}</PanelMessage> : null}
+        {createMutation.isError ? <PanelMessage tone="error">{errorMessage(createMutation.error, t("themes.error_create"))}</PanelMessage> : null}
+        {reorderMutation.isError ? <PanelMessage tone="error">{errorMessage(reorderMutation.error, t("themes.error_order"))}</PanelMessage> : null}
         {orderedThemes.length > 0 ? (
-          <nav aria-label="Custom theme order" className="max-h-[27.5rem] space-y-1 overflow-y-auto pr-1">
+          <nav aria-label={t("themes.order_aria")} className="max-h-[27.5rem] space-y-1 overflow-y-auto pr-1">
             {orderedThemes.map((theme, index) => (
               <button
                 aria-current={theme.id === selectedId ? "true" : undefined}
@@ -254,7 +255,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
             ))}
           </nav>
         ) : (
-          <PanelMessage>No custom themes yet.</PanelMessage>
+          <PanelMessage>{t("themes.empty")}</PanelMessage>
         )}
       </section>
 
@@ -264,7 +265,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
           deleting={deleteMutation.isPending}
           draft={draft}
           onDelete={() => {
-            if (window.confirm(`Delete ${draft.name}?`)) deleteMutation.mutate(draft)
+            if (window.confirm(t("themes.confirm_delete", { name: draft.name }))) deleteMutation.mutate(draft)
           }}
           onNameChange={updateDraftName}
           onSave={() => {
@@ -273,12 +274,12 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
           }}
           onTokenChange={updateDraftToken}
           saving={saveMutation.isPending}
-          saveError={saveMutation.isError ? errorMessage(saveMutation.error, "Unable to save theme.") : null}
+          saveError={saveMutation.isError ? errorMessage(saveMutation.error, t("themes.error_save")) : null}
         />
       ) : (
         <section className="rounded border border-border bg-surface p-5">
-          <SectionHeading>No Theme Selected</SectionHeading>
-          <p className="mt-2 text-sm text-text-secondary">Create a custom theme to edit its colors.</p>
+          <SectionHeading>{t("themes.no_selection_heading")}</SectionHeading>
+          <p className="mt-2 text-sm text-text-secondary">{t("themes.no_selection_description")}</p>
         </section>
       )}
     </div>
@@ -306,18 +307,19 @@ function ThemeEditor({
   saveError: string | null
   saving: boolean
   }) {
+  const { t } = useT("settings")
   const hasInvalidTokens = !draftTokensValid(draft)
 
   return (
-    <section aria-label={`Edit ${draft.name}`} className="space-y-5 rounded border border-border bg-surface p-5">
+    <section aria-label={t("themes.edit_aria", { name: draft.name })} className="space-y-5 rounded border border-border bg-surface p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <label className="block min-w-0 flex-1 text-sm font-medium text-text-primary" htmlFor="theme-name">
-          Name
+          {t("themes.name")}
           <Input id="theme-name" maxLength={120} onChange={(event) => onNameChange(event.target.value)} required value={draft.name} />
         </label>
         <div className="flex gap-2">
-          <Button disabled={saving || deleting || !draft.name.trim() || hasInvalidTokens} onClick={onSave}>{saving ? "Saving..." : "Save"}</Button>
-          <Button disabled={saving || deleting} onClick={onDelete} variant="danger">{deleting ? "Deleting..." : "Delete"}</Button>
+          <Button disabled={saving || deleting || !draft.name.trim() || hasInvalidTokens} onClick={onSave}>{saving ? t("themes.saving") : t("themes.save")}</Button>
+          <Button disabled={saving || deleting} onClick={onDelete} variant="danger">{deleting ? t("themes.deleting") : t("themes.delete")}</Button>
         </div>
       </div>
 
@@ -326,10 +328,10 @@ function ThemeEditor({
       <div className="grid gap-5 xl:grid-cols-2">
         {modes.map((mode) => (
           <div className="space-y-5" key={mode}>
-            <SectionHeading>{mode === "light" ? "Light Tokens" : "Dark Tokens"}</SectionHeading>
+            <SectionHeading>{mode === "light" ? t("themes.light_tokens") : t("themes.dark_tokens")}</SectionHeading>
             {tokenGroups.map((group) => (
-              <fieldset className="space-y-3" key={`${mode}-${group.label}`}>
-                <legend className="text-xs font-semibold uppercase text-text-secondary">{group.label}</legend>
+              <fieldset className="space-y-3" key={`${mode}-${group.labelKey}`}>
+                <legend className="text-xs font-semibold uppercase text-text-secondary">{t(`themes.token_groups.${group.labelKey}`)}</legend>
                 <div className="grid gap-3">
                   {group.keys.map((key) => {
                     const value = draft.tokens[mode][key] ?? ""
@@ -338,10 +340,10 @@ function ThemeEditor({
                     const inputId = `${mode}-${key}`
                     return (
                       <div className="space-y-1" key={inputId}>
-                        <label className="block text-xs font-medium text-text-primary" htmlFor={inputId}>{tokenLabel(mode, key)}</label>
+                        <label className="block text-xs font-medium text-text-primary" htmlFor={inputId}>{tokenLabel(mode, key, t)}</label>
                         <div className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-2">
                           <Input
-                            aria-label={`${tokenLabel(mode, key)} swatch`}
+                            aria-label={t("themes.swatch_aria", { label: tokenLabel(mode, key, t) })}
                             className="h-10 w-10 rounded border border-border bg-surface p-1"
                             fullWidth={false}
                             onChange={(event) => onTokenChange(mode, key, event.target.value)}
@@ -357,7 +359,7 @@ function ThemeEditor({
                             value={value}
                           />
                         </div>
-                        {invalidHex ? <p className="text-xs text-danger" role="alert">Use a 6-digit hex color like #1d4ed8.</p> : null}
+                        {invalidHex ? <p className="text-xs text-danger" role="alert">{t("themes.invalid_hex")}</p> : null}
                         {fieldIssues.map((issue) => (
                           <p className="text-xs text-danger" key={`${issue.mode}-${issue.foreground}-${issue.background}-${issue.message}`} role="alert">{issue.message}</p>
                         ))}
@@ -430,13 +432,13 @@ function mergeCustomThemes(current: ThemesPayload, customThemes: ColorTheme[]): 
   return { themes: [...builtIns, ...customThemes, ...existingCustoms] }
 }
 
-function uniqueDraftName(customThemes: ColorTheme[]) {
+function uniqueDraftName(customThemes: ColorTheme[], t: (key: string, options?: Record<string, unknown>) => string) {
   const existing = new Set(customThemes.map((theme) => theme.name))
   let index = customThemes.length + 1
-  let name = `Custom Theme ${index}`
+  let name = t("themes.default_name", { index })
   while (existing.has(name)) {
     index += 1
-    name = `Custom Theme ${index}`
+    name = t("themes.default_name", { index })
   }
   return name
 }
@@ -481,6 +483,6 @@ function insertionIndexForCustomTheme(themes: ColorTheme[], theme: ColorTheme) {
   return insertIndex
 }
 
-function tokenLabel(mode: "light" | "dark", key: string) {
-  return `${mode === "light" ? "Light" : "Dark"} ${key}`
+function tokenLabel(mode: "light" | "dark", key: string, t: (key: string, options?: Record<string, unknown>) => string) {
+  return t("themes.token_label", { mode: mode === "light" ? t("themes.light") : t("themes.dark"), token: key })
 }

@@ -527,6 +527,8 @@ function ChangedFilesPopup({
   placement: FilesPopupPlacement | null
   selectedPath?: string | null
 }) {
+  const { t } = useT("common")
+
   return (
     <div className="fixed inset-0 z-30" onClick={onClose}>
       <div
@@ -541,7 +543,7 @@ function ChangedFilesPopup({
           width: placement.width
         } : { left: 16, maxHeight: 480, top: 56, width: 320 }}
       >
-        <p className="shrink-0 border-b border-gray-100 px-3 py-2 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">Changed files</p>
+        <p className="shrink-0 border-b border-gray-100 px-3 py-2 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">{t("diff_review.changed_files")}</p>
         <div className="min-h-0 flex-1 overflow-auto">
           <ChangedFilesList commentCounts={commentCounts} files={files} onSelectFile={onSelectFile} selectedPath={selectedPath} />
         </div>
@@ -563,11 +565,13 @@ function MobileChangedFilesModal({
   onSelectFile: (path: string) => void
   selectedPath?: string | null
 }) {
+  const { t } = useT("common")
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white font-mono text-xs dark:bg-gray-950" role="dialog">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-        <p className="font-sans text-sm font-semibold text-gray-700 dark:text-gray-200">Changed files</p>
-        <button aria-label="Close changed files" className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+        <p className="font-sans text-sm font-semibold text-gray-700 dark:text-gray-200">{t("diff_review.changed_files")}</p>
+        <button aria-label={t("diff_review.close_changed_files")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
           <CloseIcon className="h-5 w-5" />
         </button>
       </div>
@@ -835,15 +839,17 @@ function DiffFileSection({
 }
 
 function LargeFilePlaceholder({ file, onLoad, rowCount }: { file: ReviewableDiffFile; onLoad: () => void; rowCount: number }) {
+  const { t } = useT("common")
+
   return (
     <div className="space-y-2 border-t border-gray-100 px-4 py-6 font-sans text-sm text-gray-600 dark:border-gray-800 dark:text-gray-300">
       <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{file.path}</p>
       <p>
         {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions} </span> : null}
         {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions} </span> : null}
-        This file&rsquo;s diff is large (~{rowCount} rendered lines) and is hidden by default.
+        {t("diff_review.large_file_hidden", { rowCount })}
       </p>
-      <Button onClick={onLoad} size="sm" variant="secondary">Load diff for this file</Button>
+      <Button onClick={onLoad} size="sm" variant="secondary">{t("diff_review.load_file_diff")}</Button>
     </div>
   )
 }
@@ -1100,7 +1106,7 @@ export function UnifiedDiffTable({
                                 onClick={() => onStartEditThread(thread)}
                                 type="button"
                               >
-                                Edit
+                                {t("diff_review_composer.edit")}
                               </button>
                             ) : null}
                             {thread.state === "draft" && onDeleteThread && editingThreadId !== thread.id ? (
@@ -1109,21 +1115,21 @@ export function UnifiedDiffTable({
                                 onClick={() => onDeleteThread(thread)}
                                 type="button"
                               >
-                                Delete
+                                {t("diff_review_composer.delete")}
                               </button>
                             ) : null}
                           </div>
                           {editingThreadId === thread.id ? (
                             <div className="space-y-2">
                               <textarea
-                                aria-label={`Edit comment ${thread.id}`}
+                                aria-label={t("diff_review_composer.edit_comment_aria", { id: thread.id })}
                                 className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                 onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
                                 value={editingThreadBody ?? ""}
                               />
                               <div className="flex gap-2">
-                                <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">Save</Button>
-                                <Button onClick={onCancelEditThread} size="sm" variant="secondary">Cancel</Button>
+                                <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">{t("save")}</Button>
+                                <Button onClick={onCancelEditThread} size="sm" variant="secondary">{t("cancel")}</Button>
                               </div>
                             </div>
                           ) : (
@@ -1149,17 +1155,17 @@ export function UnifiedDiffTable({
                       </div>
                       <div className="space-y-2 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:gap-2 max-md:overflow-auto max-md:p-3">
                         <textarea
-                          aria-label="Comment"
+                          aria-label={t("diff_review_composer.comment")}
                           autoFocus
                           className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 max-md:flex-1"
                           onChange={(event) => onChangeComposingBody?.(event.target.value)}
                           value={composingBody ?? ""}
                         />
                         <div className="flex gap-2">
-                          <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">Create comment</Button>
-                          <Button onClick={onCancelComposing} size="sm" variant="secondary">Cancel</Button>
+                          <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">{t("diff_review_composer.create_comment")}</Button>
+                          <Button onClick={onCancelComposing} size="sm" variant="secondary">{t("cancel")}</Button>
                         </div>
-                        {composingError ? <p className="text-xs text-red-700 dark:text-red-300">Unable to create diff comment.</p> : null}
+                        {composingError ? <p className="text-xs text-red-700 dark:text-red-300">{t("diff_review_composer.create_error")}</p> : null}
                       </div>
                     </div>
                   </td>
@@ -1359,6 +1365,7 @@ function DiffFileHeader({
   selected: boolean
   showFilesPopupTrigger?: boolean
 }) {
+  const { t } = useT("common")
   const content = (
     <>
       <span className="min-w-0 flex-1 truncate">{file.path}</span>
@@ -1393,7 +1400,7 @@ function DiffFileHeader({
       ) : null}
       {showFilesPopupTrigger ? (
         <button
-          aria-label="Browse changed files"
+          aria-label={t("diff_review.browse_changed_files")}
           className="shrink-0 rounded border border-gray-300 px-2 py-0.5 font-sans text-2xs font-medium text-gray-600 hover:bg-white dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
           onClick={onToggleFilesPopup}
           type="button"

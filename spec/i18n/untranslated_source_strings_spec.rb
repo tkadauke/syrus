@@ -8,8 +8,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
   #
   # This is a deliberately conservative audit for obvious user-visible string
   # literals. It ignores tests, logs, routes, code-like tokens, and existing
-  # localized surfaces. Add narrow allowlist entries for legacy debt only; new
-  # product copy should move into Rails YAML or frontend/plugin JSON locales.
+  # localized surfaces. Allowlist entries below are intentionally narrow and
+  # reserved for non-user-visible diagnostics, product/provider names,
+  # protocol/code tokens, fixtures, and unavoidable dynamic/code-like fragments.
 
   def source_globs
     %w[
@@ -32,17 +33,15 @@ RSpec.describe "Untranslated source strings", type: :unit do
     ]
   end
 
-  def legacy_untranslated_paths
+  # Operator diagnostic renderers intentionally preserve terse English labels
+  # that mirror MCP/tool payload keys, stack/runtime vocabulary, log output, or
+  # desktop shell status. These surfaces are not product navigation or general
+  # user-facing copy; broad legacy app/plugin UI path exemptions are not
+  # allowed back into the audit.
+  def internal_diagnostic_path_patterns
     [
-      %r{app/frontend/components/ui/Text\.tsx$},
-      %r{app/frontend/components/credentials/},
-      %r{app/frontend/components/diff/ReviewableDiff\.tsx$},
-      %r{app/frontend/routes/(AdminInvitations|AdminQueue|AdminStuck|AdminTranscript)\.tsx$},
-      %r{app/frontend/routes/appChromeV2/},
       %r{app/frontend/routes/chat/},
-      %r{app/frontend/routes/jobDetail/(SourceBrowser|WorkflowGraph)\.tsx$},
-      %r{app/frontend/routes/repositoryDetail/DeliveryTracks\.tsx$},
-      %r{app/frontend/routes/ThemesSettings\.tsx$},
+      %r{app/frontend/routes/jobDetail/WorkflowGraph\.tsx$},
       %r{desktop/src/App\.tsx$},
       %r{plugins/admin_mysql/app/frontend/adminMysqlToolCard\.tsx$},
       %r{plugins/agent_insights/app/frontend/agentInsightToolCard\.tsx$},
@@ -52,12 +51,13 @@ RSpec.describe "Untranslated source strings", type: :unit do
     ]
   end
 
-  def legacy_untranslated_literals
-    @legacy_untranslated_literals ||= <<~LITERALS.lines.map(&:strip).reject(&:blank?).to_set
+  def code_or_protocol_literals
+    @code_or_protocol_literals ||= <<~LITERALS.lines.map(&:strip).reject(&:blank?).to_set
       app/frontend/components/CoverageCard.tsx|jsx_text|(threshold: %)
       app/frontend/components/AdminEventActions.tsx|jsx_text|JOB-
       app/frontend/components/Checkbox.tsx|jsx_text|in a
       app/frontend/components/ShortcutsHelpModal.tsx|jsx_text|(items: T[]): ShortcutGroupSummary
+      app/frontend/components/ui/Text.tsx|jsx_text|, keyof TextOwnProps
       app/frontend/routes/AdminBackendExceptions.tsx|jsx_text|active job
       app/frontend/routes/AdminMcpToolUsage.tsx|jsx_text|· ·
       app/frontend/routes/AdminReconcilerActivity.tsx|jsx_text|Run #
@@ -67,6 +67,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WI-
       app/frontend/routes/AdminWorkUnits.tsx|jsx_text|WU-
       app/frontend/routes/AppChromeV2.tsx|jsx_text|queryClient.getQueryData
+      app/frontend/routes/appChromeV2/sidebarNav.tsx|jsx_text|"/dashboard/jobs", icon:
+      app/frontend/routes/appChromeV2/sidebarNav.tsx|jsx_text|"/repositories", icon:
       app/frontend/routes/EpicDetail.tsx|jsx_text|· Goal #
       app/frontend/routes/JobDetail.tsx|jsx_text|( )
       app/frontend/routes/JobDetail.tsx|jsx_text|· Goal #
@@ -89,6 +91,20 @@ RSpec.describe "Untranslated source strings", type: :unit do
     LITERALS
   end
 
+  def placeholder_literals
+    @placeholder_literals ||= <<~LITERALS.lines.map(&:strip).reject(&:blank?).to_set
+      app/frontend/components/credentials/CredentialCard.tsx|jsx_attr|sk-…
+      app/frontend/components/credentials/GithubTokenStep.tsx|jsx_attr|ghp_…
+    LITERALS
+  end
+
+  def internal_diagnostic_literals
+    @internal_diagnostic_literals ||= <<~LITERALS.lines.map(&:strip).reject(&:blank?).to_set
+      app/frontend/routes/AdminTranscript.tsx|jsx_text|job log
+      app/frontend/routes/jobDetail/SourceBrowser.tsx|jsx_attr|not covered
+    LITERALS
+  end
+
   def product_and_provider_names
     %w[
       Claude
@@ -100,6 +116,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       PDF
       Rails
       SQL
+      Supervisor
       Syrus
     ]
   end
@@ -124,8 +141,10 @@ RSpec.describe "Untranslated source strings", type: :unit do
     relative_path = path.delete_prefix("#{Rails.root}/")
     return true if product_and_provider_names.include?(text)
     return true if text.match?(code_like_text)
-    return true if legacy_untranslated_paths.any? { |pattern| path.match?(pattern) }
-    return true if legacy_untranslated_literals.include?("#{relative_path}|#{kind}|#{text}")
+    return true if internal_diagnostic_path_patterns.any? { |pattern| path.match?(pattern) }
+    return true if code_or_protocol_literals.include?("#{relative_path}|#{kind}|#{text}")
+    return true if placeholder_literals.include?("#{relative_path}|#{kind}|#{text}")
+    return true if internal_diagnostic_literals.include?("#{relative_path}|#{kind}|#{text}")
 
     false
   end
@@ -172,5 +191,33 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
       expect(findings_for(file.path)).to include(a_string_including('JSX text: "Owner:"'))
     end
+  end
+
+  it "keeps legacy path-level debt exemptions retired" do
+    expect(self).not_to respond_to(:legacy_untranslated_paths)
+    expect(self).not_to respond_to(:legacy_untranslated_literals)
+
+    user_facing_paths = %w[
+      app/frontend/components/diff/ReviewableDiff.tsx
+      app/frontend/routes/AdminInvitations.tsx
+      app/frontend/routes/AdminQueue.tsx
+      app/frontend/routes/AdminStuck.tsx
+      app/frontend/routes/ThemesSettings.tsx
+    ]
+
+    user_facing_paths.each do |path|
+      expect(internal_diagnostic_path_patterns.any? { |pattern| path.match?(pattern) }).to be(false), "#{path} must not be path-allowlisted"
+    end
+  end
+
+  it "guards strict surfaces against expression-only English copy" do
+    diff_review = File.read(Rails.root.join("app/frontend/components/diff/ReviewableDiff.tsx"))
+    themes_settings = File.read(Rails.root.join("app/frontend/routes/ThemesSettings.tsx"))
+
+    expect(diff_review).not_to include(">Edit<")
+    expect(diff_review).not_to include(">Delete<")
+    expect(diff_review).not_to include("`Edit comment ${")
+    expect(themes_settings).not_to include("`Delete ${")
+    expect(themes_settings).not_to include("`Custom Theme ${")
   end
 end

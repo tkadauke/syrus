@@ -22,7 +22,13 @@
   },
   "diff_review_composer": {
     "title": "Commentarium",
-    "close": "Formam commentarii claudere"
+    "close": "Formam commentarii claudere",
+    "comment": "Commentarium",
+    "edit": "Edere",
+    "delete": "Delere",
+    "edit_comment_aria": "Commentarium {{id}} edere",
+    "create_comment": "Commentarium crea",
+    "create_error": "Commentarium diff creari non potuit."
   },
   "onboarding": {
     "loading": "Status constitutionis oneratur...",
@@ -312,5 +318,14 @@
   "loading_search_aria": "Eventus quaerendi onerantur",
   "onboarding_aria": "Introductio",
   "terminal_aria": "Terminale",
-  "page_title_terminal": "Terminale"
+  "page_title_terminal": "Terminale",
+  "save": "Serva",
+  "cancel": "Abice",
+  "diff_review": {
+    "changed_files": "Documenta mutata",
+    "close_changed_files": "Documenta mutata claude",
+    "browse_changed_files": "Documenta mutata perlustra",
+    "large_file_hidden": "Diff huius documenti magnum est (~{{rowCount}} lineae redditae) atque initio celatur.",
+    "load_file_diff": "Diff huius documenti onera"
+  }
 }
