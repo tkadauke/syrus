@@ -11,5 +11,11 @@
   "preview_access_pending": "Preparing preview access…",
   "open_chat": "Open chat",
   "version": "Version",
-  "download": "Download"
+  "download": "Download",
+  "tool_panel_number": "Panel #{{id}}",
+  "tool_entry_file": "Entry file",
+  "tool_files": "Files",
+  "tool_open_mockup": "Open mockup",
+  "tool_path": "Path",
+  "tool_replacements": "Replacements"
 }

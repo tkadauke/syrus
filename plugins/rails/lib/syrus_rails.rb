@@ -41,5 +41,7 @@ module SyrusRails
              artifact_renderer: [ "SyrusRails::SchemaErdRenderer", "SyrusRails::MigrationDiffRenderer" ],
              prompt_injector: "SyrusRails::PromptContext",
              preview_provider: "SyrusRails::PreviewProvider"
+
+    frontend i18n: [ "app/frontend/i18n/locales/*/syrus_rails.json" ]
   end
 end

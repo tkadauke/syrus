@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
-import { DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
+import { DesignDocHeader, parseDesignDocSummary, t, type DesignDocSummary } from "../designDocToolCard"
 
 // Plugin-owned tool card for suggest_design_doc_change (the pending-action tool-card work).
 // Chat-agent content writes are always suggestion-only (see
@@ -37,7 +37,7 @@ function collapsedSummary(context: ToolCardContext) {
   if (!result) return null
 
   const state = result.state ? ` (${result.state})` : ""
-  return `Suggested change to ${result.summary.docRef}${state}`
+  return t("tool_suggested_change_summary", { doc: result.summary.docRef, state })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -47,16 +47,16 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Suggestion</Badge>
+        <Badge>{t("tool_suggestion")}</Badge>
         {result.state ? <StatePill state={result.state} /> : null}
         {result.changeType ? <Badge>{result.changeType.replace(/_/g, " ")}</Badge> : null}
       </div>
       <DesignDocHeader doc={result.summary} />
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{result.summary.title}</div>
-      {result.changeSummary ? <Row label="Summary" value={result.changeSummary} /> : null}
+      {result.changeSummary ? <Row label={t("tool_summary")} value={result.changeSummary} /> : null}
       {result.conflictReason ? (
         <div className="rounded bg-amber-100 px-2 py-1 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          <span className="text-2xs font-semibold uppercase">Conflict</span>
+          <span className="text-2xs font-semibold uppercase">{t("tool_conflict")}</span>
           <div>{result.conflictReason}</div>
         </div>
       ) : null}

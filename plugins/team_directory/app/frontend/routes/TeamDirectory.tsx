@@ -167,7 +167,7 @@ function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
         <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.owner ? <OwnerProfileLink owner={job.owner} prefix={prefix} /> : null}
-          <span>{job.repository.slug} · updated <RelativeTimestamp fallback="not started" value={job.updated_at} /></span>
+          <span>{job.repository.slug} · {t('profiles.updated')} <RelativeTimestamp fallback={t('profiles.not_started')} value={job.updated_at} /></span>
         </div>
       </div>
       <StatusPill state={job.state} />

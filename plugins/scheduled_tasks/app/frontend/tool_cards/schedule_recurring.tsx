@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "i18next"
 import { CardShell, displayValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Plugin-owned tool card for schedule_recurring (the pending-action tool-card work).
@@ -38,8 +39,12 @@ function collapsedSummary(context: ToolCardContext) {
   if (!card) return null
 
   return card.explanation
-    ? `Recurring task proposed: ${card.explanation}`
-    : `Recurring task proposed (confirmation #${card.confirmationId})`
+    ? t("tool_schedule_summary_with_explanation", { explanation: card.explanation })
+    : t("tool_schedule_summary_with_confirmation", { id: card.confirmationId })
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`scheduled_tasks:${key}`, options)
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -50,14 +55,14 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state="proposed" />
-        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Recurring task proposed</span>
+        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{t("tool_schedule_title")}</span>
       </div>
       {card.explanation ? <div className="text-gray-700 dark:text-gray-300">{card.explanation}</div> : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Pending confirmation" value={`#${card.confirmationId}`} />
-        {card.nextFireAt ? <Row label="First fire" value={card.nextFireAt} /> : null}
+        <Row label={t("tool_pending_confirmation")} value={`#${card.confirmationId}`} />
+        {card.nextFireAt ? <Row label={t("tool_first_fire")} value={card.nextFireAt} /> : null}
       </dl>
-      <div className="text-gray-500 dark:text-gray-400">Not created yet — awaiting operator confirmation.</div>
+      <div className="text-gray-500 dark:text-gray-400">{t("tool_schedule_pending_confirmation")}</div>
     </CardShell>
   )
 }
