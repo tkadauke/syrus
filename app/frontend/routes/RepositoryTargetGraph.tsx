@@ -86,6 +86,7 @@ export function targetGraphQueryFromSearch(search: string): TargetGraphQuery {
     q: filter ? undefined : rawQ,
     filter,
     search: params.get("search") || undefined,
+    workflowId: params.get("workflow_id") || undefined,
     direction,
     depth: clampNumber(params.get("depth"), 1, 0, 4),
     limit: clampNumber(params.get("limit"), DEFAULT_LIMIT, 25, 500),
@@ -103,6 +104,7 @@ export function targetGraphSearchFromQuery(query: TargetGraphQuery, persistentSe
   if (query.filter) params.set("q", query.filter)
   else if (query.q) params.set("q", query.q)
   if (query.search) params.set("search", query.search)
+  if (query.workflowId) params.set("workflow_id", query.workflowId)
   if (query.direction && query.direction !== "both") params.set("direction", query.direction)
   if (query.depth !== undefined && query.depth !== 1) params.set("depth", String(query.depth))
   if (query.limit !== undefined && query.limit !== DEFAULT_LIMIT) params.set("limit", String(query.limit))
