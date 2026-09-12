@@ -26,7 +26,9 @@ RSpec.describe Steps::AdversarialReview do
 
     implement_step.update!(state: "succeeded")
     implement_run.update!(
-      agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'review me'\n"
+      agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'review me'\n",
+      step_agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'review me'\n",
+      base_sha: "base-sha"
     )
   end
 
@@ -68,7 +70,7 @@ RSpec.describe Steps::AdversarialReview do
       expect(prompt).to include("submit_adversarial_review")
       expect(prompt).to include("Changed files from the latest succeeded implement step")
       expect(prompt).to include("app.rb")
-      expect(prompt).to include("git diff origin/main...HEAD -- <path>")
+      expect(prompt).to include("git diff base-sha...HEAD -- <path>")
       expect(prompt).not_to include("puts 'review me'")
       expect(max_turns).to eq(described_class::TURN_BUDGET)
       expect(required_mcp_tools).to eq(%w[submit_adversarial_review])
@@ -83,7 +85,35 @@ RSpec.describe Steps::AdversarialReview do
     expect(run.reload.prompt).to include("Review the implementation independently.")
   end
 
+  it "reviews only the latest implement step diff for stacked jobs" do
+    implement_run.update!(
+      base_sha: "parent-branch-head",
+      agent_diff: <<~DIFF,
+        diff --git a/app/frontend/routes/chat/mediaPreviewShell.tsx b/app/frontend/routes/chat/mediaPreviewShell.tsx
+        +parent stack change
+        diff --git a/app/frontend/routes/chat/toolCardUi.tsx b/app/frontend/routes/chat/toolCardUi.tsx
+        +current job change
+      DIFF
+      step_agent_diff: <<~DIFF
+        diff --git a/app/frontend/routes/chat/toolCardUi.tsx b/app/frontend/routes/chat/toolCardUi.tsx
+        +current job change
+      DIFF
+    )
+
+    expect(handler).to receive(:run_agent) do |prompt: nil, **|
+      expect(prompt).to include("toolCardUi.tsx")
+      expect(prompt).not_to include("mediaPreviewShell.tsx")
+      expect(prompt).to include("git diff parent-branch-head...HEAD -- <path>")
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Looks sound.", "verdict" => "approved" }
+      ])
+    end
+
+    handler.call
+  end
+
   it "passes a stacked workspace base ref into the prompt" do
+    implement_run.update!(base_sha: nil)
     fake_ws = instance_double(
       WorkflowWorkspace,
       setup: true,
@@ -361,7 +391,8 @@ RSpec.describe Steps::AdversarialReview do
     end
     let(:respond_run) do
       Run.create!(job: feedback_job, step: respond_step, trigger_kind: "pr_comment", state: "succeeded",
-                  agent_diff: "diff --git a/foo.rb b/foo.rb\n+# addressed feedback\n")
+                  agent_diff: "diff --git a/foo.rb b/foo.rb\n+# addressed feedback\n",
+                  step_agent_diff: "diff --git a/foo.rb b/foo.rb\n+# addressed feedback\n")
     end
     let(:fb_review_step) do
       Step.create!(workflow: feedback_workflow, kind: "adversarial_review", position: 2, iteration: 1,
@@ -406,7 +437,7 @@ RSpec.describe Steps::AdversarialReview do
     end
 
     it "raises StepFailed when no respond diff exists" do
-      respond_run.update!(agent_diff: nil)
+      respond_run.update!(agent_diff: nil, step_agent_diff: nil)
 
       expect { fb_handler.call }.to raise_error(Steps::Base::StepFailed, /respond diff/)
     end

@@ -52,7 +52,7 @@ module Steps
         issue: review_issue,
         diff: latest_agentic_diff,
         prior_findings: review_iterations,
-        base_ref: workspace.base_ref,
+        base_ref: review_base_ref,
         workflow_kind: workflow.trigger_kind,
         feedback_context: feedback_context_text,
         criteria: adversarial_review_criteria
@@ -91,15 +91,24 @@ module Steps
       scope = workflow.steps.where(kind: agentic_kind)
 
       if scope.exists?
-        scope.where(state: "succeeded")
-          .order(:position)
-          .last
-          &.latest_run
-          &.agent_diff
+        latest_agentic_review_run(agentic_kind)
+          &.then { |agentic_run| agentic_run.step_agent_diff.presence || agentic_run.agent_diff.presence }
           .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for adversarial_review")
       else
         diff_against_default.presence || raise(StepFailed, "no changes to review against #{default_branch_ref}")
       end
+    end
+
+    def latest_agentic_review_run(agentic_kind)
+      workflow.steps.where(kind: agentic_kind, state: "succeeded")
+        .order(:position)
+        .last
+        &.latest_run
+    end
+
+    def review_base_ref
+      agentic_kind = feedback_workflow? ? "respond" : "implement"
+      latest_agentic_review_run(agentic_kind)&.base_sha.presence || workspace.base_ref
     end
 
     def feedback_workflow?
