@@ -453,7 +453,7 @@ RSpec.describe LandingValidationCache do
       expect(decision.reason).to eq("required grader configuration changed")
     end
 
-    it "rejects carry-forward when the changed-file selection changed" do
+    it "allows carry-forward when the changed-file selection changed" do
       job = make_job
       make_workflow(job, artifacts: { "landing_validation" => {
         "required_graders_passed" => true,
@@ -471,8 +471,8 @@ RSpec.describe LandingValidationCache do
         changed_files_fingerprint: changed_files_fingerprint([ "app/new.rb" ])
       )
 
-      expect(decision).not_to be_reusable
-      expect(decision.reason).to eq("changed-file selection changed")
+      expect(decision).to be_reusable
+      expect(decision.reason).to eq("prior required-grader validation matches current grader configuration")
     end
 
     it "rejects carry-forward when the base ref changed" do

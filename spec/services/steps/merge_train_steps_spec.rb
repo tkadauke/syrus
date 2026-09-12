@@ -1568,7 +1568,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler.call
     end
 
-    it "carries forward a prior merge-train validation after a clean base-moved recovery rebase" do
+    it "carries forward a prior merge-train validation after a clean base-moved recovery rebase even when changed-file selection changes" do
       repository.update!(trust_clean_rebase_grade: true)
       a = member_job(issue_number: 1)
       train = build_train([ a ])
@@ -1602,7 +1602,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").and_return("newbase222\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("newtree999\n")
-      allow(git).to receive(:run).with("diff", "--name-only", "newbase222...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
+      allow(git).to receive(:run).with("diff", "--name-only", "newbase222...HEAD", chdir: "/tmp/ws").and_return("app/services/new_base_only.rb\n")
       target_graph = TargetGraph.new
       allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/ws")).and_return(target_graph)
       expect(GraderConclusionCache).to receive(:fingerprint_for_plan).with(anything, target_graph: target_graph).and_return("fp")
@@ -1616,7 +1616,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         "base_sha" => "newbase222",
         "base_ref" => "master",
         "grader_fingerprint" => "fp",
-        "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ]),
+        "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/services/new_base_only.rb" ]),
         "validation_source" => "clean_rebase"
       )
       expect(handler.workflow.steps.find_by!(kind: "prepare")).to be_skipped

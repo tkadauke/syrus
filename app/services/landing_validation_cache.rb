@@ -113,7 +113,6 @@ class LandingValidationCache
   def self.carry_forward_source_for(job:, base_ref:, grader_fingerprint:, changed_files_fingerprint:)
     return miss("current base ref could not be determined") if base_ref.blank?
     return miss("current required grader configuration could not be fingerprinted") if grader_fingerprint.blank?
-    return miss("current changed-file selection could not be fingerprinted") if changed_files_fingerprint.blank?
 
     artifacts = validation_artifacts(job)
     return miss("no cached landing validation found") if artifacts.empty?
@@ -126,8 +125,7 @@ class LandingValidationCache
       stale = carry_forward_stale_reason(
         artifact,
         base_ref: base_ref,
-        grader_fingerprint: grader_fingerprint,
-        changed_files_fingerprint: changed_files_fingerprint
+        grader_fingerprint: grader_fingerprint
       )
       next if stale
 
@@ -203,14 +201,12 @@ class LandingValidationCache
   end
   private_class_method :stale_reason
 
-  def self.carry_forward_stale_reason(artifact, base_ref:, grader_fingerprint:, changed_files_fingerprint:)
+  def self.carry_forward_stale_reason(artifact, base_ref:, grader_fingerprint:)
     return "cached validation is older than #{MAX_AGE.inspect}" if stale_checked_at?(artifact)
     return "cached validation is missing base ref" if artifact["base_ref"].blank?
     return "base ref changed from #{artifact["base_ref"]} to #{base_ref}" if artifact["base_ref"] != base_ref
     return "cached validation is missing required grader configuration" if artifact["grader_fingerprint"].blank?
     return "required grader configuration changed" if artifact["grader_fingerprint"] != grader_fingerprint
-    return "cached validation is missing changed-file selection" if artifact["changed_files_fingerprint"].blank?
-    return "changed-file selection changed" if artifact["changed_files_fingerprint"] != changed_files_fingerprint
 
     nil
   end

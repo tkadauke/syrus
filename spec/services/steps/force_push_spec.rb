@@ -259,7 +259,7 @@ RSpec.describe Steps::ForcePush do
       expect(run.job_logs.pluck(:chunk).join("\n")).to include("required grader configuration changed")
     end
 
-    it "does not re-stamp when the changed-file selection changes" do
+    it "re-stamps when the changed-file selection changes" do
       job.repository.update!(trust_clean_rebase_grade: true)
       handler = described_class.new(run)
       git = stub_git(handler)
@@ -267,8 +267,11 @@ RSpec.describe Steps::ForcePush do
 
       handler.call
 
-      expect(workflow.reload.artifact("landing_validation")).to be_nil
-      expect(run.job_logs.pluck(:chunk).join("\n")).to include("changed-file selection changed")
+      artifact = workflow.reload.artifact("landing_validation")
+      expect(artifact).to be_present
+      expect(artifact["head_sha"]).to eq("newhead789")
+      expect(artifact["changed_files_fingerprint"]).to eq(LandingValidationCache.changed_files_fingerprint([ "app/services/new.rb" ]))
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("force_push: carried green grade across clean rebase")
     end
 
     it "does not re-stamp when the PR has no prior green grade to carry forward" do
