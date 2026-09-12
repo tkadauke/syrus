@@ -553,8 +553,15 @@ The app API exposes the compiled graph for operator UIs and debugging tools:
 All three endpoints use the normal app API authentication and repository/Job
 visibility rules. They accept `limit` and `offset` for target windowing
 (`limit` defaults to 500 and is capped at 2,000), plus optional `project_id`,
-`kind`, and `q` filters. The response includes the repository, source scope
-(`repository` or `workflow`), compiled projects, the current target window,
+`kind`, and `q` filters. They also accept `mode=neighborhood` for progressive
+graph rendering. In neighborhood mode, `focus_label` names the root target,
+`focus_state` can be `failing`, `selected`, `skipped`, or `cached`,
+`direction` can be `both`, `dependencies`, or `dependents`, and `depth` is
+capped at 4. Repository-scoped graphs can seed from project filters, explicit
+labels, and failing target health; `selected`/`skipped`/`cached` are runtime
+workflow overlays, so clients should use the Job or Workflow endpoint for
+those states. The response includes the repository, source scope (`repository`
+or `workflow`), compiled projects, the current target window or neighborhood,
 dependency edges for the returned targets, compiler diagnostics, and any
 compile error.
 
@@ -573,6 +580,10 @@ requiredness, fingerprints, and target-health record references when available.
 These overlays come from workflow artifacts such as
 `grader_target_selections` and `target_health_skipped_targets`; absent artifacts
 mean the graph still returns, just without runtime selection annotations.
+The app UI exposes a repository Target Graph tab for default-branch graph
+inspection and a Job Target Graph tab that uses the Job endpoint so operators
+can expand from selected, skipped, and cached workflow targets when fanout has
+recorded those artifacts.
 
 Health detail is intentionally page-scoped so large graphs remain bounded.
 `health.targets` contains latest `TargetHealthRecord` details only for targets

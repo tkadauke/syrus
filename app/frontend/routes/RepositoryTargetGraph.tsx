@@ -2,7 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { useQuery } from "@tanstack/react-query"
 import { useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { fetchRepositoryTargetGraph, type TargetGraphEdge, type TargetGraphPayload, type TargetGraphQuery, type TargetGraphTarget } from "../api/targetGraphs"
+import { fetchJobTargetGraph, fetchRepositoryTargetGraph, type TargetGraphEdge, type TargetGraphPayload, type TargetGraphQuery, type TargetGraphTarget } from "../api/targetGraphs"
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
@@ -42,9 +42,32 @@ export function RepositoryTargetGraphRoute() {
     >
       {query.isPending ? <PanelMessage>Loading target graph...</PanelMessage> : null}
       {query.isError ? <PanelMessage tone="error">{errorMessage(query.error, "Unable to load target graph.")}</PanelMessage> : null}
-      {query.data ? <RepositoryTargetGraphView payload={query.data} prefix={prefix} query={graphQuery} /> : null}
+      {query.data ? (
+        <TargetGraphExplorer
+          backLink={{ label: "Overview", path: `/repositories/${query.data.repository.id}` }}
+          payload={query.data}
+          prefix={prefix}
+          query={graphQuery}
+        />
+      ) : null}
     </RepositoryPageShell>
   )
+}
+
+export function JobTargetGraphPanel({ jobId, prefix }: { jobId: string | number; prefix: string }) {
+  const location = useLocation()
+  const graphQuery = targetGraphQueryFromSearch(location.search)
+  const query = useQuery({
+    queryKey: ["jobs", String(jobId), "target_graph", graphQuery],
+    queryFn: () => fetchJobTargetGraph(jobId, graphQuery),
+    enabled: String(jobId).length > 0
+  })
+
+  if (query.isPending) return <PanelMessage>Loading target graph...</PanelMessage>
+  if (query.isError) return <PanelMessage tone="error">{errorMessage(query.error, "Unable to load target graph.")}</PanelMessage>
+  if (!query.data) return null
+
+  return <TargetGraphExplorer payload={query.data} prefix={prefix} query={graphQuery} />
 }
 
 export function targetGraphQueryFromSearch(search: string): TargetGraphQuery {
@@ -82,7 +105,7 @@ export function targetGraphSearchFromQuery(query: TargetGraphQuery) {
   return value ? `?${value}` : ""
 }
 
-function RepositoryTargetGraphView({ payload, prefix, query }: { payload: TargetGraphPayload; prefix: string; query: TargetGraphQuery }) {
+export function TargetGraphExplorer({ backLink, payload, prefix, query }: { backLink?: { label: string; path: string }; payload: TargetGraphPayload; prefix: string; query: TargetGraphQuery }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [draft, setDraft] = useState(query.q || query.focusLabel || "")
@@ -104,6 +127,7 @@ function RepositoryTargetGraphView({ payload, prefix, query }: { payload: Target
       {payload.error ? <PanelMessage tone="error">{payload.error}</PanelMessage> : null}
       <TargetGraphToolbar
         draft={draft}
+        overlaysAvailable={Boolean(payload.workflow)}
         payload={payload}
         query={query}
         onDraftChange={setDraft}
@@ -133,8 +157,9 @@ function RepositoryTargetGraphView({ payload, prefix, query }: { payload: Target
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
         <span>Source {payload.source.scope} · {payload.source.ref}</span>
+        {payload.workflow ? <span>Workflow {payload.workflow.slug}</span> : null}
         {payload.diagnostics?.source ? <span>Compiled from {payload.diagnostics.source}</span> : null}
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}`, prefix)}>Overview</Link>
+        {backLink ? <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(backLink.path, prefix)}>{backLink.label}</Link> : null}
       </div>
     </div>
   )
@@ -142,6 +167,7 @@ function RepositoryTargetGraphView({ payload, prefix, query }: { payload: Target
 
 function TargetGraphToolbar({
   draft,
+  overlaysAvailable,
   payload,
   query,
   onDraftChange,
@@ -149,6 +175,7 @@ function TargetGraphToolbar({
   onUpdate
 }: {
   draft: string
+  overlaysAvailable: boolean
   payload: TargetGraphPayload
   query: TargetGraphQuery
   onDraftChange: (value: string) => void
@@ -189,17 +216,25 @@ function TargetGraphToolbar({
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {FOCUS_STATES.map((state) => (
+          (() => {
+            const needsOverlay = state !== "failing"
+            const disabled = needsOverlay && !overlaysAvailable
+            return (
           <button
-            className={`rounded border px-3 py-1.5 text-xs font-medium ${query.focusState === state ? "border-brand bg-brand text-on-brand" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+            className={`rounded border px-3 py-1.5 text-xs font-medium ${query.focusState === state ? "border-brand bg-brand text-on-brand" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+            disabled={disabled}
             key={state}
             onClick={() => {
               onDraftChange("")
               onUpdate({ mode: "neighborhood", focusLabel: undefined, focusState: state, offset: 0 })
             }}
+            title={disabled ? "Available on Job and Workflow target graphs after fanout records runtime selections." : undefined}
             type="button"
           >
             {stateLabel(state)}
           </button>
+            )
+          })()
         ))}
         <button
           className={`rounded border px-3 py-1.5 text-xs font-medium ${query.mode === "window" ? "border-brand bg-brand text-on-brand" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}

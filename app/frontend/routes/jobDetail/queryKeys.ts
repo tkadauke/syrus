@@ -11,7 +11,7 @@ import type { JobDetailPayload, JobWorkflowsPayload } from "../../api/jobs"
 // The tabs JobDetailView itself knows how to render. Anything else selectable
 // (e.g. "tests" or "coverage") is a plugin-contributed tab whose validity
 // comes from the current payload's ui_tabs, not from a hardcoded list here.
-export const CORE_JOB_TABS = ["summary", "review", "workflows", "conversation", "timeline", "attachments", "source", "artifacts"] as const
+export const CORE_JOB_TABS = ["summary", "review", "workflows", "conversation", "timeline", "target_graph", "attachments", "source", "artifacts"] as const
 export type CoreJobTab = typeof CORE_JOB_TABS[number]
 export type JobTab = CoreJobTab | (string & {})
 export type JobDetailQueryKey = readonly ["jobs", string, "detail", string]
