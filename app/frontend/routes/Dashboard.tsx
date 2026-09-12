@@ -90,10 +90,10 @@ export function DashboardRoute() {
     })
   }, [dashboardChrome.data, dashboardRows.data, payload, queryClient, traceKey])
 
-  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending)) return <Page.Root aria-label={t("title")}><Text muted>{t("loading")}</Text></Page.Root>
+  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending)) return <Page.Root aria-label={t("title")} gutter="responsive"><Text muted>{t("loading")}</Text></Page.Root>
   if (dashboardChrome.isError) return <DashboardError error={dashboardChrome.error} />
   if (dashboardRows.isError) return <DashboardError error={dashboardRows.error} />
-  if (!payload) return <Page.Root aria-label={t("title")}><Text muted>{t("loading")}</Text></Page.Root>
+  if (!payload) return <Page.Root aria-label={t("title")} gutter="responsive"><Text muted>{t("loading")}</Text></Page.Root>
 
   return <DashboardView pathname={location.pathname} search={location.search} payload={payload} />
 }
@@ -178,7 +178,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   const isLegacyEpicsView = payload.simple_mode && payload.subject === "epic"
 
   return (
-    <Page.Root aria-label={t("title")} className="space-y-5 px-0 py-4 sm:p-6" size="wide">
+    <Page.Root aria-label={t("title")} className="space-y-5" gutter="responsive" size="wide">
       <Page.Header className="items-center gap-3 px-4 sm:px-0">
         <PageHeading className="flex-1">{isLegacyEpicsView ? t("legacy_epics_title") : payload.simple_mode ? t("simple_title") : t("title")}</PageHeading>
         {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}

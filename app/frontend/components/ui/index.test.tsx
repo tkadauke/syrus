@@ -171,6 +171,33 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("region", { name: "Work attempts" })).toHaveAttribute("data-section-divided", "true")
   })
 
+  it("defaults Page.Root to a gutter at every viewport, and drops it below sm when gutter=\"responsive\"", () => {
+    // A caller can't reliably win a px/py override passed via className --
+    // plain string concatenation has no way to guarantee which of two
+    // conflicting utilities for the same property wins in the compiled
+    // CSS, regardless of their order in the class string. That collision
+    // regressed Dashboard's mobile edge-to-edge layout back to a margin
+    // when it moved onto Page.Root; the gutter prop is the only supported
+    // override.
+    render(
+      <>
+        <Page.Root aria-label="Default gutter" data-testid="default-gutter" />
+        <Page.Root aria-label="Responsive gutter" data-testid="responsive-gutter" gutter="responsive" />
+      </>
+    )
+
+    const defaultClasses = screen.getByTestId("default-gutter").className.split(" ")
+    const responsiveClasses = screen.getByTestId("responsive-gutter").className.split(" ")
+
+    expect(defaultClasses).toContain("px-[var(--space-page-x)]")
+    expect(responsiveClasses).toContain("px-0")
+    expect(responsiveClasses).toContain("sm:px-[var(--space-page-x)]")
+    // The unprefixed "always" class must be fully absent, not just shadowed --
+    // its presence is exactly the bug: two classes targeting the same
+    // property with no guaranteed winner.
+    expect(responsiveClasses).not.toContain("px-[var(--space-page-x)]")
+  })
+
   it("exports LinkText for router and external anchor links", () => {
     render(
       <MemoryRouter>
