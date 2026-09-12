@@ -38,7 +38,7 @@ import { ThemeProvider, useTheme, type Theme } from "../contexts/ThemeContext"
 import { ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { TaskActions, TaskDocumentationModal, TaskProgress } from "./AdminMaintenanceTasks"
-import { LinkText, StatusPill, Surface } from "../components/ui"
+import { LinkText, Surface } from "../components/ui"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
@@ -1030,6 +1030,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 
 function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
   const queryClient = useQueryClient()
+  const [collapsed, setCollapsed] = useState(false)
   const [docsTask, setDocsTask] = useState<MaintenanceTask | null>(null)
   const [docsLoadingTaskId, setDocsLoadingTaskId] = useState<number | null>(null)
   const tasks = useQuery({
@@ -1067,32 +1068,49 @@ function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
     <section aria-label="Maintenance tasks">
       <Surface className="space-y-2" padding="sm" variant="subtle">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Maintenance</h2>
+          <button
+            aria-expanded={!collapsed}
+            className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-muted hover:text-text-primary"
+            onClick={() => setCollapsed((value) => !value)}
+            type="button"
+          >
+            <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "-rotate-90" : ""}`} />
+            <span>Maintenance</span>
+          </button>
           <LinkText className="text-xs" to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>All</LinkText>
         </div>
-        <div className="space-y-2">
-          {visibleTasks.map((task) => (
-            <Surface className="space-y-2" key={task.id} padding="sm" variant="raised">
-              <LinkText className="block truncate text-sm" title={task.title} to={withRoutePrefix(task.paths.admin, prefix)}>
-                {task.title}
-              </LinkText>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] capitalize text-text-muted">{task.recurrence.replace(/_/g, " ")}</span>
-                <StatusPill state={task.state} />
-              </div>
-              {task.state === "running" && task.current_step_title ? <p className="truncate text-xs text-text-muted">{task.current_step_title}</p> : null}
-              <TaskProgress task={task} />
-              <div>
-                <TaskActions
-                  busy={action.isPending || docsLoadingTaskId === task.id}
-                  task={task}
-                  onAction={(name) => action.mutate({ task, name })}
-                  onDocs={() => void openDocs(task)}
-                />
-              </div>
-            </Surface>
-          ))}
-        </div>
+        {collapsed ? (
+          <button
+            className="flex w-full items-center justify-between gap-2 rounded border border-border bg-surface px-2 py-1.5 text-left text-xs text-text-secondary shadow-sm hover:bg-surface-raised"
+            onClick={() => setCollapsed(false)}
+            type="button"
+          >
+            <span>{visibleTasks.length} maintenance task{visibleTasks.length === 1 ? "" : "s"}</span>
+            <span className="rounded-full bg-surface-raised px-1.5 py-0.5 text-[10px] font-semibold text-text-muted">{visibleTasks.length}</span>
+          </button>
+        ) : (
+          <div className="space-y-1.5">
+            {visibleTasks.map((task) => (
+              <Surface className="space-y-1.5" key={task.id} padding="sm" variant="raised">
+                <LinkText className="block truncate text-xs font-semibold" title={task.title} to={withRoutePrefix(task.paths.admin, prefix)}>
+                  {task.title}
+                </LinkText>
+                {task.state === "running" && task.current_step_title ? <p className="truncate text-xs text-text-muted">{task.current_step_title}</p> : null}
+                <TaskProgress task={task} />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[11px] capitalize text-text-muted">{task.recurrence.replace(/_/g, " ")}</span>
+                  <TaskActions
+                    busy={action.isPending || docsLoadingTaskId === task.id}
+                    compact
+                    task={task}
+                    onAction={(name) => action.mutate({ task, name })}
+                    onDocs={() => void openDocs(task)}
+                  />
+                </div>
+              </Surface>
+            ))}
+          </div>
+        )}
         {docsTask ? <TaskDocumentationModal task={docsTask} onClose={() => setDocsTask(null)} /> : null}
       </Surface>
     </section>

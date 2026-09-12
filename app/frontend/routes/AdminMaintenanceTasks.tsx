@@ -174,7 +174,7 @@ function TaskType({ task }: { task: MaintenanceTask }) {
   )
 }
 
-export function TaskActions({ task, busy, onAction, onDocs }: { task: MaintenanceTask; busy?: boolean; onAction: (action: "start" | "pause" | "resume" | "cancel" | "dismiss") => void; onDocs: () => void }) {
+export function TaskActions({ task, busy, compact = false, onAction, onDocs }: { task: MaintenanceTask; busy?: boolean; compact?: boolean; onAction: (action: "start" | "pause" | "resume" | "cancel" | "dismiss") => void; onDocs: () => void }) {
   const { confirm, dialog } = useConfirm()
 
   async function cancel() {
@@ -189,13 +189,13 @@ export function TaskActions({ task, busy, onAction, onDocs }: { task: Maintenanc
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {task.state === "running" ? <TaskActionButton action="pause" busy={busy} onClick={() => onAction("pause")} /> : null}
-        {["pending", "failed", "dismissed"].includes(task.state) ? <TaskActionButton action="start" busy={busy} onClick={() => onAction("start")} /> : null}
-        {task.state === "paused" ? <TaskActionButton action="resume" busy={busy} onClick={() => onAction("resume")} /> : null}
-        {["pending", "failed", "paused"].includes(task.state) ? <TaskActionButton action="dismiss" busy={busy} onClick={() => onAction("dismiss")} /> : null}
-        {!["succeeded", "cancelled", "not_needed"].includes(task.state) ? <TaskActionButton action="cancel" busy={busy} onClick={() => void cancel()} /> : null}
-        <TaskActionButton action="docs" busy={busy} onClick={onDocs} />
+      <div className={`flex flex-wrap items-center gap-1.5 ${compact ? "justify-end" : ""}`}>
+        {task.state === "running" ? <TaskActionButton action="pause" busy={busy} compact={compact} onClick={() => onAction("pause")} /> : null}
+        {["pending", "failed", "dismissed"].includes(task.state) ? <TaskActionButton action="start" busy={busy} compact={compact} onClick={() => onAction("start")} /> : null}
+        {task.state === "paused" ? <TaskActionButton action="resume" busy={busy} compact={compact} onClick={() => onAction("resume")} /> : null}
+        {["pending", "failed", "dismissed"].includes(task.state) ? <TaskActionButton action="dismiss" busy={busy} compact={compact} onClick={() => onAction("dismiss")} /> : null}
+        {["running", "paused"].includes(task.state) ? <TaskActionButton action="cancel" busy={busy} compact={compact} onClick={() => void cancel()} /> : null}
+        <TaskActionButton action="docs" busy={busy} compact={compact} onClick={onDocs} />
       </div>
       {dialog}
     </>
@@ -206,7 +206,7 @@ function TaskStatusPill({ task }: { task: MaintenanceTask }) {
   return <StatusPill state={task.state} />
 }
 
-function TaskActionButton({ action, busy = false, onClick }: { action: MaintenanceTaskActionName | "docs"; busy?: boolean; onClick: () => void }) {
+function TaskActionButton({ action, busy = false, compact = false, onClick }: { action: MaintenanceTaskActionName | "docs"; busy?: boolean; compact?: boolean; onClick: () => void }) {
   const labels: Record<MaintenanceTaskActionName | "docs", string> = {
     cancel: "Cancel task",
     dismiss: "Dismiss task",
@@ -220,53 +220,54 @@ function TaskActionButton({ action, busy = false, onClick }: { action: Maintenan
   return (
     <Button
       aria-label={labels[action]}
-      className="h-7 w-7 font-mono text-xs"
+      className={`${compact ? "h-5 w-5" : "h-7 w-7"} font-mono text-xs`}
       disabled={busy}
       onClick={onClick}
       size="icon"
       title={labels[action]}
       variant={variant}
     >
-      <TaskActionIcon action={action} />
+      <TaskActionIcon action={action} compact={compact} />
     </Button>
   )
 }
 
-function TaskActionIcon({ action }: { action: MaintenanceTaskActionName | "docs" }) {
-  if (action === "cancel") return <CloseIcon className="h-3.5 w-3.5" />
-  if (action === "dismiss") return <MinusIcon />
-  if (action === "docs") return <QuestionIcon />
-  if (action === "pause") return <PauseIcon />
-  return <PlayIcon />
+function TaskActionIcon({ action, compact = false }: { action: MaintenanceTaskActionName | "docs"; compact?: boolean }) {
+  const className = compact ? "h-3 w-3" : "h-3.5 w-3.5"
+  if (action === "cancel") return <CloseIcon className={className} />
+  if (action === "dismiss") return <MinusIcon className={className} />
+  if (action === "docs") return <QuestionIcon className={className} />
+  if (action === "pause") return <PauseIcon className={className} />
+  return <PlayIcon className={className} />
 }
 
-function PlayIcon() {
+function PlayIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+    <svg aria-hidden="true" className={className} fill="currentColor" viewBox="0 0 20 20">
       <path d="M6.25 4.5v11l8.25-5.5-8.25-5.5Z" />
     </svg>
   )
 }
 
-function PauseIcon() {
+function PauseIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 20 20">
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 20 20">
       <path d="M7 5v10M13 5v10" />
     </svg>
   )
 }
 
-function MinusIcon() {
+function MinusIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 20 20">
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 20 20">
       <path d="M5 10h10" />
     </svg>
   )
 }
 
-function QuestionIcon() {
+function QuestionIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 20 20">
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 20 20">
       <path d="M7.75 7.35a2.4 2.4 0 1 1 3.52 2.12c-.76.43-1.27.84-1.27 1.78" />
       <path d="M10 14.75h.01" />
     </svg>
