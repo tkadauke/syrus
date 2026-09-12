@@ -44,6 +44,25 @@ RSpec.describe DesignDocs::SearchIndex, type: :model do
     expect(search_titles("runtime", member)).to eq([ "Shared runtime" ])
   end
 
+  it "keeps scanning ranked FTS matches until visible rows are found" do
+    visible = create_design_doc(title: "Visible needle", markdown: "needle")
+    described_class.upsert(visible)
+
+    120.times do |index|
+      other_owner = Factories.user
+      hidden = DesignDocs::DesignDoc.create!(
+        owner_user: other_owner,
+        title: "Hidden needle #{index}",
+        markdown: "needle needle needle"
+      )
+      described_class.upsert(hidden)
+    end
+
+    rows = described_class.search("needle", user: owner, limit: 1)
+
+    expect(rows).to contain_exactly(include(design_doc_id: visible.id))
+  end
+
   it "deletes stale rows before rebuilding from source of truth" do
     doc = create_design_doc(title: "Fresh runtime", markdown: "fresh body")
     insert_stale_row(99_999, "Stale runtime")
