@@ -3097,16 +3097,16 @@ describe("App", () => {
                     retry_state: {
                       classification: "git_failure",
                       classification_label: "Git failure",
-                      retryable: true,
+                      retryable: false,
                       next_auto_retry_at: null,
                       retry_attempt_count: 1,
-                      retry_budget_remaining: 2,
+                      retry_budget_remaining: 0,
                       retry_budget: 3,
-                      auto_retry_exhausted: false,
+                      auto_retry_exhausted: true,
                       provider_circuit_open: false,
                       retry_delayed_until: null,
                       retry_delay_reason: null,
-                      state_label: "Retryable failure"
+                      state_label: "Auto-Retry Exhausted"
                     }
                   })
                 ]
@@ -3140,10 +3140,9 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("target", "_blank")
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("target", "_blank")
-    expect(document.querySelectorAll("[data-status-pill='true']")).toHaveLength(4)
-    for (const label of screen.getAllByText("Retryable failure")) {
-      expect(label.closest("[data-status-pill='true']")).toHaveClass("rounded-[var(--radius-pill)]", "ring-1")
-    }
+    expect(document.querySelectorAll("[data-status-pill='true']")).toHaveLength(3)
+    const retryLabel = screen.getByText("Auto-Retry Exhausted")
+    expect(retryLabel.closest("[data-status-pill='true']")).toHaveClass("rounded-[var(--radius-pill)]", "ring-1")
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).some((link) => link.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "Operator" })).toHaveAttribute("href", "/app-shell/profiles/1")
@@ -3163,7 +3162,10 @@ describe("App", () => {
     const latestWorkflowTrigger = within(latestWorkflowCell).getByLabelText("Latest workflow trigger: rebase")
     expect(latestWorkflowTrigger).toHaveClass("rounded-full", "ring-1", "bg-gray-100")
     expect(latestWorkflowCell).toHaveTextContent(/rebase.*running/i)
-    expect(within(latestWorkflowCell).getByText("running").closest("[data-status-pill='true']")?.parentElement?.parentElement).toHaveClass("items-start")
+    const latestWorkflowStatus = within(latestWorkflowCell).getByText("running").closest("[data-status-pill='true']")
+    expect(latestWorkflowStatus).toBeInTheDocument()
+    expect(latestWorkflowTrigger.parentElement).toHaveClass("flex-col", "items-start")
+    expect(latestWorkflowStatus?.parentElement).toBe(latestWorkflowTrigger.parentElement)
     expect(screen.getByText("Showing 11-20 of 25")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&page=1")
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&page=3")
