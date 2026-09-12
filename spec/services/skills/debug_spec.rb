@@ -98,7 +98,7 @@ RSpec.describe Skills::Debug do
 
       instructions = described_class.definition(workspace_path: @dir).instructions
 
-      expect(instructions).to include("rspec (`bin/rspec`, evidence: spec/)")
+      expect(instructions).to include("rspec (`type: rspec`, evidence: spec/)")
     end
 
     it "still includes the full detection reference table alongside the concrete scan results" do

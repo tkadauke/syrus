@@ -12,6 +12,7 @@ RSpec.describe LandingGraderPlan do
       when_files_changed: nil,
       junit_output: nil,
       failures: "strict",
+      base_retry: nil,
       deps: [],
       metadata: {}
     )
