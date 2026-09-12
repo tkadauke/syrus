@@ -1,9 +1,10 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import type { ReactElement } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
-import { CredentialsRoute } from "./AccountSettings"
+import { AccountProfileRoute, AgentSettingsRoute, CredentialsRoute, PreferencesRoute } from "./AccountSettings"
 import * as useConfirmModule from "../hooks/useConfirm"
 
 function credentialsPayload(overrides: Record<string, unknown> = {}) {
@@ -54,13 +55,13 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderRoute(payload = credentialsPayload()) {
+function renderRoute(payload = credentialsPayload(), route: ReactElement = <CredentialsRoute />) {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <CredentialsRoute />
+        {route}
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -172,5 +173,38 @@ describe("AccountSettings ApiTokenPanel", () => {
       "/api/v1/app/credentials/revoke_api_token",
       expect.anything()
     )
+  })
+})
+
+describe("AccountSettings form primitives", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("associates profile labels with their controls", async () => {
+    renderRoute(credentialsPayload(), <AccountProfileRoute />)
+
+    const displayName = await screen.findByLabelText("Display name")
+    const displayNameLabel = screen.getByText("Display name")
+    expect(displayName).toHaveAttribute("id")
+    expect(displayNameLabel).toHaveAttribute("for", displayName.id)
+
+    const bio = screen.getByLabelText("Profile bio")
+    expect(bio.tagName).toBe("TEXTAREA")
+    expect(screen.getByText("Profile bio")).toHaveAttribute("for", bio.id)
+  })
+
+  it("describes agent settings with Form help text", async () => {
+    renderRoute(credentialsPayload(), <AgentSettingsRoute />)
+
+    const fallback = await screen.findByLabelText("Auto-approval fallback")
+    const help = screen.getByText("No direct rule.")
+    expect(fallback).toHaveAttribute("aria-describedby", help.id)
+  })
+
+  it("associates preference labels with select controls", async () => {
+    renderRoute(credentialsPayload(), <PreferencesRoute />)
+
+    const language = await screen.findByLabelText("Language")
+    expect(language.tagName).toBe("SELECT")
+    expect(screen.getByText("Language")).toHaveAttribute("for", language.id)
   })
 })
