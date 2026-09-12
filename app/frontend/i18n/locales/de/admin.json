@@ -42,6 +42,10 @@
   "nav_group_system": "System",
   "nav_group_product_data": "Produktdaten",
   "section_label": "Administration",
+  "event_actions": {
+    "filing": "Wird angelegt...",
+    "issue_filed": "Issue angelegt"
+  },
   "overview": {
     "heading": "Übersicht",
     "loading": "Wird geladen...",
@@ -980,6 +984,10 @@
     "col_scope": "Geltungsbereich",
     "col_jobs": "Jobs",
     "col_units": "Units",
+    "wait_until": " bis {{time}}",
+    "blocked_reason": "blockiert: {{reason}}",
+    "preempted_reason": "verdrängt: {{reason}}",
+    "pause_requested": "Pause angefordert",
     "aria_pagination": "Work-Unit-Paginierung",
     "page_of": "Seite {{page}} von {{total}}",
     "previous": "Zurück",

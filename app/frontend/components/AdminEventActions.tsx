@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { fileEventJob, type EventAction } from "../api/eventActions"
+import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "./Button"
 
@@ -12,6 +13,7 @@ type Props = {
 }
 
 export function AdminEventActions({ actions, eventId, eventType, onToggleDetails, showDetailsLabel }: Props) {
+  const { t } = useT("admin")
   const [filing, setFiling] = useState(false)
   const [filedJobId, setFiledJobId] = useState<number | null>(null)
   const [filedIssueUrl, setFiledIssueUrl] = useState<string | null>(null)
@@ -46,11 +48,11 @@ export function AdminEventActions({ actions, eventId, eventType, onToggleDetails
           onClick={() => void runAction(action)}
           type="button"
         >
-          {filing && action.id === "file_job" ? "Filing..." : action.label}
+          {filing && action.id === "file_job" ? t("event_actions.filing") : action.label}
         </button>
       ))}
       {filedJobId != null ? <a className="text-xs text-gray-600 underline dark:text-gray-300" href={`/jobs/${filedJobId}`}>JOB-{filedJobId}</a> : null}
-      {filedIssueUrl ? <a className="text-xs text-gray-600 underline dark:text-gray-300" href={filedIssueUrl}>Issue filed</a> : null}
+      {filedIssueUrl ? <a className="text-xs text-gray-600 underline dark:text-gray-300" href={filedIssueUrl}>{t("event_actions.issue_filed")}</a> : null}
       {error ? <div className="text-xs text-red-600 dark:text-red-400">{error}</div> : null}
     </div>
   )

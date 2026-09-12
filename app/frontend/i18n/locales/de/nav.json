@@ -13,6 +13,7 @@
   "settings": "Einstellungen",
   "my_profile": "Mein Profil",
   "admin": "Administration",
+  "admin_title": "Curia — das römische Senatsgebäude",
   "sign_out": "Abmelden",
   "theme": "Design",
   "color_theme": "Farbschema",
@@ -23,6 +24,10 @@
   "open_sidebar": "Seitenleiste öffnen",
   "close_sidebar": "Seitenleiste schließen",
   "resize_sidebar": "Seitenleiste anpassen",
+  "system_alert_action_failed": "Aktion fehlgeschlagen.",
+  "smart_folders_all": "Alle {{label}}",
+  "smart_folders_aria": "Smart-Ordner für {{label}}",
+  "smart_folders_heading": "Ordner",
   "shell": {
     "update_ready": "Neu starten und aktualisieren",
     "update_version": "Version {{version}} bereit",

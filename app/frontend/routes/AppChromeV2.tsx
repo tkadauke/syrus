@@ -525,7 +525,7 @@ function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<Boot
           ))}
         </div>
       ) : null}
-      {action.isError ? <p className="mt-2 text-xs font-medium">Action failed.</p> : null}
+      {action.isError ? <p className="mt-2 text-xs font-medium">{t("nav:system_alert_action_failed")}</p> : null}
     </article>
   )
 }
@@ -579,7 +579,7 @@ function AdminNav({
       <nav
         aria-label={t("nav:admin_nav_aria")}
         className="hidden lg:block sticky top-0 h-screen w-48 shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-2 py-3 dark:border-gray-800 dark:bg-gray-950"
-        title="Curia — The Roman Senate house"
+        title={t("nav:admin_title")}
       >
         {overviewItem && (
           <div className="mb-3">
@@ -1098,6 +1098,7 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
 }
 
 function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boolean; item: SidebarNavItem; prefix: string }) {
+  const { t } = useTranslation("nav")
   const location = useLocation()
   const queryClient = useQueryClient()
   const normalizedPath = location.pathname.replace(/^\/app-shell/, "") || "/"
@@ -1123,13 +1124,13 @@ function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boo
         <div className="space-y-3 pl-7 pt-1">
           <AdminSmartFolderNav
             activeFolderId={payload.data.active_smart_folder_id}
-            allLabel={`All ${item.label.toLowerCase()}`}
+            allLabel={t("nav:smart_folders_all", { label: item.label.toLowerCase() })}
             allPath={item.rawTo}
             allowSaveWithoutActiveFolder
-            ariaLabel={`${item.label} smart folders`}
+            ariaLabel={t("nav:smart_folders_aria", { label: item.label })}
             currentFilter={payload.data.filter}
             folders={payload.data.smart_folders}
-            heading="Folders"
+            heading={t("nav:smart_folders_heading")}
             onMutationSuccess={() => {
               void queryClient.invalidateQueries({ queryKey: ["sidebar", "smart_folders", item.id] })
             }}
@@ -1200,7 +1201,7 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:profile")}</Link>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
-          {user.admin ? <Link className="block px-4 py-2 font-medium text-brand hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
+          {user.admin ? <Link className="block px-4 py-2 font-medium text-brand hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onCloseDrawer} title={t("nav:admin_title")} to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <form action="/session" method="post">
             {csrfToken ? <Input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
