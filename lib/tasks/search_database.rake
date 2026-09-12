@@ -139,31 +139,48 @@ module SyrusSearchDatabaseTasks
     return {} unless defined?(Syrus::PluginRegistry)
 
     Syrus::PluginRegistry.providers_for("global_search:source").each_with_object({}) do |provider, tables|
-      next unless provider.respond_to?(:search_tables)
+      begin
+        next unless provider.respond_to?(:search_tables)
 
-      Array(provider.search_tables).to_h.each do |name, sql|
-        name = name.to_s
-        if BUILT_IN_TABLE_SQL.key?(name)
-          Rails.logger&.error("[search] #{provider} declares built-in table #{name.inspect}; ignoring")
-          next
+        Array(provider.search_tables).to_h.each do |name, sql|
+          name = name.to_s
+          if BUILT_IN_TABLE_SQL.key?(name)
+            Rails.logger&.error("[search] #{provider} declares built-in table #{name.inspect}; ignoring")
+            next
+          end
+
+          tables[name] = sql
         end
-
-        tables[name] = sql
+      rescue StandardError => e
+        Rails.logger&.error("[search] could not resolve plugin search tables for #{provider}: #{e.class}: #{e.message}")
       end
     end
   rescue StandardError => e
-    Rails.logger&.error("[search] could not resolve plugin search tables: #{e.class}: #{e.message}")
+    Rails.logger&.error("[search] could not resolve plugin search table providers: #{e.class}: #{e.message}")
     {}
+  end
+
+  def plugin_backfill_hook(provider)
+    if provider.respond_to?(:backfill_search_table)
+      ->(table_name) { provider.backfill_search_table(table_name) }
+    elsif provider.respond_to?(:rebuild_search_table)
+      ->(table_name) { provider.rebuild_search_table(table_name) }
+    end
   end
 
   def plugin_rebuild_hook(table_name)
     return nil unless defined?(Syrus::PluginRegistry)
 
     Syrus::PluginRegistry.providers_for("global_search:source").each do |provider|
-      next unless provider.respond_to?(:search_tables) && provider.respond_to?(:rebuild_search_table)
-      next unless Array(provider.search_tables).to_h.key?(table_name)
+      begin
+        next unless provider.respond_to?(:search_tables)
+        next unless Array(provider.search_tables).to_h.key?(table_name)
 
-      return -> { provider.rebuild_search_table(table_name) }
+        hook = plugin_backfill_hook(provider)
+        return -> { hook.call(table_name) } if hook
+      rescue StandardError => e
+        Rails.logger&.error("[search] could not resolve plugin rebuild hook for #{provider}: #{e.class}: #{e.message}")
+      end
     end
     nil
   rescue StandardError
