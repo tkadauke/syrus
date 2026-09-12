@@ -1382,6 +1382,7 @@ To also appear in global search, a provider declares a result type:
 | Method | Purpose |
 |---|---|
 | `.search_type` | The type name, e.g. `"my_thing"` |
+| `.search_type_label` | Optional selectable type label, e.g. `"My Things"`; defaults to a humanized plural of `.search_type` |
 | `.filter_subject` | The `Filters` subject its chips resolve against |
 | `.row_id_key` | Which key in a row holds the record id |
 | `.search_rows(query:, user:, limit:)` | Ranked rows from the FTS table |
