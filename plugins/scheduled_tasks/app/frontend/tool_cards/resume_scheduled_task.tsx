@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parseScheduledTaskOutcome, ScheduledTaskOutcomeCard } from "../scheduledTaskToolCard"
+import { parseScheduledTaskOutcome, ScheduledTaskOutcomeCard, t } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for resume_scheduled_task (the pending-action tool-card work).
 // Payload: { scheduled_task_id, label, enabled: true }.
@@ -7,7 +7,7 @@ function collapsedSummary(context: ToolCardContext) {
   const outcome = parseScheduledTaskOutcome(context.parsedResult)
   if (!outcome) return null
 
-  return `Resumed '${outcome.label}' (#${outcome.id})`
+  return t("tool_resumed_summary", { label: outcome.label, id: outcome.id })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -16,9 +16,9 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <ScheduledTaskOutcomeCard
-      detail="This task is scheduled again and will fire on its next due tick."
+      detail={t("tool_resumed_detail")}
       outcome={outcome}
-      pill="resumed"
+      pill={t("tool_resumed")}
       tone="success"
     />
   )
