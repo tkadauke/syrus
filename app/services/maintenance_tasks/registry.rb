@@ -3,7 +3,11 @@ module MaintenanceTasks
     class << self
       def definitions
         @definitions ||= [
-          Definitions::AgentsBackfill.new
+          Definitions::AgentsBackfill.new,
+          Definitions::LandedCommitsBackfill.new,
+          Definitions::PreemptedExternalPrBackfill.new,
+          Definitions::SearchDatabaseRebuild.new,
+          Definitions::StaleInsightBacklogRetirement.new
         ].index_by(&:key)
       end
 
