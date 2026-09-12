@@ -20,9 +20,20 @@ module JobCodingMode
       job = Job.where(linked_chat_id: @chat_session.id, state: "coding", repository: @repository).first
 
       ChatWorkspace.cancel_coding_checkout!(@chat_session, @repository)
+      cancel_pending_handoff_actions!(job) if job
       job&.release_coding_mode_takeover!
 
       Result.new(job: job&.reload, chat_session: @chat_session.reload)
+    end
+
+    private
+
+    def cancel_pending_handoff_actions!(job)
+      @chat_session.pending_actions
+        .where(action: "complete_implement_step", state: %w[queued pending failed])
+        .find_each do |action|
+          action.cancel! if action.payload.to_h["job_id"].to_i == job.id
+        end
     end
   end
 end
