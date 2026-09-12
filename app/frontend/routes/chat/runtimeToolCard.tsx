@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
+import { MediaPreviewShell, type MediaPreviewAction } from "@app/components/media/MediaPreviewShell"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 
 type RuntimeLease = {

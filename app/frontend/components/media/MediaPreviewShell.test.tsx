@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { MediaPreviewShell } from "./mediaPreviewShell"
+import { MediaPreviewShell } from "@app/components/media/MediaPreviewShell"
 
 describe("MediaPreviewShell", () => {
   it("opens a full preview, exposes actions, copies metadata, and closes on Escape", async () => {

@@ -1,4 +1,4 @@
-import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
+import { MediaPreviewShell, type MediaPreviewAction } from "@app/components/media/MediaPreviewShell"
 import { Badge, CardShell, displayValue, numberValue, Row } from "@app/routes/chat/toolCardUi"
 import { isPlainObject } from "@app/toolCardParsing"
 

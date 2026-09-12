@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { MediaPreviewShell, type MediaPreviewAction } from "../mediaPreviewShell"
+import { MediaPreviewShell, type MediaPreviewAction } from "@app/components/media/MediaPreviewShell"
 
 // Core-owned tool card for list_chat_media (the Tier 1 tool-card work), registered
 // through the plugin-aware extension point core and plugins share (see

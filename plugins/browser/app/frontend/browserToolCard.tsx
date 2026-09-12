@@ -1,5 +1,5 @@
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
+import { MediaPreviewShell } from "@app/components/media/MediaPreviewShell"
 import { Badge, CardShell, Disclosure, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 export type BrowserAction =
