@@ -1,7 +1,7 @@
 import { Fragment } from "react"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EmptyState, numberValue, SectionLabel } from "@app/routes/chat/toolCardUi"
-import { FailureSnippet, Flakiness, formatMs, parseFailure, TableShell, TestStatusPill } from "./testInsightToolCard"
+import { FailureSnippet, Flakiness, formatMs, parseFailure, t, TableShell, TestStatusPill } from "./testInsightToolCard"
 
 // Shared presentation for read_job_test_results and read_run_test_results
 // (the pending-action tool-card work): both tools return the identical `{job_id, job_slug,
@@ -108,15 +108,15 @@ export function parseRunResultsPayload(context: ToolCardContext): RunResultsPayl
 }
 
 export function runResultsSummary(payload: RunResultsPayload): string {
-  if (payload.testRuns.length === 0) return "no test results"
+  if (payload.testRuns.length === 0) return t("tool_no_test_results_summary")
 
   const totalFailed = payload.testRuns.reduce((sum, testRun) => sum + (testRun.failedCount ?? 0) + (testRun.errorCount ?? 0), 0)
   const totalCount = payload.testRuns.reduce((sum, testRun) => sum + (testRun.totalCount ?? 0), 0)
-  return `${totalFailed} failed of ${totalCount} across ${payload.testRuns.length} grader${payload.testRuns.length === 1 ? "" : "s"}`
+  return t("tool_run_results_summary", { failed: totalFailed, total: totalCount, count: payload.testRuns.length })
 }
 
 export function RunResultsBody({ payload }: { payload: RunResultsPayload }) {
-  if (payload.testRuns.length === 0) return <EmptyState>No test results recorded yet.</EmptyState>
+  if (payload.testRuns.length === 0) return <EmptyState>{t("tool_no_test_results")}</EmptyState>
 
   return (
     <CardShell>
@@ -134,17 +134,17 @@ function TestRunSection({ testRun }: { testRun: TestRunRow }) {
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>{testRun.graderName ?? "grader"}</Badge>
+        <Badge>{testRun.graderName ?? t("tool_grader")}</Badge>
         <span className="text-gray-600 dark:text-gray-300">
-          {testRun.passedCount ?? 0} passed · {testRun.failedCount ?? 0} failed · {testRun.errorCount ?? 0} errors · {testRun.skippedCount ?? 0} skipped
+          {t("tool_test_counts", { passed: testRun.passedCount ?? 0, failed: testRun.failedCount ?? 0, errors: testRun.errorCount ?? 0, skipped: testRun.skippedCount ?? 0 })}
         </span>
         <span className="font-mono text-gray-500 dark:text-gray-400">{formatMs(testRun.durationMs)}</span>
       </div>
       {testRun.failedErrorCases.length > 0 ? (
-        <TestCaseTable cases={testRun.failedErrorCases} omitted={testRun.failedErrorCasesOmitted} showFailures title="Failed / error cases" />
+        <TestCaseTable cases={testRun.failedErrorCases} omitted={testRun.failedErrorCasesOmitted} showFailures title={t("tool_failed_error_cases")} />
       ) : null}
       {testRun.slowCases.length > 0 ? (
-        <TestCaseTable cases={testRun.slowCases} omitted={testRun.slowCasesOmitted} title="Slow cases" />
+        <TestCaseTable cases={testRun.slowCases} omitted={testRun.slowCasesOmitted} title={t("tool_slow_cases")} />
       ) : null}
     </div>
   )
@@ -153,14 +153,14 @@ function TestRunSection({ testRun }: { testRun: TestRunRow }) {
 function TestCaseTable({ cases, omitted, showFailures = false, title }: { cases: TestCaseRow[]; omitted?: number | null; showFailures?: boolean; title: string }) {
   return (
     <div>
-      <SectionLabel>{title}{omitted ? ` (${omitted} more omitted)` : ""}</SectionLabel>
+      <SectionLabel>{title}{omitted ? t("tool_more_omitted", { count: omitted }) : ""}</SectionLabel>
       <TableShell>
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">Test</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Status</th>
-              <th className="px-2 py-1 font-semibold" scope="col">Duration</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_test")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_status")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_duration")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">

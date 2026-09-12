@@ -1,4 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "i18next"
 import { CardShell } from "@app/routes/chat/toolCardUi"
 import { parseScheduledTaskDetail, PromptDisclosure, ScheduledTaskSummary } from "../scheduledTaskToolCard"
 
@@ -10,7 +11,11 @@ function collapsedSummary(context: ToolCardContext) {
   const detail = parseScheduledTaskDetail(context.parsedResult)
   if (!detail) return null
 
-  return `Updated ${detail.task.label} (#${detail.task.id})`
+  return t("tool_update_summary", { label: detail.task.label, id: detail.task.id })
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`scheduled_tasks:${key}`, options)
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -19,7 +24,7 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">Updated scheduled task</div>
+      <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("tool_update_title")}</div>
       <ScheduledTaskSummary task={detail.task} />
       {detail.prompt ? <PromptDisclosure prompt={detail.prompt} /> : null}
     </CardShell>

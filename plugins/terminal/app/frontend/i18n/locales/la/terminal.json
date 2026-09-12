@@ -1,5 +1,8 @@
 {
   "open_terminal_in_workspace": "Terminale in spatio operis aperi",
   "terminal_workspace_open_failed": "Spatium operis terminale aperiri non potest.",
-  "terminal_workspace_unavailable": "Spatium operis cursus non praesto est."
+  "terminal_workspace_unavailable": "Spatium operis cursus non praesto est.",
+  "search_workspaces": "Spatia operis quaerere",
+  "search_workspaces_placeholder": "Spatia operis, sermones, operarios quaerere",
+  "no_workspace_matches": "Nulla spatia operis congruunt"
 }

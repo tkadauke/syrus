@@ -18,6 +18,8 @@
     "count_repos": "Repos",
     "count_epics": "Epica",
     "count_jobs": "Opera",
-    "count_open": "Aperta"
+    "count_open": "Aperta",
+    "updated": "renovatum",
+    "not_started": "non inceptum"
   }
 }
