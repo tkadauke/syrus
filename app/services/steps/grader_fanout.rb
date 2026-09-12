@@ -26,12 +26,14 @@ module Steps
       ActiveRecord::LockWaitTimeout
     ].freeze
     MATERIALIZATION_LOCK_RETRY_ATTEMPTS = 3
+    TARGET_HEALTH_FORCED_ARTIFACT_KEY = "target_health_forced_targets".freeze
     TARGET_HEALTH_SKIPS_ARTIFACT_KEY = "target_health_skipped_targets".freeze
     TARGET_SELECTIONS_ARTIFACT_KEY = "grader_target_selections".freeze
 
     def call
       workspace.setup
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, [])
+      workflow.set_artifact!(TARGET_HEALTH_FORCED_ARTIFACT_KEY, [])
       workflow.set_artifact!(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, [])
       plan = effective_plan(RepoGradePlan.for(workspace.path))
       grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
@@ -57,6 +59,7 @@ module Steps
       active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
       log_selections(selections)
       record_target_selection_inputs!(selections) if workflow.work_definition.record_grader_target_selection_inputs?
+      active_graders = enforce_required_target_health_for_unaffected_graders(active_graders, selections) if enforce_required_target_health_for_unaffected_graders?
 
       if plan.rerun_only_failed? && step.iteration > 1
         passed_steps_by_name = previous_iteration_passed_steps_by_name
@@ -114,7 +117,11 @@ module Steps
     end
 
     def changed_files_base_ref
-      return workflow.artifact("predicted_base_sha").presence if workflow.work_definition.landing_validation_child?
+      if workflow.work_definition.landing_validation_child?
+        predicted_base_sha = workflow.artifact("predicted_base_sha").presence
+        log("[grader_fanout] computing affected landing targets from predicted base #{predicted_base_sha.first(7)}") if predicted_base_sha
+        return predicted_base_sha
+      end
 
       context_log = workflow.work_definition.grader_fanout_changed_files_log(workflow)
       log(context_log) if context_log
@@ -237,21 +244,54 @@ module Steps
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, entries)
     end
 
+    def enforce_required_target_health_for_unaffected_graders(active_graders, selections)
+      skipped = []
+      forced = selections.filter_map do |grader, selection|
+        next if selection.affected || !grader.required
+
+        result = target_health_reuse.for_target(target_label_for(grader))
+        if result.reusable?
+          skipped << skipped_target_health_entry(grader, result)
+          next
+        end
+
+        log("[grader_fanout] target health miss for #{grader.name}: #{result.reason} [#{target_label_for(grader)}]")
+        grader
+      end
+
+      record_target_health_skips!(skipped) if skipped.any?
+      (active_graders + forced).uniq(&:name)
+    end
+
     def skip_reusable_target_health!(graders)
       skipped = []
+      forced = []
       remaining = graders.reject do |grader|
         result = target_health_reuse.for_target(target_label_for(grader))
         if result.reusable?
           skipped << skipped_target_health_entry(grader, result)
           true
         else
+          forced << forced_target_health_entry(grader, result)
           log("[grader_fanout] target health miss for #{grader.name}: #{result.reason} [#{target_label_for(grader)}]")
           false
         end
       end
 
       record_target_health_skips!(skipped) if skipped.any?
+      record_target_health_forced!(forced) if forced.any?
       remaining
+    end
+
+    def forced_target_health_entry(grader, result)
+      {
+        "name" => grader.name,
+        "required" => grader.required,
+        "target_label" => target_label_for(grader),
+        "reason" => result.reason,
+        "target_fingerprints" => result.fingerprints.to_h,
+        "target_health_record_refs" => result.record_refs
+      }
     end
 
     def skipped_target_health_entry(grader, result)
@@ -270,8 +310,24 @@ module Steps
         commit = entry["commit_sha"].to_s.first(7).presence || "unknown commit"
         log("[grader_fanout] skipped #{entry['name']} (#{entry['reason']} from #{commit}) [#{entry['target_label']}]")
       end
-      workflow.set_artifact!(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, entries)
-      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_SKIPS_ARTIFACT_KEY => entries))
+      combined = append_artifact_entries(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, entries)
+      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_SKIPS_ARTIFACT_KEY => combined))
+    end
+
+    def record_target_health_forced!(entries)
+      entries.each do |entry|
+        log("[grader_fanout] forced validation for #{entry['name']} (#{entry['reason']}) [#{entry['target_label']}]")
+      end
+      combined = append_artifact_entries(TARGET_HEALTH_FORCED_ARTIFACT_KEY, entries)
+      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_FORCED_ARTIFACT_KEY => combined))
+    end
+
+    def append_artifact_entries(key, entries)
+      combined = (Array(workflow.artifact(key)) + entries).uniq do |entry|
+        [ entry["name"], entry["target_label"], entry["reason"] ]
+      end
+      workflow.set_artifact!(key, combined)
+      combined
     end
 
     def record_plan_source!(plan, grader_fingerprint)
@@ -570,6 +626,11 @@ module Steps
 
     def grader_fanout_reuse_enabled?
       workflow.work_definition.grader_fanout_reuse_enabled?(workflow)
+    end
+
+    def enforce_required_target_health_for_unaffected_graders?
+      grader_fanout_reuse_enabled? &&
+        workflow.work_definition.enforce_required_target_health_for_unaffected_graders?(workflow)
     end
 
     def target_label_for(grader)
