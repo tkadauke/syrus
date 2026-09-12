@@ -30,32 +30,15 @@ export type MediaPreviewItem = {
 
 export function MediaPreviewShell({
   item,
-  hasNext = false,
-  hasPrevious = false,
   thumbnailClassName = "w-56",
-  modalLabel = "media preview",
-  onNext,
-  onOpenChange,
-  onPrevious,
-  open
+  modalLabel = "media preview"
 }: {
-  hasNext?: boolean
-  hasPrevious?: boolean
   item: MediaPreviewItem
   thumbnailClassName?: string
   modalLabel?: string
-  onNext?: () => void
-  onOpenChange?: (open: boolean) => void
-  onPrevious?: () => void
-  open?: boolean
 }) {
-  const [internalOpen, setInternalOpen] = useState(false)
-  const isOpen = open ?? internalOpen
+  const [open, setOpen] = useState(false)
   const visibleMeta = useMemo(() => (item.meta ?? []).filter((row) => row.value), [item.meta])
-  const setOpen = (nextOpen: boolean) => {
-    if (open === undefined) setInternalOpen(nextOpen)
-    onOpenChange?.(nextOpen)
-  }
 
   return (
     <>
@@ -82,60 +65,30 @@ export function MediaPreviewShell({
           </span>
         ) : null}
       </button>
-      {isOpen ? (
-        <MediaPreviewModal
-          hasNext={hasNext}
-          hasPrevious={hasPrevious}
-          item={item}
-          modalLabel={modalLabel}
-          onClose={() => setOpen(false)}
-          onNext={onNext}
-          onPrevious={onPrevious}
-          visibleMeta={visibleMeta}
-        />
-      ) : null}
+      {open ? <MediaPreviewModal item={item} modalLabel={modalLabel} onClose={() => setOpen(false)} visibleMeta={visibleMeta} /> : null}
     </>
   )
 }
 
 function MediaPreviewModal({
-  hasNext,
-  hasPrevious,
   item,
   modalLabel,
   onClose,
-  onNext,
-  onPrevious,
   visibleMeta
 }: {
-  hasNext: boolean
-  hasPrevious: boolean
   item: MediaPreviewItem
   modalLabel: string
   onClose: () => void
-  onNext?: () => void
-  onPrevious?: () => void
   visibleMeta: MediaPreviewMeta[]
 }) {
-  const showNavigation = Boolean(onPrevious && onNext && (hasPrevious || hasNext))
-
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") onClose()
-      if (targetAcceptsText(event.target)) return
-      if (event.key === "ArrowLeft" && hasPrevious) {
-        event.preventDefault()
-        onPrevious?.()
-      }
-      if (event.key === "ArrowRight" && hasNext) {
-        event.preventDefault()
-        onNext?.()
-      }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [hasNext, hasPrevious, onClose, onNext, onPrevious])
+  }, [onClose])
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
@@ -161,29 +114,7 @@ function MediaPreviewModal({
           </button>
         </div>
         <div className="min-h-0 overflow-auto p-4">
-          <div className="relative flex min-h-48 items-center justify-center rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
-            {showNavigation ? (
-              <>
-                <button
-                  aria-label="Previous image"
-                  className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-                  disabled={!hasPrevious}
-                  onClick={onPrevious}
-                  type="button"
-                >
-                  <span aria-hidden="true">‹</span>
-                </button>
-                <button
-                  aria-label="Next image"
-                  className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-                  disabled={!hasNext}
-                  onClick={onNext}
-                  type="button"
-                >
-                  <span aria-hidden="true">›</span>
-                </button>
-              </>
-            ) : null}
+          <div className="flex min-h-48 items-center justify-center rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
             {item.previewChildren ? item.previewChildren : item.src ? (
               <img alt={item.alt ?? item.title} className="max-h-[calc(100dvh-16rem)] max-w-full object-contain" src={item.src} />
             ) : (
@@ -204,13 +135,6 @@ function MediaPreviewModal({
       </section>
     </div>
   )
-}
-
-function targetAcceptsText(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable) return true
-  const tagName = target.tagName.toLowerCase()
-  return tagName === "input" || tagName === "textarea" || tagName === "select"
 }
 
 function MediaPreviewMetaRow({ row }: { row: MediaPreviewMeta }) {
