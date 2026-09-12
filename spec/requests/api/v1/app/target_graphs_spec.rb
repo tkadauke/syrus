@@ -63,6 +63,7 @@ RSpec.describe "App API target graph inspection", type: :request do
       body = parse_body
       expect(body["repository"]).to include("id" => repository.id, "slug" => "acme/widgets", "default_branch" => "main")
       expect(body["source"]).to eq("scope" => "repository", "ref" => "main")
+      expect(body["tabs"]).to include(include("key" => "target_graph", "path" => "/repositories/#{repository.id}/target_graph"))
       expect(body["projects"]).to contain_exactly(include("id" => "repo", "target_count" => 4))
       expect(body["page"]).to include("offset" => 1, "limit" => 2, "total" => 4, "next_offset" => 3)
       expect(body["targets"].map { |target| target["label"] }).to eq([ "//:assets", "//:grade/tests" ])
@@ -80,6 +81,33 @@ RSpec.describe "App API target graph inspection", type: :request do
       )
       expect(body["health"]).to include("scope" => "page")
       expect(body["health"]["summary"]).to include("passed" => 1)
+    end
+
+    it "returns a bounded neighborhood around a focused target" do
+      with_graph_checkout(graph_yaml)
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph",
+        params: { mode: "neighborhood", focus_label: "//:grade/tests", direction: "dependencies", depth: 1, limit: 2 }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["targets"].map { |target| target["label"] }).to contain_exactly("//:app", "//:grade/tests")
+      expect(body["targets"].map { |target| target["label"] }).not_to include("//:assets")
+      expect(body["page"]).to include("total" => 2, "next_offset" => nil)
+      expect(body["edges"]).to include(include("from" => "//:app", "to" => "//:grade/tests", "in_window" => true))
+    end
+
+    it "can seed a neighborhood from failing target health" do
+      with_graph_checkout(graph_yaml)
+      create_target_health(target_label: "//:assets", status: "failed", fingerprint_prefix: "d")
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph",
+        params: { mode: "neighborhood", focus_state: "failing", direction: "dependents", depth: 1, limit: 10 }
+
+      expect(response).to have_http_status(:ok)
+      labels = parse_body["targets"].map { |target| target["label"] }
+      expect(labels).to include("//:assets", "//:grade/tests")
+      expect(labels).not_to include("//:app")
     end
 
     it "filters by kind" do

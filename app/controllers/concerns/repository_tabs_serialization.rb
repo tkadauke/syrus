@@ -6,6 +6,7 @@ module RepositoryTabsSerialization
   def repository_tabs_json(repository)
     tabs = [
       { key: "overview", label: "Overview", path: repository_path(repository) },
+      { key: "target_graph", label: "Target Graph", path: "/repositories/#{repository.id}/target_graph" },
       { key: "documents", label: "Documents", path: repository_documents_path(repository) },
       { key: "members", label: "Members", path: repository_memberships_path(repository) }
     ]

@@ -58,6 +58,7 @@ import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
 import { RepositoryMembersRoute } from "./RepositoryMembers"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
+import { RepositoryTargetGraphRoute } from "./RepositoryTargetGraph"
 import { Tags } from "./Tags"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { ThemesSettingsRoute } from "./ThemesSettings"
@@ -128,6 +129,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
   { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembersRoute /> },
+  { path: "/repositories/:repositoryId/target_graph", element: <RepositoryTargetGraphRoute /> },
   { path: "/repositories/:repositoryId/plugin/*", element: <PluginRepoPageTabRoute /> },
   { path: "/repositories/new", element: <RepositoryFormRoute mode="new" /> },
   { path: "/repositories/:id/edit", element: <RepositoryFormRoute mode="edit" /> },
