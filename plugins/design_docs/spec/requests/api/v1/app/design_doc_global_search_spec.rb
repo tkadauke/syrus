@@ -12,6 +12,8 @@ RSpec.describe "App API Design Docs global search", type: :request do
 
   it "returns an exact DOC lookup before body matches" do
     exact = create_design_doc(title: "Runtime plan", markdown: "ordinary", repository: repository)
+    version = exact.versions.create!(markdown: exact.markdown, version_number: 1, actor_kind: "user", actor_user: owner)
+    exact.update!(current_version: version)
     body_match = create_design_doc(title: "Other plan", markdown: "mentions #{exact.display_id}", repository: repository)
     [ body_match, exact ].each { |doc| DesignDocs::SearchIndex.upsert(doc.reload) }
 
@@ -26,7 +28,15 @@ RSpec.describe "App API Design Docs global search", type: :request do
       "snippet" => "<mark>#{exact.display_id}</mark>",
       "path" => "/design_docs/#{exact.id}",
       "repository_slug" => "acme/widgets",
-      "visibility" => "private"
+      "visibility" => "private",
+      "state" => "draft",
+      "owner" => include("id" => owner.id, "email_address" => "owner@example.com"),
+      "current_version_number" => 1,
+      "created_at" => exact.created_at.iso8601,
+      "updated_at" => exact.updated_at.iso8601
+    )
+    expect(JSON.parse(response.body).dig("controls", "types")).to include(
+      { "type" => "design_doc", "label" => "Design Docs" }
     )
   end
 
@@ -79,8 +89,22 @@ RSpec.describe "App API Design Docs global search", type: :request do
     expect(response).to have_http_status(:bad_request)
   end
 
-  def create_design_doc(title:, markdown:, visibility: "private", repository: nil)
-    doc = DesignDocs::DesignDoc.create!(owner_user: owner, title: title, markdown: markdown, visibility: visibility)
+  it "uses the Design Docs filter schema and narrows docs by state" do
+    draft = create_design_doc(title: "Runtime draft", markdown: "runtime", repository: repository)
+    accepted = create_design_doc(title: "Runtime accepted", markdown: "runtime", state: "accepted", repository: repository)
+    [ draft, accepted ].each { |doc| DesignDocs::SearchIndex.upsert(doc.reload) }
+    tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "accepted" } ] }
+
+    get "/api/v1/app/search", params: { query: "runtime", types: [ "design_doc" ], q: Filters::QueryParam.encode(tree) }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "design_doc", "id" => accepted.id))
+    expect(JSON.parse(response.body).dig("controls", "filter_schema").map { |field| field.fetch("field") })
+      .to include("state", "visibility", "repository_id", "owner_user_id", "created_at", "updated_at")
+  end
+
+  def create_design_doc(title:, markdown:, visibility: "private", state: "draft", repository: nil)
+    doc = DesignDocs::DesignDoc.create!(owner_user: owner, title: title, markdown: markdown, visibility: visibility, state: state)
     doc.repositories << repository if repository
     doc
   end
