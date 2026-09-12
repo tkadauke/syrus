@@ -1,6 +1,7 @@
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
 import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
+import i18n from "i18next"
 import { Badge, CardShell, displayValue, numberValue, Row } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation for the whiteboard plugin's chat tool cards (the pending-action tool-card work /
@@ -32,25 +33,29 @@ export function parseElementResult(value: unknown): ElementResult | null {
 // whole draw/move family -- keeps every `tool_cards/draw_*.tsx` file a thin
 // binding instead of a bespoke renderer per shape type.
 const INPUT_FIELDS: { key: string; label: string }[] = [
-  { key: "type", label: "Type" },
+  { key: "type", label: "tool_field_type" },
   { key: "x", label: "X" },
   { key: "y", label: "Y" },
-  { key: "width", label: "Width" },
-  { key: "height", label: "Height" },
-  { key: "from_id", label: "From" },
-  { key: "to_id", label: "To" },
-  { key: "label", label: "Label" },
-  { key: "content", label: "Content" },
-  { key: "link", label: "Link" },
-  { key: "name", label: "Name" }
+  { key: "width", label: "tool_field_width" },
+  { key: "height", label: "tool_field_height" },
+  { key: "from_id", label: "tool_field_from" },
+  { key: "to_id", label: "tool_field_to" },
+  { key: "label", label: "tool_field_label" },
+  { key: "content", label: "tool_field_content" },
+  { key: "link", label: "tool_field_link" },
+  { key: "name", label: "tool_field_name" }
 ]
+
+export function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`whiteboard:${key}`, options)
+}
 
 function inputRows(input: Record<string, unknown> | undefined) {
   if (!isPlainObject(input)) return []
 
   return INPUT_FIELDS.flatMap(({ key, label }) => {
     const value = displayValue(input[key])
-    return value ? [{ key, label, value }] : []
+    return value ? [{ key, label: label.length === 1 ? label : t(label), value }] : []
   })
 }
 
@@ -136,8 +141,8 @@ export function parseSceneCounts(value: unknown): SceneCounts | null {
 }
 
 export function sceneCountsSummary(counts: SceneCounts): string {
-  const elements = `${counts.elementCount} element${counts.elementCount === 1 ? "" : "s"}`
-  return counts.fileCount > 0 ? `${elements}, ${counts.fileCount} file${counts.fileCount === 1 ? "" : "s"}` : elements
+  const elements = t("tool_elements_summary", { count: counts.elementCount })
+  return counts.fileCount > 0 ? t("tool_elements_files_summary", { elements, count: counts.fileCount }) : elements
 }
 
 export function SceneCountsCard({ counts, action }: { counts: SceneCounts; action: string }) {
@@ -148,8 +153,8 @@ export function SceneCountsCard({ counts, action }: { counts: SceneCounts; actio
         {counts.version != null ? <Badge>v{counts.version}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Elements" value={String(counts.elementCount)} />
-        <Row label="Files" value={String(counts.fileCount)} />
+        <Row label={t("tool_elements")} value={String(counts.elementCount)} />
+        <Row label={t("tool_files")} value={String(counts.fileCount)} />
       </dl>
     </CardShell>
   )
@@ -178,7 +183,7 @@ export function SaveCanvasCard({ result }: { result: SaveCanvasResult }) {
     return (
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge>Not saved</Badge>
+          <Badge>{t("tool_not_saved")}</Badge>
         </div>
         {result.reason ? <div className="text-gray-600 dark:text-gray-300">{result.reason}</div> : null}
       </CardShell>
@@ -188,7 +193,7 @@ export function SaveCanvasCard({ result }: { result: SaveCanvasResult }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Saved snapshot</Badge>
+        <Badge>{t("tool_saved_snapshot")}</Badge>
         {result.snapshotId ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{result.snapshotId}</span> : null}
       </div>
       {result.snapshotId ? (
@@ -210,7 +215,7 @@ export function SaveCanvasCard({ result }: { result: SaveCanvasResult }) {
       ) : (
         <>
           {result.name ? <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{result.name}</div> : null}
-          {result.elementCount != null ? <Row label="Elements" value={String(result.elementCount)} /> : null}
+          {result.elementCount != null ? <Row label={t("tool_elements")} value={String(result.elementCount)} /> : null}
         </>
       )}
     </CardShell>
@@ -244,7 +249,7 @@ export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Loaded snapshot</Badge>
+        <Badge>{t("tool_loaded_snapshot")}</Badge>
         {result.snapshotId ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{result.snapshotId}</span> : null}
         {result.mode ? <Badge>{result.mode}</Badge> : null}
       </div>
@@ -267,8 +272,8 @@ export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
         />
       ) : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        {result.elementsAdded != null ? <Row label="Elements added" value={String(result.elementsAdded)} /> : null}
-        {result.autoSavedSnapshotId ? <Row label="Auto-saved as" value={`#${result.autoSavedSnapshotId}`} /> : null}
+        {result.elementsAdded != null ? <Row label={t("tool_elements_added")} value={String(result.elementsAdded)} /> : null}
+        {result.autoSavedSnapshotId ? <Row label={t("tool_auto_saved_as")} value={`#${result.autoSavedSnapshotId}`} /> : null}
       </dl>
     </CardShell>
   )
@@ -288,12 +293,12 @@ export function ClearCanvasCard({ result }: { result: ClearCanvasResult }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Cleared canvas</Badge>
+        <Badge>{t("tool_cleared_canvas")}</Badge>
       </div>
       {result.snapshotId ? (
-        <Row label="Auto-saved as" value={`#${result.snapshotId}`} />
+        <Row label={t("tool_auto_saved_as")} value={`#${result.snapshotId}`} />
       ) : (
-        <div className="text-gray-600 dark:text-gray-300">Canvas was already empty.</div>
+        <div className="text-gray-600 dark:text-gray-300">{t("tool_canvas_already_empty")}</div>
       )}
     </CardShell>
   )

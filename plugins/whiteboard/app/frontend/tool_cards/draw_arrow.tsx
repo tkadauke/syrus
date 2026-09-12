@@ -1,26 +1,28 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { ElementActionCard, ElementFailureCard, elementActionSummary, elementFailureSummary, isPlainObject, parseElementResult } from "../whiteboardToolCard"
+import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { ElementActionCard, ElementFailureCard, elementActionSummary, elementFailureSummary, parseElementResult, t } from "../whiteboardToolCard"
 
 // Plugin-owned tool card for draw_arrow (the pending-action tool-card work).
-const ACTION = "Drew arrow"
+const ACTION_KEY = "tool_action_drew_arrow"
 
 function collapsedSummary(context: ToolCardContext) {
-  const failureSummary = elementFailureSummary(context, ACTION)
+  const action = t(ACTION_KEY)
+  const failureSummary = elementFailureSummary(context, action)
   if (failureSummary) return failureSummary
 
   const result = parseElementResult(context.parsedResult)
   if (!result) return null
 
-  return elementActionSummary(ACTION, result, isPlainObject(context.input) ? context.input : undefined)
+  return elementActionSummary(action, result, isPlainObject(context.input) ? context.input : undefined)
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <ElementFailureCard action={ACTION} context={context} />
+  const action = t(ACTION_KEY)
+  if (context.resultError) return <ElementFailureCard action={action} context={context} />
 
   const result = parseElementResult(context.parsedResult)
   if (!result) return null
 
-  return <ElementActionCard action={ACTION} input={isPlainObject(context.input) ? context.input : undefined} result={result} />
+  return <ElementActionCard action={action} input={isPlainObject(context.input) ? context.input : undefined} result={result} />
 }
 
 const drawArrowToolCard: ToolCardRenderer = {
