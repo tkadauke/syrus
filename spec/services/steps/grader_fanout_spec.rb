@@ -83,8 +83,30 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   def current_fingerprint
     GraderConclusionCache.fingerprint_for_plan(
-      RepoGradePlan.for(@ws_path),
+      LandingGraderPlan.effective(RepoGradePlan.for(@ws_path), trigger_kind: workflow.trigger_kind, iteration: run.iteration),
       target_graph: TargetGraph::Compiler.compile(@ws_path)
+    )
+  end
+
+  def record_target_health(label, status: "passed", checked_at: 1.minute.ago, overrides: {})
+    graph = TargetGraph::Compiler.compile(@ws_path)
+    target = graph.target(TargetGraph::Label.parse(label))
+    fingerprints = TargetGraph::Fingerprints.for_target(
+      workspace_path: @ws_path,
+      graph: graph,
+      label: target.label
+    )
+
+    TargetHealthRecorder.record!(
+      repository: job.repository,
+      target_label: target.label.to_s,
+      project_id: target.project_id,
+      commit_sha: overrides.fetch(:commit_sha, "previous123"),
+      input_fingerprint: overrides.fetch(:input_fingerprint, fingerprints.input_fingerprint),
+      command_fingerprint: overrides.fetch(:command_fingerprint, fingerprints.command_fingerprint),
+      environment_fingerprint: overrides.fetch(:environment_fingerprint, fingerprints.environment_fingerprint),
+      status: status,
+      checked_at: checked_at
     )
   end
 
@@ -430,6 +452,95 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(details["phase"]).to eq("ci")
   end
 
+  it "selects main branch grader targets affected since the previous main SHA" do
+    workflow.update!(trigger_kind: "main_grader")
+    workflow.set_artifact!("previous_main_sha", "oldmain123")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/models
+          when_files_changed:
+            - "app/**"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed:
+            - "docs/**"
+    YAML
+    expect(@git).to receive(:run)
+      .with("diff", "--name-only", "oldmain123...HEAD", chdir: @ws_path.to_s)
+      .and_return("app/models/job.rb\n")
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq([ "app-tests" ])
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("computing affected targets from previous main SHA oldmain")
+    expect(chunks).to include("selected app-tests (own source scope matched a changed file) [//:grade/app-tests]")
+    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
+  end
+
+  it "runs all main branch grader targets when no previous main SHA exists" do
+    workflow.update!(trigger_kind: "main_grader")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/models
+          when_files_changed:
+            - "app/**"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed:
+            - "docs/**"
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests docs-tests])
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("no previous main SHA recorded; baseline target health will run every configured grader")
+    expect(chunks).to include("selected app-tests (baseline main target health has no previous SHA) [//:grade/app-tests]")
+    expect(chunks).to include("selected docs-tests (baseline main target health has no previous SHA) [//:grade/docs-tests]")
+  end
+
+  it "does not reuse target health or cached grader conclusions during broad main branch sweeps" do
+    workflow.update!(trigger_kind: "main_grader")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/models
+          when_files_changed:
+            - "app/**"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed:
+            - "docs/**"
+    YAML
+    record_target_health("//:grade/app-tests", status: "passed")
+    record_target_health("//:grade/docs-tests", status: "passed")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      step: fanout,
+      run: run,
+      commit_sha: "abc123",
+      grader_fingerprint: current_fingerprint,
+      grader_name: GraderConclusion::AGGREGATE_NAME,
+      required: true,
+      status: "passed",
+      checked_at: 1.hour.ago
+    )
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests docs-tests])
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to eq([])
+    expect(workflow.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY)).to be_nil
+  end
+
   it "uses all-phase graders in CI failure contexts when no CI-specific grader is configured" do
     workflow.update!(trigger_kind: "ci_failure")
     write_config(<<~YAML)
@@ -685,6 +796,95 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("selected rspec (repo-wide (no source scope declared)) [//:grade/rspec]")
+  end
+
+  it "skips materializing a grader target when target health proves the same inputs already passed" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    health = record_target_health("//:grade/rspec", status: "passed")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader")).to be_empty
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to include(
+      include(
+        "name" => "rspec",
+        "target_label" => "//:grade/rspec",
+        "target_health_record_id" => health.id,
+        "commit_sha" => "previous123"
+      )
+    )
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("skipped rspec (latest target health record passed from previou) [//:grade/rspec]")
+  end
+
+  it "materializes a required grader when the matching target health fingerprint is stale" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    record_target_health("//:grade/rspec", status: "passed", overrides: { input_fingerprint: "stale-input" })
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("target health miss for rspec: target health is unknown [//:grade/rspec]")
+  end
+
+  it "materializes a grader when an executable dependency target is stale" do
+    write_config(<<~YAML)
+      targets:
+        - name: deps
+          kind: prepare
+          run: npm ci
+      grade:
+        - name: rspec
+          run: bin/rspec
+          deps: [":deps"]
+    YAML
+    record_target_health("//:grade/rspec", status: "passed")
+    record_target_health("//:deps", status: "passed", overrides: { input_fingerprint: "stale-dependency-input" })
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("target health miss for rspec: dependency //:deps target health is unknown [//:grade/rspec]")
+  end
+
+  it "materializes a grader when the latest matching target health record failed" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    record_target_health("//:grade/rspec", status: "passed", checked_at: 2.hours.ago, overrides: { commit_sha: "oldpass" })
+    record_target_health("//:grade/rspec", status: "failed", checked_at: 1.hour.ago, overrides: { commit_sha: "newfail" })
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("target health miss for rspec: latest target health is failed [//:grade/rspec]")
+  end
+
+  it "materializes a grader when no matching target health record exists" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("target health miss for rspec: target health is unknown [//:grade/rspec]")
   end
 
   it "explains a dependency-triggered selection by the dependency's target label" do

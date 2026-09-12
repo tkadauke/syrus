@@ -32,7 +32,32 @@ RSpec.describe Steps::GraderCollect do
       iteration: 1,
       loop_id: loop_id,
       state: "succeeded",
-      details: { "name" => "tests", "required" => true }
+      details: {
+        "name" => "tests",
+        "target_label" => "//cli:grade/tests",
+        "command" => "bundle exec rspec",
+        "required" => true,
+        "timeout_minutes" => 15,
+        "prepare_targets" => [
+          { "target_label" => "//cli:prepare", "commands" => [ "bundle install" ] }
+        ],
+        "prepare_commands" => [ "bundle install" ],
+        "source_snapshot_id" => 101,
+        "source_snapshot" => {
+          "id" => 101,
+          "source_sha" => "abc123",
+          "tree_sha" => "tree456"
+        },
+        "target_fingerprints" => {
+          "input_fingerprint" => "input-fp",
+          "command_fingerprint" => "command-fp",
+          "environment_fingerprint" => "env-fp",
+          "metadata" => { "source_file_count" => 2 }
+        },
+        "duration_s" => 12.3,
+        "log_path" => "logs/tests.log",
+        "log_bytes" => 1234
+      }
     )
     fake_ws = instance_double(WorkflowWorkspace, path: @ws_path, base_ref: "origin/main")
     git = instance_double(GitRunner, run: "abc123\n")
@@ -64,6 +89,49 @@ RSpec.describe Steps::GraderCollect do
       required: true,
       status: "passed"
     )
+
+    target_health = TargetHealthRecord.where(workflow: workflow, target_label: "//cli:grade/tests").sole
+    expect(target_health).to have_attributes(
+      repository: job.repository,
+      step: per_grader.step,
+      run: per_grader.run,
+      project_id: "cli",
+      commit_sha: "abc123",
+      input_fingerprint: "input-fp",
+      command_fingerprint: "command-fp",
+      environment_fingerprint: "env-fp",
+      status: "passed",
+      duration_s: 12.3,
+      log_path: "logs/tests.log",
+      log_bytes: 1234
+    )
+    expect(target_health.artifacts).to include("log_path" => "logs/tests.log", "log_bytes" => 1234)
+    expect(workflow.reload.artifact(TargetHealthRecorder::WORKFLOW_ARTIFACT_KEY)).to include(
+      include(
+        "target_health_record_id" => target_health.id,
+        "target_label" => "//cli:grade/tests",
+        "project_id" => "cli",
+        "commit_sha" => "abc123",
+        "status" => "passed"
+      )
+    )
+  end
+
+  it "does not use workflow-local source snapshot ids as input fingerprints" do
+    workflow.steps.find_by!(kind: "grader").update!(
+      details: {
+        "name" => "tests",
+        "target_label" => "//cli:grade/tests",
+        "command" => "bundle exec rspec",
+        "required" => true,
+        "source_snapshot_id" => 202,
+        "source_snapshot" => { "id" => 202 }
+      }
+    )
+
+    expect { handler.call }.to change(TargetHealthRecord, :count).by(1)
+
+    expect(TargetHealthRecord.sole.input_fingerprint).to eq("abc123")
   end
 
   it "records timeout conclusions without making them reusable" do

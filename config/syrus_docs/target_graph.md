@@ -26,26 +26,23 @@ execution" below for how that's kept to once per workflow workspace.
 `#affected`/
 `#affected_targets` are kind-agnostic (`grader`, `formatter`, `generator`,
 `builder`, ...) and work across the whole graph, root and nested projects
-alike, so they're the one place this selection logic lives — but only
-`Steps::GraderFanout`'s root graders are wired to them today. Nested
-projects already compile into the same graph (their own source scope
-correctly resolved relative to the directory that declared them — see
-"Affected-file scope defaults" below), but nothing yet materializes a
-nested project's formatter/generator/builder/grader targets as workflow
-Steps: doing so needs an execution-directory story (does a nested target's
-command run from the repo root or its own project directory?) that hasn't
-been decided yet. `Steps::GraderFanout` logs both outcomes by name and
-target label — `[grader_fanout] selected rspec (repo-wide (no source scope
-declared)) [//:grade/rspec]` / `... skipped website-build (no matching
-files changed) [//:grade/website-build]` — so an operator can see why a
-grader ran or didn't without reading `.syrus.yml`. Formatter/generator
-runtime selection (`Steps::Format`/`Steps::Generate`) is still legacy-config
-driven and root-only; their graph nodes carry dependency metadata for
-diagnostics and later target-aware execution. Workflow implementation agents
-also see the compiled prepare targets in their environment snapshot and may run
-one explicitly through `run_target_prepare` when they discover that a
-project-scoped dependency install is needed (see "Agent-requested prepare
-targets" below).
+alike, so they're the one place this selection logic lives. Today
+`Steps::GraderFanout` wires root graders through that selection, and
+`Steps::BuilderFanout` wires explicit builder targets through it for
+opportunistic main-branch warming. Nested explicit builder commands run from
+their owning project directory; nested formatter/generator/grader runtime
+materialization is still pending a separate execution policy. Grader fanout
+logs both outcomes by name and target label — `[grader_fanout] selected rspec
+(repo-wide (no source scope declared)) [//:grade/rspec]` / `... skipped
+website-build (no matching files changed) [//:grade/website-build]` — so an
+operator can see why a grader ran or didn't without reading `.syrus.yml`.
+Formatter/generator runtime selection (`Steps::Format`/`Steps::Generate`) is
+still legacy-config driven and root-only; their graph nodes carry dependency
+metadata for diagnostics and later target-aware execution. Workflow
+implementation agents also see the compiled prepare targets in their
+environment snapshot and may run one explicitly through `run_target_prepare`
+when they discover that a project-scoped dependency install is needed (see
+"Agent-requested prepare targets" below).
 
 Explicit `targets:` declarations are available for hand-authored dependency
 nodes. Build-system plugin imports are also available, but only as explicit
@@ -399,10 +396,12 @@ records the error in diagnostics and continues with the rest of the graph.
 
 Legacy executable declarations (`grade:`, `formatters:`, and `generated:`)
 also accept `deps:`. For graders, runtime fanout uses those dependency
-targets to decide whether the grader is affected by the diff. If a dependency
-chain includes an executable `kind: prepare` target, the materialized grader
-step runs that prepare command before the grader command — see "Prepare
-target execution" below for what "runs" means once more than one grader
+targets to decide whether the grader is affected by the diff. For explicit
+builders, `builder_fanout` uses the same dependency-aware affected-target and
+target-health-reuse logic. If a dependency chain includes an executable
+`kind: prepare` target, the materialized grader step or selected builder run
+executes that prepare command before its own command — see "Prepare target
+execution" below for what "runs" means once more than one executable target
 depends on the same prepare target.
 
 ### Prepare target execution
@@ -411,24 +410,25 @@ depends on the same prepare target.
 materialized grader Step's transitive `kind: prepare` target dependencies
 (`TargetGraph#prepare_dependencies_for`) onto its own `Step#details` as
 `prepare_targets` — one entry per target, each an ordered list of commands
-plus the declaring project path for nested targets. Root prepare targets run
-from the repository root; nested prepare targets run from their project
-directory, matching the `run_target_prepare` MCP tool.
+plus the declaring project path for nested targets. `Steps::BuilderFanout`
+computes the same prepare-target list for each selected builder target before
+running the builder command. Root prepare targets run from the repository
+root; nested prepare targets run from their project directory, matching the
+`run_target_prepare` MCP tool.
 At execution time (`Steps::PrepareTargetExecution`, included into
-`Steps::Grader` and, through it, `Steps::PreflightGrader`), a prepare
-target's commands run **at most once per workflow workspace**, not once per
-grader Step: a workspace-local marker under `.syrus/prepare-targets/`
-records that a target has already run in this workspace, so a second
-grader Step later in the same workflow that depends on the same target
-reuses the marker instead of re-running the commands. If the workspace gets
-rebuilt from scratch mid-workflow (a worker hop onto a machine with no
-existing clone), there is no marker there either, so the commands safely
-rerun — safe precisely because prepare targets are declared idempotent
-environment setup (see "Prepare Semantics" above) and must not modify
-tracked source files. An OS `flock` on a sibling per-target lock file (held
-only for the duration of that target's commands) keeps grader Steps
-dispatched in parallel from the same workflow (landing workflows can do
-this) from running the same target's commands concurrently.
+`Steps::Grader` and `Steps::BuilderFanout`), a prepare target's commands run
+**at most once per workflow workspace**, not once per dependent target: a
+workspace-local marker under `.syrus/prepare-targets/` records that a target
+has already run in this workspace, so a second grader or builder later in the
+same workflow that depends on the same target reuses the marker instead of
+re-running the commands. If the workspace gets rebuilt from scratch
+mid-workflow (a worker hop onto a machine with no existing clone), there is no
+marker there either, so the commands safely rerun — safe precisely because
+prepare targets are declared idempotent environment setup (see "Prepare
+Semantics" above) and must not modify tracked source files. An OS `flock` on
+a sibling per-target lock file (held only for the duration of that target's
+commands) keeps executable targets dispatched in parallel from the same
+workflow from running the same target's commands concurrently.
 
 Each grader Step records what it did with its own prepare targets on its
 own `Step#details["prepare_target_results"]` — one entry per target with
@@ -443,6 +443,74 @@ checked for tracked-file mutations (`git status --porcelain` before/after);
 a target that leaves uncommitted changes records a
 `kind: "prepare_target_side_effect"` `WorkflowWarning` instead of failing
 the grader Step — see `workflow_warnings.md`.
+
+### Target health records
+
+Executable target status is persisted in `TargetHealthRecord`, not only in a
+workflow artifact. The initial producer is `grader_collect`: every real
+materialized `grader` Step with a target label writes or updates one record for
+the tuple of repository, target label, commit SHA, input fingerprint, command
+fingerprint, and environment fingerprint. That lookup key is intentionally
+workflow-independent so main-branch scheduling and later target selection can
+reuse status across workflow attempts.
+
+Target health statuses include `passed`, `failed`, `stale`, `unknown`,
+`timed_out`, `cancelled`, `skipped`, and `inconclusive`. The model exposes
+healthy/unhealthy scopes for selection code, while keeping `stale` and
+`unknown` separate from hard failures. Timing, exit code, log path/size, and
+other artifact references live on the target health row. Workflow artifacts
+store only `target_health_record_refs` with record ids plus target label,
+project id, commit SHA, and status; they are navigation breadcrumbs, not the
+source of truth.
+
+For distributed grader Steps, the input fingerprint is stable across workflows:
+`grader_fanout` and `preflight_grader_fanout` stamp materialized grader Step
+details with a `target_fingerprints` payload before execution. The target input
+fingerprint covers declared source files for the target and its dependency
+closure plus each owning `.syrus.yml`; changing a source file, dependency
+target source, or config file changes the input key. The command fingerprint
+covers command text and execution config such as dependencies, phases,
+requiredness, timeout, file scope, owner config path, and target metadata. The
+environment fingerprint covers relevant local runtime metadata, prepare target
+dependencies and commands, and common toolchain files such as `Gemfile.lock`,
+`package-lock.json`, `pnpm-lock.yaml`, `go.sum`, `.ruby-version`, and
+`.tool-versions`.
+
+`grader_collect` copies those stamped fingerprints into the target-health row.
+The older source-snapshot behavior is now only a compatibility fallback for
+historical or already-materialized grader Steps without `target_fingerprints`:
+input fingerprint falls back to source snapshot fingerprint, then tree SHA,
+then source SHA, then commit SHA. Syrus still never uses the source snapshot
+database id, because that id is scoped to one workflow and would make the same
+source input look different in another workflow.
+
+### Reusing target health at runtime
+
+Before running an explicit executable target, Syrus checks whether the same
+target input, command, and environment fingerprints already have reusable
+target health. The lookup intentionally ignores the producing commit SHA: the
+target-health row still records that commit for provenance, but identical
+fingerprints mean the relevant inputs are the same even when unrelated files
+changed on a newer branch.
+
+`format` checks explicit `formatter` targets compiled from `formatters:` as
+`//:format/<index>`, and `generate` checks explicit `generator` targets
+compiled from `generated:` as `//:generate/<index>`. Plugin-default
+formatters from `formatters: []` do not currently have stable target labels,
+so they are not target-health skipped. `grader_fanout` checks each selected
+`grader` target before materializing its `grader` Step. The `builder` kind is
+reserved in the graph model, but no `.syrus.yml` primitive materializes a
+builder target yet.
+
+A target is skipped only when its latest matching health record is healthy
+(`passed` or `skipped`) and every executable dependency in its dependency
+closure is also healthy for its own current fingerprints. Unknown, stale,
+failed, timed-out, cancelled, or inconclusive target health is treated as a
+miss, so required targets still run. Skip decisions are recorded in workflow
+logs and artifacts: `format_target_health_skips`,
+`generate_target_health_skips`, and `target_health_skipped_targets` for
+grader fanout. Each entry includes the skipped target label, reason, producing
+commit SHA, checked timestamp, and target-health record references.
 
 ### Agent-requested prepare targets
 
@@ -471,29 +539,45 @@ timestamps, command results, and output tail. A failed command returns an MCP
 error response and leaves the failed audit entry in place; it does not change
 which prepare commands Syrus will run automatically on future workflows.
 
-### The `builder` kind has no legacy section yet
+### Explicit `builder` targets
 
-`TargetGraph::Target::KINDS` lists `builder` alongside
-`formatter`/`generator`/`grader`/`prepare` — DOC-20's Core Model names it as
-one of the target kinds. A hand-authored `targets:` entry may declare
-`kind: builder`, but no legacy `.syrus.yml` primitive compiles into it yet:
-there is no `build:` (or equivalent) legacy config section today, and none of
-the runtime pipelines this compiler mirrors (`RepoPrepPlan`, `Steps::Format`,
-`Steps::Generate`, `RepoGradePlan`) have a build-command concept to carry over.
+`TargetGraph::Target::KINDS` already lists `builder` alongside
+`formatter`/`generator`/`grader`/`prepare`. Repositories can declare builder
+targets through the explicit `targets:` list:
 
-Until a `build:` section exists, a build that must actually run in today's
-workflow should still be modeled as whichever existing executable primitive
-matches its role: a `grade:` entry if a failed build should fail the workflow
-like any other required check, or a `generated:` entry if the build produces
-checked-in output that `Steps::Generate` should keep in sync (see "Shared
-generated clients: targets, not projects" below). An explicit
-`targets: { kind: builder }` node is graph metadata today; it can participate
-in dependency selection, but no runtime step materializes from that kind by
-itself. A future `build:` section, if one is added, should compile the same
-way `grade:`/`formatters:`/`generated:` already do: one `kind=builder` target
-per declared entry, under whichever project (root or nested) declared it,
-with the same directory-based `source_scope` defaulting described in
-"Affected-file scope defaults" below.
+```yaml
+targets:
+  - name: assets
+    kind: builder
+    run: npm run build
+    sources: ["app/frontend/**/*"]
+    cost: expensive
+    artifacts: ["dist/**/*"]
+```
+
+`TargetGraph::Compiler` compiles these like other executable explicit targets:
+they belong to the declaring project, use the same directory-based source
+scope rules, and can depend on other labels through `deps:`/`dependencies:`.
+Builder metadata controls opportunistic main-branch warming. A builder is
+eligible when it is explicitly opted in (`opportunistic_build: true` or
+`main_build: true`) or marked valuable by metadata such as `hot: true`,
+`critical: true`, `cost: expensive`, positive `downstream_dependents`,
+positive `recent_failures`, or `release_relevance: true`. Set
+`opportunistic_build: false` or `main_build: false` to disable warming for a
+builder even if other metadata would otherwise make it eligible.
+
+`Workflows::MainGrader` runs `builder_fanout` after `prepare` and before
+grader fanout. It selects only eligible builder targets affected by the main
+branch change, skips targets with reusable healthy target-health records, runs
+any transitive prepare target dependencies, then runs the builder command
+fail-soft from the owning project directory. The result is recorded in
+`TargetHealthRecord`. Declared `artifacts:` paths are resolved relative to the
+owning project directory and stored as repository-relative references on the
+target-health row (`declared_paths` and any currently existing paths);
+workflow artifacts keep only target-health references.
+
+There is still no legacy `build:` section; builder execution is only wired for
+explicit `targets:` entries.
 
 ## Explicit `project:`
 

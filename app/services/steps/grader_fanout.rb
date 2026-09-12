@@ -26,10 +26,13 @@ module Steps
       ActiveRecord::LockWaitTimeout
     ].freeze
     MATERIALIZATION_LOCK_RETRY_ATTEMPTS = 3
+    TARGET_HEALTH_SKIPS_ARTIFACT_KEY = "target_health_skipped_targets".freeze
+    TARGET_SELECTIONS_ARTIFACT_KEY = "grader_target_selections".freeze
 
     def call
       workspace.setup
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, [])
+      workflow.set_artifact!(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, [])
       plan = effective_plan(RepoGradePlan.for(workspace.path))
       grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
       record_plan_source!(plan, grader_fingerprint)
@@ -50,9 +53,10 @@ module Steps
       files = changed_files
       record_changed_files!(files)
       matching_files = matching_files_for(files)
-      selections = plan.graders.map { |g| [ g, target_graph.affected(target_label_for(g), changed_files: matching_files) ] }
+      selections = selections_for(plan.graders, matching_files)
       active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
       log_selections(selections)
+      record_target_selection_inputs!(selections) if workflow.work_definition.record_grader_target_selection_inputs?
 
       if plan.rerun_only_failed? && step.iteration > 1
         passed_steps_by_name = previous_iteration_passed_steps_by_name
@@ -63,6 +67,8 @@ module Steps
         end
       end
 
+      active_graders = skip_reusable_target_health!(active_graders) if grader_fanout_reuse_enabled?
+
       if active_graders.empty?
         log("[grader_fanout] all graders skipped — collect Step will pass through")
         return
@@ -71,7 +77,7 @@ module Steps
       # A recorded success for this exact head SHA + grader set short-circuits
       # the re-run. Safe alongside the skip above: the fingerprint is the full
       # plan, so a full-plan success implies the active subset would pass too.
-      if (cache_hit = reusable_success(grader_fingerprint))
+      if grader_fanout_reuse_enabled? && (cache_hit = reusable_success(grader_fingerprint))
         workflow.set_artifact!(
           GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY,
           {
@@ -97,7 +103,10 @@ module Steps
     private
 
     def changed_files
-      GitRunner.new.run("diff", "--name-only", "#{changed_files_base_ref}...HEAD", chdir: workspace.path.to_s)
+      base_ref = changed_files_base_ref
+      return [] if base_ref.blank?
+
+      GitRunner.new.run("diff", "--name-only", "#{base_ref}...HEAD", chdir: workspace.path.to_s)
         .split("\n").map(&:strip).reject(&:empty?)
     rescue GitRunner::GitError => e
       log("[grader_fanout] warning: could not determine changed files: #{e.message}")
@@ -107,7 +116,44 @@ module Steps
     def changed_files_base_ref
       return workflow.artifact("predicted_base_sha").presence if workflow.work_definition.landing_validation_child?
 
-      default_branch_ref
+      context_log = workflow.work_definition.grader_fanout_changed_files_log(workflow)
+      log(context_log) if context_log
+      workflow.work_definition.grader_fanout_changed_files_base_ref(
+        workflow: workflow,
+        default_base_ref: default_branch_ref
+      )
+    end
+
+    def selections_for(graders, matching_files)
+      baseline_reason = workflow.work_definition.grader_fanout_baseline_selection_reason(workflow)
+      return graders.map { |grader| [ grader, baseline_selection_for(grader, baseline_reason) ] } if baseline_reason
+
+      graders.map { |grader| [ grader, target_graph.affected(target_label_for(grader), changed_files: matching_files) ] }
+    end
+
+    def baseline_selection_for(grader, reason)
+      target = target_graph.target(target_label_for(grader))
+      TargetGraph::Selection.new(
+        target: target,
+        affected: true,
+        reason: reason
+      )
+    end
+
+    def record_target_selection_inputs!(selections)
+      entries = selections.map do |grader, selection|
+        fingerprints = target_fingerprints_for(grader)
+        {
+          "name" => grader.name,
+          "required" => grader.required,
+          "target_label" => target_label_for(grader),
+          "affected" => selection.affected,
+          "reason" => selection.reason,
+          "target_fingerprints" => fingerprints.to_h
+        }
+      end
+      workflow.set_artifact!(TARGET_SELECTIONS_ARTIFACT_KEY, entries)
+      step.update!(details: step.details.to_h.merge(TARGET_SELECTIONS_ARTIFACT_KEY => entries))
     end
 
     # Explains every grader's selection/skip by name and target label -- the
@@ -191,6 +237,43 @@ module Steps
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, entries)
     end
 
+    def skip_reusable_target_health!(graders)
+      skipped = []
+      remaining = graders.reject do |grader|
+        result = target_health_reuse.for_target(target_label_for(grader))
+        if result.reusable?
+          skipped << skipped_target_health_entry(grader, result)
+          true
+        else
+          log("[grader_fanout] target health miss for #{grader.name}: #{result.reason} [#{target_label_for(grader)}]")
+          false
+        end
+      end
+
+      record_target_health_skips!(skipped) if skipped.any?
+      remaining
+    end
+
+    def skipped_target_health_entry(grader, result)
+      ref = result.record_refs.first || {}
+      {
+        "name" => grader.name,
+        "required" => grader.required,
+        "target_label" => target_label_for(grader),
+        "reason" => result.reason,
+        "target_health_record_refs" => result.record_refs
+      }.merge(ref.slice("target_health_record_id", "commit_sha", "checked_at")).compact
+    end
+
+    def record_target_health_skips!(entries)
+      entries.each do |entry|
+        commit = entry["commit_sha"].to_s.first(7).presence || "unknown commit"
+        log("[grader_fanout] skipped #{entry['name']} (#{entry['reason']} from #{commit}) [#{entry['target_label']}]")
+      end
+      workflow.set_artifact!(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, entries)
+      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_SKIPS_ARTIFACT_KEY => entries))
+    end
+
     def record_plan_source!(plan, grader_fingerprint)
       workflow.set_artifact!("grade_plan_source", plan.source)
       workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, grader_fingerprint)
@@ -260,6 +343,7 @@ module Steps
 
           new_steps = graders.each_with_index.map do |grader, index|
             prepare_targets = prepare_targets_for(grader)
+            target_fingerprints = target_fingerprints_for(grader)
 
             Step.create!(
               workflow: workflow,
@@ -268,7 +352,8 @@ module Steps
               iteration: step.iteration,
               loop_id: step.loop_id,
               placement_policy: grader_placement_policy,
-              details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+              details: grader_details(grader, prepare_targets: prepare_targets, target_fingerprints: target_fingerprints)
+                .merge(distributed_grader_details(grader, source_snapshot: source_snapshot, target_fingerprints: target_fingerprints))
             )
           end
 
@@ -311,7 +396,7 @@ module Steps
       end
     end
 
-    def grader_details(grader, prepare_targets:)
+    def grader_details(grader, prepare_targets:, target_fingerprints:)
       {
         "name" => grader.name,
         "target_label" => target_label_for(grader),
@@ -327,19 +412,19 @@ module Steps
         "prepare_targets" => prepare_targets,
         "prepare_commands" => prepare_targets.flat_map { |target| target["commands"] },
         "junit_output" => grader.junit_output,
-        "failures" => grader.failures
+        "failures" => grader.failures,
+        "target_fingerprints" => target_fingerprints.to_h
       }
     end
 
-    def distributed_grader_details(grader, source_snapshot:)
+    def distributed_grader_details(grader, source_snapshot:, target_fingerprints:)
       return {} unless distributed_grader_projection_enabled?
 
       target_label = "//:grade/#{grader.name}"
-      target_fingerprint = projected_target_fingerprint(grader, target_label)
 
       {
         "projected_target_label" => target_label,
-        "projected_target_fingerprint" => target_fingerprint,
+        "projected_target_fingerprint" => target_fingerprints.command_fingerprint,
         "projected_resource_key" => "target:#{target_label}",
         "barrier_group" => grader_barrier_group,
         "barrier_labels" => [ "grader_collect" ],
@@ -421,20 +506,6 @@ module Steps
             "workflow source snapshot ref publish failed for #{source_sha}: #{e.message}"
     end
 
-    def projected_target_fingerprint(grader, target_label)
-      payload = {
-        "target_label" => target_label,
-        "kind" => "grader",
-        "name" => grader.name.to_s,
-        "command" => grader.command.to_s,
-        "required" => !!grader.required,
-        "timeout_minutes" => grader.timeout_minutes.to_i,
-        "when_files_changed" => Array(grader.when_files_changed).map(&:to_s).sort,
-        "phase" => grader.metadata["phase"]
-      }
-      Digest::SHA256.hexdigest(JSON.generate(payload))
-    end
-
     def grader_barrier_group
       [ "workflow", workflow.id, "loop", step.loop_id.presence || "none", "iteration", step.iteration, "grader_collect" ].join(":")
     end
@@ -477,6 +548,28 @@ module Steps
           payload["project_path"] = project_path if project_path.present?
         end
       end
+    end
+
+    def target_fingerprints_for(grader)
+      label = target_label_for(grader)
+      @target_fingerprints_by_label ||= {}
+      @target_fingerprints_by_label[label] ||= TargetGraph::Fingerprints.for_target(
+        workspace_path: workspace.path,
+        graph: target_graph,
+        label: label
+      )
+    end
+
+    def target_health_reuse
+      @target_health_reuse ||= TargetHealthReuse.new(
+        repository: repository,
+        graph: target_graph,
+        workspace_path: workspace.path
+      )
+    end
+
+    def grader_fanout_reuse_enabled?
+      workflow.work_definition.grader_fanout_reuse_enabled?(workflow)
     end
 
     def target_label_for(grader)

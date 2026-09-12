@@ -2620,6 +2620,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["user_id"], name: "index_tags_on_user_id"
   end
 
+  create_table "target_health_records", force: :cascade do |t|
+    t.json "artifacts"
+    t.datetime "checked_at", null: false
+    t.string "command_fingerprint", limit: 64, null: false
+    t.string "commit_sha", limit: 64, null: false
+    t.datetime "created_at", null: false
+    t.float "duration_s"
+    t.string "environment_fingerprint", limit: 64, null: false
+    t.integer "exit_code"
+    t.datetime "finished_at"
+    t.string "input_fingerprint", limit: 64, null: false
+    t.bigint "log_bytes"
+    t.string "log_path", limit: 1024
+    t.json "metadata"
+    t.string "project_id", limit: 128, null: false
+    t.bigint "repository_id", null: false
+    t.bigint "run_id"
+    t.datetime "started_at"
+    t.string "status", limit: 32, null: false
+    t.bigint "step_id"
+    t.string "target_label", limit: 255, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workflow_id"
+    t.index ["repository_id", "project_id", "status", "checked_at"], name: "idx_target_health_records_project_status"
+    t.index ["repository_id", "target_label", "commit_sha", "input_fingerprint", "command_fingerprint", "environment_fingerprint"], name: "idx_target_health_records_identity", unique: true
+    t.index ["repository_id", "target_label", "commit_sha"], name: "idx_target_health_records_repo_target_sha"
+    t.index ["repository_id", "target_label", "input_fingerprint", "command_fingerprint", "environment_fingerprint", "checked_at", "created_at"], name: "idx_target_health_records_reusable_inputs"
+    t.index ["run_id"], name: "index_target_health_records_on_run_id"
+    t.index ["workflow_id"], name: "index_target_health_records_on_workflow_id"
+  end
+
   create_table "team_memberships", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "role", null: false

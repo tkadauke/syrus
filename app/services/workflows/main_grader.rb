@@ -4,7 +4,7 @@ module Workflows
   # by MainGraderWorkflowJob when PollMainBranchHealthJob detects a new HEAD
   # SHA.
   #
-  # Chain: prepare → grader_fanout → <per-grader steps> → grader_collect
+  # Chain: prepare → builder_fanout → grader_fanout → <per-grader steps> → grader_collect
   #
   # The chain has no repair loop: actual grader failures mark main as broken.
   # Timeouts mark the grader signal inconclusive so operators can inspect or
@@ -18,7 +18,7 @@ module Workflows
   class MainGrader < Base
     SOLID_QUEUE_PRIORITY = Job::PRIORITY_TO_SQ.fetch("urgent") - 10
 
-    steps :prepare, :grader_fanout, :grader_collect
+    steps :prepare, :builder_fanout, :grader_fanout, :grader_collect
 
     def self.trigger_kind = "main_grader"
 
@@ -27,7 +27,8 @@ module Workflows
     def self.solid_queue_priority(_workflow) = SOLID_QUEUE_PRIORITY
 
     def self.after_success(workflow)
-      update_grader_health!(workflow, "healthy")
+      health, failed_names = aggregate_target_health_after_success(workflow)
+      update_grader_health!(workflow, health, failed_names)
     end
 
     def self.after_fail(workflow)
@@ -87,6 +88,63 @@ module Workflows
       end
 
       close_anchor_job!(workflow)
+    end
+
+    private_class_method def self.aggregate_target_health_after_success(workflow)
+      entries = required_target_selection_entries(workflow)
+      return [ "healthy", nil ] if entries.empty?
+
+      skipped_statuses = entries.filter_map do |entry|
+        next if entry["affected"]
+
+        target_health_status_for(workflow, entry)
+      end
+      aggregate = aggregate_target_statuses(skipped_statuses)
+      aggregate = workflow.job.repository.grader_health if aggregate == "unknown" && workflow.job.repository.grader_health.in?(%w[broken inconclusive])
+      failed_names = aggregate == "broken" ? failed_target_names(workflow, entries) : nil
+
+      Rails.logger.info(
+        "[Workflows::MainGrader] Workflow ##{workflow.id} completed target health maintenance for " \
+        "#{workflow.job.repository.slug}@#{workflow.artifact('main_sha')}: #{aggregate}"
+      )
+      [ aggregate, failed_names ]
+    end
+
+    private_class_method def self.required_target_selection_entries(workflow)
+      Array(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)).select do |entry|
+        entry["required"]
+      end
+    end
+
+    private_class_method def self.target_health_status_for(workflow, entry)
+      fingerprints = entry["target_fingerprints"].to_h
+      record = TargetHealthRecord.latest_for_reusable_inputs(
+        repository: workflow.job.repository,
+        target_label: entry["target_label"],
+        input_fingerprint: fingerprints["input_fingerprint"],
+        command_fingerprint: fingerprints["command_fingerprint"],
+        environment_fingerprint: fingerprints["environment_fingerprint"]
+      )
+
+      record&.status || "unknown"
+    end
+
+    private_class_method def self.aggregate_target_statuses(statuses)
+      statuses = Array(statuses)
+      return "healthy" if statuses.empty?
+      return "broken" if statuses.any? { |status| status.in?(%w[failed]) }
+      return "inconclusive" if statuses.any? { |status| status.in?(%w[timed_out cancelled inconclusive]) }
+      return "unknown" if statuses.any? { |status| status.in?(%w[unknown stale]) }
+
+      "healthy"
+    end
+
+    private_class_method def self.failed_target_names(workflow, entries)
+      entries.filter_map do |entry|
+        next if entry["affected"]
+
+        entry["name"] if target_health_status_for(workflow, entry) == "failed"
+      end
     end
 
     private_class_method def self.failed_required_grader_steps(workflow)

@@ -34,11 +34,19 @@ RSpec.describe MainGraderWorkflowJob do
     expect(workflow.artifact("main_sha")).to eq(sha)
   end
 
-  it "materializes prepare → grader_fanout → grader_collect steps" do
+  it "stores the previous main SHA artifact when provided" do
+    described_class.perform_now(repository.id, sha, previous_main_sha: "oldmain123")
+
+    workflow = Workflow.last
+    expect(workflow.artifact("main_sha")).to eq(sha)
+    expect(workflow.artifact("previous_main_sha")).to eq("oldmain123")
+  end
+
+  it "materializes prepare → builder_fanout → grader_fanout → grader_collect steps" do
     described_class.perform_now(repository.id, sha)
 
     step_kinds = Workflow.last.steps.order(:position).pluck(:kind)
-    expect(step_kinds).to eq(%w[ prepare grader_fanout grader_collect ])
+    expect(step_kinds).to eq(%w[ prepare builder_fanout grader_fanout grader_collect ])
   end
 
   it "starts the workflow through the work unit launcher" do

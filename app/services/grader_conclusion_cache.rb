@@ -94,6 +94,16 @@ class GraderConclusionCache
           checked_at: checked_at,
           metadata: metadata_for(workflow: workflow, step: grader_step)
         )
+
+        record_target_health!(
+          workflow: workflow,
+          step: grader_step,
+          run: grader_step.runs.order(:created_at).last,
+          commit_sha: commit_sha,
+          status: status_for_step(grader_step),
+          details: details,
+          checked_at: checked_at
+        )
       end
 
       # rerun_only_failed skipped these graders this iteration because they
@@ -175,10 +185,14 @@ class GraderConclusionCache
         {
           "name" => grader.name.to_s,
           "command" => grader.command.to_s,
+          "phases" => Array(grader.phases).map(&:to_s).sort,
           "required" => !!grader.required,
           "timeout_minutes" => grader.timeout_minutes.to_i,
           "when_files_changed" => Array(grader.when_files_changed).map(&:to_s).sort,
-          "deps" => Array(grader.deps).map(&:to_s).sort
+          "deps" => Array(grader.deps).map(&:to_s).sort,
+          "junit_output" => grader.junit_output.to_s,
+          "failures" => grader.failures.to_s,
+          "metadata" => normalize_hash(grader.metadata)
         }
       end,
       "target_graph" => target_graph_payload(target_graph)
@@ -194,18 +208,119 @@ class GraderConclusionCache
       {
         "label" => target.label.to_s,
         "kind" => target.kind,
+        "project_id" => target.project_id,
         "source_scope" => Array(target.source_scope).map(&:to_s).sort,
         "command" => target.command.to_s,
-        "dependencies" => Array(target.dependencies).map(&:to_s).sort
+        "dependencies" => Array(target.dependencies).map(&:to_s).sort,
+        "phases" => Array(target.phases).map(&:to_s).sort,
+        "required" => !!target.required,
+        "timeout_minutes" => target.timeout_minutes.to_i,
+        "owner_config_path" => target.owner_config_path.to_s,
+        "metadata" => normalize_hash(target.metadata)
       }
     end.sort_by { |entry| entry["label"] }
   end
   private_class_method :target_graph_payload
 
+  def self.record_target_health!(workflow:, step:, run:, commit_sha:, status:, details:, checked_at:)
+    target_label = details["target_label"].presence || details["projected_target_label"].presence
+    return if target_label.blank?
+
+    TargetHealthRecorder.record!(
+      repository: workflow.job.repository,
+      workflow: workflow,
+      step: step,
+      run: run,
+      target_label: target_label,
+      project_id: project_id_for_target_label(target_label),
+      commit_sha: commit_sha,
+      input_fingerprint: input_fingerprint_for(commit_sha: commit_sha, details: details),
+      command_fingerprint: command_fingerprint_for(details: details, target_label: target_label),
+      environment_fingerprint: environment_fingerprint_for(details: details),
+      status: status,
+      checked_at: checked_at,
+      duration_s: details["duration_s"],
+      exit_code: details["exit_code"],
+      log_path: details["log_path"],
+      log_bytes: details["log_bytes"],
+      artifacts: target_artifacts_for(details),
+      metadata: metadata_for(workflow: workflow, step: step).merge(
+        "grader_name" => details["name"],
+        "required" => details["required"]
+      ).compact
+    )
+  end
+  private_class_method :record_target_health!
+
+  def self.project_id_for_target_label(target_label)
+    label = TargetGraph::Label.parse(target_label)
+    label.package.presence || TargetGraph::ROOT_PROJECT_ID
+  rescue TargetGraph::Label::ParseError
+    TargetGraph::ROOT_PROJECT_ID
+  end
+  private_class_method :project_id_for_target_label
+
+  def self.input_fingerprint_for(commit_sha:, details:)
+    details.dig("target_fingerprints", "input_fingerprint").presence ||
+      details.dig("source_snapshot", "fingerprint").presence ||
+      details.dig("source_snapshot", "tree_sha").presence ||
+      details.dig("source_snapshot", "source_sha").presence ||
+      commit_sha
+  end
+  private_class_method :input_fingerprint_for
+
+  def self.command_fingerprint_for(details:, target_label:)
+    details.dig("target_fingerprints", "command_fingerprint").presence ||
+      details["projected_target_fingerprint"].presence ||
+      digest(
+        "target_label" => target_label,
+        "name" => details["name"].to_s,
+        "command" => details["command"].to_s,
+        "required" => !!details["required"],
+        "timeout_minutes" => details["timeout_minutes"].to_i,
+        "when_files_changed" => Array(details["when_files_changed"]).map(&:to_s).sort,
+        "phase" => details["phase"].to_s
+      )
+  end
+  private_class_method :command_fingerprint_for
+
+  def self.environment_fingerprint_for(details:)
+    return details.dig("target_fingerprints", "environment_fingerprint") if details.dig("target_fingerprints", "environment_fingerprint").present?
+
+    digest(
+      "prepare_targets" => Array(details["prepare_targets"]).map { |entry| entry.to_h.sort.to_h },
+      "prepare_commands" => Array(details["prepare_commands"]).map(&:to_s)
+    )
+  end
+  private_class_method :environment_fingerprint_for
+
+  def self.target_artifacts_for(details)
+    {
+      "log_path" => details["log_path"],
+      "log_bytes" => details["log_bytes"],
+      "output_excerpt" => details["output"]
+    }.compact
+  end
+  private_class_method :target_artifacts_for
+
   def self.digest(payload)
     Digest::SHA256.hexdigest(JSON.generate(payload))
   end
   private_class_method :digest
+
+  def self.normalize_hash(value)
+    value.to_h.transform_keys(&:to_s).sort.to_h.transform_values do |entry|
+      case entry
+      when Hash
+        normalize_hash(entry)
+      when Array
+        entry.map { |item| item.is_a?(Hash) ? normalize_hash(item) : item }
+      else
+        entry
+      end
+    end
+  end
+  private_class_method :normalize_hash
 
   def self.metadata_for(workflow:, step:)
     {

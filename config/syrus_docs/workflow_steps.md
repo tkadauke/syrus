@@ -329,6 +329,15 @@ command failing is always soft — logged as a warning and skipped, the same
 non-fatal posture `prepare`'s auto-detected commands use — since a broken
 formatter must never block the workflow the way an explicit `.syrus.yml`
 grader failure does; whatever it managed to fix is still committed.
+Before an explicit formatter command runs, Syrus checks target health for the
+compiled `//:format/<index>` target. A matching healthy record for the current
+input/command/environment fingerprints skips that command, provided all
+executable dependencies are also healthy. The skip is logged and recorded in
+the `format_target_health_skips` workflow artifact and Step details. Unknown,
+stale, failed, timed-out, cancelled, or inconclusive target health runs the
+formatter normally. Plugin-default formatters from `formatters: []` are not
+target-health skipped because they do not currently compile into stable target
+labels.
 
 ### generate
 
@@ -347,6 +356,13 @@ instead. There is no plugin-provided default for codegen — it's inherently
 repo-specific — so this step simply no-ops when `generated:` isn't
 configured. `generated: false` (or `off`) explicitly disables it. A command
 failing is always soft, same posture as `format`.
+Before an explicit generator command runs, Syrus checks target health for the
+compiled `//:generate/<index>` target. A matching healthy record for the
+current input/command/environment fingerprints skips that command, provided
+all executable dependencies are also healthy. The skip is logged and recorded
+in the `generate_target_health_skips` workflow artifact and Step details.
+Unknown, stale, failed, timed-out, cancelled, or inconclusive target health
+runs the generator normally.
 
 Both steps are inserted as repair steps of the grader retry loop in `retry`,
 `pr_comment`, and `chat_feedback` workflows (`repair: [ implement | respond,
@@ -493,6 +509,14 @@ Speculative `landing_validation` workflows use the `landing` phase. Their
 `when_files_changed` selection is computed against the predicted post-merge
 base, not the current `origin/main`.
 
+`main_grader` workflows use the `ci` phase and compute `when_files_changed`
+selection against the previous checked main SHA recorded by
+`PollMainBranchHealthJob`, not against `origin/main` (which already points at
+the same checked-out commit in the detached main-grader workspace). Fanout logs
+the previous SHA it uses. When no previous SHA exists, fanout logs a baseline
+maintenance run and selects every configured grader target so the repository
+gets initial target-health records.
+
 An earlier `fast:` command selected a parallel variant for landing trigger
 kinds and for grade-loop iterations after the first, back when `run:` was
 serial. That meant the first grader pass of every workflow — the common case —
@@ -522,6 +546,85 @@ repair loops show whether the failed attempt actually spent time running graders
 In `ci_failure` workflows, `grader_collect` may be skipped after a repeated
 no-op `analyze_and_fix` main-concern diagnosis so the workflow can publish
 earlier repair commits without rerunning known non-actionable graders.
+
+When `grader_collect` records a grader conclusion, it also records a persistent
+`TargetHealthRecord` for each materialized grader target. The record stores the
+target label, project id, repository, commit SHA, input fingerprint, command
+fingerprint, environment fingerprint, status, timing, and log artifact
+references.
+
+`grader_fanout` and `preflight_grader_fanout` stamp each materialized grader
+Step with deterministic target fingerprints. The input fingerprint covers the
+target's declared source files, dependency target source files, dependency
+labels, and owning `.syrus.yml` files. The command fingerprint covers the
+target command and execution config, including dependencies, phases,
+requiredness, timeout, file scope, owner config path, and target metadata. The
+environment fingerprint covers locally available runtime/toolchain inputs,
+prepare dependency targets, prepare commands, common lockfiles, and version
+files such as `Gemfile.lock`, `package-lock.json`, `.ruby-version`, and
+`.tool-versions`.
+
+`grader_collect` copies those stamped fingerprints into `TargetHealthRecord`.
+Older or already-materialized grader Steps that do not have
+`target_fingerprints` keep the compatibility fallback: input fingerprint comes
+from the workflow source snapshot's explicit fingerprint when present, then its
+tree SHA, then its source SHA, and finally the commit SHA. Syrus never uses the
+workflow-local source snapshot row id as a target-health input fingerprint.
+Workflow artifacts keep only
+`target_health_record_refs` entries with record ids and identifying labels; the
+database row is the primary store so later workflows can query target health
+outside the workflow that produced it.
+
+Before `grader_fanout` materializes a selected `grader` Step, normal affected
+target runs check the same target-health proof used by format/generate:
+current target fingerprints must have a latest healthy record, and every
+executable dependency target must also be healthy for its current fingerprints.
+A cache hit skips Step materialization, logs the reason, and records an entry
+in `target_health_skipped_targets` on the workflow and fanout Step details.
+Baseline `main_grader` sweeps with no previous main SHA are the exception:
+they select every configured grader target and bypass both target-health reuse
+and successful full-plan `GraderConclusion` reuse so the broad sweep can catch
+missed dependency edges or undercoverage that prior affected-target selection
+would have skipped.
+
+For `main_grader`, fanout also records `grader_target_selections`, one entry
+per configured grader target with its affected verdict and target
+fingerprints. `Workflows::MainGrader` uses those entries when the workflow
+settles: a passing affected subset marks the repository grader signal healthy
+only if every unaffected required target still has a matching healthy
+`TargetHealthRecord`. A failed unaffected target keeps `grader_health` broken;
+missing, stale, or unknown unaffected health keeps it unknown; timed-out,
+cancelled, or inconclusive unaffected health keeps it inconclusive. This is how
+main-branch target health preserves unaffected target state while avoiding
+unnecessary target execution.
+
+`grader_collect` folds those entries into the iteration rollup as passed
+target-health skips, without recording a new grader conclusion for work that
+did not run. Unknown, stale, failed, timed-out, cancelled, or inconclusive
+health records are misses, so required graders still materialize and run.
+
+### builder_fanout
+
+Non-agentic. Runs only in `main_grader` workflows, after `prepare` and before
+grader fanout. It compiles explicit `targets:` entries, selects executable
+`kind: builder` targets that are worth warming on main (for example
+`hot: true`, `critical: true`, `cost: expensive`,
+`opportunistic_build: true`, positive downstream dependents/recent failures,
+or release relevance), and filters them through the main-branch changed-file
+selection.
+
+Before running a selected builder, it checks target health for the builder and
+its executable dependencies. A reusable healthy record skips the command and
+records a workflow entry pointing at the existing target-health row. Otherwise
+it runs any transitive `kind: prepare` target dependencies once per workflow
+workspace, then runs the builder command from the target's owning project
+directory with the same dependency environment as graders. The
+pass/fail/timeout outcome is recorded in `TargetHealthRecord`. Builder
+failures are fail-soft: they record unhealthy target health for reuse
+decisions and diagnostics but do not make main health broken by themselves.
+Declared `artifacts:` paths are resolved relative to the owning project
+directory and stored as repository-relative references on the target-health
+row.
 
 ### grade
 

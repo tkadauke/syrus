@@ -60,13 +60,15 @@ module Steps
     end
 
     def explicit_commands(generated, files)
-      generated.filter_map do |entry|
+      generated.each_with_index.filter_map do |entry, index|
         if entry.codegen_ignore
           log("[generate] skipped #{entry.command.inspect} (codegen_ignore)")
           next
         end
 
         if files_match?(entry.sources, files)
+          next if reusable_target_health?("//:generate/#{index}")
+
           entry.command
         else
           log("[generate] skipped #{entry.command.inspect} (no matching sources changed)")
