@@ -49,7 +49,7 @@ helper with a new `kind` string and gets storage, generic rendering on
 the Job details page, and insight-job discoverability for free, with
 zero new frontend code required per new kind.
 
-## First consumer: grader side-effect detection
+## Grader side-effect detection
 
 `Steps::Grader` captures `git status --porcelain` immediately before and
 after each grader command runs. If the porcelain output differs, it
@@ -66,7 +66,7 @@ matching the non-fatal posture of `record_prepare_soft_failure!`
 (`app/services/steps/prepare.rb`) and `record_autofix_failure!`
 (`app/services/steps/autofix.rb`).
 
-## Third consumer: prepare target side-effect detection
+## Prepare target side-effect detection
 
 `Steps::Grader` (via the shared `Steps::PrepareTargetExecution` module, also
 used by `Steps::PreflightGrader`) runs the same before/after `git status
@@ -81,7 +81,23 @@ idempotent environment setup and should never modify tracked source files.
 Like the grader consumer above, this never fails the grader Step or the
 workflow.
 
-## Second consumer: coverage branch-threshold misses
+## Skipped target CI failures
+
+`PollPullRequestJob` records a `kind: "ci_failed_skipped_target"` warning when
+a failed GitHub check maps to a TargetGraph target and a prior grader fanout
+selection on that Job recorded the same target as skipped/unaffected. This is
+an undercoverage signal: CI proved a target was relevant after Syrus target
+selection decided it did not need to run.
+
+The warning evidence includes the failing check name, conclusion, log URL,
+target label, project id/label, source scope, dependency labels, the prior
+selection workflow id/trigger kind/reason, target fingerprints when available,
+and a dedupe key for the check/head/target tuple. The suggested prompt asks the
+agent to investigate whether the repository should add a `deps:` edge, move a
+grader or repo check into a nested `.syrus.yml`, widen `sources:`, or declare an
+explicit target with `ci_checks:` matching the GitHub check name.
+
+## Coverage branch-threshold misses
 
 `Steps::CoverageAnalyze` records a `kind: "coverage_branches_threshold_miss"`
 warning when measured branch coverage falls below `coverage.threshold.branches`

@@ -594,9 +594,13 @@ and successful full-plan `GraderConclusion` reuse so the broad sweep can catch
 missed dependency edges or undercoverage that prior affected-target selection
 would have skipped.
 
-For `main_grader`, fanout also records `grader_target_selections`, one entry
-per configured grader target with its affected verdict and target
-fingerprints. `Workflows::MainGrader` uses those entries when the workflow
+For PR-facing repair workflows, landing workflows, validation children, and
+`main_grader`, fanout also records `grader_target_selections`, one entry per
+configured grader target with its affected verdict and target fingerprints.
+CI-failure repair uses these entries to spot mapped GitHub checks that failed
+after Syrus previously skipped the same target as unaffected, surfacing a
+`ci_failed_skipped_target` workflow warning with source-scope and dependency
+context. `Workflows::MainGrader` also uses those entries when the workflow
 settles: a passing affected subset marks the repository grader signal healthy
 only if every unaffected required target still has a matching healthy
 `TargetHealthRecord`. A failed unaffected target keeps `grader_health` broken;
