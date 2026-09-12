@@ -8007,11 +8007,14 @@ describe("App", () => {
     expect((await screen.findAllByText("Codex ChatGPT auth.json is valid.")).length).toBeGreaterThan(0)
   })
 
-  it("renders /settings as the profile route without admin links", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+  it("renders and saves /settings as the accessible profile route without admin links", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/notification_preferences") {
         return Promise.resolve(new Response(JSON.stringify(notificationPreferencesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/credentials" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(credentialsPayload({ name: "Ada Operator", message: "Credentials updated." })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify(credentialsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -8029,7 +8032,8 @@ describe("App", () => {
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profile")
     expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-brand/10")
-    expect(await screen.findByLabelText("Display name")).toBeInTheDocument()
+    const displayName = await screen.findByLabelText("Display name")
+    expect(screen.getByText("Display name")).toHaveAttribute("for", displayName.id)
     expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
     expect(within(settingsNav).getByRole("link", { name: "Themes" })).toHaveAttribute("href", "/app-shell/settings/themes")
@@ -8039,6 +8043,18 @@ describe("App", () => {
     expect(screen.queryByRole("link", { name: "Invitations" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "App settings" })).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials", expect.objectContaining({ credentials: "same-origin" }))
+    fireEvent.change(displayName, { target: { value: "Ada Operator" } })
+    fireEvent.change(screen.getByLabelText("Profile bio"), { target: { value: "Keeps the forms honest." } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/credentials" && call[1]?.method === "PATCH")
+      expect(JSON.parse(String(patchCall?.[1]?.body)).user).toEqual(expect.objectContaining({
+        name: "Ada Operator",
+        profile_bio: "Keeps the forms honest."
+      }))
+    })
+    await waitFor(() => expect(screen.getByText("Profile updated.")).toBeInTheDocument())
   })
 
   it("renders and saves the agent settings route", async () => {
