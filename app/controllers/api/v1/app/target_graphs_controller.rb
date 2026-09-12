@@ -2,9 +2,12 @@ module Api
   module V1
     module App
       class TargetGraphsController < BaseController
+        include RepositoryTabsSerialization
+
         def repository
           repository = Repository.accessible_to(Current.user).find(params[:repository_id] || params[:id])
-          render json: ::App::TargetGraphPayload.for_repository(repository: repository, user: Current.user, params: params)
+          payload = ::App::TargetGraphPayload.for_repository(repository: repository, user: Current.user, params: params)
+          render json: payload.merge(tabs: repository_tabs_json(repository))
         end
 
         def job
