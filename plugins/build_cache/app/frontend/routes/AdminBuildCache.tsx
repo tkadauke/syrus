@@ -1,5 +1,4 @@
 import { useState, type FormEvent, type ReactNode } from "react"
-import { Input } from "@app/components/Input"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "@app/api/client"
@@ -17,7 +16,7 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { formatBytes } from "@app/lib/format"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { Button } from "@app/components/Button"
+import { Button, Form } from "@app/components/ui"
 
 const QUERY_KEY = ["admin", "build_cache"]
 
@@ -139,40 +138,44 @@ function ClearRequestForm() {
       <SectionHeading>{t("build_cache.request_heading")}</SectionHeading>
 
       <fieldset className="space-y-2">
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-          <Input checked={scope === "full"} name="scope" onChange={() => setScope("full")} type="radio" value="full" />
+        <label className="flex items-center gap-2 text-sm text-text-primary">
+          <input checked={scope === "full"} className="h-4 w-4 accent-brand" name="scope" onChange={() => setScope("full")} type="radio" value="full" />
           {t("build_cache.scope_full")}
         </label>
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-          <Input checked={scope === "partial"} name="scope" onChange={() => setScope("partial")} type="radio" value="partial" />
-          {t("build_cache.scope_partial")}
-          <Input
-            className="w-20"
-            disabled={scope !== "partial"}
-            fullWidth={false}
-            min={1}
-            onChange={(event) => setOlderThanDays(event.target.value)}
-            type="number"
-            value={olderThanDays}
-          />
+        <div className="flex items-center gap-2 text-sm text-text-primary">
+          <label className="flex items-center gap-2">
+            <input checked={scope === "partial"} className="h-4 w-4 accent-brand" name="scope" onChange={() => setScope("partial")} type="radio" value="partial" />
+            {t("build_cache.scope_partial")}
+          </label>
+          <Form.Field controlId="build-cache-older-than-days">
+            <Form.Label className="sr-only">{t("build_cache.scope_partial")}</Form.Label>
+            <Form.Input
+              className="w-20"
+              disabled={scope !== "partial"}
+              fullWidth={false}
+              min={1}
+              onChange={(event) => setOlderThanDays(event.target.value)}
+              type="number"
+              value={olderThanDays}
+            />
+          </Form.Field>
           {t("build_cache.scope_partial_suffix")}
-        </label>
+        </div>
       </fieldset>
 
-      <label className="block text-sm text-gray-700 dark:text-gray-200">
-        {t("build_cache.reason_label")}
-        <textarea
-          className="mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
+      <Form.Field controlId="build-cache-clear-reason">
+        <Form.Label>{t("build_cache.reason_label")}</Form.Label>
+        <Form.Textarea
           onChange={(event) => setReason(event.target.value)}
           placeholder={t("build_cache.reason_placeholder")}
           required
           rows={2}
           value={reason}
         />
-      </label>
+      </Form.Field>
 
       {create.isError ? (
-        <p className="text-sm text-red-600 dark:text-red-300">{create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}</p>
+        <p className="text-sm text-danger-text" role="alert">{create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}</p>
       ) : null}
 
       <Button disabled={create.isPending || !reason.trim()} type="submit" variant="primary">
