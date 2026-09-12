@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "App API job coding mode", type: :request do
-  let(:user) { Factories.user }
+  let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) do
     Factories.job_record(user: user, repository: repo, state: "implemented",
@@ -49,6 +49,18 @@ RSpec.describe "App API job coding mode", type: :request do
       expect(parse_body.dig("error", "code")).to eq("validation_failed")
     end
 
+    it "returns 422 when repository GitHub credentials are missing" do
+      user.update!(github_token: nil)
+
+      post path(job), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+      expect(parse_body.dig("error", "message")).to eq(JobCodingMode::Takeover::GITHUB_TOKEN_REQUIRED_MESSAGE)
+      expect(ChatWorkspace).not_to have_received(:ensure_job_branch_checkout!)
+      expect(job.reload).to be_implemented
+    end
+
     it "creates a coding-mode chat session and redirects to it" do
       expect {
         post path(job), as: :json
@@ -74,6 +86,41 @@ RSpec.describe "App API job coding mode", type: :request do
       chat = ChatSession.last
       expect(ChatWorkspace).to have_received(:ensure_job_branch_checkout!)
         .with(chat, repo, "syrus/fix-login-1")
+    end
+
+    it "uses feedback as the first coding chat prompt" do
+      expect {
+        post path(job), params: { feedback: "Please tighten the header spacing." }, as: :json
+      }.to have_enqueued_job(ChatTurnJob)
+
+      chat = ChatSession.last
+      message = chat.messages.where(role: "user").sole
+      expect(message.content).to include(
+        "text" => "Please tighten the header spacing.",
+        "source" => "job_detail_coding_mode_feedback",
+        "job_id" => job.id
+      )
+      expect(chat.chat_queued_messages.sole.delivered_at).to be_present
+      expect(parse_body["message"]).to eq("Opened Coding Mode chat and queued your feedback.")
+    end
+
+    it "queues feedback on a reused busy coding chat without starting another turn" do
+      existing_chat = ChatSession.create!(user: user, mode: "coding", turn_in_flight: true)
+      job.update_columns(linked_chat_id: existing_chat.id)
+
+      expect {
+        post path(job), params: { feedback: "Start from the feedback form." }, as: :json
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:ok)
+      queued = existing_chat.reload.queued_messages.sole
+      expect(queued.content).to include(
+        "text" => "Start from the feedback form.",
+        "source" => "job_detail_coding_mode_feedback",
+        "job_id" => job.id
+      )
+      expect(existing_chat.messages).to be_empty
+      expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
     end
 
     it "reuses an existing linked chat session" do
