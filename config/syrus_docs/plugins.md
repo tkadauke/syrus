@@ -1159,8 +1159,10 @@ The command should emit normal test output and, when possible, write a JUnit XML
 file to the grader's configured `junit_output` path so core can compare exact
 failed test identities. Core also supports `base_retry: { strategy:
 files_as_args }` for wrappers that explicitly accept failed test files as
-positional arguments, and per-grader `base_retry: { command: ... }` templates
-for repositories whose test runner needs a custom wrapper.
+positional arguments, `base_retry: { strategy: full_command }` for non-test
+graders that should rerun the complete command at the base revision, and
+per-grader `base_retry: { command: ... }` templates for repositories whose
+test runner needs a custom wrapper.
 
 The built-in Ruby plugin provides focused commands for ordinary RSpec projects
 and contributes rich default grade candidates through `:grade_detector`: full

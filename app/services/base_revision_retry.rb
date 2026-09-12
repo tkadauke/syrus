@@ -1,3 +1,4 @@
+require "digest"
 require "fileutils"
 require "open3"
 require "shellwords"
@@ -15,7 +16,7 @@ class BaseRevisionRetry
     new(...).call
   end
 
-  def initialize(workflow:, grader_step:, base_sha:, failed_cases:, log:)
+  def initialize(workflow:, grader_step:, base_sha:, failed_cases: [], log:)
     @workflow = workflow
     @grader_step = grader_step
     @base_sha = base_sha.to_s
@@ -24,9 +25,14 @@ class BaseRevisionRetry
   end
 
   def call
+    config = base_retry_config
+    return skipped("no_base_retry_config") unless config
+
+    return run_full_command if config.fetch("strategy") == "full_command"
+
     return skipped("no_failed_test_cases") if @failed_cases.empty?
 
-    command = focused_command
+    command = focused_command(config)
     return skipped("no_focused_test_command") if command.blank?
 
     output = +""
@@ -67,6 +73,37 @@ class BaseRevisionRetry
 
   private
 
+  def run_full_command
+    command = @grader_step.details.to_h["command"].to_s.strip
+    return skipped("no_grader_command") if command.blank?
+
+    output = +""
+    status = nil
+    Dir.mktmpdir("syrus-brr-") do |dir|
+      checkout_path = Pathname.new(dir).join("base")
+      git("worktree", "add", "--detach", checkout_path.to_s, @base_sha)
+      begin
+        @log.call("[brr:#{grader_name}] running full grader at base #{@base_sha.first(9)}: #{redacted_command(command)}")
+        status = run_command(command, checkout_path, output)
+      ensure
+        git("worktree", "remove", "--force", checkout_path.to_s)
+      end
+    end
+
+    candidate_fingerprint = output_fingerprint(@grader_step.details.to_h["output"])
+    base_fingerprint = output_fingerprint(output)
+    inherited = status && !status.success? && candidate_fingerprint.present? && candidate_fingerprint == base_fingerprint
+    Result.new(
+      ran: true,
+      inherited: inherited,
+      reason: full_command_reason(status, candidate_fingerprint, base_fingerprint, inherited),
+      command: redacted_command(command),
+      base_failed_identities: [],
+      introduced_failed_identities: [],
+      output: output_tail(output)
+    )
+  end
+
   def skipped(reason, command: nil, output: nil)
     Result.new(
       ran: false,
@@ -79,9 +116,7 @@ class BaseRevisionRetry
     )
   end
 
-  def focused_command
-    config = base_retry_config
-    return nil unless config
+  def focused_command(config)
     return interpolate_explicit_command(config.fetch("command")) if config.fetch("strategy") == "command"
     return files_as_args_command if config.fetch("strategy") == "files_as_args"
 
@@ -212,6 +247,28 @@ class BaseRevisionRetry
 
   def output_tail(output)
     output.to_s.safe_byteslice(-OUTPUT_INLINE_BYTES, OUTPUT_INLINE_BYTES)
+  end
+
+  def full_command_reason(status, candidate_fingerprint, base_fingerprint, inherited)
+    return "base_retry_full_command_failed_same_output" if inherited
+    return "base_retry_full_command_base_passed" if status&.success?
+    return "base_retry_full_command_missing_output_fingerprint" if candidate_fingerprint.blank? || base_fingerprint.blank?
+
+    "base_retry_full_command_failed_different_output"
+  end
+
+  def output_fingerprint(output)
+    normalized = output.to_s
+      .encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
+      .gsub(/\e\[[0-9;]*m/, "")
+      .gsub(%r{/[^\s:]+/}, "/…/")
+      .gsub(/\b0x[0-9a-f]+\b/i, "0x…")
+      .gsub(/\b\d+\.\d+s\b/, "N.Ns")
+      .gsub(/\s+/, " ")
+      .strip
+    return nil if normalized.blank?
+
+    Digest::SHA256.hexdigest(normalized)
   end
 
   def redacted_command(command)

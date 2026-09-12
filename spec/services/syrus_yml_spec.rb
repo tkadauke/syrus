@@ -569,6 +569,21 @@ RSpec.describe SyrusYml do
     )
   end
 
+  it "parses full-command base_retry strategy for non-test graders" do
+    config = parse(<<~YAML)
+      grade:
+        - name: website-build
+          run: npm run website-build
+          failures: allow_inherited
+          base_retry:
+            strategy: full_command
+    YAML
+
+    expect(config.grade.steps.first.base_retry).to eq(
+      described_class::BaseRetry.new(strategy: "full_command", command: nil)
+    )
+  end
+
   it "parses grade-level failures as the default for steps" do
     config = parse(<<~YAML)
       grade:

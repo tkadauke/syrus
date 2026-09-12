@@ -142,4 +142,63 @@ RSpec.describe BaseRevisionRetry do
 
     expect(result.command).to eq("bin/rspec-fast spec/models/widget_spec.rb")
   end
+
+  it "treats non-test graders as inherited when the full base command fails with the same output" do
+    grader_step.update!(
+      details: {
+        "name" => "website-build",
+        "command" => "npm run website-build",
+        "output" => "Build failed: missing generated plugin data\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      log: ->(_message) {}
+    )
+    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
+      output << "Build failed: missing generated plugin data\n"
+      instance_double(Process::Status, success?: false)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: true,
+      reason: "base_retry_full_command_failed_same_output",
+      command: "npm run website-build"
+    )
+  end
+
+  it "keeps non-test grader failures when the full base command passes" do
+    grader_step.update!(
+      details: {
+        "name" => "website-build",
+        "command" => "npm run website-build",
+        "output" => "Build failed: missing generated plugin data\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      log: ->(_message) {}
+    )
+    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
+      output << "Build succeeded\n"
+      instance_double(Process::Status, success?: true)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: false,
+      reason: "base_retry_full_command_base_passed"
+    )
+  end
 end

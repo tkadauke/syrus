@@ -403,6 +403,114 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "uses cached base output before full-command base-revision retry" do
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")
+    base_step = Step.create!(
+      workflow: base_workflow,
+      kind: "grader",
+      position: 1,
+      state: "failed",
+      details: {
+        "name" => "website-build",
+        "output" => "Build failed: missing generated plugin data\n"
+      }
+    )
+    base_run = base_step.runs.create!(job: job, trigger_kind: "main_grader", state: "failed")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: job,
+      workflow: base_workflow,
+      step: base_step,
+      run: base_run,
+      commit_sha: "main123",
+      grader_fingerprint: "base-fingerprint",
+      grader_name: "website-build",
+      status: "failed",
+      checked_at: Time.current
+    )
+    MainBranchHealthCheck.record_grader_workflow(
+      repository: job.repository,
+      workflow: base_workflow,
+      sha: "main123",
+      grader_health: "broken",
+      grader_failed_names: [ "website-build" ]
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: {
+        "name" => "website-build",
+        "command" => "npm run website-build",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        "output" => "Build failed: missing generated plugin data\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])
+    allow(BaseRevisionRetry).to receive(:call)
+
+    expect { handler.call }.not_to raise_error
+
+    expect(BaseRevisionRetry).not_to have_received(:call)
+    classification = workflow.reload.artifact("inherited_main_branch_grader_failure")["classifications"].first
+    expect(classification).to include("reason" => "output_fingerprint_matches_base")
+  end
+
+  it "uses full-command base-revision retry when cached output cannot decide a non-test grader" do
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    MainBranchHealthCheck.record_grader_workflow(
+      repository: job.repository,
+      sha: "main123",
+      grader_health: "broken",
+      grader_failed_names: [ "website-build" ]
+    )
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_step.update!(
+      state: "failed",
+      details: {
+        "name" => "website-build",
+        "command" => "npm run website-build",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        "output" => "Build failed: missing generated plugin data\n",
+        "base_retry" => { "strategy" => "full_command" }
+      }
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([])
+    allow(BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(
+        ran: true,
+        inherited: true,
+        reason: "base_retry_full_command_failed_same_output",
+        command: "npm run website-build",
+        base_failed_identities: [],
+        introduced_failed_identities: [],
+        output: "Build failed: missing generated plugin data"
+      )
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    expect(BaseRevisionRetry).to have_received(:call).with(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: [],
+      log: anything
+    )
+    classification = workflow.reload.artifact("inherited_main_branch_grader_failure")["classifications"].first
+    expect(classification).to include(
+      "reason" => "base_retry_full_command_failed_same_output",
+      "base_retry_command" => "npm run website-build"
+    )
+  end
+
   it "does not pass inherited-looking grader failures under strict failure policy" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     MainBranchHealthCheck.record_grader_workflow(

@@ -529,7 +529,7 @@ class SyrusYml
     strategy = raw["strategy"]&.to_s&.strip&.presence
     strategy ||= "command" if command
     strategy ||= "files_as_args" if ActiveModel::Type::Boolean.new.cast(raw["files_as_args"])
-    allowed = %w[command files_as_args plugin]
+    allowed = %w[command files_as_args plugin full_command]
     raise ParseError, "#{label}.strategy: must be one of #{allowed.join(', ')}" unless allowed.include?(strategy)
     raise ParseError, "#{label}.command: is required for strategy command" if strategy == "command" && command.blank?
 

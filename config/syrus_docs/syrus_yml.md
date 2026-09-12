@@ -232,6 +232,11 @@ Supported forms:
   prefer `files_as_args` or an explicit `command:` template unless the command
   follows the plugin's ordinary framework conventions. Ruby provides this for
   ordinary RSpec projects; JavaScript provides it for Vitest tests.
+- `strategy: full_command` reruns the grader's full `run` command at the base
+  revision and compares the normalized failure output. Use this for non-test
+  or build-style graders such as `website-build` where individual failing tests
+  do not exist. Syrus only falls back to this after cached base test/output
+  evidence cannot decide the inherited-failure question.
 - `command: bin/rspec-individual {files}` uses an explicit command template.
   `{files}` expands to the shell-quoted unique failed test files and
   `{failed_count}` expands to the number of failed cases. A string

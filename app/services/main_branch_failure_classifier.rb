@@ -109,12 +109,15 @@ class MainBranchFailureClassifier
     return result.merge("reason" => "strict_failure_policy") unless failures == ALLOW_INHERITED
     return result unless base_failed
 
-    if comparable_test_case_evidence_present?(grader_step, base_run, name)
-      classify_test_cases(result, grader_step, base_run)
-    elsif (base_retry = base_revision_retry(grader_step, result.fetch("name"), evidence.fetch("sha")))&.ran
+    return classify_test_cases(result, grader_step, base_run) if comparable_test_case_evidence_present?(grader_step, base_run, name)
+
+    binary = classify_binary_contextual(result, details, base_conclusion)
+    return binary unless binary.fetch("reason") == "missing_output_fingerprint"
+
+    if (base_retry = base_revision_retry(grader_step, result.fetch("name"), evidence.fetch("sha")))&.ran
       classify_base_retry(result, base_retry)
     else
-      classify_binary_contextual(result, details, base_conclusion)
+      binary
     end
   end
 
@@ -208,7 +211,8 @@ class MainBranchFailureClassifier
   def base_revision_retry(grader_step, grader_name, base_sha)
     candidate_run = grader_step.runs.order(:created_at).last
     failed_cases = failed_test_cases_for_run(candidate_run, grader_name)
-    return nil if failed_cases.empty?
+    base_retry = grader_step.details.to_h["base_retry"].to_h.stringify_keys
+    return nil if failed_cases.empty? && base_retry["strategy"] != "full_command"
 
     BaseRevisionRetry.call(
       workflow: @workflow,
