@@ -8,6 +8,7 @@ import {
   Cluster,
   DataTable,
   DescriptionList,
+  Form,
   Input,
   Inline,
   LinkText,
@@ -24,6 +25,7 @@ import {
   StatusPill,
   Surface,
   Text,
+  Textarea,
   Toggle,
   TonePill,
   Toolbar,
@@ -48,6 +50,7 @@ describe("@app/components/ui", () => {
         <Select aria-label="Mode" invalid>
           <option>Auto</option>
         </Select>
+        <Textarea aria-label="Notes" invalid />
         <Checkbox label="Required" />
       </>
     )
@@ -56,7 +59,76 @@ describe("@app/components/ui", () => {
     expect(screen.getByLabelText("Name").className).toContain("w-auto")
     expect(screen.getByLabelText("Mode")).toHaveAttribute("aria-invalid", "true")
     expect(screen.getByLabelText("Mode").className).toContain("w-full")
+    expect(screen.getByLabelText("Notes")).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByLabelText("Notes").className).toContain("min-h-[calc(var(--control-height-md)*2)]")
     expect(screen.getByLabelText("Required")).toHaveAttribute("type", "checkbox")
+  })
+
+  it("exports Form field primitives with label association and help/error descriptions", async () => {
+    render(
+      <Form.Field controlId="repo-name" error="Repository name is required">
+        <Form.Label required>Repository name</Form.Label>
+        <Form.Input />
+        <Form.HelpText>Use the short GitHub repository name.</Form.HelpText>
+        <Form.ErrorText />
+      </Form.Field>
+    )
+
+    const input = screen.getByRole("textbox", { name: "Repository name" }) as HTMLInputElement
+
+    expect(input.id).toBe("repo-name")
+    expect(input).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByText("*")).toHaveAttribute("aria-hidden", "true")
+    expect(await screen.findByText("Use the short GitHub repository name.")).toHaveAttribute("id", "repo-name-help")
+    expect(screen.getByRole("alert")).toHaveTextContent("Repository name is required")
+    expect(input).toHaveAttribute("aria-describedby", "repo-name-help repo-name-error")
+  })
+
+  it("keeps Form help-only fields described without marking controls invalid", async () => {
+    render(
+      <Form.Field controlId="job-prompt">
+        <Form.Label>Prompt</Form.Label>
+        <Form.Textarea rows={4} />
+        <Form.HelpText>Tell the agent what to change.</Form.HelpText>
+      </Form.Field>
+    )
+
+    const textarea = screen.getByLabelText("Prompt")
+    expect(textarea).not.toHaveAttribute("aria-invalid")
+    expect(await screen.findByText("Tell the agent what to change.")).toHaveAttribute("id", "job-prompt-help")
+    expect(textarea).toHaveAttribute("aria-describedby", "job-prompt-help")
+  })
+
+  it("applies Form disabled and layout variants to typed controls", () => {
+    render(
+      <>
+        <Form.Field controlId="auto-approve" disabled layout="inline">
+          <Form.Label>Auto approve</Form.Label>
+          <Form.Checkbox />
+        </Form.Field>
+        <Form.Field controlId="provider" invalid>
+          <Form.Label>Provider</Form.Label>
+          <Form.Select>
+            <option>Codex</option>
+          </Form.Select>
+        </Form.Field>
+        <Form.Field controlId="agentic-access" disabled>
+          <Form.Label>Agentic access</Form.Label>
+          <Form.Toggle checked={false} onChange={vi.fn()} />
+        </Form.Field>
+        <Form.Actions align="between" data-testid="form-actions">
+          <Button>Cancel</Button>
+          <Button>Save</Button>
+        </Form.Actions>
+      </>
+    )
+
+    const checkbox = screen.getByLabelText("Auto approve")
+    expect(checkbox).toBeDisabled()
+    expect(checkbox.closest("[data-disabled]")?.className).toContain("sm:grid-cols-[minmax(10rem,14rem)_minmax(0,1fr)]")
+    expect(screen.getByLabelText("Provider")).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getByRole("switch", { name: "Agentic access" })).toBeDisabled()
+    expect(screen.getByTestId("form-actions").className).toContain("justify-between")
   })
 
   it("preserves the controlled switch contract for Toggle", () => {

@@ -9,8 +9,10 @@
 | `Button` / `buttonClasses` | Native `<button>` with variants `primary`, `secondary`, `danger`, and `success`; sizes `sm`, `md`, and `icon`. Defaults to `type="button"` and keeps `buttonClasses` for links or other non-button elements that need matching styling. | Remains the command primitive; future semantic wrappers should compose it rather than duplicate button class strings. |
 | `Input` | Native `<input>` with `invalid` and `fullWidth`; `fullWidth` defaults to `true`. | Remains the control primitive used by future `Form.Field` contracts. |
 | `Select` | Native `<select>` with `invalid` and `fullWidth`; `fullWidth` defaults to `true`. | Remains the control primitive used by future `Form.Field` contracts. |
+| `Textarea` | Native `<textarea>` with `invalid` and `fullWidth`; `fullWidth` defaults to `true`. | Multiline control primitive used by `Form.Textarea`. |
 | `Checkbox` | Native checkbox input; optional `label` wraps the input in a label for implicit association. | Remains the boolean-control primitive. |
 | `Toggle` | Native `<button role="switch">` with controlled `checked` and `onChange`; optional `label`. | Remains the switch primitive. |
+| `Form` | Compound field primitives: `Field`, `Label`, `HelpText`, `ErrorText`, `Actions`, plus typed `Input`, `Select`, `Textarea`, `Checkbox`, and `Toggle` wrappers that inherit field IDs, disabled state, invalid state, and descriptions. | Use for settings, setup, modal, and plugin forms instead of local field helpers. |
 | `Modal` | Portal dialog with backdrop click, Escape handling, focus trap, focus restore, accessible `label`/`labelledBy`, and overrideable panel/backdrop classes. | Remains the dialog primitive; future modal shells should compose it. |
 | `Card` / `Skeleton` | Framed repeated item/preview primitives; `Card` supports `base` and `preview` variants plus `compact`. | `Card` stays for repeated cards/previews. Broader panels should migrate to future `Surface`/`Section` primitives. |
 | `StatusPill` / `TonePill` | `StatusPill` maps state strings to translated labels and state tones; `TonePill` renders the shared tone pill. `PILL_TONE_CLASSES` remains available for composite/link pills. | Likely wraps or aliases a future lower-level `Pill`, preserving the state mapping contract. |
@@ -58,6 +60,17 @@ DOC-27 primitives are intentionally boring React passthroughs:
     </Section.Body>
   </Section.Root>
 </Page.Root>
+```
+
+Forms should use the compound field API so labels, help text, errors, disabled state, and `aria-describedby` stay consistent:
+
+```tsx
+<Form.Field controlId="repository-name" error={errors.name}>
+  <Form.Label required>Repository name</Form.Label>
+  <Form.Input value={name} onChange={onNameChange} />
+  <Form.HelpText>Use the GitHub repository name, without the owner.</Form.HelpText>
+  <Form.ErrorText />
+</Form.Field>
 ```
 
 Existing imports from `@app/components/Button` or nearby relative paths remain supported while pages migrate incrementally. Do not redesign callers as part of an import-only migration.
