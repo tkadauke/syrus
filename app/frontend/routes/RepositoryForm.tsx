@@ -37,9 +37,8 @@ import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { Button } from "../components/Button"
-import { Input } from "../components/Input"
-import { Select } from "../components/Select"
 import { Checkbox as CheckboxPrimitive } from "../components/Checkbox"
+import { Form } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 
 type OwnerOption = {
@@ -244,6 +243,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
     setValues(next)
   }
 
+  const selectedAutoApproveMode = payload.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)
   const title = mode === "new"
     ? t('repository_form.heading_new')
     : t('repository_form.heading_edit', { slug: payload.repository.slug || `${payload.repository.owner}/${payload.repository.name}` })
@@ -275,7 +275,6 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             <Field label={t('repository_form.label_working_owner')}>
               {ownerMode === "select" && ownerOptions.length > 0 ? (
                 <SelectWithManual
-                  label={t('repository_form.label_working_owner')}
                   onManual={() => setOwnerMode("manual")}
                   onChange={chooseOwner}
                   value={values.owner}
@@ -286,8 +285,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                   {ownerOptions.map((owner) => <option key={owner.login} value={owner.login}>{owner.login}</option>)}
                 </SelectWithManual>
               ) : (
-                <Input
-                  aria-label={t('repository_form.label_working_owner')}
+                <Form.Input
                   className="font-mono"
                   onChange={(event) => {
                     setValues({ ...values, owner: event.target.value, github_owner_id: "", github_repository_id: "" })
@@ -303,7 +301,6 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             <Field label={t('repository_form.label_working_name')}>
               {repoMode === "select" && repoOptions.length > 0 ? (
                 <SelectWithManual
-                  label={t('repository_form.label_working_name')}
                   onManual={() => {
                     setRepoMode("manual")
                     setValues({ ...values, github_owner_id: "", github_repository_id: "" })
@@ -317,8 +314,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                   {repoOptions.map((repo) => <option key={repo.name} value={repo.name}>{repo.name}</option>)}
                 </SelectWithManual>
               ) : (
-                <Input
-                  aria-label={t('repository_form.label_working_name')}
+                <Form.Input
                   className="font-mono"
                   onChange={(event) => setValues({ ...values, name: event.target.value, github_owner_id: "", github_repository_id: "" })}
                   required
@@ -331,18 +327,16 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
           <Field label={t('repository_form.label_default_branch')}>
             {branchMode === "select" && branchOptions.length > 0 ? (
-              <Select
-                aria-label={t('repository_form.label_default_branch')}
+              <Form.Select
                 className="font-mono"
                 onChange={(event) => setValues({ ...values, default_branch: event.target.value })}
                 required
                 value={values.default_branch}
               >
                 {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
-              </Select>
+              </Form.Select>
             ) : (
-              <Input
-                aria-label={t('repository_form.label_default_branch')}
+              <Form.Input
                 className="font-mono"
                 onChange={(event) => setValues({ ...values, default_branch: event.target.value })}
                 required
@@ -353,17 +347,14 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </Field>
 
           <Field label={t('repository_form.label_trigger')}>
-            <Input
-              aria-label={t('repository_form.label_trigger')}
+            <Form.Input
               className="font-mono"
               onChange={(event) => setValues({ ...values, trigger_label: event.target.value })}
               required
               type="text"
               value={values.trigger_label}
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.trigger_hint')}
-            </p>
+            <Form.HelpText>{t('repository_form.trigger_hint')}</Form.HelpText>
           </Field>
         </section>
 
@@ -378,8 +369,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t('repository_form.label_upstream_owner')}>
-              <Input
-                aria-label={t('repository_form.label_upstream_owner')}
+              <Form.Input
                 className="font-mono"
                 onChange={(event) => updateUpstream("upstream_owner", event.target.value)}
                 type="text"
@@ -388,8 +378,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </Field>
 
             <Field label={t('repository_form.label_upstream_name')}>
-              <Input
-                aria-label={t('repository_form.label_upstream_name')}
+              <Form.Input
                 className="font-mono"
                 onChange={(event) => updateUpstream("upstream_name", event.target.value)}
                 type="text"
@@ -399,8 +388,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </div>
 
           <Field label={t('repository_form.label_upstream_branch')}>
-            <Input
-              aria-label={t('repository_form.label_upstream_branch')}
+            <Form.Input
               className="font-mono"
               onChange={(event) => updateUpstream("upstream_default_branch", event.target.value)}
               type="text"
@@ -414,8 +402,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             {t('repository_form.automation_section')}
           </SectionHeading>
           <Field label={t('repository_form.label_default_agent')}>
-            <Select
-              aria-label={t('repository_form.label_default_agent')}
+            <Form.Select
               onChange={(event) => setValues({ ...values, agent_provider: event.target.value })}
               value={values.agent_provider}
             >
@@ -425,23 +412,20 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               {payload.configured_agent_providers.map((provider) => (
                 <option key={provider.value} value={provider.value}>{provider.label}</option>
               ))}
-            </Select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.agent_hint')}
-            </p>
+            </Form.Select>
+            <Form.HelpText>{t('repository_form.agent_hint')}</Form.HelpText>
           </Field>
 
           <Field label={t('repository_form.label_auto_approve')}>
-            <Select
-              aria-label={t('repository_form.label_auto_approve')}
+            <Form.Select
               onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })}
               value={values.auto_approve_mode}
             >
               {payload.auto_approve_modes.map((modeOption) => (
                 <option key={modeOption.value} value={modeOption.value}>{modeOption.label}</option>
               ))}
-            </Select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{payload.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)?.preview}</p>
+            </Form.Select>
+            {selectedAutoApproveMode?.preview ? <Form.HelpText>{selectedAutoApproveMode.preview}</Form.HelpText> : null}
           </Field>
 
           <Checkbox label={t('repository_form.check_polling')} onChange={(checked) => setValues({ ...values, polling_enabled: checked })} value={values.polling_enabled} />
@@ -512,32 +496,26 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           <Checkbox label={t('repository_form.check_external_pr_ingestion')} onChange={(checked) => setValues({ ...values, external_pr_ingestion_enabled: checked })} value={values.external_pr_ingestion_enabled} />
 
           <Field label={t('repository_form.label_feedback_policy')}>
-            <Select
-              aria-label={t('repository_form.label_feedback_policy')}
+            <Form.Select
               onChange={(event) => setValues({ ...values, feedback_policy: event.target.value })}
               value={values.feedback_policy}
             >
               <option value="confirm">{t('repository_form.feedback_confirm')}</option>
               <option value="auto">{t('repository_form.feedback_auto')}</option>
-            </Select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.feedback_hint')}
-            </p>
+            </Form.Select>
+            <Form.HelpText>{t('repository_form.feedback_hint')}</Form.HelpText>
           </Field>
 
           <Field label={t('repository_form.label_review_policy')}>
-            <Select
-              aria-label={t('repository_form.label_review_policy')}
+            <Form.Select
               onChange={(event) => setValues({ ...values, review_policy: event.target.value as RepositoryReviewPolicy })}
               value={values.review_policy}
             >
               <option value="self">{t('repository_form.review_policy_self')}</option>
               <option value="two_person">{t('repository_form.review_policy_two_person')}</option>
               <option value="final_say">{t('repository_form.review_policy_final_say')}</option>
-            </Select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('repository_form.review_policy_hint')}
-            </p>
+            </Form.Select>
+            <Form.HelpText>{t('repository_form.review_policy_hint')}</Form.HelpText>
           </Field>
 
         </section>
@@ -659,18 +637,16 @@ function FinalApproversSection({ repositoryId }: { repositoryId: number }) {
       ) : null}
 
       <form className="flex flex-wrap items-end gap-3" onSubmit={submit}>
-        <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">
-          {t('repository_form.final_approvers_email_label')}
-          <div className="mt-1">
-            <Input
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder={t('repository_form.final_approvers_email_placeholder')}
-              required
-              type="email"
-              value={email}
-            />
-          </div>
-        </label>
+        <Form.Field className="w-64">
+          <Form.Label>{t('repository_form.final_approvers_email_label')}</Form.Label>
+          <Form.Input
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder={t('repository_form.final_approvers_email_placeholder')}
+            required
+            type="email"
+            value={email}
+          />
+        </Form.Field>
         <Button disabled={create.isPending} type="submit" variant="primary">
           {create.isPending ? t('repository_form.final_approvers_adding') : t('repository_form.final_approvers_add_btn')}
         </Button>
@@ -744,8 +720,7 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
         {config.enabled ? (
           <div className="space-y-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
             <Field label={t('repository_form.insight_scheduling_min_jobs')}>
-              <Input
-                aria-label={t('repository_form.insight_scheduling_min_jobs')}
+              <Form.Input
                 min={1}
                 onChange={(e) => { setConfig({ ...config, min_jobs_since_last_run: parseInt(e.target.value, 10) || 1 }); save.reset() }}
                 required
@@ -755,8 +730,7 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
             </Field>
 
             <Field label={t('repository_form.insight_scheduling_max_jobs')}>
-              <Input
-                aria-label={t('repository_form.insight_scheduling_max_jobs')}
+              <Form.Input
                 min={2}
                 onChange={(e) => { setConfig({ ...config, max_jobs_since_last_run: parseInt(e.target.value, 10) || 2 }); save.reset() }}
                 required
@@ -828,13 +802,11 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
 
 function SelectWithManual({
   children,
-  label,
   onChange,
   onManual,
   value
 }: {
   children: ReactNode
-  label: string
   onChange: (value: string) => void
   onManual: () => void
   value: string
@@ -842,9 +814,9 @@ function SelectWithManual({
   const { t } = useT("settings")
   return (
     <div>
-      <Select aria-label={label} className="font-mono" onChange={(event) => onChange(event.target.value)} value={value}>
+      <Form.Select className="font-mono" onChange={(event) => onChange(event.target.value)} value={value}>
         {children}
-      </Select>
+      </Form.Select>
       <button className="mt-1 text-xs text-gray-500 dark:text-gray-400 underline hover:no-underline" onClick={onManual} type="button">
         {t('repository_form.enter_manually')}
       </button>
@@ -1032,8 +1004,7 @@ function InputSourceField({
         ) : teamsError ? (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">{t("input_sources.team_error")}</p>
         ) : teams.length === 0 ? (
-          <Input
-            aria-label={field.label}
+          <Form.Input
             className="font-mono"
             onChange={(e) => onChange(e.target.value)}
             required={field.required}
@@ -1041,8 +1012,7 @@ function InputSourceField({
             value={value}
           />
         ) : (
-          <Select
-            aria-label={field.label}
+          <Form.Select
             className="cursor-pointer"
             onChange={(e) => onChange(e.target.value)}
             required={field.required}
@@ -1052,7 +1022,7 @@ function InputSourceField({
             {teams.map((team) => (
               <option key={team.id} value={team.id}>{team.name}</option>
             ))}
-          </Select>
+          </Form.Select>
         )}
       </Field>
     )
@@ -1060,8 +1030,7 @@ function InputSourceField({
 
   return (
     <Field label={field.label}>
-      <Input
-        aria-label={field.label}
+      <Form.Input
         autoComplete="off"
         className={field.type === "string" ? "font-mono" : undefined}
         onChange={(e) => onChange(e.target.value)}
@@ -1083,12 +1052,11 @@ function valuesFromSourceType(sourceType: InputSourceType) {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  const { t } = useT("settings")
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-2">{children}</div>
-    </label>
+    <Form.Field>
+      <Form.Label>{label}</Form.Label>
+      {children}
+    </Form.Field>
   )
 }
 
