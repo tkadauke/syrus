@@ -95,11 +95,14 @@ export function readJobNavigationContext(token: string | null | undefined): JobN
   }
 }
 
-export function jobNavigationHref(path: string, prefix: string, token: string | null, currentSearch = "") {
+export function jobNavigationHref(path: string, prefix: string, token: string | null, currentSearch = "", currentPathname = "") {
   const href = withRoutePrefix(path, prefix)
   const [pathname, existingSearch = ""] = href.split("?")
+  const targetPathname = currentJobDetailSubroute(currentPathname, prefix) === "source" && !pathname.endsWith("/source")
+    ? `${pathname}/source`
+    : pathname
   const search = jobNavigationSearch(token, existingSearch || currentSearch)
-  return `${pathname}${search}`
+  return `${targetPathname}${search}`
 }
 
 export function jobNavigationSearch(token: string | null, currentSearch = "") {
@@ -136,6 +139,11 @@ function epicNavigationItem(job: EpicNavigationSource): JobNavigationItem {
     repository: job.repository_slug ?? null,
     state: job.state ?? null
   }
+}
+
+function currentJobDetailSubroute(pathname: string, prefix: string) {
+  const unprefixed = prefix && pathname.startsWith(prefix) ? pathname.slice(prefix.length) : pathname
+  return /^\/jobs\/[^/]+\/source\/?$/.test(unprefixed) ? "source" : null
 }
 
 function boundedWindow(items: JobNavigationItem[], currentJobId: number) {

@@ -371,10 +371,10 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
       const key = event.key.toLowerCase()
       if (key === "n" && next) {
         event.preventDefault()
-        navigate(jobNavigationHref(next.path, prefix, activeContext.token, location.search))
+        navigate(jobNavigationHref(next.path, prefix, activeContext.token, location.search, location.pathname))
       } else if (key === "p" && previous) {
         event.preventDefault()
-        navigate(jobNavigationHref(previous.path, prefix, activeContext.token, location.search))
+        navigate(jobNavigationHref(previous.path, prefix, activeContext.token, location.search, location.pathname))
       }
     }
 
@@ -386,7 +386,7 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
   const activeContext = context
 
   function navigateTo(path: string) {
-    navigate(jobNavigationHref(path, prefix, activeContext.token, location.search))
+    navigate(jobNavigationHref(path, prefix, activeContext.token, location.search, location.pathname))
   }
 
   return (
