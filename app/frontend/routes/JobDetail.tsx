@@ -2,7 +2,7 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -45,6 +45,7 @@ import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
+import { jobNavigationHref, navigationIndex, readJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
@@ -121,6 +122,8 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   const title = payload.job.issue_title || jobSourceLabel(payload, t)
   const workflowAnchor = location.hash.startsWith("#workflow-") ? location.hash.slice(1) : null
   const renderedWorkflowIds = payload.workflows.map((workflow) => workflow.id).join(",")
+  const navigationToken = new URLSearchParams(location.search).get("job_nav")
+  const [navigationContext, setNavigationContext] = useState<JobNavigationContext | null>(() => readJobNavigationContext(navigationToken))
 
   const previewRunning = payload.preview?.state === "running"
 
@@ -194,6 +197,15 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   }, [payload.job.id, payload.message])
 
   useEffect(() => {
+    const context = readJobNavigationContext(navigationToken)
+    if (context && navigationIndex(context, payload.job.id) >= 0) {
+      setNavigationContext(context)
+    } else {
+      setNavigationContext(null)
+    }
+  }, [navigationToken, payload.job.id])
+
+  useEffect(() => {
     const attachment = jobWorkflowContextBugReportAttachment(payload)
     if (!attachment) return undefined
 
@@ -220,8 +232,11 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
           </PageHeading>
-          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
-            <div className="shrink-0"><JobStateBadge state={payload.job.summary_state} /></div>
+          <div className="mt-1.5 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <JobStateBadge state={payload.job.summary_state} />
+              <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
+            </div>
             <HeaderActions
               command={command}
               feedbackPanelOpen={feedbackPanelOpen}
@@ -334,6 +349,146 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       <PluginUiSlot panels={(payload.ui_tabs ?? []).filter((tab) => tab.key === activeTab)} props={{ job: payload.job }} />
     </>
   )
+}
+
+function JobNavigationControl({ context, currentJobId, prefix }: { context: JobNavigationContext | null; currentJobId: number; prefix: string }) {
+  const { t } = useT("jobs")
+  const location = useLocation()
+  const navigate = useNavigate()
+  const activeIndex = useMemo(() => context ? navigationIndex(context, currentJobId) : -1, [context, currentJobId])
+  const previous = context && activeIndex > 0 ? context.items[activeIndex - 1] : null
+  const next = context && activeIndex >= 0 && activeIndex < context.items.length - 1 ? context.items[activeIndex + 1] : null
+  const current = context && activeIndex >= 0 ? context.items[activeIndex] : null
+  const [jumpOpen, setJumpOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const currentOptionRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    if (!context || activeIndex < 0) return undefined
+    const activeContext = context
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+      if (navigationShortcutBlocked(event.target)) return
+
+      const key = event.key.toLowerCase()
+      if (key === "n" && next) {
+        event.preventDefault()
+        navigate(jobNavigationHref(next.path, prefix, activeContext.token, location.search, location.pathname))
+      } else if (key === "p" && previous) {
+        event.preventDefault()
+        navigate(jobNavigationHref(previous.path, prefix, activeContext.token, location.search, location.pathname))
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [activeIndex, context, location.search, navigate, next, prefix, previous])
+
+  useEffect(() => {
+    if (!jumpOpen) return undefined
+
+    function onPointerDown(event: PointerEvent) {
+      if (wrapperRef.current?.contains(event.target as Node)) return
+      setJumpOpen(false)
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setJumpOpen(false)
+    }
+
+    document.addEventListener("pointerdown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [jumpOpen])
+
+  useEffect(() => {
+    if (!jumpOpen) return
+
+    window.requestAnimationFrame(() => {
+      currentOptionRef.current?.scrollIntoView({ block: "center" })
+    })
+  }, [jumpOpen])
+
+  if (!context || activeIndex < 0 || !current) return null
+  const activeContext = context
+
+  function navigateTo(path: string) {
+    setJumpOpen(false)
+    navigate(jobNavigationHref(path, prefix, activeContext.token, location.search, location.pathname))
+  }
+
+  return (
+    <div className="relative hidden shrink-0 items-center gap-1 rounded border border-gray-200 bg-white p-1 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:inline-flex" aria-label={t("navigation_label")} ref={wrapperRef}>
+      <button
+        aria-label={t("navigation_previous")}
+        className="flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+        disabled={!previous}
+        onClick={() => previous ? navigateTo(previous.path) : undefined}
+        title={t("navigation_previous_shortcut")}
+        type="button"
+      >
+        <span aria-hidden="true">‹</span>
+      </button>
+      <button
+        aria-controls="job-navigation-jump-list"
+        aria-expanded={jumpOpen}
+        aria-haspopup="listbox"
+        aria-label={t("navigation_jump")}
+        className="flex h-7 min-w-0 max-w-[7.5rem] items-center gap-1 rounded px-2 text-left font-mono text-xs font-medium text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-200 dark:hover:bg-gray-800"
+        onClick={() => setJumpOpen((open) => !open)}
+        title={context.label}
+        type="button"
+      >
+        <span className="truncate">{current.slug}</span>
+        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">▾</span>
+      </button>
+      {jumpOpen ? (
+        <div className="absolute left-8 top-full z-30 mt-1 max-h-80 w-96 max-w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950" id="job-navigation-jump-list" role="listbox">
+          {context.items.map((item, index) => (
+            <button
+              aria-label={t("navigation_jump_option", { position: index + 1, slug: item.slug, title: item.title })}
+              aria-selected={item.id === currentJobId}
+              className={`block w-full px-3 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:hover:bg-gray-900 dark:focus:bg-gray-900 ${item.id === currentJobId ? "bg-brand/10 text-gray-950 dark:text-gray-50" : "text-gray-700 dark:text-gray-200"}`}
+              key={item.id}
+              onClick={() => navigateTo(item.path)}
+              ref={item.id === currentJobId ? currentOptionRef : undefined}
+              role="option"
+              type="button"
+            >
+              <span className="flex items-start gap-2">
+                <span className="shrink-0 font-mono text-xs font-semibold text-gray-500 dark:text-gray-400">{item.slug}</span>
+                <span className="min-w-0 flex-1 break-words leading-snug">{item.title}</span>
+                <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{index + 1}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <span className="whitespace-nowrap px-1 text-gray-400 dark:text-gray-500">{t("navigation_position", { current: activeIndex + 1, total: context.items.length })}</span>
+      <button
+        aria-label={t("navigation_next")}
+        className="flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+        disabled={!next}
+        onClick={() => next ? navigateTo(next.path) : undefined}
+        title={t("navigation_next_shortcut")}
+        type="button"
+      >
+        <span aria-hidden="true">›</span>
+      </button>
+    </div>
+  )
+}
+
+function navigationShortcutBlocked(target: EventTarget | null) {
+  if (document.querySelector("[role='dialog'], [aria-modal='true']")) return true
+  if (!(target instanceof Element)) return false
+  if (target.closest("input, textarea, select, [contenteditable='true'], [role='textbox'], [role='combobox'], [data-navigation-shortcuts='ignore']")) return true
+
+  return false
 }
 
 function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, pluginTabs, onSelect }: { active: JobTab; workflowsCount: number; attachmentsCount: number; artifactsCount: number; pluginTabs?: UiSlotPanel[]; onSelect: (tab: JobTab) => void }) {
