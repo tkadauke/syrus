@@ -1,13 +1,15 @@
 import type { ErdTable, SchemaErdPayload } from "@app/api/artifacts"
+import { useT } from "@app/hooks/useT"
 
 // Renders a Rails schema ERD as a set of table boxes with column lists
 // and a textual foreign-key summary below each table. One box per table,
 // stacked vertically; FK arrows are listed as text rather than SVG lines
 // to keep the implementation portable across rendering contexts.
 export function ErdDiagramRenderer({ payload }: { payload: SchemaErdPayload }) {
+  const { t } = useT("syrus_rails")
   const tables = Array.isArray(payload?.tables) ? payload.tables : []
   if (tables.length === 0) {
-    return <p className="text-sm text-gray-500 italic">No tables found in schema.</p>
+    return <p className="text-sm text-gray-500 italic">{t("erd_empty")}</p>
   }
 
   return (
@@ -20,6 +22,7 @@ export function ErdDiagramRenderer({ payload }: { payload: SchemaErdPayload }) {
 }
 
 function ErdTableBox({ table }: { table: ErdTable }) {
+  const { t } = useT("syrus_rails")
   const columns = Array.isArray(table.columns) ? table.columns : []
   const foreignKeys = Array.isArray(table.foreign_keys) ? table.foreign_keys : []
   const indexes = Array.isArray(table.indexes) ? table.indexes : []
@@ -39,7 +42,7 @@ function ErdTableBox({ table }: { table: ErdTable }) {
                 <td className="px-3 py-0.5 font-mono text-gray-800">
                   {col.name}
                   {isFkSource && (
-                    <span className="ml-1 text-brand" title="foreign key">
+                    <span className="ml-1 text-brand" title={t("foreign_key")}>
                       ↗
                     </span>
                   )}
@@ -67,7 +70,7 @@ function ErdTableBox({ table }: { table: ErdTable }) {
         <div className="border-t border-gray-100 px-3 py-1 text-xs text-gray-400">
           {indexes.map((idx, i) => {
             const indexColumns = Array.isArray(idx.columns) ? idx.columns : []
-            const indexLabel = indexColumns.length > 0 ? indexColumns.join(", ") : (idx.name ?? "unknown")
+            const indexLabel = indexColumns.length > 0 ? indexColumns.join(", ") : (idx.name ?? t("unknown"))
             return (
               <div key={idx.name ?? i}>
                 {idx.unique ? "unique " : ""}idx: {indexLabel}

@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "i18next"
 import { Badge, EmptyState, StatePill } from "@app/routes/chat/toolCardUi"
 import { FailureBadge, parseScheduledTask, type ScheduledTaskCard } from "../scheduledTaskToolCard"
 
@@ -19,26 +20,30 @@ function collapsedSummary(context: ToolCardContext) {
   const tasks = scheduledTasks(context)
   if (!tasks) return null
 
-  return `${tasks.length} scheduled task${tasks.length === 1 ? "" : "s"}`
+  return t("tool_list_summary", { count: tasks.length })
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`scheduled_tasks:${key}`, options)
 }
 
 function renderExpanded(context: ToolCardContext) {
   const tasks = scheduledTasks(context)
   if (!tasks) return null
 
-  if (tasks.length === 0) return <EmptyState>No scheduled tasks for this repository.</EmptyState>
+  if (tasks.length === 0) return <EmptyState>{t("tool_list_empty")}</EmptyState>
 
   return (
     <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Task</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Kind</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Cadence</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Next fire</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Health</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_task")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_state")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_kind")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_cadence")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_next_fire")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_health")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">

@@ -18,6 +18,9 @@
     "count_repos": "Repos",
     "count_epics": "Epics",
     "count_jobs": "Jobs",
-    "count_open": "Open"
+    "count_open": "Open",
+    "updated": "updated",
+    "not_started": "not started",
+    "load_error": "Unable to load profiles."
   }
 }

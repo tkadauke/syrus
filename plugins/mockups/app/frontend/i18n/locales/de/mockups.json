@@ -10,5 +10,11 @@
   "preview_unavailable": "Dieses Mockup konnte nicht angezeigt werden.",
   "preview_access_pending": "Vorschauzugriff wird vorbereitet…",
   "version": "Version",
-  "download": "Herunterladen"
+  "download": "Herunterladen",
+  "tool_panel_number": "Panel #{{id}}",
+  "tool_entry_file": "Einstiegsdatei",
+  "tool_files": "Dateien",
+  "tool_open_mockup": "Mockup öffnen",
+  "tool_path": "Pfad",
+  "tool_replacements": "Ersetzungen"
 }

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import i18n from "i18next"
 import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
@@ -43,7 +44,7 @@ export function parseScheduledTask(value: unknown): ScheduledTaskCard | null {
     displayValue(value.cron_expression) ||
     displayValue(value.schedule_input) ||
     displayValue(value.schedule_expression) ||
-    (fireAt ? `Once at ${fireAt}` : null)
+    (fireAt ? t("tool_once_at", { time: fireAt }) : null)
 
   return {
     id,
@@ -79,12 +80,16 @@ export function scheduledTaskHeadline(task: ScheduledTaskCard) {
   return `${task.label} (#${task.id}, ${task.state})`
 }
 
+export function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`scheduled_tasks:${key}`, options)
+}
+
 export function FailureBadge({ count }: { count: number }) {
   if (count <= 0) return null
 
   return (
     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-      {count} consecutive failure{count === 1 ? "" : "s"}
+      {t("tool_consecutive_failures", { count })}
     </span>
   )
 }
@@ -98,17 +103,17 @@ export function ScheduledTaskSummary({ task }: { task: ScheduledTaskCard }) {
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{task.id}</span>
         <StatePill state={task.state} />
         {task.kind ? <Badge>{task.kind.replace(/_/g, " ")}</Badge> : null}
-        {task.enabled === false ? <Badge>disabled</Badge> : null}
+        {task.enabled === false ? <Badge>{t("tool_disabled")}</Badge> : null}
         <FailureBadge count={task.consecutiveFailureCount} />
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{task.label}</div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        {task.cadence ? <Row label="Cadence" value={task.scheduleTimezone ? `${task.cadence} (${task.scheduleTimezone})` : task.cadence} /> : null}
-        {task.repositorySlug ? <Row label="Repository" value={task.repositorySlug} /> : null}
-        {nextFire ? <Row label="Next fire" value={nextFire} /> : null}
-        {task.lastFiredAt ? <Row label="Last fired" value={task.lastFiredAt} /> : null}
-        {task.lastSuccessfulFireAt ? <Row label="Last success" value={task.lastSuccessfulFireAt} /> : null}
-        {task.prPileupPolicy ? <Row label="PR pileup" value={task.prPileupPolicy} /> : null}
+        {task.cadence ? <Row label={t("tool_col_cadence")} value={task.scheduleTimezone ? `${task.cadence} (${task.scheduleTimezone})` : task.cadence} /> : null}
+        {task.repositorySlug ? <Row label={t("tool_repository")} value={task.repositorySlug} /> : null}
+        {nextFire ? <Row label={t("tool_col_next_fire")} value={nextFire} /> : null}
+        {task.lastFiredAt ? <Row label={t("tool_last_fired")} value={task.lastFiredAt} /> : null}
+        {task.lastSuccessfulFireAt ? <Row label={t("tool_last_success")} value={task.lastSuccessfulFireAt} /> : null}
+        {task.prPileupPolicy ? <Row label={t("tool_pr_pileup")} value={task.prPileupPolicy} /> : null}
       </dl>
     </>
   )
@@ -121,7 +126,7 @@ export function PromptDisclosure({ prompt }: { prompt: string }) {
   return (
     <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
       <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-        Prompt
+        {t("tool_prompt")}
       </summary>
       <div className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{prompt}</div>
     </details>

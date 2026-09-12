@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, StatePill } from "@app/routes/chat/toolCardUi"
-import { DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
+import { DesignDocHeader, parseDesignDocSummary, t, type DesignDocSummary } from "../designDocToolCard"
 
 // Plugin-owned tool card for comment_on_design_doc (the pending-action tool-card work).
 type CommentOnDesignDoc = {
@@ -27,7 +27,7 @@ function collapsedSummary(context: ToolCardContext) {
   const result = commentOnDesignDoc(context)
   if (!result) return null
 
-  return `Commented on ${result.summary.docRef}`
+  return t("tool_commented_on", { doc: result.summary.docRef })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -37,7 +37,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>Comment</Badge>
+        <Badge>{t("tool_comment")}</Badge>
         {result.threadState ? <StatePill state={result.threadState} /> : null}
       </div>
       <DesignDocHeader doc={result.summary} />

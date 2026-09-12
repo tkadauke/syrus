@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "i18next"
 import { CardShell, displayValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Plugin-owned tool card for fire_scheduled_task_now (the pending-action tool-card work).
@@ -31,7 +32,11 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseFireNow(context)
   if (!card) return null
 
-  return `Fire now requested (#${card.actionId}, ${card.state})`
+  return t("tool_fire_now_summary", { id: card.actionId, state: card.state })
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`scheduled_tasks:${key}`, options)
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -42,13 +47,13 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.state} />
-        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Immediate fire requested</span>
+        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{t("tool_fire_now_title")}</span>
       </div>
       {card.message ? <div className="text-gray-700 dark:text-gray-300">{card.message}</div> : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Pending action" value={`#${card.actionId}`} />
+        <Row label={t("tool_pending_action")} value={`#${card.actionId}`} />
       </dl>
-      <div className="text-gray-500 dark:text-gray-400">The task does not fire until the operator confirms.</div>
+      <div className="text-gray-500 dark:text-gray-400">{t("tool_fire_now_pending_confirmation")}</div>
     </CardShell>
   )
 }

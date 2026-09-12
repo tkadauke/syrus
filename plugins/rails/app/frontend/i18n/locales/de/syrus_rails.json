@@ -1,0 +1,11 @@
+{
+  "erd_empty": "Keine Tabellen im Schema gefunden.",
+  "foreign_key": "Fremdschlüssel",
+  "unknown": "unbekannt",
+  "migration_before": "Vorher",
+  "migration_after": "Nachher",
+  "migration_changes": "Änderungen",
+  "change_added": "hinzugefügt",
+  "change_removed": "entfernt",
+  "change_modified": "geändert"
+}

@@ -13,8 +13,9 @@ const terminalSessionsQueryKey = ["terminal_sessions"] as const
 const pickerSections: TerminalWorkspaceRecord["section"][] = ["interesting_workflows", "coding_chats", "workers"]
 
 export function TerminalRoute() {
-  const { t } = useT("common")
-  usePageTitle(t("page_title_terminal"))
+  const { t } = useT("terminal")
+  const { t: tCommon } = useT("common")
+  usePageTitle(tCommon("page_title_terminal"))
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -79,10 +80,10 @@ export function TerminalRoute() {
   }, [activeSessionId, sessions])
 
   return (
-    <main aria-label={t("terminal_aria")} className="flex h-screen flex-col overflow-hidden bg-gray-950 text-gray-100">
+    <main aria-label={tCommon("terminal_aria")} className="flex h-screen flex-col overflow-hidden bg-gray-950 text-gray-100">
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex shrink-0 items-center gap-2 border-b border-gray-800 bg-gray-900 px-3 py-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label={t("terminal.sessions")}>
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label={tCommon("terminal.sessions")}>
             {sessions.map((session) => (
               <div
                 className={`group inline-flex h-9 min-w-0 max-w-64 items-center gap-2 rounded border px-2 text-sm ${activeSession?.id === session.id ? "border-brand bg-brand text-on-brand" : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600 hover:bg-gray-800"}`}
@@ -101,7 +102,7 @@ export function TerminalRoute() {
                   {session.name}
                 </button>
                 <button
-                  aria-label={t("terminal.close_session", { name: session.name })}
+                  aria-label={tCommon("terminal.close_session", { name: session.name })}
                   className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-50"
                   disabled={killMutation.isPending}
                   onClick={() => killMutation.mutate(session.id)}
@@ -126,11 +127,11 @@ export function TerminalRoute() {
               <div className="absolute right-0 z-20 mt-2 w-96 overflow-hidden rounded border border-gray-700 bg-gray-900 shadow-xl" role="menu">
                 <div className="border-b border-gray-800 p-2">
                   <Input
-                    aria-label="Search workspaces"
+                    aria-label={t("search_workspaces")}
                     autoFocus
                     className="h-9 rounded border-gray-700 bg-gray-950 py-0 text-gray-100 placeholder:text-gray-500"
                     onChange={(event) => setWorkspaceSearch(event.target.value)}
-                    placeholder="Search workspaces, chats, workers"
+                    placeholder={t("search_workspaces_placeholder")}
                     type="search"
                     value={workspaceSearch}
                   />
@@ -159,7 +160,7 @@ export function TerminalRoute() {
                       ))}
                     </section>
                   )) : (
-                    <div className="px-3 py-8 text-center text-sm text-gray-400">No workspace matches</div>
+                    <div className="px-3 py-8 text-center text-sm text-gray-400">{t("no_workspace_matches")}</div>
                   )}
                 </div>
               </div>
@@ -168,13 +169,13 @@ export function TerminalRoute() {
         </div>
 
         {sessionsQuery.isPending ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-gray-400">{t("terminal.loading")}</div>
+          <div className="flex flex-1 items-center justify-center text-sm text-gray-400">{tCommon("terminal.loading")}</div>
         ) : sessionsQuery.isError ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-red-300">{t("terminal.load_error")}</div>
+          <div className="flex flex-1 items-center justify-center text-sm text-red-300">{tCommon("terminal.load_error")}</div>
         ) : activeSession ? (
           <TerminalPane key={activeSession.id} session={activeSession} />
         ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-gray-400">{t("terminal.empty")}</div>
+          <div className="flex flex-1 items-center justify-center text-sm text-gray-400">{tCommon("terminal.empty")}</div>
         )}
       </div>
     </main>

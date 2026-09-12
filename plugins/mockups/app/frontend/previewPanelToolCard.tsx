@@ -1,4 +1,5 @@
 import { isPlainObject } from "@app/pluginToolCards"
+import i18n from "i18next"
 import { Badge, CardShell, displayValue, InternalLink, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation for the mockups plugin's preview-panel chat tool cards
@@ -43,27 +44,31 @@ export function parsePreviewPanel(value: unknown): PreviewPanel | null {
 }
 
 export function previewPanelSummary(panel: PreviewPanel): string {
-  const label = panel.title || `Panel #${panel.panelId}`
+  const label = panel.title || t("tool_panel_number", { id: panel.panelId })
   return panel.state ? `${label} (${panel.state})` : label
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`mockups:${key}`, options)
 }
 
 export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">Panel #{panel.panelId}</span>
+        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{t("tool_panel_number", { id: panel.panelId })}</span>
         {panel.state ? <StatePill state={panel.state} /> : null}
         {panel.versionId ? <Badge>v{panel.versionId}</Badge> : null}
       </div>
       {panel.title ? <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{panel.title}</div> : null}
       {panel.entryFile || panel.fileCount != null ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {panel.entryFile ? <Row label="Entry file" value={panel.entryFile} /> : null}
-          {panel.fileCount != null ? <Row label="Files" value={String(panel.fileCount)} /> : null}
+          {panel.entryFile ? <Row label={t("tool_entry_file")} value={panel.entryFile} /> : null}
+          {panel.fileCount != null ? <Row label={t("tool_files")} value={String(panel.fileCount)} /> : null}
         </dl>
       ) : null}
       {panel.mockupSlug ? (
-        <InternalLink href={`/mockups/${panel.mockupSlug}`}>Open mockup</InternalLink>
+        <InternalLink href={`/mockups/${panel.mockupSlug}`}>{t("tool_open_mockup")}</InternalLink>
       ) : panel.url ? (
         <a
           className="block truncate font-mono text-xs text-brand hover:underline dark:text-brand-emphasis"
@@ -98,10 +103,10 @@ export function PreviewFileOpCard({ action, op }: { action: string; op: PreviewF
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{action}</Badge>
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">Panel #{op.panelId}</span>
+        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{t("tool_panel_number", { id: op.panelId })}</span>
       </div>
-      <Row label="Path" value={op.path} />
-      {op.replacements != null ? <Row label="Replacements" value={String(op.replacements)} /> : null}
+      <Row label={t("tool_path")} value={op.path} />
+      {op.replacements != null ? <Row label={t("tool_replacements")} value={String(op.replacements)} /> : null}
     </CardShell>
   )
 }

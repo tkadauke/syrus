@@ -17,6 +17,7 @@ module Throughput
           to: "api/v1/app/repository_throughput#show"
     route :get, "/api/v1/admin/throughput", to: "api/v1/admin/throughput#show"
 
-    frontend ui_slots: { "throughput/ThroughputPanel" => "app/frontend/ui_slots/ThroughputPanel.tsx" }
+    frontend ui_slots: { "throughput/ThroughputPanel" => "app/frontend/ui_slots/ThroughputPanel.tsx" },
+             i18n: [ "app/frontend/i18n/locales/*/throughput.json" ]
   end
 end

@@ -135,7 +135,7 @@ function MemoriesTable({ payload, onNotice, showDeleted }: { payload: MemoriesPa
             <th className="px-4 py-2">{t('col_content')}</th>
             <th className="px-4 py-2">{showDeleted ? t('col_deleted') : t('col_published')}</th>
             <th className="px-4 py-2">{t('col_created')}</th>
-            <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
+            <th className="px-4 py-2"><span className="sr-only">{t('col_actions')}</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">

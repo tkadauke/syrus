@@ -10,6 +10,7 @@ import {
   parseTestIdentityRef,
   ReasonBadges,
   RefLink,
+  t,
   TestIdentityLink,
   TestStatusPill,
   type TestIdentityRef
@@ -104,7 +105,7 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  return `${card.test.name} (${card.test.lastStatus ?? "unknown"})`
+  return `${card.test.name} (${card.test.lastStatus ?? t("unknown")})`
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -122,17 +123,17 @@ function renderExpanded(context: ToolCardContext) {
         <div className="text-gray-500 dark:text-gray-400">{[ card.test.suiteName, card.test.filePath ].filter(Boolean).join(" · ")}</div>
       ) : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Test ID" value={card.test.id} />
-        {card.test.fingerprint ? <Row label="Fingerprint" value={card.test.fingerprint.slice(0, 12)} /> : null}
-        <Row label="Failure rate" value={formatFailureRate(card.test.failureRate)} />
-        <Row label="Avg duration" value={formatMs(card.test.avgDurationMs)} />
+        <Row label={t("tool_test_id")} value={card.test.id} />
+        {card.test.fingerprint ? <Row label={t("tool_fingerprint")} value={card.test.fingerprint.slice(0, 12)} /> : null}
+        <Row label={t("tool_col_failure_rate")} value={formatFailureRate(card.test.failureRate)} />
+        <Row label={t("tool_avg_duration")} value={formatMs(card.test.avgDurationMs)} />
         {card.test.recentTotalCount != null ? (
-          <Row label="Recent record" value={`${card.test.recentFailedCount ?? 0} failed / ${card.test.recentPassedCount ?? 0} passed of ${card.test.recentTotalCount}`} />
+          <Row label={t("tool_recent_record")} value={t("tool_recent_record_value", { failed: card.test.recentFailedCount ?? 0, passed: card.test.recentPassedCount ?? 0, total: card.test.recentTotalCount })} />
         ) : null}
       </dl>
       {card.history.length > 0 ? (
         <div>
-          <SectionLabel>Recent executions{card.historyLimit != null ? ` (up to ${card.historyLimit})` : ""}</SectionLabel>
+          <SectionLabel>{t("tool_recent_executions")}{card.historyLimit != null ? t("tool_recent_executions_limit", { count: card.historyLimit }) : ""}</SectionLabel>
           <ul className="mt-1 space-y-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950">
             {card.history.map((entry) => (
               <li className="border-b border-gray-100 pb-2 last:border-0 last:pb-0 dark:border-gray-800" key={entry.key}>
