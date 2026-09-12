@@ -226,8 +226,23 @@ RSpec.describe "App API target graph inspection", type: :request do
             "target_label" => "//:grade/tests",
             "reason" => "latest target health record passed",
             "target_health_record_id" => 123,
-            "commit_sha" => "abc1234"
+            "commit_sha" => "abc1234",
+            "target_health_record_refs" => [
+              {
+                "target_health_record_id" => 123,
+                "target_label" => "//:grade/tests",
+                "status" => "passed",
+                "commit_sha" => "abc1234"
+              }
+            ]
           }
+        ]
+      )
+      workflow.set_artifact!(
+        "visual_review_preview_projects",
+        [
+          { "id" => "web", "label" => "Web", "path" => "app/frontend" },
+          { "id" => "admin", "label" => "Admin", "path" => "app/admin" }
         ]
       )
 
@@ -243,8 +258,50 @@ RSpec.describe "App API target graph inspection", type: :request do
             "state" => "cached",
             "reason" => "latest target health record passed",
             "target_health_record_id" => 123,
+            "target_health_record_refs" => [
+              include(
+                "target_health_record_id" => 123,
+                "target_label" => "//:grade/tests",
+                "status" => "passed"
+              )
+            ],
             "target_fingerprints" => { "input_fingerprint" => "input" }
           )
+        )
+      )
+      expect(body["explanations"]).to include(
+        "projects" => [
+          include(
+            "id" => "repo",
+            "selected_target_count" => 1,
+            "cached_target_count" => 1
+          )
+        ],
+        "selected_targets" => [
+          include(
+            "target_label" => "//:grade/tests",
+            "state" => "selected",
+            "reason" => "own source scope matched a changed file"
+          )
+        ],
+        "cached_targets" => [
+          include(
+            "target_label" => "//:grade/tests",
+            "state" => "cached",
+            "target_health_record_refs" => [
+              include("target_health_record_id" => 123, "status" => "passed")
+            ]
+          )
+        ]
+      )
+      expect(body.dig("explanations", "ambiguous")).to include(
+        include(
+          "kind" => "visual_review_preview_project",
+          "status" => "ambiguous",
+          "choices" => [
+            include("id" => "web", "label" => "Web"),
+            include("id" => "admin", "label" => "Admin")
+          ]
         )
       )
     end

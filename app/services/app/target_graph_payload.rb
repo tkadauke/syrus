@@ -51,6 +51,7 @@ module App
         edges: [],
         page: page_json(params, 0),
         health: { targets: {}, summary: empty_health_summary },
+        explanations: { projects: [], selected_targets: [], skipped_targets: [], cached_targets: [], ambiguous: [] },
         workflow: workflow && workflow_json(workflow),
         diagnostics: nil,
         error: error.message
@@ -142,6 +143,7 @@ module App
         filter: filter_tree,
         filter_schema: filter_schema,
         health: health_json(page_health_by_label),
+        explanations: explanations_json,
         workflow: workflow && self.class.workflow_json(workflow),
         diagnostics: diagnostics&.to_h,
         error: diagnostics&.error
@@ -248,6 +250,7 @@ module App
           metadata: target.metadata
         }.compact,
         owner_config_path: target.owner_config_path,
+        project: project_json_for(target.project_id),
         selection: overlay.presence,
         health: health_json_for(health)
       }.compact
@@ -280,6 +283,7 @@ module App
       return nil unless record
 
       {
+        target_health_record_id: record.id,
         status: record.status,
         project_id: record.project_id,
         commit_sha: record.commit_sha,
@@ -293,6 +297,153 @@ module App
         log_bytes: record.log_bytes,
         artifacts: record.artifacts.presence,
         metadata: record.metadata.presence
+      }.compact
+    end
+
+    def explanations_json
+      {
+        projects: project_explanations,
+        selected_targets: target_selection_explanations.select { |entry| entry[:state] == "selected" },
+        skipped_targets: target_selection_explanations.select { |entry| entry[:state] == "skipped" },
+        cached_targets: cached_target_explanations,
+        ambiguous: ambiguity_explanations
+      }
+    end
+
+    def project_explanations
+      project_ids = selected_project_ids | cached_project_ids
+      project_ids.sort.filter_map do |project_id|
+        project = graph.project(project_id)
+        next unless project
+
+        selected_count = selection_entries.count { |entry| entry["affected"] && project_id_for_label(entry["target_label"]) == project_id }
+        skipped_count = selection_entries.count { |entry| !entry["affected"] && project_id_for_label(entry["target_label"]) == project_id }
+        cached_count = health_skip_entries.count { |entry| project_id_for_label(entry["target_label"]) == project_id }
+
+        {
+          id: project.id,
+          label: project.label,
+          path: project.path,
+          owner_config_path: project.owner_config_path,
+          selected_target_count: selected_count,
+          skipped_target_count: skipped_count,
+          cached_target_count: cached_count
+        }.compact
+      end
+    end
+
+    def target_selection_explanations
+      selection_entries.map do |entry|
+        target = graph.target(entry["target_label"])
+        project = target && graph.project(target.project_id)
+        {
+          state: entry["affected"] ? "selected" : "skipped",
+          target_label: entry["target_label"],
+          name: entry["name"],
+          required: entry["required"],
+          reason: entry["reason"],
+          project_id: target&.project_id,
+          project_label: project&.label,
+          target_fingerprints: entry["target_fingerprints"]
+        }.compact
+      end
+    end
+
+    def cached_target_explanations
+      health_skip_entries.map do |entry|
+        target = graph.target(entry["target_label"])
+        project = target && graph.project(target.project_id)
+        {
+          state: "cached",
+          target_label: entry["target_label"],
+          name: entry["name"],
+          required: entry["required"],
+          reason: entry["reason"],
+          project_id: target&.project_id,
+          project_label: project&.label,
+          target_health_record_id: entry["target_health_record_id"],
+          commit_sha: entry["commit_sha"],
+          checked_at: entry["checked_at"],
+          target_health_record_refs: entry["target_health_record_refs"]
+        }.compact
+      end
+    end
+
+    def ambiguity_explanations
+      [ preview_project_explanation, visual_review_preview_project_explanation ].compact
+    end
+
+    def preview_project_explanation
+      return nil unless workflow&.job
+
+      selection = App::PreviewProjects.for_job(workflow.job)
+      choices = selection.to_a
+      return nil if choices.blank? && selection.unavailable_reason.blank?
+
+      {
+        kind: "preview_project",
+        status: choices.many? ? "ambiguous" : (choices.any? ? "available" : "unavailable"),
+        reason: preview_unavailable_message(selection.unavailable_reason),
+        choices: choices
+      }.compact
+    rescue StandardError => e
+      {
+        kind: "preview_project",
+        status: "unavailable",
+        reason: "Could not resolve preview projects: #{e.message}"
+      }
+    end
+
+    def visual_review_preview_project_explanation
+      choices = Array(workflow&.artifact("visual_review_preview_projects"))
+      reason = workflow&.artifact("visual_review_preview_projects_unavailable_reason").to_s.presence
+      return nil if choices.blank? && reason.blank?
+
+      {
+        kind: "visual_review_preview_project",
+        status: choices.many? ? "ambiguous" : (choices.any? ? "available" : "unavailable"),
+        reason: visual_review_unavailable_message(reason),
+        choices: choices
+      }.compact
+    end
+
+    def preview_unavailable_message(reason)
+      {
+        "no_preview_configured" => "No preview is configured for this repository.",
+        "no_affected_preview_project" => "No affected project has a preview configured."
+      }[reason.to_s]
+    end
+
+    def visual_review_unavailable_message(reason)
+      {
+        "no_preview_configured" => "No preview is configured for this repository.",
+        "no_affected_preview_project" => "No affected project has a preview configured.",
+        "no_affected_visual_review_project" => "No affected preview project has visual_review enabled.",
+        "visual_review_project_resolution_failed" => "Could not resolve affected preview projects for visual review."
+      }[reason.to_s]
+    end
+
+    def selected_project_ids
+      selection_entries.filter_map { |entry| project_id_for_label(entry["target_label"]) }
+    end
+
+    def cached_project_ids
+      health_skip_entries.filter_map { |entry| project_id_for_label(entry["target_label"]) }
+    end
+
+    def project_id_for_label(label)
+      graph.target(label)&.project_id
+    end
+
+    def project_json_for(project_id)
+      project = graph.project(project_id)
+      return nil unless project
+
+      {
+        id: project.id,
+        label: project.label,
+        path: project.path,
+        owner_config_path: project.owner_config_path
       }.compact
     end
 

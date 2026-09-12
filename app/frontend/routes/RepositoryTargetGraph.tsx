@@ -2,11 +2,13 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { useQuery } from "@tanstack/react-query"
 import { useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { fetchJobTargetGraph, fetchRepositoryTargetGraph, type TargetGraphEdge, type TargetGraphPayload, type TargetGraphQuery, type TargetGraphTarget } from "../api/targetGraphs"
+import { fetchJobTargetGraph, fetchRepositoryTargetGraph, type TargetGraphEdge, type TargetGraphPayload, type TargetGraphQuery, type TargetGraphTarget, type TargetGraphTargetExplanation } from "../api/targetGraphs"
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
 import { Input } from "../components/Input"
+import { Button } from "../components/Button"
+import { Select } from "../components/Select"
 import { FilterBar } from "../components/FilterBar"
 import { TonePill, type PillTone } from "../components/StatusPill"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
@@ -168,6 +170,7 @@ export function TargetGraphExplorer({
         onUpdate={updateQuery}
       />
       <TargetGraphStats payload={payload} query={query} />
+      <TargetGraphExplanations payload={payload} />
       {payload.targets.length === 0 ? (
         <PanelMessage>
           No target graph nodes match this view.
@@ -198,6 +201,117 @@ export function TargetGraphExplorer({
   )
 }
 
+function TargetGraphExplanations({ payload }: { payload: TargetGraphPayload }) {
+  const explanations = payload.explanations
+  const projects = explanations?.projects ?? []
+  const selected = explanations?.selected_targets ?? []
+  const skipped = explanations?.skipped_targets ?? []
+  const cached = explanations?.cached_targets ?? []
+  const ambiguous = explanations?.ambiguous ?? []
+  const hasExplanations = projects.length > 0 || selected.length > 0 || skipped.length > 0 || cached.length > 0 || ambiguous.length > 0
+  if (!hasExplanations) return null
+
+  return (
+    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SectionHeading>Selection Explanations</SectionHeading>
+        {payload.workflow ? <span className="text-xs text-gray-500 dark:text-gray-400">Runtime decisions from {payload.workflow.slug}</span> : null}
+      </div>
+      <div className="mt-3 grid gap-4 xl:grid-cols-2">
+        {projects.length > 0 ? (
+          <ExplanationGroup title="Affected Projects">
+            {projects.map((project) => (
+              <li className="rounded border border-gray-200 p-3 dark:border-gray-700" key={project.id}>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="font-medium text-gray-950 dark:text-gray-100">{project.label || project.id}</span>
+                  <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{project.id}</span>
+                </div>
+                {project.path ? <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{project.path}</div> : null}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <TonePill tone="blue">selected {project.selected_target_count ?? 0}</TonePill>
+                  <TonePill tone="amber">skipped {project.skipped_target_count ?? 0}</TonePill>
+                  <TonePill tone="green">cached {project.cached_target_count ?? 0}</TonePill>
+                </div>
+              </li>
+            ))}
+          </ExplanationGroup>
+        ) : null}
+        {selected.length > 0 ? <TargetExplanationGroup entries={selected} title="Executable Targets Selected" tone="blue" /> : null}
+        {skipped.length > 0 ? <TargetExplanationGroup entries={skipped} title="Skipped Targets" tone="amber" /> : null}
+        {cached.length > 0 ? <TargetExplanationGroup entries={cached} title="Cached Targets" tone="green" /> : null}
+        {ambiguous.length > 0 ? (
+          <ExplanationGroup title="Preview And Project Choices">
+            {ambiguous.map((entry) => (
+              <li className="rounded border border-gray-200 p-3 dark:border-gray-700" key={entry.kind}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <TonePill tone={entry.status === "ambiguous" ? "amber" : entry.status === "unavailable" ? "red" : "blue"}>{entry.status}</TonePill>
+                  <span className="font-medium text-gray-950 dark:text-gray-100">{ambiguityLabel(entry.kind)}</span>
+                </div>
+                {entry.reason ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{entry.reason}</div> : null}
+                {entry.choices && entry.choices.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {entry.choices.map((choice) => (
+                      <span className="rounded border border-gray-200 px-2 py-1 text-xs dark:border-gray-700" key={choice.id}>
+                        <span className="font-medium">{choice.label || choice.id}</span>
+                        {choice.path ? <span className="ml-1 font-mono text-gray-500 dark:text-gray-400">{choice.path}</span> : null}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ExplanationGroup>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+function ExplanationGroup({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <div>
+      <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{title}</div>
+      <ul className="mt-2 space-y-2">{children}</ul>
+    </div>
+  )
+}
+
+function TargetExplanationGroup({ entries, title, tone }: { entries: TargetGraphTargetExplanation[]; title: string; tone: PillTone }) {
+  return (
+    <ExplanationGroup title={title}>
+      {(entries ?? []).map((entry) => (
+        <li className="rounded border border-gray-200 p-3 dark:border-gray-700" key={`${entry.state}-${entry.target_label}`}>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <TonePill tone={tone}>{entry.state}</TonePill>
+            <span className="font-mono text-xs font-semibold text-gray-950 dark:text-gray-100">{entry.target_label}</span>
+            {entry.required ? <TonePill tone="red">required</TonePill> : null}
+          </div>
+          {entry.project_label ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Project {entry.project_label}</div> : null}
+          {entry.reason ? <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">{entry.reason}</div> : null}
+          <TargetHealthRefs entry={entry} />
+        </li>
+      ))}
+    </ExplanationGroup>
+  )
+}
+
+function TargetHealthRefs({ entry }: { entry: TargetGraphTargetExplanation }) {
+  const refs = entry.target_health_record_refs ?? []
+  if (refs.length === 0 && !entry.target_health_record_id) return null
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+      {entry.target_health_record_id ? <span className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300">THR-{entry.target_health_record_id}</span> : null}
+      {entry.commit_sha ? <span className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300">{entry.commit_sha.slice(0, 7)}</span> : null}
+      {refs.map((ref, index) => (
+        <span className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300" key={`${ref.target_health_record_id}-${index}`}>
+          THR-{ref.target_health_record_id ?? "?"}{ref.status ? ` ${ref.status}` : ""}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function TargetGraphToolbar({
   draft,
   overlaysAvailable,
@@ -223,7 +337,7 @@ function TargetGraphToolbar({
             placeholder="//app:target or app/**/*.rb"
             value={draft}
           />
-          <button className="rounded bg-brand px-3 py-2 text-sm font-medium text-on-brand hover:opacity-90" type="submit">{query.mode === "window" ? "Search" : "Focus"}</button>
+          <Button type="submit">{query.mode === "window" ? "Search" : "Focus"}</Button>
         </form>
         <SelectControl label="Depth" value={String(query.depth ?? 1)} onChange={(value) => onUpdate({ depth: Number(value), offset: 0 })}>
           {[0, 1, 2, 3, 4].map((depth) => <option key={depth} value={depth}>{depth}</option>)}
@@ -240,29 +354,31 @@ function TargetGraphToolbar({
             const needsOverlay = state !== "failing"
             const disabled = needsOverlay && !overlaysAvailable
             return (
-          <button
-            className={`rounded border px-3 py-1.5 text-xs font-medium ${query.focusState === state ? "border-brand bg-brand text-on-brand" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+          <Button
             disabled={disabled}
             key={state}
             onClick={() => {
               onDraftChange("")
               onUpdate({ mode: "neighborhood", focusLabel: undefined, focusState: state, search: undefined, q: undefined, offset: 0 })
             }}
+            size="sm"
             title={disabled ? "Available on Job and Workflow target graphs after fanout records runtime selections." : undefined}
             type="button"
+            variant={query.focusState === state ? "primary" : "secondary"}
           >
             {stateLabel(state)}
-          </button>
+          </Button>
             )
           })()
         ))}
-        <button
-          className={`rounded border px-3 py-1.5 text-xs font-medium ${query.mode === "window" ? "border-brand bg-brand text-on-brand" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+        <Button
           onClick={() => onUpdate({ mode: "window", focusLabel: undefined, focusState: undefined, offset: 0 })}
+          size="sm"
           type="button"
+          variant={query.mode === "window" ? "primary" : "secondary"}
         >
           Browse
-        </button>
+        </Button>
       </div>
     </section>
   )
@@ -272,13 +388,13 @@ function SelectControl({ children, label, value, onChange }: { children: ReactNo
   return (
     <label className="block min-w-0 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
       <span>{label}</span>
-      <select
-        className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm normal-case text-gray-900 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+      <Select
+        className="mt-1 normal-case"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
         {children}
-      </select>
+      </Select>
     </label>
   )
 }
@@ -386,11 +502,13 @@ function TargetGraphNode({ row, visibleLabels, onFocus }: { row: TargetGraphRow;
             {target.health?.status ? <TonePill tone={healthTone(target.health.status)}>{target.health.status}</TonePill> : null}
           </div>
           {target.executable_metadata?.command ? <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400">{target.executable_metadata.command}</div> : null}
+          {target.project ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Project {target.project.label || target.project.id}</div> : null}
           {target.selection?.reason ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{target.selection.reason}</div> : null}
+          {target.selection?.target_health_record_id ? <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">Target health THR-{target.selection.target_health_record_id}</div> : null}
         </div>
-        <button className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-900" onClick={() => onFocus(target.label)} type="button">
+        <Button className="shrink-0" onClick={() => onFocus(target.label)} size="sm" type="button" variant="secondary">
           Expand
-        </button>
+        </Button>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <EdgeList empty="No dependencies" labels={row.dependencies} title="Dependencies" visibleLabels={visibleLabels} onFocus={onFocus} />
@@ -407,15 +525,17 @@ function EdgeList({ empty, labels, title, visibleLabels, onFocus }: { empty: str
       <div className="mt-1 flex min-h-7 flex-wrap gap-1.5">
         {labels.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">{empty}</span> : null}
         {labels.slice(0, 10).map((label) => (
-          <button
-            className={`max-w-full truncate rounded border px-2 py-1 font-mono text-xs ${visibleLabels.has(label) ? "border-gray-300 bg-white text-gray-700 hover:border-brand hover:text-brand dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300" : "border-dashed border-gray-300 text-gray-500 hover:border-brand dark:border-gray-700 dark:text-gray-500"}`}
+          <Button
+            className={`max-w-full truncate font-mono ${visibleLabels.has(label) ? "" : "border-dashed text-text-secondary"}`}
             key={label}
             onClick={() => onFocus(label)}
+            size="sm"
             title={label}
             type="button"
+            variant="secondary"
           >
             {label}
-          </button>
+          </Button>
         ))}
         {labels.length > 10 ? <span className="text-xs text-gray-500 dark:text-gray-400">+{labels.length - 10}</span> : null}
       </div>
@@ -485,4 +605,10 @@ function selectionTone(state: string): PillTone {
   if (state === "cached") return "green"
   if (state === "skipped") return "amber"
   return "gray"
+}
+
+function ambiguityLabel(kind: string) {
+  if (kind === "visual_review_preview_project") return "Visual review preview project"
+  if (kind === "preview_project") return "Preview project"
+  return kind.replace(/_/g, " ")
 }
