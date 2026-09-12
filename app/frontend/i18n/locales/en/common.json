@@ -24,6 +24,9 @@
     "title": "Comment",
     "close": "Close comment form",
     "comment": "Comment",
+    "edit": "Edit",
+    "delete": "Delete",
+    "edit_comment_aria": "Edit comment {{id}}",
     "create_comment": "Create comment",
     "create_error": "Unable to create diff comment."
   },

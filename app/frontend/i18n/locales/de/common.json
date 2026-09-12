@@ -24,6 +24,9 @@
     "title": "Kommentar",
     "close": "Kommentarformular schließen",
     "comment": "Kommentar",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "edit_comment_aria": "Kommentar {{id}} bearbeiten",
     "create_comment": "Kommentar erstellen",
     "create_error": "Diff-Kommentar konnte nicht erstellt werden."
   },
