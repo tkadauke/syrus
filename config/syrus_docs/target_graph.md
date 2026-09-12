@@ -539,6 +539,48 @@ timestamps, command results, and output tail. A failed command returns an MCP
 error response and leaves the failed audit entry in place; it does not change
 which prepare commands Syrus will run automatically on future workflows.
 
+## Inspection API
+
+The app API exposes the compiled graph for operator UIs and debugging tools:
+
+- `GET /api/v1/app/repositories/:id/target_graph` compiles the repository's
+  default branch from the authenticated bare clone.
+- `GET /api/v1/app/jobs/:job_id/target_graph` reads the Job's latest Workflow,
+  or a specific Workflow when `workflow_id` is provided.
+- `GET /api/v1/app/workflows/:workflow_id/target_graph` reads that Workflow
+  directly.
+
+All three endpoints use the normal app API authentication and repository/Job
+visibility rules. They accept `limit` and `offset` for target windowing
+(`limit` defaults to 500 and is capped at 2,000), plus optional `project_id`,
+`kind`, and `q` filters. The response includes the repository, source scope
+(`repository` or `workflow`), compiled projects, the current target window,
+dependency edges for the returned targets, compiler diagnostics, and any
+compile error.
+
+Each target entry includes `label`, `kind`, `project_id`, `source_scope`,
+dependency labels, owning config path, an `executable` boolean, and
+`executable_metadata` (`command`, phases, requiredness, timeout, and raw target
+metadata when present). `edges` are directional dependency edges:
+`from` is the dependency label and `to` is the dependent target label.
+`in_window` tells graph renderers whether the dependency target is also present
+in the current target page.
+
+Workflow-scoped responses add a `workflow` object and attach selection overlays
+when the Workflow recorded them. The `selection` object can report `selected`,
+`skipped`, or `cached`, with the fanout/cache reason, grader name,
+requiredness, fingerprints, and target-health record references when available.
+These overlays come from workflow artifacts such as
+`grader_target_selections` and `target_health_skipped_targets`; absent artifacts
+mean the graph still returns, just without runtime selection annotations.
+
+Health detail is intentionally page-scoped so large graphs remain bounded.
+`health.targets` contains latest `TargetHealthRecord` details only for targets
+in the current target window, and `health.summary` counts statuses only across
+that same window. Clients that need more target health should request the next
+target page instead of expecting an unbounded repository-wide health map in one
+response.
+
 ### Explicit `builder` targets
 
 `TargetGraph::Target::KINDS` already lists `builder` alongside
