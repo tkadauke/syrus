@@ -125,7 +125,7 @@ RSpec.describe Skills::AddCiWorkflow do
 
         instructions = instructions_for
 
-        expect(instructions).to include("rspec (`bin/rspec`, source: auto-detected (grade signals))")
+        expect(instructions).to include("rspec (`type: rspec`, source: auto-detected (grade signals))")
         expect(instructions).to include("rubocop (`bundle exec rubocop`, source: auto-detected (grade signals))")
       end
     end

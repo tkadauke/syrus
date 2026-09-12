@@ -12,6 +12,7 @@ RSpec.describe GraderConclusionCache do
       when_files_changed: when_files_changed,
       junit_output: nil,
       failures: "strict",
+      base_retry: nil,
       deps: [],
       metadata: {}
     )

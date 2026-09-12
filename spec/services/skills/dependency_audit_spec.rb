@@ -155,7 +155,7 @@ RSpec.describe Skills::DependencyAudit do
 
       instructions = instructions_for
 
-      expect(instructions).to include("rspec (`bin/rspec`, evidence: spec/)")
+      expect(instructions).to include("rspec (`type: rspec`, evidence: spec/)")
     end
 
     it "still includes the full detection reference table alongside the concrete scan results" do
