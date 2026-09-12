@@ -25,6 +25,7 @@ module DesignDocs
     def self.rebuild_search_table(name) = backfill_search_table(name)
 
     def self.search_type = "design_doc"
+    def self.search_type_label = "Design Docs"
     def self.filter_subject = DesignDocs::SmartFolders::SUBJECT
     def self.row_id_key = :design_doc_id
 
@@ -41,7 +42,7 @@ module DesignDocs
     def self.result_json(row:, user:)
       design_doc = DesignDocs::DesignDoc
         .visible_to(user)
-        .includes(:owner_user, :repositories)
+        .includes(:owner_user, :current_version, :repositories)
         .find_by(id: row.fetch(:design_doc_id).to_i)
       return nil unless design_doc
 
@@ -58,12 +59,24 @@ module DesignDocs
         repository_slug: repository&.slug,
         created_at: design_doc.created_at&.iso8601,
         updated_at: design_doc.updated_at&.iso8601,
-        visibility: design_doc.visibility
+        visibility: design_doc.visibility,
+        owner: user_json(design_doc.owner_user),
+        current_version_number: design_doc.current_version&.version_number
       }
     end
 
     def self.enabled?
       Syrus::PluginRegistry.providers_for("global_search:source").include?(self)
+    end
+
+    def self.user_json(user)
+      return nil unless user
+
+      {
+        id: user.id,
+        name: user.display_name,
+        email_address: user.email_address
+      }
     end
   end
 end

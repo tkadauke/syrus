@@ -81,4 +81,33 @@ RSpec.describe DesignDocs::SearchSource, type: :service do
     DesignDocs::Callbacks.on_enable
     expect(calls).to eq([])
   end
+
+  it "lets global_search re-enable catch up Design Docs changes" do
+    PluginRecord.find_or_create_by!(name: "global_search").update!(enabled: false, disableable: true)
+    SearchRecord.connection.execute("DELETE FROM design_doc_fts")
+    owner = Factories.user
+    doc = DesignDocs::DesignDoc.create!(owner_user: owner, title: "Offline runtime", markdown: "catchup runtime")
+
+    expect(DesignDocs::SearchIndex.search("catchup", user: owner)).to eq([])
+
+    PluginRecord.find_or_create_by!(name: "global_search").update!(enabled: true, disableable: true)
+    GlobalSearch::Callbacks.on_enable
+
+    expect(DesignDocs::SearchIndex.search("catchup", user: owner)).to include(include(design_doc_id: doc.id))
+  end
+
+  it "lets design_docs re-enable rebuild from current source of truth" do
+    owner = Factories.user
+    stale_doc = DesignDocs::DesignDoc.create!(owner_user: owner, title: "Stale runtime", markdown: "stale runtime")
+    fresh_doc = DesignDocs::DesignDoc.create!(owner_user: owner, title: "Fresh runtime", markdown: "fresh runtime")
+    DesignDocs::SearchIndex.upsert(stale_doc)
+    stale_doc.destroy!
+
+    PluginRecord.find_or_create_by!(name: "design_docs").update!(enabled: false, disableable: true)
+    PluginRecord.find_or_create_by!(name: "design_docs").update!(enabled: true, disableable: true)
+    DesignDocs::Callbacks.on_enable
+
+    ids = DesignDocs::SearchIndex.search("runtime", user: owner, limit: 10).map { |row| row.fetch(:design_doc_id) }
+    expect(ids).to contain_exactly(fresh_doc.id)
+  end
 end

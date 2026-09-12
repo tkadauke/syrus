@@ -3,6 +3,11 @@ module Api
     module App
       class SearchController < BaseController
         BUILT_IN_TYPES = %w[job epic chat].freeze
+        BUILT_IN_TYPE_OPTIONS = [
+          { type: "job", label: "Jobs" },
+          { type: "epic", label: "Epics" },
+          { type: "chat", label: "Chats" }
+        ].freeze
         BUILT_IN_FILTER_SUBJECTS = {
           "job"   => :job,
           "epic"  => :epic,
@@ -36,6 +41,7 @@ module Api
             results: rows.filter_map { |row| result_json(row) }.first(limit),
             filter: active_filter_tree,
             controls: {
+              types: type_options,
               filter_schema: filter_schema(selected_types)
             }
           }
@@ -71,18 +77,31 @@ module Api
           )
         end
 
-        def self.search_source_providers
-          Syrus::PluginRegistry.providers_for("global_search:source").select do |provider|
-            provider.respond_to?(:search_type) && provider.respond_to?(:search_rows)
+        def self.type_options
+          BUILT_IN_TYPE_OPTIONS + search_source_providers.map do |provider|
+            type = provider.search_type.to_s
+            label = provider.respond_to?(:search_type_label) ? provider.search_type_label.to_s : type.humanize.pluralize
+            { type: type, label: label }
           end
         end
 
-        def self.provider_for(type)
-          search_source_providers.find { |provider| provider.search_type.to_s == type.to_s }
+        def self.search_source_providers
+          Syrus::PluginRegistry.providers_for("global_search:source").select do |provider|
+            provider.respond_to?(:search_type) &&
+              provider.respond_to?(:search_rows) &&
+              provider.respond_to?(:result_json)
+          end
+        end
+
+        def self.source_for(type, controller: nil)
+          BuiltInSearchSource.for(type, controller: controller) ||
+            search_source_providers.find { |provider| provider.search_type.to_s == type.to_s }
         end
 
         def types = self.class.types
         def filter_subjects = self.class.filter_subjects
+        def type_options = self.class.type_options
+        def source_for(type) = self.class.source_for(type, controller: self)
 
         def search_types
           raw_types = Array.wrap(params[:types]).compact_blank
@@ -111,26 +130,11 @@ module Api
           end
         end
 
-        SEARCH_ROWS_DISPATCH = {
-          "job"       => :job_search_rows,
-          "epic"      => :epic_search_rows,
-          "chat"      => :chat_search_rows
-        }.freeze
-
-        RESULT_JSON_DISPATCH = {
-          "job"       => :job_result_json,
-          "epic"      => :epic_result_json,
-          "chat"      => :chat_result_json
-        }.freeze
-
         def search_rows(type, query, limit)
-          method_name = SEARCH_ROWS_DISPATCH[type]
-          return send(method_name, query, limit) if method_name
+          source = source_for(type)
+          return [] unless source
 
-          provider = self.class.provider_for(type)
-          return [] if provider.nil?
-
-          apply_filter_to_rows(type, Array(provider.search_rows(query: query, user: Current.user, limit: limit)), provider.row_id_key)
+          apply_filter_to_rows(type, Array(source.search_rows(query: query, user: Current.user, limit: limit)), source.row_id_key)
         end
 
         def job_search_rows(query, limit)
@@ -170,24 +174,10 @@ module Api
         end
 
         def filtered_scope(type, ids, tree)
-          case type
-          when "job"
-            Jobs::Filter.from_tree(tree, user: Current.user).apply(Current.user.jobs.where(id: ids))
-          when "epic"
-            Epics::Filter.from_tree(tree, user: Current.user).apply(Current.user.epics.where(id: ids))
-          when "chat"
-            ::Filters::Compiler.call(
-              ::Filters::Ast.parse(tree),
-              scope: ChatMessage.joins(:chat_session).where(chat_sessions: { user_id: Current.user.id }, id: ids),
-              user: Current.user,
-              subject: :chat_message
-            )
-          else
-            provider = self.class.provider_for(type)
-            raise ArgumentError, "unknown search result type: #{type.inspect}" if provider.nil?
+          source = source_for(type)
+          raise ArgumentError, "unknown search result type: #{type.inspect}" unless source
 
-            provider.filtered_scope(ids: ids, tree: tree, user: Current.user)
-          end
+          source.filtered_scope(ids: ids, tree: tree, user: Current.user)
         end
 
         def filter_tree_for_subject(tree, subject)
@@ -274,11 +264,7 @@ module Api
         end
 
         def result_json(row)
-          type = row.fetch(:type)
-          method_name = RESULT_JSON_DISPATCH[type]
-          return send(method_name, row) if method_name
-
-          self.class.provider_for(type)&.result_json(row: row, user: Current.user)
+          source_for(row.fetch(:type))&.result_json(row: row, user: Current.user)
         end
 
         def job_result_json(row)
@@ -419,6 +405,61 @@ module Api
             has_more_matches: additional_matches.length > CHAT_GROUPED_MATCH_LIMIT
           )
         end
+
+        class BuiltInSearchSource
+          SOURCES = {}
+
+          def self.for(type, controller:)
+            return unless controller
+
+            source_class = SOURCES.fetch(type.to_s, nil)
+            source_class&.new(controller)
+          end
+
+          def initialize(controller)
+            @controller = controller
+          end
+
+          private
+
+          attr_reader :controller
+        end
+
+        class JobSearchSource < BuiltInSearchSource
+          def search_rows(query:, user:, limit:) = controller.send(:job_search_rows, query, limit)
+          def row_id_key = :job_id
+          def filtered_scope(ids:, tree:, user:) = Jobs::Filter.from_tree(tree, user: user).apply(user.jobs.where(id: ids))
+          def result_json(row:, user:) = controller.send(:job_result_json, row)
+        end
+
+        class EpicSearchSource < BuiltInSearchSource
+          def search_rows(query:, user:, limit:) = controller.send(:epic_search_rows, query, limit)
+          def row_id_key = :epic_id
+          def filtered_scope(ids:, tree:, user:) = Epics::Filter.from_tree(tree, user: user).apply(user.epics.where(id: ids))
+          def result_json(row:, user:) = controller.send(:epic_result_json, row)
+        end
+
+        class ChatSearchSource < BuiltInSearchSource
+          def search_rows(query:, user:, limit:) = controller.send(:chat_search_rows, query, limit)
+          def row_id_key = :chat_message_id
+
+          def filtered_scope(ids:, tree:, user:)
+            ::Filters::Compiler.call(
+              ::Filters::Ast.parse(tree),
+              scope: ChatMessage.joins(:chat_session).where(chat_sessions: { user_id: user.id }, id: ids),
+              user: user,
+              subject: :chat_message
+            )
+          end
+
+          def result_json(row:, user:) = controller.send(:chat_result_json, row)
+        end
+
+        BuiltInSearchSource::SOURCES.replace(
+          "job" => JobSearchSource,
+          "epic" => EpicSearchSource,
+          "chat" => ChatSearchSource
+        )
       end
     end
   end
