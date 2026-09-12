@@ -76,7 +76,28 @@ module ChatSessionLifecycle
   end
 
   def enqueue_chat_title(chat_session, user_message)
-    ChatTitleJob.perform_later(chat_session.id, user_message.id)
+    if (message_text = chat_title_message_text(user_message))
+      ChatTitleJob.perform_later(chat_session.id, user_message.id, message_text: message_text)
+    else
+      ChatTitleJob.perform_later(chat_session.id, user_message.id)
+    end
+  end
+
+  def enqueue_chat_title_for_goal(chat_session, goal)
+    return unless goal
+    return unless chat_session.title.blank? || chat_session.title_auto_fallback?
+
+    prompt = goal.prompt.to_s.strip
+    return if prompt.blank?
+
+    ChatTitleJob.perform_later(chat_session.id, nil, message_text: prompt)
+  end
+
+  def chat_title_message_text(user_message)
+    parsed = ChatGoalCommand.parse(user_message.content["text"])
+    return unless parsed&.fetch(:action) == "start"
+
+    parsed.fetch(:args).presence
   end
 
   def first_user_message(chat_session)

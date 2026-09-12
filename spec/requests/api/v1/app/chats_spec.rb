@@ -1470,6 +1470,16 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("chat", "title_pending")).to eq(true)
   end
 
+  it "uses a /goal opening objective as the title-generation seed" do
+    sign_in_as(user)
+
+    post "/api/v1/app/chats", params: { repository_id: repository.id, chat_message: { text: "/goal plan launch" } }
+
+    expect(response).to have_http_status(:created)
+    chat = ChatSession.last
+    expect(ChatTitleJob).to have_been_enqueued.with(chat.id, chat.messages.last.id, { message_text: "plan launch" })
+  end
+
   it "stores valid file attachments on the first chat message" do
     sign_in_as(user)
     attachment = {
@@ -5926,6 +5936,20 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["agent_busy"]).to eq(false)
     expect(parse_body.dig("chat", "turn_in_flight")).to eq(true)
     expect(parse_body.dig("chat", "agent_busy")).to eq(false)
+  end
+
+  it "enqueues title generation from a goal command sent to an unnamed chat" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "/goal plan launch" } }
+    }.to change(ChatGoal, :count).by(1)
+      .and have_enqueued_job(ChatTitleJob).with(chat.id, nil, { message_text: "plan launch" })
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Goal updated.")
+    expect(chat.reload.messages.where(role: "user")).to be_empty
   end
 
   it "stores valid file attachments on a chat message" do
