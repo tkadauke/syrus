@@ -209,4 +209,15 @@ RSpec.describe "Untranslated source strings", type: :unit do
       expect(internal_diagnostic_path_patterns.any? { |pattern| path.match?(pattern) }).to be(false), "#{path} must not be path-allowlisted"
     end
   end
+
+  it "guards strict surfaces against expression-only English copy" do
+    diff_review = File.read(Rails.root.join("app/frontend/components/diff/ReviewableDiff.tsx"))
+    themes_settings = File.read(Rails.root.join("app/frontend/routes/ThemesSettings.tsx"))
+
+    expect(diff_review).not_to include(">Edit<")
+    expect(diff_review).not_to include(">Delete<")
+    expect(diff_review).not_to include("`Edit comment ${")
+    expect(themes_settings).not_to include("`Delete ${")
+    expect(themes_settings).not_to include("`Custom Theme ${")
+  end
 end

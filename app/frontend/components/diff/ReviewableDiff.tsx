@@ -1106,7 +1106,7 @@ export function UnifiedDiffTable({
                                 onClick={() => onStartEditThread(thread)}
                                 type="button"
                               >
-                                Edit
+                                {t("diff_review_composer.edit")}
                               </button>
                             ) : null}
                             {thread.state === "draft" && onDeleteThread && editingThreadId !== thread.id ? (
@@ -1115,14 +1115,14 @@ export function UnifiedDiffTable({
                                 onClick={() => onDeleteThread(thread)}
                                 type="button"
                               >
-                                Delete
+                                {t("diff_review_composer.delete")}
                               </button>
                             ) : null}
                           </div>
                           {editingThreadId === thread.id ? (
                             <div className="space-y-2">
                               <textarea
-                                aria-label={`Edit comment ${thread.id}`}
+                                aria-label={t("diff_review_composer.edit_comment_aria", { id: thread.id })}
                                 className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                 onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
                                 value={editingThreadBody ?? ""}

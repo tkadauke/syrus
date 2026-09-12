@@ -19,6 +19,8 @@
     "created": "Thema creatum.",
     "saved": "Thema servatum.",
     "deleted": "Thema deletum.",
+    "confirm_delete": "{{name}} delere?",
+    "default_name": "Thema Proprium {{index}}",
     "order_saved": "Ordo thematum servatus.",
     "loading": "Themata onerantur...",
     "error_load": "Themata onerari non potuerunt.",
