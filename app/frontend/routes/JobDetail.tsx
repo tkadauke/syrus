@@ -2,7 +2,7 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -232,7 +232,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
           </PageHeading>
-          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-1.5 flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <JobStateBadge state={payload.job.summary_state} />
               <JobNavigationControl context={navigationContext} currentJobId={payload.job.id} prefix={prefix} />
@@ -359,6 +359,9 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
   const previous = context && activeIndex > 0 ? context.items[activeIndex - 1] : null
   const next = context && activeIndex >= 0 && activeIndex < context.items.length - 1 ? context.items[activeIndex + 1] : null
   const current = context && activeIndex >= 0 ? context.items[activeIndex] : null
+  const [jumpOpen, setJumpOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const currentOptionRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     if (!context || activeIndex < 0) return undefined
@@ -382,15 +385,44 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [activeIndex, context, location.search, navigate, next, prefix, previous])
 
+  useEffect(() => {
+    if (!jumpOpen) return undefined
+
+    function onPointerDown(event: PointerEvent) {
+      if (wrapperRef.current?.contains(event.target as Node)) return
+      setJumpOpen(false)
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setJumpOpen(false)
+    }
+
+    document.addEventListener("pointerdown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [jumpOpen])
+
+  useEffect(() => {
+    if (!jumpOpen) return
+
+    window.requestAnimationFrame(() => {
+      currentOptionRef.current?.scrollIntoView({ block: "center" })
+    })
+  }, [jumpOpen])
+
   if (!context || activeIndex < 0 || !current) return null
   const activeContext = context
 
   function navigateTo(path: string) {
+    setJumpOpen(false)
     navigate(jobNavigationHref(path, prefix, activeContext.token, location.search, location.pathname))
   }
 
   return (
-    <div className="inline-flex min-w-0 items-center gap-1 rounded border border-gray-200 bg-white p-1 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300" aria-label={t("navigation_label")}>
+    <div className="relative hidden shrink-0 items-center gap-1 rounded border border-gray-200 bg-white p-1 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:inline-flex" aria-label={t("navigation_label")} ref={wrapperRef}>
       <button
         aria-label={t("navigation_previous")}
         className="flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
@@ -401,24 +433,41 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
       >
         <span aria-hidden="true">‹</span>
       </button>
-      <label className="sr-only" htmlFor="job-navigation-jump">{t("navigation_jump")}</label>
-      <Select
-        className="h-7 max-w-[18rem] border-0 bg-transparent py-0 pl-1 pr-7 text-xs font-medium text-gray-700 focus:ring-2 dark:text-gray-200"
-        fullWidth={false}
-        id="job-navigation-jump"
-        onChange={(event) => {
-          const item = context.items.find((candidate) => String(candidate.id) === event.target.value)
-          if (item) navigateTo(item.path)
-        }}
+      <button
+        aria-controls="job-navigation-jump-list"
+        aria-expanded={jumpOpen}
+        aria-haspopup="listbox"
+        aria-label={t("navigation_jump")}
+        className="flex h-7 min-w-0 max-w-[7.5rem] items-center gap-1 rounded px-2 text-left font-mono text-xs font-medium text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-200 dark:hover:bg-gray-800"
+        onClick={() => setJumpOpen((open) => !open)}
         title={context.label}
-        value={String(currentJobId)}
+        type="button"
       >
-        {context.items.map((item, index) => (
-          <option key={item.id} value={item.id}>
-            {t("navigation_jump_option", { position: index + 1, slug: item.slug, title: item.title })}
-          </option>
-        ))}
-      </Select>
+        <span className="truncate">{current.slug}</span>
+        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">▾</span>
+      </button>
+      {jumpOpen ? (
+        <div className="absolute left-8 top-full z-30 mt-1 max-h-80 w-96 max-w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950" id="job-navigation-jump-list" role="listbox">
+          {context.items.map((item, index) => (
+            <button
+              aria-label={t("navigation_jump_option", { position: index + 1, slug: item.slug, title: item.title })}
+              aria-selected={item.id === currentJobId}
+              className={`block w-full px-3 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:hover:bg-gray-900 dark:focus:bg-gray-900 ${item.id === currentJobId ? "bg-brand/10 text-gray-950 dark:text-gray-50" : "text-gray-700 dark:text-gray-200"}`}
+              key={item.id}
+              onClick={() => navigateTo(item.path)}
+              ref={item.id === currentJobId ? currentOptionRef : undefined}
+              role="option"
+              type="button"
+            >
+              <span className="flex items-start gap-2">
+                <span className="shrink-0 font-mono text-xs font-semibold text-gray-500 dark:text-gray-400">{item.slug}</span>
+                <span className="min-w-0 flex-1 break-words leading-snug">{item.title}</span>
+                <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{index + 1}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       <span className="whitespace-nowrap px-1 text-gray-400 dark:text-gray-500">{t("navigation_position", { current: activeIndex + 1, total: context.items.length })}</span>
       <button
         aria-label={t("navigation_next")}
