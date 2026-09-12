@@ -14,7 +14,8 @@ module GlobalSearch
     default_enabled true
     disableable true
     hosts [ :source ]
-    provides domain_subscriber: "GlobalSearch::Subscribers",
+    provides callbacks: "GlobalSearch::Callbacks",
+             domain_subscriber: "GlobalSearch::Subscribers",
              sidebar_page: "GlobalSearch::SidebarPages"
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" }
