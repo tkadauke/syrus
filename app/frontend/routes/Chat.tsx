@@ -367,7 +367,9 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
       {!payload.chat_available ? (
         <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
           <div className="font-semibold">{t("credentials_required_title")}</div>
-          <p className="mt-1">Chat uses Claude. Add a Claude OAuth token in <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>Credentials</Link> to enable chat.</p>
+          <p className="mt-1">
+            {t("credentials_required_body_prefix")} <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>{t("credentials_required_link")}</Link> {t("credentials_required_body_suffix")}
+          </p>
         </section>
       ) : (
         <ChatWorkspace
@@ -453,7 +455,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       onNotice(null)
     },
-    onError: (error) => onNotice(errorMessage(error, "Retry failed."))
+    onError: (error) => onNotice(errorMessage(error, t("retry_failed")))
   })
 
   const scrollToBottom = useCallback(() => {
