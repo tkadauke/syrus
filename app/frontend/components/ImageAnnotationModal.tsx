@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type SVGProps } from "react"
+import { ShortcutLayer, useOptionalShortcut } from "../contexts/ShortcutsContext"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { Input } from "./Input"
 import { Modal } from "./Modal"
+import { ShortcutsHelpModal } from "./ShortcutsHelpModal"
 
 // --- Shape model ---
 
@@ -52,16 +54,6 @@ const COLORS = [
   { key: "black",  value: "#000000" }
 ]
 
-const TOOL_SHORTCUTS: Record<string, Tool> = {
-  s: "select",
-  r: "rectangle",
-  e: "ellipse",
-  l: "line",
-  a: "arrow",
-  p: "freehand",
-  t: "text"
-}
-
 type IconComponent = (props: SVGProps<SVGSVGElement>) => JSX.Element
 
 const TOOL_ICONS: Record<Tool, IconComponent> = {
@@ -101,14 +93,6 @@ const INTERACTIVE_ENTER_TARGET = [
   "[role='slider']",
   "[role='switch']"
 ].join(",")
-
-function acceptsAnnotationEnterShortcut(target: EventTarget | null) {
-  if (!target || target === window || target === document || target === document.body) return true
-  if (!(target instanceof Element)) return true
-  if (target instanceof HTMLCanvasElement) return true
-  return !target.closest(INTERACTIVE_ENTER_TARGET)
-}
-
 const ZOOM_MIN  = 0.1
 const ZOOM_MAX  = 8
 const ZOOM_STEP = 0.25
@@ -117,6 +101,13 @@ let nextShapeId = 0
 function makeId() { return `s${++nextShapeId}` }
 
 function clampZoom(z: number) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)) }
+
+function acceptsAnnotationEnterShortcut(target: EventTarget | null) {
+  if (!target || target === window || target === document || target === document.body) return true
+  if (!(target instanceof Element)) return true
+  if (target instanceof HTMLCanvasElement) return true
+  return !target.closest(INTERACTIVE_ENTER_TARGET)
+}
 
 function normalizeTextSize(size?: TextSize): TextSize {
   return size ?? "medium"
@@ -466,12 +457,22 @@ function CheckIcon(props: SVGProps<SVGSVGElement>) {
 
 // --- Component ---
 
-export function ImageAnnotationModal({
-  dataUrl, name, initialShapes, originalDataUrl, onDone, onClose
-}: {
+export interface ImageAnnotationModalProps {
   dataUrl: string; name: string; initialShapes?: Shape[]; originalDataUrl?: string
   onDone: (annotatedDataUrl: string, shapes: Shape[]) => void; onClose: () => void
-}) {
+}
+
+export function ImageAnnotationModal(props: ImageAnnotationModalProps) {
+  return (
+    <ShortcutLayer>
+      <ImageAnnotationModalContent {...props} />
+    </ShortcutLayer>
+  )
+}
+
+function ImageAnnotationModalContent({
+  dataUrl, name, initialShapes, originalDataUrl, onDone, onClose
+}: ImageAnnotationModalProps) {
   const { t } = useT("common")
   const imageCanvasRef   = useRef<HTMLCanvasElement | null>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -509,6 +510,7 @@ export function ImageAnnotationModal({
   const [pan,               setPan]               = useState<Point>({ x: 0, y: 0 })
   const [isPanning,         setIsPanning]         = useState(false)
   const [isPanDragging,     setIsPanDragging]     = useState(false)
+  const [helpOpen,          setHelpOpen]          = useState(false)
 
   // Keep shapesRef in sync for use in event handlers without closure staleness
   useEffect(() => { shapesRef.current = shapes }, [shapes])
@@ -606,6 +608,105 @@ export function ImageAnnotationModal({
     syncHistoryCounts()
   }, [syncHistoryCounts])
 
+  const handleEscapeShortcut = useCallback(() => {
+    if (helpOpen) { setHelpOpen(false); return }
+    if (showDiscardConfirm) { setShowDiscardConfirm(false); return }
+    const hasShapes = shapesRef.current.length > 0
+    if (hasShapes && tool !== "select") { setTool("select"); return }
+    if (hasShapes) { setShowDiscardConfirm(true); return }
+    onClose()
+  }, [helpOpen, onClose, showDiscardConfirm, tool])
+
+  const deleteSelectedShape = useCallback(() => {
+    if (!selectedShapeId) return
+    const prev = shapesRef.current
+    pushUndo(prev)
+    setShapes(prev.filter(s => s.id !== selectedShapeId))
+    setSelectedShapeId(null)
+  }, [pushUndo, selectedShapeId])
+
+  const selectToolByShortcut = useCallback((nextTool: Tool) => {
+    if (textPlacement) return
+    setTool(nextTool)
+  }, [textPlacement])
+
+  const handleEnterShortcut = useCallback((event: globalThis.KeyboardEvent) => {
+    if (textPlacement || showDiscardConfirm || !acceptsAnnotationEnterShortcut(event.target)) return
+    finishAnnotation()
+  }, [finishAnnotation, showDiscardConfirm, textPlacement])
+
+  const shortcutGroup = t("image_annotation.shortcuts_group")
+  useOptionalShortcut("?", () => setHelpOpen(true), {
+    description: t("image_annotation.shortcut_show_help"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("escape", handleEscapeShortcut, {
+    description: t("image_annotation.shortcut_escape"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("enter", handleEnterShortcut, {
+    description: t("image_annotation.done"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("mod+z", undo, {
+    description: t("image_annotation.undo"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("mod+shift+z", redo, {
+    description: t("image_annotation.redo"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("delete", deleteSelectedShape, {
+    description: t("image_annotation.shortcut_delete"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("backspace", deleteSelectedShape, {
+    description: t("image_annotation.shortcut_delete"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("s", () => selectToolByShortcut("select"), {
+    description: t("image_annotation.shortcut_select_tool"),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("r", () => selectToolByShortcut("rectangle"), {
+    description: t("image_annotation.shortcut_select_named_tool", { tool: t("image_annotation.tool_rectangle") }),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("e", () => selectToolByShortcut("ellipse"), {
+    description: t("image_annotation.shortcut_select_named_tool", { tool: t("image_annotation.tool_ellipse") }),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("l", () => selectToolByShortcut("line"), {
+    description: t("image_annotation.shortcut_select_named_tool", { tool: t("image_annotation.tool_line") }),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("a", () => selectToolByShortcut("arrow"), {
+    description: t("image_annotation.shortcut_select_named_tool", { tool: t("image_annotation.tool_arrow") }),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("p", () => selectToolByShortcut("freehand"), {
+    description: t("image_annotation.shortcut_select_named_tool", { tool: t("image_annotation.tool_freehand") }),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+  useOptionalShortcut("t", () => selectToolByShortcut("text"), {
+    description: t("image_annotation.shortcut_select_named_tool", { tool: t("image_annotation.tool_text") }),
+    group: shortcutGroup,
+    groupOrder: 0
+  })
+
   // Re-render overlay canvas whenever shapes or selection changes
   useEffect(() => {
     if (!imageSize) return
@@ -649,7 +750,7 @@ export function ImageAnnotationModal({
     return () => { cancelled = true }
   }, [baseImageUrl, syncHistoryCounts, updateZoom])
 
-  // Keyboard shortcuts
+  // Keyboard state that is local to the canvas panning gesture.
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       // Space bar: enter pan mode
@@ -658,62 +759,6 @@ export function ImageAnnotationModal({
         isSpaceRef.current = true
         setIsPanning(true)
         return
-      }
-
-      if (event.key === "Escape") {
-        // Text input handles its own Escape via handleTextKeyDown; guard here prevents double-close.
-        if (textPlacement) return
-        if (showDiscardConfirm) { setShowDiscardConfirm(false); return }
-        const hasShapes = shapesRef.current.length > 0
-        if (hasShapes && tool !== "select") { setTool("select"); return }
-        if (hasShapes) { setShowDiscardConfirm(true); return }
-        onClose()
-        return
-      }
-
-      if (
-        event.key === "Enter" &&
-        !textPlacement &&
-        !showDiscardConfirm &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey &&
-        acceptsAnnotationEnterShortcut(event.target)
-      ) {
-        event.preventDefault()
-        finishAnnotation()
-        return
-      }
-
-      if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault()
-        if (event.shiftKey) { redo() } else { undo() }
-        return
-      }
-
-      // Delete selected shape
-      if ((event.key === "Delete" || event.key === "Backspace") && !textPlacement && selectedShapeId) {
-        event.preventDefault()
-        const prev = shapesRef.current
-        pushUndo(prev)
-        setShapes(prev.filter(s => s.id !== selectedShapeId))
-        setSelectedShapeId(null)
-        return
-      }
-
-      // Delete selected shape
-      if ((event.key === "Delete" || event.key === "Backspace") && !textPlacement && selectedShapeId) {
-        event.preventDefault()
-        const prev = shapesRef.current
-        pushUndo(prev)
-        setShapes(prev.filter(s => s.id !== selectedShapeId))
-        setSelectedShapeId(null)
-        return
-      }
-
-      if (!textPlacement && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        const mapped = TOOL_SHORTCUTS[event.key.toLowerCase()]
-        if (mapped) setTool(mapped)
       }
     }
 
@@ -732,7 +777,7 @@ export function ImageAnnotationModal({
       window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("keyup", onKeyUp)
     }
-  }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo, tool, showDiscardConfirm, finishAnnotation])
+  }, [textPlacement])
 
   // Scroll/trackpad wheel pans the canvas. Non-passive so we can preventDefault.
   useEffect(() => {
@@ -1086,6 +1131,7 @@ export function ImageAnnotationModal({
         onConfirm={() => { setShowDiscardConfirm(false); onClose() }}
         open={showDiscardConfirm}
       />
+      {helpOpen ? <ShortcutsHelpModal onClose={() => setHelpOpen(false)} open /> : null}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
         <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
           {TOOLS.map((item) => {
