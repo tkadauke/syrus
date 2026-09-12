@@ -4,7 +4,7 @@ import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
 import { useState } from "react"
-import { fetchSearch, type SearchResult, type SearchResultType, type TestCaseSearchResult } from "../api/search"
+import { fallbackSearchTypeOptions, fetchSearch, type SearchResult, type SearchResultType, type SearchTypeOption, type TestCaseSearchResult } from "../api/search"
 import { ChevronIcon } from "@app/components/ChevronIcon"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -13,17 +13,11 @@ import { CopyableSlug } from "@app/components/CopyableSlug"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { PILL_TONE_CLASSES } from "@app/components/StatusPill"
 
-type SearchFilter = SearchResultType | "all"
+type SearchFilter = string | "all"
 
-const filters: Array<{ key: SearchFilter; label: string }> = [
-  { key: "all", label: "All" },
-  { key: "job", label: "Jobs" },
-  { key: "epic", label: "Epics" },
-  { key: "chat", label: "Chats" },
-  { key: "test_case", label: "Tests" }
-]
+const fallbackFilters: SearchTypeOption[] = fallbackSearchTypeOptions
 
-const typeStyles: Record<SearchResultType, { border: string; badge: string; label: string }> = {
+const typeStyles: Partial<Record<SearchResultType, { border: string; badge: string; label: string }>> = {
   job: {
     border: "border-l-info",
     badge: "bg-info/10 text-info ring-info/30",
@@ -43,7 +37,18 @@ const typeStyles: Record<SearchResultType, { border: string; badge: string; labe
     border: "border-l-amber-500",
     badge: PILL_TONE_CLASSES.amber,
     label: "Test"
+  },
+  design_doc: {
+    border: "border-l-cyan-500",
+    badge: "bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-950 dark:text-cyan-200 dark:ring-cyan-800",
+    label: "Design Doc"
   }
+}
+
+const fallbackTypeStyle = {
+  border: "border-l-gray-400",
+  badge: "bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700",
+  label: "Result"
 }
 
 export function SearchRoute() {
@@ -59,6 +64,8 @@ export function SearchRoute() {
     enabled: query.length >= 2
   })
   const results = search.data?.results || []
+  const typeFilters = search.data?.controls.types?.length ? search.data.controls.types : fallbackFilters
+  const filters = [{ type: "all", label: "All" }, ...typeFilters]
 
   return (
     <main aria-label={t("search_aria")} className="mx-auto max-w-[72rem] space-y-6 p-6">
@@ -69,7 +76,7 @@ export function SearchRoute() {
         </div>
         <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
           {filters.map((filter) => (
-            <Link className={filterChipClass(activeFilter === filter.key)} key={filter.key} to={filterPath(location.pathname, location.search, filter.key)}>
+            <Link className={filterChipClass(activeFilter === filter.type)} key={filter.type} to={filterPath(location.pathname, location.search, filter.type)}>
               {filter.label}
             </Link>
           ))}
@@ -110,7 +117,7 @@ export function SearchRoute() {
 function SearchResultRow({ result }: { result: SearchResult }) {
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
-  const styles = typeStyles[result.type]
+  const styles = typeStyles[result.type] || { ...fallbackTypeStyle, label: humanizeType(result.type) }
   const groupedMatches = result.type === "chat" ? result.grouped_matches || [] : []
   const hasGroupedMatches = result.type === "chat" && groupedMatches.length > 0
 
@@ -120,8 +127,8 @@ function SearchResultRow({ result }: { result: SearchResult }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${styles.badge}`}>{styles.label}</span>
-            {result.type === "job" || result.type === "epic" ? (
-              <SlugHoverCard id={result.id} kind={result.type}>
+            {result.slug ? (
+              <SlugHoverCard id={result.id} kind={slugHoverKind(result.type)} prefix={slugPrefix(result.slug)}>
                 <CopyableSlug slug={result.slug} />
               </SlugHoverCard>
             ) : null}
@@ -135,11 +142,29 @@ function SearchResultRow({ result }: { result: SearchResult }) {
           </SectionHeading>
           <Snippet html={result.snippet || ""} />
           {result.type === "test_case" ? <TestCaseDetails result={result} /> : null}
+          <ResultMetadata result={result} />
           {hasGroupedMatches ? <GroupedChatMatches result={result} routePrefix={prefix} /> : null}
         </div>
-        {result.created_at ? <RelativeTimestamp className="shrink-0 text-xs text-gray-500 dark:text-gray-400" value={result.created_at} /> : null}
+        {result.updated_at || result.created_at ? <RelativeTimestamp className="shrink-0 text-xs text-gray-500 dark:text-gray-400" value={result.updated_at || result.created_at} /> : null}
       </div>
     </article>
+  )
+}
+
+function ResultMetadata({ result }: { result: SearchResult }) {
+  const parts = [
+    result.visibility ? humanizeType(result.visibility) : null,
+    result.owner ? `Owner ${result.owner.name || result.owner.email_address || `#${result.owner.id}`}` : null,
+    result.current_version_number ? `v${result.current_version_number}` : null,
+    result.updated_at ? "Updated" : null
+  ].filter(Boolean)
+  if (parts.length === 0) return null
+
+  return (
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      {parts.join(" · ")}
+      {result.updated_at ? <> <RelativeTimestamp value={result.updated_at} /></> : null}
+    </p>
   )
 }
 
@@ -222,7 +247,7 @@ function PanelMessage({ children, tone = "neutral" }: { children: string; tone?:
 
 function activeFilterFromParams(params: URLSearchParams): SearchFilter {
   const type = params.getAll("types[]")[0] || params.getAll("types")[0]
-  return type === "job" || type === "epic" || type === "chat" || type === "test_case" ? type : "all"
+  return type || "all"
 }
 
 function searchTextFromParams(params: URLSearchParams) {
@@ -280,6 +305,18 @@ function sanitizeSnippet(html: string) {
 
   template.content.childNodes.forEach((child) => appendClean(child, output))
   return output.innerHTML
+}
+
+function slugHoverKind(type: SearchResultType): "job" | "epic" | "chat" | "plugin" {
+  return type === "job" || type === "epic" || type === "chat" ? type : "plugin"
+}
+
+function slugPrefix(slug: string) {
+  return slug.match(/^([A-Z]+)-\d+$/)?.[1]
+}
+
+function humanizeType(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
 function isEncodedFilterTree(value: string) {
