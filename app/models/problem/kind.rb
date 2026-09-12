@@ -68,6 +68,9 @@ class Problem
       Entry.new(code: "timeout", scope: :run, retryable: true, default_remediation: :retry_step),
       Entry.new(code: "database_lock", scope: :run, retryable: true, default_remediation: :retry_step),
       Entry.new(code: "database_capacity", scope: :run, retryable: true, default_remediation: :retry_step),
+      Entry.new(code: "disk_full", scope: :external, retryable: true,
+                default_remediation: :defer,
+                label: "Disk full"),
 
       # -- The workspace ------------------------------------------------------
       Entry.new(code: "workspace_checkout_invalid", scope: :run, retryable: true,

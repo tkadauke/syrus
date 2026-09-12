@@ -113,6 +113,8 @@ class RunFailureClassifier
       result("validation_or_user_error", 0.75, false, "The run failed on validation or user-supplied input.")
     when provider_transient?
       result("provider_transient", 0.75, true, "The provider failed transiently.")
+    when disk_full?
+      result("disk_full", 0.90, true, "The run failed because the worker disk was full (e.g. Errno::ENOSPC); this is transient infrastructure capacity, not a code defect.")
     when database_capacity?
       result("database_capacity", 0.85, true, "The run failed because the database ran out of storage capacity (e.g. a MySQL table-full condition); this is transient infrastructure capacity, not a code defect.")
     when database_lock?
@@ -379,6 +381,15 @@ class RunFailureClassifier
 
   def database_capacity?
     text_match?(/table .* is full|ER_RECORD_FILE_FULL|record file full/i)
+  end
+
+  # Same signal LandingFailureHandler pauses landing on -- a full worker disk.
+  # Kept as the same pattern set so the classification and the landing pause
+  # agree; the shared code ("disk_full") is what ties them together.
+  def disk_full?
+    text_match?(
+      /\bENOSPC\b|No space left on device|Disk quota exceeded|database or disk is full|insufficient (?:disk|storage|space)|not enough (?:disk|storage|space)/i
+    )
   end
 
   def mcp_sidecar?

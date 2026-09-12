@@ -97,6 +97,8 @@ class LandingFailureHandler
   def problem_code = problem&.code
 
   def infrastructure_blocker?
+    return true if problem_code == "disk_full"
+
     self.class.infrastructure_blocker?(reason)
   end
 

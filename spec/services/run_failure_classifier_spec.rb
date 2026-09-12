@@ -739,6 +739,20 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "classifies a full worker disk as retryable disk_full infrastructure" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Errno::ENOSPC",
+      "No space left on device @ rb_sysopen - /home/rails/.syrus/foo"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("disk_full")
+    expect(result.retryable).to eq(true)
+    expect(result.reason).to include("disk was full")
+  end
+
   it "classifies worker and agent process death" do
     run.update!(state: "failed", agent_outcome: "worker_died")
     process("orphaned")

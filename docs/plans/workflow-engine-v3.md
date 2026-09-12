@@ -67,9 +67,12 @@ claim), not why a Run failed, and collapsing them into Problems would merge two
 genuinely different questions. `WorkEngine::RepairPlanner` still string-matches
 `classification.classification` against scattered constants; that string is now
 problem-backed, so the remaining work there is renaming rather than
-re-deriving. `LandingFailureHandler.infrastructure_blocker?` still pattern-
-matches disk-full text because no `Problem::Kind` code covers it -- adding one
-is a vocabulary change with its own blast radius, not a cleanup.
+re-deriving. `LandingFailureHandler.infrastructure_blocker?` now reads a
+`disk_full` `Problem::Kind` code first (`scope: :external`, `retryable: true`,
+`default_remediation: :defer`); the text patterns stay only as a fallback for
+reasons that never carried a declared problem. `RunFailureClassifier` infers
+the same code from the disk-full signal, so classification and the landing
+pause agree through the shared code.
 
 ## Relationship To Other Plans
 

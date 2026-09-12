@@ -281,6 +281,7 @@ module Steps
         workspace_checkout_invalid
         database_capacity
         database_lock
+        disk_full
         worker_died
         worker_died_under_resource_pressure
       ])

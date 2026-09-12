@@ -137,6 +137,7 @@ module Api
             "validation_or_user_error" => "validation_or_user_error",
             "database_lock" => "syrus_internal",
             "database_capacity" => "syrus_internal",
+            "disk_full" => "syrus_internal",
             "mcp_sidecar_failure" => "syrus_internal",
             "application_error" => "syrus_internal"
           }.fetch(classification.classification, "unknown")

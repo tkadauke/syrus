@@ -101,6 +101,28 @@ RSpec.describe LandingFailureHandler do
     expect(run.job_logs.pluck(:chunk)).to include(include("landing_queue: paused landing"))
   end
 
+  it "pauses landing and preserves approval for a declared disk_full problem even when the reason matches no pattern" do
+    job = landing_job
+    run = auto_merge_run(job)
+    approved_at = job.approved_at
+    RunDiagnostic.create!(run: run, error_class: "Errno::ENOSPC",
+                          error_message: "disk full during push",
+                          problem_code: "disk_full")
+
+    described_class.call(
+      job: job,
+      run: run,
+      # Exactly the shape RunJob builds; none of the legacy text patterns
+      # match "disk full during push", so only the declared problem can pause.
+      reason: "Steps::Base::StepFailed: disk full during push"
+    )
+
+    expect(job.reload).to be_approved
+    expect(job.approved_at).to eq(approved_at)
+    expect(user.reload.landing_paused).to eq(true)
+    expect(run.job_logs.pluck(:chunk)).to include(include("landing_queue: paused landing"))
+  end
+
   it "preserves approval for rebase cap blockers without globally pausing landing" do
     job = landing_job
     run = auto_merge_run(job)
