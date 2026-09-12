@@ -73,6 +73,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #
       app/frontend/routes/jobDetail/Delivery.tsx|jsx_text|PR #
+      plugins/agent_memory/app/frontend/routes/Memories.tsx|jsx_text|Actions
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0 && highlight.start
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0) blocks.push(`
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|offset || highlight.end
