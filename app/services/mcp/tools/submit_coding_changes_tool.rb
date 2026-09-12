@@ -43,6 +43,9 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
 
         return Mcp::Tools.invalid("Coding Mode is not enabled") unless Feature.coding_mode_enabled?
+        if Job.where(linked_chat_id: chat_session.id, state: "coding").exists?
+          return Mcp::Tools.invalid("This chat is already attached to an active coding Job. Use complete_implement_step for that Job instead.")
+        end
 
         repository = resolve_repository(chat_session, repository_id)
         return Mcp::Tools.invalid("repository not found or not accessible") unless repository
