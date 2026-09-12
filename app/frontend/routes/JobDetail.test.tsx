@@ -2682,7 +2682,9 @@ describe("Job detail navigation", () => {
     expect(screen.getByText("2 of 3")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Previous Job" })).toBeEnabled()
     expect(screen.getByRole("button", { name: "Next Job" })).toBeEnabled()
-    expect(screen.getByRole("combobox", { name: "Jump to Job" })).toHaveValue("2")
+    expect(screen.getByRole("button", { name: "Jump to Job" })).toHaveTextContent("JOB-2")
+    expect(screen.getByRole("button", { name: "Jump to Job" })).not.toHaveTextContent("Second snapshot title")
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
     expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toBeInTheDocument()
   })
 
