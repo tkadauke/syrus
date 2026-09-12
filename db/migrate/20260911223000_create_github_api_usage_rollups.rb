@@ -22,9 +22,12 @@ class CreateGithubApiUsageRollups < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :github_api_usage_rollups,
-      [ :bucket_started_at, :auth_source, :credential_key, :repository_key, :operation, :resource ],
-      unique: true,
-      name: "idx_github_api_usage_rollups_unique_bucket"
+    unless index_exists?(:github_api_usage_rollups, [ :bucket_started_at, :auth_source, :credential_key, :repository_key, :operation, :resource ], name: "idx_github_api_usage_rollups_unique_bucket")
+      add_index :github_api_usage_rollups,
+        [ :bucket_started_at, :auth_source, :credential_key, :repository_key, :operation, :resource ],
+        unique: true,
+        name: "idx_github_api_usage_rollups_unique_bucket",
+        length: { auth_source: 32, credential_key: 64, repository_key: 255, operation: 64, resource: 64 }
+    end
   end
 end
