@@ -903,6 +903,8 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   // though the chat has media.
   const images = media.data?.chat_images || []
   const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
+  const previousLightboxImage = lightboxImageIndex != null && lightboxImageIndex > 0 ? images[lightboxImageIndex - 1] : null
+  const nextLightboxImage = lightboxImageIndex != null && lightboxImageIndex < images.length - 1 ? images[lightboxImageIndex + 1] : null
 
   async function loadSnapshot(snapshot: WhiteboardSnapshot) {
     if (chatBusy || snapshotLoading) return
@@ -1139,10 +1141,14 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           extraAction={{ label: t("image_attach_to_message"), onClick: () => void attachImageToComposer(lightboxImage) }}
           hasNext={lightboxImageIndex != null && lightboxImageIndex < images.length - 1}
           hasPrevious={lightboxImageIndex != null && lightboxImageIndex > 0}
+          imageCount={images.length}
+          imageIndex={lightboxImageIndex ?? 0}
           name={lightboxImage.title || lightboxImage.filename || "Image attachment"}
+          nextSrc={nextLightboxImage ? nextLightboxImage.image_url || nextLightboxImage.file_path : null}
           onClose={() => setLightboxImageIndex(null)}
           onNext={() => setLightboxImageIndex((index) => index == null ? index : Math.min(index + 1, images.length - 1))}
           onPrevious={() => setLightboxImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
+          previousSrc={previousLightboxImage ? previousLightboxImage.image_url || previousLightboxImage.file_path : null}
           src={lightboxImage.image_url || lightboxImage.file_path || ""}
         />
       ) : null}

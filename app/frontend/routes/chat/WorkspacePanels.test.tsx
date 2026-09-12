@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
@@ -667,7 +667,7 @@ describe("MediaGallery images", () => {
 
     const dialog = screen.getByRole("dialog", { name: "new.png" })
     expect(dialog).toBeInTheDocument()
-    expect(within(dialog).getByRole("img", { name: "new.png" })).toHaveAttribute("src", "/api/v1/app/repository_documents/2/file")
+    expect(within(dialog).getAllByRole("img", { name: "new.png" })[0]).toHaveAttribute("src", "/api/v1/app/repository_documents/2/file")
     expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
 
     fireEvent.click(screen.getByRole("button", { name: "Attach to message" }))
@@ -679,6 +679,94 @@ describe("MediaGallery images", () => {
       name: "new.png",
       mimeType: "image/png"
     })
+  })
+
+  it("fades desktop lightbox controls after the opening grace period and restores them on hover", async () => {
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [
+        {
+          id: 1,
+          title: "old.png",
+          filename: "old.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/1/file",
+          image_url: "/api/v1/app/repository_documents/1/file"
+        },
+        {
+          id: 2,
+          title: "new.png",
+          filename: "new.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/2/file",
+          image_url: "/api/v1/app/repository_documents/2/file"
+        }
+      ],
+      typed_artifacts: [],
+      whiteboard_has_unsaved_content: false
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+    const thumbnail = await screen.findByRole("button", { name: "Open old.png" })
+
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(thumbnail)
+      const dialog = screen.getByRole("dialog", { name: "old.png" })
+      const controls = within(dialog).getByLabelText("Image preview controls")
+      expect(controls).toHaveClass("md:opacity-100")
+
+      act(() => vi.advanceTimersByTime(2_000))
+      expect(controls).toHaveClass("md:opacity-0")
+
+      fireEvent.mouseEnter(dialog)
+      expect(controls).toHaveClass("md:opacity-100")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("supports swipe navigation with mobile carousel hints", async () => {
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [
+        {
+          id: 1,
+          title: "old.png",
+          filename: "old.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/1/file",
+          image_url: "/api/v1/app/repository_documents/1/file"
+        },
+        {
+          id: 2,
+          title: "new.png",
+          filename: "new.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/2/file",
+          image_url: "/api/v1/app/repository_documents/2/file"
+        }
+      ],
+      typed_artifacts: [],
+      whiteboard_has_unsaved_content: false
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open old.png" }))
+    const dialog = screen.getByRole("dialog", { name: "old.png" })
+    expect(within(dialog).getByLabelText("Image carousel position").children).toHaveLength(2)
+    expect(screen.getByRole("button", { name: "Next image" })).toHaveClass("hidden")
+
+    const swipeArea = dialog.querySelector("[data-image-lightbox-swipe-area]")
+    expect(swipeArea).not.toBeNull()
+    if (!swipeArea) return
+
+    fireEvent.touchStart(swipeArea, { changedTouches: [{ clientX: 220 }] })
+    fireEvent.touchEnd(swipeArea, { changedTouches: [{ clientX: 80 }] })
+
+    const nextDialog = screen.getByRole("dialog", { name: "new.png" })
+    expect(within(nextDialog).getAllByRole("img", { name: "new.png" })[0]).toHaveAttribute("src", "/api/v1/app/repository_documents/2/file")
   })
 
   it("shows an error notice when the media-library attach fails", async () => {
