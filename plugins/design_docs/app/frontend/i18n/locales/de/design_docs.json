@@ -7,5 +7,6 @@
   "preview_collaborators": "Mitarbeiter: {{names}}",
   "preview_comment_count_one": "{{count}} Kommentar",
   "preview_comment_count_other": "{{count}} Kommentare",
-  "preview_version": "v{{number}}"
+  "preview_version": "v{{number}}",
+  "tool_card_filter_placeholder": "Design Docs filtern"
 }
