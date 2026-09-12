@@ -170,11 +170,13 @@ module App
     end
 
     def filtered_targets
-      graph.targets.values
-           .select { |target| project_filter.blank? || target.project_id == project_filter }
-           .select { |target| kind_filter.blank? || target.kind == kind_filter }
-           .select { |target| label_query.blank? || target.label.to_s.include?(label_query) }
-           .sort_by { |target| target.label.to_s }
+      targets = graph.targets.values
+                     .select { |target| project_filter.blank? || target.project_id == project_filter }
+                     .select { |target| kind_filter.blank? || target.kind == kind_filter }
+                     .select { |target| label_query.blank? || target.label.to_s.include?(label_query) }
+
+      targets = neighborhood_targets(targets) if neighborhood_mode?
+      targets.sort_by { |target| target.label.to_s }
     end
 
     def target_json(target, overlay, health)
@@ -290,6 +292,97 @@ module App
 
     def health_skip_entries
       Array(workflow&.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY))
+    end
+
+    def neighborhood_mode?
+      params[:mode].to_s == "neighborhood"
+    end
+
+    def neighborhood_targets(candidates)
+      labels_by_string = candidates.index_by { |target| target.label.to_s }
+      roots = neighborhood_roots(labels_by_string)
+      return [] if roots.empty?
+
+      included = Set.new
+      frontier = roots.select { |label| labels_by_string.key?(label) }
+      max_depth = self.class.non_negative_integer(params[:depth], 1).clamp(0, 4)
+
+      (max_depth + 1).times do |depth|
+        break if frontier.empty? || included.size >= limit
+
+        next_frontier = Set.new
+        frontier.sort.each do |label|
+          next if included.include?(label)
+
+          included.add(label)
+          break if included.size >= limit
+
+          next if depth >= max_depth
+
+          neighborhood_neighbors(label, labels_by_string).each do |neighbor|
+            next unless labels_by_string.key?(neighbor)
+            next if included.include?(neighbor)
+
+            next_frontier.add(neighbor)
+          end
+        end
+        frontier = next_frontier.to_a
+      end
+
+      included.map { |label| labels_by_string.fetch(label) }
+    end
+
+    def neighborhood_roots(labels_by_string)
+      explicit_label = params[:focus_label].to_s.presence
+      return [ explicit_label ] if explicit_label
+
+      case params[:focus_state].to_s
+      when "selected", "skipped", "cached"
+        overlay_roots(params[:focus_state].to_s, labels_by_string)
+      when "failing"
+        failing_roots(labels_by_string)
+      else
+        labels_by_string.keys.first(1)
+      end
+    end
+
+    def overlay_roots(state, labels_by_string)
+      overlays.filter_map do |label, overlay|
+        label if labels_by_string.key?(label) && overlay[:state] == state
+      end
+    end
+
+    def failing_roots(labels_by_string)
+      latest_health_by_label(labels_by_string.keys).filter_map do |label, record|
+        label if record&.status == "failed"
+      end
+    end
+
+    def neighborhood_neighbors(label, labels_by_string)
+      dependencies = Array(labels_by_string[label]&.dependencies).map(&:to_s)
+      dependents = dependents_by_label.fetch(label, [])
+      direction = params[:direction].to_s.presence || "both"
+
+      case direction
+      when "dependencies"
+        dependencies
+      when "dependents"
+        dependents
+      else
+        dependencies + dependents
+      end
+    end
+
+    def dependents_by_label
+      @dependents_by_label ||= begin
+        dependents = Hash.new { |hash, key| hash[key] = [] }
+        graph.targets.values.each do |target|
+          target.dependencies.each do |dependency|
+            dependents[dependency.to_s] << target.label.to_s
+          end
+        end
+        dependents
+      end
     end
 
     def offset
