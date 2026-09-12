@@ -336,7 +336,7 @@ grade:
     junit_output: .syrus/grade-output/rspec-focused-junit.xml
     failures: allow_inherited
     base_retry:
-      strategy: plugin
+      command: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-fast {files}
     timeout_minutes: 10
 
   - name: rspec-ci
@@ -366,7 +366,7 @@ grade:
     junit_output: .syrus/grade-output/react-tests-junit.xml
     failures: allow_inherited
     base_retry:
-      strategy: plugin
+      strategy: files_as_args
     timeout_minutes: 20
 
   - name: react-tests-focused
@@ -382,7 +382,7 @@ grade:
     junit_output: .syrus/grade-output/react-tests-focused-junit.xml
     failures: allow_inherited
     base_retry:
-      strategy: plugin
+      strategy: files_as_args
     timeout_minutes: 20
 
   - name: website-build
@@ -396,6 +396,8 @@ grade:
     run: npm --prefix website ci && npm --prefix website run sync-release:check && npm --prefix website run build
     phases: [landing, ci]
     failures: allow_inherited
+    base_retry:
+      strategy: full_command
     required: true
     timeout_minutes: 10
 

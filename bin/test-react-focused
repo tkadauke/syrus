@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Syrus review-phase grader: runs only the Vitest tests related (via
 # Vitest's native module-graph `related` resolution) to the diff so far,
-# instead of the full suite. Gives the implementing agent a fast test
-# signal on every review-phase grade iteration; the full suite + typecheck
-# still run at landing/ci via the `react-tests` grader.
+# instead of the full suite. When file arguments are provided, it runs those
+# tests directly; this is used by Syrus base-revision retry. Gives the
+# implementing agent a fast test signal on every review-phase grade iteration;
+# the full suite + typecheck still run at landing/ci via the `react-tests`
+# grader.
 #
 # Deliberately skips `tsc --noEmit` here -- TypeScript typechecking is
 # whole-program, not meaningfully "focused" by changed file.
@@ -30,24 +32,29 @@ resolve_default_branch() {
   return 1
 }
 
-default_branch=$(resolve_default_branch) || {
-  echo "[test-react-focused] could not locate the default branch ref -- skipping"
-  exit 0
-}
+if [ "$#" -gt 0 ]; then
+  changed_files=("$@")
+  echo "[test-react-focused] running explicit Vitest file(s): ${changed_files[*]}"
+else
+  default_branch=$(resolve_default_branch) || {
+    echo "[test-react-focused] could not locate the default branch ref -- skipping"
+    exit 0
+  }
 
-changed_files=()
-while IFS= read -r line; do
-  case "$line" in
-    *.ts|*.tsx) [ -n "$line" ] && changed_files+=("$line") ;;
-  esac
-done < <(git diff --name-only --diff-filter=ACMR "${default_branch}...HEAD" -- app/frontend plugins desktop/src 2>/dev/null || true)
+  changed_files=()
+  while IFS= read -r line; do
+    case "$line" in
+      *.ts|*.tsx) [ -n "$line" ] && changed_files+=("$line") ;;
+    esac
+  done < <(git diff --name-only --diff-filter=ACMR "${default_branch}...HEAD" -- app/frontend plugins desktop/src 2>/dev/null || true)
 
-if [ "${#changed_files[@]}" -eq 0 ]; then
-  echo "[test-react-focused] no changed .ts/.tsx files -- nothing to run"
-  exit 0
+  if [ "${#changed_files[@]}" -eq 0 ]; then
+    echo "[test-react-focused] no changed .ts/.tsx files -- nothing to run"
+    exit 0
+  fi
+
+  echo "[test-react-focused] running vitest related for ${#changed_files[@]} file(s): ${changed_files[*]}"
 fi
-
-echo "[test-react-focused] running vitest related for ${#changed_files[@]} file(s): ${changed_files[*]}"
 
 # Install node_modules if missing or stale. Same freshness check as
 # bin/test-react, verbatim, so a stale/missing node_modules still installs.
@@ -58,4 +65,8 @@ fi
 vitest_junit_output="${VITEST_FOCUSED_JUNIT_OUTPUT:-.syrus/grade-output/react-tests-focused-junit.xml}"
 mkdir -p "$(dirname "$vitest_junit_output")"
 
-exec npx vitest related --run --passWithNoTests --maxWorkers=1 --reporter=default --reporter=junit --outputFile.junit="$vitest_junit_output" "${changed_files[@]}"
+if [ "$#" -gt 0 ]; then
+  exec npx vitest run --passWithNoTests --maxWorkers=1 --reporter=default --reporter=junit --outputFile.junit="$vitest_junit_output" "${changed_files[@]}"
+else
+  exec npx vitest related --run --passWithNoTests --maxWorkers=1 --reporter=default --reporter=junit --outputFile.junit="$vitest_junit_output" "${changed_files[@]}"
+fi
