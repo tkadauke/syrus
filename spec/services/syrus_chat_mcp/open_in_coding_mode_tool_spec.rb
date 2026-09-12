@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Mcp::Tools::OpenInCodingModeTool do
-  let(:user) { Factories.user }
+  let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }
 
@@ -50,6 +50,18 @@ RSpec.describe Mcp::Tools::OpenInCodingModeTool do
     expect(job.reload).to be_coding
     expect(job.linked_chat_id).to eq(chat_session.id)
     expect(chat_session.reload.coding_checkout_branch).to eq("syrus/job-1")
+  end
+
+  it "rejects takeover when repository GitHub credentials are missing" do
+    user.update!(github_token: nil)
+    job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                               branch_name: "syrus/job-1", pr_number: 10)
+
+    response = call_tool(job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include(JobCodingMode::Takeover::GITHUB_TOKEN_REQUIRED_MESSAGE)
+    expect(job.reload).to be_implemented
   end
 
   it "rejects takeover when the chat already has another active coding Job" do
