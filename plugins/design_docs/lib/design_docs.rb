@@ -13,11 +13,17 @@ module DesignDocs
     category "collaboration"
     default_enabled true
     disableable true
+    optionally_depends_on [ "global_search" ]
+    events "design_doc.upserted" => :async,
+           "design_doc.deleted" => :async
     provides sidebar_page: "DesignDocs::SidebarPages",
              repo_page_tab: "DesignDocs::RepoPageTabs",
              workspace_tab: "DesignDocs::WorkspaceTabs",
              chat_mcp_tool_set: "DesignDocs::ChatToolSet",
-             mcp_tool_set: "DesignDocs::WorkflowToolSet"
+             mcp_tool_set: "DesignDocs::WorkflowToolSet",
+             callbacks: "DesignDocs::Callbacks",
+             domain_subscriber: "DesignDocs::Subscribers",
+             "global_search:source" => "DesignDocs::SearchSource"
     route :get, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#index"
     route :post, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#create"
     route :get, "/api/v1/app/design_docs/:id", to: "api/v1/app/design_docs#show"

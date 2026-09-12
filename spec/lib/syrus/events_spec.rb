@@ -44,6 +44,20 @@ RSpec.describe Syrus::Events, :reset_plugin_registry do
       .to raise_error(described_class::UnknownEvent, /nope.happened/)
   end
 
+  it "accepts event names declared by registered plugins" do
+    klass = subscriber({ "plugin.thing_happened" => :on_event })
+    Syrus::PluginRegistry.register(
+      name: "event_plugin", version: "1.0.0",
+      events: { "plugin.thing_happened" => :inline },
+      provides: { domain_subscriber: klass }
+    )
+
+    described_class.publish("plugin.thing_happened", thing_id: 12)
+
+    expect(klass.received.map(&:name)).to eq([ "plugin.thing_happened" ])
+    expect(klass.received.first[:thing_id]).to eq(12)
+  end
+
   it "delivers an inline event synchronously" do
     klass = subscriber({ "step.grader.completed" => :on_event })
     register(klass)
