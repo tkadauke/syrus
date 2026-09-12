@@ -153,6 +153,7 @@ module App
       return {} if labels.empty?
 
       TargetHealthRecord.where(repository: repository, target_label: labels)
+                        .includes(:workflow)
                         .latest_first
                         .to_a
                         .uniq(&:target_label)
