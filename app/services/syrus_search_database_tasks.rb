@@ -2,6 +2,10 @@ require "fileutils"
 require "zlib"
 
 module SyrusSearchDatabaseTasks
+  %i[BUILT_IN_TABLE_SQL REBUILD_HOOKS AVAILABILITY_CACHES].each do |constant_name|
+    remove_const(constant_name) if const_defined?(constant_name, false)
+  end
+
   BUILT_IN_TABLE_SQL = {
     "chat_message_fts" => <<~SQL,
       CREATE VIRTUAL TABLE IF NOT EXISTS chat_message_fts
