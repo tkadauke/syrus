@@ -11,10 +11,15 @@ module GlobalSearch
   #     { "my_plugin_fts" => "CREATE VIRTUAL TABLE IF NOT EXISTS ..." }
   #   end
   #
-  # and, optionally, a repopulation hook used when a table's schema has
-  # drifted and it must be dropped and recreated. Without one the table is
-  # left alone and the drift is logged, because losing rows Syrus cannot
-  # rebuild is worse than running on a stale schema:
+  # and, optionally, an idempotent backfill hook. Global Search calls it after
+  # the host plugin is enabled and after a table is created or rebuilt by
+  # `syrus:prepare_search`, so it must be safe to run repeatedly. Without one,
+  # a drifted table is left alone and the drift is logged, because losing rows
+  # Syrus cannot rebuild is worse than running on a stale schema:
+  #
+  #   def self.backfill_search_table(name) = MyPlugin::Index.rebuild!
+  #
+  # The older name remains supported as an alias for the same semantics:
   #
   #   def self.rebuild_search_table(name) = MyPlugin::Index.rebuild!
   #
