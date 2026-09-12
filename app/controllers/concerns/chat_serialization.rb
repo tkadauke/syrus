@@ -85,6 +85,7 @@ module ChatSerialization
           app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
           app_speech_to_text_batch_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text",
           app_speech_to_text_stream_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text/stream",
+          app_create_coding_handoff_path: "/api/v1/app/chats/#{chat_session.id}/coding_handoff",
           app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout",
           app_coding_files_path: "/api/v1/app/chats/#{chat_session.id}/coding_files",
           app_coding_commits_path: "/api/v1/app/chats/#{chat_session.id}/coding_commits",
@@ -94,6 +95,7 @@ module ChatSerialization
           app_source_file_raw_path: "/api/v1/app/chats/#{chat_session.id}/source_file/raw"
         },
         speech_to_text: speech_to_text,
+        attached_coding_job: attached_coding_job_json(chat_session),
         coding_mode_enabled: Feature.coding_mode_enabled?,
         local_mode_enabled: Feature.local_mode_enabled?,
         local_tunnel_connected: Feature.local_mode_enabled? && LocalDaemonSession.connected.exists?(chat_session_id: chat_session.id)
@@ -162,6 +164,28 @@ module ChatSerialization
       created_at: goal.created_at.iso8601,
       updated_at: goal.updated_at.iso8601
     }
+  end
+
+  def attached_coding_job_json(chat_session)
+    job = attached_coding_job(chat_session)
+    return nil unless job
+
+    {
+      id: job.id,
+      slug: job.slug,
+      title: job.issue_title,
+      state: job.state,
+      branch_name: job.branch_name,
+      checkout_branch: chat_session.coding_checkout_branch,
+      checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
+      can_submit: Feature.coding_mode_enabled? && chat_session.coding? && job.coding? && !chat_session.coding_checkout_uncommitted?,
+      can_cancel: Feature.coding_mode_enabled? && chat_session.coding? && chat_session.coding_checkout_branch.present?,
+      app_path: job_path(job)
+    }
+  end
+
+  def attached_coding_job(chat_session)
+    chat_session.linked_job || Job.where(linked_chat_id: chat_session.id).order(:id).first
   end
 
   def attachment_groups_for_payload(chat_session)
