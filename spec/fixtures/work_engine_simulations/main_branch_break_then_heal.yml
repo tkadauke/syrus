@@ -1,0 +1,53 @@
+name: main branch break pauses then heals
+jobs:
+  first:
+    title: First job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  second:
+    title: Second job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: break main once workflows are running
+    once: true
+    when:
+      any:
+        - workflow:
+            job: first
+            state: running
+        - workflow:
+            job: second
+            state: running
+    do:
+      break_main_branch: {}
+  - name: heal main once work is start-blocked on health
+    once: true
+    when:
+      any:
+        - workflow:
+            job: first
+            start_blocked: main_branch_health
+        - workflow:
+            job: second
+            start_blocked: main_branch_health
+    do:
+      heal_main_branch: {}
+outcomes:
+  default: success
+expect:
+  jobs:
+    first:
+      - implemented
+    second:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - "broke main branch health"
+    - "healed main branch health"

@@ -115,7 +115,10 @@ module WorkEngine
         scope = Workflow.where(job_id: condition.fetch("job"))
         scope = scope.where(trigger_kind: condition["kind"]) if condition["kind"].present?
         scope = scope.where(state: Array(condition["state"] || condition["states"])) if condition["state"].present? || condition["states"].present?
-        scope.exists?
+        return false unless scope.exists?
+        return true if condition["start_blocked"].blank?
+
+        scope.any? { |workflow| WorkUnits::StartBlock.for(workflow).reason.to_s == condition["start_blocked"].to_s }
       end
 
       def work_unit_condition_matches?(condition)
@@ -159,6 +162,8 @@ module WorkEngine
           when "merge_pr" then merge_pr!(value)
           when "report_pr_feedback" then report_pr_feedback!(value)
           when "report_ci_failure" then report_ci_failure!(value)
+          when "break_main_branch" then break_main_branch!(value)
+          when "heal_main_branch" then heal_main_branch!(value)
           when "wake_provider_admission" then wake_provider_admission!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
@@ -238,7 +243,7 @@ module WorkEngine
       def wake_provider_admission!(value)
         provider = provider_for(value)
         admission = ProviderAdmissionWakeup.call(provider: provider, user: simulation_user)
-        resumed = resume_provider_blocked_workflows!(provider)
+        resumed = resume_blocked_workflows!(WorkUnits::Gates::ProviderAvailability::REASON, provider: provider)
         events << "provider admission wakeup: #{admission.workflow_count} workflows, " \
                   "#{admission.auto_retry_count} auto retries, #{resumed} deferred phases resumed"
       end
@@ -246,14 +251,14 @@ module WorkEngine
       # Runs the same resume the enqueued WorkflowPhaseAdmissionJob would run,
       # inline: there are no queue workers in a simulation. Covers workflows
       # already mid-flight, which ProviderAdmissionWakeup intentionally skips.
-      def resume_provider_blocked_workflows!(provider)
-        WorkUnit
+      def resume_blocked_workflows!(reason, provider: nil)
+        scope = WorkUnit
           .joins(:workflow)
-          .where(state: "blocked", blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON)
-          .where(workflows: { agent_provider: provider.to_s, state: %w[queued running] })
+          .where(state: "blocked", blocked_reason: reason)
+          .where(workflows: { state: %w[queued running] })
           .order(:id)
-          .filter_map { |unit| WorkUnits::DeferredPhaseResume.call(unit.workflow_id) }
-          .count(&:started?)
+        scope = scope.where(workflows: { agent_provider: provider.to_s }) if provider
+        scope.filter_map { |unit| WorkUnits::DeferredPhaseResume.call(unit.workflow_id) }.count(&:started?)
       end
 
       # Mirrors the operator switching a job's provider mid-flight: repins
@@ -370,6 +375,28 @@ module WorkEngine
         else
           events << "ci_failure workflow for #{job.slug} deferred at start"
         end
+      end
+
+      # Models main-branch health flipping to broken (e.g. the main_grader
+      # workflow failing) and recovering (repair landed). The block itself --
+      # strict policy, repair-blocks-work, paused landing, broken health --
+      # is evaluated by the real dispatcher gate; these actions only move
+      # the world state the gate reads.
+      def break_main_branch!(value)
+        repository = simulation_repository
+        repository.update!(grader_health: "broken", landing_paused: true)
+        events << "broke main branch health"
+      end
+
+      def heal_main_branch!(value)
+        repository = simulation_repository
+        repository.update!(grader_health: "healthy", ci_health: "healthy", landing_paused: false)
+        resumed = resume_blocked_workflows!(WorkUnits::Gates::MainBranchHealth::REASON)
+        events << "healed main branch health, #{resumed} deferred phases resumed"
+      end
+
+      def simulation_repository
+        jobs.first&.repository
       end
 
       def record_simulated_base_health!(job, base_sha)
