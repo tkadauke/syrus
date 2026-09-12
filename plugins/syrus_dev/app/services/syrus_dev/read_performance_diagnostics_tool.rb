@@ -32,11 +32,11 @@ module SyrusDev
 
     class << self
       def call(server_context:, limit: PerformancePayload::DEFAULT_LIMIT, revision_scope: "current", include_events: false)
-        context = McpToolContext.from_server_context(server_context)
-        return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
-        return Mcp::Tools.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
-
         payload = PerformanceLogging.suppress do
+          context = McpToolContext.from_server_context(server_context)
+          return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
+          return Mcp::Tools.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+
           PerformancePayload.new(params: { limit: limit, revision_scope: revision_scope }).as_json
         end
         payload = sanitized_payload(payload, include_events: include_events)
