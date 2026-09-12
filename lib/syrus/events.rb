@@ -35,8 +35,6 @@ module Syrus
       "step.grader.completed" => :inline,
       "step.command.completed" => :inline,
       "epic.upserted"         => :async,
-      "design_doc.upserted"   => :async,
-      "design_doc.deleted"    => :async,
       # Lets a plugin seed defaults for the installation's bootstrap admin
       # without core knowing what it is seeding.
       "user.created"          => :async,
@@ -49,13 +47,17 @@ module Syrus
 
     module_function
 
-    def known?(name) = EVENTS.key?(name.to_s)
+    def known?(name) = event_catalog.key?(name.to_s)
 
-    def delivery_for(name) = EVENTS.fetch(name.to_s)
+    def delivery_for(name) = event_catalog.fetch(name.to_s)
+
+    def event_catalog
+      Syrus::PluginRegistry.registered_events.merge(EVENTS)
+    end
 
     def publish(name, **payload)
       name = name.to_s
-      raise UnknownEvent, "Unknown domain event: #{name.inspect}. Valid: #{EVENTS.keys.inspect}" unless known?(name)
+      raise UnknownEvent, "Unknown domain event: #{name.inspect}. Valid: #{event_catalog.keys.inspect}" unless known?(name)
 
       event = Syrus::DomainEvent.new(name: name, payload: payload)
 
