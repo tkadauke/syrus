@@ -39,19 +39,21 @@ module DesignDocs
         return [] unless table_available?
 
         limit_count = limit.present? ? limit.to_i : 20
+        exact_rows = exact_doc_rows(query, user: user, snippet_start: snippet_start, snippet_end: snippet_end)
         rows = merge_exact_doc_rows(
-          search_fts_rows(
+          visible_search_fts_rows(
             query,
             limit: limit_count,
+            user: user,
+            excluded_ids: exact_rows.map { |row| row.fetch(:design_doc_id).to_i }.to_set,
             snippet_start: snippet_start,
             snippet_end: snippet_end,
             snippet_tokens: snippet_tokens
           ),
-          exact_doc_rows(query, user: user, snippet_start: snippet_start, snippet_end: snippet_end)
+          exact_rows
         )
-        visible_ids = visible_doc_ids(rows, user)
 
-        rows.select { |row| visible_ids.include?(row.fetch(:design_doc_id).to_i) }.first(limit_count)
+        rows.first(limit_count)
       end
 
       private
@@ -60,7 +62,41 @@ module DesignDocs
         connection.select_value("SELECT name FROM sqlite_master WHERE name = 'design_doc_fts'").present?
       end
 
-      def search_fts_rows(query, limit:, snippet_start:, snippet_end:, snippet_tokens:)
+      def visible_search_fts_rows(query, limit:, user:, excluded_ids:, snippet_start:, snippet_end:, snippet_tokens:)
+        rows = []
+        batch_size = [ limit.to_i * 5, 100 ].max
+        offset = 0
+
+        loop do
+          batch = search_fts_rows(
+            query,
+            limit: batch_size,
+            offset: offset,
+            snippet_start: snippet_start,
+            snippet_end: snippet_end,
+            snippet_tokens: snippet_tokens
+          )
+          break if batch.empty?
+
+          visible_ids = visible_doc_ids(batch, user)
+          batch.each do |row|
+            design_doc_id = row.fetch(:design_doc_id).to_i
+            next if excluded_ids.include?(design_doc_id)
+            next unless visible_ids.include?(design_doc_id)
+
+            rows << row
+            return rows if rows.length >= limit
+          end
+
+          break if batch.length < batch_size
+
+          offset += batch_size
+        end
+
+        rows
+      end
+
+      def search_fts_rows(query, limit:, offset:, snippet_start:, snippet_end:, snippet_tokens:)
         binds = [
           bind(snippet_start.to_s),
           bind(snippet_end.to_s),
@@ -68,8 +104,8 @@ module DesignDocs
           bind(parse_fts_query(query))
         ]
 
-        internal_limit = [ limit.to_i * 5, 100 ].max
-        binds << bind(internal_limit)
+        binds << bind(limit.to_i)
+        binds << bind(offset.to_i)
 
         connection.exec_query(
           <<~SQL.squish,
@@ -80,7 +116,7 @@ module DesignDocs
             FROM design_doc_fts
             WHERE design_doc_fts MATCH ?
             ORDER BY rank ASC, updated_at DESC, design_doc_id DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
           SQL
           "DesignDocs::SearchIndex Search",
           binds
