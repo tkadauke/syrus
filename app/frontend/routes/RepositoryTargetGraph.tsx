@@ -67,7 +67,7 @@ export function JobTargetGraphPanel({ jobId, prefix }: { jobId: string | number;
   if (query.isError) return <PanelMessage tone="error">{errorMessage(query.error, "Unable to load target graph.")}</PanelMessage>
   if (!query.data) return null
 
-  return <TargetGraphExplorer payload={query.data} prefix={prefix} query={graphQuery} />
+  return <TargetGraphExplorer persistentSearchParams={{ tab: "target_graph" }} payload={query.data} prefix={prefix} query={graphQuery} />
 }
 
 export function targetGraphQueryFromSearch(search: string): TargetGraphQuery {
@@ -89,8 +89,8 @@ export function targetGraphQueryFromSearch(search: string): TargetGraphQuery {
   }
 }
 
-export function targetGraphSearchFromQuery(query: TargetGraphQuery) {
-  const params = new URLSearchParams()
+export function targetGraphSearchFromQuery(query: TargetGraphQuery, persistentSearchParams: Record<string, string> = {}) {
+  const params = new URLSearchParams(persistentSearchParams)
   if (query.mode && query.mode !== "neighborhood") params.set("mode", query.mode)
   if (query.focusLabel) params.set("focus_label", query.focusLabel)
   if (query.focusState) params.set("focus_state", query.focusState)
@@ -105,7 +105,19 @@ export function targetGraphSearchFromQuery(query: TargetGraphQuery) {
   return value ? `?${value}` : ""
 }
 
-export function TargetGraphExplorer({ backLink, payload, prefix, query }: { backLink?: { label: string; path: string }; payload: TargetGraphPayload; prefix: string; query: TargetGraphQuery }) {
+export function TargetGraphExplorer({
+  backLink,
+  payload,
+  persistentSearchParams = {},
+  prefix,
+  query
+}: {
+  backLink?: { label: string; path: string }
+  payload: TargetGraphPayload
+  persistentSearchParams?: Record<string, string>
+  prefix: string
+  query: TargetGraphQuery
+}) {
   const navigate = useNavigate()
   const location = useLocation()
   const [draft, setDraft] = useState(query.q || query.focusLabel || "")
@@ -113,7 +125,7 @@ export function TargetGraphExplorer({ backLink, payload, prefix, query }: { back
   const visibleLabels = useMemo(() => new Set(payload.targets.map((target) => target.label)), [payload.targets])
 
   function updateQuery(next: TargetGraphQuery) {
-    navigate(`${location.pathname}${targetGraphSearchFromQuery({ ...query, ...next })}`)
+    navigate(`${location.pathname}${targetGraphSearchFromQuery({ ...query, ...next }, persistentSearchParams)}`)
   }
 
   function submitSearch(event: FormEvent) {
