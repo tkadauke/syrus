@@ -1,0 +1,50 @@
+name: landing queue serializes contention
+repository:
+  owner: simulation
+  name: landing-queue-serialization
+  auto_merge_enabled: true
+jobs:
+  first:
+    title: First job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  second:
+    title: Second job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve first once implemented
+    once: true
+    when:
+      job:
+        id: first
+        state: implemented
+    do:
+      approve: first
+  - name: approve second once implemented
+    once: true
+    when:
+      job:
+        id: second
+        state: implemented
+    do:
+      approve: second
+outcomes:
+  default: success
+expect:
+  jobs:
+    first:
+      - closed
+    second:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events_ordered:
+    - "auto_merge for First job"
+    - "auto_merge for Second job"

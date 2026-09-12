@@ -468,7 +468,8 @@ module WorkEngine
         return unless workflow
         return unless job_ids.include?(workflow.job_id)
 
-        events << "tick #{tick}: landing_queue dispatched #{workflow.slug} #{workflow.trigger_kind}"
+        events << "tick #{tick}: landing_queue dispatched #{workflow.slug} #{workflow.trigger_kind} for #{workflow.job.title}"
+
       rescue WorkUnits::Launcher::LockConflict => e
         events << "tick #{tick}: landing_queue active lock #{e.lock_key}"
       end
@@ -756,7 +757,24 @@ module WorkEngine
         expected_jobs_match? &&
           expected_epics_match? &&
           expected_queues_match? &&
-          expected_events_match?
+          expected_events_match? &&
+          expected_ordered_events_match?
+      end
+
+      # Like expected_events_match?, but the required substrings must appear
+      # in order (not necessarily consecutively). For proving sequencing --
+      # contended landings dispatch in priority order, a pause precedes its
+      # resume -- rather than mere occurrence.
+      def expected_ordered_events_match?
+        required = Array(expectations["events_ordered"])
+        return true if required.empty?
+
+        position = 0
+        events.each do |line|
+          position += 1 if line.include?(required[position].to_s)
+          return true if position >= required.length
+        end
+        false
       end
 
       # Narrative assertions: required substrings over the tick event log.
