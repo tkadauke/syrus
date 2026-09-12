@@ -620,6 +620,7 @@ describe("WorkflowsTab", () => {
           <WorkflowsTab
             command={command()}
             payload={payload({
+              job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"],
               workflows: [distributedGradeWorkflow()]
             })}
             prefix=""
@@ -641,6 +642,10 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getAllByText("STEP-22").length).toBeGreaterThan(0)
     expect(screen.getByText("Target //:grade/beta")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Target //:grade/beta" })).toHaveAttribute(
+      "href",
+      "/jobs/42?tab=target_graph&workflow_id=10&focus_label=%2F%2F%3Agrade%2Fbeta"
+    )
     expect(screen.getByText("Placement waiting")).toBeInTheDocument()
     expect(screen.getByText("immutable source checkout")).toBeInTheDocument()
     expect(screen.getByText("refs/heads/main")).toBeInTheDocument()
@@ -649,6 +654,13 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText(/worker slot busy/)).toBeInTheDocument()
     expect(screen.getByText("Waits for")).toBeInTheDocument()
     expect(screen.getByText("STEP-20")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /delta/ }))
+
+    expect(screen.getByRole("link", { name: "Open target graph neighborhood" })).toHaveAttribute(
+      "href",
+      "/jobs/42?tab=target_graph&workflow_id=10&focus_label=%2F%2F%3Agrade%2Fdelta"
+    )
   })
 })
 
