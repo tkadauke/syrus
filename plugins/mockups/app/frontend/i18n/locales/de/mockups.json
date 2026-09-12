@@ -10,5 +10,20 @@
   "preview_unavailable": "Dieses Mockup konnte nicht angezeigt werden.",
   "preview_access_pending": "Vorschauzugriff wird vorbereitet…",
   "version": "Version",
-  "download": "Herunterladen"
+  "download": "Herunterladen",
+  "tool_copy_panel_id": "Panel-ID kopieren",
+  "tool_copy_url": "URL kopieren",
+  "tool_panel_number": "Panel #{{id}}",
+  "tool_panel_id": "Panel-ID",
+  "tool_preview_panel": "Vorschau-Panel",
+  "tool_state": "Status",
+  "tool_version": "Version",
+  "tool_entry_file": "Einstiegsdatei",
+  "tool_files": "Dateien",
+  "tool_open_mockup": "Mockup öffnen",
+  "tool_open_preview": "Vorschau öffnen",
+  "tool_url": "URL",
+  "tool_mockup": "Mockup",
+  "tool_path": "Pfad",
+  "tool_replacements": "Ersetzungen"
 }

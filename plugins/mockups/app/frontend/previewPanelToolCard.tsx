@@ -1,6 +1,7 @@
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
-import { Badge, CardShell, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
-import { isPlainObject } from "@app/toolCardParsing"
+import { isPlainObject } from "@app/pluginToolCards"
+import i18n from "i18next"
+import { Badge, CardShell, displayValue, InternalLink, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation for the mockups plugin's preview-panel chat tool cards
 // (the pending-action tool-card work). show_preview and close_preview both return the same
@@ -44,47 +45,63 @@ export function parsePreviewPanel(value: unknown): PreviewPanel | null {
 }
 
 export function previewPanelSummary(panel: PreviewPanel): string {
-  const label = panel.title || `Panel #${panel.panelId}`
+  const label = panel.title || t("tool_panel_number", { id: panel.panelId })
   return panel.state ? `${label} (${panel.state})` : label
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`mockups:${key}`, options)
 }
 
 export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
   const openHref = panel.mockupSlug ? `/mockups/${panel.mockupSlug}` : panel.url
-  const actions: MediaPreviewAction[] = [{ label: "Copy panel ID", copyValue: panel.panelId }]
-  if (openHref) actions.unshift({ label: panel.mockupSlug ? "Open mockup" : "Open preview", href: openHref })
-  if (panel.url) actions.push({ label: "Copy URL", copyValue: panel.url })
+  const actions: MediaPreviewAction[] = [{ label: t("tool_copy_panel_id"), copyValue: panel.panelId }]
+  if (openHref) actions.unshift({ label: panel.mockupSlug ? t("tool_open_mockup") : t("tool_open_preview"), href: openHref })
+  if (panel.url) actions.push({ label: t("tool_copy_url"), copyValue: panel.url })
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">Panel #{panel.panelId}</span>
+        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{t("tool_panel_number", { id: panel.panelId })}</span>
         {panel.state ? <StatePill state={panel.state} /> : null}
         {panel.versionId ? <Badge>v{panel.versionId}</Badge> : null}
       </div>
       <MediaPreviewShell
         item={{
-          title: panel.title ?? `Panel #${panel.panelId}`,
+          title: panel.title ?? t("tool_panel_number", { id: panel.panelId }),
           subtitle: panel.entryFile ?? panel.url,
           badge: panel.state,
-          fallbackLabel: "Preview panel",
+          fallbackLabel: t("tool_preview_panel"),
           actions,
           meta: [
-            { label: "Panel ID", value: panel.panelId, copyValue: panel.panelId },
-            { label: "State", value: panel.state },
-            { label: "Version", value: panel.versionId },
-            { label: "Entry file", value: panel.entryFile },
-            { label: "Files", value: panel.fileCount != null ? String(panel.fileCount) : null },
-            { label: "URL", value: panel.url, copyValue: panel.url },
-            { label: "Mockup", value: panel.mockupSlug, copyValue: panel.mockupSlug }
+            { label: t("tool_panel_id"), value: panel.panelId, copyValue: panel.panelId },
+            { label: t("tool_state"), value: panel.state },
+            { label: t("tool_version"), value: panel.versionId },
+            { label: t("tool_entry_file"), value: panel.entryFile },
+            { label: t("tool_files"), value: panel.fileCount != null ? String(panel.fileCount) : null },
+            { label: t("tool_url"), value: panel.url, copyValue: panel.url },
+            { label: t("tool_mockup"), value: panel.mockupSlug, copyValue: panel.mockupSlug }
           ]
         }}
-        modalLabel={panel.title ?? `Panel #${panel.panelId}`}
+        modalLabel={panel.title ?? t("tool_panel_number", { id: panel.panelId })}
       />
       {panel.entryFile || panel.fileCount != null ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {panel.entryFile ? <Row label="Entry file" value={panel.entryFile} /> : null}
-          {panel.fileCount != null ? <Row label="Files" value={String(panel.fileCount)} /> : null}
+          {panel.entryFile ? <Row label={t("tool_entry_file")} value={panel.entryFile} /> : null}
+          {panel.fileCount != null ? <Row label={t("tool_files")} value={String(panel.fileCount)} /> : null}
         </dl>
+      ) : null}
+      {panel.mockupSlug ? (
+        <InternalLink href={`/mockups/${panel.mockupSlug}`}>{t("tool_open_mockup")}</InternalLink>
+      ) : panel.url ? (
+        <a
+          className="block truncate font-mono text-xs text-brand hover:underline dark:text-brand-emphasis"
+          href={panel.url}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {panel.url}
+        </a>
       ) : null}
       {panel.note ? <div className="text-gray-600 dark:text-gray-300">{panel.note}</div> : null}
     </CardShell>
@@ -110,10 +127,10 @@ export function PreviewFileOpCard({ action, op }: { action: string; op: PreviewF
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{action}</Badge>
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">Panel #{op.panelId}</span>
+        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{t("tool_panel_number", { id: op.panelId })}</span>
       </div>
-      <Row label="Path" value={op.path} />
-      {op.replacements != null ? <Row label="Replacements" value={String(op.replacements)} /> : null}
+      <Row label={t("tool_path")} value={op.path} />
+      {op.replacements != null ? <Row label={t("tool_replacements")} value={String(op.replacements)} /> : null}
     </CardShell>
   )
 }

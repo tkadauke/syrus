@@ -10,5 +10,20 @@
   "preview_unavailable": "Hoc exemplar monstrari non potuit.",
   "preview_access_pending": "Aditus praevisionis paratur…",
   "version": "Versio",
-  "download": "Depromere"
+  "download": "Depromere",
+  "tool_copy_panel_id": "ID tabulae describe",
+  "tool_copy_url": "URL describe",
+  "tool_panel_number": "Tabula #{{id}}",
+  "tool_panel_id": "ID tabulae",
+  "tool_preview_panel": "Tabula praevisionis",
+  "tool_state": "Status",
+  "tool_version": "Versio",
+  "tool_entry_file": "Fasciculus initii",
+  "tool_files": "Fasciculi",
+  "tool_open_mockup": "Exemplar aperire",
+  "tool_open_preview": "Praevisionem aperire",
+  "tool_url": "URL",
+  "tool_mockup": "Exemplar",
+  "tool_path": "Semita",
+  "tool_replacements": "Substitutiones"
 }
