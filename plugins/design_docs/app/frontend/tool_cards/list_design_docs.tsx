@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, FilterableList, StatePill } from "@app/routes/chat/toolCardUi"
-import i18n from "@app/i18n"
+import { t } from "../designDocToolCard"
 
 // Demonstrates the plugin-owned tool-card extension point (the Tier 1 tool-card work /
 // the relevant change): this file lives entirely inside the design_docs plugin and is
@@ -26,11 +26,7 @@ function collapsedSummary(context: ToolCardContext) {
   const docs = designDocs(context)
   if (!docs) return null
 
-  return `${docs.length} design doc${docs.length === 1 ? "" : "s"}`
-}
-
-function t(key: string) {
-  return i18n.t(`design_docs:${key}`)
+  return t("tool_design_doc_count", { count: docs.length })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -48,7 +44,7 @@ function renderExpanded(context: ToolCardContext) {
           <ul className="space-y-1 rounded border border-gray-200 bg-white p-2 text-xs dark:border-gray-800 dark:bg-gray-950">
             {visibleDocs.map((doc, index) => {
               const docRef = typeof doc.doc_ref === "string" && doc.doc_ref ? doc.doc_ref : String(doc.id ?? index)
-              const title = typeof doc.title === "string" && doc.title ? doc.title : "Untitled design doc"
+              const title = typeof doc.title === "string" && doc.title ? doc.title : t("tool_untitled_design_doc")
               const state = typeof doc.state === "string" ? doc.state : null
 
               return (
