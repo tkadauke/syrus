@@ -88,10 +88,21 @@ that are themselves confirmed obsolete. Every retirement records a
 `retired` `AgentInsights::AuditEvent` with the previous/new state and
 retirement fields, the actor (run/user/system), and the reason.
 
-Repository and admin insight list views default to the `pending` tab, so
-retired insights are excluded from the default active-review surface without
-any extra filtering. Both views accept an explicit `state=retired` (or
-`state=all`, which includes retired rows) to inspect retired insights.
+Repository insight suggestions are identified in the UI as stable
+`INSIGHT-<id>` slugs. Each repository insight card renders the slug as a
+one-click copy control, while accepted cards continue to link to the Job they
+created when applicable.
+
+The repository insight view uses the shared smart-folder and filter controls
+instead of bespoke state tabs. Built-in folders cover Pending, Accepted,
+Dismissed, Retired, and All, and the folder/filter URL preserves refresh,
+back/forward navigation, and copied links. Operators can add filters for
+created date/range, state, severity, proposal type, category, confidence, and
+created-job presence. Repository and admin insight list views default to the
+pending review surface, so retired insights are excluded from the default
+active-review surface without any extra filtering. Both views accept an
+explicit retired state/folder (or All, which includes retired rows) to inspect
+retired insights.
 
 A one-off cleanup path retires the pre-existing stale backlog — pending or
 dismissed legacy `revise_existing_insight` rows and pending or dismissed
