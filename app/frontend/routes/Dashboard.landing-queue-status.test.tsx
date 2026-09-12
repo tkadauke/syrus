@@ -98,10 +98,9 @@ function buildPayload(items: DashboardJobItem[], overrides: Partial<DashboardPay
         required: [
           { key: "checkbox", title: "Checkbox" },
           { key: "landing_queue_position", title: "Queue" },
-          { key: "landing_queue_wait_reason", title: "Queue status" },
           { key: "issue", title: "Issue" }
         ],
-        optional: []
+        optional: [{ key: "commits_behind_base", title: "Behind" }]
       },
       kanban_lanes: [],
       filter_schema: [],
@@ -171,7 +170,7 @@ describe("landing queue status column", () => {
     }
   })
 
-  it("renders ordinary queue waits with neutral styling under Queue status", () => {
+  it("renders ordinary queue waits with neutral styling under Queue", () => {
     renderTable([
       jobItem({
         id: 1,
@@ -180,7 +179,8 @@ describe("landing queue status column", () => {
       })
     ])
 
-    expect(screen.getByText("Queue status")).toBeInTheDocument()
+    expect(screen.getByText("Queue")).toBeInTheDocument()
+    expect(screen.queryByText("Queue status")).not.toBeInTheDocument()
     const status = screen.getByText("Waiting for Epic merge-train").closest("[data-status-pill]")
     expect(status?.className).toContain("bg-neutral-surface")
     expect(status?.className).not.toContain("bg-danger-surface")
@@ -284,6 +284,18 @@ describe("landing queue status column", () => {
     expect(screen.getByText("PR checks failing on")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "EPIC-7" })).not.toBeInTheDocument()
+  })
+
+  it("does not render commits-behind state inside Queue", () => {
+    renderTable([
+      jobItem({
+        id: 6,
+        commits_behind_base: 12,
+        landing_queue_position: 1
+      })
+    ])
+
+    expect(screen.queryByText("12 behind")).not.toBeInTheDocument()
   })
 
   it("shows a pending override badge when an override was granted but not yet used", () => {
