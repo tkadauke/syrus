@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { NoticeToast } from "@app/components/NoticeToast"
-import { DataTable, DescriptionList } from "@app/components/ui"
+import { Button, DataTable, DescriptionList, Form } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createMysqlConnection,
@@ -43,8 +43,6 @@ const EMPTY_FORM: MysqlConnectionInput = {
   allow_writes: false,
   password: ""
 }
-
-const INPUT_CLASSES = "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
 
 type BrowseTarget = { connectionId: number; label: string }
 
@@ -115,18 +113,14 @@ function ConnectionCreateForm({ onNotice }: { onNotice: (message: string | null)
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("add_heading")}</h2>
       <form className="mt-3 space-y-3" onSubmit={submit}>
         <ConnectionFieldsGrid idPrefix="new-connection" onChange={setValues} passwordRequired values={values} />
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={create.isPending}
-            type="submit"
-          >
+        <Form.Actions align="start" className="pt-0">
+          <Button disabled={create.isPending} type="submit" variant="primary">
             {create.isPending ? t("creating") : t("create_button")}
-          </button>
+          </Button>
           <TestButton onTest={() => testDraftMysqlConnection(values)} />
-        </div>
+        </Form.Actions>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
+      {create.isError ? <p className="mt-3 text-sm text-danger-text" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
     </section>
   )
 }
@@ -337,23 +331,14 @@ function ConnectionActions({
   return (
     <div>
       <div className={`flex flex-wrap items-start gap-2 ${align === "end" ? "justify-end" : ""}`}>
-        <button
-          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90"
-          onClick={onBrowse}
-          type="button"
-        >
+        <Button onClick={onBrowse} type="button" variant="primary">
           {t("browse_button")}
-        </button>
+        </Button>
         <TestButton onTest={() => testMysqlConnection(connection.id)} />
-        <button
-          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          onClick={onEdit}
-          type="button"
-        >
+        <Button onClick={onEdit} type="button" variant="secondary">
           {t("edit_button")}
-        </button>
-        <button
-          className="rounded border border-red-300 dark:border-red-900 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+        </Button>
+        <Button
           disabled={destroy.isPending}
           onClick={() => {
             if (window.confirm(t("confirm_delete", { label: connection.label }))) {
@@ -362,12 +347,13 @@ function ConnectionActions({
             }
           }}
           type="button"
+          variant="danger"
         >
           {destroy.isPending ? t("deleting") : t("delete_button")}
-        </button>
+        </Button>
       </div>
       {destroy.isError ? (
-        <p className={`mt-2 text-xs text-red-700 dark:text-red-300 ${align === "end" ? "text-right" : ""}`} role="alert">
+        <p className={`mt-2 text-xs text-danger-text ${align === "end" ? "text-right" : ""}`} role="alert">
           {errorMessage(destroy.error, t("delete_error_fallback"))}
         </p>
       ) : null}
@@ -422,24 +408,16 @@ function ConnectionEditForm({
         passwordHint={t("field_password_hint_edit")}
         values={values}
       />
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={update.isPending}
-          type="submit"
-        >
+      <Form.Actions align="start" className="pt-0">
+        <Button disabled={update.isPending} type="submit" variant="primary">
           {update.isPending ? t("saving") : t("save_button")}
-        </button>
-        <button
-          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          onClick={onCancel}
-          type="button"
-        >
+        </Button>
+        <Button onClick={onCancel} type="button" variant="secondary">
           {t("cancel_button")}
-        </button>
+        </Button>
         <TestButton onTest={() => testMysqlConnection(connection.id, values.password || undefined)} />
-      </div>
-      {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
+      </Form.Actions>
+      {update.isError ? <p className="text-sm text-danger-text" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
     </form>
   )
 }
@@ -503,33 +481,27 @@ function ConnectionFieldsGrid({
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-label`}>
-        {t("field_label")}
-        <input
-          className={INPUT_CLASSES}
-          id={`${idPrefix}-label`}
+      <Form.Field controlId={`${idPrefix}-label`}>
+        <Form.Label>{t("field_label")}</Form.Label>
+        <Form.Input
           onChange={(event) => set("label", event.target.value)}
           required
           type="text"
           value={values.label}
         />
-      </label>
-      <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-host`}>
-        {t("field_host")}
-        <input
-          className={INPUT_CLASSES}
-          id={`${idPrefix}-host`}
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-host`}>
+        <Form.Label>{t("field_host")}</Form.Label>
+        <Form.Input
           onChange={(event) => set("host", event.target.value)}
           required
           type="text"
           value={values.host}
         />
-      </label>
-      <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-port`}>
-        {t("field_port")}
-        <input
-          className={INPUT_CLASSES}
-          id={`${idPrefix}-port`}
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-port`}>
+        <Form.Label>{t("field_port")}</Form.Label>
+        <Form.Input
           max={65535}
           min={1}
           onChange={(event) => set("port", Number(event.target.value))}
@@ -537,67 +509,55 @@ function ConnectionFieldsGrid({
           type="number"
           value={values.port}
         />
-      </label>
-      <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-username`}>
-        {t("field_username")}
-        <input
-          className={INPUT_CLASSES}
-          id={`${idPrefix}-username`}
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-username`}>
+        <Form.Label>{t("field_username")}</Form.Label>
+        <Form.Input
           onChange={(event) => set("username", event.target.value)}
           required
           type="text"
           value={values.username}
         />
-      </label>
-      <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-password`}>
-        {t("field_password")}
-        <input
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-password`}>
+        <Form.Label>{t("field_password")}</Form.Label>
+        <Form.Input
           autoComplete="new-password"
-          className={INPUT_CLASSES}
-          id={`${idPrefix}-password`}
           onChange={(event) => set("password", event.target.value)}
           required={passwordRequired}
           type="password"
           value={values.password ?? ""}
         />
-        {passwordHint ? <span className="mt-1 block text-xs normal-case text-gray-500 dark:text-gray-400">{passwordHint}</span> : null}
-      </label>
-      <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-default-database`}>
-        {t("field_default_database")} <span className="normal-case text-gray-400 dark:text-gray-500">{t("field_default_database_optional")}</span>
-        <input
-          className={INPUT_CLASSES}
-          id={`${idPrefix}-default-database`}
+        {passwordHint ? <Form.HelpText>{passwordHint}</Form.HelpText> : null}
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-default-database`}>
+        <Form.Label>
+          {t("field_default_database")} <span className="font-normal text-text-muted">{t("field_default_database_optional")}</span>
+        </Form.Label>
+        <Form.Input
           onChange={(event) => set("default_database", event.target.value)}
           type="text"
           value={values.default_database}
         />
-      </label>
-      <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300 sm:col-span-2 lg:col-span-3" htmlFor={`${idPrefix}-agentic-access`}>
-        <input
+      </Form.Field>
+      <Form.Field className="sm:col-span-2 lg:col-span-3" controlId={`${idPrefix}-agentic-access`}>
+        <Form.Checkbox
           checked={values.agentic_access_enabled}
           className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
-          id={`${idPrefix}-agentic-access`}
+          label={t("field_agentic_access")}
           onChange={(event) => set("agentic_access_enabled", event.target.checked)}
-          type="checkbox"
         />
-        <span>
-          {t("field_agentic_access")}
-          <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_agentic_access_hint")}</span>
-        </span>
-      </label>
-      <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300 sm:col-span-2 lg:col-span-3" htmlFor={`${idPrefix}-allow-writes`}>
-        <input
+        <Form.HelpText>{t("field_agentic_access_hint")}</Form.HelpText>
+      </Form.Field>
+      <Form.Field className="sm:col-span-2 lg:col-span-3" controlId={`${idPrefix}-allow-writes`}>
+        <Form.Checkbox
           checked={values.allow_writes}
           className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
-          id={`${idPrefix}-allow-writes`}
+          label={t("field_allow_writes")}
           onChange={(event) => set("allow_writes", event.target.checked)}
-          type="checkbox"
         />
-        <span>
-          {t("field_allow_writes")}
-          <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_allow_writes_hint")}</span>
-        </span>
-      </label>
+        <Form.HelpText>{t("field_allow_writes_hint")}</Form.HelpText>
+      </Form.Field>
     </div>
   )
 }
@@ -608,22 +568,17 @@ function TestButton({ onTest }: { onTest: () => Promise<MysqlConnectionTestResul
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <button
-        className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={test.isPending}
-        onClick={() => test.mutate()}
-        type="button"
-      >
+      <Button disabled={test.isPending} onClick={() => test.mutate()} type="button" variant="secondary">
         {test.isPending ? t("testing") : t("test_button")}
-      </button>
+      </Button>
       {test.isSuccess ? (
         test.data.success ? (
           <p className="text-xs text-emerald-700 dark:text-emerald-300">{t("test_success")}</p>
         ) : (
-          <p className="text-xs text-red-700 dark:text-red-300">{t("test_failure", { error: test.data.error || "" })}</p>
+          <p className="text-xs text-danger-text">{t("test_failure", { error: test.data.error || "" })}</p>
         )
       ) : null}
-      {test.isError ? <p className="text-xs text-red-700 dark:text-red-300">{errorMessage(test.error, t("test_error_fallback"))}</p> : null}
+      {test.isError ? <p className="text-xs text-danger-text">{errorMessage(test.error, t("test_error_fallback"))}</p> : null}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { Button, Checkbox, DataTable, Input } from "@app/components/ui"
+import { Button, DataTable, Form } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
   createKubernetesCluster,
@@ -31,9 +31,6 @@ const EMPTY_FORM: KubernetesClusterInput = {
   insecure_skip_tls_verify: false,
   kubeconfig: ""
 }
-
-const INPUT_CLASSES = "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
-const TEXTAREA_CLASSES = `${INPUT_CLASSES} font-mono text-xs`
 
 export function KubernetesClusters() {
   const { t } = useT("k8s_cluster")
@@ -102,18 +99,14 @@ function ClusterCreateForm({ onNotice }: { onNotice: (message: string | null) =>
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("add_heading")}</h2>
       <form className="mt-3 space-y-3" onSubmit={submit}>
         <ClusterFieldsGrid idPrefix="new-cluster" kubeconfigRequired onChange={setValues} values={values} />
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={create.isPending}
-            type="submit"
-          >
+        <Form.Actions align="start" className="pt-0">
+          <Button disabled={create.isPending} type="submit" variant="primary">
             {create.isPending ? t("creating") : t("create_button")}
-          </button>
+          </Button>
           <TestButton onTest={() => testDraftKubernetesCluster(values)} />
-        </div>
+        </Form.Actions>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
+      {create.isError ? <p className="mt-3 text-sm text-danger-text" role="alert">{errorMessage(create.error, t("create_error_fallback"))}</p> : null}
     </section>
   )
 }
@@ -249,8 +242,7 @@ function ClusterActions({
         <Button onClick={onEdit} type="button" variant="secondary">
           {t("edit_button")}
         </Button>
-        <button
-          className="rounded border border-red-300 dark:border-red-900 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+        <Button
           disabled={destroy.isPending}
           onClick={() => {
             if (window.confirm(t("confirm_delete", { label: cluster.label }))) {
@@ -259,12 +251,13 @@ function ClusterActions({
             }
           }}
           type="button"
+          variant="danger"
         >
           {destroy.isPending ? t("deleting") : t("delete_button")}
-        </button>
+        </Button>
       </div>
       {destroy.isError ? (
-        <p className="mt-2 text-right text-xs text-red-700 dark:text-red-300" role="alert">
+        <p className="mt-2 text-right text-xs text-danger-text" role="alert">
           {errorMessage(destroy.error, t("delete_error_fallback"))}
         </p>
       ) : null}
@@ -318,7 +311,7 @@ function ClusterEditRow({
             onChange={setValues}
             values={values}
           />
-          <div className="flex flex-wrap items-center gap-3">
+          <Form.Actions align="start" className="pt-0">
             <Button disabled={update.isPending} type="submit" variant="primary">
               {update.isPending ? t("saving") : t("save_button")}
             </Button>
@@ -326,8 +319,8 @@ function ClusterEditRow({
               {t("cancel_button")}
             </Button>
             <TestButton onTest={() => testKubernetesCluster(cluster.id, values.kubeconfig || undefined)} />
-          </div>
-          {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
+          </Form.Actions>
+          {update.isError ? <p className="text-sm text-danger-text" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
         </form>
       </DataTable.Cell>
     </DataTable.Row>
@@ -355,66 +348,54 @@ function ClusterFieldsGrid({
 
   return (
     <div className="grid gap-3">
-      <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-label`}>
-        {t("field_label")}
-        <Input
-          className="mt-1 normal-case"
-          id={`${idPrefix}-label`}
+      <Form.Field controlId={`${idPrefix}-label`}>
+        <Form.Label>{t("field_label")}</Form.Label>
+        <Form.Input
           onChange={(event) => set("label", event.target.value)}
           required
           type="text"
           value={values.label}
         />
-      </label>
-      <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${idPrefix}-kubeconfig`}>
-        {t("field_kubeconfig")}
-        <textarea
-          className={TEXTAREA_CLASSES}
-          id={`${idPrefix}-kubeconfig`}
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-kubeconfig`}>
+        <Form.Label>{t("field_kubeconfig")}</Form.Label>
+        <Form.Textarea
+          className="font-mono text-xs"
           onChange={(event) => set("kubeconfig", event.target.value)}
           placeholder={t("field_kubeconfig_placeholder")}
           required={kubeconfigRequired}
           rows={6}
           value={values.kubeconfig ?? ""}
         />
-        {kubeconfigHint ? <span className="mt-1 block text-xs normal-case text-gray-500 dark:text-gray-400">{kubeconfigHint}</span> : null}
-      </label>
-      <div className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300">
-        <Checkbox
+        {kubeconfigHint ? <Form.HelpText>{kubeconfigHint}</Form.HelpText> : null}
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-agentic-access`}>
+        <Form.Checkbox
           checked={values.agentic_access_enabled}
           className="mt-0.5"
-          id={`${idPrefix}-agentic-access`}
+          label={t("field_agentic_access")}
           onChange={(event) => set("agentic_access_enabled", event.target.checked)}
         />
-        <label htmlFor={`${idPrefix}-agentic-access`}>
-          {t("field_agentic_access")}
-          <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_agentic_access_hint")}</span>
-        </label>
-      </div>
-      <div className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300">
-        <Checkbox
+        <Form.HelpText>{t("field_agentic_access_hint")}</Form.HelpText>
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-allow-writes`}>
+        <Form.Checkbox
           checked={values.allow_writes}
           className="mt-0.5"
-          id={`${idPrefix}-allow-writes`}
+          label={t("field_allow_writes")}
           onChange={(event) => set("allow_writes", event.target.checked)}
         />
-        <label htmlFor={`${idPrefix}-allow-writes`}>
-          {t("field_allow_writes")}
-          <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_allow_writes_hint")}</span>
-        </label>
-      </div>
-      <div className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300">
-        <Checkbox
+        <Form.HelpText>{t("field_allow_writes_hint")}</Form.HelpText>
+      </Form.Field>
+      <Form.Field controlId={`${idPrefix}-insecure`}>
+        <Form.Checkbox
           checked={values.insecure_skip_tls_verify}
           className="mt-0.5"
-          id={`${idPrefix}-insecure`}
+          label={t("field_insecure_skip_tls_verify")}
           onChange={(event) => set("insecure_skip_tls_verify", event.target.checked)}
         />
-        <label htmlFor={`${idPrefix}-insecure`}>
-          {t("field_insecure_skip_tls_verify")}
-          <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_insecure_skip_tls_verify_hint")}</span>
-        </label>
-      </div>
+        <Form.HelpText>{t("field_insecure_skip_tls_verify_hint")}</Form.HelpText>
+      </Form.Field>
     </div>
   )
 }
@@ -432,10 +413,10 @@ function TestButton({ onTest }: { onTest: () => Promise<KubernetesClusterTestRes
         test.data.success ? (
           <p className="text-xs text-emerald-700 dark:text-emerald-300">{t("test_success")}</p>
         ) : (
-          <p className="text-xs text-red-700 dark:text-red-300">{t("test_failure", { error: test.data.error || "" })}</p>
+          <p className="text-xs text-danger-text">{t("test_failure", { error: test.data.error || "" })}</p>
         )
       ) : null}
-      {test.isError ? <p className="text-xs text-red-700 dark:text-red-300">{errorMessage(test.error, t("test_error_fallback"))}</p> : null}
+      {test.isError ? <p className="text-xs text-danger-text">{errorMessage(test.error, t("test_error_fallback"))}</p> : null}
     </div>
   )
 }
