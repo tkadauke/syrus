@@ -35,6 +35,8 @@ module Syrus
       "step.grader.completed" => :inline,
       "step.command.completed" => :inline,
       "epic.upserted"         => :async,
+      "design_doc.upserted"   => :async,
+      "design_doc.deleted"    => :async,
       # Lets a plugin seed defaults for the installation's bootstrap admin
       # without core knowing what it is seeding.
       "user.created"          => :async,

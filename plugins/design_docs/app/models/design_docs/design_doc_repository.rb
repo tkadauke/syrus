@@ -6,5 +6,14 @@ module DesignDocs
     belongs_to :repository
 
     validates :repository_id, uniqueness: { scope: :design_doc_id }
+
+    after_commit :publish_design_doc_search_upsert, on: [ :create, :update ]
+    after_destroy_commit :publish_design_doc_search_upsert
+
+    private
+
+    def publish_design_doc_search_upsert
+      Syrus::Events.publish("design_doc.upserted", design_doc_id: design_doc_id)
+    end
   end
 end
