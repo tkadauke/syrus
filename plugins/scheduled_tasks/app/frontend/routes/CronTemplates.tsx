@@ -1,7 +1,3 @@
-import { inputClass } from "@app/lib/formClasses"
-import { Checkbox } from "@app/components/Checkbox"
-import { Input } from "@app/components/Input"
-import { Select } from "@app/components/Select"
 import { PageHeading } from "@app/components/Heading"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
@@ -24,8 +20,7 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useConfirm } from "@app/hooks/useConfirm"
-import { Button, buttonClasses } from "@app/components/Button"
-import { DataTable, DescriptionList } from "@app/components/ui"
+import { Button, DataTable, DescriptionList, Form, buttonClasses } from "@app/components/ui"
 
 const defaultPolicies = ["skip", "pile", "replace"]
 const emptyTemplate: CronTemplateInput = {
@@ -298,26 +293,33 @@ function CronTemplateForm({
   return (
     <form className="space-y-5" onSubmit={submit}>
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("cron_templates.error_save"))}</PanelMessage> : null}
-      <Field label={t("cron_templates.field_name")}>
-        <Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
-      </Field>
-      <Field label={t("cron_templates.field_description")}>
-        <Input onChange={(event) => setValues({ ...values, description: event.target.value })} type="text" value={values.description} />
-      </Field>
-      <Field label={t("cron_templates.field_schedule")}>
-        <Input onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("cron_templates.schedule_placeholder")} type="text" value={values.schedule_input} />
+      <Form.Field controlId="cron-template-name">
+        <Form.Label>{t("cron_templates.field_name")}</Form.Label>
+        <Form.Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
+      </Form.Field>
+      <Form.Field controlId="cron-template-description">
+        <Form.Label>{t("cron_templates.field_description")}</Form.Label>
+        <Form.Input onChange={(event) => setValues({ ...values, description: event.target.value })} type="text" value={values.description} />
+      </Form.Field>
+      <Form.Field controlId="cron-template-schedule">
+        <Form.Label>{t("cron_templates.field_schedule")}</Form.Label>
+        <Form.Input onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("cron_templates.schedule_placeholder")} type="text" value={values.schedule_input} />
         <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("cron_templates.schedule_help")}</p>
-      </Field>
-      <Field label={t("cron_templates.field_pileup")}>
-        <Select onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
+        <Form.HelpText>{t("cron_templates.schedule_help")}</Form.HelpText>
+      </Form.Field>
+      <Form.Field controlId="cron-template-pileup">
+        <Form.Label>{t("cron_templates.field_pileup")}</Form.Label>
+        <Form.Select onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
           {policies.map((policy) => <option key={policy} value={policy}>{policy}</option>)}
-        </Select>
-      </Field>
-      <Field label={t("cron_templates.field_prompt")}>
-        <textarea className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
-      </Field>
-      <Checkbox checked={values.enabled} label={t("cron_templates.field_enabled")} onChange={(event) => setValues({ ...values, enabled: event.target.checked })} />
+        </Form.Select>
+      </Form.Field>
+      <Form.Field controlId="cron-template-prompt">
+        <Form.Label>{t("cron_templates.field_prompt")}</Form.Label>
+        <Form.Textarea className="font-mono" onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
+      </Form.Field>
+      <Form.Field controlId="cron-template-enabled">
+        <Form.Checkbox checked={values.enabled} label={t("cron_templates.field_enabled")} onChange={(event) => setValues({ ...values, enabled: event.target.checked })} />
+      </Form.Field>
       <div className="flex items-center gap-3">
         <Button disabled={save.isPending} type="submit" variant="primary">
           {save.isPending ? t("cron_templates.saving") : mode === "new" ? t("cron_templates.create") : t("cron_templates.save")}
@@ -374,15 +376,6 @@ function RepositoryApplyLinks({ repositories, prefix }: { repositories: Awaited<
         ))}
       </div>
     </section>
-  )
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-2">{children}</div>
-    </label>
   )
 }
 
