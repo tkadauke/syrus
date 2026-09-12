@@ -123,7 +123,11 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
   return {
     workflow: {
       id: 501,
+      slug: "WF-501",
       job_id: 42,
+      job_slug: "JOB-42",
+      job_path: "/jobs/42",
+      workflow_path: "/jobs/42?tab=workflows#workflow-501",
       trigger_kind: "initial",
       status: "running",
       started_at: "2026-01-01T00:10:00Z",
@@ -390,7 +394,7 @@ describe("WorkerTimeline macro view", () => {
     const tooltip = await screen.findByRole("tooltip")
     expect(tooltip).toHaveTextContent("JOB-43 · pr_comment")
     expect(tooltip).toHaveTextContent("Investigate flaky CI")
-    expect(tooltip).toHaveTextContent("Workflow #502")
+    expect(tooltip).toHaveTextContent("WF-502")
     expect(tooltip).toHaveTextContent("ran on host worker-b from 2026-01-01T00:15:00Z–now")
     expect(tooltip).toHaveTextContent("+ (running)")
     expect(tooltip).toHaveTextContent("Blocked: provider_availability")
@@ -636,8 +640,20 @@ describe("WorkerTimeline waterfall (micro) view", () => {
     renderTimeline("/worker_timeline/workflow?id=501")
 
     expect(await screen.findByText("prepare · iteration 1")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "WF-501" })).toHaveAttribute("href", "/jobs/42?tab=workflows#workflow-501")
+    expect(screen.getByText("initial · running")).toBeInTheDocument()
     expect(screen.getByText("implement · iteration 1")).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "Run #9001 · succeeded" })).toBeInTheDocument()
+  })
+
+  it("keeps job and workflow links inside the active app-shell route prefix", async () => {
+    setupFetchMock()
+    renderTimeline("/app-shell/worker_timeline/workflow?id=501")
+
+    await screen.findByText("prepare · iteration 1")
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/app-shell/jobs/42")
+    expect(screen.getByRole("link", { name: "WF-501" })).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-501")
   })
 
   it("shows a 'not started' marker for a step with no started run, not a bar", async () => {
@@ -676,7 +692,7 @@ describe("WorkerTimeline waterfall (micro) view", () => {
   it("skips the time axis and shows every step as not-started when the workflow itself hasn't started", async () => {
     setupFetchMock({}, {
       workflow: {
-        id: 501, job_id: 42, trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null,
+        id: 501, slug: "WF-501", job_id: 42, job_slug: "JOB-42", job_path: "/jobs/42", workflow_path: "/jobs/42?tab=workflows#workflow-501", trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null,
         blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false }
       },
       steps: [
