@@ -1745,8 +1745,9 @@ end
 
 Core publishes from explicit call sites -- `Syrus::Events.publish(...)` written
 where the decision is made -- rather than from model callbacks, so the catalog
-is greppable rather than emergent. Event names are declared in
-`Syrus::Events::EVENTS`; publishing an undeclared name raises.
+is greppable rather than emergent. Core event names are declared in
+`Syrus::Events::EVENTS`; plugin-specific event names are declared with the
+plugin manifest's `events` DSL. Publishing an undeclared name raises.
 
 | Event | Delivery | Payload highlights |
 |---|---|---|
