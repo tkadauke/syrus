@@ -303,6 +303,23 @@ function stringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : []
 }
 
+function TargetGraphLink({ children, jobId, prefix, targetLabel, workflowId }: { children: ReactNode; jobId: number; prefix: string; targetLabel: string; workflowId: number }) {
+  return (
+    <Link className="font-medium text-brand hover:underline" to={targetGraphNeighborhoodPath({ jobId, prefix, targetLabel, workflowId })}>
+      {children}
+    </Link>
+  )
+}
+
+function targetGraphNeighborhoodPath({ jobId, prefix, targetLabel, workflowId }: { jobId: number; prefix: string; targetLabel: string; workflowId: number }) {
+  const params = new URLSearchParams({
+    tab: "target_graph",
+    workflow_id: String(workflowId),
+    focus_label: targetLabel
+  })
+  return withRoutePrefix(`/jobs/${jobId}?${params}`, prefix)
+}
+
 function WorkflowsPagination({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
   const { t } = useT("jobs")
   const pagination = payload.workflows_pagination
@@ -361,9 +378,9 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
       ) : null}
       <div className="mt-4 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
         {stepItems.map((item, index) => item.type === "loop" ? (
-          <LoopGroup command={command} item={item} key={item.loopId} numberLabel={index + 1} payload={payload} workflowArtifacts={workflow.artifacts} />
+          <LoopGroup command={command} item={item} key={item.loopId} numberLabel={index + 1} payload={payload} prefix={prefix} workflowArtifacts={workflow.artifacts} workflowId={workflow.id} />
         ) : (
-          <DisplayStepCard command={command} item={item} key={displayStepItemKey(item)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflow.artifacts} />
+          <DisplayStepCard command={command} item={item} key={displayStepItemKey(item)} numberLabel={index + 1} payload={payload} prefix={prefix} workflowArtifacts={workflow.artifacts} workflowId={workflow.id} />
         ))}
       </div>
     </section>
@@ -517,7 +534,7 @@ function BranchDivergenceCommitLines({ list }: { list: BranchDivergenceCommitLis
   )
 }
 
-function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: { item: LoopStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
+function LoopGroup({ item, payload, command, numberLabel, prefix, workflowArtifacts, workflowId }: { item: LoopStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; prefix: string; workflowArtifacts?: Record<string, unknown> | null; workflowId: number }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = loopDisplayStatus(item)
@@ -544,7 +561,7 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
         soleGrade ? (
           <>
             {progress ? <GradeBatchProgressPanel progress={progress} /> : null}
-            <GradePhasesList command={command} payload={payload} phases={gradePhases(soleGrade, t)} workflowArtifacts={workflowArtifacts} />
+            <GradePhasesList command={command} payload={payload} phases={gradePhases(soleGrade, t)} prefix={prefix} workflowArtifacts={workflowArtifacts} workflowId={workflowId} />
           </>
         ) : (
           <div className="space-y-3 border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
@@ -554,7 +571,7 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
                   {t("loop_iteration", { n: iteration.iteration })}
                 </div>
                 {iteration.items.map((stepItem, index) => (
-                  <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflowArtifacts} />
+                  <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} prefix={prefix} workflowArtifacts={workflowArtifacts} workflowId={workflowId} />
                 ))}
               </section>
             ))}
@@ -565,13 +582,13 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
   )
 }
 
-function DisplayStepCard({ item, payload, command, numberLabel, workflowArtifacts }: { item: DisplayStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
-  if (item.type === "grade") return <GradeGroup command={command} item={item} numberLabel={numberLabel} payload={payload} workflowArtifacts={workflowArtifacts} />
+function DisplayStepCard({ item, payload, command, numberLabel, prefix, workflowArtifacts, workflowId }: { item: DisplayStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; prefix: string; workflowArtifacts?: Record<string, unknown> | null; workflowId: number }) {
+  if (item.type === "grade") return <GradeGroup command={command} item={item} numberLabel={numberLabel} payload={payload} prefix={prefix} workflowArtifacts={workflowArtifacts} workflowId={workflowId} />
 
-  return <StepCard command={command} numberLabel={numberLabel} payload={payload} step={item.step} workflowArtifacts={workflowArtifacts} />
+  return <StepCard command={command} numberLabel={numberLabel} payload={payload} prefix={prefix} step={item.step} workflowArtifacts={workflowArtifacts} workflowId={workflowId} />
 }
 
-function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: { item: GradeStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
+function GradeGroup({ item, payload, command, numberLabel, prefix, workflowArtifacts, workflowId }: { item: GradeStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; prefix: string; workflowArtifacts?: Record<string, unknown> | null; workflowId: number }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = gradeDisplayStatus(item)
@@ -597,7 +614,7 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
       {open ? (
         <>
           {progress ? <GradeBatchProgressPanel progress={progress} /> : null}
-          <GradePhasesList command={command} payload={payload} phases={phases} workflowArtifacts={workflowArtifacts} />
+          <GradePhasesList command={command} payload={payload} phases={phases} prefix={prefix} workflowArtifacts={workflowArtifacts} workflowId={workflowId} />
         </>
       ) : null}
     </WorkflowGroup>
@@ -650,7 +667,7 @@ function isGradeCollectStep(step: JobStep) {
   return step.kind === "grader_collect" || step.kind === "preflight_grader_collect"
 }
 
-function GradePhasesList({ phases, payload, command, workflowArtifacts }: { phases: ReturnType<typeof gradePhases>; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; workflowArtifacts?: Record<string, unknown> | null }) {
+function GradePhasesList({ phases, payload, command, prefix, workflowArtifacts, workflowId }: { phases: ReturnType<typeof gradePhases>; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; workflowArtifacts?: Record<string, unknown> | null; workflowId: number }) {
   return (
     <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
       <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -662,8 +679,10 @@ function GradePhasesList({ phases, payload, command, workflowArtifacts }: { phas
             metadataLabel={phase.metadataLabel}
             numberLabel={index + 1}
             payload={payload}
+            prefix={prefix}
             step={phase.step}
             workflowArtifacts={workflowArtifacts}
+            workflowId={workflowId}
           />
         ))}
       </div>
@@ -752,7 +771,7 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
   )
 }
 
-function StepCard({ step, payload, command, numberLabel, displayName, metadataLabel, workflowArtifacts }: { step: JobStep; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; displayName?: string; metadataLabel?: string; workflowArtifacts?: Record<string, unknown> | null }) {
+function StepCard({ step, payload, command, numberLabel, prefix, displayName, metadataLabel, workflowArtifacts, workflowId }: { step: JobStep; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; prefix: string; displayName?: string; metadataLabel?: string; workflowArtifacts?: Record<string, unknown> | null; workflowId: number }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const runs = sortedRunsNewestFirst(step.runs)
@@ -790,7 +809,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>STEP-{step.id}</span>
             <span>{metadataLabel || step.kind}</span>
-            {step.placement?.projected_target_label ? <SmallPill>Target {step.placement.projected_target_label}</SmallPill> : null}
+            {step.placement?.projected_target_label ? <SmallPill><TargetGraphLink jobId={payload.job.id} prefix={prefix} targetLabel={step.placement.projected_target_label} workflowId={workflowId}>Target {step.placement.projected_target_label}</TargetGraphLink></SmallPill> : null}
             {step.placement?.admission ? <SmallPill>Placement waiting</SmallPill> : null}
             {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
             {activeRun && step.state !== activeRun.state ? <SmallPill>{t("step_state_display", { state: step.state.replaceAll("_", " ") })}</SmallPill> : null}
@@ -799,7 +818,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
             {step.finished_at ? <span>{formatDuration(step.started_at, step.finished_at)}</span> : null}
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
-          <StepPlacementPanel step={step} />
+          <StepPlacementPanel jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} />
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
@@ -822,11 +841,14 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
                   command={command}
                   key={run.id}
                   payload={payload}
+                  prefix={prefix}
                   run={run}
                   stepAdversarialReviewArtifact={idx === 0 ? adversarialReviewArtifact : null}
                   stepSummaryArtifact={idx === 0 ? summaryArtifact : null}
                   stepTestPlanArtifact={idx === 0 ? testPlanArtifact : null}
                   stepVisualReviewArtifact={idx === 0 ? visualReviewArtifact : null}
+                  targetLabel={step.placement?.projected_target_label || null}
+                  workflowId={workflowId}
                 />
               ))}
             </div>
@@ -837,14 +859,19 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
   )
 }
 
-function StepPlacementPanel({ step }: { step: JobStep }) {
+function StepPlacementPanel({ step, jobId, prefix, workflowId }: { step: JobStep; jobId: number; prefix: string; workflowId: number }) {
   const placement = step.placement
   const dependencies = step.dependencies
   if (!placement && !dependencies) return null
 
   const rows: Array<[string, ReactNode]> = []
   rows.push(["Step", `STEP-${step.id}`])
-  if (placement?.projected_target_label) rows.push(["Target", <code className="font-mono">{placement.projected_target_label}</code>])
+  if (placement?.projected_target_label) rows.push([
+    "Target",
+    <TargetGraphLink jobId={jobId} prefix={prefix} targetLabel={placement.projected_target_label} workflowId={workflowId}>
+      <code className="font-mono">{placement.projected_target_label}</code>
+    </TargetGraphLink>
+  ])
   if (placement?.policy) rows.push(["Placement", humanize(placement.policy)])
   if (placement?.source_snapshot?.source_sha) rows.push(["Source", <code className="font-mono">{shortSha(placement.source_snapshot.source_sha)}</code>])
   if (placement?.source_snapshot?.source_ref) rows.push(["Source ref", <code className="font-mono">{placement.source_snapshot.source_ref}</code>])
@@ -1100,7 +1127,7 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
   )
 }
 
-function RunRow({ run, payload, command, active = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null, stepVisualReviewArtifact = null }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; active?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null; stepVisualReviewArtifact?: JobVisualReviewIteration[] | null }) {
+function RunRow({ run, payload, command, prefix, active = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null, stepVisualReviewArtifact = null, targetLabel = null, workflowId }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; active?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null; stepVisualReviewArtifact?: JobVisualReviewIteration[] | null; targetLabel?: string | null; workflowId: number }) {
   const { t } = useT("jobs")
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
   const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "visual_review" | null>(null)
@@ -1181,6 +1208,13 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
           ) : null}
           {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("run_health")} {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
           {run.failure_classification ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{t("run_failure_label")} {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? t("run_retryable") : t("run_not_retryable")}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
+          {targetLabel && (run.state === "failed" || run.state === "cancelled" || run.state === "skipped" || run.failure_classification) ? (
+            <p className="mt-1 text-xs">
+              <TargetGraphLink jobId={payload.job.id} prefix={prefix} targetLabel={targetLabel} workflowId={workflowId}>
+                Open target graph neighborhood
+              </TargetGraphLink>
+            </p>
+          ) : null}
           {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t("run_diagnostic_captured")} <RelativeTimestamp value={run.run_diagnostic.created_at} />{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
           {run.command_spans_truncated ? (
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">

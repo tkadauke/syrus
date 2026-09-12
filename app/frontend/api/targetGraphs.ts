@@ -105,6 +105,7 @@ export type TargetGraphQuery = {
   q?: string
   search?: string
   filter?: string
+  workflowId?: string
   direction?: "both" | "dependencies" | "dependents"
   depth?: number
   limit?: number
@@ -133,6 +134,7 @@ function targetGraphApiPath(path: string, query: TargetGraphQuery) {
   if (query.filter) params.set("q", query.filter)
   else if (query.q) params.set("q", query.q)
   if (query.search) params.set("search", query.search)
+  if (query.workflowId) params.set("workflow_id", query.workflowId)
   if (query.direction) params.set("direction", query.direction)
   if (query.depth !== undefined) params.set("depth", String(query.depth))
   if (query.limit !== undefined) params.set("limit", String(query.limit))

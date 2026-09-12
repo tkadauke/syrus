@@ -208,6 +208,26 @@ describe("RepositoryTargetGraphRoute", () => {
       )
     })
   })
+
+  it("passes workflow_id through job target graph links", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload({
+      workflow: { id: 7, slug: "WF-7", job_id: 1, trigger_kind: "retry", state: "failed" }
+    }))))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/1?tab=target_graph&workflow_id=7&focus_label=%2F%2F%3Agrade%2Ftests"]}>
+          <JobTargetGraphPanel jobId={1} prefix="/app-shell" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Workflow WF-7")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/jobs/1/target_graph?mode=neighborhood&focus_label=%2F%2F%3Agrade%2Ftests&workflow_id=7&direction=both&depth=1&limit=180",
+      expect.any(Object)
+    )
+  })
 })
 
 describe("target graph route helpers", () => {
