@@ -1,6 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { Badge, CardShell, Disclosure, FilterableList, LargeTextPreview, PreviewTextBlock, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 type RuntimeLease = {
   id: string
@@ -81,7 +81,6 @@ type RuntimeCard =
   | { kind: "release"; released: RuntimeLease[]; error: string | null; raw: unknown }
   | { kind: "error"; action: string; message: string }
 
-const LOG_PREVIEW_LINE_LIMIT = 40
 const INPUT_VALUE_PREVIEW_LIMIT = 80
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -708,9 +707,7 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
         </div>
       ) : null}
       {card.details ? (
-        <Disclosure label="Inspection details">
-          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{card.details}</pre>
-        </Disclosure>
+        <LargeTextPreview label="Inspection details" text={card.details} />
       ) : (
         <EmptyState>No detailed inspection output was returned.</EmptyState>
       )}
@@ -720,9 +717,6 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
 }
 
 function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }> }) {
-  const text = card.entries.join("\n")
-  const { preview, truncated, totalLines } = truncateLines(text, LOG_PREVIEW_LINE_LIMIT)
-
   return (
     <CardShell>
       <FieldRows rows={[
@@ -734,8 +728,13 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
         <EmptyState>No new Runtime log lines.</EmptyState>
       ) : (
         <Disclosure label="Log preview">
-          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
-          {truncated ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {LOG_PREVIEW_LINE_LIMIT} of {totalLines} lines.</div> : null}
+          <FilterableList
+            itemText={(entry) => entry}
+            items={card.entries}
+            placeholder="Filter log lines"
+          >
+            {(entries) => <PreviewTextBlock maxLines={40} text={entries.join("\n")} />}
+          </FilterableList>
         </Disclosure>
       )}
       <RawRuntimeDetails value={card.raw} />

@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { CardShell, FilterableList, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Demonstrates the plugin-owned tool-card extension point (the Tier 1 tool-card work /
 // the relevant change): this file lives entirely inside the design_docs plugin and is
@@ -32,25 +33,31 @@ function renderExpanded(context: ToolCardContext) {
   if (!docs || docs.length === 0) return null
 
   return (
-    <ul className="mt-1 space-y-1 rounded border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-700 dark:bg-gray-900">
-      {docs.map((doc, index) => {
-        const docRef = typeof doc.doc_ref === "string" && doc.doc_ref ? doc.doc_ref : String(doc.id ?? index)
-        const title = typeof doc.title === "string" && doc.title ? doc.title : "Untitled design doc"
-        const state = typeof doc.state === "string" ? doc.state : null
+    <CardShell>
+      <FilterableList
+        itemText={(doc) => [doc.doc_ref, doc.id, doc.title, doc.state].filter(Boolean).join(" ")}
+        items={docs}
+        placeholder="Filter design docs"
+      >
+        {(visibleDocs) => (
+          <ul className="space-y-1 rounded border border-gray-200 bg-white p-2 text-xs dark:border-gray-800 dark:bg-gray-950">
+            {visibleDocs.map((doc, index) => {
+              const docRef = typeof doc.doc_ref === "string" && doc.doc_ref ? doc.doc_ref : String(doc.id ?? index)
+              const title = typeof doc.title === "string" && doc.title ? doc.title : "Untitled design doc"
+              const state = typeof doc.state === "string" ? doc.state : null
 
-        return (
-          <li className="flex items-center gap-2" key={docRef}>
-            <span className="shrink-0 font-mono font-medium text-gray-700 dark:text-gray-300">{docRef}</span>
-            <span className="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-100">{title}</span>
-            {state ? (
-              <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-2xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                {state}
-              </span>
-            ) : null}
-          </li>
-        )
-      })}
-    </ul>
+              return (
+                <li className="flex items-center gap-2" key={docRef}>
+                  <span className="shrink-0 font-mono font-medium text-gray-700 dark:text-gray-300">{docRef}</span>
+                  <span className="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-100">{title}</span>
+                  {state ? <StatePill state={state} /> : null}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </FilterableList>
+    </CardShell>
   )
 }
 

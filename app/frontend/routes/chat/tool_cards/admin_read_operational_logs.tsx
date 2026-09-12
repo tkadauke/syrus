@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
+import { Badge, CardShell, Disclosure, FilterableList, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_read_operational_logs (the tool-card work /
@@ -109,9 +109,6 @@ function renderExpanded(context: ToolCardContext) {
     )
   }
 
-  const visibleLogs = card.logs.slice(0, LOG_PREVIEW_ROW_LIMIT)
-  const omitted = card.logs.length - visibleLogs.length
-
   return (
     <CardShell>
       <AppliedFilters input={context.input} />
@@ -123,28 +120,43 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>No matching log lines.</EmptyState>
       ) : (
         <Disclosure label={`Log preview (${card.logs.length})`}>
-          <div className="max-h-96 overflow-auto">
-            <Table>
-              <THead columns={["Time", "Level", "Role", "Host", "Message", "Attribution"]} />
-              <TBody>
-                {visibleLogs.map((log) => (
-                  <tr key={log.key}>
-                    <Td mono>{log.occurredAt || "—"}</Td>
-                    <Td>{log.level ? <StatePill state={log.level} tone={levelTone(log.level)} /> : "—"}</Td>
-                    <Td>{log.role || "—"}</Td>
-                    <Td mono>{log.hostname || "—"}</Td>
-                    <Td maxWidth title={log.message ?? undefined}>
-                      {(log.message || "—").length > MESSAGE_PREVIEW_CHARS ? `${log.message!.slice(0, MESSAGE_PREVIEW_CHARS)}…` : log.message || "—"}
-                    </Td>
-                    <Td mono>
-                      {[log.jobId ? `JOB-${log.jobId}` : null, log.workflowId ? `WF-${log.workflowId}` : null, log.runId ? `RUN-${log.runId}` : null].filter(Boolean).join(" ") || "—"}
-                    </Td>
-                  </tr>
-                ))}
-              </TBody>
-            </Table>
-          </div>
-          {omitted > 0 ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {LOG_PREVIEW_ROW_LIMIT} of {card.logs.length} rows.</div> : null}
+          <FilterableList
+            itemText={(log) => [log.occurredAt, log.level, log.role, log.hostname, log.message, log.jobId, log.workflowId, log.runId].filter(Boolean).join(" ")}
+            items={card.logs}
+            placeholder="Filter log rows"
+          >
+            {(logs) => {
+              const visibleLogs = logs.slice(0, LOG_PREVIEW_ROW_LIMIT)
+              const omitted = logs.length - visibleLogs.length
+
+              return (
+                <>
+                  <div className="max-h-96 overflow-auto">
+                    <Table>
+                      <THead columns={["Time", "Level", "Role", "Host", "Message", "Attribution"]} />
+                      <TBody>
+                        {visibleLogs.map((log) => (
+                          <tr key={log.key}>
+                            <Td mono>{log.occurredAt || "—"}</Td>
+                            <Td>{log.level ? <StatePill state={log.level} tone={levelTone(log.level)} /> : "—"}</Td>
+                            <Td>{log.role || "—"}</Td>
+                            <Td mono>{log.hostname || "—"}</Td>
+                            <Td maxWidth title={log.message ?? undefined}>
+                              {(log.message || "—").length > MESSAGE_PREVIEW_CHARS ? `${log.message!.slice(0, MESSAGE_PREVIEW_CHARS)}…` : log.message || "—"}
+                            </Td>
+                            <Td mono>
+                              {[log.jobId ? `JOB-${log.jobId}` : null, log.workflowId ? `WF-${log.workflowId}` : null, log.runId ? `RUN-${log.runId}` : null].filter(Boolean).join(" ") || "—"}
+                            </Td>
+                          </tr>
+                        ))}
+                      </TBody>
+                    </Table>
+                  </div>
+                  {omitted > 0 ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {LOG_PREVIEW_ROW_LIMIT} of {logs.length} rows.</div> : null}
+                </>
+              )
+            }}
+          </FilterableList>
         </Disclosure>
       )}
     </CardShell>
