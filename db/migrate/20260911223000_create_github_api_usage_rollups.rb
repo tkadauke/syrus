@@ -41,14 +41,13 @@ class CreateGithubApiUsageRollups < ActiveRecord::Migration[8.1]
       change_column :github_api_usage_rollups, column, :string, limit: limit, null: false if column_exists?(:github_api_usage_rollups, column)
     end
 
-    add_index :github_api_usage_rollups,
-      [ :bucket_started_at, :auth_source, :credential_key, :repository_key, :operation, :resource ],
-      unique: true,
-      name: INDEX_NAME,
-      if_not_exists: true
-    add_foreign_key :github_api_usage_rollups, :installations, if_not_exists: true
-    add_foreign_key :github_api_usage_rollups, :repositories, if_not_exists: true
-    add_foreign_key :github_api_usage_rollups, :users, if_not_exists: true
+    unless index_exists?(:github_api_usage_rollups, [ :bucket_started_at, :auth_source, :credential_key, :repository_key, :operation, :resource ], name: INDEX_NAME)
+      add_index :github_api_usage_rollups,
+        [ :bucket_started_at, :auth_source, :credential_key, :repository_key, :operation, :resource ],
+        unique: true,
+        name: INDEX_NAME,
+        length: { auth_source: 32, credential_key: 64, repository_key: 96, operation: 96, resource: 32 }
+    end
   end
 
   def down
