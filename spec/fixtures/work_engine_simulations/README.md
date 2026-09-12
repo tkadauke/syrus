@@ -92,6 +92,22 @@ events:
       exhaust_provider_usage: codex
 ```
 
+Other external events: `merge_pr` runs the real closed-PR resolution with
+the merged flag as the injected fact (`{ job:, merged: }`, default true);
+`report_pr_feedback` ingests a fabricated review comment through the real
+ingester and dispatches the `pr_comment` workflow when it qualifies
+(`{ job:, body:, handle: }`); `report_ci_failure` dispatches the real
+`CiFailure` workflow after establishing the safety preconditions the poller
+verifies (`{ job:, failed_checks:, base_sha:, base_healthy: }`; pass
+`base_healthy: false` to exercise the suppression instead);
+`set_job_provider` switches a job's provider through the real setting change
+(`{ job:, provider: }`); `break_main_branch` / `heal_main_branch` flip the
+repo health columns the main-health gate reads. Failure outcomes can carry
+a `failure_code` (`- status: failure` plus `failure_code:`), stamped like a
+real step handler would stamp it so `Try` branches match. Workflow event
+conditions accept `start_blocked:` alongside `state:` to match on the
+current start-block reason.
+
 For end-to-end orchestration scenarios, use `expect:` to describe the final
 world state. This lets a scenario model "the operator approves once ready, then
 the landing queue drains" without treating the intermediate approval wait as
