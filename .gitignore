@@ -71,3 +71,7 @@ tmp/mcp_repro/
 # `.last-run.json` records previous failure ids and changes on every local run.
 /test-results/
 /playwright-report/
+
+# Local agent memory (e.g. Muse project memories) -- operator-specific,
+# never product artifacts.
+/.agents/

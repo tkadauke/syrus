@@ -72,10 +72,34 @@ events:
       approve: feature
 ```
 
+Provider usage can be exhausted and refreshed mid-scenario to reproduce a
+quota-outage pause and its automatic resume. `exhaust_provider_usage` records
+exhausted usage evidence so the real availability gate, circuit breaker, and
+reconciler react; `refresh_provider_usage` records available evidence; and
+`wake_provider_admission` runs the real admission wakeup plus the deferred
+phase resume the enqueued `WorkflowPhaseAdmissionJob` would run (there are no
+queue workers in a simulation). All three take a provider name or
+`{ provider: }` hash and default to `codex`:
+
+```yaml
+events:
+  - name: exhaust codex usage once workflows are running
+    once: true
+    when:
+      any:
+        - workflow: { job: first, state: running }
+    do:
+      exhaust_provider_usage: codex
+```
+
 For end-to-end orchestration scenarios, use `expect:` to describe the final
 world state. This lets a scenario model "the operator approves once ready, then
 the landing queue drains" without treating the intermediate approval wait as
-the desired endpoint:
+the desired endpoint. `expect:` also accepts `events`, a list of required
+substrings over the tick event log -- use it to pin that the middle of the
+story happened, not just the final state. Without this, a pause-then-resume
+scenario whose pause silently stops engaging still passes on the final state
+alone:
 
 ```yaml
 expect:

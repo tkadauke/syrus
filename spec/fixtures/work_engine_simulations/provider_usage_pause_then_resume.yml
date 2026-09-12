@@ -1,0 +1,74 @@
+name: provider usage exhaustion pauses then resumes
+user:
+  agent_provider: codex
+repository:
+  owner: simulation
+  name: provider-usage-pause-then-resume
+jobs:
+  first:
+    title: First job
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+  second:
+    title: Second job
+    state: queued
+    agent_provider: codex
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: exhaust codex usage once workflows are running
+    once: true
+    when:
+      any:
+        - workflow:
+            job: first
+            state: running
+        - workflow:
+            job: second
+            state: running
+    do:
+      exhaust_provider_usage: codex
+  - name: refresh codex usage once units are provider-blocked
+    once: true
+    when:
+      any:
+        - work_unit:
+            job: first
+            blocked_reason: provider_availability
+        - work_unit:
+            job: second
+            blocked_reason: provider_availability
+    do:
+      refresh_provider_usage: codex
+  - name: wake provider admission once usage is refreshed
+    once: true
+    when:
+      any:
+        - work_unit:
+            job: first
+            blocked_reason: provider_availability
+        - work_unit:
+            job: second
+            blocked_reason: provider_availability
+    do:
+      wake_provider_admission: codex
+outcomes:
+  default: success
+expect:
+  jobs:
+    first:
+      - implemented
+    second:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    # The pause must have engaged (units blocked, wake ran the resume) --
+    # without these, jobs succeeding would pass even if the gate broke.
+    - "event exhaust codex usage once workflows are running"
+    - "deferred phases resumed"

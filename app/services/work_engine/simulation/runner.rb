@@ -151,6 +151,9 @@ module WorkEngine
           when "fail" then fail_job!(value)
           when "set_pr_checks" then set_pr_checks!(value)
           when "advance_main" then advance_main!(value)
+          when "exhaust_provider_usage" then exhaust_provider_usage!(value)
+          when "refresh_provider_usage" then refresh_provider_usage!(value)
+          when "wake_provider_admission" then wake_provider_admission!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
         end
@@ -202,6 +205,62 @@ module WorkEngine
           )
         end
         Job.where(id: job_ids).where.not(pr_number: nil).update_all("commits_behind_base = COALESCE(commits_behind_base, 0) + 1")
+      end
+
+      # Records provider usage evidence the way a usage poller would, so the
+      # real availability gate, circuit breaker, and wakeup services react to
+      # it. Both actions bust the availability and breaker read caches: ticks
+      # run in one process, so without this the gate would keep reading the
+      # decision computed before the evidence existed.
+      def exhaust_provider_usage!(value)
+        record_simulated_provider_usage!(provider_for(value), status: "exhausted")
+      end
+
+      def refresh_provider_usage!(value)
+        record_simulated_provider_usage!(provider_for(value), status: "available")
+      end
+
+      def wake_provider_admission!(value)
+        provider = provider_for(value)
+        admission = ProviderAdmissionWakeup.call(provider: provider, user: simulation_user)
+        resumed = resume_provider_blocked_workflows!(provider)
+        events << "provider admission wakeup: #{admission.workflow_count} workflows, " \
+                  "#{admission.auto_retry_count} auto retries, #{resumed} deferred phases resumed"
+      end
+
+      # Runs the same resume the enqueued WorkflowPhaseAdmissionJob would run,
+      # inline: there are no queue workers in a simulation. Covers workflows
+      # already mid-flight, which ProviderAdmissionWakeup intentionally skips.
+      def resume_provider_blocked_workflows!(provider)
+        WorkUnit
+          .joins(:workflow)
+          .where(state: "blocked", blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON)
+          .where(workflows: { agent_provider: provider.to_s, state: %w[queued running] })
+          .order(:id)
+          .filter_map { |unit| WorkUnits::DeferredPhaseResume.call(unit.workflow_id) }
+          .count(&:started?)
+      end
+
+      def provider_for(value)
+        attrs = value.is_a?(Hash) ? value : {}
+        attrs["provider"].presence || (value.is_a?(String) ? value : nil) || "codex"
+      end
+
+      def simulation_user
+        jobs.first&.user
+      end
+
+      def record_simulated_provider_usage!(provider, status:)
+        user = simulation_user
+        ProviderAvailabilityEvidence.create!(
+          user: user,
+          provider: provider.to_s,
+          status: status,
+          source: "simulation",
+          observed_at: Time.current
+        )
+        App::ProviderAvailability.clear_cache!(user: user, provider: provider.to_s)
+        ProviderCircuitBreaker.clear_read_cache!
       end
 
       def reconcile!(tick)
@@ -477,7 +536,19 @@ module WorkEngine
       def expectations_complete?
         expected_jobs_match? &&
           expected_epics_match? &&
-          expected_queues_match?
+          expected_queues_match? &&
+          expected_events_match?
+      end
+
+      # Narrative assertions: required substrings over the tick event log.
+      # Lets orchestration scenarios (pause-then-resume, failover, ...) pin
+      # that the middle of the story happened, not just the final state --
+      # without this, a scenario whose middle silently stops engaging still
+      # passes on the final state alone.
+      def expected_events_match?
+        Array(expectations["events"]).all? do |expected|
+          events.any? { |line| line.include?(expected.to_s) }
+        end
       end
 
       def expected_jobs_match?
