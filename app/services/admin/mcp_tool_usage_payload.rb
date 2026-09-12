@@ -17,8 +17,8 @@ module Admin
         chat_session: chat_session,
         repository: repository
       )
-      used = usages.distinct.pluck(:normalized_tool_name)
       totals = totals_for(usages)
+      used = used_tool_names(usages, totals)
 
       {
         window: {
@@ -64,6 +64,12 @@ module Admin
         calls: calls.to_i,
         errors: errors.to_i
       }
+    end
+
+    def used_tool_names(usages, totals)
+      return totals.fetch(:calls).positive? ? [ tool_name ] : [] if tool_name.present?
+
+      usages.distinct.pluck(:normalized_tool_name)
     end
 
     def surface
@@ -228,7 +234,11 @@ module Admin
     def custom_card_gaps(usages)
       chat_usages = usages.where(surface: "chat")
       advertised = McpToolUsageRecorder.advertised_tools(surface: "chat", chat_session: chat_session)
-      Admin::McpToolCardCoverage.call(usages: chat_usages, advertised_tools: advertised)
+      Admin::McpToolCardCoverage.call(
+        usages: chat_usages,
+        advertised_tools: advertised,
+        single_tool_name: tool_name
+      )
     end
 
     def limit

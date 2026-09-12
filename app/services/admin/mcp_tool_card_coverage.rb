@@ -16,14 +16,15 @@ module Admin
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
 
     class << self
-      def call(usages:, advertised_tools:)
-        new(usages: usages, advertised_tools: advertised_tools).as_json
+      def call(usages:, advertised_tools:, single_tool_name: nil)
+        new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name).as_json
       end
     end
 
-    def initialize(usages:, advertised_tools:)
+    def initialize(usages:, advertised_tools:, single_tool_name: nil)
       @usages = usages
       @advertised_tools = advertised_tools.map(&:to_s).uniq.sort
+      @single_tool_name = single_tool_name.to_s.presence
     end
 
     def as_json
@@ -36,24 +37,27 @@ module Admin
 
     private
 
-    attr_reader :usages, :advertised_tools
+    attr_reader :usages, :advertised_tools, :single_tool_name
 
     def used_tool_rows
-      @used_tool_rows ||= aggregate_rows(usages)
-        .sort_by { |row| [ -row[:calls], row[:tool_name] ] }
-        .first(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
+      @used_tool_rows ||= aggregate_rows(usages, order_by: :calls)
     end
 
     def error_tool_rows
-      @error_tool_rows ||= aggregate_rows(usages)
-        .select { |row| row[:errors].positive? }
-        .sort_by { |row| [ -row[:error_rate], -row[:errors], row[:tool_name] ] }
-        .first(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
+      @error_tool_rows ||= if single_tool_name
+        used_tool_rows.select { |row| row[:errors].positive? }
+      else
+        aggregate_rows(usages, order_by: :error_rate)
+      end
     end
 
-    def aggregate_rows(scope)
-      grouped = scope.group(:normalized_tool_name)
-        .pluck(:normalized_tool_name, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
+    def aggregate_rows(scope, order_by:)
+      grouped = scope
+        .group(:normalized_tool_name)
+        .then { |relation| order_by == :error_rate ? relation.having(Arel.sql("#{error_count_expression} > 0")) : relation }
+        .order(aggregate_order(order_by))
+        .limit(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
+        .pluck(:normalized_tool_name, Arel.sql(count_expression), Arel.sql(error_count_expression))
 
       grouped.map do |tool_name, count, errors|
         count = count.to_i
@@ -65,6 +69,26 @@ module Admin
           error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0
         }
       end
+    end
+
+    def aggregate_order(order_by)
+      if order_by == :error_rate
+        Arel.sql("#{error_rate_expression} DESC, #{error_count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
+      else
+        Arel.sql("#{count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
+      end
+    end
+
+    def count_expression
+      "COUNT(*)"
+    end
+
+    def error_count_expression
+      "SUM(CASE WHEN #{McpToolUsage.quoted_table_name}.error THEN 1 ELSE 0 END)"
+    end
+
+    def error_rate_expression
+      "(#{error_count_expression} * 1.0 / NULLIF(#{count_expression}, 0))"
     end
 
     def missing_card_rows(rows)
