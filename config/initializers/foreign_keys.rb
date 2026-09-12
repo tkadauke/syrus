@@ -8,8 +8,13 @@ module SyrusForeignKeyPolicy
   def add_foreign_key(*)
     nil
   end
+
+  def foreign_keys(*)
+    nil
+  end
 end
 
 ActiveSupport.on_load(:active_record) do
   ActiveRecord::ConnectionAdapters::SchemaStatements.prepend(SyrusForeignKeyPolicy)
+  ActiveRecord::SchemaDumper.prepend(SyrusForeignKeyPolicy)
 end
