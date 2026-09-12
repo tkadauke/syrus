@@ -789,6 +789,66 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.last_ci_handled_sha).to eq(sha)
     end
 
+    it "persists mapped target context and records skipped-target CI failures as workflow warnings" do
+      stub_check_runs(sha, [
+        { name: "Backend CI", status: "completed", conclusion: "failure",
+          html_url: "https://github.com/acme/widgets/runs/100", output: { summary: "Backend failed" } }
+      ])
+      target_context = {
+        "target_label" => "//:backend",
+        "target_kind" => "repo_check",
+        "project_id" => "web",
+        "source_scope" => [ "app/**/*.rb" ],
+        "dependencies" => [ "//:shared" ],
+        "suggested_fixes" => [ "Add an explicit `deps:` edge to //:backend." ]
+      }
+      missed_edge = {
+        "head_sha" => sha,
+        "check_name" => "Backend CI",
+        "check_conclusion" => "failure",
+        "check_url" => "https://github.com/acme/widgets/runs/100",
+        "target_label" => "//:backend",
+        "project_id" => "web",
+        "source_scope" => [ "app/**/*.rb" ],
+        "dependencies" => [ "//:shared" ],
+        "selection_reason" => "no matching files changed",
+        "suggested_fixes" => target_context["suggested_fixes"],
+        "dedupe_key" => "#{job.id}:#{sha}:Backend CI://:backend"
+      }
+      allow(CiRepair::TargetContext).to receive(:call).and_return(
+        CiRepair::TargetContext::Result.new(
+          failed_checks: [
+            {
+              "name" => "Backend CI",
+              "status" => "completed",
+              "conclusion" => "failure",
+              "html_url" => "https://github.com/acme/widgets/runs/100",
+              "summary" => "Backend failed",
+              "error_context" => { "parser" => "github_summary", "error_summary" => "Backend failed" },
+              "target_context" => target_context
+            }
+          ],
+          missed_edges: [ missed_edge ]
+        )
+      )
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+        .and change { WorkflowWarning.where(kind: "ci_failed_skipped_target").count }.by(1)
+
+      wf = job.workflows.where(trigger_kind: "ci_failure").last
+      expect(wf.artifact("failed_checks").first).to include("target_context" => target_context)
+      warning = WorkflowWarning.where(kind: "ci_failed_skipped_target").last
+      expect(warning.workflow).to eq(wf)
+      expect(warning.evidence).to include(
+        "check_name" => "Backend CI",
+        "target_label" => "//:backend",
+        "selection_reason" => "no matching files changed"
+      )
+      expect(warning.suggested_prompt).to include("add the missing dependency edge")
+    end
+
     it "does not enqueue a ci_failure workflow while a conflicting pr_comment workflow already owns the job" do
       # `pending_ci_failure_run?` only checks for an active
       # "ci_failure" unit, so it misses a conflicting pr_comment workflow
