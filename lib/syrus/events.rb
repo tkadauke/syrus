@@ -17,7 +17,7 @@ module Syrus
   module Events
     # Declared rather than free-form so a typo fails loudly at publish time
     # instead of silently reaching nobody, and so the catalog is discoverable.
-    EVENTS = {
+    CORE_EVENTS = {
       "job.created"           => :async,
       # Fires on any persisted change, not just a state transition: a title or
       # body edit changes what a search index or summary should show, and
@@ -35,8 +35,6 @@ module Syrus
       "step.grader.completed" => :inline,
       "step.command.completed" => :inline,
       "epic.upserted"         => :async,
-      "design_doc.upserted"   => :async,
-      "design_doc.deleted"    => :async,
       # Lets a plugin seed defaults for the installation's bootstrap admin
       # without core knowing what it is seeding.
       "user.created"          => :async,
@@ -44,18 +42,23 @@ module Syrus
       "repository.archived"   => :async,
       "repository.destroyed"  => :async
     }.freeze
+    EVENTS = CORE_EVENTS
 
     class UnknownEvent < StandardError; end
 
     module_function
 
-    def known?(name) = EVENTS.key?(name.to_s)
+    def known?(name) = event_catalog.key?(name.to_s)
 
-    def delivery_for(name) = EVENTS.fetch(name.to_s)
+    def delivery_for(name) = event_catalog.fetch(name.to_s)
+
+    def event_catalog
+      CORE_EVENTS.merge(Syrus::PluginRegistry.registered_events)
+    end
 
     def publish(name, **payload)
       name = name.to_s
-      raise UnknownEvent, "Unknown domain event: #{name.inspect}. Valid: #{EVENTS.keys.inspect}" unless known?(name)
+      raise UnknownEvent, "Unknown domain event: #{name.inspect}. Valid: #{event_catalog.keys.inspect}" unless known?(name)
 
       event = Syrus::DomainEvent.new(name: name, payload: payload)
 

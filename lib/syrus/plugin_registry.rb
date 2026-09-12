@@ -103,7 +103,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], prepare_priority: 100, hosts: [], **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -112,6 +112,7 @@ module Syrus
 
 
         validate_provides!(provides)
+        events = normalize_events!(events)
         validate_author!(metadata[:author])
         validate_category!(category)
 
@@ -145,7 +146,8 @@ module Syrus
             optionally_depends_on: Array(optionally_depends_on).map(&:to_s),
             conflicts_with:  Array(conflicts_with).map(&:to_s),
             prepare_priority: prepare_priority,
-            hosts:           Array(hosts)
+            hosts:           Array(hosts),
+            events:          events
           )
         end
 
@@ -205,6 +207,12 @@ module Syrus
 
       def hosted_extension_points
         @mutex.synchronize { @plugins.dup }.flat_map(&:hosted_extension_points).to_set
+      end
+
+      def registered_events
+        @mutex.synchronize { @plugins.dup }.each_with_object({}) do |manifest, events|
+          events.merge!(manifest.events)
+        end
       end
 
       def extension_point?(name)
@@ -602,6 +610,23 @@ module Syrus
         unless Syrus::Plugin::Category.valid?(category)
           raise RegistrationError,
             "Unknown plugin category #{category.inspect}. Valid: #{Syrus::Plugin::Category.values.inspect}"
+        end
+      end
+
+      def normalize_events!(events)
+        Hash(events).each_with_object({}) do |(name, delivery), normalized|
+          event_name = name.to_s
+          mode = delivery.to_sym
+
+          if event_name.blank?
+            raise RegistrationError, "Plugin event names cannot be blank"
+          end
+
+          unless %i[async inline].include?(mode)
+            raise RegistrationError, "Unknown delivery mode #{delivery.inspect} for event #{event_name.inspect}. Valid: [:async, :inline]"
+          end
+
+          normalized[event_name] = mode
         end
       end
 

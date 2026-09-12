@@ -92,6 +92,7 @@ module Syrus
         @provides = {}
         @routes = []
         @frontend = {}
+        @events = {}
         @effects = []
         @boot_blocks = []
         @suggestion = nil
@@ -131,6 +132,12 @@ module Syrus
         return @frontend if pairs.empty?
 
         @frontend.merge!(pairs)
+      end
+
+      def events(pairs = {})
+        return @events if pairs.empty?
+
+        @events.merge!(pairs)
       end
 
       # Effects that belong to the plugin being *enabled*: torn down when it is
@@ -210,6 +217,7 @@ module Syrus
           name: name,
           version: version || Syrus::PluginApi.default_version,
           provides: resolved_provides,
+          events: events,
           routes: (routes if routes.any?),
           frontend: (frontend if frontend.any?)
         }.merge(
