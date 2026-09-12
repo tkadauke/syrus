@@ -606,6 +606,38 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.not_to raise_error
     end
 
+    it "stores declared plugin event types on the manifest" do
+      described_class.register(
+        name: "event_plugin", version: "1.0.0",
+        events: { "event_plugin.changed" => :async }
+      )
+
+      expect(described_class.registered_events).to eq("event_plugin.changed" => :async)
+    end
+
+    it "rejects plugin event names that collide with core events" do
+      expect {
+        described_class.register(
+          name: "bad_plugin", version: "1.0.0",
+          events: { "job.closed" => :inline }
+        )
+      }.to raise_error(described_class::RegistrationError, /cannot override core events/)
+    end
+
+    it "rejects duplicate event names across plugins" do
+      described_class.register(
+        name: "first_plugin", version: "1.0.0",
+        events: { "shared.changed" => :async }
+      )
+
+      expect {
+        described_class.register(
+          name: "second_plugin", version: "1.0.0",
+          events: { "shared.changed" => :async }
+        )
+      }.to raise_error(described_class::RegistrationError, /already declared by "first_plugin"/)
+    end
+
     it "accepts valid extension points with correct interface modules" do
       expect {
         described_class.register(
