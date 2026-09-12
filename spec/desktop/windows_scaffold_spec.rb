@@ -15,6 +15,10 @@ RSpec.describe "desktop Windows scaffold" do
     File.read(File.join(desktop_root, relative_path), encoding: "UTF-8")
   end
 
+  def desktop_i18n
+    read("src/i18n.ts")
+  end
+
   it "documents the plan the scaffold implements" do
     plan = File.read(File.join(repo_root, "docs/windows-desktop-plan.md"), encoding: "UTF-8")
     expect(plan).to include("NSIS one-click")
@@ -149,7 +153,8 @@ RSpec.describe "desktop Windows scaffold" do
     expect(read("src/vite-env.d.ts")).to include("platform: string")
     welcome = read("src/onboarding/Welcome.tsx")
     # Both install paths are real choices on Windows now (install.ps1).
-    expect(welcome).to include("Install on this PC")
+    expect(welcome).to include('t("onboarding.welcome.install_pc")')
+    expect(desktop_i18n).to include('"onboarding.welcome.install_pc": "Install on this PC"')
     runtime_setup = read("src/onboarding/RuntimeSetup.tsx")
     expect(runtime_setup).to include("Docker Desktop")
     # Podman compose isn't supported — the guided setup must not claim it.
@@ -202,8 +207,10 @@ RSpec.describe "desktop Windows scaffold" do
 
     runtime_setup = read("src/onboarding/RuntimeSetup.tsx")
     expect(runtime_setup).to include("runtime-attention")
-    expect(runtime_setup).to include("service agreement")
-    expect(runtime_setup).to match(/Open \{runtimeName\}/)
+    expect(runtime_setup).to include('t("runtime.needs_windows")')
+    expect(desktop_i18n).to include("service agreement")
+    expect(runtime_setup).to include('t("runtime.open", { runtime: runtimeName })')
+    expect(desktop_i18n).to include('"runtime.open": "Open {{runtime}}"')
   end
 
   it "installs Docker Desktop itself: unattended, per-user, license pre-accepted" do
@@ -231,10 +238,12 @@ RSpec.describe "desktop Windows scaffold" do
     expect(driver).to match(/async installRuntime\(\)[\s\S]{0,400}armRebootResume\(\)/)
 
     runtime_setup = read("src/onboarding/RuntimeSetup.tsx")
-    expect(runtime_setup).to include("Install Docker Desktop")
+    expect(runtime_setup).to include('t("runtime.install_docker")')
+    expect(desktop_i18n).to include('"runtime.install_docker": "Install Docker Desktop"')
     expect(runtime_setup).to include("runtime-auto-install")
     # Manual download survives as the fallback for cautious users / failures.
-    expect(runtime_setup).to include("download manually instead")
+    expect(runtime_setup).to include('t("runtime.download_manual")')
+    expect(desktop_i18n).to include('"runtime.download_manual": "download manually instead"')
   end
 
   it "preflights WSL 2 with a one-click elevated install and reboot guidance" do
@@ -251,9 +260,12 @@ RSpec.describe "desktop Windows scaffold" do
     expect(read("electron/main.ts")).to include('ipcMain.handle("onboarding:install-wsl"')
 
     runtime_setup = read("src/onboarding/RuntimeSetup.tsx")
-    expect(runtime_setup).to include("Install WSL 2")
+    expect(runtime_setup).to include('t("runtime.install_wsl")')
+    expect(desktop_i18n).to include('"runtime.install_wsl": "Install WSL 2"')
     # Docker Desktop and WSL installs can both require a Windows restart;
     # the copy must say the flow picks up again afterwards.
-    expect(runtime_setup.scan("picks up right here").length).to be >= 2
+    expect(runtime_setup).to include('t("runtime.wsl_body")')
+    expect(runtime_setup).to include('t("runtime.auto_install_body")')
+    expect(desktop_i18n.scan("picks up right here").length).to be >= 2
   end
 end

@@ -15,6 +15,10 @@ RSpec.describe "desktop backend lifecycle" do
     File.read(File.join(desktop_root, relative_path), encoding: "UTF-8")
   end
 
+  def desktop_i18n
+    read("src/i18n.ts")
+  end
+
   let(:lifecycle) { read("electron/installer/backendLifecycle.ts") }
   let(:image_cleanup) { read("electron/installer/imageCleanup.ts") }
   let(:main_process) { read("electron/main.ts") }
@@ -243,6 +247,7 @@ RSpec.describe "desktop backend lifecycle" do
     %w[daemon-down containers-down stopped remote data-gone].each do |detail|
       expect(backend_status).to include(%("#{detail}")).or include("#{detail}:")
     end
-    expect(backend_status).to include("Run Setup Again")
+    expect(backend_status).to include('t("backend.reset_hint")')
+    expect(desktop_i18n).to include("Run Setup Again")
   end
 end
