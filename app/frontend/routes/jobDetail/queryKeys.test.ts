@@ -5,6 +5,7 @@ describe("tabFromLocation", () => {
   it("recognizes core tabs from the ?tab= query param", () => {
     expect(tabFromLocation("/jobs/1", "?tab=workflows")).toBe("workflows")
     expect(tabFromLocation("/jobs/1", "?tab=conversation")).toBe("conversation")
+    expect(tabFromLocation("/jobs/1", "?tab=target_graph")).toBe("target_graph")
     expect(tabFromLocation("/jobs/1", "?tab=attachments")).toBe("attachments")
     expect(tabFromLocation("/jobs/1", "?tab=conversation")).toBe("conversation")
   })
