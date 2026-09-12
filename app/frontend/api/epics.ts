@@ -22,6 +22,7 @@ export type EpicDependencyPolicy = "linear"
 export type EpicDeploymentStage = {
   name: string
   label: string
+  scope?: "repository"
   reached_count: number
   total: number
   reached_at: string | null

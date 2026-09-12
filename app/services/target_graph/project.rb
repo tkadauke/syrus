@@ -2,10 +2,10 @@ class TargetGraph
   # An operator-facing workflow boundary (preview, hooks, visual review,
   # adversarial review criteria, coverage policy) as distinct from the
   # lower-level Target execution nodes it groups. See DOC-20 "Projects".
-  Project = Data.define(:id, :label, :kind, :path, :owner_config_path) do
+  Project = Data.define(:id, :label, :kind, :path, :owner_config_path, :preview, :visual_review, :adversarial_review, :coverage) do
     ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
 
-    def initialize(id:, label: nil, kind: nil, path: "", owner_config_path: nil)
+    def initialize(id:, label: nil, kind: nil, path: "", owner_config_path: nil, preview: nil, visual_review: nil, adversarial_review: nil, coverage: nil)
       id = id.to_s.strip
       raise ArgumentError, "project id must not be blank" if id.empty?
       raise ArgumentError, "project id #{id.inspect} must match #{ID_PATTERN.inspect}" unless id.match?(ID_PATTERN)
@@ -20,7 +20,11 @@ class TargetGraph
         label: label.to_s.strip.presence || id,
         kind: kind&.to_s&.strip&.presence,
         path: path,
-        owner_config_path: owner_config_path&.to_s
+        owner_config_path: owner_config_path&.to_s,
+        preview: preview,
+        visual_review: visual_review,
+        adversarial_review: adversarial_review,
+        coverage: coverage
       )
     end
 

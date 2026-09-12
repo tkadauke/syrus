@@ -27,6 +27,7 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
   const thresholdDetails = coverage.threshold_miss_details
   const files = coverage.files || {}
   const hitMapAttached = coverage.hit_map_attached
+  const projectRows = (coverage.projects || []).filter((project) => !project.coverage_unavailable)
 
   const sortedFiles = Object.entries(files).sort((a, b) => {
     const aLines = a[1].lines_pct ?? 100
@@ -89,6 +90,44 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
 
       {hitMapAttached ? (
         <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("coverage_hit_map_available")}</p>
+      ) : null}
+
+      {projectRows.length > 1 ? (
+        <div className="mt-3 overflow-x-auto rounded border border-gray-200 dark:border-gray-700" data-testid="coverage-project-table">
+          <table className="min-w-full text-xs">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-800">
+                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">{t("coverage_project_col_project")}</th>
+                <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-300">{t("coverage_file_col_lines")}</th>
+                <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-300">{t("coverage_file_col_branches")}</th>
+                <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-300">{t("coverage_project_col_pr_delta")}</th>
+                <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-300">{t("coverage_project_col_status")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {projectRows.map((project) => (
+                <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50" key={project.project?.id || project.project?.label}>
+                  <td className="max-w-xs px-3 py-1.5">
+                    <div className="truncate font-medium text-gray-700 dark:text-gray-300" title={project.project?.label}>{project.project?.label}</div>
+                    {project.project?.path ? (
+                      <div className="truncate font-mono text-[11px] text-gray-400" title={project.project.path}>{project.project.path}</div>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-1.5 text-right"><CoveragePct pct={project.summary?.lines_pct} /></td>
+                  <td className="px-3 py-1.5 text-right"><CoveragePct pct={project.summary?.branches_pct} /></td>
+                  <td className="px-3 py-1.5 text-right"><CoveragePct pct={project.pr_delta?.pct} /></td>
+                  <td className="px-3 py-1.5 text-right">
+                    {project.threshold_miss ? (
+                      <span className="text-red-700 dark:text-red-400">{t("coverage_threshold_miss")}</span>
+                    ) : (
+                      <span className="text-emerald-700 dark:text-emerald-400">{t("coverage_threshold_ok")}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
 
       {sortedFiles.length > 0 ? (

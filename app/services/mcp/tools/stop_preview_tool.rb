@@ -16,6 +16,7 @@ module Mcp::Tools
       def call(server_context:)
         run = Mcp::Tools.run_from_context(server_context)
         AgentPreviewRegistry.kill(run.id)
+        AgentPreviewRegistry.kill_prefix("#{run.id}:")
         Mcp::Tools.write_log(run, "[mcp] stop_preview: requested")
         MCP::Tool::Response.new([{ type: "text", text: "Preview stopped." }])
       rescue StandardError => e

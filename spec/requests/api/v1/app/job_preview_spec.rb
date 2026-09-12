@@ -20,7 +20,8 @@ RSpec.describe "App API job preview", type: :request do
       get preview_path(job), as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("preview" => nil)
+      expect(parse_body).to include("preview" => nil)
+      expect(parse_body).to have_key("preview_projects")
     end
 
     it "returns the most recent preview environment" do
@@ -34,7 +35,9 @@ RSpec.describe "App API job preview", type: :request do
       expect(parse_body["preview"]).to include(
         "id" => env.id,
         "state" => "running",
-        "error_message" => nil
+        "error_message" => nil,
+        "project_id" => nil,
+        "project_label" => nil
       )
     end
 
@@ -87,6 +90,10 @@ RSpec.describe "App API job preview", type: :request do
   describe "POST /api/v1/app/jobs/:job_id/preview" do
     it "creates a preview environment in starting state for an implemented job" do
       job.update_columns(state: "implemented")
+      allow(App::PreviewProjects).to receive(:for_job).with(job)
+        .and_return(App::PreviewProjects::Result.new(choices: [
+          App::PreviewProjects::Choice.new(id: "repo", label: "Repository", path: "", owner_config_path: ".syrus.yml")
+        ], unavailable_reason: nil))
 
       expect {
         post preview_path(job), as: :json
@@ -94,11 +101,61 @@ RSpec.describe "App API job preview", type: :request do
 
       expect(response).to have_http_status(:created)
       expect(parse_body["preview"]).to include("state" => "starting")
+      expect(parse_body["preview"]).to include("project_id" => "repo", "project_label" => "Repository")
       expect(parse_body["message"]).to eq("Preview environment starting.")
+    end
+
+    it "requires a project choice when multiple affected preview projects exist" do
+      job.update_columns(state: "implemented")
+      selection = App::PreviewProjects::Result.new(choices: [
+        App::PreviewProjects::Choice.new(id: "web", label: "Web", path: "apps/web", owner_config_path: "apps/web/.syrus.yml"),
+        App::PreviewProjects::Choice.new(id: "admin", label: "Admin", path: "apps/admin", owner_config_path: "apps/admin/.syrus.yml")
+      ], unavailable_reason: nil)
+      allow(App::PreviewProjects).to receive(:for_job).with(job).and_return(selection)
+
+      expect {
+        post preview_path(job), as: :json
+      }.not_to change { job.preview_environments.count }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("preview_project_required")
+    end
+
+    it "creates a preview environment for the selected affected preview project" do
+      job.update_columns(state: "implemented")
+      selection = App::PreviewProjects::Result.new(choices: [
+        App::PreviewProjects::Choice.new(id: "web", label: "Web", path: "apps/web", owner_config_path: "apps/web/.syrus.yml"),
+        App::PreviewProjects::Choice.new(id: "admin", label: "Admin", path: "apps/admin", owner_config_path: "apps/admin/.syrus.yml")
+      ], unavailable_reason: nil)
+      allow(App::PreviewProjects).to receive(:for_job).with(job).and_return(selection)
+
+      expect {
+        post preview_path(job), params: { project_id: "admin" }, as: :json
+      }.to change { job.preview_environments.count }.by(1)
+
+      expect(response).to have_http_status(:created)
+      expect(job.preview_environments.last.project_id).to eq("admin")
+      expect(parse_body["preview"]).to include("project_id" => "admin", "project_label" => "Admin")
+    end
+
+    it "explains when no affected project has a preview" do
+      job.update_columns(state: "implemented")
+      allow(App::PreviewProjects).to receive(:for_job).with(job)
+        .and_return(App::PreviewProjects::Result.new(choices: [], unavailable_reason: "no_affected_preview_project"))
+
+      post preview_path(job), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("preview_unavailable")
+      expect(parse_body.dig("error", "message")).to eq("No affected project has a preview configured.")
     end
 
     it "creates a preview environment for an approved job" do
       job.update_columns(state: "approved")
+      allow(App::PreviewProjects).to receive(:for_job).with(job)
+        .and_return(App::PreviewProjects::Result.new(choices: [
+          App::PreviewProjects::Choice.new(id: "repo", label: "Repository", path: "", owner_config_path: ".syrus.yml")
+        ], unavailable_reason: nil))
 
       expect {
         post preview_path(job), as: :json
@@ -109,6 +166,10 @@ RSpec.describe "App API job preview", type: :request do
 
     it "creates a preview environment for a landing job" do
       job.update_columns(state: "landing")
+      allow(App::PreviewProjects).to receive(:for_job).with(job)
+        .and_return(App::PreviewProjects::Result.new(choices: [
+          App::PreviewProjects::Choice.new(id: "repo", label: "Repository", path: "", owner_config_path: ".syrus.yml")
+        ], unavailable_reason: nil))
 
       expect {
         post preview_path(job), as: :json
@@ -131,6 +192,10 @@ RSpec.describe "App API job preview", type: :request do
 
     it "creates a preview environment for a closed job that landed with a merged commit sha" do
       job.update_columns(state: "closed", landed_sha: "abc123")
+      allow(App::PreviewProjects).to receive(:for_job).with(job)
+        .and_return(App::PreviewProjects::Result.new(choices: [
+          App::PreviewProjects::Choice.new(id: "repo", label: "Repository", path: "", owner_config_path: ".syrus.yml")
+        ], unavailable_reason: nil))
 
       expect {
         post preview_path(job), as: :json
@@ -165,6 +230,10 @@ RSpec.describe "App API job preview", type: :request do
     it "allows creation after the previous preview has stopped" do
       create_preview_env(job, state: "stopped")
       job.update_columns(state: "implemented")
+      allow(App::PreviewProjects).to receive(:for_job).with(job)
+        .and_return(App::PreviewProjects::Result.new(choices: [
+          App::PreviewProjects::Choice.new(id: "repo", label: "Repository", path: "", owner_config_path: ".syrus.yml")
+        ], unavailable_reason: nil))
 
       expect {
         post preview_path(job), as: :json

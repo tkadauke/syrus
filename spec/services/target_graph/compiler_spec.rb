@@ -270,6 +270,67 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.validate!).to be(true)
     end
 
+    it "stores root preview config on the root project" do
+      write(".syrus.yml", <<~YAML)
+        preview:
+          start: bin/dev
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.preview.start).to eq("bin/dev")
+      expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
+    end
+
+    it "stores root adversarial review config on the root project" do
+      write(".syrus.yml", <<~YAML)
+        adversarial_review:
+          rounds: 1
+          criteria:
+            - Keep API errors generic
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.adversarial_review.criteria).to eq([ "Keep API errors generic" ])
+      expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
+    end
+
+    it "stores nested preview config on that nested project" do
+      write("apps/web/.syrus.yml", <<~YAML)
+        project:
+          id: web
+          label: Web App
+        preview:
+          start: npm run dev -- --port $PORT
+          logs: [logs/web.log]
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      project = graph.project("web")
+      expect(project.label).to eq("Web App")
+      expect(project.path).to eq("apps/web")
+      expect(project.preview.start).to eq("npm run dev -- --port $PORT")
+      expect(project.preview.logs).to eq([ "logs/web.log" ])
+    end
+
+    it "stores nested adversarial review config on that nested project" do
+      write("apps/web/.syrus.yml", <<~YAML)
+        project:
+          id: web
+        adversarial_review:
+          rounds: 1
+          criteria:
+            - Verify UI authorization checks
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      project = graph.project("web")
+      expect(project.adversarial_review.criteria).to eq([ "Verify UI authorization checks" ])
+    end
+
     describe "affected-file scope defaults (DOC-20 'First Implementation Slice' step 3)" do
       it "keeps root-only declarations repo-wide, with or without an explicit selector" do
         write(".syrus.yml", <<~YAML)
@@ -889,6 +950,23 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.target(TargetGraph::Label.parse("//ok:grade/tests"))).not_to be_nil
       expect(graph.project("broken")).to be_nil
       expect(graph.validate!).to be(true)
+    end
+
+    it "skips nested deployment_stages because v1 stages are repository-scoped" do
+      write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
+      write("ios/.syrus.yml", <<~YAML)
+        deployment_stages:
+          - name: ios_testflight
+            tag: ios-testflight
+      YAML
+
+      graph = described_class.compile(@dir)
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:grade/root-tests"))).not_to be_nil
+      expect(graph.project("ios")).to be_nil
+      expect(diagnostics.error).to include("ios/.syrus.yml")
+      expect(diagnostics.error).to include("deployment_stages are repository-scoped in v1")
     end
 
     it "raises a validation error naming both files when two nested directories resolve to the same project id" do

@@ -29,7 +29,11 @@ module CoverageAnalysis
         file_brh = stats[:brh].to_i
         h[filepath] = {
           "lines_pct"    => file_lf > 0 ? (file_lh.to_f / file_lf * 100).round(2) : nil,
-          "branches_pct" => file_brf > 0 ? (file_brh.to_f / file_brf * 100).round(2) : nil
+          "branches_pct" => file_brf > 0 ? (file_brh.to_f / file_brf * 100).round(2) : nil,
+          "line_count" => file_lf,
+          "covered_line_count" => file_lh,
+          "branch_count" => file_brf,
+          "covered_branch_count" => file_brh
         }
       end
 

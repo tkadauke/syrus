@@ -18,13 +18,38 @@ Set `Repository#prepare_enabled` to false in the admin UI to disable the prepare
 
 ## hooks.post_checkout
 
-Commands run by the `syrus checkout` CLI on the operator's local machine after checking out a branch. These do **not** run in the agent sandbox.
+Commands run by the `syrus checkout` CLI on the operator's local machine after checking out a branch. These do **not** run in the agent sandbox. Root hooks always run; nested `.syrus.yml` hooks run when the checked-out Job or branch diff touches that project directory, falling back to all discovered project hooks when the CLI cannot compute the diff.
 
 ```yaml
 hooks:
   post_checkout:
     - bin/setup-local
 ```
+
+## preview
+
+Preview commands tell Syrus how to boot an app for the Job detail Preview
+action and browser-based visual review. Syrus assigns `$PORT` dynamically and
+proxies traffic through the Syrus preview host.
+
+```yaml
+preview:
+  setup:
+    - bundle install
+    - npm ci
+  seed: bin/rails db:prepare db:seed
+  start: bin/rails server -p $PORT -b 0.0.0.0 -e development
+  health_check: /up
+  logs:
+    - log/development.log
+```
+
+In monorepos, `preview:` can live in the root `.syrus.yml` or in a nested
+project `.syrus.yml`. A nested block is scoped to that project and runs from
+the nested directory. Job previews are filtered to previewable projects touched
+by the Job diff: one match starts directly, multiple matches show a project
+selector, and zero matches show a no-preview message. Root-only repositories
+keep the legacy root preview behavior.
 
 ## grade
 
@@ -275,7 +300,7 @@ adversarial_review:
 
 `rounds` bounds the review loop. Range: 0–10. Rounds set here override the instance-wide `AppSetting.adversarial_review_rounds`. Set to `0` to disable. In every workflow that has this loop (`initial`, `retry`, `pr_comment`, `chat_feedback`, `external_pr_feedback`), `implement`/`respond` always runs once as a bare top-level step regardless of this setting; `rounds` then controls how many review opinions the loop that follows seeks (and, on each `needs_work` verdict, reacts to with a repair) — see [`adversarial_review.md`](adversarial_review.md) for the exact iteration shape.
 
-`criteria` is an optional array of strings directing the reviewer toward repository-specific concerns. When present, each entry is included as a focus area in the reviewer prompt, supplementing the standard review checklist. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
+`criteria` is an optional array of strings directing the reviewer toward repository- or project-specific concerns. Root `.syrus.yml` criteria apply repo-wide by declaration scope, preserving legacy root-only behavior. Nested `.syrus.yml` files may also declare `adversarial_review.criteria`; Syrus adds those project criteria only when the diff under review touches that project directory. The reviewer prompt receives affected project metadata plus the de-duplicated union of relevant root and project criteria. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
 
 ## visual_review
 
@@ -337,14 +362,17 @@ coverage:
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
-| `sources` | yes | — | Array of artifact paths + format |
+| `sources` | yes | — | Array of artifact paths + format, relative to the declaring `.syrus.yml` |
 | `threshold.lines` | no | — | Overall line coverage % (0–100) |
 | `threshold.pr_lines` | no | — | PR-diff line coverage % (0–100) |
+| `threshold.branches` | no | — | Overall branch coverage % (0–100), recorded as a warning rather than a hard gate |
 | `on_miss` | no | `warn` | `block`, `warn`, or `schedule` |
 | `pr_comment` | no | `false` | Post coverage summary as PR comment |
 | `hitmap_ttl_days` | no | 7 | Days to retain the hit-map blob |
 
 `on_miss` behaviors: `block` fails the workflow, `warn` logs a warning and continues, `schedule` triggers a follow-up coverage-fix Job.
+
+Nested `.syrus.yml` files may declare their own `coverage:` blocks. Those sources and thresholds apply to the owning project, not the whole repository; source paths are resolved relative to the directory containing the nested `.syrus.yml`, even when that file declares an explicit `project.path` metadata override. Root coverage keeps the legacy repository-wide behavior. A repository aggregate is computed only when root coverage is configured or when nested project coverage is the only configured coverage source.
 
 ## deployment_stages
 
@@ -354,6 +382,7 @@ Configures the named deployment pipeline stages Syrus will track for this reposi
 deployment_stages:
   - name: staging
     label: "On Staging"
+    scope: repository
     tag: staging
   - name: production
     label: "In Production"
@@ -368,12 +397,26 @@ deployment_stages:
 
 Omitting `deployment_stages` or supplying an empty array disables stage tracking for the repository.
 
+Deployment stages are repository-scoped in v1. A root `.syrus.yml`
+`deployment_stages:` block applies to landed Jobs in the repository as a whole,
+even when the repository also has nested project `.syrus.yml` files. This keeps
+the legacy behavior for root-only repositories and for project-aware monorepos:
+Syrus still records one `JobDeploymentStageStatus` per Job and stage name, based
+on whether the Job's `landed_sha` is contained in the configured stage tag.
+
+Nested project `.syrus.yml` files must not declare their own
+`deployment_stages:` yet. Future project-scoped stages will need an explicit
+storage and polling model that records which project a stage belongs to. Until
+that exists, `scope: project` and `project_id:` are rejected rather than being
+silently ignored.
+
 ### deployment_stages fields
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
 | `name` | yes | — | Alphanumeric characters and underscores only; must be unique within the list |
 | `label` | no | Titleized `name` | Display label shown in the UI |
+| `scope` | no | `repository` | Only `repository` is accepted in v1 |
 | `tag` | yes (or `tag_pattern`) | — | Exact git tag name (typically a moving tag) |
 | `tag_pattern` | yes (or `tag`) | — | Glob pattern; Syrus finds the latest matching tag |
 
@@ -382,6 +425,22 @@ Each stage must specify exactly one of `tag` or `tag_pattern` — not both.
 **`tag`** is for a single moving tag that your deployment pipeline advances (e.g. `staging` or `production`). Syrus checks whether the job's `landed_sha` is an ancestor of that tag's commit.
 
 **`tag_pattern`** is a glob pattern (e.g. `deploy-staging-*`) when your pipeline pushes a new dated tag on each deploy. Syrus finds the most recent tag that matches and checks ancestry.
+
+Repository-scoped stages can represent non-web release channels too, as long as
+the pipeline advances a repository tag when a landed commit reaches that channel:
+
+```yaml
+deployment_stages:
+  - name: ios_testflight
+    label: "TestFlight"
+    tag: ios-testflight
+  - name: android_internal
+    label: "Android Internal"
+    tag: android-internal
+  - name: desktop_public
+    label: "Desktop Public Release"
+    tag_pattern: "desktop-v*"
+```
 
 `PollAllDeploymentStagesJob` runs every 5 minutes and fans out to repositories with `deployment_stages` configured. For each landed Job (`landed_sha` present), Syrus compares the merge commit against each configured stage tag. When GitHub reports the tag as `identical` to or `ahead` of the merge commit, Syrus records a `JobDeploymentStageStatus` with the first detected time and the tag commit SHA for audit/debugging.
 
@@ -500,7 +559,7 @@ nodes, and point them at imported labels through `deps:`.
 
 ## project
 
-Names the operator-facing **project** this `.syrus.yml` file belongs to — an internal `TargetGraph::Project` used for later project-aware workflow features. See [`target_graph.md`](target_graph.md) for the full model; the short version: a **project** is a workflow/operator boundary (which preview to start, which hooks run, which review/coverage policy applies), while a **target** is a lower-level execution graph node (a grader, formatter, generator, or prepare action). Declaring `project:` never changes which commands run — every `prepare`/`formatters`/`generated`/`grade` section in this file still compiles into targets exactly as documented above.
+Names the operator-facing **project** this `.syrus.yml` file belongs to — an internal `TargetGraph::Project` used for project-aware workflow features. See [`target_graph.md`](target_graph.md) for the full model; the short version: a **project** is a workflow/operator boundary (which preview to start, which hooks run, which review/coverage policy applies), while a **target** is a lower-level execution graph node (a grader, formatter, generator, or prepare action). Declaring `project:` does not change which `prepare`/`formatters`/`generated`/`grade` commands compile into targets.
 
 Every `.syrus.yml` file has an implicit project even with no `project:` key: the root `.syrus.yml` gets the implicit root project (id `repo`), and a nested `.syrus.yml` (in a subdirectory) gets an implicit project derived from its directory (e.g. `apps/desktop/.syrus.yml` implies id `apps-desktop`, label `apps/desktop`). Most repositories never need to declare `project:` at all.
 

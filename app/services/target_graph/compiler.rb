@@ -193,23 +193,27 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared
+      return nil unless declared || config&.preview || config&.visual_review || config&.adversarial_review || config&.coverage
 
-      if declared.id && declared.id != root_project_id
+      if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
           "#{owner_config_path} project.id must be #{root_project_id.inspect} for the root .syrus.yml; got #{declared.id.inspect}"
       end
-      if declared.path
+      if declared&.path
         raise TargetGraph::ValidationError,
           "#{owner_config_path} project.path must be empty for the root .syrus.yml; got #{declared.path.inspect}"
       end
 
       TargetGraph::Project.new(
         id: root_project_id,
-        label: declared.label || "Repository",
-        kind: declared.kind,
+        label: declared&.label || "Repository",
+        kind: declared&.kind,
         path: "",
-        owner_config_path: owner_config_path
+        owner_config_path: owner_config_path,
+        preview: config&.preview,
+        visual_review: config&.visual_review,
+        adversarial_review: config&.adversarial_review,
+        coverage: config&.coverage
       )
     end
 
@@ -255,6 +259,7 @@ class TargetGraph
 
         begin
           nested_config = SyrusYml.load_file(workspace_path.join(relative_dir, SyrusYml::CONFIG_FILE))
+          validate_nested_deployment_stages!(nested_config)
         rescue SyrusYml::ParseError => e
           @nested_parse_errors << "#{nested_owner_config_path}: #{e.message}"
           next
@@ -280,7 +285,11 @@ class TargetGraph
           project_id: project_id,
           declared_project: declared_project,
           relative_dir: relative_dir,
-          config_path: nested_owner_config_path
+          config_path: nested_owner_config_path,
+          preview: nested_config.preview,
+          visual_review: nested_config.visual_review,
+          adversarial_review: nested_config.adversarial_review,
+          coverage: nested_config.coverage
         )
 
         compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -295,17 +304,21 @@ class TargetGraph
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
     end
 
-    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:)
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil, coverage: nil)
       existing = graph.project(project_id)
       if existing
-        return unless imported_project?(existing) && declared_project
+        return unless imported_project?(existing) && (declared_project || preview || visual_review || adversarial_review || coverage)
 
         graph.replace_project(
           existing.with(
-            label: declared_project.label || existing.label,
-            kind: declared_project.kind || existing.kind,
-            path: declared_project.path || existing.path,
-            owner_config_path: config_path
+            label: declared_project&.label || existing.label,
+            kind: declared_project&.kind || existing.kind,
+            path: declared_project&.path || existing.path,
+            owner_config_path: config_path,
+            preview: preview || existing.preview,
+            visual_review: visual_review || existing.visual_review,
+            adversarial_review: adversarial_review || existing.adversarial_review,
+            coverage: coverage || existing.coverage
           )
         )
         return
@@ -317,13 +330,24 @@ class TargetGraph
           label: declared_project&.label || relative_dir,
           kind: declared_project&.kind,
           path: declared_project&.path || relative_dir,
-          owner_config_path: config_path
+          owner_config_path: config_path,
+          preview: preview,
+          visual_review: visual_review,
+          adversarial_review: adversarial_review,
+          coverage: coverage
         )
       )
     end
 
     def imported_project?(project)
       project.owner_config_path.to_s.include?("target_graph.imports[")
+    end
+
+    def validate_nested_deployment_stages!(nested_config)
+      return if nested_config.deployment_stages.empty?
+
+      raise SyrusYml::ParseError,
+        "deployment_stages are repository-scoped in v1; declare them only in the root .syrus.yml"
     end
 
     # An explicit `project.id` in the nested file (already charset-validated

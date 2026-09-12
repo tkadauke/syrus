@@ -263,6 +263,9 @@ en:
       not_previewable: "Preview is only available for implemented, approved, or landing jobs, or landed jobs."
       already_active: "A preview environment is already active for this job."
       active_not_found: "No active preview environment found for this job."
+      project_required: "Choose which affected project to preview."
+      no_affected_preview_project: "No affected project has a preview configured."
+      no_preview_configured: "No preview is configured for this repository."
 
     speech_to_text:
       backend_batch_unavailable: "Backend batch transcription is not configured."

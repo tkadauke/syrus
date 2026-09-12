@@ -60,6 +60,12 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
     abs.write(content)
   end
 
+  def write_nested_syrus_yml(dir, content)
+    abs = @ws_path.join(dir, ".syrus.yml")
+    FileUtils.mkdir_p(abs.dirname)
+    abs.write(content)
+  end
+
   context "when no coverage configuration is present" do
     it "logs a skip message and returns without writing an artifact" do
       # No .syrus.yml at all
@@ -136,6 +142,183 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
     it "sets hit_map_attached: true in the artifact" do
       handler.call
       expect(workflow.reload.artifact("coverage")["hit_map_attached"]).to be true
+    end
+  end
+
+  context "with nested project coverage" do
+    let(:frontend_lcov) do
+      <<~LCOV
+        TN:
+        SF:src/App.tsx
+        DA:1,1
+        DA:2,0
+        LF:2
+        LH:1
+        end_of_record
+      LCOV
+    end
+
+    let(:desktop_lcov) do
+      <<~LCOV
+        TN:
+        SF:src/main.ts
+        DA:1,1
+        DA:2,1
+        LF:2
+        LH:2
+        end_of_record
+      LCOV
+    end
+
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+      YAML
+      write_nested_syrus_yml("frontend", <<~YAML)
+        project:
+          label: Frontend
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          threshold:
+            lines: 80
+      YAML
+      write_nested_syrus_yml("desktop", <<~YAML)
+        project:
+          label: Desktop
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          threshold:
+            lines: 90
+      YAML
+      write_lcov(path: "coverage/lcov.info")
+      write_lcov(path: "frontend/coverage/lcov.info", content: frontend_lcov)
+      write_lcov(path: "desktop/coverage/lcov.info", content: desktop_lcov)
+    end
+
+    it "reports root and affected nested projects while preserving the root aggregate" do
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: <<~DIFF)
+          diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+          index abc..def 100644
+          --- a/frontend/src/App.tsx
+          +++ b/frontend/src/App.tsx
+          @@ -0,0 +1,2 @@
+          +one
+          +two
+        DIFF
+      )
+
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact.dig("summary", "lines_pct")).to eq(66.67)
+      expect(artifact["projects"].map { |project| project.dig("project", "id") }).to contain_exactly("repo", "frontend")
+      expect(artifact["projects"].find { |project| project.dig("project", "id") == "frontend" })
+        .to include("threshold_miss" => true)
+      expect(artifact.dig("projects", 1, "files")).to have_key("frontend/src/App.tsx")
+      expect(artifact["projects"].flat_map(&:keys)).not_to include("hit_map")
+    end
+
+    it "creates project-identified snapshots" do
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: "diff --git a/desktop/src/main.ts b/desktop/src/main.ts\n")
+      )
+
+      expect { handler.call }.to change(CoverageSnapshot, :count).by(2)
+      expect(CoverageSnapshot.order(:id).last(2).map(&:project_id)).to contain_exactly("repo", "desktop")
+      expect(CoverageSnapshot.last.target_label).to eq("//desktop:coverage")
+    end
+  end
+
+  context "with only nested project coverage" do
+    before do
+      write_nested_syrus_yml("apps/web", <<~YAML)
+        project:
+          id: web
+          label: Web App
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          pr_comment: true
+      YAML
+      write_lcov(path: "apps/web/coverage/lcov.info", content: <<~LCOV)
+        TN:
+        SF:src/index.ts
+        DA:1,1
+        DA:2,1
+        LF:2
+        LH:2
+        end_of_record
+      LCOV
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: "diff --git a/apps/web/src/index.ts b/apps/web/src/index.ts\n")
+      )
+    end
+
+    it "computes a repository aggregate only from configured nested coverage" do
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact.dig("summary", "lines_pct")).to eq(100.0)
+      expect(artifact["projects"].size).to eq(1)
+      expect(artifact.dig("projects", 0, "project")).to include(
+        "id" => "web",
+        "label" => "Web App",
+        "path" => "apps/web",
+        "coverage_base_path" => "apps/web",
+        "target_label" => "//apps/web:coverage"
+      )
+      expect(artifact.dig("projects", 0, "files")).to have_key("apps/web/src/index.ts")
+      expect(artifact["pr_comment_body"]).to include("## Test Coverage Report")
+    end
+  end
+
+  context "when a nested project overrides project.path metadata" do
+    before do
+      write_nested_syrus_yml("packages/ui", <<~YAML)
+        project:
+          id: ui
+          label: UI
+          path: apps/frontend
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+      YAML
+      write_lcov(path: "packages/ui/coverage/lcov.info", content: <<~LCOV)
+        TN:
+        SF:src/button.ts
+        DA:1,1
+        DA:2,0
+        LF:2
+        LH:1
+        end_of_record
+      LCOV
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: "diff --git a/packages/ui/src/button.ts b/packages/ui/src/button.ts\n")
+      )
+    end
+
+    it "uses the declaring .syrus.yml directory for artifacts and path normalization" do
+      handler.call
+
+      project_artifact = workflow.reload.artifact("coverage").fetch("projects").sole
+      expect(project_artifact.fetch("project")).to include(
+        "id" => "ui",
+        "path" => "apps/frontend",
+        "coverage_base_path" => "packages/ui",
+        "target_label" => "//packages/ui:coverage"
+      )
+      expect(project_artifact.fetch("sources_status").first).to include("artifact" => "packages/ui/coverage/lcov.info")
+      expect(project_artifact.fetch("files")).to have_key("packages/ui/src/button.ts")
     end
   end
 

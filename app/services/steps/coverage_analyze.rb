@@ -7,60 +7,85 @@ module Steps
   class CoverageAnalyze < Base
     def call
       workspace.setup
-      plan = RepoCoveragePlan.for(workspace.path)
+      diff_text = diff_text_for_coverage
+      plan_result = App::CoverageProjects.call(workspace_path: workspace.path, changed_files: changed_files_from_diff(diff_text))
+      plans = plan_result.plans
 
-      unless plan
+      if plans.empty?
         log("[coverage_analyze] no coverage configuration in .syrus.yml — skipping")
         return
       end
 
-      parsed_sources = parse_sources(plan)
-      found_sources  = parsed_sources.select(&:found)
+      project_artifacts = plans.map { |plan| analyze_plan(plan, diff_text) }
+      found_project_artifacts = project_artifacts.reject { |artifact| artifact["coverage_unavailable"] }
 
-      if found_sources.empty?
+      if found_project_artifacts.empty?
         log("[coverage_analyze] no coverage artifacts found — marking coverage unavailable")
-        Workflow::CoverageArtifact.write!(workflow, { "coverage_unavailable" => true,
-                                                      "sources_status" => sources_status(parsed_sources) })
+        Workflow::CoverageArtifact.write!(workflow, {
+          "coverage_unavailable" => true,
+          "projects" => project_artifacts,
+          "sources_status" => project_artifacts.flat_map { |artifact| artifact["sources_status"] || [] }
+        })
         return
       end
 
-      merged     = CoverageAnalysis::MergeStrategy.merge_all(found_sources.map(&:raw))
-      normalized = CoverageAnalysis::Normalizer.normalize(merged)
+      artifact = aggregate_artifact(found_project_artifacts, project_artifacts, plans, diff_text)
+      Workflow::CoverageArtifact.write!(workflow, persisted_artifact(artifact))
+      log("[coverage_analyze] analyzed #{found_project_artifacts.size} coverage project(s)")
 
-      diff_annotations, pr_delta = compute_diff_coverage(normalized[:hit_map])
+      attach_hit_map(merged_hit_map(found_project_artifacts), plans.map(&:hitmap_ttl_days).max)
 
-      artifact = build_artifact(normalized, diff_annotations, pr_delta, plan, parsed_sources)
-      Workflow::CoverageArtifact.write!(workflow, artifact)
-      log("[coverage_analyze] lines #{artifact.dig('summary', 'lines_pct')}%  PR delta #{pr_delta['pct']}%")
-
-      attach_hit_map(normalized[:hit_map], plan.hitmap_ttl_days)
-
-      upsert_snapshot(normalized, pr_delta)
-
-      handle_threshold(plan, artifact)
-      record_branches_threshold_warning(plan, artifact)
+      found_project_artifacts.each do |project_artifact|
+        plan = plans.find { |candidate| candidate.project_id == project_artifact.dig("project", "id") }
+        upsert_snapshot(project_artifact, plan)
+        handle_threshold(plan, project_artifact)
+        record_branches_threshold_warning(plan, project_artifact)
+      end
     end
 
     private
 
+    def analyze_plan(plan, diff_text)
+      parsed_sources = parse_sources(plan)
+      found_sources = parsed_sources.select(&:found)
+      project = project_payload(plan)
+
+      if found_sources.empty?
+        log("[coverage_analyze] no coverage artifacts found for #{plan.project_label}")
+        return {
+          "coverage_unavailable" => true,
+          "project" => project,
+          "sources_status" => sources_status(parsed_sources, plan)
+        }
+      end
+
+      merged = CoverageAnalysis::MergeStrategy.merge_all(found_sources.map(&:raw))
+      normalized = CoverageAnalysis::Normalizer.normalize(merged)
+      diff_annotations, pr_delta = compute_diff_coverage(normalized[:hit_map], diff_text)
+      artifact = build_project_artifact(normalized, diff_annotations, pr_delta, plan, parsed_sources)
+
+      log("[coverage_analyze] #{plan.project_label}: lines #{artifact.dig('summary', 'lines_pct')}%  PR delta #{pr_delta['pct']}%")
+      artifact
+    end
+
     def parse_sources(plan)
       plan.sources.map do |source|
-        artifact_path = workspace.path.join(source.artifact)
+        artifact_path = coverage_artifact_path(plan, source)
         unless artifact_path.exist?
-          log("[coverage_analyze] artifact not found: #{source.artifact}")
-          next CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
+          log("[coverage_analyze] artifact not found: #{source_status_path(plan, source)}")
+          next CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
                                           found: false, raw: nil, lines_pct: nil)
         end
 
         begin
           result = try_plugin_parsers(artifact_path, source.format) ||
                    CoverageAnalysis::Parsers.for(source.format).parse(artifact_path.read)
-          normalized_raw = normalize_hit_map_paths(result.raw)
-          CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
+          normalized_raw = normalize_hit_map_paths(result.raw, plan)
+          CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
                                      found: true, raw: normalized_raw, lines_pct: result.lines_pct)
         rescue => e
-          log("[coverage_analyze] failed to parse #{source.artifact} (#{source.format}): #{e.message}")
-          CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
+          log("[coverage_analyze] failed to parse #{source_status_path(plan, source)} (#{source.format}): #{e.message}")
+          CoverageAnalysis::ParsedSource.new(artifact: source_status_path(plan, source), format: source.format,
                                      found: false, raw: nil, lines_pct: nil)
         end
       end
@@ -76,24 +101,33 @@ module Steps
       nil
     end
 
-    def compute_diff_coverage(hit_map)
-      diff_text = GitRunner.new.run(
+    def compute_diff_coverage(hit_map, diff_text)
+      CoverageAnalysis::DiffAnnotator.annotate(diff_text, hit_map)
+    end
+
+    def diff_text_for_coverage
+      GitRunner.new.run(
         "diff", "#{default_branch_ref}...HEAD", "--unified=0",
         chdir: workspace.path.to_s
       )
-      CoverageAnalysis::DiffAnnotator.annotate(diff_text, hit_map)
     rescue GitRunner::GitError => e
       log("[coverage_analyze] git diff failed: #{e.message} — skipping diff annotations")
-      [ {}, { "covered" => 0, "total" => 0, "pct" => nil, "uncovered_files" => [] } ]
+      ""
     end
 
-    def build_artifact(normalized, diff_annotations, pr_delta, plan, parsed_sources)
+    def changed_files_from_diff(diff_text)
+      diff_text.scan(/^diff --git a\/(.+?) b\/.+$/).flatten.uniq
+    end
+
+    def build_project_artifact(normalized, diff_annotations, pr_delta, plan, parsed_sources)
       artifact = {
+        "project" => project_payload(plan),
         "summary"          => normalized[:summary],
         "files"            => normalized[:files],
+        "hit_map"          => normalized[:hit_map],
         "diff_annotations" => diff_annotations,
         "pr_delta"         => pr_delta,
-        "sources_status"   => sources_status(parsed_sources),
+        "sources_status"   => sources_status(parsed_sources, plan),
         "hit_map_attached" => false
       }
 
@@ -110,53 +144,106 @@ module Steps
         }
       end
 
-      if plan.pr_comment
-        artifact["pr_comment_body"] = CoverageReport::PrCommentFormatter.new(artifact, plan: plan).format
-      end
-
-
       artifact
     end
 
-    def sources_status(parsed_sources)
+    def aggregate_artifact(found_project_artifacts, project_artifacts, plans, diff_text)
+      root = found_project_artifacts.find { |artifact| artifact.dig("project", "id") == TargetGraph::ROOT_PROJECT_ID }
+      aggregate = root ? root.except("project") : repository_aggregate(found_project_artifacts, diff_text)
+      aggregate["projects"] = project_artifacts
+      aggregate["sources_status"] = project_artifacts.flat_map { |artifact| artifact["sources_status"] || [] }
+      aggregate["hit_map_attached"] = false
+
+      comment_plans = plans.select(&:pr_comment)
+      if comment_plans.any?
+        aggregate["pr_comment_body"] = CoverageReport::PrCommentFormatter.new(aggregate, plans: comment_plans).format
+      end
+
+      aggregate
+    end
+
+    def repository_aggregate(found_project_artifacts, diff_text)
+      normalized = CoverageAnalysis::Normalizer.normalize(
+        CoverageAnalysis::MergeStrategy.merge_all(found_project_artifacts.map { |artifact| denormalized_project_artifact(artifact) })
+      )
+      diff_annotations, pr_delta = compute_diff_coverage(normalized[:hit_map], diff_text)
+
+      {
+        "summary" => normalized[:summary],
+        "files" => normalized[:files],
+        "diff_annotations" => diff_annotations,
+        "pr_delta" => pr_delta
+      }
+    end
+
+    def denormalized_project_artifact(artifact)
+      files = artifact["files"] || {}
+      {
+        hit_map: artifact["hit_map"] || {},
+        lf: files.values.sum { |stats| stats["line_count"].to_i },
+        lh: files.values.sum { |stats| stats["covered_line_count"].to_i },
+        brf: files.values.sum { |stats| stats["branch_count"].to_i },
+        brh: files.values.sum { |stats| stats["covered_branch_count"].to_i },
+        file_stats: files.transform_values do |stats|
+          {
+            lf: stats["line_count"].to_i,
+            lh: stats["covered_line_count"].to_i,
+            brf: stats["branch_count"].to_i,
+            brh: stats["covered_branch_count"].to_i
+          }
+        end
+      }
+    end
+
+    def sources_status(parsed_sources, plan)
       parsed_sources.map do |s|
-        { "artifact" => s.artifact, "found" => s.found, "lines_pct" => s.lines_pct }
+        {
+          "artifact" => s.artifact,
+          "found" => s.found,
+          "lines_pct" => s.lines_pct,
+          "project_id" => plan.project_id,
+          "project_label" => plan.project_label,
+          "target_label" => plan.target_label
+        }
       end
     end
 
-    def normalize_hit_map_paths(raw)
+    def normalize_hit_map_paths(raw, plan)
       prefix = workspace.path.to_s + "/"
-      hit_map    = raw[:hit_map].transform_keys    { |k| k.start_with?(prefix) ? k.delete_prefix(prefix) : k }
-      file_stats = raw[:file_stats].transform_keys { |k| k.start_with?(prefix) ? k.delete_prefix(prefix) : k }
+      hit_map    = raw[:hit_map].transform_keys    { |k| normalize_coverage_path(k, prefix, plan) }
+      file_stats = raw[:file_stats].transform_keys { |k| normalize_coverage_path(k, prefix, plan) }
       raw.merge(hit_map: hit_map, file_stats: file_stats)
     end
 
     def attach_hit_map(hit_map, ttl_days)
       workflow.attach_coverage_hit_map!(hit_map)
-      workflow.set_artifact!("coverage", workflow.artifact("coverage").merge("hit_map_attached" => true))
+      workflow.set_artifact!("coverage", mark_hit_map_attached(workflow.artifact("coverage")))
       CoverageHitMapPruneJob.set(wait: ttl_days.days).perform_later(workflow.id)
       log("[coverage_analyze] hit map attached (TTL #{ttl_days}d)")
     rescue => e
       Rails.logger.warn("[CoverageAnalyze] hit map attach failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
     end
 
-    def upsert_snapshot(normalized, pr_delta)
+    def upsert_snapshot(artifact, plan)
       sha     = head_sha
       branch  = job.branch_name.presence || repository.default_branch
-      summary = normalized[:summary]
+      summary = artifact["summary"] || {}
 
       CoverageSnapshot.create!(
         repository:   repository,
         workflow:     workflow,
         job:          job,
+        project_id: plan.project_id,
+        project_label: plan.project_label,
+        target_label: plan.target_label,
         sha:          sha,
         branch:       branch,
         lines_pct:    summary["lines_pct"],
         branches_pct: summary["branches_pct"],
         functions_pct: summary["functions_pct"],
-        pr_delta_pct: pr_delta["pct"],
-        file_count:   normalized[:files].size,
-        data:         normalized[:files]
+        pr_delta_pct: artifact.dig("pr_delta", "pct"),
+        file_count:   artifact.fetch("files", {}).size,
+        data:         artifact["files"]
       )
     rescue => e
       Rails.logger.warn("[CoverageAnalyze] snapshot creation failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
@@ -200,6 +287,61 @@ module Steps
       <<~PROMPT.strip
         Branch coverage is #{branches_pct}%, below the configured threshold of #{threshold_branches}% (`coverage.threshold.branches` in `.syrus.yml`). Add tests that exercise the untested branches (conditionals, guard clauses, rescue paths) to raise branch coverage above the threshold.
       PROMPT
+    end
+
+    def project_payload(plan)
+      {
+        "id" => plan.project_id,
+        "label" => plan.project_label,
+        "path" => plan.project_path,
+        "coverage_base_path" => plan.coverage_base_path,
+        "owner_config_path" => plan.owner_config_path,
+        "target_label" => plan.target_label
+      }
+    end
+
+    def coverage_artifact_path(plan, source)
+      return workspace.path.join(source.artifact) if plan.coverage_base_path.blank?
+
+      workspace.path.join(plan.coverage_base_path, source.artifact)
+    end
+
+    def source_status_path(plan, source)
+      return source.artifact if plan.coverage_base_path.blank?
+
+      "#{plan.coverage_base_path}/#{source.artifact}"
+    end
+
+    def normalize_coverage_path(path, workspace_prefix, plan)
+      path = path.to_s
+      return path.delete_prefix(workspace_prefix) if path.start_with?(workspace_prefix)
+      return path if plan.coverage_base_path.blank?
+      return path if path == plan.coverage_base_path || path.start_with?("#{plan.coverage_base_path}/")
+
+      "#{plan.coverage_base_path}/#{path}"
+    end
+
+    def merged_hit_map(project_artifacts)
+      project_artifacts.each_with_object({}) do |artifact, merged|
+        (artifact["hit_map"] || {}).each { |path, lines| merged[path] = lines }
+      end
+    end
+
+    def persisted_artifact(artifact)
+      artifact.except("hit_map").tap do |persisted|
+        persisted["projects"] = Array(artifact["projects"]).map { |project| project.except("hit_map") } if artifact["projects"]
+      end
+    end
+
+    def mark_hit_map_attached(artifact)
+      artifact = artifact.merge("hit_map_attached" => true)
+      return artifact unless artifact["projects"].is_a?(Array)
+
+      artifact.merge(
+        "projects" => artifact["projects"].map do |project|
+          project["coverage_unavailable"] ? project : project.merge("hit_map_attached" => true)
+        end
+      )
     end
   end
 end

@@ -31,6 +31,14 @@ break once the preview is behind a proxy and HTTPS origin.
 Seed commands should be idempotent. A preview may be started repeatedly on the
 same branch while a user or reviewer investigates the change.
 
+For monorepos, each nested `.syrus.yml` can define a project-scoped `preview`
+block. Syrus runs that preview from the nested project directory. When a Job
+affects one previewable project, Start Preview launches that project directly.
+When a Job affects more than one previewable project, the Job detail panel asks
+which project to start and remembers the selection for that Job. If the Job
+only touches projects without previews, the panel says that no affected project
+has a preview configured.
+
 ## Preview Logs
 
 Preview processes run as tracked spawned processes. Their stdout, stderr,

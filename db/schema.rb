@@ -782,8 +782,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.integer "job_id"
     t.decimal "lines_pct", precision: 5, scale: 2
     t.decimal "pr_delta_pct", precision: 5, scale: 2
+    t.string "project_id"
+    t.string "project_label"
     t.integer "repository_id", null: false
     t.string "sha", null: false
+    t.string "target_label"
     t.datetime "updated_at", null: false
     t.integer "workflow_id", null: false
     t.index ["job_id"], name: "index_coverage_snapshots_on_job_id"
@@ -791,6 +794,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["repository_id", "branch", "created_at"], name: "idx_coverage_snapshots_repo_branch_created"
     t.index ["repository_id", "branch"], name: "index_coverage_snapshots_on_repository_id_and_branch"
     t.index ["repository_id", "created_at"], name: "index_coverage_snapshots_on_repository_id_and_created_at"
+    t.index ["repository_id", "project_id", "branch", "created_at"], name: "idx_coverage_snapshots_project_branch"
     t.index ["repository_id"], name: "index_coverage_snapshots_on_repository_id"
     t.index ["workflow_id"], name: "index_coverage_snapshots_on_workflow_id"
   end
@@ -1949,12 +1953,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.integer "job_id"
     t.datetime "last_activity_at"
     t.integer "port"
+    t.string "project_id"
     t.integer "repository_id"
     t.string "state", default: "starting", null: false
     t.datetime "updated_at", null: false
     t.string "workspace_path"
     t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
     t.index ["job_id", "created_at", "id"], name: "idx_preview_environments_job_latest"
+    t.index ["job_id", "project_id", "created_at", "id"], name: "idx_preview_environments_job_project_latest"
     t.index ["job_id", "state", "created_at", "id"], name: "idx_preview_environments_job_state_latest"
     t.index ["job_id"], name: "index_preview_environments_on_job_id"
     t.index ["job_id"], name: "index_preview_environments_on_job_id_active", where: "state IN ('starting','seeding','running','stopping')"
