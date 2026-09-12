@@ -282,6 +282,127 @@ RSpec.describe Steps::GraderCollect do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
   end
 
+  it "uses base-revision retry when main health is broken but no base grader conclusion is cached" do
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    MainBranchHealthCheck.record_grader_workflow(
+      repository: job.repository,
+      sha: "main123",
+      grader_health: "broken",
+      grader_failed_names: [ "rspec" ]
+    )
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    candidate_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_step.update!(
+      state: "failed",
+      details: {
+        "name" => "rspec",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        "base_retry" => { "strategy" => "files_as_args" }
+      }
+    )
+    provider = Class.new do
+      def self.test_case_count(run:, grader_name:) = 1
+      def self.failed_test_identities(run:, grader_name:) = [ "spec/models/widget_spec.rb\0Widget fails" ]
+      def self.failed_test_cases(run:, grader_name:)
+        [
+          {
+            "suite_name" => "spec/models/widget_spec.rb",
+            "name" => "Widget fails",
+            "file_path" => "spec/models/widget_spec.rb",
+            "identity" => "spec/models/widget_spec.rb\0Widget fails"
+          }
+        ]
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+    allow(BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(
+        ran: true,
+        inherited: true,
+        reason: "base_retry_failed_cases_match",
+        command: "bin/rspec-fast spec/models/widget_spec.rb",
+        base_failed_identities: [ "spec/models/widget_spec.rb\0Widget fails" ],
+        introduced_failed_identities: [],
+        output: "1 example, 1 failure"
+      )
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    expect(BaseRevisionRetry).to have_received(:call).with(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: [ include("identity" => "spec/models/widget_spec.rb\0Widget fails") ],
+      log: anything
+    )
+    classification = workflow.reload.artifact("inherited_main_branch_grader_failure")["classifications"].first
+    expect(classification).to include(
+      "reason" => "base_retry_failed_cases_match",
+      "base_retry_command" => "bin/rspec-fast spec/models/widget_spec.rb"
+    )
+  end
+
+  it "uses cached main-health workflow test cases before base-revision retry" do
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")
+    base_step = Step.create!(
+      workflow: base_workflow,
+      kind: "grader",
+      position: 1,
+      state: "failed",
+      details: { "name" => "rspec" }
+    )
+    base_run = base_step.runs.create!(job: job, trigger_kind: "main_grader", state: "failed")
+    MainBranchHealthCheck.record_grader_workflow(
+      repository: job.repository,
+      workflow: base_workflow,
+      sha: "main123",
+      grader_health: "broken",
+      grader_failed_names: [ "rspec" ]
+    )
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    candidate_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_step.update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "failures" => "allow_inherited", "exit_code" => 1 }
+    )
+    provider = Class.new do
+      def self.test_case_count(run:, grader_name:) = 1
+
+      def self.failed_test_identities(run:, grader_name:)
+        case run
+        when @candidate_run, @base_run
+          [ "spec/models/widget_spec.rb\0Widget fails" ]
+        else
+          []
+        end
+      end
+
+      def self.bind(candidate_run:, base_run:)
+        @candidate_run = candidate_run
+        @base_run = base_run
+        self
+      end
+    end.bind(candidate_run: candidate_run, base_run: base_run)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+    allow(BaseRevisionRetry).to receive(:call)
+
+    expect { handler.call }.not_to raise_error
+
+    expect(BaseRevisionRetry).not_to have_received(:call)
+    classification = workflow.reload.artifact("inherited_main_branch_grader_failure")["classifications"].first
+    expect(classification).to include(
+      "reason" => "failed_cases_match_base",
+      "candidate_failed_case_count" => 1,
+      "base_failed_case_count" => 1
+    )
+  end
+
   it "does not pass inherited-looking grader failures under strict failure policy" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     MainBranchHealthCheck.record_grader_workflow(

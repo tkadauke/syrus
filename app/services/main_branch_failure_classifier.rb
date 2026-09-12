@@ -93,7 +93,9 @@ class MainBranchFailureClassifier
     failures = failure_policy(details)
 
     base_conclusion = latest_base_conclusion(name, evidence.fetch("sha"))
-    base_failed = evidence.fetch("failed_names").include?(name) && base_conclusion&.status == "failed"
+    base_run = base_run_for(name, evidence, base_conclusion)
+    base_failed = evidence.fetch("failed_names").include?(name) &&
+      (base_conclusion.nil? || base_conclusion.status == "failed")
 
     result = {
       "name" => name,
@@ -107,8 +109,10 @@ class MainBranchFailureClassifier
     return result.merge("reason" => "strict_failure_policy") unless failures == ALLOW_INHERITED
     return result unless base_failed
 
-    if test_case_evidence_present?(grader_step, base_conclusion, name)
-      classify_test_cases(result, grader_step, base_conclusion)
+    if comparable_test_case_evidence_present?(grader_step, base_run, name)
+      classify_test_cases(result, grader_step, base_run)
+    elsif (base_retry = base_revision_retry(grader_step, result.fetch("name"), evidence.fetch("sha")))&.ran
+      classify_base_retry(result, base_retry)
     else
       classify_binary_contextual(result, details, base_conclusion)
     end
@@ -128,10 +132,10 @@ class MainBranchFailureClassifier
       .first
   end
 
-  def classify_test_cases(result, candidate_step, base_conclusion)
+  def classify_test_cases(result, candidate_step, base_run)
     candidate_run = candidate_step.runs.order(:created_at).last
     candidate_failures = failed_test_identities_for_run(candidate_run, result.fetch("name"))
-    base_failures = failed_test_identities_for_run(base_conclusion&.run, result.fetch("name"))
+    base_failures = failed_test_identities_for_run(base_run, result.fetch("name"))
 
     return result.merge("reason" => "missing_candidate_test_cases") if candidate_failures.empty?
     return result.merge("reason" => "missing_base_test_cases") if base_failures.empty?
@@ -147,10 +151,10 @@ class MainBranchFailureClassifier
     )
   end
 
-  def test_case_evidence_present?(candidate_step, base_conclusion, grader_name)
+  def comparable_test_case_evidence_present?(candidate_step, base_run, grader_name)
     candidate_run = candidate_step.runs.order(:created_at).last
-    test_case_count_for_run(candidate_run, grader_name).positive? ||
-      test_case_count_for_run(base_conclusion&.run, grader_name).positive?
+    test_case_count_for_run(candidate_run, grader_name).positive? &&
+      test_case_count_for_run(base_run, grader_name).positive?
   end
 
   # Asked of :test_evidence providers rather than read from a model: test
@@ -177,6 +181,52 @@ class MainBranchFailureClassifier
     test_evidence_providers.flat_map do |provider|
       Array(provider.failed_test_identities(run: run, grader_name: grader_name))
     end.uniq.sort
+  end
+
+  def failed_test_cases_for_run(run, grader_name)
+    return [] unless run
+
+    test_evidence_providers.flat_map do |provider|
+      next [] unless provider.respond_to?(:failed_test_cases)
+
+      Array(provider.failed_test_cases(run: run, grader_name: grader_name))
+    end.map { |test_case| test_case.to_h.stringify_keys }.uniq { |test_case| test_case["identity"] }.sort_by { |test_case| test_case["identity"].to_s }
+  end
+
+  def base_run_for(grader_name, evidence, base_conclusion)
+    return base_conclusion.run if base_conclusion&.run
+
+    workflow_id = evidence["workflow_id"]
+    return nil if workflow_id.blank?
+
+    workflow = Workflow.includes(steps: :runs).find_by(id: workflow_id)
+    failed_steps = workflow&.steps&.select { |candidate| candidate.kind == "grader" && candidate.state == "failed" } || []
+    base_step = failed_steps.find { |candidate| candidate.details.to_h["name"].to_s == grader_name }
+    base_step&.runs&.max_by(&:created_at)
+  end
+
+  def base_revision_retry(grader_step, grader_name, base_sha)
+    candidate_run = grader_step.runs.order(:created_at).last
+    failed_cases = failed_test_cases_for_run(candidate_run, grader_name)
+    return nil if failed_cases.empty?
+
+    BaseRevisionRetry.call(
+      workflow: @workflow,
+      grader_step: grader_step,
+      base_sha: base_sha,
+      failed_cases: failed_cases,
+      log: ->(message) { JobLog.append!(run: candidate_run, chunk: message, kind: "system") if candidate_run }
+    )
+  end
+
+  def classify_base_retry(result, retry_result)
+    result.merge(
+      "inherited" => retry_result.inherited,
+      "reason" => retry_result.reason,
+      "base_retry_command" => retry_result.command,
+      "base_retry_failed_case_count" => retry_result.base_failed_identities.size,
+      "introduced_failed_cases" => retry_result.introduced_failed_identities.first(20)
+    )
   end
 
   def classify_binary_contextual(result, details, base_conclusion)

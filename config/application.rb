@@ -8,6 +8,8 @@ require "rails/all"
 # from autoloading below so Zeitwerk does not manage the same constant.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "syrus/plugin_api"
+require "syrus/plugin/grade_detector"
+require "syrus/plugin/focused_test_command"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.

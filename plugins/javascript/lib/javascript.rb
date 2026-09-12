@@ -5,6 +5,7 @@ require "javascript/eslint_autofix"
 require "javascript/prettier_autofix"
 require "javascript/dependency_audit_command"
 require "javascript/review_criteria_provider"
+require "javascript/focused_test_command"
 
 module JavaScript
   extend Syrus::PluginApi
@@ -27,6 +28,7 @@ module JavaScript
              grader_augmentor: "JavaScript::EslintGraderAugmentor",
              review_criteria_provider: "JavaScript::ReviewCriteriaProvider",
              autofix_command: [ "JavaScript::EslintAutofix", "JavaScript::PrettierAutofix" ],
-             dependency_audit_command: "JavaScript::DependencyAuditCommand"
+             dependency_audit_command: "JavaScript::DependencyAuditCommand",
+             focused_test_command: "JavaScript::FocusedTestCommand"
   end
 end

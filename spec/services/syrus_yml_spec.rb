@@ -30,8 +30,8 @@ RSpec.describe SyrusYml do
     expect(config.grade.max_iterations).to eq(5)
     expect(config.grade.failures).to eq("strict")
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict", deps: []),
-      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict", deps: [])
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict", base_retry: nil, deps: []),
+      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict", base_retry: nil, deps: [])
     ])
   end
 
@@ -47,7 +47,7 @@ RSpec.describe SyrusYml do
     expect(config.grade.max_iterations).to eq(7)
     expect(config.grade.failures).to eq("strict")
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict", deps: [])
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict", base_retry: nil, deps: [])
     ])
   end
 
@@ -454,6 +454,33 @@ RSpec.describe SyrusYml do
     YAML
 
     expect(config.grade.steps.first.junit_output).to be_nil
+  end
+
+  it "parses legacy base_retry command shorthand when present" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+          base_retry: bin/rspec-individual {files}
+    YAML
+
+    expect(config.grade.steps.first.base_retry).to eq(
+      described_class::BaseRetry.new(strategy: "command", command: "bin/rspec-individual {files}")
+    )
+  end
+
+  it "parses base_retry strategy mappings" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+          base_retry:
+            strategy: files_as_args
+    YAML
+
+    expect(config.grade.steps.first.base_retry).to eq(
+      described_class::BaseRetry.new(strategy: "files_as_args", command: nil)
+    )
   end
 
   it "parses grade-level failures as the default for steps" do

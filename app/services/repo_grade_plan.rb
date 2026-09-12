@@ -18,7 +18,7 @@ class RepoGradePlan
   # A grader is a single immutable command selected by phase. Legacy `.syrus.yml`
   # files may still declare `ci:` beside `run:`; resolve expands that into a
   # separate `<name>-ci` grader whose only phase is `ci`.
-  Grader = Data.define(:name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :deps, :metadata)
+  Grader = Data.define(:name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps, :metadata)
   Result = Data.define(:graders, :source, :note, :max_iterations, :rerun_only_failed) do
     def rerun_only_failed?
       !!rerun_only_failed
@@ -84,6 +84,7 @@ class RepoGradePlan
       when_files_changed: step.when_files_changed,
       junit_output: step.junit_output,
       failures: step.failures,
+      base_retry: step.base_retry,
       deps: step.deps,
       metadata: legacy_ci ? { "legacy_ci_command" => true, "legacy_source_grader" => step.name } : {}
     )

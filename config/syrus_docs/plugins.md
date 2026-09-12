@@ -1093,6 +1093,54 @@ private shapes: `inherited_grader_failure` (`.syrus.yml`'s
 plugin that can tell "this grader was already failing" from its own parsed
 output is the obvious contributor.
 
+## `grade_detector`
+
+Language/framework plugins use this extension point to propose complete
+`.syrus.yml` grader candidates for repositories that do not have custom grade
+configuration yet:
+
+```ruby
+.grade_candidates(repo_path) # => Array<Hash>
+```
+
+Each candidate hash may include `name`, `run`, `phases`, `when_files_changed`,
+`junit_output`, `failures`, `base_retry`, `required`, `timeout_minutes`, and
+`evidence`. The onboarding skill renders these fields into its pre-scan prompt
+so the agent can write a useful config without re-detecting common framework
+conventions by hand.
+
+The Ruby plugin uses this to propose ordinary RSpec defaults: a full
+landing/CI grader, a review-phase focused grader, `failures:
+allow_inherited`, and plugin-backed BRR.
+
+## `focused_test_command`
+
+Base-revision retry (BRR) uses this extension point when a grader with
+`.syrus.yml` `base_retry: { strategy: plugin }` fails with structured test
+cases but Syrus has no cached base-revision test result to compare against. A
+provider receives the grader name, the configured grader command, the parsed
+`base_retry` config, and the failed cases from the candidate run, then returns
+a shell command that runs only those tests on a temporary worktree checked out
+at the base SHA:
+
+```ruby
+.command_for(grader_name:, grader_command:, failed_cases:, base_retry:) # => String or nil
+```
+
+Return `nil` when the provider cannot derive a deterministic focused command.
+The command should emit normal test output and, when possible, write a JUnit XML
+file to the grader's configured `junit_output` path so core can compare exact
+failed test identities. Core also supports `base_retry: { strategy:
+files_as_args }` for wrappers that explicitly accept failed test files as
+positional arguments, and per-grader `base_retry: { command: ... }` templates
+for repositories whose test runner needs a custom wrapper.
+
+The built-in Ruby plugin provides focused commands for ordinary RSpec projects
+and contributes rich default grade candidates through `:grade_detector`: full
+RSpec for landing/CI, focused RSpec for review, `failures: allow_inherited`,
+and plugin-backed BRR. The built-in JavaScript plugin provides focused commands
+for Vitest test files when a configured grader opts into plugin-backed BRR.
+
 ## `chat_media_source`
 
 A media ref is a `"<kind>:<id>"` string a chat agent passes to `propose_job`

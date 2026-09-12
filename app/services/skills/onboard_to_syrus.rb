@@ -134,7 +134,18 @@ module Skills
       candidates = scan[:grade].candidates
       return "none detected" if candidates.empty?
 
-      candidates.map { |c| "#{c.name} (`#{c.run}`, evidence: #{c.evidence})" }.join("; ")
+      candidates.map { |c| grade_candidate_summary(c) }.join("; ")
+    end
+
+    def grade_candidate_summary(candidate)
+      extras = []
+      extras << "phases: #{candidate.phases.join(',')}" if candidate.phases.present?
+      extras << "when_files_changed: #{candidate.when_files_changed.join(',')}" if candidate.when_files_changed.present?
+      extras << "junit_output: #{candidate.junit_output}" if candidate.junit_output.present?
+      extras << "failures: #{candidate.failures}" if candidate.failures.present?
+      extras << "base_retry: #{candidate.base_retry.to_json}" if candidate.base_retry.present?
+      suffix = extras.empty? ? "" : ", #{extras.join(', ')}"
+      "#{candidate.name} (`#{candidate.run}`, evidence: #{candidate.evidence}#{suffix})"
     end
 
     def ci_summary

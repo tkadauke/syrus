@@ -20,7 +20,12 @@ module Adjudicators
       Adjudication.dismiss(
         adjudicator: name,
         reason: "grader_already_failing_on_base",
-        evidence: { inherited_names: result.inherited_names, new_names: result.new_names }
+        evidence: {
+          inherited_names: result.inherited_names,
+          new_names: result.new_names,
+          main_branch_evidence: result.evidence,
+          classifications: result.classifications
+        }
       )
     end
 

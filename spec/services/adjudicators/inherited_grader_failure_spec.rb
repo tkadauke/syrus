@@ -28,7 +28,7 @@ RSpec.describe Adjudicators::InheritedGraderFailure do
 
     expect(verdict).to be_dismiss
     expect(verdict.reason).to eq("grader_already_failing_on_base")
-    expect(verdict.evidence).to eq(inherited_names: [ "rspec" ], new_names: [])
+    expect(verdict.evidence).to include(inherited_names: [ "rspec" ], new_names: [])
   end
 
   it "declines when the failure is new on this branch" do

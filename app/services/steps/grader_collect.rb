@@ -77,6 +77,7 @@ module Steps
       workflow.set_artifact!("rung_zero_adjudication", verdict.to_h.merge("adjudicated_at" => Time.current.iso8601))
       return false unless verdict.dismiss?
 
+      @inherited_main_failure_evidence = verdict.evidence if verdict.adjudicator == Adjudicators::InheritedGraderFailure.name
       record_inherited_main_failure!(failed_required)
       true
     end
@@ -84,16 +85,23 @@ module Steps
     def grader_names(grader_steps) = grader_steps.map { |grader| grader.details["name"] }
 
     def record_inherited_main_failure!(failed_required)
-      classified = MainBranchFailureClassifier.call(workflow: workflow, failed_grader_steps: failed_required)
+      verdict_evidence = @inherited_main_failure_evidence.to_h
+      classified = nil
+      unless verdict_evidence.key?(:classifications) || verdict_evidence.key?("classifications")
+        classified = MainBranchFailureClassifier.call(workflow: workflow, failed_grader_steps: failed_required)
+      end
+      inherited_names = verdict_evidence[:inherited_names] || verdict_evidence["inherited_names"] || classified&.inherited_names || []
+      main_branch_evidence = verdict_evidence[:main_branch_evidence] || verdict_evidence["main_branch_evidence"] || classified&.evidence
+      classifications = verdict_evidence[:classifications] || verdict_evidence["classifications"] || classified&.classifications || []
       workflow.set_artifact!("inherited_main_branch_grader_failure", {
-        "failed_names" => classified.inherited_names,
-        "evidence" => classified.evidence,
-        "classifications" => classified.classifications,
+        "failed_names" => inherited_names,
+        "evidence" => main_branch_evidence,
+        "classifications" => classifications,
         "classified_at" => Time.current.iso8601
       })
       log(
         "[grader_collect] required grader failures match broken-main evidence; " \
-        "treating as inherited: #{classified.inherited_names.join(', ')}"
+        "treating as inherited: #{inherited_names.join(', ')}"
       )
     end
 

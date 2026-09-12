@@ -296,6 +296,8 @@ grade:
     phases: [landing]
     junit_output: .syrus/grade-output/rspec-junit.xml
     failures: allow_inherited
+    base_retry:
+      strategy: files_as_args
     # Processes default to 4, matching the worker pods' visible CPU count
     # (`nproc` is 4 and JOB_CONCURRENCY lets three Runs share a pod). Each
     # process pays its own Rails boot and its own test database, so more of
@@ -333,6 +335,8 @@ grade:
     when_files_changed: ["app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb", "plugins/**/*.rb"]
     junit_output: .syrus/grade-output/rspec-focused-junit.xml
     failures: allow_inherited
+    base_retry:
+      strategy: plugin
     timeout_minutes: 10
 
   - name: rspec-ci
@@ -344,6 +348,8 @@ grade:
     phases: [ci]
     junit_output: .syrus/grade-output/rspec-junit.xml
     failures: allow_inherited
+    base_retry:
+      strategy: files_as_args
     timeout_minutes: 60
 
   - name: react-tests
@@ -359,6 +365,8 @@ grade:
     phases: [landing, ci]
     junit_output: .syrus/grade-output/react-tests-junit.xml
     failures: allow_inherited
+    base_retry:
+      strategy: plugin
     timeout_minutes: 20
 
   - name: react-tests-focused
@@ -373,6 +381,8 @@ grade:
     when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx", "desktop/src/**/*.ts", "desktop/src/**/*.tsx"]
     junit_output: .syrus/grade-output/react-tests-focused-junit.xml
     failures: allow_inherited
+    base_retry:
+      strategy: plugin
     timeout_minutes: 20
 
   - name: website-build

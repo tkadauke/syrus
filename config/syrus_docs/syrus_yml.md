@@ -101,6 +101,7 @@ grade:
 | `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
+| `base_retry` | no | cache-only | Focused command or strategy for base-revision retry |
 
 `run` is the everyday command for every non-CI context, so it should already
 be the fast, parallel one. For Ruby projects, prefer putting formatter,
@@ -172,10 +173,38 @@ grade:
 `strict` is the default and means any required failure blocks the workflow.
 `allow_inherited` lets Syrus compare the candidate failure with known failed
 base-revision evidence. If both sides have ingested test cases, Syrus compares
-the exact failed test identities and blocks newly introduced failed tests. If
-structured test cases are unavailable, Syrus falls back to a normalized output
-fingerprint comparison. Use `strict` for catastrophic or invariant checks where
-a failure should never be ignored, such as eager-load or production boot checks.
+the exact failed test identities and blocks newly introduced failed tests.
+When the candidate has structured failed test cases but no comparable cached
+base run exists, Syrus can run only those failed tests against the base revision
+before deciding, but only when the grader explicitly opts into `base_retry`.
+Without `base_retry`, `allow_inherited` is cache-only plus the normalized output
+fingerprint fallback. Use `strict` for catastrophic or invariant checks where a
+failure should never be ignored, such as eager-load or production boot checks.
+
+`base_retry` runs from a temporary worktree checked out at the base SHA:
+
+```yaml
+grade:
+  - name: rspec
+    run: bin/rspec-fast
+    junit_output: .syrus/grade-output/rspec-junit.xml
+    failures: allow_inherited
+    base_retry:
+      strategy: files_as_args
+```
+
+Supported forms:
+
+- `strategy: files_as_args` appends the shell-quoted unique failed test files
+  to the grader's `run` command. Use this only for wrappers that really forward
+  positional file arguments to the test runner.
+- `strategy: plugin` asks a language/framework plugin to synthesize the focused
+  command. Ruby provides this for ordinary RSpec projects; JavaScript provides
+  it for Vitest tests.
+- `command: bin/rspec-individual {files}` uses an explicit command template.
+  `{files}` expands to the shell-quoted unique failed test files and
+  `{failed_count}` expands to the number of failed cases. A string
+  `base_retry: ...` is accepted as legacy shorthand for this command form.
 
 ### Recommended test setup
 

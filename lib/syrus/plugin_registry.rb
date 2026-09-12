@@ -24,10 +24,12 @@ module Syrus
       callbacks
       platform_delivery
       prepare_detector
+      grade_detector
       review_criteria_provider
       autofix_command
       dependency_audit_command
       affected_test_analyzer
+      focused_test_command
       workspace_tab
       ui_slot
       domain_subscriber
@@ -67,10 +69,12 @@ module Syrus
       callbacks:               -> { Syrus::Plugin::Callbacks },
       platform_delivery:       -> { Syrus::Plugin::PlatformDelivery },
       prepare_detector:        -> { Syrus::Plugin::PrepareDetector },
+      grade_detector:          -> { Syrus::Plugin::GradeDetector },
       review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider },
       autofix_command:         -> { Syrus::Plugin::AutofixCommand },
       dependency_audit_command: -> { Syrus::Plugin::DependencyAuditCommand },
       affected_test_analyzer:  -> { Syrus::Plugin::AffectedTestAnalyzer },
+      focused_test_command:    -> { Syrus::Plugin::FocusedTestCommand },
       workspace_tab:           -> { Syrus::Plugin::WorkspaceTab },
       ui_slot:                 -> { Syrus::Plugin::UiSlot },
       domain_subscriber:       -> { Syrus::Plugin::DomainSubscriber },

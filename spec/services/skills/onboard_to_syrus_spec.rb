@@ -102,7 +102,7 @@ RSpec.describe Skills::OnboardToSyrus do
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
         Syrus::PluginRegistry.register(
           name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-          provides: { prepare_detector: Ruby::PrepareDetector }
+          provides: { prepare_detector: Ruby::PrepareDetector, grade_detector: Ruby::GradeDetector }
         )
       end
     end
@@ -127,7 +127,9 @@ RSpec.describe Skills::OnboardToSyrus do
       instructions = described_class.definition(workspace_path: @dir).instructions
 
       expect(instructions).to match(/Detected prepare command: `bundle install`/)
-      expect(instructions).to include("rspec (`bin/rspec`, evidence: spec/)")
+      expect(instructions).to include("rspec (`bundle exec rspec`, evidence: spec/, phases: landing,ci")
+      expect(instructions).to include("base_retry: {\"strategy\":\"plugin\"}")
+      expect(instructions).to include("rspec-focused (`bundle exec rspec`, evidence: spec/, phases: review")
       expect(instructions).to include("rubocop (`bundle exec rubocop`, evidence: .rubocop.yml)")
     end
 

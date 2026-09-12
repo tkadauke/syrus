@@ -29,5 +29,23 @@ module TestInsights
               .uniq
               .sort
     end
+
+    def self.failed_test_cases(run:, grader_name:)
+      return [] if run.nil?
+
+      TestCase.joins(:test_run)
+              .where(test_insight_runs: { run_id: run.id, grader_name: grader_name }, status: FAILURE_STATUSES)
+              .select(:suite_name, :name, :file_path)
+              .map do |test_case|
+                {
+                  "suite_name" => test_case.suite_name,
+                  "name" => test_case.name,
+                  "file_path" => test_case.file_path,
+                  "identity" => [ test_case.suite_name, test_case.name ].join(0.chr)
+                }
+              end
+              .uniq
+              .sort_by { |test_case| test_case.fetch("identity") }
+    end
   end
 end

@@ -19,7 +19,7 @@ RSpec.describe Ruby::Engine do
           description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
                              "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
                              "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
-                             "require_relative-graph affected-test analysis",
+                             "require_relative-graph affected-test analysis, RSpec grade detection, RSpec focused base-retry commands",
           homepage:         "https://github.com/tkadauke/syrus",
           category:         "language",
           prepare_priority: 10,
@@ -27,11 +27,13 @@ RSpec.describe Ruby::Engine do
             coverage_analyzer:        Ruby::SimpleCovAnalyzer,
             grader_augmentor:         [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
             prepare_detector:         Ruby::PrepareDetector,
+            grade_detector:           Ruby::GradeDetector,
             review_criteria_provider: Ruby::ReviewCriteriaProvider,
             "test_insights:parser" => Ruby::RspecParser,
             autofix_command:          Ruby::RubocopAutofix,
             dependency_audit_command: Ruby::BundlerAuditCommand,
-            affected_test_analyzer:   Ruby::AffectedTestAnalyzer
+            affected_test_analyzer:   Ruby::AffectedTestAnalyzer,
+            focused_test_command:     Ruby::FocusedTestCommand
           }
         )
       end
@@ -51,17 +53,23 @@ RSpec.describe Ruby::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides all 8 extension point keys" do
+    it "provides all 10 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :coverage_analyzer,
         :grader_augmentor,
         :prepare_detector,
+        :grade_detector,
         :review_criteria_provider,
         "test_insights:parser",
         :autofix_command,
         :dependency_audit_command,
-        :affected_test_analyzer
+        :affected_test_analyzer,
+        :focused_test_command
       )
+    end
+
+    it "registers FocusedTestCommand as the :focused_test_command" do
+      expect(registration.provides[:focused_test_command]).to eq(Ruby::FocusedTestCommand)
     end
 
     it "registers RubocopAutofix as the :autofix_command" do
@@ -74,6 +82,10 @@ RSpec.describe Ruby::Engine do
 
     it "registers AffectedTestAnalyzer as the :affected_test_analyzer" do
       expect(registration.provides[:affected_test_analyzer]).to eq(Ruby::AffectedTestAnalyzer)
+    end
+
+    it "registers GradeDetector as the :grade_detector" do
+      expect(registration.provides[:grade_detector]).to eq(Ruby::GradeDetector)
     end
 
     it "registers SimpleCovAnalyzer as the :coverage_analyzer" do

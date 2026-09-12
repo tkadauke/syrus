@@ -114,6 +114,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:prepare_detector)
     end
 
+    it "includes :grade_detector" do
+      expect(described_class::EXTENSION_POINTS).to include(:grade_detector)
+    end
+
     it "includes :review_criteria_provider" do
       expect(described_class::EXTENSION_POINTS).to include(:review_criteria_provider)
     end
@@ -128,6 +132,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "includes :affected_test_analyzer" do
       expect(described_class::EXTENSION_POINTS).to include(:affected_test_analyzer)
+    end
+
+    it "includes :focused_test_command" do
+      expect(described_class::EXTENSION_POINTS).to include(:focused_test_command)
     end
 
     it "includes :build_system_graph_provider" do
@@ -270,11 +278,35 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::INTERFACE_FOR[:affected_test_analyzer].call).to eq(Syrus::Plugin::AffectedTestAnalyzer)
     end
 
+    it "maps :grade_detector to Syrus::Plugin::GradeDetector" do
+      expect(described_class::INTERFACE_FOR[:grade_detector].call).to eq(Syrus::Plugin::GradeDetector)
+    end
+
+    it "gives grade detector providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::GradeDetector }
+
+      expect(provider).to respond_to(:grade_candidates)
+      expect { provider.grade_candidates("/tmp") }.to raise_error(NotImplementedError, /grade_candidates is required/)
+    end
+
     it "gives affected test analyzer providers the class contract used by the registry" do
       provider = Class.new { include Syrus::Plugin::AffectedTestAnalyzer }
 
       expect(provider).to respond_to(:affected_files)
       expect { provider.affected_files(repo_path: "/tmp", changed_files: []) }.to raise_error(NotImplementedError, /affected_files is required/)
+    end
+
+    it "maps :focused_test_command to Syrus::Plugin::FocusedTestCommand" do
+      expect(described_class::INTERFACE_FOR[:focused_test_command].call).to eq(Syrus::Plugin::FocusedTestCommand)
+    end
+
+    it "gives focused test command providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::FocusedTestCommand }
+
+      expect(provider).to respond_to(:command_for)
+      expect {
+        provider.command_for(grader_name: "rspec", grader_command: "bin/rspec", failed_cases: [], base_retry: {})
+      }.to raise_error(NotImplementedError, /command_for is required/)
     end
 
     it "maps :workspace_tab to Syrus::Plugin::WorkspaceTab" do

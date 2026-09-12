@@ -413,8 +413,16 @@ module Steps
         "prepare_commands" => prepare_targets.flat_map { |target| target["commands"] },
         "junit_output" => grader.junit_output,
         "failures" => grader.failures,
+        "base_retry" => base_retry_details(grader.base_retry),
         "target_fingerprints" => target_fingerprints.to_h
       }
+    end
+
+    def base_retry_details(base_retry)
+      return nil unless base_retry
+      return base_retry if base_retry.is_a?(Hash)
+
+      base_retry.to_h.stringify_keys
     end
 
     def distributed_grader_details(grader, source_snapshot:, target_fingerprints:)

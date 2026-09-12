@@ -28,7 +28,8 @@ RSpec.describe JavaScript::Engine do
             grader_augmentor:         JavaScript::EslintGraderAugmentor,
             review_criteria_provider: JavaScript::ReviewCriteriaProvider,
             autofix_command:          [ JavaScript::EslintAutofix, JavaScript::PrettierAutofix ],
-            dependency_audit_command: JavaScript::DependencyAuditCommand
+            dependency_audit_command: JavaScript::DependencyAuditCommand,
+            focused_test_command:     JavaScript::FocusedTestCommand
           }
         )
       end
@@ -48,9 +49,9 @@ RSpec.describe JavaScript::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides exactly the :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command, and :dependency_audit_command extension point keys" do
+    it "provides exactly the expected extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
-        :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command, :dependency_audit_command
+        :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command, :dependency_audit_command, :focused_test_command
       )
     end
 
@@ -62,6 +63,10 @@ RSpec.describe JavaScript::Engine do
 
     it "registers DependencyAuditCommand as the :dependency_audit_command" do
       expect(registration.provides[:dependency_audit_command]).to eq(JavaScript::DependencyAuditCommand)
+    end
+
+    it "registers FocusedTestCommand as the :focused_test_command" do
+      expect(registration.provides[:focused_test_command]).to eq(JavaScript::FocusedTestCommand)
     end
 
     it "registers PrepareDetector as the :prepare_detector" do

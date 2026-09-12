@@ -22,7 +22,7 @@ class RepoGradeSignals
   # `evidence` is the human-readable signal that matched (a file/dir
   # name, or a config section header) — surfaced so a report or gap
   # analysis can cite why a candidate was suggested.
-  Candidate = Data.define(:name, :run, :required, :timeout_minutes, :evidence)
+  Candidate = Data.define(:name, :run, :required, :timeout_minutes, :evidence, :phases, :when_files_changed, :junit_output, :failures, :base_retry)
   Result = Data.define(:candidates, :ci_workflow_paths, :ci_run_commands)
 
   # Static rule metadata (name/run/human-readable signal description),
@@ -59,7 +59,7 @@ class RepoGradeSignals
   private
 
   def detected_candidates
-    [
+    (plugin_candidates + [
       candidate("rspec", "bin/rspec", rspec_evidence),
       candidate("jest", "npx jest", jest_evidence),
       candidate("pytest", "pytest", pytest_evidence),
@@ -67,14 +67,43 @@ class RepoGradeSignals
       candidate("rubocop", "bundle exec rubocop", rubocop_evidence),
       candidate("eslint", "npx eslint .", eslint_evidence),
       candidate("typecheck", "npx tsc --noEmit", typecheck_evidence)
-    ].compact
+    ].compact).uniq(&:name)
   end
 
-  def candidate(name, run, evidence)
+  def plugin_candidates
+    Syrus::PluginRegistry.providers_for(:grade_detector).flat_map do |provider|
+      Array(provider.grade_candidates(@path)).map { |candidate| normalize_candidate(candidate) }
+    rescue StandardError
+      []
+    end.compact
+  end
+
+  def normalize_candidate(raw)
+    raw = raw.to_h.stringify_keys
+    candidate(
+      raw.fetch("name"),
+      raw.fetch("run"),
+      raw["evidence"],
+      phases: raw["phases"],
+      when_files_changed: raw["when_files_changed"],
+      junit_output: raw["junit_output"],
+      failures: raw["failures"],
+      base_retry: raw["base_retry"],
+      timeout_minutes: raw["timeout_minutes"],
+      required: raw["required"]
+    )
+  rescue KeyError
+    nil
+  end
+
+  def candidate(name, run, evidence, phases: nil, when_files_changed: nil, junit_output: nil, failures: nil, base_retry: nil, timeout_minutes: DEFAULT_TIMEOUT_MINUTES, required: DEFAULT_REQUIRED)
     return nil unless evidence
 
-    Candidate.new(name: name, run: run, required: DEFAULT_REQUIRED,
-                  timeout_minutes: DEFAULT_TIMEOUT_MINUTES, evidence: evidence)
+    Candidate.new(name: name, run: run, required: required.nil? ? DEFAULT_REQUIRED : required,
+                  timeout_minutes: timeout_minutes || DEFAULT_TIMEOUT_MINUTES, evidence: evidence,
+                  phases: Array(phases).presence, when_files_changed: Array(when_files_changed).presence,
+                  junit_output: junit_output,
+                  failures: failures, base_retry: base_retry)
   end
 
   def rspec_evidence

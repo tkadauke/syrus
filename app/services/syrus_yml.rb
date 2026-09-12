@@ -148,7 +148,8 @@ class SyrusYml
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
   # otherwise selects configured grader entries by `phases`.
-  GradeStep = Data.define(:name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :deps)
+  BaseRetry = Data.define(:strategy, :command)
+  GradeStep = Data.define(:name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :base_retry, :deps)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
@@ -471,8 +472,28 @@ class SyrusYml
       when_files_changed: when_files_changed,
       junit_output: raw["junit_output"]&.to_s&.strip&.presence,
       failures: parse_grade_failure_policy(raw.fetch("failures", default_failures), "grade step #{name.inspect} failures"),
+      base_retry: parse_base_retry(raw["base_retry"], "#{label}.base_retry"),
       deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps")
     )
+  end
+
+  def parse_base_retry(raw, label)
+    return nil if raw.nil?
+    if raw.is_a?(String)
+      command = raw.strip.presence
+      return command && BaseRetry.new(strategy: "command", command: command)
+    end
+    raise ParseError, "#{label}: must be a string or mapping" unless raw.is_a?(Hash)
+
+    command = raw["command"]&.to_s&.strip&.presence
+    strategy = raw["strategy"]&.to_s&.strip&.presence
+    strategy ||= "command" if command
+    strategy ||= "files_as_args" if ActiveModel::Type::Boolean.new.cast(raw["files_as_args"])
+    allowed = %w[command files_as_args plugin]
+    raise ParseError, "#{label}.strategy: must be one of #{allowed.join(', ')}" unless allowed.include?(strategy)
+    raise ParseError, "#{label}.command: is required for strategy command" if strategy == "command" && command.blank?
+
+    BaseRetry.new(strategy: strategy, command: command)
   end
 
   def parse_targets(raw)

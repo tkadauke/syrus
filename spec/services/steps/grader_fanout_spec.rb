@@ -963,6 +963,22 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_step.details["failures"]).to eq("allow_inherited")
   end
 
+  it "stores base retry strategy in the materialized Step details" do
+    write_config(<<~YAML)
+      grade:
+        steps:
+          - name: tests
+            run: bin/rspec
+            base_retry:
+              strategy: files_as_args
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by(kind: "grader")
+    expect(grader_step.details["base_retry"]).to eq("strategy" => "files_as_args", "command" => nil)
+  end
+
   it "stores strict failures policy by default" do
     write_config(<<~YAML)
       grade:
