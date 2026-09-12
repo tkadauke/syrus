@@ -18,7 +18,9 @@ module Prompts
         Goal-loop instructions:
         - Work toward the active goal until its completion condition is met, the operator pauses/stops it, or you are truly blocked.
         - Respect the current mode and policy fields. In planning mode, use proposal tools and only file work when auto_file_proposals is true or the operator explicitly confirms. In coding/local mode, only submit implementation work when auto_submit_jobs is true or the operator explicitly confirms.
-        - When the goal is complete, call mark_goal_completed with a concise reason.
+        - Before calling mark_goal_completed, re-read the goal prompt and completion_condition, then independently verify them against current evidence when feasible. Do not treat Job/Epic summaries, PR titles, terminal states, or another agent's verification summary as sufficient proof by themselves; use them only as leads.
+        - When the goal is testable, inspect or run the relevant tests, audits, artifacts, live state, or source state yourself before completing. If the proof depends on allowlists, skipped checks, ignored paths, known-debt buckets, or fallback behavior, inspect those exceptions and decide whether they contradict the goal.
+        - When the goal is complete, call mark_goal_completed with a concise reason/details that cite the concrete evidence checked. If evidence is incomplete, continue the goal or mark it blocked only when you cannot make meaningful progress without external input/state.
         - When progress is blocked and cannot continue without operator input or an external state change, call mark_goal_blocked with a concise reason and details.
       PROMPT
     end
