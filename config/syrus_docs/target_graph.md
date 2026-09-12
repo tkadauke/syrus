@@ -520,19 +520,22 @@ changed on a newer branch.
 compiled from `generated:` as `//:generate/<index>`. Plugin-default
 formatters from `formatters: []` do not currently have stable target labels,
 so they are not target-health skipped. `grader_fanout` checks each selected
-`grader` target before materializing its `grader` Step. The `builder` kind is
-reserved in the graph model, but no `.syrus.yml` primitive materializes a
-builder target yet.
+required `grader` target before materializing its `grader` Step; optional
+graders run when active even if a reusable health record exists. The `builder`
+kind is reserved in the graph model, but no `.syrus.yml` primitive
+materializes a builder target yet.
 
 A target is skipped only when its latest matching health record is healthy
 (`passed` or `skipped`) and every executable dependency in its dependency
 closure is also healthy for its own current fingerprints. Unknown, stale,
 failed, timed-out, cancelled, or inconclusive target health is treated as a
-miss, so required targets still run. Skip decisions are recorded in workflow
+miss, so required targets still run. Skip and forced-rerun decisions are recorded in workflow
 logs and artifacts: `format_target_health_skips`,
-`generate_target_health_skips`, and `target_health_skipped_targets` for
-grader fanout. Each entry includes the skipped target label, reason, producing
-commit SHA, checked timestamp, and target-health record references.
+`generate_target_health_skips`, `target_health_skipped_targets`, and
+`target_health_forced_targets` for grader fanout. Each entry includes the
+target label, reason, current fingerprints, and any target-health record
+references. Skipped entries also include the producing commit SHA and checked
+timestamp for the reused proof.
 
 ### Agent-requested prepare targets
 
