@@ -38,6 +38,37 @@ RSpec.describe TestInsights::SearchIndex do
     expect(described_class.search("shared", user_id: user.id).map { |row| row[:test_identity_id] }).to eq([ own.id ])
   end
 
+  it "rebuilds all durable test identities idempotently" do
+    identity = TestInsights::TestIdentity.create!(
+      repository: repo,
+      fingerprint: "rebuild",
+      name: "Backfill searchable example",
+      suite_name: "BackfillSpec",
+      file_path: "spec/backfill_spec.rb",
+      last_status: "passed"
+    )
+
+    described_class.rebuild!
+    described_class.rebuild!
+
+    expect(described_class.search("Backfill", user_id: user.id).map { |row| row[:test_identity_id] }).to eq([ identity.id ])
+  end
+
+  it "supports the legacy search source rebuild hook" do
+    identity = TestInsights::TestIdentity.create!(
+      repository: repo,
+      fingerprint: "source-rebuild",
+      name: "Legacy hook searchable example",
+      suite_name: "BackfillSpec",
+      file_path: "spec/backfill_spec.rb",
+      last_status: "passed"
+    )
+
+    TestInsights::SearchSource.rebuild_search_table("test_identity_fts")
+
+    expect(described_class.search("Legacy", user_id: user.id).map { |row| row[:test_identity_id] }).to eq([ identity.id ])
+  end
+
   def prepare_search_tables
     SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
     SearchRecord.connection.execute(<<~SQL)
