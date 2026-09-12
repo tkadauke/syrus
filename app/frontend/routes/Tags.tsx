@@ -114,7 +114,7 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
           {create.isPending ? t('tags.creating') : t('tags.create_btn')}
         </button>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, "Unable to create tag.")}</p> : null}
+      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("tags.error_create"))}</p> : null}
     </section>
   )
 }
@@ -129,7 +129,7 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
             <th className="px-4 py-2">{t('tags.col_tag')}</th>
             <th className="px-4 py-2">{t('tags.col_jobs')}</th>
             <th className="px-4 py-2">{t('tags.col_rename')}</th>
-            <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
+            <th className="px-4 py-2"><span className="sr-only">{t("tags.col_actions")}</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -203,7 +203,7 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
             {update.isPending ? t('tags.saving') : t('tags.save')}
           </button>
         </form>
-        {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, "Unable to update tag.")}</p> : null}
+        {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("tags.error_update"))}</p> : null}
       </td>
       <td className="px-4 py-3 text-right">
         <button
@@ -219,7 +219,7 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
         >
           {destroy.isPending ? t('tags.deleting') : t('tags.delete')}
         </button>
-        {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete tag.")}</p> : null}
+        {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, t("tags.error_delete"))}</p> : null}
       </td>
     </tr>
   )
@@ -238,7 +238,7 @@ function TagChip({ tag, palette }: { tag: TagRow; palette: TagPaletteColor[] }) 
 
 function TagsError({ error }: { error: Error }) {
   const { t } = useT("settings")
-  return <PanelMessage tone="error">{errorMessage(error, "Unable to load tags.")}</PanelMessage>
+  return <PanelMessage tone="error">{errorMessage(error, t("tags.error_load"))}</PanelMessage>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
@@ -262,4 +262,3 @@ function readableTextColor(hex: string) {
   const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255
   return luminance > 0.62 ? "#111827" : "#ffffff"
 }
-
