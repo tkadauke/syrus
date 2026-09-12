@@ -4,9 +4,20 @@ import { Text } from "./Text"
 import type { TextProps } from "./Text"
 
 export type PageSize = "narrow" | "default" | "wide" | "full"
+export type PageGutter = "always" | "responsive"
 
 export interface PageRootProps extends HTMLAttributes<HTMLElement> {
   size?: PageSize
+  /**
+   * "always" (default) applies `--space-page-x`/`-y` at every viewport.
+   * "responsive" drops the gutter below `sm:` so mobile content can run
+   * edge to edge; a caller that wants this must not also pass its own
+   * px/py override in `className` -- plain string concatenation can't
+   * guarantee which of two conflicting utilities for the same property
+   * wins, so this prop is the only supported way to get flush mobile
+   * edges.
+   */
+  gutter?: PageGutter
 }
 
 const PAGE_SIZE_CLASSES: Record<PageSize, string> = {
@@ -16,8 +27,13 @@ const PAGE_SIZE_CLASSES: Record<PageSize, string> = {
   full: "max-w-none"
 }
 
-function Root({ size = "default", className = "", ...props }: PageRootProps) {
-  return <main className={classes("mx-auto w-full space-y-6 px-[var(--space-page-x)] py-[var(--space-page-y)]", PAGE_SIZE_CLASSES[size], className)} {...props} />
+const PAGE_GUTTER_CLASSES: Record<PageGutter, string> = {
+  always: "px-[var(--space-page-x)] py-[var(--space-page-y)]",
+  responsive: "px-0 py-4 sm:px-[var(--space-page-x)] sm:py-[var(--space-page-y)]"
+}
+
+function Root({ size = "default", gutter = "always", className = "", ...props }: PageRootProps) {
+  return <main className={classes("mx-auto w-full space-y-6", PAGE_GUTTER_CLASSES[gutter], PAGE_SIZE_CLASSES[size], className)} {...props} />
 }
 
 function Header({ className = "", ...props }: HTMLAttributes<HTMLElement>) {
