@@ -43,7 +43,7 @@ export function RepositoriesIndex() {
           {t('repositories.loading')}
         </PanelMessage>
       ) : null}
-      {repositories.isError ? <PanelMessage tone="error">{errorMessage(repositories.error, "Unable to load repositories.")}</PanelMessage> : null}
+      {repositories.isError ? <PanelMessage tone="error">{errorMessage(repositories.error, t("repositories.error_load"))}</PanelMessage> : null}
       {repositories.isSuccess ? <RepositoriesView payload={repositories.data} prefix={prefix} /> : null}
     </main>
   )
@@ -84,7 +84,7 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Repository command failed.")}</PanelMessage> : null}
+      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("repositories.command_failed"))}</PanelMessage> : null}
 
       {payload.active_repositories.length > 0 ? (
         <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -98,9 +98,9 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
       ) : (
         <OnboardingEmptyState
           fallbackActionPath={payload.new_repository_path}
-          fallbackActionText="Add repository"
-          fallbackDescription="Add a repository to start polling for labelled GitHub issues and to unlock direct jobs."
-          fallbackTitle="No active repositories"
+          fallbackActionText={t("repositories.empty_action")}
+          fallbackDescription={t("repositories.empty_description")}
+          fallbackTitle={t("repositories.empty_title")}
           prefix={prefix}
           setupStatus={setupStatus}
         />
@@ -150,7 +150,7 @@ function RepositoryTable({
           <th className="hidden px-4 py-2 sm:table-cell">
             {t('repositories.col_last_poll')}
           </th>
-          <th className="hidden px-4 py-2 sm:table-cell"><span className="sr-only">Actions</span></th>
+          <th className="hidden px-4 py-2 sm:table-cell"><span className="sr-only">{t("repositories.col_actions")}</span></th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -284,5 +284,4 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
 
   return <span className="text-gray-400 dark:text-gray-500">-</span>
 }
-
 

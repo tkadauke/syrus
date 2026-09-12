@@ -13,6 +13,7 @@
   "settings": "Praescripta",
   "my_profile": "Persona Mea",
   "admin": "Curia",
+  "admin_title": "Curia — domus senatus Romani",
   "sign_out": "Exi",
   "theme": "Themae",
   "color_theme": "Schema Colorum",
@@ -23,6 +24,10 @@
   "open_sidebar": "Aperi columnam",
   "close_sidebar": "Claude columnam",
   "resize_sidebar": "Muta magnitudinem columnae",
+  "system_alert_action_failed": "Actio defecit.",
+  "sidebar_smart_folders_all": "Omnia {{label}}",
+  "sidebar_smart_folders_aria": "Scrinia callida pro {{label}}",
+  "sidebar_smart_folders_heading": "Scrinia",
   "shell": {
     "update_ready": "Resuscita ut renoves",
     "update_version": "Versio {{version}} parata",

@@ -46,6 +46,11 @@
   "nav_group_system": "System",
   "nav_group_product_data": "Product Data",
   "section_label": "Admin",
+  "event_actions": {
+    "action_failed": "Action failed.",
+    "filing": "Filing...",
+    "issue_filed": "Issue filed"
+  },
   "overview": {
     "heading": "Overview",
     "loading": "Loading...",
@@ -193,6 +198,10 @@
     "col_scope": "Scope",
     "col_jobs": "Jobs",
     "col_units": "Units",
+    "wait_until": " until {{time}}",
+    "blocked_reason": "blocked: {{reason}}",
+    "preempted_reason": "preempted: {{reason}}",
+    "pause_requested": "pause requested",
     "aria_pagination": "Work unit pagination",
     "page_of": "Page {{page}} of {{total}}",
     "previous": "Previous",
