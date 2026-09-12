@@ -29,15 +29,19 @@ function ActiveShortcutsProbe() {
   )
 }
 
-class TestErrorBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
-  state = { message: null }
+class ErrorProbe extends Component<{ children: ReactNode; onError: (error: Error) => void }, { error: Error | null }> {
+  state = { error: null }
 
   static getDerivedStateFromError(error: Error) {
-    return { message: error.message }
+    return { error }
+  }
+
+  componentDidCatch(error: Error) {
+    this.props.onError(error)
   }
 
   render() {
-    if (this.state.message) return <div role="alert">{this.state.message}</div>
+    if (this.state.error) return null
     return this.props.children
   }
 }
@@ -272,21 +276,26 @@ describe("useShortcut / ShortcutsProvider", () => {
 
   it("throws when useShortcut is used outside a ShortcutsProvider", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
-    const preventExpectedRenderError = (event: ErrorEvent) => {
-      if (event.error?.message === "useShortcut must be used within a ShortcutsProvider") event.preventDefault()
+    const onError = vi.fn()
+    const preventExpectedError = (event: ErrorEvent) => {
+      if (event.error instanceof Error && event.error.message === "useShortcut must be used within a ShortcutsProvider") {
+        event.preventDefault()
+      }
     }
-    window.addEventListener("error", preventExpectedRenderError)
+    window.addEventListener("error", preventExpectedError)
 
     try {
       render(
-        <TestErrorBoundary>
+        <ErrorProbe onError={onError}>
           <Registrant keys="g" label="Go" onFire={() => {}} />
-        </TestErrorBoundary>
+        </ErrorProbe>
       )
 
-      expect(screen.getByRole("alert")).toHaveTextContent("useShortcut must be used within a ShortcutsProvider")
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+        message: "useShortcut must be used within a ShortcutsProvider"
+      }))
     } finally {
-      window.removeEventListener("error", preventExpectedRenderError)
+      window.removeEventListener("error", preventExpectedError)
       consoleError.mockRestore()
     }
   })
