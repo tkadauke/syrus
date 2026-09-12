@@ -13,6 +13,7 @@ import { ShortcutsProvider } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { ArtifactsTab, FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
+import { storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
   return {
@@ -2650,6 +2651,99 @@ describe("Job detail tour", () => {
   })
 })
 
+describe("Job detail navigation", () => {
+  afterEach(() => {
+    window.sessionStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("does not show navigation controls without an activated context token", () => {
+    renderJobDetail(jobPayload())
+
+    expect(screen.queryByLabelText("Job navigation")).not.toBeInTheDocument()
+  })
+
+  it("does not inherit an unrelated stored context on a direct Job URL", () => {
+    storeJobNavigationContext(jobNavigationContext({ token: "stored-context", currentJobId: 1 }))
+
+    renderJobDetail(jobPayload())
+
+    expect(screen.queryByLabelText("Job navigation")).not.toBeInTheDocument()
+  })
+
+  it("shows previous, next, position, and jump options from the activated snapshot", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2, issue_title: "Changed after capture", summary_state: "approved" } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    expect(screen.getByLabelText("Job navigation")).toBeInTheDocument()
+    expect(screen.getByText("2 of 3")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous Job" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Next Job" })).toBeEnabled()
+    expect(screen.getByRole("combobox", { name: "Jump to Job" })).toHaveValue("2")
+    expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toBeInTheDocument()
+  })
+
+  it("uses the captured snapshot for previous and next navigation", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?tab=workflows&job_nav=nav-token",
+      showLocation: true
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/3?tab=workflows&job_nav=nav-token")
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous Job" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1?tab=workflows&job_nav=nav-token")
+  })
+
+  it("navigates with N and P while ignoring form and editable focus", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token",
+      showLocation: true
+    })
+
+    const input = document.createElement("input")
+    document.body.appendChild(input)
+    input.focus()
+    fireEvent.keyDown(input, { key: "n" })
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/2?job_nav=nav-token")
+    input.remove()
+
+    const editor = document.createElement("div")
+    editor.setAttribute("contenteditable", "true")
+    document.body.appendChild(editor)
+    editor.focus()
+    fireEvent.keyDown(editor, { key: "n" })
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/2?job_nav=nav-token")
+    editor.remove()
+
+    fireEvent.keyDown(window, { key: "n" })
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/3?job_nav=nav-token")
+
+    fireEvent.keyDown(window, { key: "p" })
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1?job_nav=nav-token")
+  })
+
+  it("ignores navigation shortcuts while a dialog is open", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2, state: "implemented", summary_state: "implemented" }, actions: { ...jobPayload().actions, can_approve: true } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token",
+      showLocation: true
+    })
+
+    fireEvent.keyDown(window, { key: "a", altKey: true })
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "n" })
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/2?job_nav=nav-token")
+  })
+})
+
 describe("Job Detail keyboard shortcuts", () => {
   afterEach(() => vi.restoreAllMocks())
 
@@ -2992,21 +3086,21 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
   )
 }
 
-function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "review" | "workflows" | "conversation" | "timeline" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
+function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "review" | "workflows" | "conversation" | "timeline" | "attachments" | "source" | "tests" | "artifacts"; initialEntry?: string; showLocation?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 
   return render(
     <QueryClientProvider client={queryClient}>
       <ShortcutsProvider>
-        <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+        <MemoryRouter initialEntries={[options.initialEntry ?? "/app-shell/jobs/1"]}>
           {options.showLocation ? <LocationProbe /> : null}
           <JobDetailView
             activeTab={options.activeTab || "summary"}
             onSelectTab={() => {}}
             payload={payload}
             prefix="/app-shell"
-            queryKey={["jobs", "1", "detail", ""]}
+            queryKey={["jobs", String(payload.job.id), "detail", ""]}
           />
         </MemoryRouter>
       </ShortcutsProvider>
@@ -3017,6 +3111,23 @@ function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summ
 function LocationProbe() {
   const location = useLocation()
   return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
+function jobNavigationContext(overrides: Partial<JobNavigationContext> = {}): JobNavigationContext {
+  return {
+    token: "nav-token",
+    kind: "dashboard",
+    label: "Dashboard",
+    currentJobId: 2,
+    capturedAt: "2026-09-11T12:00:00Z",
+    sourcePath: "/app-shell/dashboard",
+    items: [
+      { id: 1, slug: "JOB-1", path: "/jobs/1", title: "First snapshot title", repository: "acme/widgets", state: "running" },
+      { id: 2, slug: "JOB-2", path: "/jobs/2", title: "Second snapshot title", repository: "acme/widgets", state: "implemented" },
+      { id: 3, slug: "JOB-3", path: "/jobs/3", title: "Third snapshot title", repository: "acme/widgets", state: "queued" }
+    ],
+    ...overrides
+  }
 }
 
 function mockMediaQuery(matches: boolean) {

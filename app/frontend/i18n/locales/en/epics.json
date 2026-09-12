@@ -70,6 +70,7 @@
   "empty_value": "(empty)",
 
   "jobs_section": "Jobs",
+  "job_navigation_context_epic": "Epic Jobs",
   "no_jobs": "No Jobs in this Epic.",
   "deployment_stage_pending": "Pending",
   "deployment_stage_partial": "{{reached}}/{{total}} Jobs",
