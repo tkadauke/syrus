@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 
@@ -117,4 +117,51 @@ export function truncateLines(text: string, maxLines: number): LinePreview {
   const lines = text.split("\n")
   if (lines.length <= maxLines) return { preview: text, truncated: false, totalLines: lines.length }
   return { preview: lines.slice(0, maxLines).join("\n"), truncated: true, totalLines: lines.length }
+}
+
+export function LargeTextPreview({ emptyLabel = "No text returned.", label, maxLines = 40, text }: { emptyLabel?: string; label: string; maxLines?: number; text: string | null }) {
+  return (
+    <Disclosure label={label}>
+      <PreviewTextBlock emptyLabel={emptyLabel} maxLines={maxLines} text={text} />
+    </Disclosure>
+  )
+}
+
+export function PreviewTextBlock({ emptyLabel = "No text returned.", maxLines = 40, text }: { emptyLabel?: string; maxLines?: number; text: string | null }) {
+  if (!text?.trim()) return <EmptyState>{emptyLabel}</EmptyState>
+
+  const { preview, truncated, totalLines } = truncateLines(text, maxLines)
+
+  return (
+    <>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
+      {truncated ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {maxLines} of {totalLines} lines.</div> : null}
+    </>
+  )
+}
+
+export function FilterableList<T,>({ children, emptyLabel = "No matching rows.", itemText, items, placeholder = "Filter results" }: { children: (items: T[]) => ReactNode; emptyLabel?: string; itemText: (item: T) => string; items: T[]; placeholder?: string }) {
+  const [query, setQuery] = useState("")
+  const normalizedQuery = query.trim().toLowerCase()
+  const visibleItems = useMemo(() => {
+    if (!normalizedQuery) return items
+    return items.filter((item) => itemText(item).toLowerCase().includes(normalizedQuery))
+  }, [itemText, items, normalizedQuery])
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          aria-label={placeholder}
+          className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 shadow-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={placeholder}
+          type="search"
+          value={query}
+        />
+        <span className="text-2xs text-gray-500 dark:text-gray-400">{visibleItems.length} of {items.length}</span>
+      </div>
+      {visibleItems.length > 0 ? children(visibleItems) : <EmptyState>{emptyLabel}</EmptyState>}
+    </div>
+  )
 }

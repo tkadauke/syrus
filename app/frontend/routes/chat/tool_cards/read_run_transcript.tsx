@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, Disclosure, FilterableList, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
 // Core-owned tool card for read_run_transcript (the Tier 1 tool-card work). Shows
@@ -91,22 +91,32 @@ function renderExpanded(context: ToolCardContext) {
         </dl>
       ) : null}
       {run.chunks.length > 0 ? (
-        <div>
+        <Disclosure label={`Transcript preview (${run.chunks.length})`}>
           <SectionLabel>Transcript preview</SectionLabel>
-          <ul className="mt-1 max-h-72 space-y-1 overflow-auto rounded border border-gray-200 bg-white p-2 font-mono text-2xs dark:border-gray-800 dark:bg-gray-950">
-            {run.chunks.map((chunk) => (
-              <li key={chunk.key}>
-                <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
-                  {chunk.sequence != null ? <span>#{chunk.sequence}</span> : null}
-                  {chunk.kind ? <Badge>{chunk.kind}</Badge> : null}
-                </div>
-                <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">
-                  {chunk.text.length > CHUNK_PREVIEW_CHARS ? `${chunk.text.slice(0, CHUNK_PREVIEW_CHARS)}…` : chunk.text}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+          <div className="mt-1">
+            <FilterableList
+              itemText={(chunk) => [chunk.sequence, chunk.kind, chunk.text].filter(Boolean).join(" ")}
+              items={run.chunks}
+              placeholder="Filter transcript chunks"
+            >
+              {(chunks) => (
+                <ul className="max-h-72 space-y-1 overflow-auto rounded border border-gray-200 bg-white p-2 font-mono text-2xs dark:border-gray-800 dark:bg-gray-950">
+                  {chunks.map((chunk) => (
+                    <li key={chunk.key}>
+                      <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
+                        {chunk.sequence != null ? <span>#{chunk.sequence}</span> : null}
+                        {chunk.kind ? <Badge>{chunk.kind}</Badge> : null}
+                      </div>
+                      <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">
+                        {chunk.text.length > CHUNK_PREVIEW_CHARS ? `${chunk.text.slice(0, CHUNK_PREVIEW_CHARS)}…` : chunk.text}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </FilterableList>
+          </div>
+        </Disclosure>
       ) : null}
       {run.agentDiff ? (
         <div>
