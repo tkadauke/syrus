@@ -1133,23 +1133,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
   end
 
   create_table "github_api_usage_rollups", force: :cascade do |t|
-    t.string "auth_source", null: false
+    t.string "auth_source", limit: 32, null: false
     t.datetime "bucket_started_at", null: false
     t.datetime "created_at", null: false
-    t.string "credential_key", null: false
+    t.string "credential_key", limit: 64, null: false
     t.integer "installation_id"
     t.integer "last_limit"
     t.integer "last_remaining"
     t.datetime "last_reset_at"
     t.datetime "last_seen_at", null: false
     t.integer "last_status"
-    t.string "operation", null: false
+    t.string "operation", limit: 96, null: false
     t.integer "rate_limited_count", default: 0, null: false
     t.string "repo_slug"
     t.integer "repository_id"
-    t.string "repository_key", null: false
+    t.string "repository_key", limit: 96, null: false
     t.integer "request_count", default: 0, null: false
-    t.string "resource"
+    t.string "resource", limit: 32, null: false
     t.datetime "updated_at", null: false
     t.integer "user_id"
     t.index ["bucket_started_at", "auth_source", "credential_key", "repository_key", "operation", "resource"], name: "idx_github_api_usage_rollups_unique_bucket", unique: true
