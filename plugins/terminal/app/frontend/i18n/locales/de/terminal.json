@@ -1,5 +1,8 @@
 {
   "open_terminal_in_workspace": "Terminal im Workspace öffnen",
   "terminal_workspace_open_failed": "Terminal-Workspace kann nicht geöffnet werden.",
-  "terminal_workspace_unavailable": "Workflow-Workspace ist nicht verfügbar."
+  "terminal_workspace_unavailable": "Workflow-Workspace ist nicht verfügbar.",
+  "search_workspaces": "Workspaces suchen",
+  "search_workspaces_placeholder": "Workspaces, Chats, Worker suchen",
+  "no_workspace_matches": "Keine passenden Workspaces"
 }

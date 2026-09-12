@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { numberValue } from "@app/routes/chat/toolCardUi"
-import { SceneCountsCard, sceneCountsSummary, type SceneCounts } from "../whiteboardToolCard"
+import { SceneCountsCard, sceneCountsSummary, t, type SceneCounts } from "../whiteboardToolCard"
 
 // Plugin-owned tool card for update_scene (the pending-action tool-card work). The tool's
 // own result is just `{ replaced: true, version }` (see update_scene_tool.rb)
@@ -27,12 +27,12 @@ function sceneCounts(context: ToolCardContext): SceneCounts | null {
 
 function collapsedSummary(context: ToolCardContext) {
   const counts = sceneCounts(context)
-  return counts ? `Replaced scene: ${sceneCountsSummary(counts)}` : null
+  return counts ? t("tool_replaced_scene_summary", { summary: sceneCountsSummary(counts) }) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
   const counts = sceneCounts(context)
-  return counts ? <SceneCountsCard action="Replaced scene" counts={counts} /> : null
+  return counts ? <SceneCountsCard action={t("tool_replaced_scene")} counts={counts} /> : null
 }
 
 const updateSceneToolCard: ToolCardRenderer = {

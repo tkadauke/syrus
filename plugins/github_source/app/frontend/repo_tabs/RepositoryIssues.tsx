@@ -86,7 +86,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {payload.error_message ? <PanelMessage tone="error">{payload.error_message}</PanelMessage> : null}
-      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "GitHub issue command failed.")}</PanelMessage> : null}
+      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("repository.command_failed"))}</PanelMessage> : null}
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -132,7 +132,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="w-10 px-4 py-2"><span className="sr-only">Select</span></th>
+                <th className="w-10 px-4 py-2"><span className="sr-only">{t("repository.select")}</span></th>
                 <th className="px-4 py-2">
                   {t('repository.col_issue')}
                 </th>
@@ -164,9 +164,9 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
       ) : (
         <OnboardingEmptyState
           fallbackActionPath={payload.state === "open" ? payload.paths.github_issues_path : payload.state_paths.open}
-          fallbackActionText={payload.state === "open" ? "View GitHub issues" : "Show open issues"}
-          fallbackDescription={payload.state === "open" ? `No open issues are available to delegate. Create or label an issue with ${payload.repository.trigger_label}, or use a direct job for first-run work.` : "No closed issues are available in this repository view."}
-          fallbackTitle={`No ${payload.state} issues found`}
+          fallbackActionText={payload.state === "open" ? t("repository.empty_open_action") : t("repository.empty_closed_action")}
+          fallbackDescription={payload.state === "open" ? t("repository.empty_open_description", { label: payload.repository.trigger_label }) : t("repository.empty_closed_description")}
+          fallbackTitle={t("repository.empty_title", { state: payload.state })}
           prefix={prefix}
           setupStatus={setupStatus}
         />
@@ -218,7 +218,7 @@ function RepositoryIssueRow({
   return (
     <tr>
       <td className="px-4 py-3 align-top">
-        <Checkbox aria-label={`Select issue #${issue.number}`} checked={selected} onChange={onToggle} />
+        <Checkbox aria-label={t("repository.select_issue", { number: issue.number })} checked={selected} onChange={onToggle} />
       </td>
       <td className="px-4 py-3 align-top">
         <div className="flex flex-wrap items-baseline gap-2">
@@ -269,6 +269,7 @@ function IssueLabel({ color, name }: { color: string; name: string }) {
 // comes from the URL and the issue list is fetched here rather than being
 // threaded through the core repository payload.
 export default function RepositoryIssuesTab() {
+  const { t } = useT("github_source")
   const params = useParams()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -294,8 +295,8 @@ export default function RepositoryIssuesTab() {
       prefix={prefix}
       tabs={payload?.tabs ?? []}
     >
-      {issues.isPending ? <PanelMessage>Loading issues...</PanelMessage> : null}
-      {!issues.isPending && (issues.isError || !payload) ? <PanelMessage tone="error">Unable to load issues.</PanelMessage> : null}
+      {issues.isPending ? <PanelMessage>{t("repository.loading_issues")}</PanelMessage> : null}
+      {!issues.isPending && (issues.isError || !payload) ? <PanelMessage tone="error">{t("repository.load_error")}</PanelMessage> : null}
       {payload ? (
         <RepositoryIssues
           isRefreshing={issues.isFetching}
