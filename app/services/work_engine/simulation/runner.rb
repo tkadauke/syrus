@@ -533,7 +533,10 @@ module WorkEngine
         when "worker_died"
           fail_run!(run, agent_outcome: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
         when "failure"
-          fail_run!(run, agent_outcome: "error", failure_code: simulated_failure_code(outcome))
+          fail_run!(run, agent_outcome: "error",
+                         failure_code: simulated_failure_code(outcome),
+                         error_message: simulated_outcome_field(outcome, "error_message"),
+                         error_class: simulated_outcome_field(outcome, "error_class"))
         else
           raise ArgumentError, "unknown simulation outcome #{outcome.inspect} for #{run.slug}"
         end
@@ -558,14 +561,29 @@ module WorkEngine
         drain_step_success!(step)
       end
 
-      def fail_run!(run, agent_outcome:, failure_code: nil)
+      def fail_run!(run, agent_outcome:, failure_code: nil, error_message: nil, error_class: nil)
         if failure_code.present?
           stamp_simulated_failure_code!(run, failure_code)
+        end
+        if error_message.present? || error_class.present?
+          record_simulated_diagnostic!(run, error_class: error_class, error_message: error_message)
         end
         run.agent_outcome = agent_outcome
         run.fail!
         run.save!
         drain_run_failure!(run.reload)
+      end
+
+      # Gives the failed run the diagnostic a real handler would have
+      # captured, so reason-text matching downstream (transient blockers,
+      # quota resets, failure_reason_for) reads the injected fact instead
+      # of a generic message.
+      def record_simulated_diagnostic!(run, error_class:, error_message:)
+        RunDiagnostic.create!(
+          run: run,
+          error_class: error_class.presence || "Steps::Base::StepFailed",
+          error_message: error_message.presence || "simulated failure"
+        )
       end
 
       # Stamps the failure code a real step handler would have stamped for
@@ -588,9 +606,13 @@ module WorkEngine
       end
 
       def simulated_failure_code(outcome)
+        simulated_outcome_field(outcome, "failure_code")
+      end
+
+      def simulated_outcome_field(outcome, field)
         return nil unless outcome.is_a?(Hash)
 
-        outcome["failure_code"].presence || outcome[:failure_code].presence
+        outcome[field].presence || outcome[field.to_sym].presence
       end
 
       def drain_step_success!(step)

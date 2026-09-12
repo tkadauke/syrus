@@ -1,0 +1,39 @@
+name: transient landing failure defers then lands
+repository:
+  owner: simulation
+  name: transient-landing-deferral
+  auto_merge_enabled: true
+jobs:
+  first:
+    title: First job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve once implemented
+    once: true
+    when:
+      job:
+        id: first
+        state: implemented
+    do:
+      approve: first
+outcomes:
+  default: success
+  steps:
+    auto_merge:
+      - status: failure
+        error_class: Octokit::BadGateway
+        error_message: 502 Bad Gateway
+      - success
+expect:
+  jobs:
+    first:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - "auto_merge -> success"
