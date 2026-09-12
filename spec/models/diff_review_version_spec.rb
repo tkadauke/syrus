@@ -60,4 +60,32 @@ RSpec.describe DiffReviewVersion do
     expect(version.errors[:workflow]).to include("must belong to the same job")
     expect(version.errors[:run]).to include("must belong to the same job")
   end
+
+  it "does not default to an All changes version whose head SHA is actually the default branch name" do
+    run_version = described_class.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      version_index: 1,
+      base_sha: "branch-base",
+      head_sha: "implemented-head",
+      source_key: "workflow:#{workflow.id}:run:#{run.id}",
+      reason: "initial",
+      files_snapshot: [],
+      metadata: {}
+    )
+    described_class.create!(
+      job: job,
+      version_index: 2,
+      base_sha: "old-main-base",
+      head_sha: job.repository.default_branch,
+      source_key: "source_diff",
+      label: "All changes",
+      reason: "source_diff",
+      files_snapshot: [],
+      metadata: { "range_kind" => "all_changes" }
+    )
+
+    expect(described_class.default_for_review(job)).to eq(run_version)
+  end
 end

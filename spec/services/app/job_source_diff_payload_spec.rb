@@ -267,6 +267,67 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(payload[:versions].map { |version| version[:id] }).to include(repair_step.id, payload.dig(:version, :id))
   end
 
+  it "uses the latest stored review version instead of diffing old base to main when the branch has no commits ahead" do
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+    step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+    run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded",
+                      base_sha: "branch-base", head_sha: "implemented-head")
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "branch-base",
+      head_sha: "implemented-head",
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      files: [
+        { path: "app/models/implemented.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+implemented" }
+      ],
+      reason: "initial"
+    )
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [], merge_base_sha: "old-main-base", status: "identical")
+    expect(github).not_to receive(:compare_files)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload).to include(
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      merge_base_sha: "old-main-base",
+      diff_error: nil
+    )
+    expect(payload.dig(:version, :id)).to eq(version.id)
+    expect(payload[:files]).to contain_exactly(
+      path: "app/models/implemented.rb",
+      status: "modified",
+      additions: 2,
+      deletions: 0,
+      patch: "@@ -1 +1,2 @@\n+implemented"
+    )
+    expect(job.diff_review_versions.count).to eq(1)
+  end
+
+  it "does not create an All changes version with main as the head when an ahead branch has no stored review version" do
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [], merge_base_sha: "old-main-base", status: "identical")
+    expect(github).not_to receive(:compare_files)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload).to include(
+      base_ref: "old-main-base",
+      head_ref: "old-main-base",
+      merge_base_sha: "old-main-base",
+      files: [],
+      version: nil,
+      versions: []
+    )
+    expect(job.diff_review_versions).to be_empty
+  end
+
   it "promotes an existing full-range run version to All changes when a later repair checkpoint is narrower" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
     step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")

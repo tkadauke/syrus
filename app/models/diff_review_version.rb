@@ -30,7 +30,17 @@ class DiffReviewVersion < ApplicationRecord
   end
 
   def self.default_for_review(job)
-    where(job: job).all_changes.latest_first.first || where(job: job).latest_first.first
+    reusable_all_changes_for(job).latest_first.first || reviewable_for(job).latest_first.first
+  end
+
+  def self.reusable_all_changes_for(job)
+    reviewable_for(job).all_changes
+  end
+
+  def self.reviewable_for(job)
+    scope = where(job: job)
+    default_branch = job.repository&.default_branch.to_s.strip.presence
+    default_branch ? scope.where.not(reason: "source_diff", head_sha: default_branch) : scope
   end
 
   private

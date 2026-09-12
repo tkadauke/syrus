@@ -25,8 +25,12 @@ module App
         merge_base_sha = compare[:merge_base_sha]
       end
 
+      if @job.branch_name.present? && branch_commits.empty? && !explicit_selection?
+        return stored_review_version_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha)
+      end
+
       base = @params[:base].presence || merge_base_sha || job_base_branch
-      head = @params[:head].presence || branch_commits.first&.fetch(:sha) || @repository.default_branch
+      head = @params[:head].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
       diff_result = github.compare_files(@repository.slug, base, head)
       version = resolve_diff_review_version(
         base_sha: base,
@@ -100,6 +104,36 @@ module App
           files: [],
           truncated: false,
           diff_error: "GitHub token not configured. Add one in Settings to browse source.",
+          version: nil,
+          versions: diff_versions_json
+        )
+    end
+
+    def stored_review_version_payload(branch_commits:, merge_base_sha:)
+      version = DiffReviewVersion.default_for_review(@job)
+      return no_branch_diff_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha) unless version
+
+      base_payload(
+        base_ref: version.base_ref.presence || version.base_sha,
+        head_ref: version.head_ref.presence || version.head_sha,
+        branch_commits: branch_commits,
+        merge_base_sha: merge_base_sha
+      ).merge(
+        files: Array(version.files_snapshot).map { |file| stored_file_json(file) },
+        truncated: version.truncated,
+        diff_error: nil,
+        version: version_json(version),
+        versions: diff_versions_json
+      )
+    end
+
+    def no_branch_diff_payload(branch_commits:, merge_base_sha:)
+      ref = merge_base_sha.presence || job_base_branch
+      base_payload(base_ref: ref, head_ref: ref, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
+        .merge(
+          files: [],
+          truncated: false,
+          diff_error: nil,
           version: nil,
           versions: diff_versions_json
         )
