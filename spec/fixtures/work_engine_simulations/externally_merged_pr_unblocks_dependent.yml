@@ -1,0 +1,48 @@
+name: externally merged pr unblocks dependent
+epics:
+  feature:
+    title: Feature stack
+jobs:
+  parent:
+    title: Parent job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  child:
+    title: Child job
+    epic: feature
+    state: queued
+    depends_on:
+      - parent
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: merge parent pr externally once it is open
+    once: true
+    when:
+      job:
+        id: parent
+        state: implemented
+        has_pr: true
+    do:
+      merge_pr:
+        job: parent
+        merged: true
+outcomes:
+  default: success
+expect:
+  jobs:
+    parent:
+      - closed
+    child:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - "event merge parent pr externally once it is open"
+    - "merged PR for "
+    - "-> pr_merged"

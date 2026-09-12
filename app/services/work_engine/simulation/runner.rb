@@ -1,4 +1,5 @@
 require "digest/sha1"
+require "ostruct"
 
 module WorkEngine
   module Simulation
@@ -155,6 +156,7 @@ module WorkEngine
           when "refresh_provider_usage" then refresh_provider_usage!(value)
           when "set_provider_status" then set_provider_status!(value)
           when "set_job_provider" then set_job_provider!(value)
+          when "merge_pr" then merge_pr!(value)
           when "wake_provider_admission" then wake_provider_admission!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
@@ -261,6 +263,25 @@ module WorkEngine
         provider = attrs.fetch("provider")
         job.switch_job_provider_setting!(provider.to_s)
         events << "switched #{job.slug} provider to #{provider}"
+      end
+
+      # Models someone merging (or closing) the job's PR on GitHub, outside
+      # Syrus. Runs the real closed-PR resolution with the merged flag as the
+      # injected boundary fact -- the cherry-classification fallback needs a
+      # clone and stays covered by unit specs. Takes `{ job:, merged: }`
+      # (default true); unmerged closes resolve pr_closed here because the
+      # patch-presence check cannot run without a remote.
+      def merge_pr!(value)
+        attrs = value.is_a?(Hash) ? value : { "job" => value }
+        job = Job.find(attrs.fetch("job"))
+        merged = attrs.fetch("merged", true)
+        pr = OpenStruct.new(
+          merged: merged,
+          base: OpenStruct.new(ref: job.repository.default_branch, sha: nil)
+        )
+        reason = ClosedPullRequestResolution.reason(job: job, pr: pr, client: nil)
+        job.close_with_reason!(reason) if job.may_close?
+        events << "#{merged ? "merged" : "closed"} PR for #{job.slug} -> #{reason}"
       end
 
       def provider_for(value)
