@@ -959,6 +959,22 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(chunks).to include("skipped rspec (latest target health record passed from previou) [//:grade/rspec]")
   end
 
+  it "does not skip optional grader targets from reusable target health" do
+    write_config(<<~YAML)
+      grade:
+        - name: lint
+          run: bin/rubocop
+          required: false
+    YAML
+    record_target_health("//:grade/lint", status: "passed")
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader")
+    expect(grader_steps.map { |s| s.details["name"] }).to eq([ "lint" ])
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to eq([])
+  end
+
   it "materializes a required grader when the matching target health fingerprint is stale" do
     write_config(<<~YAML)
       grade:
@@ -1489,7 +1505,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
     end
 
-    it "only reruns graders that failed the previous iteration when the flag is on" do
+    it "carries forward a previously passing required grader only when target health still proves the current fingerprints" do
       write_config(<<~YAML)
         grade:
           rerun_only_failed: true
@@ -1501,12 +1517,76 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       YAML
       create_prior_grader_step(name: "tests", state: "failed")
       create_prior_grader_step(name: "lint", state: "succeeded")
+      health = record_target_health("//:grade/lint", status: "passed")
 
       build_iteration_two_handler.call
 
       expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to eq([ "tests" ])
       carried_forward = workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)
-      expect(carried_forward).to contain_exactly(include("name" => "lint", "required" => true))
+      expect(carried_forward).to contain_exactly(
+        include(
+          "name" => "lint",
+          "required" => true,
+          "target_label" => "//:grade/lint",
+          "target_health_record_refs" => [ include("target_health_record_id" => health.id) ]
+        )
+      )
+    end
+
+    it "reruns a previously passing grader when a retry repair made its target health stale" do
+      write_config(<<~YAML)
+        grade:
+          rerun_only_failed: true
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+      create_prior_grader_step(name: "tests", state: "failed")
+      create_prior_grader_step(name: "lint", state: "succeeded")
+      record_target_health("//:grade/lint", status: "passed", overrides: { input_fingerprint: "stale-input" })
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to eq([])
+      expect(workflow.artifact(described_class::TARGET_HEALTH_FORCED_ARTIFACT_KEY)).to include(
+        include(
+          "name" => "lint",
+          "target_label" => "//:grade/lint",
+          "reason" => "target health is unknown",
+          "carry_forward_blocked" => true
+        )
+      )
+    end
+
+    it "reruns optional graders instead of carrying them forward from target health" do
+      write_config(<<~YAML)
+        grade:
+          rerun_only_failed: true
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+              required: false
+      YAML
+      create_prior_grader_step(name: "tests", state: "failed")
+      create_prior_grader_step(name: "lint", state: "succeeded")
+      record_target_health("//:grade/lint", status: "passed")
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to eq([])
+      expect(workflow.artifact(described_class::TARGET_HEALTH_FORCED_ARTIFACT_KEY)).to include(
+        include(
+          "name" => "lint",
+          "required" => false,
+          "reason" => "target is optional; only required targets are eligible for carry-forward"
+        )
+      )
     end
 
     it "still runs a grader that newly matches when_files_changed this iteration, even though it wasn't active last iteration" do
