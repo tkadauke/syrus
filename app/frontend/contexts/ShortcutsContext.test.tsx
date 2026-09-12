@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { useState } from "react"
+import { Component, useState, type ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ShortcutsProvider, useActiveShortcuts, useShortcut } from "./ShortcutsContext"
 
@@ -27,6 +27,23 @@ function ActiveShortcutsProbe() {
       ))}
     </ul>
   )
+}
+
+class ErrorProbe extends Component<{ children: ReactNode; onError: (error: Error) => void }, { error: Error | null }> {
+  state = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error) {
+    this.props.onError(error)
+  }
+
+  render() {
+    if (this.state.error) return null
+    return this.props.children
+  }
 }
 
 describe("useShortcut / ShortcutsProvider", () => {
@@ -213,11 +230,27 @@ describe("useShortcut / ShortcutsProvider", () => {
 
   it("throws when useShortcut is used outside a ShortcutsProvider", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    const onError = vi.fn()
+    const preventExpectedError = (event: ErrorEvent) => {
+      if (event.error instanceof Error && event.error.message === "useShortcut must be used within a ShortcutsProvider") {
+        event.preventDefault()
+      }
+    }
+    window.addEventListener("error", preventExpectedError)
 
-    expect(() => render(<Registrant keys="g" label="Go" onFire={() => {}} />)).toThrow(
-      "useShortcut must be used within a ShortcutsProvider"
-    )
+    try {
+      render(
+        <ErrorProbe onError={onError}>
+          <Registrant keys="g" label="Go" onFire={() => {}} />
+        </ErrorProbe>
+      )
 
-    consoleError.mockRestore()
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+        message: "useShortcut must be used within a ShortcutsProvider"
+      }))
+    } finally {
+      window.removeEventListener("error", preventExpectedError)
+      consoleError.mockRestore()
+    }
   })
 })
