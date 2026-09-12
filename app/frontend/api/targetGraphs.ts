@@ -7,6 +7,7 @@ export type TargetGraphProject = {
   label: string | null
   kind?: string | null
   path?: string | null
+  owner_config_path?: string | null
   target_count: number
 }
 
@@ -25,6 +26,7 @@ export type TargetGraphTarget = {
     metadata?: Record<string, unknown>
   }
   owner_config_path?: string
+  project?: Pick<TargetGraphProject, "id" | "label" | "path" | "owner_config_path">
   selection?: {
     state?: "selected" | "skipped" | "cached"
     reason?: string
@@ -32,11 +34,14 @@ export type TargetGraphTarget = {
     required?: boolean
     target_health_record_id?: number
     checked_at?: string
+    commit_sha?: string
+    target_health_record_refs?: TargetHealthRecordRef[]
   }
   health?: TargetGraphHealth | null
 }
 
 export type TargetGraphHealth = {
+  target_health_record_id?: number
   status: string
   commit_sha?: string
   checked_at?: string
@@ -45,6 +50,15 @@ export type TargetGraphHealth = {
   run_id?: number
   duration_s?: number
   exit_code?: number
+}
+
+export type TargetHealthRecordRef = {
+  target_health_record_id?: number
+  target_label?: string
+  project_id?: string
+  commit_sha?: string
+  status?: string
+  checked_at?: string
 }
 
 export type TargetGraphEdge = {
@@ -86,6 +100,13 @@ export type TargetGraphPayload = {
     targets: Record<string, TargetGraphHealth | null>
     summary: Record<string, number>
   }
+  explanations?: {
+    projects?: TargetGraphProjectExplanation[]
+    selected_targets?: TargetGraphTargetExplanation[]
+    skipped_targets?: TargetGraphTargetExplanation[]
+    cached_targets?: TargetGraphTargetExplanation[]
+    ambiguous?: TargetGraphAmbiguityExplanation[]
+  }
   filter?: Record<string, unknown> | null
   filter_schema?: FilterSchemaField[]
   diagnostics?: {
@@ -94,6 +115,43 @@ export type TargetGraphPayload = {
     error?: string | null
   } | null
   error?: string | null
+}
+
+export type TargetGraphProjectExplanation = {
+  id: string
+  label?: string | null
+  path?: string | null
+  owner_config_path?: string | null
+  selected_target_count?: number
+  skipped_target_count?: number
+  cached_target_count?: number
+}
+
+export type TargetGraphTargetExplanation = {
+  state?: "selected" | "skipped" | "cached"
+  target_label: string
+  name?: string
+  required?: boolean
+  reason?: string
+  project_id?: string
+  project_label?: string
+  target_health_record_id?: number
+  commit_sha?: string
+  checked_at?: string
+  target_health_record_refs?: TargetHealthRecordRef[]
+  target_fingerprints?: Record<string, string>
+}
+
+export type TargetGraphAmbiguityExplanation = {
+  kind: string
+  status: "ambiguous" | "available" | "unavailable"
+  reason?: string
+  choices?: Array<{
+    id: string
+    label?: string | null
+    path?: string | null
+    owner_config_path?: string | null
+  }>
 }
 
 export type TargetGraphQuery = {

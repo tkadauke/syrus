@@ -605,6 +605,14 @@ cancelled, or inconclusive unaffected health keeps it inconclusive. This is how
 main-branch target health preserves unaffected target state while avoiding
 unnecessary target execution.
 
+The Job/Workflow target graph API projects `grader_target_selections` and
+`target_health_skipped_targets` into an operator-facing `explanations` envelope:
+affected project counts, selected executable targets, skipped targets, cached
+targets with target-health record references, and preview/project choices that
+are ambiguous or unavailable. The Target Graph tab renders that envelope above
+the graph so operators can understand the fanout decision without opening raw
+workflow artifacts.
+
 `grader_collect` folds those entries into the iteration rollup as passed
 target-health skips, without recording a new grader conclusion for work that
 did not run. Unknown, stale, failed, timed-out, cancelled, or inconclusive
