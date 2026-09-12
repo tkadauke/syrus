@@ -64,6 +64,13 @@ export type TargetGraphPayload = {
     ref: string
   }
   tabs?: RepositoryTab[]
+  workflow?: {
+    id: number
+    slug: string
+    job_id: number
+    trigger_kind: string
+    state: string
+  } | null
   projects: TargetGraphProject[]
   targets: TargetGraphTarget[]
   edges: TargetGraphEdge[]
@@ -100,6 +107,18 @@ export type TargetGraphQuery = {
 }
 
 export function fetchRepositoryTargetGraph(repositoryId: string | number, query: TargetGraphQuery = {}) {
+  return getJson<TargetGraphPayload>(`${targetGraphApiPath(`/api/v1/app/repositories/${repositoryId}/target_graph`, query)}`)
+}
+
+export function fetchJobTargetGraph(jobId: string | number, query: TargetGraphQuery = {}) {
+  return getJson<TargetGraphPayload>(`${targetGraphApiPath(`/api/v1/app/jobs/${jobId}/target_graph`, query)}`)
+}
+
+export function fetchWorkflowTargetGraph(workflowId: string | number, query: TargetGraphQuery = {}) {
+  return getJson<TargetGraphPayload>(`${targetGraphApiPath(`/api/v1/app/workflows/${workflowId}/target_graph`, query)}`)
+}
+
+function targetGraphApiPath(path: string, query: TargetGraphQuery) {
   const params = new URLSearchParams()
   if (query.mode === "neighborhood") params.set("mode", "neighborhood")
   if (query.focusLabel) params.set("focus_label", query.focusLabel)
@@ -113,5 +132,5 @@ export function fetchRepositoryTargetGraph(repositoryId: string | number, query:
   if (query.mode === "window" && query.offset !== undefined) params.set("offset", String(query.offset))
 
   const search = params.toString()
-  return getJson<TargetGraphPayload>(`/api/v1/app/repositories/${repositoryId}/target_graph${search ? `?${search}` : ""}`)
+  return `${path}${search ? `?${search}` : ""}`
 }

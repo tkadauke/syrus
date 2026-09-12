@@ -41,6 +41,7 @@ import { AgentConversationTab } from "./jobDetail/AgentConversation"
 import { TimelineTab } from "./jobDetail/Timeline"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { ReviewWorkspace } from "./jobDetail/ReviewWorkspace"
+import { JobTargetGraphPanel } from "./RepositoryTargetGraph"
 import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
@@ -328,6 +329,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       {activeTab === "workflows" ? <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} /> : null}
       {activeTab === "conversation" ? <AgentConversationTab jobId={payload.job.id} prUrl={payload.job.pr_url} /> : null}
       {activeTab === "timeline" ? <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} /> : null}
+      {activeTab === "target_graph" ? <JobTargetGraphPanel jobId={payload.job.id} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
       {activeTab === "source" ? <SourceTab canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} initialDiff={initialDiff} jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}
@@ -344,6 +346,7 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, plug
     { id: "workflows", label: t("tab_workflows", { count: workflowsCount }) },
     { id: "conversation", label: t("tab_conversation") },
     { id: "timeline", label: t("tab_timeline") },
+    { id: "target_graph", label: "Target Graph" },
     { id: "attachments", label: t("tab_attachments", { count: attachmentsCount }) },
     { id: "artifacts", label: t("tab_artifacts", { count: artifactsCount }) },
     { id: "source", label: t("tab_source") }

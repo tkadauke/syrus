@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
 import { stubVirtualizerMeasurements } from "../test/virtualizerMeasurements"
-import { RepositoryTargetGraphRoute, buildGraphRows, targetGraphQueryFromSearch } from "./RepositoryTargetGraph"
+import { JobTargetGraphPanel, RepositoryTargetGraphRoute, buildGraphRows, targetGraphQueryFromSearch } from "./RepositoryTargetGraph"
 import type { TargetGraphPayload, TargetGraphTarget } from "../api/targetGraphs"
 
 stubVirtualizerMeasurements()
@@ -103,6 +103,37 @@ describe("RepositoryTargetGraphRoute", () => {
         expect.any(Object)
       )
     })
+  })
+
+  it("disables workflow overlay focus controls for repository graphs", async () => {
+    renderRoute()
+
+    await screen.findAllByText("//:grade/tests")
+    expect(screen.getByRole("button", { name: "Selected" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Skipped" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Cached" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Failing" })).not.toBeDisabled()
+  })
+
+  it("fetches job-scoped graph data so workflow overlay focus controls are available", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload({
+      workflow: { id: 42, slug: "WF-42", job_id: 1, trigger_kind: "initial", state: "running" }
+    }))))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/1?tab=target_graph"]}>
+          <JobTargetGraphPanel jobId={1} prefix="/app-shell" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Workflow WF-42")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Selected" })).not.toBeDisabled()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/jobs/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=180",
+      expect.any(Object)
+    )
   })
 })
 
