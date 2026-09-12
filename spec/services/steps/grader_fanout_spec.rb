@@ -396,6 +396,120 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "computing affected landing targets from predicted base predict"
+    )
+  end
+
+  it "computes auto-merge affected targets from the current mergeability base" do
+    workflow.update!(trigger_kind: "auto_merge")
+    job.update!(mergeability_base_sha: "current-base-sha")
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+          when_files_changed:
+            - app/**/*.rb
+    YAML
+
+    expect(@git).to receive(:run)
+      .with("diff", "--name-only", "current-base-sha...HEAD", chdir: @ws_path.to_s)
+      .and_return("app/models/job.rb\n")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("computing affected landing targets from current base current")
+    expect(chunks).to include("selected rspec (own source scope matched a changed file) [//:grade/rspec]")
+  end
+
+  it "forces unaffected required landing targets when reusable target health is missing" do
+    workflow.update!(trigger_kind: "auto_merge")
+    job.update!(mergeability_base_sha: "current-base-sha")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/app
+          required: true
+          when_files_changed:
+            - app/**
+        - name: docs-tests
+          run: bin/check-docs
+          required: true
+          when_files_changed:
+            - docs/**
+    YAML
+    stub_changed_files("app/models/job.rb")
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests docs-tests])
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_FORCED_ARTIFACT_KEY)).to include(
+      include("name" => "docs-tests", "target_label" => "//:grade/docs-tests", "reason" => "target health is unknown")
+    )
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
+    expect(chunks).to include("forced validation for docs-tests (target health is unknown) [//:grade/docs-tests]")
+  end
+
+  it "keeps unaffected required landing targets skipped when reusable target health passes" do
+    workflow.update!(trigger_kind: "auto_merge")
+    job.update!(mergeability_base_sha: "current-base-sha")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/app
+          required: true
+          when_files_changed:
+            - app/**
+        - name: docs-tests
+          run: bin/check-docs
+          required: true
+          when_files_changed:
+            - docs/**
+    YAML
+    stub_changed_files("app/models/job.rb")
+    health = record_target_health("//:grade/docs-tests", status: "passed")
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests])
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to include(
+      include(
+        "name" => "docs-tests",
+        "target_label" => "//:grade/docs-tests",
+        "target_health_record_id" => health.id
+      )
+    )
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
+    expect(chunks).to include("skipped docs-tests (latest target health record passed from previou) [//:grade/docs-tests]")
+  end
+
+  it "computes merge-train affected targets from the built integration base" do
+    workflow.update!(trigger_kind: "merge_train")
+    workflow.set_artifact!("merge_train_base_sha", "train-base-sha")
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+          when_files_changed:
+            - app/**/*.rb
+    YAML
+
+    expect(@git).to receive(:run)
+      .with("diff", "--name-only", "train-base-sha...HEAD", chdir: @ws_path.to_s)
+      .and_return("app/models/job.rb\n")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "computing affected landing targets from current base train-b"
+    )
   end
 
   it "uses explicit CI-phase graders for CI failure validations" do
@@ -883,8 +997,21 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_FORCED_ARTIFACT_KEY)).to include(
+      include(
+        "name" => "rspec",
+        "target_label" => "//:grade/rspec",
+        "reason" => "target health is unknown",
+        "target_fingerprints" => include(
+          "input_fingerprint" => match(/\A[0-9a-f]{64}\z/),
+          "command_fingerprint" => match(/\A[0-9a-f]{64}\z/),
+          "environment_fingerprint" => match(/\A[0-9a-f]{64}\z/)
+        )
+      )
+    )
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("target health miss for rspec: target health is unknown [//:grade/rspec]")
+    expect(chunks).to include("forced validation for rspec (target health is unknown) [//:grade/rspec]")
   end
 
   it "explains a dependency-triggered selection by the dependency's target label" do
