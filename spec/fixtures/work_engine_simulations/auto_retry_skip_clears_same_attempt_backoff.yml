@@ -1,0 +1,72 @@
+name: auto retry skip clears same-attempt backoff
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: auto-retry-skip-clears-same-attempt-backoff
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Feature with a skipped same-attempt retry
+jobs:
+  member:
+    title: Member job
+    epic: feature
+    state: failed
+    approved_at: "2026-09-09T13:00:00Z"
+    workflow:
+      kind: merge_train
+      state: failed
+      work_unit:
+        state: blocked
+        blocked_reason: auto_retry_backoff
+        blocked_until: "2026-09-09T13:05:00Z"
+        blocked_details:
+          auto_retry_attempt_id: 1
+          retry_kind: failed_step
+          failure_classification: worker_died_under_resource_pressure
+      intent:
+        state: failed
+      steps:
+        - kind: merge_train_assemble
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: landing_fix
+          state: failed
+          run:
+            state: failed
+            agent_outcome: worker_died
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: simulated worker death under resource pressure
+              problem_code: worker_died_under_resource_pressure
+            classification:
+              classification: worker_died_under_resource_pressure
+              retryable: false
+              reason: Worker died while the host was under critical resource pressure.
+auto_retry_attempts:
+  skipped_backoff:
+    job: member
+    workflow_kind: merge_train
+    step_kind: landing_fix
+    retry_kind: failed_step
+    failure_classification: worker_died_under_resource_pressure
+    agent_provider: codex
+    attempt_number: 1
+    scheduled_at: "2026-09-09T13:05:00Z"
+runner:
+  auto_retry_failed_jobs: false
+outcomes:
+  default: success
+expect:
+  jobs:
+    member:
+      - failed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - "auto retry"
+    - "skipped"

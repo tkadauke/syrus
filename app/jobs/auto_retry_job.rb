@@ -105,9 +105,10 @@ class AutoRetryJob < ApplicationJob
   # Runs 121870/121914 spun ~460,000 attempts at two per second that way.
   #
   # So: say what actually happened, charge the budget for it, and do not poke
-  # the reconciler. Clearing the backoff and re-requesting are what a genuine
-  # *transition* deserves (see skip_if_provider_delay_no_longer_matches); a
-  # permanent verdict deserves neither.
+  # the reconciler. Re-requesting is what a genuine *transition* deserves (see
+  # skip_if_provider_delay_no_longer_matches); a permanent verdict should still
+  # clear any same-attempt backoff so WorkUnit projection does not stay blocked
+  # after the retry has been skipped.
   def skip_if_failure_no_longer_retryable(attempt)
     return false unless attempt.run
 
@@ -116,6 +117,7 @@ class AutoRetryJob < ApplicationJob
     return false if PROVIDER_DELAYED_CLASSIFICATIONS.include?(fresh.classification)
 
     attempt.update!(skipped_reason: not_retryable_skip_reason(attempt, fresh))
+    WorkUnits::AutoRetryBackoff.clear!(attempt)
     log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
     true
   rescue StandardError => e

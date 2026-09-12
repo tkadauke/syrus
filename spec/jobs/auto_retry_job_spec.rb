@@ -152,6 +152,36 @@ RSpec.describe AutoRetryJob do
     )
   end
 
+  it "clears same-attempt backoff when the retry is skipped as non-retryable" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    unit = workflow.work_unit
+    unit.work_intent.update!(state: "failed")
+    unit.update!(
+      state: "blocked",
+      blocked_reason: "auto_retry_backoff",
+      blocked_until: 5.minutes.ago,
+      blocked_details: {
+        "auto_retry_attempt_id" => attempt.id,
+        "retry_kind" => attempt.retry_kind,
+        "failure_classification" => attempt.failure_classification
+      }
+    )
+    RunDiagnostic.create!(
+      run: run,
+      error_class: "Steps::Base::StepFailed",
+      error_message: "simulated worker death under pressure",
+      problem_code: "worker_died_under_resource_pressure"
+    )
+    allow(WorkEngine::Reconciler).to receive(:request)
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to eq("failure is not retryable: worker_died_under_resource_pressure (was worker_died)")
+    expect(unit.reload).to have_attributes(state: "failed", blocked_reason: nil, blocked_until: nil, blocked_details: {})
+    expect(unit.work_unit_locks.active).to be_empty
+    expect(WorkEngine::Reconciler).not_to have_received(:request)
+  end
+
   it "falls back to a retry workflow when a failed-step retry lost its workspace" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     workflow.update!(cleaned_up_at: Time.current)
@@ -453,8 +483,7 @@ RSpec.describe AutoRetryJob do
       expect(attempt.skipped_reason).not_to include("changed")
     end
 
-    # The backoff is the only pacing left once the reconciler request is gone.
-    it "leaves the backoff in place" do
+    it "clears same-attempt backoff without re-requesting the reconciler" do
       attempt, _agent_step, agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
       attempt.update!(failure_classification: "provider_auth_expired")
       agent_run.update_columns(agent_provider: "codex", agent_outcome: "turn_failed")
@@ -464,10 +493,12 @@ RSpec.describe AutoRetryJob do
         error_message: "Failed to refresh token: auth error code: token_expired"
       )
       allow(WorkUnits::AutoRetryBackoff).to receive(:clear!)
+      allow(WorkEngine::Reconciler).to receive(:request)
 
       described_class.perform_now(attempt.id)
 
-      expect(WorkUnits::AutoRetryBackoff).not_to have_received(:clear!)
+      expect(WorkUnits::AutoRetryBackoff).to have_received(:clear!).with(attempt)
+      expect(WorkEngine::Reconciler).not_to have_received(:request)
     end
   end
 

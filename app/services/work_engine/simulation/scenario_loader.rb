@@ -41,6 +41,7 @@ module WorkEngine
           create_epic_dependencies!(epics, data.fetch("epics", {}))
           create_job_dependencies!(jobs, epics, data.fetch("jobs", {}))
           create_workflows!(jobs, data.fetch("jobs", {}))
+          create_auto_retry_attempts!(jobs, data.fetch("auto_retry_attempts", {}))
           create_merge_trains!(repository, epics, jobs, data.fetch("merge_trains", {}))
           work_intents = create_standalone_work!(repository, user, jobs, data.fetch("work_intents", {}), data.fetch("work_units", {}))
 
@@ -283,7 +284,8 @@ module WorkEngine
             position: step_config.fetch("position", index),
             state: step_config.fetch("state", "queued"),
             iteration: step_config.fetch("iteration", 1),
-            loop_id: step_config["loop_id"]
+            loop_id: step_config["loop_id"],
+            details: step_config.fetch("details", {})
           ).tap do |step|
             step.update_columns(created_at: parse_optional_time(step_config["created_at"])) if step_config["created_at"].present?
             step.update_columns(depends_on_ids: step_config["depends_on_ids"]) if step_config.key?("depends_on_ids")
@@ -318,7 +320,20 @@ module WorkEngine
             RunDiagnostic.create!(
               run: run,
               error_class: diagnostic["error_class"],
-              error_message: diagnostic["error_message"]
+              error_message: diagnostic["error_message"],
+              problem_code: diagnostic["problem_code"],
+              problem_evidence: diagnostic.fetch("problem_evidence", {})
+            )
+          end
+          classification = config["classification"]
+          if classification
+            RunFailureClassification.create!(
+              run: run,
+              classification: classification.fetch("classification"),
+              retryable: classification.fetch("retryable"),
+              confidence: classification.fetch("confidence", 1.0),
+              reason: classification.fetch("reason", "Seeded simulation classification."),
+              classified_at: parse_optional_time(classification["classified_at"]) || Time.current
             )
           end
           Array(config["spawned_processes"]).each do |process|
@@ -337,6 +352,48 @@ module WorkEngine
             )
           end
         end
+      end
+
+      def create_auto_retry_attempts!(jobs, definitions)
+        definitions.each_value do |attrs|
+          job = jobs.fetch(attrs.fetch("job").to_s)
+          workflow = workflow_for_auto_retry_attempt(job, attrs)
+          run = run_for_auto_retry_attempt(workflow, attrs)
+          AutoRetryAttempt.create!(
+            job: job,
+            workflow: workflow,
+            run: run,
+            agent_provider: attrs.fetch("agent_provider", workflow.agent_provider),
+            failure_classification: attrs.fetch("failure_classification"),
+            retry_kind: attrs.fetch("retry_kind", "failed_step"),
+            attempt_number: attrs.fetch("attempt_number", 1),
+            scheduled_at: parse_optional_time(attrs["scheduled_at"]) || Time.current,
+            performed_at: parse_optional_time(attrs["performed_at"]),
+            skipped_reason: attrs["skipped_reason"]
+          )
+        end
+      end
+
+      def workflow_for_auto_retry_attempt(job, attrs)
+        if attrs["workflow_id"].present?
+          return job.workflows.find(attrs.fetch("workflow_id"))
+        end
+
+        scope = job.workflows
+        scope = scope.where(trigger_kind: attrs["workflow_kind"]) if attrs["workflow_kind"].present?
+        scope.order(:id).last || raise(ArgumentError, "auto_retry_attempt for #{job.slug} has no workflow")
+      end
+
+      def run_for_auto_retry_attempt(workflow, attrs)
+        if attrs["run_id"].present?
+          return workflow.runs.find(attrs.fetch("run_id"))
+        end
+
+        scope = workflow.runs
+        if attrs["step_kind"].present?
+          scope = scope.joins(:step).where(steps: { kind: attrs["step_kind"] })
+        end
+        scope.order(:id).last || raise(ArgumentError, "auto_retry_attempt for #{workflow.slug} has no run")
       end
 
       def attach_work_unit!(job, workflow, config)
