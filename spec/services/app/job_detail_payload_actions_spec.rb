@@ -175,6 +175,71 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe "#actions_json Coding Mode takeover" do
+    around do |example|
+      setting = AppSetting.current
+      original_mode = setting.mode
+      setting.update!(mode: "advanced", mode_configured_at: Time.current)
+      original_github_token = user.github_token
+      user.update!(github_token: "ghp_test")
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      original_enabled = feature.enabled
+      feature.update!(enabled: true)
+      Feature.clear_cache!
+      example.run
+    ensure
+      setting&.update!(mode: original_mode || "advanced")
+      user&.update!(github_token: original_github_token)
+      feature&.update!(enabled: original_enabled)
+      Feature.clear_cache!
+    end
+
+    it "offers Coding Mode feedback in advanced mode when ordinary request changes is off" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", branch_name: "syrus/job-1")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions.fetch(:can_request_changes)).to be(false)
+      expect(actions.fetch(:can_open_in_coding_mode)).to be(true)
+      expect(actions.fetch(:open_in_coding_mode_blocked_reason)).to be_nil
+    end
+
+    it "allows queued initial takeover holds" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", branch_name: "syrus/job-2")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "queued")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions.fetch(:can_open_in_coding_mode)).to be(true)
+      expect(actions.fetch(:open_in_coding_mode_blocked_reason)).to be_nil
+    end
+
+    it "blocks incompatible active workflow ownership" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", branch_name: "syrus/job-3")
+      workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "queued")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions.fetch(:can_open_in_coding_mode)).to be(false)
+      expect(actions.fetch(:open_in_coding_mode_blocked_reason)).to include("active workflow ownership")
+    end
+
+    it "blocks missing repository GitHub credentials before checkout" do
+      user.update!(github_token: nil)
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", branch_name: "syrus/job-4")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions.fetch(:can_open_in_coding_mode)).to be(false)
+      expect(actions.fetch(:open_in_coding_mode_blocked_reason)).to eq(JobCodingMode::Takeover::GITHUB_TOKEN_REQUIRED_MESSAGE)
+    end
+  end
+
   describe "#feedback_history_json" do
     it "returns chat feedback workflow artifacts in chronological order" do
       job = Factories.job_record(repository: repo)

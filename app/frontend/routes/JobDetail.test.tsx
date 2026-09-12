@@ -998,6 +998,15 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument()
   })
 
+  it("renders the Request changes button when Coding Mode feedback is allowed", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "approved", summary_state: "approved" },
+      actions: { ...jobPayload().actions, can_request_changes: false, can_open_in_coding_mode: true }
+    }))
+
+    expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument()
+  })
+
   it("hides the Request changes button when the action is not allowed", () => {
     renderJobDetail(jobPayload({
       job: { ...baseJob(), state: "running", summary_state: "running" },
@@ -1028,6 +1037,44 @@ describe("JobDetailView", () => {
       expect(screen.queryByPlaceholderText("What should be changed?")).not.toBeInTheDocument()
     })
     expect(screen.getByText("Created a new Job to track this feedback.")).toBeInTheDocument()
+  })
+
+  it("opens request-changes feedback in Coding Mode chat", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ redirect_to: "/chats/42", message: "Opened Coding Mode chat and queued your feedback." }, 200))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "approved", summary_state: "approved" },
+      actions: { ...jobPayload().actions, can_request_changes: false, can_open_in_coding_mode: true }
+    }), { showLocation: true })
+
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    expect(screen.queryByRole("button", { name: "Create Job" })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "  Tighten the copy.  " } })
+    fireEvent.click(screen.getByRole("button", { name: "Open in Coding Chat" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/open_in_coding_mode", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ feedback: "Tighten the copy." })
+      }))
+    })
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chats/42"))
+  })
+
+  it("shows why request-changes feedback cannot open in Coding Mode", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "approved", summary_state: "approved" },
+      actions: {
+        ...jobPayload().actions,
+        can_request_changes: true,
+        can_open_in_coding_mode: false,
+        open_in_coding_mode_blocked_reason: "Coding Mode is not enabled on this instance."
+      }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+
+    expect(screen.getByRole("button", { name: "Open in Coding Chat" })).toBeDisabled()
+    expect(screen.getByText("Coding Mode is not enabled on this instance.")).toBeInTheDocument()
   })
 
   it("shows an inline error when request-changes submission fails", async () => {
