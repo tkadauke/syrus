@@ -167,6 +167,7 @@ per-user/private:
   - plugins/test_insights/app/controllers/api/v1/app/job_test_results_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
   - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
+  - app/controllers/api/v1/app/maintenance_tasks_controller.rb
   - app/controllers/api/v1/app/notification_preferences_controller.rb
   - app/controllers/api/v1/app/notifications_controller.rb
   - app/controllers/api/v1/app/passkeys_controller.rb
@@ -233,6 +234,7 @@ admin-only:
   - app/controllers/api/v1/app/admin/github_app_controller.rb
   - app/controllers/api/v1/app/admin/installations_controller.rb
   - app/controllers/api/v1/app/admin/invitations_controller.rb
+  - app/controllers/api/v1/app/admin/maintenance_tasks_controller.rb
   - app/controllers/api/v1/app/admin/mcp_tool_usage_controller.rb
   - app/controllers/api/v1/app/admin/plugins_controller.rb
   - app/controllers/api/v1/app/admin/queue_controller.rb
