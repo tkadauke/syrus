@@ -63,9 +63,11 @@ module Steps
 
       if plan.rerun_only_failed? && step.iteration > 1
         passed_steps_by_name = previous_iteration_passed_steps_by_name
-        active_graders, carried_forward = active_graders.partition { |g| !passed_steps_by_name.key?(g.name) }
+        active_graders, carried_forward = partition_rerun_only_failed_graders(active_graders, passed_steps_by_name)
         if carried_forward.any?
-          carried_forward.each { |g| log("[grader_fanout] skipping #{g.name} (passed iteration #{step.iteration - 1}; rerun_only_failed)") }
+          carried_forward.each do |grader, result|
+            log("[grader_fanout] skipping #{grader.name} (passed iteration #{step.iteration - 1}; rerun_only_failed; #{result.reason}) [#{target_label_for(grader)}]")
+          end
           record_carried_forward_graders!(carried_forward, passed_steps_by_name)
         end
       end
@@ -210,10 +212,9 @@ module Steps
 
     # Graders that succeeded on the immediately preceding iteration, keyed by
     # name. `rerun_only_failed` only looks back one iteration (not the full
-    # history) — a grader that was itself carried-forward (and so has no Step
-    # of its own) in iteration N-1 is treated as needing a fresh run in
-    # iteration N. That is a safe, self-correcting fallback (it just reruns
-    # a grader that might still be green) rather than a correctness bug.
+    # history). A previous pass is only reusable when current target-health
+    # fingerprints still prove the target and executable dependencies. That
+    # keeps retry repairs from skipping a grader whose inputs changed.
     def previous_iteration_passed_steps_by_name
       return {} if step.loop_id.blank?
 
@@ -223,17 +224,49 @@ module Steps
               .to_h
     end
 
+    def partition_rerun_only_failed_graders(active_graders, passed_steps_by_name)
+      carried_forward = []
+      remaining = active_graders.reject do |grader|
+        next false unless passed_steps_by_name.key?(grader.name)
+
+        result = target_health_reuse.for_target(target_label_for(grader))
+        if grader.required && result.reusable?
+          carried_forward << [ grader, result ]
+          true
+        else
+          forced = forced_target_health_entry(grader, result, reason: carry_forward_blocked_reason(grader, result)).merge(
+            "source_iteration" => step.iteration - 1,
+            "carry_forward_blocked" => true
+          )
+          record_target_health_forced!([ forced ])
+          false
+        end
+      end
+
+      [ remaining, carried_forward ]
+    end
+
+    def carry_forward_blocked_reason(grader, result)
+      return result.reason if grader.required
+
+      "target is optional; only required targets are eligible for carry-forward"
+    end
+
     # Snapshots enough of the prior passing grader Step's details for
     # Steps::GraderCollect to both report it in this iteration's results and
     # record a per-iteration GraderConclusion for it, without re-querying
     # Steps itself.
     def record_carried_forward_graders!(carried_forward, passed_steps_by_name)
-      entries = carried_forward.map do |g|
-        prior_details = passed_steps_by_name[g.name]&.details || {}
+      entries = carried_forward.map do |grader, result|
+        prior_details = passed_steps_by_name[grader.name]&.details || {}
         {
-          "name" => g.name,
-          "required" => g.required,
+          "name" => grader.name,
+          "required" => grader.required,
+          "target_label" => target_label_for(grader),
           "source_iteration" => step.iteration - 1,
+          "reason" => result.reason,
+          "target_fingerprints" => result.fingerprints.to_h,
+          "target_health_record_refs" => result.record_refs,
           "exit_code" => prior_details["exit_code"],
           "duration_s" => prior_details["duration_s"],
           "log_path" => prior_details["log_path"],
@@ -267,6 +300,8 @@ module Steps
       skipped = []
       forced = []
       remaining = graders.reject do |grader|
+        next false unless grader.required
+
         result = target_health_reuse.for_target(target_label_for(grader))
         if result.reusable?
           skipped << skipped_target_health_entry(grader, result)
@@ -283,12 +318,12 @@ module Steps
       remaining
     end
 
-    def forced_target_health_entry(grader, result)
+    def forced_target_health_entry(grader, result, reason: result.reason)
       {
         "name" => grader.name,
         "required" => grader.required,
         "target_label" => target_label_for(grader),
-        "reason" => result.reason,
+        "reason" => reason,
         "target_fingerprints" => result.fingerprints.to_h,
         "target_health_record_refs" => result.record_refs
       }
@@ -301,6 +336,7 @@ module Steps
         "required" => grader.required,
         "target_label" => target_label_for(grader),
         "reason" => result.reason,
+        "target_fingerprints" => result.fingerprints.to_h,
         "target_health_record_refs" => result.record_refs
       }.merge(ref.slice("target_health_record_id", "commit_sha", "checked_at")).compact
     end

@@ -885,7 +885,22 @@ RSpec.describe Steps::GraderCollect do
       {
         "name" => name,
         "required" => required,
+        "target_label" => "//:grade/#{name}",
         "source_iteration" => 0,
+        "reason" => "latest target health record passed",
+        "target_fingerprints" => {
+          "input_fingerprint" => "input",
+          "command_fingerprint" => "command",
+          "environment_fingerprint" => "env"
+        },
+        "target_health_record_refs" => [
+          {
+            "target_health_record_id" => 123,
+            "target_label" => "//:grade/#{name}",
+            "commit_sha" => "previous123",
+            "status" => "passed"
+          }
+        ],
         "exit_code" => 0,
         "duration_s" => 1.2,
         "log_path" => ".syrus/grade-output/iteration-1/#{name}.log",
@@ -902,7 +917,14 @@ RSpec.describe Steps::GraderCollect do
       iteration = workflow.reload.artifact("iterations").first
       expect(iteration).to include(
         include("name" => "tests", "status" => "passed"),
-        include("name" => "lint", "status" => "passed", "carried_forward" => true)
+        include(
+          "name" => "lint",
+          "status" => "passed",
+          "carried_forward" => true,
+          "target_label" => "//:grade/lint",
+          "target_health_record_refs" => [ include("target_health_record_id" => 123) ],
+          "reason" => "latest target health record passed"
+        )
       )
     end
 
@@ -921,7 +943,14 @@ RSpec.describe Steps::GraderCollect do
         required: true,
         status: "passed"
       )
-      expect(carried.metadata).to include("carried_forward" => true, "source_iteration" => 0)
+      expect(carried.metadata).to include(
+        "carried_forward" => true,
+        "source_iteration" => 0,
+        "target_label" => "//:grade/lint",
+        "target_health_record_refs" => [ include("target_health_record_id" => 123) ],
+        "target_fingerprints" => include("input_fingerprint" => "input"),
+        "carry_forward_reason" => "latest target health record passed"
+      )
     end
 
     it "still succeeds when every active grader is carried forward and none has a Step this iteration" do
