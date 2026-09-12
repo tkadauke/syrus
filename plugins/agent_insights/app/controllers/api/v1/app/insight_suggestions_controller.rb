@@ -242,20 +242,26 @@ module Api
             return
           end
 
-          memory = AgentMemory::Entry.create!(user: Current.user, 
-            kind: "project_fact",
-            scope: "repository",
-            scope_id: repository.id,
-            content: suggestion.redacted_memory_suggestion,
-            source_type: "insight",
-            source_id: suggestion.id,
-            author: "agent",
-            confidence: suggestion.confidence
-          )
+          memory = nil
+          ApplicationRecord.transaction do
+            memory = AgentMemory::Entry.create!(
+              user: Current.user,
+              kind: "project_fact",
+              scope: "repository",
+              scope_id: repository.id,
+              content: suggestion.redacted_memory_suggestion,
+              source_type: "insight",
+              source_id: suggestion.id,
+              author: "agent",
+              confidence: suggestion.confidence
+            )
+
+            suggestion.accept! if suggestion.pending?
+          end
 
           render json: {
             message: "Memory saved.",
-            suggestion: suggestion_json(suggestion),
+            suggestion: suggestion_json(suggestion.reload),
             memory_id: memory.id
           }
         end
