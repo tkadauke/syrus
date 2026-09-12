@@ -16,7 +16,7 @@ module Admin
           active_folder = PerformanceLogging.phase("admin_processes.active_folder") { active_smart_folder }
           base_scope = SpawnedProcess.all
           filter = PerformanceLogging.phase("admin_processes.display_filter") { display_filter(active_folder) }
-          scope = filter.apply(base_scope).includes(workflow: [ :job, :user ], chat_session: :user).order(started_at: :desc).limit(@per_page)
+          scope = filter.apply(base_scope).includes(:agent, workflow: [ :job, :user ], chat_session: :user).order(started_at: :desc).limit(@per_page)
 
           processes = PerformanceLogging.phase("admin_processes.load_processes") { scope.to_a }
           PerformanceLogging.phase("admin_processes.owner_user_cache") { warm_owner_user_cache(processes) }
@@ -189,12 +189,19 @@ module Admin
           }
         end
 
+        if (agent_payload = agent_owner_payload(process))
+          return agent_payload
+        end
+
         preview_owner_payload(process)
       end
 
       def owner_user(process)
         return process.workflow.user if process.workflow
         return process.chat_session.user if process.chat_session
+        if (agent_user = agent_owner_user(process))
+          return agent_user
+        end
 
         preview_owner_user(process)
       end
@@ -216,6 +223,33 @@ module Admin
         @preview_environment_owner_users_by_id = preview_environment_owner_users_by_id(attribution_values.filter_map { |attrs| attrs["preview_environment_id"] })
         @preview_job_users_by_id = users_by_job_id(attribution_values.filter_map { |attrs| attrs["job_id"] })
         @preview_repository_users_by_id = users_by_repository_id(attribution_values.filter_map { |attrs| attrs["repository_id"] })
+        warm_agent_owner_cache(processes)
+      end
+
+      def warm_agent_owner_cache(processes)
+        design_doc_agents = processes.filter_map(&:agent).select do |agent|
+          agent.resumable_type == "DesignDocs::DesignDocAgentRun"
+        end
+        return if design_doc_agents.empty?
+
+        ActiveRecord::Associations::Preloader.new(
+          records: design_doc_agents,
+          associations: { resumable: [ :design_doc, :requested_by_user ] }
+        ).call
+      end
+
+      def agent_owner_payload(process)
+        resumable = process.agent&.resumable
+        return unless resumable.respond_to?(:spawned_process_owner_payload)
+
+        resumable.spawned_process_owner_payload
+      end
+
+      def agent_owner_user(process)
+        resumable = process.agent&.resumable
+        return unless resumable.respond_to?(:spawned_process_owner_user)
+
+        resumable.spawned_process_owner_user
       end
 
       def preview_owner_user(process)

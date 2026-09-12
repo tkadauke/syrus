@@ -195,6 +195,8 @@ function SessionsPagination({ payload, pathname, prefix, search }: { payload: { 
 
 function SessionCard({ session }: { session: AgentActivitySession }) {
   const { t } = useT("agent_activity")
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
   const duration = formatDuration(session.duration_seconds)
   const [expanded, setExpanded] = useState(false)
 
@@ -220,23 +222,40 @@ function SessionCard({ session }: { session: AgentActivitySession }) {
           </span>
         </div>
         {session.job?.title ? <p className="truncate text-xs text-gray-500 dark:text-gray-400">{session.job.title}</p> : null}
-        <button className="truncate text-left text-sm text-gray-800 hover:underline dark:text-gray-200" onClick={() => setExpanded((current) => !current)} type="button">
-          {session.outcome_summary || t("no_summary_submitted")}
-        </button>
-        <button className="self-start text-xs font-medium text-brand hover:underline" onClick={() => setExpanded((current) => !current)} type="button">
-          {expanded ? t("transcript_hide") : t("transcript_heading")}
-        </button>
+        {session.transcript_path ? (
+          <button className="truncate text-left text-sm text-gray-800 hover:underline dark:text-gray-200" onClick={() => setExpanded((current) => !current)} type="button">
+            {session.outcome_summary || t("no_summary_submitted")}
+          </button>
+        ) : session.chat_path ? (
+          <Link className="truncate text-sm text-gray-800 hover:underline dark:text-gray-200" to={withRoutePrefix(session.chat_path, prefix)}>
+            {session.outcome_summary || t("no_summary_submitted")}
+          </Link>
+        ) : (
+          <p className="truncate text-sm text-gray-800 dark:text-gray-200">{session.outcome_summary || t("no_summary_submitted")}</p>
+        )}
+        {session.transcript_path ? (
+          <button className="self-start text-xs font-medium text-brand hover:underline" onClick={() => setExpanded((current) => !current)} type="button">
+            {expanded ? t("transcript_hide") : t("transcript_heading")}
+          </button>
+        ) : session.chat_path ? (
+          <Link className="self-start text-xs font-medium text-brand hover:underline" to={withRoutePrefix(session.chat_path, prefix)}>
+            {t("open_chat")}
+          </Link>
+        ) : null}
       </div>
-      {expanded ? <TranscriptDrawer session={session} /> : null}
+      {expanded && session.transcript_path ? <TranscriptDrawer session={session} /> : null}
     </li>
   )
 }
 
 function TranscriptDrawer({ session }: { session: AgentActivitySession }) {
+  if (!session.transcript_path) return null
+
   const { t } = useT("agent_activity")
+  const transcriptPath = session.transcript_path
   const transcript = useQuery({
-    queryKey: [ "agent_activity", "transcript", session.transcript_path ],
-    queryFn: () => fetchAgentActivityTranscript(session.transcript_path)
+    queryKey: [ "agent_activity", "transcript", transcriptPath ],
+    queryFn: () => fetchAgentActivityTranscript(transcriptPath)
   })
 
   return (

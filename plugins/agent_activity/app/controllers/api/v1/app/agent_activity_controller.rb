@@ -16,7 +16,7 @@ module Api
           )
 
           render json: {
-            sessions: result[:rows].map { |run| serialize(run) },
+            sessions: result[:rows].map { |agent| serialize(agent) },
             total: result[:total],
             page: result[:page],
             per: result[:per],
@@ -60,10 +60,10 @@ module Api
           ).folders
         end
 
-        def serialize(run)
+        def serialize(agent)
           ::AgentActivity::SessionSerializer.call(
-            run,
-            transcript_path: "/api/v1/app/jobs/#{run.job_id}/runs/#{run.id}/artifacts"
+            agent,
+            scope: :mine
           )
         end
 

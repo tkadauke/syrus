@@ -58,6 +58,7 @@ function session(overrides: Partial<AgentActivitySession> = {}): AgentActivitySe
     created_at: "2026-01-01T00:09:00Z",
     duration_seconds: 120,
     transcript_path: "/api/v1/app/jobs/42/runs/501/artifacts",
+    chat_path: null,
     job: { id: 42, slug: "JOB-42", title: "Fix the aqueducts", state: "running" },
     repository: { id: 1, slug: "acme/widgets" },
     workflow_id: 900,
@@ -328,6 +329,35 @@ describe("AgentActivityFeed", () => {
     fireEvent.click(screen.getByText("Transcript"))
 
     expect(await screen.findByText("Looked at the aqueducts.")).toBeInTheDocument()
+  })
+
+  it("links chat-backed sessions to the live chat instead of opening an inline transcript drawer", async () => {
+    const calls = setupFetchMock({
+      sessions: [
+        session({
+          id: 700,
+          slug: "AGENT-700",
+          step_kind: "coding",
+          role: "chat:coding",
+          role_label: "Coding",
+          outcome_summary: "Refined the handoff plan.",
+          transcript_path: null,
+          chat_path: "/chats/88",
+          job: null
+        })
+      ]
+    })
+    renderFeed()
+
+    expect(await screen.findByRole("link", { name: "Refined the handoff plan." })).toHaveAttribute("href", "/chats/88")
+    expect(screen.getByRole("link", { name: "Open chat" })).toHaveAttribute("href", "/chats/88")
+    expect(screen.queryByRole("button", { name: "Transcript" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("link", { name: "Open chat" }))
+
+    await waitFor(() => {
+      expect(calls.some((url) => url.includes("/artifacts"))).toBe(false)
+    })
   })
 
   it("shows an adversarial_review session's verdict pill alongside its critique", async () => {

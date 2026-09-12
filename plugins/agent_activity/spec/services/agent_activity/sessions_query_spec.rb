@@ -21,26 +21,108 @@ RSpec.describe AgentActivity::SessionsQuery do
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 
+  def agent_activity_job_with_run(**attrs)
+    job = Factories.job_with_run(**attrs)
+    record_agent_process(job.runs.last)
+    job
+  end
+
+  def record_agent_process(run)
+    agent = Agent.find_or_create_for!(run)
+    SpawnedProcess.create!(
+      agent: agent,
+      run: run,
+      workflow: run.workflow,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "spec-host",
+      started_at: run.started_at || run.created_at,
+      finished_at: run.state == "running" ? nil : (run.finished_at || run.updated_at),
+      outcome: run.state == "running" ? nil : run.state
+    )
+  end
+
+  def record_chat_process(chat, started_at:, finished_at:, outcome:)
+    agent = Agent.find_or_create_for!(chat)
+    SpawnedProcess.create!(
+      agent: agent,
+      chat_session: chat,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "spec-host",
+      started_at: started_at,
+      finished_at: finished_at,
+      outcome: outcome
+    )
+    agent
+  end
+
+  def design_doc_agent_run(requested_by_user:, title: "Design notes", repository: nil)
+    doc = DesignDocs::DesignDoc.create!(
+      owner_user: requested_by_user,
+      title: title,
+      markdown: "Alpha beta gamma",
+      visibility: "private"
+    )
+    DesignDocs::DesignDocRepository.create!(design_doc: doc, repository: repository) if repository
+    version = doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: requested_by_user)
+    doc.update!(current_version: version)
+    comment_result = DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: requested_by_user,
+      attributes: { body: "Please help", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+    )
+    DesignDocs::DesignDocAgentRun.create!(
+      design_doc: doc,
+      thread: comment_result.thread,
+      triggering_comment: comment_result.comment,
+      requested_by_user: requested_by_user,
+      base_version: version,
+      agent_provider: "codex",
+      status: "succeeded",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago
+    )
+  end
+
+  def record_design_doc_process(run)
+    agent = Agent.find_or_create_for!(run)
+    SpawnedProcess.create!(
+      agent: agent,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "spec-host",
+      started_at: 1.minute.ago,
+      finished_at: 30.seconds.ago,
+      outcome: "succeeded"
+    )
+    agent
+  end
+
+  def row_job_ids(result)
+    result[:rows].map { |agent| agent.resumable.job_id }
+  end
+
   it "only includes Runs whose Step is agentic" do
-    job = Factories.job_with_run(repository: my_repository, user: operator, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 1.minute.ago })
-    Factories.job_with_run(repository: my_repository, user: operator, step_attrs: { kind: "prepare" }, run_attrs: { state: "running", started_at: 1.minute.ago })
+    job = agent_activity_job_with_run(repository: my_repository, user: operator, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 1.minute.ago })
+    agent_activity_job_with_run(repository: my_repository, user: operator, step_attrs: { kind: "prepare" }, run_attrs: { state: "running", started_at: 1.minute.ago })
 
     result = sessions_for(scope: :mine, user: operator)
 
-    expect(result[:rows].map(&:job_id)).to eq([ job.id ])
+    expect(row_job_ids(result)).to eq([ job.id ])
   end
 
   describe "scope: :mine" do
     it "includes sessions on repositories the user belongs to" do
-      job = Factories.job_with_run(repository: my_repository, user: operator, run_attrs: { state: "running", started_at: 1.minute.ago })
+      job = agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "running", started_at: 1.minute.ago })
 
       result = sessions_for(scope: :mine, user: operator)
 
-      expect(result[:rows].map(&:job_id)).to contain_exactly(job.id)
+      expect(row_job_ids(result)).to contain_exactly(job.id)
     end
 
     it "excludes sessions on repositories the user does not belong to and does not own" do
-      Factories.job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "running", started_at: 1.minute.ago })
+      agent_activity_job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "running", started_at: 1.minute.ago })
 
       result = sessions_for(scope: :mine, user: operator)
 
@@ -48,11 +130,11 @@ RSpec.describe AgentActivity::SessionsQuery do
     end
 
     it "includes a Job the user effectively owns even on a repository they don't otherwise belong to" do
-      job = Factories.job_with_run(repository: other_repository, user: operator, owner_user: operator, run_attrs: { state: "running", started_at: 1.minute.ago })
+      job = agent_activity_job_with_run(repository: other_repository, user: operator, owner_user: operator, run_attrs: { state: "running", started_at: 1.minute.ago })
 
       result = sessions_for(scope: :mine, user: operator)
 
-      expect(result[:rows].map(&:job_id)).to contain_exactly(job.id)
+      expect(row_job_ids(result)).to contain_exactly(job.id)
     end
 
     it "includes sessions on a repository granted through Team membership, mirroring Job.accessible_to" do
@@ -60,21 +142,21 @@ RSpec.describe AgentActivity::SessionsQuery do
       team = Team.create!(name: "Platform")
       team.team_memberships.create!(user: team_member, role: "member")
       team.team_repositories.create!(repository: other_repository, role: "read")
-      job = Factories.job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "running", started_at: 1.minute.ago })
+      job = agent_activity_job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "running", started_at: 1.minute.ago })
 
       result = sessions_for(scope: :mine, user: team_member)
 
-      expect(result[:rows].map(&:job_id)).to contain_exactly(job.id)
+      expect(row_job_ids(result)).to contain_exactly(job.id)
     end
 
     it "includes sessions on an upstream repository of a repository the user belongs to, mirroring Job.accessible_to" do
       upstream_repository = Factories.repository(user: Factories.user)
       Factories.repository(user: operator, upstream_repository: upstream_repository)
-      job = Factories.job_with_run(repository: upstream_repository, user: upstream_repository.user, run_attrs: { state: "running", started_at: 1.minute.ago })
+      job = agent_activity_job_with_run(repository: upstream_repository, user: upstream_repository.user, run_attrs: { state: "running", started_at: 1.minute.ago })
 
       result = sessions_for(scope: :mine, user: operator)
 
-      expect(result[:rows].map(&:job_id)).to contain_exactly(job.id)
+      expect(row_job_ids(result)).to contain_exactly(job.id)
     end
 
     it "matches exactly the Job set predicted by Job.accessible_to/effectively_owned_by" do
@@ -88,10 +170,10 @@ RSpec.describe AgentActivity::SessionsQuery do
 
       owned_elsewhere = Factories.repository(user: Factories.user)
 
-      visible_via_team = Factories.job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "running", started_at: 3.minutes.ago })
-      visible_via_upstream = Factories.job_with_run(repository: upstream_repository, user: upstream_repository.user, run_attrs: { state: "running", started_at: 2.minutes.ago })
-      visible_via_ownership = Factories.job_with_run(repository: owned_elsewhere, user: team_member, owner_user: team_member, run_attrs: { state: "running", started_at: 1.minute.ago })
-      not_visible = Factories.job_with_run(repository: owned_elsewhere, user: owned_elsewhere.user, run_attrs: { state: "running", started_at: 30.seconds.ago })
+      visible_via_team = agent_activity_job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "running", started_at: 3.minutes.ago })
+      visible_via_upstream = agent_activity_job_with_run(repository: upstream_repository, user: upstream_repository.user, run_attrs: { state: "running", started_at: 2.minutes.ago })
+      visible_via_ownership = agent_activity_job_with_run(repository: owned_elsewhere, user: team_member, owner_user: team_member, run_attrs: { state: "running", started_at: 1.minute.ago })
+      not_visible = agent_activity_job_with_run(repository: owned_elsewhere, user: owned_elsewhere.user, run_attrs: { state: "running", started_at: 30.seconds.ago })
 
       predicted_job_ids = Job.accessible_to(team_member).or(Job.effectively_owned_by(team_member)).pluck(:id)
 
@@ -99,24 +181,130 @@ RSpec.describe AgentActivity::SessionsQuery do
 
       expect(predicted_job_ids).to include(visible_via_team.id, visible_via_upstream.id, visible_via_ownership.id)
       expect(predicted_job_ids).not_to include(not_visible.id)
-      expect(result[:rows].map(&:job_id)).to match_array(predicted_job_ids & [ visible_via_team.id, visible_via_upstream.id, visible_via_ownership.id, not_visible.id ])
+      expect(row_job_ids(result)).to match_array(predicted_job_ids & [ visible_via_team.id, visible_via_upstream.id, visible_via_ownership.id, not_visible.id ])
     end
   end
 
   describe "scope: :admin" do
     it "includes sessions across every repository" do
-      job = Factories.job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "running", started_at: 1.minute.ago })
+      job = agent_activity_job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "running", started_at: 1.minute.ago })
 
       result = sessions_for(scope: :admin, user: Factories.user(admin: true))
 
-      expect(result[:rows].map(&:job_id)).to include(job.id)
+      expect(row_job_ids(result)).to include(job.id)
+    end
+
+    it "still self-scopes chat-backed sessions to the requesting admin" do
+      admin = Factories.user(admin: true)
+      admin_chat = ChatSession.create!(user: admin, repository: Factories.repository(user: admin), mode: "coding")
+      other_chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      admin_agent = record_chat_process(admin_chat, started_at: 2.minutes.ago, finished_at: nil, outcome: nil)
+      record_chat_process(other_chat, started_at: 1.minute.ago, finished_at: nil, outcome: nil)
+
+      result = sessions_for(scope: :admin, user: admin)
+
+      expect(result[:rows]).to contain_exactly(admin_agent)
+    end
+  end
+
+  describe "chat-backed agents" do
+    it "collapses multiple turns into one Agent Activity row" do
+      chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      agent = record_chat_process(chat, started_at: 3.minutes.ago, finished_at: 2.minutes.ago, outcome: "succeeded")
+      record_chat_process(chat, started_at: 1.minute.ago, finished_at: nil, outcome: nil)
+
+      result = sessions_for(scope: :mine, user: operator)
+
+      expect(result[:rows]).to contain_exactly(agent)
+      expect(result[:running_count]).to eq(1)
+    end
+
+    it "treats Failed as the latest spawned process outcome only" do
+      latest_success_chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      latest_failed_chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      record_chat_process(latest_success_chat, started_at: 4.minutes.ago, finished_at: 3.minutes.ago, outcome: "failed")
+      record_chat_process(latest_success_chat, started_at: 2.minutes.ago, finished_at: 1.minute.ago, outcome: "succeeded")
+      failed_agent = record_chat_process(latest_failed_chat, started_at: 1.minute.ago, finished_at: Time.current, outcome: "failed")
+      filter = AgentActivity::Filter.from_tree({ "and" => [ { "field" => "status", "op" => "is", "value" => "failed" } ] }, user: operator)
+
+      result = described_class.call(scope: :mine, user: operator, filter: filter)
+
+      expect(result[:rows]).to contain_exactly(failed_agent)
+    end
+  end
+
+  describe "design-doc-backed agents" do
+    it "includes visible design-doc agent runs with design-doc context" do
+      run = design_doc_agent_run(requested_by_user: operator, title: "Merge train design")
+      agent = record_design_doc_process(run)
+
+      result = sessions_for(scope: :mine, user: operator)
+
+      expect(result[:rows]).to contain_exactly(agent)
+      payload = AgentActivity::SessionSerializer.call(agent)
+      expect(payload[:role_label]).to eq("Design Doc")
+      expect(payload[:outcome_summary]).to include("DOC-#{run.design_doc_id}", "Merge train design")
+    end
+  end
+
+  describe "filters" do
+    it "filters repository_id across workflow, chat, and design-doc contexts" do
+      workflow_job = agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 3.minutes.ago })
+      chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      chat_agent = record_chat_process(chat, started_at: 2.minutes.ago, finished_at: 1.minute.ago, outcome: "succeeded")
+      design_run = design_doc_agent_run(requested_by_user: operator, repository: my_repository)
+      design_agent = record_design_doc_process(design_run)
+      agent_activity_job_with_run(repository: other_repository, user: other_repository.user, run_attrs: { state: "succeeded", started_at: 4.minutes.ago })
+      filter = AgentActivity::Filter.from_tree({ "and" => [ { "field" => "repository_id", "op" => "is", "value" => my_repository.id } ] }, user: operator)
+
+      result = described_class.call(scope: :mine, user: operator, filter: filter)
+
+      expect(result[:rows]).to match_array([ Agent.find_by!(resumable: workflow_job.runs.last), chat_agent, design_agent ])
+    end
+
+    it "filters role values for chat modes and design-doc agents" do
+      coding_chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      coding_agent = record_chat_process(coding_chat, started_at: 3.minutes.ago, finished_at: 2.minutes.ago, outcome: "succeeded")
+      planning_chat = ChatSession.create!(user: operator, repository: my_repository, mode: "planning")
+      record_chat_process(planning_chat, started_at: 2.minutes.ago, finished_at: 1.minute.ago, outcome: "succeeded")
+      design_agent = record_design_doc_process(design_doc_agent_run(requested_by_user: operator, repository: my_repository))
+      filter = AgentActivity::Filter.from_tree({ "and" => [ { "field" => "step_kind", "op" => "is_one_of", "value" => [ "coding", "design_doc" ] } ] }, user: operator)
+
+      result = described_class.call(scope: :mine, user: operator, filter: filter)
+
+      expect(result[:rows]).to match_array([ coding_agent, design_agent ])
+    end
+  end
+
+  describe "preloading" do
+    it "loads process and context associations needed by the serializer" do
+      workflow_job = agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 4.minutes.ago })
+      chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
+      chat_agent = record_chat_process(chat, started_at: 3.minutes.ago, finished_at: 2.minutes.ago, outcome: "succeeded")
+      design_agent = record_design_doc_process(design_doc_agent_run(requested_by_user: operator, repository: my_repository))
+
+      result = sessions_for(scope: :mine, user: operator)
+
+      workflow_agent = result[:rows].find { |agent| agent.resumable == workflow_job.runs.last }
+      expect(workflow_agent.association(:spawned_processes)).to be_loaded
+      expect(workflow_agent.resumable.association(:job)).to be_loaded
+      expect(workflow_agent.resumable.association(:step)).to be_loaded
+      expect(workflow_agent.resumable.step.association(:workflow)).to be_loaded
+      expect(chat_agent.reload.association(:spawned_processes)).not_to be_loaded
+      loaded_chat_agent = result[:rows].find { |agent| agent.id == chat_agent.id }
+      expect(loaded_chat_agent.association(:spawned_processes)).to be_loaded
+      expect(loaded_chat_agent.resumable.association(:repository_attachments)).to be_loaded
+      loaded_design_agent = result[:rows].find { |agent| agent.id == design_agent.id }
+      expect(loaded_design_agent.association(:spawned_processes)).to be_loaded
+      expect(loaded_design_agent.resumable.association(:design_doc)).to be_loaded
+      expect(loaded_design_agent.resumable.design_doc.association(:repositories)).to be_loaded
     end
   end
 
   describe "running_count" do
     it "counts running sessions within scope regardless of pagination/filter" do
-      Factories.job_with_run(repository: my_repository, user: operator, run_attrs: { state: "running", started_at: 1.minute.ago })
-      Factories.job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 10.minutes.ago, finished_at: 5.minutes.ago })
+      agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "running", started_at: 1.minute.ago })
+      agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 10.minutes.ago, finished_at: 5.minutes.ago })
 
       result = sessions_for(scope: :mine, user: operator)
 
@@ -127,7 +315,7 @@ RSpec.describe AgentActivity::SessionsQuery do
 
   describe "pagination" do
     it "defaults to 20 rows per page" do
-      21.times { |n| Factories.job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
+      21.times { |n| agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
 
       result = sessions_for(scope: :mine, user: operator)
 
@@ -137,7 +325,7 @@ RSpec.describe AgentActivity::SessionsQuery do
     end
 
     it "limits and pages rows while total reflects the full filtered count" do
-      3.times { |n| Factories.job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
+      3.times { |n| agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
 
       result = sessions_for(scope: :mine, user: operator, page: 1, per: 2)
 
@@ -148,7 +336,7 @@ RSpec.describe AgentActivity::SessionsQuery do
     end
 
     it "uses a page-probe total for unfiltered feeds instead of counting every matching run" do
-      22.times { |n| Factories.job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
+      22.times { |n| agent_activity_job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
 
       queries = capture_sql do
         result = sessions_for(scope: :mine, user: operator)
@@ -163,12 +351,12 @@ RSpec.describe AgentActivity::SessionsQuery do
 
   describe "ordering" do
     it "orders most-recently-started first" do
-      older = Factories.job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 20.minutes.ago, finished_at: 15.minutes.ago })
-      newer = Factories.job_with_run(repository: my_repository, user: operator, run_attrs: { state: "running", started_at: 1.minute.ago })
+      older = agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 20.minutes.ago, finished_at: 15.minutes.ago })
+      newer = agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "running", started_at: 1.minute.ago })
 
       result = sessions_for(scope: :mine, user: operator)
 
-      expect(result[:rows].map(&:job_id)).to eq([ newer.id, older.id ])
+      expect(row_job_ids(result)).to eq([ newer.id, older.id ])
     end
   end
 
@@ -186,6 +374,7 @@ RSpec.describe AgentActivity::SessionsQuery do
       sql = relation.to_sql
       outer_clause = sql.split("(SELECT", 2).first
 
+      expect(sql).to match(/"?agents"?\."?resumable_type"?\s*=\s*'Run'/i)
       expect(sql).to match(/"?runs"?\."?job_id"?\s+IN\s+\(SELECT/i)
       expect(outer_clause).not_to match(/repository_id/i)
       expect(outer_clause).not_to match(/\bOR\b/i)

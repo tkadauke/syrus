@@ -117,6 +117,9 @@ class ClaudeInvocation
     mcp_server_failed = false
     current_run = Thread.current[:syrus_current_run]
     current_chat_session = Thread.current[:syrus_current_chat_session]
+    current_agent =
+      Thread.current[:syrus_current_agent] ||
+      (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
     runner_result = ProcessRunner.new(
       env: env,
       command: cmd,
@@ -128,6 +131,7 @@ class ClaudeInvocation
       run: current_run,
       workflow: current_run&.workflow,
       chat_session: current_chat_session,
+      agent: current_agent,
       stop_requested: -> { mcp_server_failed || stop_requested.call },
       on_spawned_process: process_started,
       on_output_line: ->(line) do

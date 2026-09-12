@@ -155,6 +155,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["user_id", "scope", "scope_id"], name: "index_agent_memory_entries_on_user_id_and_scope_and_scope_id"
   end
 
+  create_table "agents", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "resumable_id", null: false
+    t.string "resumable_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["resumable_type", "resumable_id"], name: "index_agents_on_resumable", unique: true
+  end
+
   create_table "app_settings", force: :cascade do |t|
     t.integer "adversarial_review_rounds", default: 0, null: false
     t.integer "chat_coding_workspace_budget_mb", default: 0, null: false
@@ -2536,6 +2544,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
   end
 
   create_table "spawned_processes", force: :cascade do |t|
+    t.bigint "agent_id"
     t.bigint "chat_session_id"
     t.string "command", limit: 4096, null: false
     t.datetime "created_at", null: false
@@ -2557,6 +2566,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.integer "wall_timeout_s"
     t.string "workdir", limit: 4096
     t.integer "workflow_id"
+    t.index ["agent_id"], name: "index_spawned_processes_on_agent_id"
     t.index ["chat_session_id"], name: "index_spawned_processes_on_chat_session_id"
     t.index ["finished_at", "hostname", "pid", "last_chunk_at"], name: "idx_spawned_processes_active_host_pid"
     t.index ["finished_at", "kind"], name: "idx_spawned_processes_active_kind"
@@ -2564,6 +2574,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["finished_at"], name: "index_spawned_processes_on_finished_at"
     t.index ["hostname"], name: "index_spawned_processes_on_hostname"
     t.index ["kill_requested_by_user_id"], name: "index_spawned_processes_on_kill_requested_by_user_id"
+    t.index ["kind", "agent_id", "started_at", "id"], name: "idx_spawned_processes_agent_activity_recency"
     t.index ["kind", "workdir", "finished_at"], name: "idx_spawned_processes_kind_workdir_active"
     t.index ["kind"], name: "index_spawned_processes_on_kind"
     t.index ["outcome", "started_at"], name: "idx_spawned_processes_outcome_started"

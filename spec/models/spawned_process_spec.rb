@@ -78,6 +78,13 @@ RSpec.describe SpawnedProcess do
     expect(sp.reload.chat_session).to eq(chat_session)
   end
 
+  it "optionally belongs to an agent" do
+    agent = Agent.find_or_create_for!(Factories.run)
+    sp = described_class.create!(base_attrs.merge(agent: agent))
+
+    expect(sp.reload.agent).to eq(agent)
+  end
+
   describe ".stale" do
     it "scopes to running rows whose heartbeat is older than the threshold" do
       fresh = described_class.create!(base_attrs.merge(last_chunk_at: 1.minute.ago))

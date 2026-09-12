@@ -533,6 +533,7 @@ RSpec.describe CodexInvocation do
       captured = {}
       allow(ProcessRunner).to receive(:new) do |**kwargs|
         captured[:chat_session] = kwargs[:chat_session]
+        captured[:agent] = kwargs[:agent]
         fake = double("ProcessRunner")
         allow(fake).to receive(:run).and_return(
           ProcessRunner::Result.new(
@@ -555,6 +556,39 @@ RSpec.describe CodexInvocation do
       end
 
       expect(captured[:chat_session]).to eq(chat_session)
+      expect(captured[:agent]).to eq(Agent.find_by!(resumable: chat_session))
+    end
+
+    it "attributes the spawned process to the current run's agent" do
+      run = Factories.run
+      captured = {}
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        captured[:run] = kwargs[:run]
+        captured[:workflow] = kwargs[:workflow]
+        captured[:agent] = kwargs[:agent]
+        fake = double("ProcessRunner")
+        allow(fake).to receive(:run).and_return(
+          ProcessRunner::Result.new(
+            exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+            operator_killed: false, aliveness_failed: false, duration_s: 1.0, spawned_process_id: nil
+          )
+        )
+        fake
+      end
+
+      Dir.mktmpdir do |home|
+        begin
+          Thread.current[:syrus_current_run] = run
+          described_class.new("/tmp/wkt", prompt: "x", api_key: "sk-test",
+                              codex_home: home, log_sink: null_sink).run
+        ensure
+          Thread.current[:syrus_current_run] = nil
+        end
+      end
+
+      expect(captured[:run]).to eq(run)
+      expect(captured[:workflow]).to eq(run.workflow)
+      expect(captured[:agent]).to eq(Agent.find_by!(resumable: run))
     end
 
     it "still surfaces a silent timeout when no provider result was received" do
