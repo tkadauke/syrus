@@ -952,6 +952,7 @@
   "page_title_work_units": "Work Units — Administration",
   "page_title_backend_exceptions": "Backend-Ausnahmen — Administration",
   "nav_work_units": "Work Units",
+  "nav_maintenance_tasks": "Wartungsaufgaben",
   "nav_backend_exceptions": "Backend-Ausnahmen",
   "work_units": {
     "heading": "Work Units",

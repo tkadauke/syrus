@@ -952,6 +952,7 @@
   "page_title_work_units": "Unitates Operis — Administratio",
   "page_title_backend_exceptions": "Exceptiones Backend — Administratio",
   "nav_work_units": "Unitates Operis",
+  "nav_maintenance_tasks": "Opera Curae",
   "nav_backend_exceptions": "Exceptiones Backend",
   "work_units": {
     "heading": "Unitates Operis",

@@ -41,6 +41,7 @@ export const CORE_ADMIN_NAV_ITEMS: readonly CoreAdminNavItem[] = [
   { id: "activity", labelKey: "nav_activity", to: "/admin/activity", paths: ["/admin/activity"], groupId: "operations", order: 30 },
   { id: "reconciler_activity", labelKey: "nav_reconciler_activity", to: "/admin/reconciler_activity", paths: ["/admin/reconciler_activity"], groupId: "operations", order: 40 },
   { id: "work_units", labelKey: "nav_work_units", to: "/admin/work_units", paths: ["/admin/work_units"], groupId: "operations", order: 50 },
+  { id: "maintenance_tasks", labelKey: "nav_maintenance_tasks", to: "/admin/maintenance_tasks", paths: ["/admin/maintenance_tasks"], groupId: "operations", order: 55 },
   { id: "processes", labelKey: "nav_processes", to: "/admin/processes", paths: ["/admin/processes"], groupId: "operations", order: 60 },
   { id: "console", labelKey: "nav_console", to: "/admin/console", paths: ["/admin/console"], groupId: "observability", order: 10 },
   { id: "resource_admission", labelKey: "nav_resource_admission", to: "/admin/resource_admission", paths: ["/admin/resource_admission"], groupId: "observability", order: 20 },

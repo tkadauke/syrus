@@ -26,6 +26,7 @@ import { AdminQueueRoute } from "./AdminQueue"
 import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
 import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
 import { AdminWorkUnits } from "./AdminWorkUnits"
+import { AdminMaintenanceTaskDetail, AdminMaintenanceTasks } from "./AdminMaintenanceTasks"
 import { AdminAttentionItems } from "./AdminAttentionItems"
 import { AdminProcessDetail, AdminProcessesIndex } from "./AdminProcesses"
 import { AdminMcpToolUsage } from "./AdminMcpToolUsage"
@@ -92,6 +93,8 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/attention_items", element: <AdminAttentionItems /> },
   { path: "/admin/activity", element: <AdminWorkflowActivity /> },
   { path: "/admin/work_units", element: <AdminWorkUnits /> },
+  { path: "/admin/maintenance_tasks", element: <AdminMaintenanceTasks /> },
+  { path: "/admin/maintenance_tasks/:id", element: <AdminMaintenanceTaskDetail /> },
   { path: "/admin/reconciler_activity", element: <AdminReconcilerActivity /> },
   { path: "/admin/browser_errors", element: <AdminBrowserErrors /> },
   { path: "/admin/backend_exceptions", element: <AdminBackendExceptions /> },

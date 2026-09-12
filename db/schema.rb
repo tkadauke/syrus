@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_12_180000) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1667,6 +1668,60 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["workflow_id"], name: "index_main_concern_reports_on_workflow_id"
   end
 
+  create_table "maintenance_task_events", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "level", default: "info", null: false
+    t.integer "maintenance_task_id", null: false
+    t.text "message", null: false
+    t.json "metadata", null: false
+    t.string "step_key"
+    t.string "step_title"
+    t.bigint "units_done"
+    t.bigint "units_total"
+    t.datetime "updated_at", null: false
+    t.index ["maintenance_task_id", "created_at", "id"], name: "idx_maintenance_task_events_task_created"
+    t.index ["maintenance_task_id"], name: "index_maintenance_task_events_on_maintenance_task_id"
+  end
+
+  create_table "maintenance_tasks", force: :cascade do |t|
+    t.integer "batch_size", default: 250, null: false
+    t.datetime "cancelled_at"
+    t.string "category", null: false
+    t.json "checkpoint", null: false
+    t.bigint "completed_units", default: 0, null: false
+    t.string "concurrency_key"
+    t.datetime "created_at", null: false
+    t.string "current_step_key"
+    t.string "current_step_title"
+    t.string "definition_key", null: false
+    t.datetime "dismissed_at"
+    t.bigint "dismissed_by_user_id"
+    t.integer "eta_seconds"
+    t.bigint "failed_units", default: 0, null: false
+    t.datetime "finished_at"
+    t.text "last_error"
+    t.integer "max_parallelism", default: 1, null: false
+    t.json "metadata", null: false
+    t.datetime "paused_at"
+    t.string "recurrence", null: false
+    t.bigint "requested_by_user_id"
+    t.string "required_role", default: "admin", null: false
+    t.datetime "started_at"
+    t.string "state", default: "pending", null: false
+    t.string "summary", null: false
+    t.string "task_key", null: false
+    t.string "title", null: false
+    t.bigint "total_units", default: 0, null: false
+    t.string "trigger_key", null: false
+    t.string "trigger_kind", null: false
+    t.datetime "updated_at", null: false
+    t.index ["definition_key"], name: "index_maintenance_tasks_on_definition_key"
+    t.index ["state", "updated_at"], name: "idx_maintenance_tasks_state_updated"
+    t.index ["state"], name: "index_maintenance_tasks_on_state"
+    t.index ["task_key"], name: "index_maintenance_tasks_on_task_key", unique: true
+    t.index ["trigger_kind", "trigger_key"], name: "idx_maintenance_tasks_trigger"
+  end
+
   create_table "mcp_tool_usages", force: :cascade do |t|
     t.text "backtrace_excerpt"
     t.integer "chat_session_id"
@@ -1700,15 +1755,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["created_at"], name: "index_mcp_tool_usages_on_created_at"
     t.index ["error", "started_at"], name: "idx_mcp_tool_usages_error_started_at"
     t.index ["job_id"], name: "index_mcp_tool_usages_on_job_id"
+    t.index ["normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_tool_window"
     t.index ["repository_id"], name: "index_mcp_tool_usages_on_repository_id"
     t.index ["run_id", "tool_use_id"], name: "index_mcp_tool_usages_on_run_id_and_tool_use_id"
     t.index ["run_id"], name: "index_mcp_tool_usages_on_run_id"
-    t.index ["server_name", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_server_tool_window"
     t.index ["server_name", "created_at"], name: "idx_mcp_tool_usages_server_window"
+    t.index ["server_name", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_server_tool_window"
     t.index ["surface", "created_at"], name: "index_mcp_tool_usages_on_surface_and_created_at"
     t.index ["surface", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_surface_tool_window"
     t.index ["surface", "sidecar_mode", "created_at"], name: "idx_mcp_tool_usages_surface_sidecar_mode_window"
-    t.index ["normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_tool_window"
     t.index ["user_id"], name: "index_mcp_tool_usages_on_user_id"
     t.index ["workflow_id"], name: "index_mcp_tool_usages_on_workflow_id"
   end

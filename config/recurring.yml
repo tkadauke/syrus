@@ -46,6 +46,10 @@ default: &default
     class: PluginTickSchedulerJob
     queue: control_plane
     schedule: every minute
+  discover_maintenance_tasks:
+    class: MaintenanceTaskDiscoveryJob
+    queue: low_priority_maintenance
+    schedule: every 5 minutes
 
   poll_scheduled_chat_messages:
     class: PollScheduledChatMessagesJob

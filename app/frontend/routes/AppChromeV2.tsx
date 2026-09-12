@@ -14,6 +14,7 @@ import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload 
 import { getJson, postJson } from "../api/client"
 import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
+import { fetchAdminMaintenanceTask, fetchMaintenanceSidebar, runMaintenanceTaskAction, type MaintenanceTask } from "../api/maintenanceTasks"
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
 import { fetchSidebarPluginPages, type SidebarPluginPage } from "../api/sidebarPages"
 import { fetchSmartFolderNavigation } from "../api/smartFolders"
@@ -36,6 +37,8 @@ import { TestChannelBadge } from "../components/TestChannelBadge"
 import { ThemeProvider, useTheme, type Theme } from "../contexts/ThemeContext"
 import { ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
+import { TaskActions, TaskDocumentationModal, TaskProgress } from "./AdminMaintenanceTasks"
+import { LinkText, StatusPill, Surface } from "../components/ui"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
@@ -868,6 +871,7 @@ function SidebarContent({
             </Button>
           ) : null}
           <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
+          <SidebarMaintenanceTasks prefix={prefix} />
         </div>
         <div className="px-3 pb-4">
           <nav aria-label={t("nav:primary_nav_aria")} className="flex flex-col gap-1 text-sm">
@@ -1021,6 +1025,77 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
         value={query}
       />
     </form>
+  )
+}
+
+function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
+  const queryClient = useQueryClient()
+  const [docsTask, setDocsTask] = useState<MaintenanceTask | null>(null)
+  const [docsLoadingTaskId, setDocsLoadingTaskId] = useState<number | null>(null)
+  const tasks = useQuery({
+    queryKey: ["maintenance_tasks", "sidebar"],
+    queryFn: ({ signal }) => fetchMaintenanceSidebar(signal),
+    refetchInterval: 15_000
+  })
+  const action = useMutation({
+    mutationFn: ({ task, name }: { task: MaintenanceTask; name: "start" | "pause" | "resume" | "cancel" | "dismiss" }) => runMaintenanceTaskAction(task.id, name),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["maintenance_tasks", "sidebar"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin", "maintenance_tasks"] })
+      ])
+    }
+  })
+  const visibleTasks = tasks.data?.tasks ?? []
+  if (visibleTasks.length === 0) return null
+
+  async function openDocs(task: MaintenanceTask) {
+    setDocsLoadingTaskId(task.id)
+    try {
+      const fullTask = await queryClient.fetchQuery({
+        queryKey: ["admin", "maintenance_tasks", String(task.id)],
+        queryFn: ({ signal }) => fetchAdminMaintenanceTask(task.id, signal),
+        staleTime: 0
+      })
+      setDocsTask(fullTask)
+    } finally {
+      setDocsLoadingTaskId(null)
+    }
+  }
+
+  return (
+    <section aria-label="Maintenance tasks">
+      <Surface className="space-y-2" padding="sm" variant="subtle">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Maintenance</h2>
+          <LinkText className="text-xs" to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>All</LinkText>
+        </div>
+        <div className="space-y-2">
+          {visibleTasks.map((task) => (
+            <Surface className="space-y-2" key={task.id} padding="sm" variant="raised">
+              <LinkText className="block truncate text-sm" title={task.title} to={withRoutePrefix(task.paths.admin, prefix)}>
+                {task.title}
+              </LinkText>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] capitalize text-text-muted">{task.recurrence.replace(/_/g, " ")}</span>
+                <StatusPill state={task.state} />
+              </div>
+              {task.state === "running" && task.current_step_title ? <p className="truncate text-xs text-text-muted">{task.current_step_title}</p> : null}
+              <TaskProgress task={task} />
+              <div>
+                <TaskActions
+                  busy={action.isPending || docsLoadingTaskId === task.id}
+                  task={task}
+                  onAction={(name) => action.mutate({ task, name })}
+                  onDocs={() => void openDocs(task)}
+                />
+              </div>
+            </Surface>
+          ))}
+        </div>
+        {docsTask ? <TaskDocumentationModal task={docsTask} onClose={() => setDocsTask(null)} /> : null}
+      </Surface>
+    </section>
   )
 }
 

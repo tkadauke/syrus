@@ -351,6 +351,7 @@ Rails.application.routes.draw do
         delete "repository_documents/:id", to: "repository_documents#destroy"
         get "repositories/:repository_id/skills", to: "skills#index"
         post "repositories/:repository_id/skills", to: "skills#create"
+        get "maintenance_tasks/sidebar", to: "maintenance_tasks#sidebar"
 
         namespace :admin do
           get "overview", to: "overview#show"
@@ -366,6 +367,18 @@ Rails.application.routes.draw do
           get "stuck", to: "stuck#index"
           get "activity", to: "workflow_activity#index"
           get "work_units", to: "work_units#index"
+          resources :maintenance_tasks, only: %i[ index show ] do
+            collection do
+              post :discover
+            end
+            member do
+              post :start
+              post :pause
+              post :resume
+              post :cancel
+              post :dismiss
+            end
+          end
           resources :attention_items, only: %i[ index ] do
             member do
               post :decide
@@ -596,6 +609,8 @@ Rails.application.routes.draw do
   get "admin/processes", to: "spa#show", as: :admin_processes
   get "admin/processes/:id", to: "spa#show", as: :admin_process, constraints: { id: /\d+/ }
   get "admin/users", to: "spa#show", as: :admin_users
+  get "admin/maintenance_tasks", to: "spa#show", as: :admin_maintenance_tasks
+  get "admin/maintenance_tasks/:id", to: "spa#show", as: :admin_maintenance_task, constraints: { id: /\d+/ }
   get "admin/installations", to: "spa#show", as: :admin_installations
   get "admin/github_app/register", to: "spa#show", as: :admin_github_app_register
   get "admin/github_app/confirm", to: "spa#show", as: :admin_github_app_confirm
