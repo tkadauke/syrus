@@ -1,6 +1,5 @@
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { PageHeading } from "@app/components/Heading"
-import { inputClass } from "@app/lib/formClasses"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { UseMutationResult } from "@tanstack/react-query"
@@ -8,14 +7,11 @@ import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { buttonClass } from "@app/lib/buttonClasses"
-import { Button, buttonClasses } from "@app/components/Button"
 import { CopyableSlug } from "@app/components/CopyableSlug"
-import { Input } from "@app/components/Input"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { PanelMessage } from "@app/components/PanelMessage"
-import { Select } from "@app/components/Select"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
-import { DataTable, DescriptionList } from "@app/components/ui"
+import { Button, DataTable, DescriptionList, Form, buttonClasses } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
@@ -209,14 +205,15 @@ function RepositoryPicker({
         if (value) onSelect(value)
       }}
     >
-      <Field label={t("scheduled_tasks.field_repository")}>
-        <Select onChange={(event) => setValue(event.target.value)} required value={value}>
+      <Form.Field controlId="scheduled-task-repository">
+        <Form.Label>{t("scheduled_tasks.field_repository")}</Form.Label>
+        <Form.Select onChange={(event) => setValue(event.target.value)} required value={value}>
           <option value="">{t("scheduled_tasks.repository_placeholder")}</option>
           {repositories.map((repository) => (
             <option key={repository.id} value={repository.id}>{repository.slug}</option>
           ))}
-        </Select>
-      </Field>
+        </Form.Select>
+      </Form.Field>
       <Button disabled={!value} type="submit" variant="primary">{t("scheduled_tasks.repository_continue")}</Button>
     </form>
   )
@@ -513,52 +510,60 @@ function ScheduledTaskForm({
   return (
     <form className="space-y-5" onSubmit={submit}>
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("scheduled_tasks.error_save"))}</PanelMessage> : null}
-      <Field label={t("scheduled_tasks.name")}>
-        <Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
-      </Field>
-      <Field label={t("scheduled_tasks.field_kind")}>
-        <Select onChange={(event) => setValues({ ...values, kind: event.target.value })} value={values.kind}>
+      <Form.Field controlId="scheduled-task-name">
+        <Form.Label>{t("scheduled_tasks.name")}</Form.Label>
+        <Form.Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
+      </Form.Field>
+      <Form.Field controlId="scheduled-task-kind">
+        <Form.Label>{t("scheduled_tasks.field_kind")}</Form.Label>
+        <Form.Select onChange={(event) => setValues({ ...values, kind: event.target.value })} value={values.kind}>
           {options.kinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
-        </Select>
-      </Field>
+        </Form.Select>
+      </Form.Field>
       {values.kind === "one_shot" ? (
-        <Field label={t("scheduled_tasks.field_fire_at")}>
-          <Input onChange={(event) => setValues({ ...values, fire_at: event.target.value })} type="datetime-local" value={values.fire_at} />
-        </Field>
+        <Form.Field controlId="scheduled-task-fire-at">
+          <Form.Label>{t("scheduled_tasks.field_fire_at")}</Form.Label>
+          <Form.Input onChange={(event) => setValues({ ...values, fire_at: event.target.value })} type="datetime-local" value={values.fire_at} />
+        </Form.Field>
       ) : (
-        <Field label={t("scheduled_tasks.field_schedule")}>
-          <Input onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("scheduled_tasks.schedule_placeholder")} type="text" value={values.schedule_input} />
+        <Form.Field controlId="scheduled-task-schedule">
+          <Form.Label>{t("scheduled_tasks.field_schedule")}</Form.Label>
+          <Form.Input onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("scheduled_tasks.schedule_placeholder")} type="text" value={values.schedule_input} />
           <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.schedule_help")}</p>
-        </Field>
+          <Form.HelpText>{t("scheduled_tasks.schedule_help")}</Form.HelpText>
+        </Form.Field>
       )}
-      <Field label={t("scheduled_tasks.field_pileup")}>
-        <Select onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
+      <Form.Field controlId="scheduled-task-pileup">
+        <Form.Label>{t("scheduled_tasks.field_pileup")}</Form.Label>
+        <Form.Select onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
           {options.pr_pileup_policies.map((policy) => <option key={policy} value={policy}>{policy}</option>)}
-        </Select>
-      </Field>
-      <Field label={t("scheduled_tasks.field_auto_approve")}>
-        <Select onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
+        </Form.Select>
+      </Form.Field>
+      <Form.Field controlId="scheduled-task-auto-approve">
+        <Form.Label>{t("scheduled_tasks.field_auto_approve")}</Form.Label>
+        <Form.Select onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
           {options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </Select>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{autoApproval?.preview}</p>
-      </Field>
-      <Field label={t("scheduled_tasks.field_task_source")}>
-        <div className="flex gap-4 text-sm text-gray-700 dark:text-gray-300">
+        </Form.Select>
+        {autoApproval?.preview ? <Form.HelpText>{autoApproval.preview}</Form.HelpText> : null}
+      </Form.Field>
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-text-primary">{t("scheduled_tasks.field_task_source")}</legend>
+        <div className="flex gap-4 text-sm text-text-primary">
           <label className="flex items-center gap-2">
-            <Input checked={taskSource === "prompt"} onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
+            <input checked={taskSource === "prompt"} className="h-4 w-4 accent-brand" name="scheduled-task-source" onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
             {t("scheduled_tasks.task_source_prompt")}
           </label>
           <label className="flex items-center gap-2">
-            <Input checked={taskSource === "skill"} onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
+            <input checked={taskSource === "skill"} className="h-4 w-4 accent-brand" name="scheduled-task-source" onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
             {t("scheduled_tasks.task_source_skill")}
           </label>
         </div>
-      </Field>
+      </fieldset>
       {taskSource === "prompt" ? (
-        <Field label={t("scheduled_tasks.prompt_heading")}>
-          <textarea className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
-        </Field>
+        <Form.Field controlId="scheduled-task-prompt">
+          <Form.Label>{t("scheduled_tasks.prompt_heading")}</Form.Label>
+          <Form.Textarea className="font-mono" onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
+        </Form.Field>
       ) : (
         <>
           {skills.isPending ? <PanelMessage>{tJobs("skill_job_loading")}</PanelMessage> : null}
@@ -566,15 +571,15 @@ function ScheduledTaskForm({
           {skills.data && skills.data.skills.length === 0 ? <PanelMessage>{tJobs("skill_job_no_skills")}</PanelMessage> : null}
           {skills.data && skills.data.skills.length > 0 ? (
             <>
-              <Field label={tJobs("skill_job_section_pick")}>
+              <FormBlock label={tJobs("skill_job_section_pick")}>
                 <div className="space-y-2">
                   {skills.data.skills.map((skill) => (
                     <SkillOption key={skill.name} onSelect={() => selectSkill(skill)} selected={skill.name === values.skill_name} skill={skill} />
                   ))}
                 </div>
-              </Field>
+              </FormBlock>
               {selectedSkill && selectedSkill.parameters.length > 0 ? (
-                <Field label={tJobs("skill_job_section_parameters")}>
+                <FormBlock label={tJobs("skill_job_section_parameters")}>
                   <div className="space-y-4">
                     {selectedSkill.parameters.map((field) => (
                       <SkillParameterInput
@@ -585,7 +590,7 @@ function ScheduledTaskForm({
                       />
                     ))}
                   </div>
-                </Field>
+                </FormBlock>
               ) : null}
             </>
           ) : null}
@@ -605,12 +610,12 @@ function ScheduledTaskForm({
   )
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function FormBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-2">{children}</div>
-    </label>
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-text-primary">{label}</p>
+      {children}
+    </div>
   )
 }
 
