@@ -568,7 +568,6 @@ class ChatSession < ApplicationRecord
     saved_change_to_title? ||
       saved_change_to_pinned_context? ||
       saved_change_to_chat_provider? ||
-      saved_change_to_chat_model? ||
       saved_change_to_mode? ||
       saved_change_to_local_daemon_state? ||
       saved_change_to_local_daemon_repo? ||
