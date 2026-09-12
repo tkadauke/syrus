@@ -4744,6 +4744,51 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(repair_plan.retry_after.to_i).to eq(reset_at.to_i)
   end
 
+  it "keeps one delayed retry for repeated rate-limited landing reconciler passes" do
+    reset_at = 12.minutes.from_now
+    job.user.update!(gh_rate_limit_reset_at: reset_at)
+    train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+    job.update_columns(state: "landing")
+    workflow.update_columns(
+      trigger_kind: "merge_train",
+      state: "failed",
+      finished_at: Time.current,
+      artifacts: { "merge_train_id" => train.id }
+    )
+    step.update_columns(kind: "merge_train_land", state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", agent_provider: "claude", finished_at: Time.current)
+    attach_work_unit(workflow, kind: "merge_train", state: "failed", member_jobs: [ job ])
+    RunFailureClassification.create!(
+      run: run,
+      classification: "rate_limited",
+      retryable: true,
+      confidence: 0.9,
+      reason: "GitHub API rate limited",
+      classified_at: Time.current
+    )
+
+    expect {
+      3.times { reconcile_and_execute(run_id: run.id) }
+    }.to change { AutoRetryAttempt.where(workflow: workflow, run: run, failure_classification: "rate_limited").count }.by(1)
+      .and have_enqueued_job(AutoRetryJob).exactly(:once)
+
+    attempt = AutoRetryAttempt.find_by!(workflow: workflow, run: run, failure_classification: "rate_limited")
+    expect(attempt).to have_attributes(retry_kind: "failed_step", performed_at: nil, skipped_reason: nil)
+    expect(attempt.scheduled_at.to_i).to eq(reset_at.to_i)
+
+    expect {
+      perform_enqueued_jobs(only: AutoRetryJob)
+    }.to have_enqueued_job(AutoRetryJob).with(attempt.id)
+
+    expect(attempt.reload).to have_attributes(performed_at: nil, skipped_reason: nil)
+
+    expect {
+      3.times { reconcile_and_execute(run_id: run.id) }
+    }.not_to change { AutoRetryAttempt.where(workflow: workflow, run: run, failure_classification: "rate_limited").count }
+    expect(AutoRetryAttempt.pending.where(workflow: workflow, run: run, failure_classification: "rate_limited").count).to eq(1)
+  end
+
   it "refreshes stale provider-delay classifications before planning retry loops" do
     run.update_columns(state: "failed", finished_at: Time.current, agent_outcome: nil)
     step.update_columns(state: "failed", finished_at: Time.current)
