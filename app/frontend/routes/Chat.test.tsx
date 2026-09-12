@@ -5818,6 +5818,22 @@ function mockChatPayload(payload: unknown) {
   })
 }
 
+function attachedCodingJob(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 42,
+    slug: "JOB-42",
+    title: "Repair aqueduct flow",
+    state: "coding",
+    branch_name: "syrus/job-42",
+    checkout_branch: "syrus/job-42",
+    checkout_uncommitted: false,
+    can_submit: true,
+    can_cancel: true,
+    app_path: "/jobs/42",
+    ...overrides
+  }
+}
+
 function emptyChatContextPayload() {
   return {
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
@@ -6050,6 +6066,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     has_more_older: false,
     pending_proposal_count: undefined,
     active_goal: null,
+    attached_coding_job: null,
     messages: overrides.messages || [
       {
         type: "message",
@@ -6105,6 +6122,8 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       app_enqueue_message_path: "/api/v1/app/chats/8/queued_messages",
       app_scheduled_messages_path: "/api/v1/app/chats/8/scheduled_messages",
       app_stop_path: "/api/v1/app/chats/8/stop",
+      app_create_coding_handoff_path: "/api/v1/app/chats/8/coding_handoff",
+      app_cancel_coding_checkout_path: "/api/v1/app/chats/8/coding_checkout",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
       app_bookmarks_index_path: "/api/v1/app/chats/8/bookmarks",
       app_context_path: "/api/v1/app/chats/8/context",
@@ -6115,6 +6134,144 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     ...rootOverrides
   }
 }
+
+describe("attached coding Job strip", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("renders the attached Job identity, state, checkout branch, and actions", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
+      coding_mode_enabled: true,
+      attached_coding_job: attachedCodingJob()
+    }))
+    renderRoute()
+
+    const strip = await screen.findByTestId("attached-coding-job-strip")
+
+    expect(within(strip).getByText("Attached Job")).toBeInTheDocument()
+    expect(within(strip).getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/app-shell/jobs/42")
+    expect(within(strip).getByText("Repair aqueduct flow")).toBeInTheDocument()
+    expect(within(strip).getByText("coding")).toBeInTheDocument()
+    expect(within(strip).getByText("syrus/job-42")).toBeInTheDocument()
+    expect(within(strip).getByRole("button", { name: "Submit" })).toBeEnabled()
+    expect(within(strip).getByRole("button", { name: "Detach" })).toBeEnabled()
+  })
+
+  it("disables Submit and shows dirty checkout state while uncommitted work exists", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
+      coding_mode_enabled: true,
+      attached_coding_job: attachedCodingJob({
+        checkout_uncommitted: true,
+        can_submit: false
+      })
+    }))
+    renderRoute()
+
+    const strip = await screen.findByTestId("attached-coding-job-strip")
+
+    expect(within(strip).getByText("uncommitted changes")).toBeInTheDocument()
+    expect(within(strip).getByRole("button", { name: "Submit" })).toBeDisabled()
+    expect(within(strip).getByRole("button", { name: "Detach" })).toBeEnabled()
+  })
+
+  it("creates a confirmed-semantics handoff pending action through the status action", async () => {
+    const updatedPayload = chatPayload({ chat: { mode: "coding" } }, {
+      coding_mode_enabled: true,
+      attached_coding_job: attachedCodingJob(),
+      pending_actions: [
+        {
+          id: 77,
+          label: "Hand off JOB-42",
+          detail: null,
+          state: "pending",
+          action: "complete_implement_step",
+          action_type: null,
+          app_confirm_path: "/api/v1/app/chats/8/pending_actions/77/confirm",
+          app_reject_path: "/api/v1/app/chats/8/pending_actions/77/reject",
+          app_cancel_path: "/api/v1/app/chats/8/pending_actions/77"
+        }
+      ]
+    })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/coding_handoff" && init?.method === "POST") return Promise.resolve(jsonResponse(updatedPayload))
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } }, {
+        coding_mode_enabled: true,
+        attached_coding_job: attachedCodingJob()
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Submit" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/coding_handoff" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
+    })
+    await screen.findByText("Implementation handoff is pending confirmation.")
+  })
+
+  it("updates when the attached Job payload is cleared live", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
+      coding_mode_enabled: true,
+      attached_coding_job: attachedCodingJob({ state: "coding", checkout_uncommitted: false })
+    }))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const strip = await screen.findByTestId("attached-coding-job-strip")
+    expect(within(strip).getByText("coding")).toBeInTheDocument()
+
+    act(() => {
+      queryClient.setQueryData(chatQueryKey("8", ""), chatPayload({ chat: { mode: "coding" } }, {
+        coding_mode_enabled: true,
+        attached_coding_job: null
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("attached-coding-job-strip")).not.toBeInTheDocument()
+    })
+  })
+
+  it("removes the attached Job strip after detach returns a cleaned chat payload", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/coding_checkout" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } }, {
+          coding_mode_enabled: true,
+          attached_coding_job: null
+        })))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } }, {
+        coding_mode_enabled: true,
+        attached_coding_job: attachedCodingJob()
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Detach" }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("attached-coding-job-strip")).not.toBeInTheDocument()
+    })
+    expect(fetchMock.mock.calls.some((call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/coding_checkout" && (call[1] as RequestInit)?.method === "DELETE")).toBe(true)
+  })
+})
 
 describe("active goal strip", () => {
   beforeEach(() => {

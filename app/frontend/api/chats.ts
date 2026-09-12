@@ -64,6 +64,19 @@ export type ChatRecord = {
   chat_effort?: string | null
 }
 
+export type AttachedCodingJob = {
+  id: number
+  slug: string
+  title: string | null
+  state: string
+  branch_name: string | null
+  checkout_branch: string | null
+  checkout_uncommitted: boolean
+  can_submit: boolean
+  can_cancel: boolean
+  app_path: string
+}
+
 export type ChatProviderOption = {
   value: string
   label: string
@@ -736,6 +749,7 @@ export type ChatPayload = {
   has_more_older: boolean
   pending_proposal_count?: number
   active_goal?: ChatGoal | null
+  attached_coding_job?: AttachedCodingJob | null
   messages: ChatMessageItem[]
   bookmarks: ChatBookmark[]
   recent_chats: ChatNavRecord[]
@@ -788,6 +802,7 @@ export type ChatPayload = {
     app_video_walkthrough_retry_path?: string
     app_speech_to_text_batch_path?: string
     app_speech_to_text_stream_path?: string
+    app_create_coding_handoff_path?: string
     app_whiteboard_path: string
     app_scratchpad_reorder_path: string
     app_cancel_coding_checkout_path?: string
@@ -1089,6 +1104,10 @@ export function stopChatGoal(chatId: number | string) {
 
 export function cancelCodingCheckout(path: string) {
   return deleteJson<ChatPayload>(path)
+}
+
+export function createCodingHandoff(path: string) {
+  return postJson<ChatPayload>(path)
 }
 
 export type LocalDaemonSession = {
