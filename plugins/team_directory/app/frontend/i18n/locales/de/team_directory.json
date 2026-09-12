@@ -20,6 +20,7 @@
     "count_jobs": "Jobs",
     "count_open": "Offen",
     "updated": "aktualisiert",
-    "not_started": "nicht gestartet"
+    "not_started": "nicht gestartet",
+    "load_error": "Profile konnten nicht geladen werden."
   }
 }

@@ -46,5 +46,7 @@
   "tool_action_deleted_element": "Element geloescht",
   "tool_scene": "Szene",
   "tool_replaced_scene_summary": "Szene ersetzt: {{summary}}",
-  "tool_replaced_scene": "Szene ersetzt"
+  "tool_replaced_scene": "Szene ersetzt",
+  "tool_snapshot": "Snapshot",
+  "tool_loaded_canvas_summary": "{{snapshot}} geladen{{mode}}"
 }

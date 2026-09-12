@@ -147,5 +147,11 @@
   "tool_suggested_change_summary": "Mutatio ad {{doc}} suggesta{{state}}",
   "tool_suggestion": "Suggestio",
   "tool_summary": "Summarium",
-  "tool_conflict": "Conflictus"
+  "tool_conflict": "Conflictus",
+  "tool_pending_suggestions": "Suggestiones pendentes",
+  "tool_open_threads": "Fila aperta",
+  "tool_content": "Contentum",
+  "tool_design_doc_count_one": "{{count}} documentum consilii",
+  "tool_design_doc_count_other": "{{count}} documenta consilii",
+  "tool_untitled_design_doc": "Documentum consilii sine titulo"
 }

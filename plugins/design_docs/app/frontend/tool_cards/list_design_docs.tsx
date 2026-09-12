@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { t } from "../designDocToolCard"
 
 // Demonstrates the plugin-owned tool-card extension point (the Tier 1 tool-card work /
 // the relevant change): this file lives entirely inside the design_docs plugin and is
@@ -24,7 +25,7 @@ function collapsedSummary(context: ToolCardContext) {
   const docs = designDocs(context)
   if (!docs) return null
 
-  return `${docs.length} design doc${docs.length === 1 ? "" : "s"}`
+  return t("tool_design_doc_count", { count: docs.length })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -35,7 +36,7 @@ function renderExpanded(context: ToolCardContext) {
     <ul className="mt-1 space-y-1 rounded border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-700 dark:bg-gray-900">
       {docs.map((doc, index) => {
         const docRef = typeof doc.doc_ref === "string" && doc.doc_ref ? doc.doc_ref : String(doc.id ?? index)
-        const title = typeof doc.title === "string" && doc.title ? doc.title : "Untitled design doc"
+        const title = typeof doc.title === "string" && doc.title ? doc.title : t("tool_untitled_design_doc")
         const state = typeof doc.state === "string" ? doc.state : null
 
         return (

@@ -20,6 +20,7 @@
     "count_jobs": "Opera",
     "count_open": "Aperta",
     "updated": "renovatum",
-    "not_started": "non inceptum"
+    "not_started": "non inceptum",
+    "load_error": "Imagines onerari non potuerunt."
   }
 }
