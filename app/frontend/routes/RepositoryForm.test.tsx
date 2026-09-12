@@ -154,6 +154,33 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     }
   })
 
+  it("associates core repository field labels with controls and help text", async () => {
+    mockFetch()
+    renderRoute()
+
+    const owner = await screen.findByLabelText("Working owner")
+    expect(owner).toHaveAttribute("id")
+    expect(screen.getByText("Working owner")).toHaveAttribute("for", owner.id)
+
+    const trigger = screen.getByLabelText("Trigger label")
+    const triggerHint = screen.getByText("Issues with this label are picked up by the poller.")
+    expect(trigger).toHaveAttribute("aria-describedby", triggerHint.id)
+  })
+
+  it("associates repository select fields with their hints", async () => {
+    mockFetch()
+    renderRoute()
+
+    const feedbackPolicy = await screen.findByLabelText("Feedback policy")
+    const feedbackHint = screen.getByText("Job owner comments always trigger automatically regardless of this setting.")
+    expect(feedbackPolicy.tagName).toBe("SELECT")
+    expect(feedbackPolicy).toHaveAttribute("aria-describedby", feedbackHint.id)
+
+    const reviewPolicy = screen.getByLabelText("Review policy")
+    const reviewHint = screen.getByText(/Controls whose approval is required before a Job lands/)
+    expect(reviewPolicy).toHaveAttribute("aria-describedby", reviewHint.id)
+  })
+
   it("keeps monitoring enabled when enabling main branch repair or broken-main pausing", async () => {
     mockFetch({
       main_branch_health_enabled: false,
@@ -326,5 +353,17 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     })
 
     expect(await screen.findByText("new-approver@example.com")).toBeInTheDocument()
+  })
+
+  it("associates final approver and input source labels with controls", async () => {
+    mockFetch({ review_policy: "final_say" })
+    renderRoute()
+
+    const email = await screen.findByLabelText("Email")
+    expect(screen.getByText("Email")).toHaveAttribute("for", email.id)
+
+    const apiKey = screen.getByLabelText("API key")
+    expect(apiKey).toHaveAttribute("type", "password")
+    expect(screen.getByText("API key")).toHaveAttribute("for", apiKey.id)
   })
 })
