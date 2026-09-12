@@ -621,6 +621,16 @@ nodes, and point them at imported labels through `deps:`.
 | `phases` | no | `[]` | Optional phase metadata using the grader phase vocabulary: `review`, `landing`, `ci`, `promotion`. |
 | `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
 | `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
+| `ci_checks` | no | `[]` | String or array of external CI check-run names that prove this target's health when the check completes. Syrus records target health only for mapped checks; an unmapped passing check is not treated as proof for this or any other target. |
+| `ci_check_names` | no | `[]` | Alias for `ci_checks`. |
+| `github_checks` | no | `[]` | Alias for `ci_checks`, useful when the mapping is specifically to GitHub check-run names. |
+
+When an explicit executable target omits `ci_checks`, Syrus can still map an
+external CI check to that target only when the check-run name exactly matches
+the target's canonical label (`//package:name`) or target name (`name`; for
+legacy grader-style labels, the `grade/` prefix may also be omitted). This
+fallback is intentionally exact and narrow so a passing broad CI suite does not
+silently mark unrelated targets healthy.
 
 ## project
 

@@ -94,4 +94,45 @@ RSpec.describe GraderConclusionCache do
 
     expect(described_class.status_for_step(step)).to eq("passed")
   end
+
+  it "marks grader-produced target health with Syrus target-run provenance" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 0, state: "running")
+    collect_run = Run.create!(job: job, step: collect, trigger_kind: "auto_merge", state: "running")
+    grader_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 1,
+      state: "succeeded",
+      details: {
+        "name" => "rspec",
+        "command" => "bin/rspec",
+        "required" => true,
+        "target_label" => "//:grade/rspec",
+        "target_fingerprints" => {
+          "input_fingerprint" => "input",
+          "command_fingerprint" => "command",
+          "environment_fingerprint" => "env"
+        }
+      }
+    )
+    Run.create!(job: job, step: grader_step, trigger_kind: "auto_merge", state: "succeeded")
+
+    described_class.record!(
+      workflow: workflow,
+      run: collect_run,
+      step: collect,
+      commit_sha: "abc123",
+      grader_steps: [ grader_step ],
+      aggregate_status: "passed"
+    )
+
+    expect(TargetHealthRecord.last.metadata).to include(
+      "health_source" => "syrus_target_run",
+      "trigger_kind" => "auto_merge"
+    )
+  end
 end
