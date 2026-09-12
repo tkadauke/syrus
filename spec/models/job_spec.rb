@@ -3456,6 +3456,30 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.reload.linked_chat_id).to eq(other_chat.id)
       end
 
+      it "returns false when the chat already has an active coding job" do
+        enable_coding_mode!
+        active_job = Factories.job_record(user: user, repository: repository, state: "implemented")
+        active_job.update!(linked_chat_id: chat_session.id, state: "coding")
+        job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(false)
+        expect(job.reload).to be_implemented
+      end
+
+      it "returns false when the chat already has a different coding checkout" do
+        enable_coding_mode!
+        chat_session.update!(coding_checkout_branch: "syrus/other-job")
+        job = Factories.job_record(user: user, repository: repository, state: "implemented",
+                                   branch_name: "syrus/target-job")
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(false)
+        expect(job.reload).to be_implemented
+      end
+
       it "returns false for an incompatible state (e.g. running)" do
         enable_coding_mode!
         job = Factories.job_record(user: user, repository: repository, state: "running")
