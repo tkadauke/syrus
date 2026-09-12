@@ -361,7 +361,7 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
           <Text className="mt-1" muted variant="caption">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}</Text>
         </div>
         <form
-          aria-label="Worker health range"
+          aria-label={t("queue.worker_health_range_aria")}
           className="flex flex-wrap items-end gap-2 text-xs"
           onSubmit={(event) => {
             event.preventDefault()
@@ -371,7 +371,7 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
             if (since && until) applyRange(since, until)
           }}
         >
-          <div className="flex flex-wrap gap-1" role="group" aria-label="Worker health quick ranges">
+          <div className="flex flex-wrap gap-1" role="group" aria-label={t("queue.worker_health_quick_ranges_aria")}>
             {workerHealthQuickRanges.map((range) =>
               Math.abs(activeMinutes - range.minutes) <= 1 ? (
                 <button

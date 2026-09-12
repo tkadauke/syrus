@@ -22,7 +22,10 @@
   },
   "diff_review_composer": {
     "title": "Comment",
-    "close": "Close comment form"
+    "close": "Close comment form",
+    "comment": "Comment",
+    "create_comment": "Create comment",
+    "create_error": "Unable to create diff comment."
   },
   "onboarding": {
     "loading": "Loading setup status...",
@@ -312,5 +315,14 @@
   "loading_search_aria": "Loading search results",
   "onboarding_aria": "Onboarding",
   "terminal_aria": "Terminal",
-  "page_title_terminal": "Terminal"
+  "page_title_terminal": "Terminal",
+  "save": "Save",
+  "cancel": "Cancel",
+  "diff_review": {
+    "changed_files": "Changed files",
+    "close_changed_files": "Close changed files",
+    "browse_changed_files": "Browse changed files",
+    "large_file_hidden": "This file's diff is large (~{{rowCount}} rendered lines) and is hidden by default.",
+    "load_file_diff": "Load diff for this file"
+  }
 }
