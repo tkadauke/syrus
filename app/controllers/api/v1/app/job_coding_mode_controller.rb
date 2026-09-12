@@ -9,9 +9,12 @@ module Api
           end
 
           job = find_job
-          result = JobCodingMode::Takeover.call(job: job, user: Current.user)
+          result = JobCodingMode::Takeover.call(job: job, user: Current.user, initial_prompt: params[:feedback])
 
-          render json: { redirect_to: "/chats/#{result.chat_session.id}" }
+          render json: {
+            redirect_to: "/chats/#{result.chat_session.id}",
+            message: result.queued_message ? "Opened Coding Mode chat and queued your feedback." : "Opened Coding Mode chat."
+          }
         rescue ActiveRecord::RecordNotFound
           raise
         rescue JobCodingMode::Takeover::Error => e

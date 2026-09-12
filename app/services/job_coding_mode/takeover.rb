@@ -2,23 +2,27 @@ module JobCodingMode
   class Takeover
     Error = Class.new(StandardError)
 
-    Result = Data.define(:job, :chat_session, :created_chat)
+    Result = Data.define(:job, :chat_session, :created_chat, :queued_message)
+    GITHUB_TOKEN_REQUIRED_MESSAGE = "Connect a GitHub token for this repository before opening it in Coding Mode.".freeze
 
-    def self.call(job:, user:, chat_session: nil)
-      new(job: job, user: user, chat_session: chat_session).call
+    def self.call(job:, user:, chat_session: nil, initial_prompt: nil)
+      new(job: job, user: user, chat_session: chat_session, initial_prompt: initial_prompt).call
     end
 
-    def initialize(job:, user:, chat_session: nil)
+    def initialize(job:, user:, chat_session: nil, initial_prompt: nil)
       @job = job
       @user = user
       @chat_session = chat_session
+      @initial_prompt = initial_prompt.to_s.strip
       @created_chat = false
       @claimed_job = false
+      @queued_message = nil
     end
 
     def call
       raise Error, "Coding Mode is not enabled on this instance." unless Feature.coding_mode_enabled?
       validate_job!
+      validate_repository_credentials!
 
       ApplicationRecord.transaction do
         @job.lock!
@@ -44,11 +48,19 @@ module JobCodingMode
 
       begin
         ChatWorkspace.ensure_job_branch_checkout!(@chat_session, @job.repository, @job.branch_name)
+      rescue ArgumentError => e
+        @job.release_coding_mode_takeover! if @claimed_job && @job.reload.coding?
+        raise Error, GITHUB_TOKEN_REQUIRED_MESSAGE if e.message.include?("github_token")
+
+        raise
       rescue StandardError
         @job.release_coding_mode_takeover! if @claimed_job && @job.reload.coding?
         raise
       end
-      Result.new(job: @job.reload, chat_session: @chat_session.reload, created_chat: @created_chat)
+
+      enqueue_initial_prompt! if @initial_prompt.present?
+
+      Result.new(job: @job.reload, chat_session: @chat_session.reload, created_chat: @created_chat, queued_message: @queued_message)
     end
 
     private
@@ -58,6 +70,10 @@ module JobCodingMode
         raise Error, "Only implemented or approved Jobs can be opened in Coding Mode."
       end
       raise Error, "Job does not have a branch yet." if @job.branch_name.blank?
+    end
+
+    def validate_repository_credentials!
+      raise Error, GITHUB_TOKEN_REQUIRED_MESSAGE if @job.repository.user.github_token.blank?
     end
 
     def resolve_chat_session!
@@ -106,6 +122,18 @@ module JobCodingMode
       @job.runs.active.exists? || @job.active_runtime_workflows.any? do |workflow|
         !workflow.coding_takeover_hold?
       end
+    end
+
+    def enqueue_initial_prompt!
+      @queued_message = @chat_session.chat_queued_messages.create!(
+        content: {
+          "text" => @initial_prompt,
+          "source" => "job_detail_coding_mode_feedback",
+          "job_id" => @job.id
+        }
+      )
+      @chat_session.touch
+      ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat_session)
     end
   end
 end
