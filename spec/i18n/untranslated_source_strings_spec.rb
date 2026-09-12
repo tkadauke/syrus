@@ -74,55 +74,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #
       app/frontend/routes/jobDetail/Delivery.tsx|jsx_text|PR #
       plugins/agent_memory/app/frontend/routes/Memories.tsx|jsx_text|Actions
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Add repository
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Block type
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Change mode
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Change summary
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Collaborator user IDs
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Comment
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Comment on selection
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Design doc title
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Design doc title bar
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Design docs
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Editor mode
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Formatting toolbar
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Markdown editor
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|New thread comment
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Optional change summary
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Reply
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Repository associations
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Rich Text editor
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Share visibility
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_attr|Version selection
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|/ saved
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0 && highlight.start
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0) blocks.push(`
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Archive
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Current
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Current v
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Design Docs
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Loading design doc...
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Loading design docs...
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Loading...
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Markdown editor
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|New comment on selection
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|No repositories
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|No visible design docs match these filters.
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Owner:
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Pending owner review.
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Private
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Proposed
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Public
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Read only
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Save repositories
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Save sharing
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Share
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Suggest
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Table column actions
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Table row actions
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|This design doc is archived. Content, comments, suggestions, and reviews are read only.
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Threads
-      plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|Updated
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|offset || highlight.end
       plugins/design_docs/app/frontend/tool_cards/comment_on_design_doc.tsx|jsx_text|Comment
       plugins/design_docs/app/frontend/tool_cards/propose_design_doc.tsx|jsx_text|Created
