@@ -19,7 +19,15 @@ function searchPayload(results: unknown[]) {
   return {
     results,
     filter: null,
-    controls: { filter_schema: [] }
+    controls: {
+      types: [
+        { type: "job", label: "Jobs" },
+        { type: "epic", label: "Epics" },
+        { type: "chat", label: "Chats" },
+        { type: "design_doc", label: "Design Docs" }
+      ],
+      filter_schema: []
+    }
   }
 }
 
@@ -91,6 +99,33 @@ describe("SearchRoute result rows", () => {
 
     await screen.findByText("Syrus Plugin Architecture Design")
     expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument()
+  })
+
+  it("renders Design Doc rows with DOC slug, metadata, and navigation path", async () => {
+    renderRoute([
+      {
+        type: "design_doc",
+        id: 20,
+        slug: "DOC-20",
+        title: "Target Graphs",
+        snippet: "Distributed <mark>target</mark> planning",
+        rank: 0,
+        path: "/design_docs/20",
+        state: "draft",
+        visibility: "private",
+        repository_slug: "tkadauke/syrus",
+        owner: { id: 4, name: "Ada Lovelace", email_address: "ada@example.com" },
+        current_version_number: 3,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-02T00:00:00Z"
+      }
+    ])
+
+    expect(await screen.findByRole("button", { name: /DOC-20/ })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Target Graphs" })).toHaveAttribute("href", "/design_docs/20")
+    expect(screen.getByText((_content, element) => element?.textContent === "Distributed target planning")).toBeInTheDocument()
+    expect(screen.getByText(/Private · Owner Ada Lovelace · v3 · Updated/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Design Docs" })).toHaveAttribute("href", "/search?query=preview+environment&types%5B%5D=design_doc")
   })
 })
 
