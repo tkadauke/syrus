@@ -1,0 +1,34 @@
+import { Button, Card, FormActions, FormField, FormLabel, Input, Page, PageDescription, PageHeader, PageHeading, PanelMessage, SectionHeading, Select } from "@app/components/ui"
+
+export default function AdminExample() {
+  return (
+    <Page aria-label="<%= display_name %>">
+      <PageHeader>
+        <PageHeading><%= display_name %></PageHeading>
+        <PageDescription>A plugin-owned page using Syrus semantic UI primitives.</PageDescription>
+      </PageHeader>
+
+      <PanelMessage tone="success">The plugin owns this message copy and any domain-specific visuals.</PanelMessage>
+
+      <Card>
+        <SectionHeading>Example settings</SectionHeading>
+        <form className="mt-4 grid gap-4 sm:grid-cols-2">
+          <FormField>
+            <FormLabel htmlFor="<%= file_name %>-name">Name</FormLabel>
+            <Input id="<%= file_name %>-name" defaultValue="<%= display_name %>" />
+          </FormField>
+          <FormField>
+            <FormLabel htmlFor="<%= file_name %>-mode">Mode</FormLabel>
+            <Select id="<%= file_name %>-mode" defaultValue="observe">
+              <option value="observe">Observe</option>
+              <option value="act">Act</option>
+            </Select>
+          </FormField>
+          <FormActions className="sm:col-span-2">
+            <Button type="submit">Save</Button>
+          </FormActions>
+        </form>
+      </Card>
+    </Page>
+  )
+}
