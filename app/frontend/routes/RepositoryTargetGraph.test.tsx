@@ -40,6 +40,38 @@ function payload(overrides: Partial<TargetGraphPayload> = {}): TargetGraphPayloa
     ],
     page: { offset: 0, limit: 180, total: 3, next_offset: null },
     health: { scope: "page", targets: {}, summary: {} },
+    explanations: {
+      projects: [
+        { id: "repo", label: "Repository", selected_target_count: 1, skipped_target_count: 1, cached_target_count: 1 }
+      ],
+      selected_targets: [
+        { state: "selected", target_label: "//:grade/tests", project_label: "Repository", required: true, reason: "changed files matched" }
+      ],
+      skipped_targets: [
+        { state: "skipped", target_label: "//:grade/docs", project_label: "Repository", reason: "no matching files changed" }
+      ],
+      cached_targets: [
+        {
+          state: "cached",
+          target_label: "//:grade/cached",
+          project_label: "Repository",
+          reason: "latest target health record passed",
+          target_health_record_id: 123,
+          commit_sha: "abcdef123456",
+          target_health_record_refs: [{ target_health_record_id: 123, status: "passed", commit_sha: "abcdef123456" }]
+        }
+      ],
+      ambiguous: [
+        {
+          kind: "visual_review_preview_project",
+          status: "ambiguous",
+          choices: [
+            { id: "web", label: "Web", path: "app/frontend" },
+            { id: "admin", label: "Admin", path: "app/admin" }
+          ]
+        }
+      ]
+    },
     filter: { and: [] },
     filter_schema: [
       {
@@ -99,7 +131,14 @@ describe("RepositoryTargetGraphRoute", () => {
 
     expect((await screen.findAllByText("//:grade/tests")).length).toBeGreaterThan(0)
     expect(screen.getByText("npm run build")).toBeInTheDocument()
-    expect(screen.getByText("changed files matched")).toBeInTheDocument()
+    expect(screen.getAllByText("changed files matched").length).toBeGreaterThan(0)
+    expect(screen.getByText("Selection Explanations")).toBeInTheDocument()
+    expect(screen.getByText("Executable Targets Selected")).toBeInTheDocument()
+    expect(screen.getByText("Skipped Targets")).toBeInTheDocument()
+    expect(screen.getByText("Cached Targets")).toBeInTheDocument()
+    expect(screen.getAllByText("THR-123").length).toBeGreaterThan(0)
+    expect(screen.getByText("Visual review preview project")).toBeInTheDocument()
+    expect(screen.getByText("Web")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "//:app" }).length).toBeGreaterThan(0)
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=180",
