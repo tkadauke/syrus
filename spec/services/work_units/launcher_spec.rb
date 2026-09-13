@@ -180,6 +180,19 @@ RSpec.describe WorkUnits::Launcher do
 
       expect(WorkUnit.where(kind: "initial", scope_type: "job", scope_id: job.id)).to contain_exactly(owner.work_unit)
     end
+
+    it "treats duplicate active_dedup_key errors as lock conflicts when the owner is not immediately visible" do
+      error = ActiveRecord::StatementInvalid.new(
+        "Mysql2::Error: Duplicate entry 'job:#{job.id}:initial' for key 'work_units.idx_work_units_active_dedup_key_unique'"
+      )
+      allow(WorkUnit).to receive(:create!).and_raise(error)
+      allow(WorkUnits::Ownership).to receive(:active_unit_for_dedup_key).with("job:#{job.id}:initial").and_return(nil)
+      stub_const("#{described_class}::ACTIVE_DEDUP_OWNER_LOOKUP_DELAY", 0)
+
+      expect {
+        described_class.instantiate(kind: "initial", job: job)
+      }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{job.id}:initial/)
+    end
   end
 
   it "blocks feedback workflows for sibling jobs in the same epic" do
