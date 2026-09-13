@@ -4,8 +4,8 @@ require "tmpdir"
 # End-to-end coverage for Ruby::RspecParser against real RSpec output
 # fixtures, running through the same path a live grader Step uses:
 # Steps::Grader#ingest_test_output! -> TestInsights::Ingester. Unlike
-# spec/services/steps/grader_test_result_parser_spec.rb (which stubs the
-# parser's return value with a double), this exercises the actual parser so a
+# the generic parser integration spec (which stubs the parser's return value
+# with a double), this exercises the actual parser so a
 # future TestResultParser contract regression fails a spec instead of being
 # silently swallowed by Steps::Grader's rescue.
 # Uses the ruby plugin's parser as the concrete TestResultParser. This plugin

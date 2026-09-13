@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe "Steps::Grader :test_result_parser plugin integration" do
+RSpec.describe "Steps::Grader test_insights:parser plugin integration" do
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.last }
 

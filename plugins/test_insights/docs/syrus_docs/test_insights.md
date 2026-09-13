@@ -6,9 +6,9 @@ into durable `TestInsights::TestRun`/`TestInsights::TestCase` history, grouped u
 the searchable/navigable object; `TestInsights::TestCase` is an individual execution row.
 Together they power per-test pass/fail timelines, duration history, and flaky
 test reporting. This ships as the `test_insights` plugin, which owns the
-storage, flakiness scoring, and UI. `test_result_parser` is a separate plugin
-*extension point* that lets a repository's test runner supply its own parsing
-logic.
+storage, flakiness scoring, and UI. `test_insights:parser` is the hosted
+plugin extension point that lets a repository's test runner supply non-XML
+parsing logic.
 
 ## Enabling ingestion: `junit_output`
 
@@ -38,30 +38,36 @@ out across multiple parallel workers (see the caveat below), point
 `junit_output` at a single merged/aggregated results file, or leave it unset
 for that variant.
 
-## How the file gets parsed: the `test_result_parser` extension point
+## How the file gets parsed: the `test_insights:parser` extension point
 
-`ingest_test_output!` tries every registered `test_result_parser` plugin
-provider in registration order (`Syrus::PluginRegistry.providers_for(:test_result_parser)`),
-calling `can_parse?(output_path:, format_hint: nil)` on each; the first
-provider that returns `true` handles the file via `call(output_path:, format_hint: nil)`.
-If no plugin claims the file, core falls back to `JunitXmlParser`, which
-parses standard JUnit XML (`<testsuite>`/`<testsuites>` with `<testcase>`
-elements, `<failure>`/`<error>`/`<skipped>` children).
+`TestInsights::Subscribers.parse` treats XML/JUnit-looking output as
+core-owned first: `.xml` files, files hinted as `format_hint: "xml"`, and
+files beginning with `<testsuite>`/`<testsuites>` are parsed with
+`JunitXmlParser` before any plugin parser is asked. That keeps standard JUnit
+XML (`<testsuite>`/`<testsuites>` with `<testcase>` elements and
+`<failure>`/`<error>`/`<skipped>` children) from being claimed by a looser
+framework text parser.
+
+For non-XML output, Test Insights tries every registered
+`test_insights:parser` plugin provider in registration order
+(`Syrus::PluginRegistry.providers_for("test_insights:parser")`), calling
+`can_parse?(output_path:, format_hint: nil)` on each; the first provider that
+returns `true` handles the file via `call(output_path:, format_hint: nil)`.
+If no plugin claims the file, core makes one final `JunitXmlParser` attempt.
 
 A parser's `call` must return an object duck-typed to
 `JunitXmlParser::ParsedRun`: it responds to `total_count`, `passed_count`,
 `failed_count`, `skipped_count`, `error_count`, `duration_ms`, and `cases`,
 where each element of `cases` responds to `name`, `suite_name`, `file_path`,
 `status`, `duration_ms`, `output`, `failure_message`, `failure_backtrace`.
-See `lib/syrus/plugin/test_result_parser.rb` for the full contract and
+See `plugins/test_insights/lib/test_insights/parser.rb` for the full contract and
 `plugins/ruby/lib/ruby/rspec_parser.rb` (`Ruby::RspecParser`)
 for a reference implementation.
 
-`format_hint` is currently always `nil` for `test_result_parser` calls — it
-exists in the interface for parity with `coverage_analyzer` (which does thread
-a `format:` value from `.syrus.yml` through), but `ingest_test_output!` doesn't
-read a format hint from the grader config today. Parsers must decide
-`can_parse?` from the file's content or extension alone.
+`Steps::Grader#announce_test_output!` currently derives `format_hint` from the
+configured `junit_output` path extension. Parsers should still be conservative
+and decide `can_parse?` from the file's content or extension, because the
+extension is only a hint.
 
 ### Why this repo's own rspec grader uses JUnit XML, not `Ruby::RspecParser`'s native format
 
@@ -86,9 +92,8 @@ bin/rspec spec plugins --format progress --require rspec_junit_formatter --forma
 ```
 
 Because JUnit XML enumerates every example (passed, failed, and skipped),
-`JunitXmlParser` (the core fallback — `Ruby::RspecParser.can_parse?`
-declines XML content, since it doesn't match the progress-format summary
-line) creates one `TestCase` row per example per grader Run, giving
+`JunitXmlParser` handles the XML file before `Ruby::RspecParser` is asked,
+creating one `TestCase` row per example per grader Run and giving
 `TestCase.top_flaky_tests` real signal.
 
 `junit_output` is attached to the grader entry that produced it, independent of
@@ -245,11 +250,11 @@ resilience.
 
 ## Configuring this for another repository
 
-1. Confirm the test runner can produce results in a format a registered
-   `test_result_parser` understands — JUnit XML for the bundled core parser,
-   or RSpec's native progress/documentation output for
-   `Ruby::RspecParser` (accepting that the native route can't detect
-   flakiness, per above).
+1. Confirm the test runner can produce results in a supported format: JUnit XML
+   for the bundled core parser, or non-XML output that a registered
+   `test_insights:parser` provider understands, such as RSpec's native
+   progress/documentation output for `Ruby::RspecParser` (accepting that the
+   native route can't detect flakiness, per above).
 2. Add whatever formatter/gem/flag the test runner needs to write that file
    (e.g. `rspec_junit_formatter`, `pytest --junitxml=...`, `jest --reporters
    default jest-junit`).
@@ -279,10 +284,10 @@ five MCP tools, the repository Tests tab, and the Job detail Tests tab.
 
 Core keeps three things:
 
-- **`JunitXmlParser`**, because `ParsedRun` is the contract of the
-  `:test_result_parser` extension point. A language plugin's framework-native
-  parser returns one, and whichever plugin stores results consumes it; neither
-  should have to depend on the other.
+- **`JunitXmlParser`**, because `ParsedRun` is the value-object contract shared
+  by core JUnit XML parsing and the hosted `test_insights:parser` extension
+  point. A language plugin's framework-native parser returns one, and whichever
+  plugin stores results consumes it; neither should have to depend on the other.
 - **`Steps::Grader`**, which no longer parses or stores anything. It publishes
   `step.grader.completed` with the output path, inline, because that path is
   inside a workflow workspace that is torn down at terminal state.

@@ -7,7 +7,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `chat_provider`
 - `mcp_tool_set`
 - `input_source`
-- `test_result_parser`
+- `test_insights:parser`
 - `coverage_analyzer`
 - `ci_log_parser`
 - `preview_provider`
@@ -1606,6 +1606,9 @@ dependency graph without making it required.
 
 Core does not enforce an interface on a plugin-hosted point; its shape is the
 host's business, and the host validates its own contributors at call time.
+For example, `test_insights:parser` contributors handle non-XML test output;
+Test Insights reserves XML/JUnit-looking output for core `JunitXmlParser`
+before asking contributed parsers.
 
 ## Installation effects
 
@@ -2002,7 +2005,9 @@ error.
 
 Lets a plugin claim a CI log before `CiLogParser` falls back to its own
 built-in parsers — same "plugin tries first, core generic parser is the
-fallback" pattern as `:test_result_parser` and `:coverage_analyzer`.
+fallback" pattern as `:coverage_analyzer`. Test result parsing is hosted by
+`test_insights:parser`; unlike CI logs, XML/JUnit-looking test output is
+reserved for core `JunitXmlParser` before plugin parsers are asked.
 `CiLogParser#parse` feeds the diagnostic summary a `ci_failure` repair agent
 sees (`error_summary`, `failing_tests`/`offenses`, `error_block`).
 
@@ -2657,8 +2662,8 @@ Bundled plugins:
   the grade log when an rspec grader fails) and `Ruby::RubocopGraderAugmentor`
   (appends compact `file:line: cop_name: message` lines parsed from RuboCop's
   `--format json` output under `.syrus/rubocop-json/*.json` to the grade log
-  when a `rubocop` grader fails); `:test_result_parser` (`Ruby::RspecParser` —
-  parses RSpec's plain progress/documentation output), `:coverage_analyzer`
+  when a `rubocop` grader fails); `test_insights:parser` (`Ruby::RspecParser`
+  — parses RSpec's plain progress/documentation output), `:coverage_analyzer`
   (SimpleCov's `.resultset.json`), `:prepare_detector` (`Gemfile` →
   `bundle install`, `prepare_priority: 10`), `:review_criteria_provider`
   (`Ruby::ReviewCriteriaProvider` — seeds a default adversarial-review
@@ -2708,8 +2713,8 @@ Bundled plugins:
   to the grade log when a `pytest` grader fails); and a light, unconditional
   `:prompt_injector` reminding the agent to activate/use a virtual
   environment or dependency-manager run-prefix. Does not provide a custom
-  `:test_result_parser`/`:coverage_analyzer` — plain `pytest --junitxml=`
-  output is already handled by core's `JunitXmlParser` fallback and
+  `test_insights:parser`/`:coverage_analyzer` — plain `pytest --junitxml=`
+  output is already handled by core's `JunitXmlParser` XML path and
   `coverage xml` (Cobertura format) is already handled by
   `CoverageAnalysis::Parsers::Cobertura`, both via `.syrus.yml` wiring only.
   Also provides `:review_criteria_provider` (`Python::ReviewCriteriaProvider`
@@ -2724,8 +2729,8 @@ Bundled plugins:
   `uv.lock`/`poetry.lock`/`requirements.txt`).
 - `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
   → `go mod download` (`prepare_priority: 40`). Does not provide a custom
-  `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
-  output is already handled by core's `JunitXmlParser` fallback, same as the
+  `test_insights:parser` — plain `gotestsum --junitfile=report.xml ./...`
+  output is already handled by core's `JunitXmlParser` XML path, same as the
   `python` plugin's `pytest --junitxml=` case, via `.syrus.yml` wiring only.
   Does not provide a `:coverage_analyzer` either, but unlike Python this is a
   genuine gap: `go test -coverprofile=coverage.out` has no built-in XML/lcov
