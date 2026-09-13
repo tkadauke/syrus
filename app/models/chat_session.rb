@@ -90,7 +90,7 @@ class ChatSession < ApplicationRecord
   # via after_initialize instead of a column default. Existing rows were
   # backfilled by the AddArtifactsToChatSessions migration.
   after_initialize :default_artifacts, if: :new_record?
-  after_update_commit :broadcast_header, if: :header_previously_changed?
+  after_update_commit :broadcast_updated_header, if: :header_previously_changed?
   before_validation :seed_chat_provider, on: :create
   after_create :attach_initial_repository
   after_create :add_owner_participant
@@ -417,6 +417,7 @@ class ChatSession < ApplicationRecord
           effective_chat_provider: effective_provider,
           effective_chat_provider_label: App::Presentation.agent_provider_label(effective_provider),
           provider_availability: App::ProviderAvailability.for_user(user, effective_provider),
+          chat_model: chat_model,
           mode: mode,
           local_daemon_state: local_daemon_state,
           local_daemon_repo: local_daemon_repo,
@@ -427,6 +428,21 @@ class ChatSession < ApplicationRecord
           cumulative_output_tokens: cumulative_output_tokens.to_i,
           cumulative_cost_usd: cumulative_cost.to_f,
           coding_checkout_uncommitted: coding_checkout_uncommitted?
+        }
+      }
+    )
+  end
+
+  def broadcast_app_chat_model_header_update
+    broadcast_to_participants(
+      type: "updated",
+      resource: "chat",
+      id: id,
+      changed: [ "header" ],
+      payload: {
+        action: "update_header",
+        chat: {
+          chat_model: chat_model
         }
       }
     )
@@ -570,6 +586,11 @@ class ChatSession < ApplicationRecord
   end
 
   def header_previously_changed?
+    non_model_header_previously_changed? ||
+      saved_change_to_chat_model?
+  end
+
+  def non_model_header_previously_changed?
     saved_change_to_title? ||
       saved_change_to_pinned_context? ||
       saved_change_to_chat_provider? ||
@@ -581,6 +602,14 @@ class ChatSession < ApplicationRecord
       saved_change_to_cumulative_output_tokens? ||
       saved_change_to_cumulative_cost_usd? ||
       saved_change_to_coding_checkout_uncommitted?
+  end
+
+  def broadcast_updated_header
+    if saved_change_to_chat_model? && !non_model_header_previously_changed?
+      broadcast_app_chat_model_header_update
+    else
+      broadcast_header
+    end
   end
 
   def attach_initial_repository
