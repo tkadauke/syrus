@@ -58,4 +58,11 @@ RSpec.describe "search_source plugin tables" do
   it "has no rebuild hook for a table nobody claims" do
     expect(SyrusSearchDatabaseTasks.plugin_rebuild_hook("unclaimed_fts")).to be_nil
   end
+
+  it "contributes job and epic indexers for maintenance rebuilds" do
+    expect(GlobalSearch::SearchSource).to be_indexes_jobs
+    expect(GlobalSearch::SearchSource).to be_indexes_epics
+    expect(GlobalSearch::SearchSource).to respond_to(:index_job)
+    expect(GlobalSearch::SearchSource).to respond_to(:index_epic)
+  end
 end
