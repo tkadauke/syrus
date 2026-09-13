@@ -64,7 +64,8 @@ function payload() {
       ],
       high_volume_without_custom_card: [],
       high_error_with_weak_or_no_custom_card: [],
-      unused_advertised_tools: []
+      unused_advertised_tools: [],
+      unclassified_advertised_tools: []
     },
     recent_calls: [
       {

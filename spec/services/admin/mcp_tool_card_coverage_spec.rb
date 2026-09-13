@@ -121,6 +121,83 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     )
   end
 
+  it "classifies advertised tools through card registrations or explicit non-card decisions" do
+    stub_const("#{described_class}::EXPLICIT_CARD_STATUSES", {
+      "core_generic_tool" => "generic",
+      "core_hidden_tool" => "hidden",
+      "plugin_deferred_tool" => "deferred"
+    }.freeze)
+
+    add_card("app/frontend/routes/chat/tool_cards/core_factory_tool.tsx", <<~TS)
+      import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
+      export default maintenanceToolCard("core_factory_tool")
+    TS
+
+    deferred_tool_set = Class.new do
+      include Syrus::Plugin::ChatMcpToolSet
+
+      def self.available_for?(_chat_session, tier:)
+        tier.to_sym == :deferred
+      end
+
+      def self.tool_definitions(tier:)
+        [
+          { name: "plugin_deferred_tool", description: "Deferred plugin tool", input_schema: {} },
+          { name: "plugin_unclassified_tool", description: "Plugin tool without a decision", input_schema: {} }
+        ]
+      end
+    end
+
+    unavailable_tool_set = Class.new do
+      include Syrus::Plugin::ChatMcpToolSet
+
+      def self.available_for?(_chat_session, tier:)
+        false
+      end
+
+      def self.tool_definitions(tier:)
+        [ { name: "plugin_unavailable_tool", description: "Unavailable plugin tool", input_schema: {} } ]
+      end
+    end
+
+    Syrus::PluginRegistry.register(
+      name: "deferred_decision_plugin",
+      version: "1.0.0",
+      provides: { chat_mcp_tool_set: deferred_tool_set }
+    )
+    Syrus::PluginRegistry.register(
+      name: "unavailable_decision_plugin",
+      version: "1.0.0",
+      provides: { chat_mcp_tool_set: unavailable_tool_set }
+    )
+
+    advertised_tools = %w[
+      core_factory_tool
+      core_generic_tool
+      core_hidden_tool
+      core_unclassified_tool
+      plugin_deferred_tool
+      plugin_unclassified_tool
+    ]
+
+    report = described_class.call(
+      usages: McpToolUsage.none,
+      advertised_tools: advertised_tools
+    )
+
+    expect(report.fetch(:unused_advertised_tools)).to include(
+      include(tool_name: "core_factory_tool", card_status: "registered"),
+      include(tool_name: "core_generic_tool", card_status: "generic"),
+      include(tool_name: "core_hidden_tool", card_status: "hidden"),
+      include(tool_name: "plugin_deferred_tool", owner_type: "plugin", owner_name: "deferred_decision_plugin", card_status: "deferred")
+    )
+    expect(report.fetch(:unused_advertised_tools)).not_to include(include(tool_name: "plugin_unavailable_tool"))
+    expect(report.fetch(:unclassified_advertised_tools)).to contain_exactly(
+      include(tool_name: "core_unclassified_tool", owner_type: "core", card_status: "missing"),
+      include(tool_name: "plugin_unclassified_tool", owner_type: "plugin", owner_name: "deferred_decision_plugin", card_status: "missing")
+    )
+  end
+
   it "ranks missing and weak card gaps by usage impact, ownership, and recency" do
     add_card("app/frontend/routes/chat/tool_cards/core_used_tool.tsx", <<~TS)
       export default { toolName: "core_used_tool", collapsedSummary: () => "ok", renderExpanded: () => null }
@@ -257,5 +334,52 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
         result_bytes: result_bytes
       )
     end
+  end
+end
+
+RSpec.describe "chat MCP custom-card coverage inventory" do
+  let(:admin) { Factories.user(admin: true) }
+  let(:repository) { Factories.repository(user: admin) }
+
+  before do
+    Feature.find_or_create_by!(slug: "coding_mode") do |feature|
+      feature.category = "Labs"
+      feature.name = "Coding Mode"
+    end.update!(enabled: true)
+  end
+
+  it "classifies every currently advertised chat tool with a card or explicit decision" do
+    unclassified = advertised_chat_contexts.flat_map do |label, chat_session|
+      advertised_tools = McpToolUsageRecorder.advertised_tools(surface: "chat", chat_session: chat_session)
+      report = Admin::McpToolCardCoverage.call(
+        usages: McpToolUsage.none,
+        advertised_tools: advertised_tools,
+        chat_session: chat_session
+      )
+
+      report.fetch(:unclassified_advertised_tools).map do |row|
+        row.merge(context: label)
+      end
+    end
+
+    expect(unclassified).to eq([]), "Add a chat tool card registration, or add an explicit generic/deferred/hidden decision: #{unclassified.inspect}"
+  end
+
+  it "covers representative context-gated plugin chat tools" do
+    tools_by_context = advertised_chat_contexts.to_h do |label, chat_session|
+      [ label, McpToolUsageRecorder.advertised_tools(surface: "chat", chat_session: chat_session) ]
+    end
+
+    expect(tools_by_context.fetch("admin")).to include("admin_read_memory_audit_history")
+    expect(tools_by_context.fetch("admin coding")).to include("browser_snapshot")
+    expect(tools_by_context.fetch("anonymous")).not_to include("admin_read_memory_audit_history", "browser_snapshot")
+  end
+
+  def advertised_chat_contexts
+    [
+      [ "anonymous", nil ],
+      [ "admin", ChatSession.create!(user: admin, repository: repository, mode: "planning") ],
+      [ "admin coding", ChatSession.create!(user: admin, repository: repository, mode: "coding") ]
+    ]
   end
 end

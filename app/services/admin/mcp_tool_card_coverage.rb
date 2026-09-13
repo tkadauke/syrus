@@ -14,6 +14,27 @@ module Admin
     PLUGIN_CARD_GLOB = "plugins/*/app/frontend/tool_cards/*.tsx"
     TEST_CARD_PATTERN = /\.test\.tsx\z/
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
+    TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["']\)/
+    EXPLICIT_CARD_STATUSES = {
+      "admin_maintenance_tasks" => "generic",
+      "analyze_walkthrough_segment" => "deferred",
+      "assign_job_to_epic" => "generic",
+      "complete_implement_step" => "hidden",
+      "delete_design_doc" => "generic",
+      "force_fail_job" => "generic",
+      "force_rebase" => "generic",
+      "force_state_transition" => "generic",
+      "get_spending" => "deferred",
+      "get_walkthrough_analysis" => "deferred",
+      "manual_agentic_run" => "generic",
+      "read_walkthrough_frame" => "deferred",
+      "refresh_pr_checks" => "generic",
+      "reset_workspace" => "hidden",
+      "restack_epic" => "generic",
+      "set_bookmark" => "hidden",
+      "submit_chat_feedback" => "hidden",
+      "submit_coding_changes" => "hidden"
+    }.freeze
 
     class << self
       def call(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
@@ -33,7 +54,8 @@ module Admin
         ranked_gaps: ranked_gap_rows,
         high_volume_without_custom_card: missing_card_rows(used_tool_rows),
         high_error_with_weak_or_no_custom_card: weak_or_missing_card_rows(error_tool_rows),
-        unused_advertised_tools: unused_advertised_tool_rows
+        unused_advertised_tools: unused_advertised_tool_rows,
+        unclassified_advertised_tools: unclassified_advertised_tool_rows
       }
     end
 
@@ -175,18 +197,18 @@ module Admin
 
     def missing_card_rows(rows)
       rows.filter_map do |row|
-        next if cards.key?(row[:tool_name])
+        next if cards.key?(row[:tool_name]) || explicit_card_status(row[:tool_name])
 
-        row_payload(row).merge(card_status: "missing")
+        row_payload(row).merge(card_status: card_status_for(row[:tool_name]))
       end
     end
 
     def weak_or_missing_card_rows(rows)
       rows.filter_map do |row|
         card = cards[row[:tool_name]]
-        next if card&.strong?
+        next if card&.strong? || explicit_card_status(row[:tool_name]) == "hidden"
 
-        row_payload(row).merge(card_status: card ? "weak" : "missing")
+        row_payload(row).merge(card_status: card_status_for(row[:tool_name], card: card))
       end
     end
 
@@ -201,9 +223,24 @@ module Admin
             owner_type: owner.owner_type,
             owner_name: owner.owner_name,
             recommendation_target: owner.recommendation_target,
-            card_status: card ? (card.strong? ? "registered" : "weak") : "missing"
+            card_status: card_status_for(tool_name, card: card)
           }
         end
+      end
+    end
+
+    def unclassified_advertised_tool_rows
+      @unclassified_advertised_tool_rows ||= advertised_tools.filter_map do |tool_name|
+        next if cards.key?(tool_name) || explicit_card_status(tool_name)
+
+        owner = owners[tool_name] || Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
+        {
+          tool_name: tool_name,
+          owner_type: owner.owner_type,
+          owner_name: owner.owner_name,
+          recommendation_target: owner.recommendation_target,
+          card_status: "missing"
+        }
       end
     end
 
@@ -222,7 +259,7 @@ module Admin
 
     def ranked_row_payload(row, card:)
       row_payload(row).merge(
-        card_status: card ? "weak" : "missing",
+        card_status: card_status_for(row[:tool_name], card: card),
         result_bytes: row[:result_bytes],
         last_used_at: iso8601_time(row[:last_used_at]),
         server_names: row[:server_names],
@@ -262,6 +299,17 @@ module Admin
 
     def strong_card_tool_names
       @strong_card_tool_names ||= cards.values.select(&:strong?).map(&:tool_name)
+    end
+
+    def explicit_card_status(tool_name)
+      EXPLICIT_CARD_STATUSES[tool_name.to_s]
+    end
+
+    def card_status_for(tool_name, card: cards[tool_name])
+      return "registered" if card&.strong?
+      return "weak" if card
+
+      explicit_card_status(tool_name) || "missing"
     end
 
     def core_tool_owners
@@ -325,7 +373,7 @@ module Admin
 
     def card_from_path(path)
       source = File.read(path)
-      tool_name = source[TOOL_NAME_PATTERN, 1]
+      tool_name = source[TOOL_NAME_PATTERN, 1] || source[TOOL_CARD_FACTORY_PATTERN, 1]
       return if tool_name.blank?
 
       owner_type, owner_name = card_owner(path)
@@ -333,7 +381,7 @@ module Admin
         tool_name: tool_name,
         owner_type: owner_type,
         owner_name: owner_name,
-        has_collapsed_summary: source.include?("collapsedSummary"),
+        has_collapsed_summary: source.include?("collapsedSummary") || source.match?(TOOL_CARD_FACTORY_PATTERN),
         path: relative_path(path)
       )
     rescue Errno::ENOENT
