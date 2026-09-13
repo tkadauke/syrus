@@ -20,8 +20,8 @@ module GlobalSearch
              "global_search:source" => [
                "GlobalSearch::JobSource",
                "GlobalSearch::EpicSource",
-               "GlobalSearch::JobRebuildSource",
-               "GlobalSearch::EpicRebuildSource",
+               "GlobalSearch::JobSearchSource",
+               "GlobalSearch::EpicSearchSource",
                "GlobalSearch::SourceProvider"
              ]
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"

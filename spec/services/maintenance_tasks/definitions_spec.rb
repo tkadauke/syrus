@@ -160,38 +160,52 @@ RSpec.describe "maintenance task definitions" do
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
 
-    it "indexes plugin-owned search records through a rebuild provider" do
-      job = Factories.job
-      provider = Class.new do
-        class << self
-          def indexed_ids = @indexed_ids ||= []
-          def search_rebuild_key = "jobs"
-          def search_rebuild_scope = Job.order(:id)
-          def index_search_record(record) = indexed_ids << record.id
+    it "indexes plugin-owned job rows through the search backfill source" do
+      source = Class.new do
+        def self.search_backfill_step_key = "jobs"
+        def self.search_backfill_step_title = "Index jobs"
+        def self.search_backfill_record_label = "job"
+        def self.search_backfill_batch(after_id:, limit:)
+          { processed: limit, last_id: after_id + limit, done: true }
         end
       end
       task = maintenance_task_for(definition)
+      task.checkpoint["schema_prepared"] = true
+      task.checkpoint["last_job_id"] = 40
 
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
+      allow(definition).to receive_messages(
+        missing_chat_messages_count: 0,
+        jobs_need_rebuild?: true,
+        epics_need_rebuild?: false,
+        operational_logs_need_rebuild?: false
+      )
+      allow(SyrusSearchDatabaseTasks).to receive(:search_backfill_source).with("job_fts").and_return(source)
 
-      result = definition.send(:index_jobs, task)
+      result = definition.perform_batch(task)
 
-      expect(result.processed).to eq(1)
-      expect(provider.indexed_ids).to eq([ job.id ])
-      expect(task.checkpoint["last_job_id"]).to eq(job.id)
-      expect(result.message).to include("Indexed 1 job")
+      expect(result.processed).to eq(task.batch_size)
+      expect(task.current_step_key).to eq("jobs")
+      expect(task.checkpoint["last_job_id"]).to eq(40 + task.batch_size)
+      expect(task.checkpoint["jobs_done"]).to be(true)
     end
 
-    it "marks the jobs step done when no enabled provider indexes jobs" do
+    it "marks a plugin-owned step done when its search backfill source is unavailable" do
       task = maintenance_task_for(definition)
+      task.checkpoint["schema_prepared"] = true
 
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([])
+      allow(definition).to receive_messages(
+        missing_chat_messages_count: 0,
+        jobs_need_rebuild?: true,
+        epics_need_rebuild?: false,
+        operational_logs_need_rebuild?: false
+      )
+      allow(SyrusSearchDatabaseTasks).to receive(:search_backfill_source).with("job_fts").and_return(nil)
 
-      result = definition.send(:index_jobs, task)
+      result = definition.perform_batch(task)
 
+      expect(result.processed).to eq(0)
       expect(task.checkpoint["jobs_done"]).to be(true)
       expect(result.message).to include("Jobs index is not available")
-      expect(result.processed).to eq(0)
     end
   end
 
