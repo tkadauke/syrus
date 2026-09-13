@@ -10,8 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_12_180000) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_09_12_201051) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2422,6 +2421,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_180000) do
     t.index ["created_at", "cost_usd"], name: "index_runs_on_created_at_and_cost_usd"
     t.index ["created_at", "job_id", "cost_usd"], name: "idx_runs_spending_window_jobs"
     t.index ["effective_at", "id"], name: "idx_runs_effective_latest"
+    t.index ["finished_at", "created_at", "id"], name: "idx_runs_active_created"
     t.index ["job_id", "cost_usd"], name: "idx_runs_job_cost"
     t.index ["job_id", "created_at", "id"], name: "idx_runs_job_latest"
     t.index ["job_id", "id"], name: "idx_runs_job_id_id"
@@ -2621,6 +2621,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_180000) do
     t.integer "wall_timeout_s"
     t.string "workdir", limit: 4096
     t.integer "workflow_id"
+    t.index ["agent_id", "chat_session_id"], name: "idx_spawned_processes_agent_chat_backfill"
+    t.index ["agent_id", "run_id"], name: "idx_spawned_processes_agent_run_backfill"
     t.index ["agent_id"], name: "index_spawned_processes_on_agent_id"
     t.index ["chat_session_id"], name: "index_spawned_processes_on_chat_session_id"
     t.index ["finished_at", "hostname", "pid", "last_chunk_at"], name: "idx_spawned_processes_active_host_pid"
@@ -3341,4 +3343,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_180000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
+  add_foreign_key "github_api_usage_rollups", "installations"
+  add_foreign_key "github_api_usage_rollups", "repositories"
+  add_foreign_key "github_api_usage_rollups", "users"
 end
