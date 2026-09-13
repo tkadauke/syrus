@@ -94,6 +94,19 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "classifies attachment storage startup failures as retryable storage outages" do
+    run.update!(state: "failed")
+    diagnostic(
+      "JobAttachmentContext::StorageUnavailable",
+      "attached file storage is temporarily unavailable while materializing notes.md: Errno::ECONNREFUSED: Connection refused - minio:9000"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("storage_unavailable")
+    expect(result.retryable).to eq(true)
+  end
+
   # A rolling deploy drains workers with SIGTERM and spikes CPU/IO across every
   # node at the same time, so it both kills the run and manufactures the
   # "critical" reading that used to downgrade a retryable worker death into a

@@ -65,6 +65,7 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "github_rate_limits",
       "github_api_blocked_users",
       "agent_session_capture_rate",
+      "active_storage",
       "worker_health",
       "workers",
       "recurring"

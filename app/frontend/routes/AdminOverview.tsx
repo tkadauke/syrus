@@ -121,6 +121,7 @@ function AdminOverviewPage({
           <Metric title={t("overview.github_rate_limits")} value={data.github_rate_limits.length} context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : t("overview.all_healthy")} tone={data.github_rate_limits.length > 0 ? "warn" : "ok"} />
           <Metric title={t("overview.agent_session_capture")} value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`} context={t("overview.capture_of", { captured: data.agent_session_capture_rate.captured, total: data.agent_session_capture_rate.total })} tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"} />
           <Metric title={t("overview.data_root_disk")} value={dataRoot ? `${dataRoot.used_percent}%` : "?"} context={dataRoot ? `${t("overview.disk_free", { free: formatBytes(dataRoot.available_bytes), path: dataRoot.path })}${dataRoot.hostname ? ` (${dataRoot.hostname})` : ""}` : t("overview.unavailable")} tone={dataRootTone(dataRoot?.level)} />
+          <Metric title={t("overview.active_storage")} value={data.active_storage?.available ? t("overview.available") : t("overview.unavailable")} context={activeStorageContext(data.active_storage, t)} tone={data.active_storage?.available ? "ok" : "alarm"} />
         </section>
       ) : content}
     </main>
@@ -391,6 +392,12 @@ function workersContext(workers: { stale?: number; unreachable?: boolean }, t: (
   if (warning > 0) return t("overview.warning_workers", { count: warning })
   if (workers.stale && workers.stale > 0) return t("overview.stale_workers", { count: workers.stale })
   return t("overview.all_healthy")
+}
+
+function activeStorageContext(storage: AdminOverviewPayload["active_storage"], t: (key: string, opts?: Record<string, unknown>) => string) {
+  if (!storage) return t("overview.unavailable")
+  if (storage.available) return storage.service ? t("overview.storage_service_ok", { service: storage.service }) : t("overview.all_healthy")
+  return storage.error_class || storage.message || t("overview.storage_unavailable")
 }
 
 function aggregateWorkerHealthTone(workers: { stale?: number; unreachable?: boolean }, workerHealth?: AdminOverviewPayload["worker_health"]): "idle" | "ok" | "warn" | "alarm" {
