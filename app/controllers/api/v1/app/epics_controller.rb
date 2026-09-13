@@ -69,6 +69,7 @@ module Api
           start_requested = ActiveModel::Type::Boolean.new.cast(params[:start])
 
           if epic.save
+            Metrics::ProductUsage.record(:epic_created)
             started = start_requested && start_created_epic!(epic)
             message = started ? I18n.t("api.epics.created_and_started") : I18n.t("api.epics.created")
             render json: saved_payload(epic, message: message), status: :created

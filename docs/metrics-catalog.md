@@ -17,6 +17,8 @@ are computed at read time with `rate()`.
 
 | Metric | Type | Labels | Shared | Description |
 |---|---|---|---|---|
+| `syrus_feature_used_total` | counter | `feature` | no | Feature invocations, counted at the request that asked for them |
+| `syrus_global_plugin_enabled` | gauge | `plugin` | no | 1 when an installed plugin is enabled, 0 when it is off (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_blocked_count` | gauge | — | no | Executions blocked on a concurrency limit (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_claimed_count` | gauge | `queue` | no | Jobs currently claimed by a worker (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_failed_count` | gauge | `job_class` | no | Failed executions awaiting retry or discard (GLOBAL -- aggregate with max by) |

@@ -129,6 +129,7 @@ module Api
             return
           end
 
+          Metrics::ProductUsage.record(:job_retried)
           notice = agent_provider.present? ? lifecycle_t("retry_enqueued_with_provider", provider: agent_provider.titleize) : lifecycle_t("retry_enqueued")
           render_job(job.reload, message: notice, changed: [ "workflows", "runs" ], tab: "workflows")
         end
@@ -235,6 +236,7 @@ module Api
           approval = job.job_approvals.find_or_initialize_by(user: Current.user)
           approval.approved_at ||= Time.current
           approval.save!
+          Metrics::ProductUsage.record(:job_approved)
 
           if job.approval_satisfied? && job.may_approve?
             job.approve!(via: "operator", by_user: Current.user)

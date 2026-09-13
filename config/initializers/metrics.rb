@@ -14,10 +14,20 @@
 # nothing (see Syrus::PluginApi::Definition#metrics).
 Rails.application.config.to_prepare do
   [
-    "Metrics::QueueSampler"
+    "Metrics::QueueSampler",
+    "Metrics::PluginSampler",
+    "Metrics::ProductUsage"
   ].each do |owner|
     owner.constantize
   rescue NameError => e
     Rails.logger&.warn("[Syrus::Metrics] could not load metric owner #{owner}: #{e.message}")
+  end
+
+  # Publish a zero for every known feature, so an unused one reads as 0 rather
+  # than as a missing series -- which is the whole point of collecting these.
+  begin
+    Metrics::ProductUsage.preset_all!
+  rescue StandardError => e
+    Rails.logger&.warn("[Syrus::Metrics] could not preset product usage counters: #{e.message}")
   end
 end

@@ -71,11 +71,40 @@ them, and `clear_solid_queue_finished_jobs` skips them because they never
 finished. There were 553,671 in production when this was written, 84% of the
 queue table.
 
+### Product-usage metrics
+
+| Metric | Meaning |
+|---|---|
+| `syrus_feature_used_total{feature}` | feature invocations, by feature |
+| `syrus_global_plugin_enabled{plugin}` | 1 when an installed plugin is on, 0 when off |
+
+These answer "what is actually used?", so effort goes where people are rather
+than where we guess they are. Two things about reading them:
+
+**A zero is a result.** Every feature in `Metrics::ProductUsage::FEATURES` is
+published at 0 on boot, so a flat line at zero means "shipped, nobody uses it" —
+which is the finding you are looking for — rather than "we forgot to measure".
+An absent series means the feature was never instrumented.
+
+**`syrus_global_plugin_enabled` disambiguates silence.** A disabled plugin
+declares no metrics at all, so its absence is otherwise ambiguous: switched off,
+or enabled and unused? This gauge separates the two. Without it, a product
+decision made on that silence errs in the expensive direction — concluding
+nobody wants a feature that was merely switched off.
+
+Features are counted at the **web request that asks for them**, not inside the
+worker that later performs the work. A retried Run is not a second use, and web
+is currently the only role scraped. `Metrics::ProductUsage::FEATURES` is a
+closed enum; `record` raises on an unknown key in development and test, and
+ignores it in production. Adding a feature means adding it to that list, which
+is the point — product analytics is exactly where a user-supplied string gets
+passed as a label, and that is how a metrics system acquires unbounded
+cardinality.
+
 ## Aggregating: `max by`, never `sum`
 
 Metrics prefixed `syrus_global_` are **one fact about the whole cluster**, not a
-per-pod value. They are sampled once a minute by `SampleQueueMetricsJob` into
-the cache, and every pod that serves `/metrics` renders the same numbers.
+per-pod value. They are sampled once a minute by `SampleGlobalMetricsJob` into the cache, and every pod that serves `/metrics` renders the same numbers.
 
 ```promql
 max by (queue) (syrus_global_queue_oldest_age_seconds)   # correct
@@ -89,7 +118,7 @@ Non-global metrics are per-process and aggregate normally.
 
 ## Staleness
 
-If `SampleQueueMetricsJob` stops running, the gauges would otherwise keep
+If `SampleGlobalMetricsJob` stops running, the gauges would otherwise keep
 reporting whatever they last saw — confidently showing a healthy queue during
 exactly the incident they exist to catch. Two things prevent that:
 

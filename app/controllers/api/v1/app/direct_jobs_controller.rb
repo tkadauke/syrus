@@ -128,7 +128,7 @@ module Api
             target_branch: target_branch,
             delivery_track: delivery_track,
             state: Job.initial_state_for_creator(Current.user)
-          )
+          ).tap { Metrics::ProductUsage.record(:direct_job_created) }
         end
 
         def attach_initial_job_attachments(job)

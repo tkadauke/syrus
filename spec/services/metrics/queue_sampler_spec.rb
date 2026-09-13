@@ -49,13 +49,19 @@ RSpec.describe Metrics::QueueSampler do
   let(:cache) { ActiveSupport::Cache::MemoryStore.new }
   let(:source) { FakeQueueSource.new }
 
-  before do
-    allow(Rails).to receive(:cache).and_return(cache)
-    # The registry is process-global; reset so one example's gauges cannot be
-    # read as another's, then reload the declaration this class owns.
+  # The registry is process-global: reset so one example's gauges cannot be read
+  # as another's, and restore afterwards so later specs -- including the catalog
+  # drift guard -- do not see a registry stripped to this one class's metrics.
+  around do |example|
+    original = Syrus::Metrics.registry
     Syrus::Metrics.reset!
     described_class.declare_metrics!
+    example.run
+  ensure
+    Syrus::Metrics.instance_variable_set(:@registry, original)
   end
+
+  before { allow(Rails).to receive(:cache).and_return(cache) }
 
   describe "#sample!" do
     it "caches a sample the scrape path can render without querying the queue" do

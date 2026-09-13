@@ -286,6 +286,7 @@ module Api
           chat_session = create_chat_session
           return if performed?
 
+          Metrics::ProductUsage.record(:chat_created)
           render json: {
             message: chat_session.messages.exists? ? "Message sent." : "Chat created.",
             redirect_to: chat_path(chat_session),
@@ -325,6 +326,7 @@ module Api
             enqueue_chat_title(chat_session, title_message)
           end
           enqueue_chat_turn(chat_session, user_message) if turn_triggered
+          Metrics::ProductUsage.record(:chat_message_sent)
 
           if stream_request?
             stream_chat_turn(chat_session, user_message, turn_enqueued: turn_triggered)
