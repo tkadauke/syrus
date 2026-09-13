@@ -23,7 +23,13 @@ export const DERIVED_COLOR_TOKENS: Record<string, string> = {
   "info-text": "var(--color-info)",
   "neutral-surface": "color-mix(in srgb, var(--color-surface) 94%, var(--color-neutral))",
   "neutral-border": "color-mix(in srgb, var(--color-surface) 70%, var(--color-neutral))",
-  "neutral-text": "var(--color-neutral)"
+  "neutral-text": "var(--color-neutral)",
+  "code-surface": "var(--color-surface-inset)",
+  "code-text": "var(--color-text-primary)",
+  "code-muted": "var(--color-text-muted)",
+  "code-keyword": "var(--color-brand-emphasis)",
+  "code-string": "var(--color-success)",
+  "code-number": "var(--color-info)"
 }
 
 export function semanticColorProperties(tokens: ThemeTokens): ThemeTokens {
