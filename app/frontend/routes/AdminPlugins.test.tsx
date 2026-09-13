@@ -593,12 +593,26 @@ describe("AdminPlugins", () => {
     renderDetailRoute()
 
     expect(await screen.findByText("Interactive shells.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Open Terminal" })).toHaveAttribute("href", "/terminal")
+    expect(screen.getByRole("link", { name: "Open Terminal" })).toHaveAttribute("href", "/app-shell/terminal")
     expect(screen.getByText("Hostname")).toBeInTheDocument()
     expect(screen.getByText("/api/v1/app/terminal_sessions")).toBeInTheDocument()
     expect(screen.getByText("Operator docs.")).toBeInTheDocument()
     expect(screen.getByText("syrus_terminal_sessions_total")).toBeInTheDocument()
     expect(screen.getByText("Sessions.")).toBeInTheDocument()
+  })
+
+  it("preserves external plugin-provided links", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugin: detailPlugin({
+        name: "external",
+        display_name: "External",
+        links: [{ label: "Open docs", url: "https://example.test/docs", kind: "secondary", available: true }]
+      })
+    }))
+
+    renderDetailRoute("/app-shell/admin/plugins/external")
+
+    expect(await screen.findByRole("link", { name: "Open docs" })).toHaveAttribute("href", "https://example.test/docs")
   })
 
   it("renders detail empty states and hides enabled-only links for disabled plugins", async () => {

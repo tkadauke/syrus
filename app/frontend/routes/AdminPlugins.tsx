@@ -233,6 +233,8 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
 
 function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
   const visibleLinks = (plugin.links || []).filter((link) => link.available !== false)
   const disabledLinks = (plugin.links || []).filter((link) => link.available === false)
 
@@ -259,7 +261,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
         {visibleLinks.length > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {visibleLinks.map((link) => (
-              <a className={buttonClasses(link.kind === "primary" ? "primary" : "secondary", "md")} href={link.url} key={`${link.label}-${link.url}`}>
+              <a className={buttonClasses(link.kind === "primary" ? "primary" : "secondary", "md")} href={pluginLinkHref(link.url, prefix)} key={`${link.label}-${link.url}`}>
                 {link.label}
               </a>
             ))}
@@ -333,6 +335,11 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
       </div>
     </>
   )
+}
+
+function pluginLinkHref(url: string, prefix: string) {
+  if (url.startsWith("/") && !url.startsWith("//")) return withRoutePrefix(url, prefix)
+  return url
 }
 
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
