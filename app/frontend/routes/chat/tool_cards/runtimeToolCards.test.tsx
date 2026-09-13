@@ -400,10 +400,10 @@ describe("Runtime tool cards", () => {
 
     render(<>{runtimeSnapshotToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "data:image/png;base64,abc123")
-    expect(screen.getByText("http://127.0.0.1:4173/settings")).toBeInTheDocument()
-    expect(screen.getByText("Settings")).toBeInTheDocument()
+    expect(screen.getAllByText("http://127.0.0.1:4173/settings").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Settings").length).toBeGreaterThan(0)
     expect(screen.getByText("1280x720")).toBeInTheDocument()
-    expect(screen.getByText("Open preview")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument()
   })
 
   it("shows missing Runtime artifacts as an explicit empty state", () => {
@@ -435,7 +435,9 @@ describe("Runtime tool cards", () => {
     expect(screen.getAllByText("chat_image:3").length).toBeGreaterThan(0)
     expect(screen.getAllByText("settings.png").length).toBeGreaterThan(0)
     expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
-    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file?download=1")
+    fireEvent.click(screen.getByRole("button", { name: "Open settings.png" }))
+    const dialog = screen.getByRole("dialog", { name: "Runtime artifact preview" })
+    expect(within(dialog).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file?download=1")
   })
 
   it("renders Runtime capture failures distinctly", () => {

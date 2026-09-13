@@ -18,6 +18,7 @@ import { detectHighlighterLanguage } from "../../lib/highlighter"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
+import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } from "../../toolCardSecurity"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
 import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
@@ -520,7 +521,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     )
   }
 
-  const details = item.calls.map((call) => [call.detail, toolCardAwareResultSummary(call)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const details = item.calls.map((call) => [redactToolCardText(call.detail), toolCardAwareResultSummary(call)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
   const summary = item.summary_label || item.tool
   const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done")
   const expanded = open
@@ -536,7 +537,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
           <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${call.detail})` : ""}</div>
+            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${redactToolCardText(call.detail)})` : ""}</div>
             {toolCardAwareResultSummary(call) ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{toolCardAwareResultSummary(call)}</div> : null}
             {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
             {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
@@ -572,16 +573,10 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
-  const pluginBody = pluginToolCardExpandedBody({
-    toolName: toolCardName(call),
-    input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
-    resultBody: call.result_body,
-    resultError: call.result_error,
-    parsedResult: call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
-  })
+  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call))
   if (pluginBody != null) return <>{pluginBody}</>
 
-  return <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} />
+  return <HighlightedToolResult code={redactToolCardText(call.result_body)} detail={redactToolCardText(call.detail)} error={call.result_error} />
 }
 
 function toolCardName(call: ChatToolGroupItem["calls"][number]) {
@@ -589,17 +584,21 @@ function toolCardName(call: ChatToolGroupItem["calls"][number]) {
 }
 
 function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
-  if (call.result_summary) return call.result_summary
+  if (call.result_summary) return redactToolCardText(call.result_summary)
 
-  const cardSummary = pluginToolCardCollapsedSummary({
+  const cardSummary = pluginToolCardCollapsedSummary(toolCardContext(call))
+
+  return cardSummary ? redactToolCardText(cardSummary) : null
+}
+
+function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
+  return {
     toolName: toolCardName(call),
-    input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
-    resultBody: call.result_body,
+    input: isPlainObject(call.raw_payload) ? redactToolCardValue(call.raw_payload) as Record<string, unknown> : {},
+    resultBody: redactToolCardText(call.result_body),
     resultError: call.result_error,
-    parsedResult: call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
-  })
-
-  return cardSummary || call.result_summary
+    parsedResult: redactToolCardValue(call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body))
+  }
 }
 
 function toolCallSettled(call: ChatToolGroupItem["calls"][number]) {
@@ -611,7 +610,7 @@ function TypedToolResultBody({ result }: { result: TypedToolResult }) {
     case "success_row":
       return (
         <div className="mt-1 rounded border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">
-          {result.label}
+          {redactToolCardText(result.label)}
         </div>
       )
   }
@@ -619,10 +618,27 @@ function TypedToolResultBody({ result }: { result: TypedToolResult }) {
 
 function RawToolDetails({ payload }: { payload: unknown }) {
   const [open, setOpen] = useState(false)
+  const { copied, copy } = useCopyToClipboard()
+  const redactedPayload = redactToolCardValue(payload)
+  const rawText = JSON.stringify(redactedPayload, null, 2)
+  const sizeLabel = toolCardPayloadSizeLabel(rawText)
+
   return (
     <details className="mt-1" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300">Raw details</summary>
-      {open ? <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-gray-50 p-2 font-mono text-gray-600 dark:bg-gray-900 dark:text-gray-400">{JSON.stringify(payload, null, 2)}</pre> : null}
+      <summary className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300">
+        Raw details <span className="font-mono text-2xs">({sizeLabel}, redacted)</span>
+      </summary>
+      {open ? (
+        <div className="mt-1 rounded bg-gray-50 p-2 dark:bg-gray-900">
+          <div className="mb-2 flex items-center justify-between gap-2 text-2xs text-gray-500 dark:text-gray-400">
+            <span>Secret-like values are redacted before display and copy.</span>
+            <button className="rounded border border-gray-200 bg-white px-2 py-0.5 font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => copy(rawText)} type="button">
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <pre className="whitespace-pre-wrap break-words font-mono text-gray-600 dark:text-gray-400">{rawText}</pre>
+        </div>
+      ) : null}
     </details>
   )
 }
@@ -649,17 +665,19 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
   const name = tool?.display_label || tool?.name || "tool"
   const outcome = tool?.result_kind === "error" ? "Failed" : tool?.result_summary ? "Done" : null
   const [open, setOpen] = useState(false)
+  const argumentSummary = tool?.argument_summary ? redactToolCardText(tool.argument_summary) : null
+  const resultSummary = tool?.result_summary ? redactToolCardText(tool.result_summary) : null
   return (
     <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
         <span className="text-gray-400 dark:text-gray-500">▸</span>
         <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
         {outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Failed" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>{outcome}</span> : null}
-        {tool?.argument_summary ? <span className="min-w-0 truncate font-mono text-gray-600 dark:text-gray-400">{tool.argument_summary}</span> : null}
-        {tool?.result_summary ? <span className="shrink-0 font-mono text-gray-500 dark:text-gray-400">{tool.result_summary}</span> : null}
+        {argumentSummary ? <span className="min-w-0 truncate font-mono text-gray-600 dark:text-gray-400">{argumentSummary}</span> : null}
+        {resultSummary ? <span className="shrink-0 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</span> : null}
         {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
       </summary>
-      {open ? <pre className="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words dark:text-gray-300">{JSON.stringify(tool?.payload || fallback, null, 2)}</pre> : null}
+      {open ? <div className="px-3 pb-3"><RawToolDetails payload={{ name: tool?.raw_name || tool?.name || name, input: tool?.raw_payload || null, result: tool?.payload || fallback }} /></div> : null}
     </details>
   )
 }

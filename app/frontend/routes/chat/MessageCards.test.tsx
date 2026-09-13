@@ -406,6 +406,15 @@ describe("tool result rendering", () => {
     fireEvent.click(summary)
   }
 
+  function openRawDetails() {
+    const rawDetails = screen.getByText(/Raw details/).closest("details")
+    expect(rawDetails).not.toBeNull()
+    if (!rawDetails) throw new Error("missing raw details")
+    rawDetails.open = true
+    fireEvent(rawDetails, new Event("toggle"))
+    return rawDetails
+  }
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -637,19 +646,18 @@ describe("tool result rendering", () => {
     expect(imageTile).toHaveClass("dark:bg-gray-950")
     expect(within(imageTile).getByRole("img", { name: "desktop.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
     expect(within(imageTile).getByText("desktop.png")).toBeInTheDocument()
-    expect(within(imageTile).getByText("chat_image:3")).toBeInTheDocument()
     expect(within(imageTile).getByText("image/png")).toBeInTheDocument()
     expect(within(imageTile).getByText("image")).toBeInTheDocument()
 
     const snapshotTile = screen.getByRole("button", { name: "Open Checkout flow" })
     expect(within(snapshotTile).getByText("Checkout flow")).toBeInTheDocument()
-    expect(within(snapshotTile).getByText("snapshot:9")).toBeInTheDocument()
     expect(within(snapshotTile).getByText("snapshot")).toBeInTheDocument()
 
     fireEvent.click(imageTile)
     expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
     expect(screen.getAllByRole("img", { name: "desktop.png" })).toHaveLength(2)
     expect(screen.getByText("Content type")).toBeInTheDocument()
+    expect(screen.getByText("chat_image:3")).toBeInTheDocument()
 
     const rawDetails = screen.getByText("Raw details").closest("details")
     expect(rawDetails).not.toBeNull()
@@ -659,7 +667,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("chat_image:3") === true)).toBeInTheDocument()
   })
 
-  it("navigates between image previews in list_chat_media tool cards", () => {
+  it("closes list_chat_media previews with Escape", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "List chat media",
@@ -694,19 +702,11 @@ describe("tool result rendering", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open desktop.png" }))
 
     expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Next image" })).toBeEnabled()
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file")
 
-    fireEvent.click(screen.getByRole("button", { name: "Next image" }))
+    fireEvent.keyDown(window, { key: "Escape" })
 
-    const dialog = screen.getByRole("dialog", { name: "mobile.png" })
-    expect(dialog).toBeInTheDocument()
-    expect(within(dialog).getByRole("img", { name: "mobile.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/4/file")
-    expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
-
-    fireEvent.keyDown(window, { key: "ArrowLeft" })
-
-    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: "desktop.png" })).not.toBeInTheDocument()
   })
 
   it("renders an empty state for list_chat_media when the chat has no media", () => {
@@ -890,6 +890,63 @@ describe("tool result rendering", () => {
     expect(screen.getByText("{\"label\":")).toBeInTheDocument()
   })
 
+  it("redacts raw details, fallback output, summaries, and copied payloads for unknown tool cards", async () => {
+    const clipboardWrite = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText: clipboardWrite } })
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Unknown tool",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "unknown_tool",
+          raw_name: "unknown_tool",
+          detail: "token=detail-secret-123456",
+          display_label: "Unknown tool",
+          progress_label: "Reading",
+          raw_payload: { accessToken: "input-access-secret-123456", api_token: "input-secret-123456", query: "visible" },
+          result_body: 'Authorization: Bearer resultsecret1234567890\n{"accessToken":"result-access-secret-123456"}\nvisible result',
+          result_error: false,
+          result_kind: "text",
+          result_summary: "password=summary-secret-123456"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getAllByText(/token=\[redacted\]/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/password=\[redacted\]/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/detail-secret/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/summary-secret/)).not.toBeInTheDocument()
+
+    expandToolGroup("Unknown tool")
+
+    expect(screen.getByText(/Authorization: Bearer \[redacted\]/)).toBeInTheDocument()
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("visible result") === true)).toBeInTheDocument()
+    expect(screen.queryByText(/resultsecret/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/result-access-secret/)).not.toBeInTheDocument()
+
+    const rawDetails = openRawDetails()
+    expect(within(rawDetails).getByText(/\([^)]+, redacted\)/)).toBeInTheDocument()
+    expect(within(rawDetails).getByText(/Secret-like values are redacted/)).toBeInTheDocument()
+    expect(within(rawDetails).getAllByText(/\[redacted\]/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/input-secret/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/input-access-secret/)).not.toBeInTheDocument()
+
+    fireEvent.click(within(rawDetails).getByRole("button", { name: "Copy" }))
+
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledTimes(1))
+    const copied = clipboardWrite.mock.calls[0][0]
+    expect(copied).toContain("[redacted]")
+    expect(copied).toContain("visible")
+    expect(copied).not.toContain("input-secret")
+    expect(copied).not.toContain("input-access-secret")
+    expect(copied).not.toContain("resultsecret")
+    expect(copied).not.toContain("result-access-secret")
+  })
+
   it("keeps standalone structured tool messages collapsed until expansion", () => {
     renderChatMessageItem({
       type: "message",
@@ -917,6 +974,8 @@ describe("tool result rendering", () => {
     expect(screen.queryByText(/Collapsed tools/)).not.toBeInTheDocument()
 
     expandToolGroup("Read job")
+
+    openRawDetails()
 
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("Collapsed tools") === true)).toBeInTheDocument()
   })
@@ -954,6 +1013,48 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("DOC-20")).toBeInTheDocument()
     expect(screen.getByText("Target Graphs")).toBeInTheDocument()
+  })
+
+  it("redacts plugin-owned card summaries, rendered body, and raw details through the shared tool-card context", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "List design docs",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "list_design_docs",
+          raw_name: "list_design_docs",
+          detail: "plugin-input-secret-123456",
+          display_label: "List design docs",
+          progress_label: "Reading",
+          raw_payload: { refresh_token: "plugin-input-secret-123456" },
+          result_body: JSON.stringify({ design_docs: [{ id: 999, doc_ref: "DOC-999", title: "token=plugin-title-secret-123456", state: "draft" }] }),
+          result_json: { design_docs: [{ id: 999, doc_ref: "DOC-999", title: "token=plugin-title-secret-123456", state: "draft" }] },
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("1 design doc")).toBeInTheDocument()
+    expect(screen.getByText(/\[redacted\] · 1 design doc/)).toBeInTheDocument()
+    expect(screen.queryByText(/plugin-input-secret/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/plugin-title-secret/)).not.toBeInTheDocument()
+
+    expandToolGroup("List design docs")
+
+    expect(screen.getByText("DOC-999")).toBeInTheDocument()
+    expect(screen.getByText("token=[redacted]")).toBeInTheDocument()
+    expect(screen.queryByText(/plugin-input-secret/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/plugin-title-secret/)).not.toBeInTheDocument()
+
+    const rawDetails = openRawDetails()
+    expect(within(rawDetails).getAllByText(/\[redacted\]/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/plugin-input-secret/)).not.toBeInTheDocument()
   })
 
   it("still resolves a plugin-registered card when the tool call errored", () => {
