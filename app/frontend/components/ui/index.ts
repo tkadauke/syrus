@@ -15,6 +15,9 @@ export type { ClusterProps, InlineProps, LayoutAlign, LayoutGap, LayoutJustify, 
 export { DataTable } from "./DataTable"
 export type { DataTableAlign, DataTableCellProps, DataTableDensity, DataTableEmptyProps, DataTableHeadCellProps, DataTableRootProps, DataTableRowProps, DataTableSortDirection } from "./DataTable"
 
+export { CodeSurface } from "./CodeSurface"
+export type { CodeSurfaceMode, CodeSurfaceProps } from "./CodeSurface"
+
 export { DescriptionList } from "./DescriptionList"
 export type { DescriptionListDensity, DescriptionListItemProps, DescriptionListRootProps } from "./DescriptionList"
 
@@ -26,6 +29,9 @@ export type { InputProps } from "../Input"
 
 export { Form } from "./Form"
 export type { FormActionsProps, FormFieldLayout, FormFieldProps, FormLabelProps, FormTextProps } from "./Form"
+
+export { Metric, Stat } from "./Metric"
+export type { MetricCardProps, MetricGroupProps } from "./Metric"
 
 export { Modal } from "../Modal"
 export type { ModalProps } from "../Modal"
@@ -57,6 +63,12 @@ export type { BannerTone, PillTone } from "../StatusPill"
 
 export { Surface, surfaceClasses, SURFACE_PADDING_CLASSES, SURFACE_VARIANT_CLASSES } from "./Surface"
 export type { SurfacePadding, SurfaceProps, SurfaceVariant } from "./Surface"
+
+export { ActivityRow, Timeline } from "./Timeline"
+export type { ActivityRowProps, TimelineRootProps } from "./Timeline"
+
+export { ToolCard } from "./ToolCard"
+export type { ToolCardBodyProps, ToolCardFooterProps, ToolCardHeaderProps, ToolCardRootProps } from "./ToolCard"
 
 export { Text, textClasses } from "./Text"
 export type { TextProps, TextTone, TextVariant } from "./Text"
