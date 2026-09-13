@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
+import { Input, ToolCard } from "../../components/ui"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 
@@ -79,7 +80,7 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 export function CardShell({ children }: { children: ReactNode }) {
-  return <div className="mt-1 space-y-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-900">{children}</div>
+  return <ToolCard.Root className="mt-1 space-y-2 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">{children}</ToolCard.Root>
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
@@ -151,9 +152,10 @@ export function FilterableList<T,>({ children, emptyLabel = "No matching rows.",
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <input
+        <Input
           aria-label={placeholder}
-          className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 shadow-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+          className="min-w-0 flex-1 px-2 py-1 text-xs dark:bg-gray-950"
+          fullWidth={false}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={placeholder}
           type="search"
