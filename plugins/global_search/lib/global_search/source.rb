@@ -30,15 +30,13 @@ module GlobalSearch
   #   def self.row_id_key = :my_thing_id
   #   def self.result_json(row:, user:) = { id:, title:, path: }
   #
-  # Providers that own built-in or plugin search tables can also expose
-  # maintenance rebuild hooks:
+  # A provider may also expose records that the core search-database rebuild
+  # maintenance task can backfill:
   #
-  #   def self.search_table_name = "my_plugin_fts"
-  #   def self.search_id_column = "my_plugin_id"
-  #   def self.records = MyPlugin::Record.order(:id)
-  #   def self.count = MyPlugin::Record.count
-  #   def self.exists? = MyPlugin::Record.exists?
-  #   def self.upsert(record) = MyPlugin::Index.upsert(record)
+  #   def self.search_rebuild_key = "my_things"
+  #   def self.search_rebuild_scope = MyThing.order(:id)
+  #   def self.index_search_record(record) = MyThingIndex.upsert(record)
+  #
   # The contract for a search result type contributed through this plugin's
   # "global_search:source" point.
   #

@@ -88,25 +88,36 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        source = search_source_for("job_fts")
-        return mark_plugin_step_done(task, "jobs") unless source
+        provider = search_rebuild_provider("jobs")
+        return mark_plugin_step_done(task, "jobs") unless provider
 
         task.current_step_key = "jobs"
         task.current_step_title = "Index jobs"
-        processed = index_search_source(source, task, "last_job_id", "jobs_done")
-
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
+        index_search_records(task, provider: provider, checkpoint_key: "last_job_id", done_key: "jobs_done", message_label: "job")
       end
 
       def index_epics(task)
-        source = search_source_for("epic_fts")
-        return mark_plugin_step_done(task, "epics") unless source
+        provider = search_rebuild_provider("epics")
+        return mark_plugin_step_done(task, "epics") unless provider
 
         task.current_step_key = "epics"
         task.current_step_title = "Index epics"
-        processed = index_search_source(source, task, "last_epic_id", "epics_done")
+        index_search_records(task, provider: provider, checkpoint_key: "last_epic_id", done_key: "epics_done", message_label: "epic")
+      end
 
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} epic(s).", level: "progress")
+      def index_search_records(task, provider:, checkpoint_key:, done_key:, message_label:)
+        processed = 0
+        scope = provider.search_rebuild_scope
+        scope.where("id > ?", task.checkpoint[checkpoint_key].to_i).limit(task.batch_size).find_each do |record|
+          provider.index_search_record(record)
+          task.checkpoint_will_change!
+          task.checkpoint[checkpoint_key] = record.id
+          processed += 1
+        end
+        task.checkpoint_will_change!
+        task.checkpoint[done_key] = true if processed.zero? || task.checkpoint[checkpoint_key].to_i >= scope.maximum(:id).to_i
+
+        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} #{message_label}(s).", level: "progress")
       end
 
       def index_operational_logs(task)
@@ -162,17 +173,15 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        source = search_source_for("job_fts")
-        source && indexed_count(source.search_table_name, source.search_id_column) < source.count
+        (provider = search_rebuild_provider("jobs")) && indexed_count("job_fts", "job_id") < provider.search_rebuild_scope.count
       rescue StandardError
-        source && source.exists?
+        search_rebuild_provider("jobs")&.search_rebuild_scope&.exists? || false
       end
 
       def epics_need_rebuild?
-        source = search_source_for("epic_fts")
-        source && indexed_count(source.search_table_name, source.search_id_column) < source.count
+        (provider = search_rebuild_provider("epics")) && indexed_count("epic_fts", "epic_id") < provider.search_rebuild_scope.count
       rescue StandardError
-        source && source.exists?
+        search_rebuild_provider("epics")&.search_rebuild_scope&.exists? || false
       end
 
       def operational_logs_need_rebuild?
@@ -188,40 +197,21 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = search_source_for("job_fts")&.count.to_i
-      def epics_count = search_source_for("epic_fts")&.count.to_i
+      def jobs_count = search_rebuild_provider("jobs")&.search_rebuild_scope&.count || 0
+      def epics_count = search_rebuild_provider("epics")&.search_rebuild_scope&.count || 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
 
-      def index_search_source(source, task, checkpoint_key, done_key)
-        processed = 0
-        source.records.where("id > ?", task.checkpoint[checkpoint_key].to_i).limit(task.batch_size).find_each do |record|
-          source.upsert(record)
-          task.checkpoint_will_change!
-          task.checkpoint[checkpoint_key] = record.id
-          processed += 1
-        end
-        task.checkpoint_will_change!
-        task.checkpoint[done_key] = true if processed.zero? || task.checkpoint[checkpoint_key].to_i >= source.records.maximum(:id).to_i
-        processed
-      end
+      def search_rebuild_provider(key)
+        return nil unless defined?(Syrus::PluginRegistry)
 
-      def search_source_for(table_name)
-        search_sources.find { |source| source.search_table_name.to_s == table_name }
-      end
-
-      def search_sources
-        return [] unless defined?(Syrus::PluginRegistry)
-
-        Syrus::PluginRegistry.providers_for("global_search:source").select do |provider|
-          provider.respond_to?(:search_table_name) &&
-            provider.respond_to?(:search_id_column) &&
-            provider.respond_to?(:records) &&
-            provider.respond_to?(:count) &&
-            provider.respond_to?(:exists?) &&
-            provider.respond_to?(:upsert)
-        end
+        Syrus::PluginRegistry.providers_for("global_search:source").find do |provider|
+          provider.respond_to?(:search_rebuild_key) &&
+            provider.respond_to?(:search_rebuild_scope) &&
+            provider.respond_to?(:index_search_record) &&
+            provider.search_rebuild_key.to_s == key.to_s
+          end
       rescue StandardError
-        []
+        nil
       end
 
       def bind(value)

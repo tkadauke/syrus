@@ -160,30 +160,25 @@ RSpec.describe "maintenance task definitions" do
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
 
-    it "indexes jobs through the global search source provider" do
-      user = Factories.user
-      repository = Factories.repository(user: user)
-      job = Factories.job_record(user: user, repository: repository, issue_title: "Rebuild searchable job")
+    it "indexes plugin-owned search records through a rebuild provider" do
+      job = Factories.job
       provider = Class.new do
-        @upserted_ids = []
-
         class << self
-          attr_reader :upserted_ids
-
-          def search_table_name = "job_fts"
-          def search_id_column = "job_id"
-          def records = Job.order(:id)
-          def count = Job.count
-          def exists? = Job.exists?
-          def upsert(record) = @upserted_ids << record.id
+          def indexed_ids = @indexed_ids ||= []
+          def search_rebuild_key = "jobs"
+          def search_rebuild_scope = Job.order(:id)
+          def index_search_record(record) = indexed_ids << record.id
         end
       end
+      task = maintenance_task_for(definition)
+
       allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
 
-      result = definition.send(:index_jobs, maintenance_task_for(definition))
+      result = definition.send(:index_jobs, task)
 
       expect(result.processed).to eq(1)
-      expect(provider.upserted_ids).to eq([ job.id ])
+      expect(provider.indexed_ids).to eq([ job.id ])
+      expect(task.checkpoint["last_job_id"]).to eq(job.id)
       expect(result.message).to include("Indexed 1 job")
     end
 
