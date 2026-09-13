@@ -614,3 +614,218 @@ is what those already exist for.
   two and not six.
 - Whether to backfill `performance_log_events` into histograms, or leave
   historical latency analysis where it already works.
+
+---
+
+# Product metrics, telemetry, and the embedded dashboard
+
+Three later requirements — product-usage metrics, optional telemetry sharing for
+self-hosted installs, and a dashboard embedded in Syrus itself — change the
+architecture more than they first appear to, because two of them need Syrus to
+**read** its own metrics rather than only export them.
+
+## The architectural consequence
+
+The design above is export-only, which is Prometheus's model: the app holds
+current state cheaply, the TSDB owns storage, query and history. An embedded
+dashboard and a telemetry payload both need *history*, and history means
+storage. Taken naively that means reimplementing a time-series database inside
+Rails, which is a bad idea and a large one.
+
+The way out is that the embedded recorder should be **a client of the same
+scrape endpoint Prometheus uses**, not a second instrumentation path:
+
+```
+   instrumentation (one API, always on)
+              |
+     in-process registry
+              |
+         GET /metrics  ---------------->  Prometheus (optional, external)
+              |
+              +-------------->  local recorder (optional, plugin)
+                                      |
+                                 rollup tables
+                                      |
+                          embedded dashboard  +  telemetry payload
+```
+
+Properties that fall out of this, and they are the reason to prefer it:
+
+- **One instrumentation API.** Nothing in application code knows whether
+  Prometheus, the embedded recorder, both, or neither is consuming.
+- **The embedded dashboard and Grafana show the same numbers**, because they
+  read the same endpoint. Divergence between "the built-in view" and "the real
+  monitoring" is a classic and miserable bug class, designed out here.
+- **Graceful scaling.** Single-host Docker installs get a dashboard with no
+  extra infrastructure; large installs point real Prometheus at the same
+  endpoint and disable the plugin. No migration, no re-instrumentation.
+
+The recorder is deliberately *not* a TSDB. It stores fixed-resolution rollups
+(1-minute samples for 30 days, then daily) which is enough for the dashboard
+rows described earlier, and refuses to grow features toward arbitrary PromQL.
+When someone needs that, they need Prometheus, and the endpoint is already
+there.
+
+Scope honestly: the recorder scrapes every pod, which is trivial for a
+single-host Docker install (one process tree) and fine for a handful of pods. It
+is not a fleet monitoring system and should say so in its own docs.
+
+## Metrics as a consolidation, not a new thing
+
+Syrus already implements this pattern nine times, each with its own schema,
+pruner, reader and admin payload:
+
+```
+filter_usages                 mcp_tool_usages              run_resource_summaries
+github_api_usage_rollups      operational_log_events       test_insight_runtime_summaries
+main_branch_health_checks     performance_log_events       worker_host_health_samples
+```
+
+So "migrate the worker metrics in the admin UI onto the new system" is not
+adding a system — it is **replacing nine partial ones**. That is the strongest
+argument for building this properly, and equally an argument for doing it
+incrementally rather than as one migration.
+
+### But display and control must not be conflated
+
+`worker_host_health_samples` is not only displayed. It is read by
+`RunHostAdmission` and `WorkflowAdmissionBudget` — it is **control flow**. That
+distinction decides how far the migration should go:
+
+| | Display path | Control path |
+|---|---|---|
+| Consumer | dashboards, humans, alerts | admission decisions |
+| Tolerates staleness | yes | **no** |
+| Tolerates gaps | yes (a gap is visible) | **no** (a gap becomes a wrong decision) |
+| Tolerates approximation | yes (bucketed quantiles) | **no** |
+| May be dropped on error | **yes, by design** | no |
+
+The metrics layer is explicitly best-effort: it never raises, never blocks,
+drops rather than fails, and approximates by bucketing. Those are the right
+properties for observability and exactly the wrong ones for a scheduler input.
+An admission gate reading a gauge that is thirty seconds stale — or absent
+because the exporter hiccuped — is a reliability regression bought for tidiness.
+
+**So: migrate the display, keep the control path.** `WorkerHostHealthSampler`
+keeps writing `worker_host_health_samples` as the authoritative, transactional
+record that admission reads; it *additionally* emits the same values as gauges
+for dashboards and telemetry. One sampler, two consumers, one of which is
+allowed to miss a beat.
+
+This is the instinct that "reacting to metrics adds too much complexity" — the
+instinct is right, but the reason is sharper than complexity: it inverts a
+dependency, putting a lossy subsystem underneath a correctness-critical one.
+
+## Product metrics
+
+Feature-usage counters, to answer "what is actually used?" and prioritize
+accordingly. Ordinary counters at feature entry points:
+
+```
+syrus_feature_used_total{feature}            counter   # bounded enum of feature keys
+syrus_mcp_tool_calls_total{tool}             counter   # mcp_tool_usages already collects this
+syrus_workflow_started_total{trigger_kind}   counter
+syrus_step_executed_total{step_kind}         counter
+syrus_plugin_enabled{plugin}                 gauge     # 0/1 per installed plugin
+syrus_chat_turns_total{mode}                 counter
+```
+
+Two cautions specific to this category:
+
+- **`feature` must be a bounded enum declared in one place**, not a free string
+  passed by callers. A free-form feature label is how a metrics system acquires
+  unbounded cardinality, and product analytics is exactly where the temptation
+  to pass a user-supplied string arrives.
+- **Absence is the signal.** The point is to find features with *zero* usage, so
+  the dashboard must distinguish "counter exists and is 0" from "no series
+  exists". Declare product counters eagerly at boot with a zero value, so an
+  unused feature reports 0 rather than vanishing.
+
+## Optional telemetry
+
+Syrus is installed and run by its users, so telemetry is a privacy decision
+before it is an engineering one. The central collector is out of scope; the
+client side is not, and its constraints are:
+
+**Opt-in, never opt-out.** Default off, an explicit affirmative action to
+enable, as easy to turn off again. A fresh install shares nothing.
+
+**Allowlist at declaration.** A metric is shareable only if its declaration says
+so. Default private. This puts the privacy decision in the diff, where review
+can see it:
+
+```ruby
+counter :feature_used_total, tags: %i[feature], share: :aggregate
+gauge   :global_queue_ready, tags: %i[queue]                       # not shared
+counter :runs_total,         tags: %i[state trigger_kind], share: :aggregate
+```
+
+**Structurally incapable of carrying identifiers.** The cardinality allowlist
+already forbids `job_id`, `sha`, `branch`, `user_email` and repository slugs as
+labels. Telemetry inherits that, which means the shared payload cannot contain a
+repository name, an issue title, a prompt or a diff — not by policy but because
+no such value exists in the metric store to begin with. That is a far stronger
+guarantee than a scrubbing pass, and it is the reason the cardinality rule is
+non-negotiable rather than merely good practice.
+
+**Transparency is a feature, not a disclosure.** The settings screen shows the
+**exact payload**, rendered by the real serializer, before anything is sent —
+not a prose description of what is "generally" collected. Plus a local log of
+what was sent and when, so the claim stays auditable afterwards. If showing a
+user the payload would embarrass us, the payload is wrong.
+
+**Versioned and stable.** A `schema_version` on the payload, and adding a metric
+to the shared set is a deliberate change with a changelog entry — otherwise
+"opt in once" silently becomes consent to whatever gets added later.
+
+Sketch:
+
+```json
+{
+  "schema_version": 1,
+  "install_id": "<random uuid, generated locally, resettable>",
+  "syrus_version": "1.2.3",
+  "period": { "from": "...", "to": "..." },
+  "metrics": {
+    "feature_used_total": { "chat": 412, "epics": 38, "video_walkthroughs": 0 },
+    "runs_total": { "succeeded": 1328, "failed": 411 },
+    "plugins_enabled": ["github_source", "claude_agent"]
+  }
+}
+```
+
+`install_id` is random, locally generated and resettable, and exists only to
+deduplicate repeat submissions. It must not be derived from a hostname, licence
+key, email or repository.
+
+## The embedded dashboard plugin
+
+A `metrics_dashboard` plugin, off by default, following existing plugin
+conventions: a sidebar page with its `paths` fully declared (including any
+detail route — otherwise direct navigation silently renders the bootstrap
+shell), its own docs under `plugins/metrics_dashboard/docs/syrus_docs/`, and
+`plugin_disabled` responses when off. Disabling it must also stop the recorder;
+a disabled plugin should not keep writing rollup rows.
+
+It renders the same rows as the Grafana dashboards, from the recorder's tables.
+The deliberate constraint: **it is not a query builder.** Fixed panels answering
+the questions this document opened with — is the queue keeping up, what is
+landing, which features are used. Anyone needing ad-hoc queries has outgrown it,
+and `/metrics` is already waiting for them.
+
+## Revised rollout
+
+The dependency order changes: recorder and dashboard are downstream of the
+endpoint, and telemetry is downstream of the recorder.
+
+1. Instrumentation API + in-process registry + `/metrics` (web, then workers via
+   DirectFileStore).
+2. Queue metrics, so the incident that started this document is visible.
+3. Single-replica global exporter.
+4. External Prometheus + Grafana (staging, then production).
+5. Product-usage counters — cheap once the API exists, immediately useful.
+6. `metrics_dashboard` plugin: recorder + rollups + panels.
+7. Telemetry: payload, preview UI, opt-in, send. Last, because it depends on
+   everything above and because the privacy surface deserves its own review.
+
+Steps 1-4 stand alone and are worth doing regardless of whether 5-7 happen.
