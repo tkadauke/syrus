@@ -12,6 +12,7 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { DataTable, StatusPill, TonePill } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
 import { usePageTitle } from "../hooks/usePageTitle"
+import { useT } from "../hooks/useT"
 import { Markdown } from "../lib/Markdown"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 
@@ -19,7 +20,8 @@ const POLL_INTERVAL_MS = 10_000
 type MaintenanceTaskActionName = "start" | "pause" | "resume" | "cancel" | "dismiss"
 
 export function AdminMaintenanceTasks() {
-  usePageTitle("Maintenance tasks")
+  const { t } = useT("admin")
+  usePageTitle(t("maintenance_tasks.heading"))
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const queryClient = useQueryClient()
@@ -35,37 +37,38 @@ export function AdminMaintenanceTasks() {
 
   return (
     <AdminEventPageShell
-      actions={<Button disabled={discover.isPending} onClick={() => discover.mutate()} variant="secondary">{discover.isPending ? "Checking..." : "Check now"}</Button>}
-      ariaLabel="Maintenance tasks"
-      eyebrow="Admin"
-      title="Maintenance tasks"
+      actions={<Button disabled={discover.isPending} onClick={() => discover.mutate()} variant="secondary">{discover.isPending ? t("maintenance_tasks.checking") : t("maintenance_tasks.check_now")}</Button>}
+      ariaLabel={t("maintenance_tasks.aria")}
+      eyebrow={t("section_label")}
+      title={t("maintenance_tasks.heading")}
     >
-      <p className="max-w-3xl text-sm text-text-muted">Run resumable backfills, index rebuilds, and operational repairs without hiding long work inside deploys.</p>
+      <p className="max-w-3xl text-sm text-text-muted">{t("maintenance_tasks.description")}</p>
 
       <AdminEventFilterBar
-        clearLabel="Clear filters"
+        clearLabel={t("maintenance_tasks.clear_filters")}
         fields={[
-          { name: "state", label: "State" },
-          { name: "recurrence", label: "Type" },
-          { name: "category", label: "Category" },
-          { name: "definition_key", label: "Definition" },
-          { name: "trigger_kind", label: "Trigger" },
-          { name: "query", label: "Search" }
+          { name: "state", label: t("maintenance_tasks.filter_state") },
+          { name: "recurrence", label: t("maintenance_tasks.filter_type") },
+          { name: "category", label: t("maintenance_tasks.filter_category") },
+          { name: "definition_key", label: t("maintenance_tasks.filter_definition") },
+          { name: "trigger_kind", label: t("maintenance_tasks.filter_trigger") },
+          { name: "query", label: t("maintenance_tasks.filter_search") }
         ]}
         filter={tasks.data?.filter}
         filterSchema={tasks.data?.filter_schema as any}
         search={location.search}
-        searchLabel="Apply filters"
+        searchLabel={t("maintenance_tasks.apply_filters")}
       />
 
-      {tasks.isPending ? <AdminEventPanelMessage>Loading maintenance tasks...</AdminEventPanelMessage> : null}
-      {tasks.isError ? <AdminEventPanelMessage tone="error">Maintenance tasks could not be loaded.</AdminEventPanelMessage> : null}
+      {tasks.isPending ? <AdminEventPanelMessage>{t("maintenance_tasks.loading")}</AdminEventPanelMessage> : null}
+      {tasks.isError ? <AdminEventPanelMessage tone="error">{t("maintenance_tasks.error_load")}</AdminEventPanelMessage> : null}
       {tasks.isSuccess ? <MaintenanceTasksTable payload={tasks.data} prefix={prefix} /> : null}
     </AdminEventPageShell>
   )
 }
 
 export function AdminMaintenanceTaskDetail() {
+  const { t } = useT("admin")
   const { id } = useParams()
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
@@ -85,10 +88,10 @@ export function AdminMaintenanceTaskDetail() {
   })
 
   if (detail.isPending) {
-    return <AdminEventPageShell ariaLabel="Maintenance task" eyebrow="Admin" title="Maintenance task"><AdminEventPanelMessage>Loading maintenance task...</AdminEventPanelMessage></AdminEventPageShell>
+    return <AdminEventPageShell ariaLabel={t("maintenance_tasks.detail_aria")} eyebrow={t("section_label")} title={t("maintenance_tasks.detail_title")}><AdminEventPanelMessage>{t("maintenance_tasks.detail_loading")}</AdminEventPanelMessage></AdminEventPageShell>
   }
   if (detail.isError) {
-    return <AdminEventPageShell ariaLabel="Maintenance task" eyebrow="Admin" title="Maintenance task"><AdminEventPanelMessage tone="error">Maintenance task could not be loaded.</AdminEventPanelMessage></AdminEventPageShell>
+    return <AdminEventPageShell ariaLabel={t("maintenance_tasks.detail_aria")} eyebrow={t("section_label")} title={t("maintenance_tasks.detail_title")}><AdminEventPanelMessage tone="error">{t("maintenance_tasks.detail_error_load")}</AdminEventPanelMessage></AdminEventPageShell>
   }
 
   const task = detail.data
@@ -96,15 +99,15 @@ export function AdminMaintenanceTaskDetail() {
     <AdminEventPageShell
       actions={<TaskActions task={task} busy={action.isPending} onAction={(name) => action.mutate(name)} onDocs={() => setDocumentationOpen(true)} />}
       ariaLabel={`Maintenance task ${task.id}`}
-      eyebrow="Admin"
+      eyebrow={t("section_label")}
       title={task.title}
     >
-      <Link className={adminEventLinkClass()} to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>Maintenance tasks</Link>
+      <Link className={adminEventLinkClass()} to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>{t("maintenance_tasks.heading")}</Link>
       <p className="max-w-3xl text-sm text-text-muted">{task.summary}</p>
       <TaskProgress task={task} large />
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-text-primary">Task log</h2>
+        <h2 className="text-lg font-semibold text-text-primary">{t("maintenance_tasks.task_log")}</h2>
         <TaskEventLog events={task.events} />
       </section>
 
@@ -114,13 +117,14 @@ export function AdminMaintenanceTaskDetail() {
 }
 
 function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceTasksPayload; prefix: string }) {
-  if (payload.tasks.length === 0) return <AdminEventPanelMessage>No matching maintenance tasks.</AdminEventPanelMessage>
+  const { t } = useT("admin")
+  if (payload.tasks.length === 0) return <AdminEventPanelMessage>{t("maintenance_tasks.empty")}</AdminEventPanelMessage>
 
   const columns: Array<AdminEventLogTableColumn<MaintenanceTask>> = [
     {
       className: "w-[42%] px-4 py-3 align-top",
       headerClassName: "px-4 py-2",
-      header: "Task",
+      header: t("maintenance_tasks.col_task"),
       key: "task",
       render: (task) => (
         <div className="space-y-2">
@@ -133,7 +137,7 @@ function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceT
     {
       className: "w-[38%] px-4 py-3 align-top",
       headerClassName: "px-4 py-2",
-      header: "Status",
+      header: t("maintenance_tasks.col_status"),
       key: "status",
       render: (task) => (
         <div className="space-y-2">
@@ -142,21 +146,21 @@ function MaintenanceTasksTable({ payload, prefix }: { payload: AdminMaintenanceT
             <span className="text-xs text-text-muted">{task.progress_percent}%{task.eta_seconds == null ? "" : ` · ${formatEta(task.eta_seconds)}`}</span>
           </div>
           <TaskProgress task={task} showMeta={false} />
-          <p className="line-clamp-2 text-xs text-text-muted">{task.current_step_title || "No active step"}</p>
+          <p className="line-clamp-2 text-xs text-text-muted">{task.current_step_title || t("maintenance_tasks.no_active_step")}</p>
         </div>
       )
     },
     {
       className: "w-[14%] px-4 py-3 align-top font-mono text-xs text-text-muted",
       headerClassName: "px-4 py-2",
-      header: "Trigger",
+      header: t("maintenance_tasks.col_trigger"),
       key: "trigger",
       render: (task) => `${task.trigger_kind}:${task.trigger_key}`
     },
     {
       className: "w-[6%] whitespace-nowrap px-4 py-3 align-top text-xs text-text-muted",
       headerClassName: "px-4 py-2",
-      header: "Started",
+      header: t("maintenance_tasks.col_started"),
       key: "started",
       render: (task) => task.started_at ? <RelativeTimestamp value={task.started_at} /> : "-"
     }
@@ -176,13 +180,14 @@ function TaskType({ task }: { task: MaintenanceTask }) {
 
 export function TaskActions({ task, busy, compact = false, onAction, onDocs }: { task: MaintenanceTask; busy?: boolean; compact?: boolean; onAction: (action: "start" | "pause" | "resume" | "cancel" | "dismiss") => void; onDocs: () => void }) {
   const { confirm, dialog } = useConfirm()
+  const { t } = useT("admin")
 
   async function cancel() {
     const confirmed = await confirm({
-      cancelLabel: "Keep task",
-      confirmLabel: "Cancel task",
+      cancelLabel: t("maintenance_tasks.confirm_keep"),
+      confirmLabel: t("maintenance_tasks.action_cancel"),
       destructive: true,
-      message: `Cancel ${task.title}?`
+      message: t("maintenance_tasks.confirm_cancel", { title: task.title })
     })
     if (confirmed) onAction("cancel")
   }
@@ -207,13 +212,14 @@ function TaskStatusPill({ task }: { task: MaintenanceTask }) {
 }
 
 function TaskActionButton({ action, busy = false, compact = false, onClick }: { action: MaintenanceTaskActionName | "docs"; busy?: boolean; compact?: boolean; onClick: () => void }) {
+  const { t } = useT("admin")
   const labels: Record<MaintenanceTaskActionName | "docs", string> = {
-    cancel: "Cancel task",
-    dismiss: "Dismiss task",
-    docs: "Open documentation",
-    pause: "Pause task",
-    resume: "Resume task",
-    start: "Start task"
+    cancel: t("maintenance_tasks.action_cancel"),
+    dismiss: t("maintenance_tasks.action_dismiss"),
+    docs: t("maintenance_tasks.action_docs"),
+    pause: t("maintenance_tasks.action_pause"),
+    resume: t("maintenance_tasks.action_resume"),
+    start: t("maintenance_tasks.action_start")
   }
   const variant = action === "cancel" ? "danger" : action === "start" || action === "resume" ? "primary" : "secondary"
 
@@ -294,16 +300,17 @@ export function TaskProgress({ task, large = false, showMeta = true }: { task: M
 }
 
 function TaskEventLog({ events }: { events: MaintenanceTaskEvent[] }) {
-  if (events.length === 0) return <AdminEventPanelMessage>No events yet.</AdminEventPanelMessage>
+  const { t } = useT("admin")
+  if (events.length === 0) return <AdminEventPanelMessage>{t("maintenance_tasks.no_events")}</AdminEventPanelMessage>
 
   return (
     <DataTable.Root density="compact">
       <DataTable.Header>
         <DataTable.Row>
-          <DataTable.HeadCell>Time</DataTable.HeadCell>
-          <DataTable.HeadCell>Level</DataTable.HeadCell>
-          <DataTable.HeadCell>Step</DataTable.HeadCell>
-          <DataTable.HeadCell>Message</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("maintenance_tasks.event_time")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("maintenance_tasks.event_level")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("maintenance_tasks.event_step")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("maintenance_tasks.event_message")}</DataTable.HeadCell>
         </DataTable.Row>
       </DataTable.Header>
       <DataTable.Body>
@@ -321,6 +328,7 @@ function TaskEventLog({ events }: { events: MaintenanceTaskEvent[] }) {
 }
 
 export function TaskDocumentationModal({ task, onClose }: { task: MaintenanceTask; onClose: () => void }) {
+  const { t } = useT("admin")
   return (
     <Modal
       backdropClassName="fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] items-stretch justify-center bg-gray-950/40 p-0 sm:items-center sm:p-4"
@@ -331,7 +339,7 @@ export function TaskDocumentationModal({ task, onClose }: { task: MaintenanceTas
     >
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h2 className="truncate text-sm font-semibold text-text-primary">{task.title}</h2>
-        <Button aria-label="Close documentation" className="h-7 w-7" onClick={onClose} size="icon" title="Close documentation" variant="secondary">
+        <Button aria-label={t("maintenance_tasks.close_docs")} className="h-7 w-7" onClick={onClose} size="icon" title={t("maintenance_tasks.close_docs")} variant="secondary">
           <CloseIcon className="h-3.5 w-3.5" />
         </Button>
       </header>

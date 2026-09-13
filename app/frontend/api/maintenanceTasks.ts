@@ -60,8 +60,13 @@ export type AdminMaintenanceTaskDetailPayload = MaintenanceTask & {
   events: MaintenanceTaskEvent[]
 }
 
-export function fetchMaintenanceSidebar(signal?: AbortSignal) {
-  return getJson<MaintenanceSidebarPayload>("/api/v1/app/maintenance_tasks/sidebar", { signal })
+export async function fetchMaintenanceSidebar(signal?: AbortSignal) {
+  try {
+    const payload = await getJson<MaintenanceSidebarPayload>("/api/v1/app/maintenance_tasks/sidebar", { signal })
+    return Array.isArray(payload.tasks) ? payload : { tasks: [] }
+  } catch {
+    return { tasks: [] }
+  }
 }
 
 export function fetchAdminMaintenanceTasks(search: string, signal?: AbortSignal) {

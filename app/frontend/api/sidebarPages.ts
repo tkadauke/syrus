@@ -21,6 +21,11 @@ export type SidebarPluginPagesPayload = {
   pages: SidebarPluginPage[]
 }
 
-export function fetchSidebarPluginPages() {
-  return getJson<SidebarPluginPagesPayload>("/api/v1/app/sidebar_pages")
+export async function fetchSidebarPluginPages() {
+  try {
+    const payload = await getJson<SidebarPluginPagesPayload>("/api/v1/app/sidebar_pages")
+    return Array.isArray(payload.pages) ? payload : { pages: [] }
+  } catch {
+    return { pages: [] }
+  }
 }

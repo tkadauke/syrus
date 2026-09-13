@@ -88,39 +88,29 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        return mark_plugin_step_done(task, "jobs") unless defined?(GlobalSearch::JobIndex)
+        hook = plugin_rebuild_hook("job_fts")
+        return mark_plugin_step_done(task, "jobs") unless hook
 
         task.current_step_key = "jobs"
         task.current_step_title = "Index jobs"
-        processed = 0
-        Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          GlobalSearch::JobIndex.upsert(job)
-          task.checkpoint_will_change!
-          task.checkpoint["last_job_id"] = job.id
-          processed += 1
-        end
+        hook.call
         task.checkpoint_will_change!
-        task.checkpoint["jobs_done"] = true if processed.zero? || task.checkpoint["last_job_id"].to_i >= Job.maximum(:id).to_i
+        task.checkpoint["jobs_done"] = true
 
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
+        Result.new(done: false, processed: Job.count, failed: 0, message: "Indexed #{Job.count} job(s).", level: "progress")
       end
 
       def index_epics(task)
-        return mark_plugin_step_done(task, "epics") unless defined?(GlobalSearch::EpicIndex)
+        hook = plugin_rebuild_hook("epic_fts")
+        return mark_plugin_step_done(task, "epics") unless hook
 
         task.current_step_key = "epics"
         task.current_step_title = "Index epics"
-        processed = 0
-        Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          GlobalSearch::EpicIndex.upsert(epic)
-          task.checkpoint_will_change!
-          task.checkpoint["last_epic_id"] = epic.id
-          processed += 1
-        end
+        hook.call
         task.checkpoint_will_change!
-        task.checkpoint["epics_done"] = true if processed.zero? || task.checkpoint["last_epic_id"].to_i >= Epic.maximum(:id).to_i
+        task.checkpoint["epics_done"] = true
 
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} epic(s).", level: "progress")
+        Result.new(done: false, processed: Epic.count, failed: 0, message: "Indexed #{Epic.count} epic(s).", level: "progress")
       end
 
       def index_operational_logs(task)
@@ -176,15 +166,15 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        defined?(GlobalSearch::JobIndex) && indexed_count("job_fts", "job_id") < Job.count
+        plugin_rebuild_hook("job_fts") && indexed_count("job_fts", "job_id") < Job.count
       rescue StandardError
-        defined?(GlobalSearch::JobIndex) && Job.exists?
+        plugin_rebuild_hook("job_fts") && Job.exists?
       end
 
       def epics_need_rebuild?
-        defined?(GlobalSearch::EpicIndex) && indexed_count("epic_fts", "epic_id") < Epic.count
+        plugin_rebuild_hook("epic_fts") && indexed_count("epic_fts", "epic_id") < Epic.count
       rescue StandardError
-        defined?(GlobalSearch::EpicIndex) && Epic.exists?
+        plugin_rebuild_hook("epic_fts") && Epic.exists?
       end
 
       def operational_logs_need_rebuild?
@@ -200,9 +190,13 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = defined?(GlobalSearch::JobIndex) ? Job.count : 0
-      def epics_count = defined?(GlobalSearch::EpicIndex) ? Epic.count : 0
+      def jobs_count = plugin_rebuild_hook("job_fts") ? Job.count : 0
+      def epics_count = plugin_rebuild_hook("epic_fts") ? Epic.count : 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
+
+      def plugin_rebuild_hook(table_name)
+        SyrusSearchDatabaseTasks.plugin_rebuild_hook(table_name)
+      end
 
       def bind(value)
         ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
