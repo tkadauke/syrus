@@ -13588,7 +13588,7 @@ describe("App", () => {
     const writeTextSpy = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, "clipboard", { value: { writeText: writeTextSpy }, configurable: true })
 
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    mockAppChatFetch(chatPayload())
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -13609,7 +13609,7 @@ describe("App", () => {
 
   it("shows relative timestamp on chat message with created_at within the last hour", async () => {
     const recentCreatedAt = new Date(Date.now() - 4 * 60 * 1000).toISOString()
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+    mockAppChatFetch(chatPayload({
       messages: [
         {
           type: "message",
@@ -13622,7 +13622,7 @@ describe("App", () => {
           created_at: recentCreatedAt
         }
       ]
-    })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -13642,7 +13642,7 @@ describe("App", () => {
     const now = new Date()
     const pastDate = new Date(now.getFullYear(), 0, 15, 10, 29, 0)
     const oldCreatedAt = pastDate.toISOString()
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+    mockAppChatFetch(chatPayload({
       messages: [
         {
           type: "message",
@@ -13655,7 +13655,7 @@ describe("App", () => {
           created_at: oldCreatedAt
         }
       ]
-    })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -13674,7 +13674,7 @@ describe("App", () => {
   it("shows year in timestamp on chat message with created_at from a previous year", async () => {
     const previousYearDate = new Date(new Date().getFullYear() - 1, 6, 5, 22, 29, 0)
     const oldCreatedAt = previousYearDate.toISOString()
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+    mockAppChatFetch(chatPayload({
       messages: [
         {
           type: "message",
@@ -13687,7 +13687,7 @@ describe("App", () => {
           created_at: oldCreatedAt
         }
       ]
-    })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -13763,19 +13763,16 @@ describe("App", () => {
     const payload = chatPayload({
       messages: [pendingMessage, confirmedMessage, rejectedMessage]
     })
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
+    const fetchSpy = mockAppChatFetch(payload, (path, init) => {
       if (path === "/api/v1/app/chats/8/pending_actions/7/reject" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({
+        return jsonResponse({
           ...payload,
           messages: [{
             ...pendingMessage,
             pending_action: { ...pendingMessage.pending_action, state: "rejected" }
           }, confirmedMessage, rejectedMessage]
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        })
       }
-
-      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(
@@ -13875,9 +13872,7 @@ describe("App", () => {
         materialized_path: null
       }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    mockAppChatFetch(chatPayload({ messages: [...chatPayload().messages, proposalMessage] }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -13924,9 +13919,7 @@ describe("App", () => {
         materialized_path: null
       }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    mockAppChatFetch(chatPayload({ messages: [...chatPayload().messages, proposalMessage] }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -13940,15 +13933,11 @@ describe("App", () => {
   })
 
   it("renders queued pending actions as waiting without action buttons", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
-        ...chatPayload({
-          pendingActions: [
-            pendingAction({ id: 7, label: "Send feedback to JOB-44", state: "queued" })
-          ]
-        })
-      }), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    mockAppChatFetch(chatPayload({
+      pendingActions: [
+        pendingAction({ id: 7, label: "Send feedback to JOB-44", state: "queued" })
+      ]
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -13966,16 +13955,12 @@ describe("App", () => {
   })
 
   it("renders confirming and failed pending actions with execution details", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
-        ...chatPayload({
-          pendingActions: [
-            pendingAction({ id: 7, label: "Cancel JOB-44", state: "confirming", executionStatus: "running", executionStep: "Cancelling workflow..." }),
-            pendingAction({ id: 8, label: "Retry JOB-45", state: "failed", executionStatus: "failed", executionStep: "Failed.", executionError: "ArgumentError: Job is not accessible." })
-          ]
-        })
-      }), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    mockAppChatFetch(chatPayload({
+      pendingActions: [
+        pendingAction({ id: 7, label: "Cancel JOB-44", state: "confirming", executionStatus: "running", executionStep: "Cancelling workflow..." }),
+        pendingAction({ id: 8, label: "Retry JOB-45", state: "failed", executionStatus: "failed", executionStep: "Failed.", executionError: "ArgumentError: Job is not accessible." })
+      ]
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -14020,16 +14005,12 @@ describe("App", () => {
       text: "A later assistant message.",
       bookmarkable: true
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
-        ...chatPayload({
-          messages: [userMessage, linkedMessage, laterMessage],
-          pendingActions: [
-            pendingAction({ id: 7, label: "Send feedback to JOB-44", detail: "Please **tighten** this implementation.\n\n- Use focused tests.", chatMessageId: 12 })
-          ]
-        })
-      }), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    mockAppChatFetch(chatPayload({
+      messages: [userMessage, linkedMessage, laterMessage],
+      pendingActions: [
+        pendingAction({ id: 7, label: "Send feedback to JOB-44", detail: "Please **tighten** this implementation.\n\n- Use focused tests.", chatMessageId: 12 })
+      ]
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -14056,19 +14037,15 @@ describe("App", () => {
   })
 
   it("renders unanchored pending actions after the last message", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
-        ...chatPayload({
-          messages: [
-            { ...chatPayload().messages[0], id: 11, text: "First message.", content: { text: "First message." } },
-            { ...chatPayload().messages[0], id: 12, text: "Last message.", content: { text: "Last message." } }
-          ],
-          pendingActions: [
-            pendingAction({ id: 7, label: "Send feedback to JOB-44", chatMessageId: null })
-          ]
-        })
-      }), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    mockAppChatFetch(chatPayload({
+      messages: [
+        { ...chatPayload().messages[0], id: 11, text: "First message.", content: { text: "First message." } },
+        { ...chatPayload().messages[0], id: 12, text: "Last message.", content: { text: "Last message." } }
+      ],
+      pendingActions: [
+        pendingAction({ id: 7, label: "Send feedback to JOB-44", chatMessageId: null })
+      ]
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -14085,17 +14062,13 @@ describe("App", () => {
   })
 
   it("renders terminal pending actions as read-only badges", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
-        ...chatPayload({
-          pendingActions: [
-            pendingAction({ id: 7, label: "Cancel JOB-44", state: "confirmed" }),
-            pendingAction({ id: 8, label: "Retry JOB-45", state: "rejected" }),
-            pendingAction({ id: 9, label: "Rebase JOB-46", state: "cancelled" })
-          ]
-        })
-      }), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    mockAppChatFetch(chatPayload({
+      pendingActions: [
+        pendingAction({ id: 7, label: "Cancel JOB-44", state: "confirmed" }),
+        pendingAction({ id: 8, label: "Retry JOB-45", state: "rejected" }),
+        pendingAction({ id: 9, label: "Rebase JOB-46", state: "cancelled" })
+      ]
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -14152,9 +14125,8 @@ describe("App", () => {
         children: []
       }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const payload = chatPayload({ messages: [...chatPayload().messages, proposalMessage] })
+    mockAppChatFetch(payload)
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -15711,6 +15683,32 @@ function mockDashboardFetchWithChatPreview(payload: ReturnType<typeof dashboardP
     }
 
     return Promise.resolve(dashboardResponse(payload, input))
+  })
+}
+
+function mockAppChatFetch(
+  payload: ReturnType<typeof chatPayload>,
+  override?: (path: string, init: RequestInit | undefined) => Response | undefined
+) {
+  return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+    const path = String(input)
+    const response = override?.(path, init)
+    if (response) return Promise.resolve(response)
+
+    if (path === "/api/v1/app/bootstrap") {
+      return Promise.resolve(jsonResponse(bootstrapPayload()))
+    }
+    if (path === "/api/v1/app/chats/8" || (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH")) {
+      return Promise.resolve(jsonResponse(payload))
+    }
+    if (path === "/api/v1/app/chats") {
+      return Promise.resolve(jsonResponse({ groups: [], repositories: [] }))
+    }
+    if (path === "/api/v1/app/sidebar_pages") {
+      return Promise.resolve(jsonResponse({ pages: [] }))
+    }
+
+    return Promise.resolve(jsonResponse({}))
   })
 }
 
