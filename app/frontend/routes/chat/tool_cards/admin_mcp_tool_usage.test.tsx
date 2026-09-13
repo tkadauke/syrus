@@ -44,6 +44,38 @@ const POPULATED_PAYLOAD = {
   ],
   unused_advertised_tools: ["admin_clear_github_cache"],
   custom_card_gaps: {
+    card_gap_priorities: [
+      {
+        tool_name: "bulk_read_jobs",
+        calls: 19,
+        errors: 0,
+        error_rate: 0,
+        result_bytes: 98304,
+        last_used_at: "2026-09-08T11:00:00Z",
+        server_names: ["syrus-chat-sidecar"],
+        priority_score: 25,
+        priority_label: "build_next",
+        owner_type: "core",
+        owner_name: "core",
+        recommendation_target: "core",
+        card_status: "missing"
+      },
+      {
+        tool_name: "unused_plugin_tool",
+        calls: 0,
+        errors: 0,
+        error_rate: 0,
+        result_bytes: 0,
+        last_used_at: null,
+        server_names: [],
+        priority_score: 0,
+        priority_label: "defer",
+        owner_type: "plugin",
+        owner_name: "example_plugin",
+        recommendation_target: "plugin:example_plugin",
+        card_status: "missing"
+      }
+    ],
     high_volume_without_custom_card: [
       {
         tool_name: "bulk_read_jobs",
@@ -147,6 +179,13 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getAllByText("3").length).toBeGreaterThan(0)
     expect(screen.getByText("Volume priorities")).toBeInTheDocument()
     expect(screen.getByText("Error priorities")).toBeInTheDocument()
+    expect(screen.getByText("Custom card gap priorities")).toBeInTheDocument()
+    expect(screen.getByText("Build next")).toBeInTheDocument()
+    expect(screen.getByText("96.0 KB")).toBeInTheDocument()
+    expect(screen.getByText("Defer")).toBeInTheDocument()
+    const priorityTable = screen.getByText("Last used").closest("table")
+    expect(priorityTable).toHaveClass("min-w-[44rem]")
+    expect(priorityTable?.parentElement).toHaveClass("overflow-x-auto")
     expect(screen.getByText("Missing high-volume cards")).toBeInTheDocument()
     expect(screen.getByText("Weak or missing error cards")).toBeInTheDocument()
     expect(screen.getAllByText("Unused advertised tools").length).toBeGreaterThan(0)
@@ -167,6 +206,7 @@ describe("admin_mcp_tool_usage tool card", () => {
       sidecar_mode_breakdown: [],
       unused_advertised_tools: [],
       custom_card_gaps: {
+        card_gap_priorities: [],
         high_volume_without_custom_card: [],
         high_error_with_weak_or_no_custom_card: [],
         unused_advertised_tools: []
@@ -179,6 +219,7 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("No MCP tool calls found for this window.")).toBeInTheDocument()
     expect(screen.getByText("No tool volume in this window.")).toBeInTheDocument()
     expect(screen.getByText("No high-error tools in this window.")).toBeInTheDocument()
+    expect(screen.getByText("No missing or weak custom cards in this window.")).toBeInTheDocument()
     expect(screen.getAllByText("No card coverage gaps in this bucket.").length).toBe(3)
     expect(screen.getByText("No recent calls found.")).toBeInTheDocument()
   })

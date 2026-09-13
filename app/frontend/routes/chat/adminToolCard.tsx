@@ -92,10 +92,10 @@ export function JobRefLink({ jobId }: { jobId: number | string | null }) {
   return <InternalLink href={`/jobs/${jobId}`}>JOB-{jobId}</InternalLink>
 }
 
-export function Table({ children }: { children: ReactNode }) {
+export function Table({ children, minWidthClass = "" }: { children: ReactNode; minWidthClass?: string }) {
   return (
     <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">{children}</table>
+      <table className={`w-full text-left text-xs ${minWidthClass}`}>{children}</table>
     </div>
   )
 }
