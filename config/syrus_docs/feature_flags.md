@@ -142,9 +142,8 @@ When both gates are enabled, Step rows may record one of the explicit placement
 policies documented in `workflow_steps.md`: `pinned_workflow_workspace`,
 `immutable_source_checkout`, `control_plane`, or `external_context`. Parallel
 grader rollout uses these distributed placement gates plus RunHostAdmission for
-host pressure; it does not depend on the legacy
-`workflow_step_worker_slot_admission_enabled` mutex. Turning off the repository
-opt-in is the per-repository kill switch back to serial in-workflow grading:
+host pressure. Turning off the repository opt-in is the per-repository kill
+switch back to serial in-workflow grading:
 newly materialized graders stay pinned to the workflow workspace and do not
 publish or fetch immutable source snapshots. The feature flag alone does not
 enable distributed execution for a repository until that repository opts in.

@@ -44,7 +44,6 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
       feature.category = "Operations"
       feature.name = "Distributed workflow DAG"
     end.update!(enabled: true)
-    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
     allow_any_instance_of(Repository).to receive(:remote_url).and_return("file://#{bare_remote_dir}")
     allow_any_instance_of(Repository).to receive(:authenticated_push_url).and_return("file://#{bare_remote_dir}")
     allow(GithubAuthenticatedGit).to receive(:run) { |**_, &block| block.call("file://#{bare_remote_dir}") }
@@ -95,7 +94,7 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
     )
     expect(workflow.artifact("grader_loops").first.fetch("wall_clock_s")).to be > 0
     expect(workflow.artifact("grader_loops").first.fetch("summed_duration_s")).to be > 0
-    expect(WorkflowStepWorkerSlot.where(workflow: workflow).pluck(:worker_storage_key)).to include("storage-alpha", "storage-beta")
+    expect(WorkflowStepWorkerSlot.where(workflow: workflow)).to be_empty
   end
 
   private

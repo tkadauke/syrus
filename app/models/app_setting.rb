@@ -20,7 +20,6 @@ class AppSetting < ApplicationRecord
     greater_than_or_equal_to: 0
   }
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
-  validates :workflow_step_worker_slot_admission_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
   validates :main_branch_breakage_policy, inclusion: { in: MAIN_BRANCH_BREAKAGE_POLICIES }
   validates :mode, inclusion: { in: MODES }
@@ -128,10 +127,6 @@ class AppSetting < ApplicationRecord
 
   def self.workflow_admission_phase_aware?
     workflow_admission_policy == "phase_aware"
-  end
-
-  def self.workflow_step_worker_slot_admission_enabled?
-    current.workflow_step_worker_slot_admission_enabled
   end
 
   def self.main_branch_breakage_policy

@@ -476,9 +476,8 @@ workflow source snapshot through `source_snapshot_id` plus a nested
 pinned placement, writes none of this projection/source-snapshot detail, and
 creates no workflow source snapshot solely for grader metadata. Operators can
 therefore disable the repository opt-in to fall back to serial in-workflow
-grading for newly materialized grader batches. The legacy
-`workflow_step_worker_slot_admission_enabled` setting is intentionally not part
-of this rollout anymore; host pressure is controlled by RunHostAdmission.
+grading for newly materialized grader batches. Host pressure is controlled by
+RunHostAdmission.
 
 Each `grader_collect` records rollout measurements under the workflow's
 `grader_loops` artifact and under

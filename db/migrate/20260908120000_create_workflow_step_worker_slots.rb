@@ -26,9 +26,5 @@ class CreateWorkflowStepWorkerSlots < ActiveRecord::Migration[8.1]
     unless index_exists?(:workflow_step_worker_slots, :active_slot_key, name: "idx_workflow_step_worker_slots_active_key")
       add_index :workflow_step_worker_slots, :active_slot_key, unique: true, name: "idx_workflow_step_worker_slots_active_key"
     end
-
-    unless column_exists?(:app_settings, :workflow_step_worker_slot_admission_enabled)
-      add_column :app_settings, :workflow_step_worker_slot_admission_enabled, :boolean, default: false, null: false
-    end
   end
 end

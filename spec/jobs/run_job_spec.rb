@@ -783,7 +783,6 @@ RSpec.describe RunJob, :ci_only do
         feature.name = "Distributed workflow DAG"
       end.update!(enabled: true)
       repository.update!(distributed_workflow_dag_enabled: true)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       workflow = job.workflows.last
       fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 100, state: "succeeded")
       grader = Step.create!(
@@ -805,7 +804,6 @@ RSpec.describe RunJob, :ci_only do
         feature.name = "Distributed workflow DAG"
       end.update!(enabled: true)
       repository.update!(distributed_workflow_dag_enabled: true)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       workflow = job.workflows.last
       grader = Step.create!(
         workflow: workflow,
@@ -831,7 +829,6 @@ RSpec.describe RunJob, :ci_only do
         feature.name = "Distributed workflow DAG"
       end.update!(enabled: true)
       repository.update!(distributed_workflow_dag_enabled: true)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-checkpoint\n")
       allow(SyrusVersion).to receive(:hostname).and_return("worker-checkpoint")
       allow(GithubAuthenticatedGit).to receive(:run) do |repository:, user:, git:, operation_type:, log:, &block|
@@ -955,7 +952,6 @@ RSpec.describe RunJob, :ci_only do
         feature.name = "Distributed workflow DAG"
       end.update!(enabled: true)
       repository.update!(distributed_workflow_dag_enabled: true)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
       File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-infra\n")
       allow(SyrusVersion).to receive(:hostname).and_return("worker-infra")
 
@@ -1055,62 +1051,6 @@ RSpec.describe RunJob, :ci_only do
       2.times { RunJob.perform_now(run.id) }
 
       expect(JobLog.where(run: run, kind: "system", chunk: "compute host admission deferred before prepare: local_worker_pressure_critical").count).to eq(1)
-    end
-
-    it "defers a queued Run before start when the worker step slot is occupied" do
-      job
-      wf = job.workflows.last
-      run = wf.first_step.runs.first
-      decision = WorkflowStepWorkerSlot::Acquisition.new(
-        acquired: false,
-        reason: "worker_slot_busy",
-        delay: 30.seconds,
-        details: { "worker_key" => "storage:storage-a" }
-      )
-      host_decision = RunHostAdmission::Decision.new(
-        action: "admit",
-        reason: "host_capacity_available",
-        delay: nil,
-        details: { "hostname" => "worker-a" }
-      )
-      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(host_decision)
-      allow(WorkflowStepWorkerSlot).to receive(:acquire_for).with(run).and_return(decision)
-
-      expect {
-        RunJob.perform_now(run.id)
-      }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
-
-      expect(run.reload).to be_queued
-      expect(wf.reload.artifact("workflow_step_worker_slot_admission")).to include(
-        "action" => "defer",
-        "reason" => "worker_slot_busy",
-        "worker_key" => "storage:storage-a"
-      )
-      expect(JobLog.where(run: run).pluck(:chunk)).to include("worker slot admission deferred before prepare: worker_slot_busy")
-    end
-
-    it "does not append duplicate worker slot admission deferral logs for the same queued run" do
-      job
-      wf = job.workflows.last
-      run = wf.first_step.runs.first
-      decision = WorkflowStepWorkerSlot::Acquisition.new(
-        acquired: false,
-        reason: "worker_slot_busy",
-        delay: 30.seconds,
-        details: { "worker_key" => "storage:storage-a" }
-      )
-      host_decision = RunHostAdmission::Decision.new(
-        action: "admit",
-        reason: "host_capacity_available",
-        delay: nil,
-        details: { "hostname" => "worker-a" }
-      )
-      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(host_decision)
-      allow(WorkflowStepWorkerSlot).to receive(:acquire_for).with(run).and_return(decision)
-
-      2.times { RunJob.perform_now(run.id) }
-
-      expect(JobLog.where(run: run, kind: "system", chunk: "worker slot admission deferred before prepare: worker_slot_busy").count).to eq(1)
     end
 
     it "skips an unconfigured review_plan before host admission under critical worker pressure" do

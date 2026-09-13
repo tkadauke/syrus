@@ -174,7 +174,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "records immutable placement and descriptive DAG metadata for materialized graders when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
-    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
     write_config(<<~YAML)
       grade:
         - name: rspec
@@ -205,7 +204,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "projects legacy graders as parallel siblings behind a collect barrier when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
-    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
     write_config(<<~YAML)
       grade:
         - name: rspec
@@ -226,7 +224,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   it "falls back to pinned serial in-workflow grading until distributed workflows are enabled" do
     job.repository.update!(distributed_workflow_dag_enabled: true)
-    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
     write_config(<<~YAML)
       grade:
         - name: rspec
@@ -253,7 +250,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "prefers a published checkpoint ref for the current source snapshot" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
-    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
     implement_step = Step.create!(
       workflow: workflow,
       kind: "implement",
@@ -302,7 +298,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "reuses the current workflow source snapshot for all materialized graders when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
-    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
     write_config(<<~YAML)
       grade:
         - name: rspec
