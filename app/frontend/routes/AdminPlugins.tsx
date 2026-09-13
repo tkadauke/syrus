@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { type ReactNode, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   disableAdminPlugin,
   enableAdminPlugin,
@@ -12,7 +12,7 @@ import {
   type AdminPluginsPayload
 } from "../api/adminPlugins"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
-import { Button } from "../components/Button"
+import { Button, buttonClasses } from "../components/Button"
 import { FilterBar, filterTreeFromPayload, topFilterChildren } from "../components/FilterBar"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -83,6 +83,8 @@ function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFilter
 
 function PluginCard({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
+  const navigate = useNavigate()
+  const location = useLocation()
   const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
   const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation, unknown, boolean | undefined>({
     mutationFn: (confirmCascade) => plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name),
@@ -91,7 +93,11 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         setPendingCascade(data)
         return
       }
-      pageReload.reloadPage()
+      if (plugin.enabled) {
+        pageReload.reloadPage()
+      } else {
+        navigate(`${location.pathname.replace(/\/$/, "")}/${encodeURIComponent(plugin.name)}`)
+      }
     }
   })
   const disableBlockers = plugin.disable_blockers || []
@@ -123,7 +129,6 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
           </div>
           {plugin.description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.description}</p> : null}
-          {plugin.long_description ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             {plugin.category ? <span>{t("plugins.category")}: <span className="font-mono">{plugin.category_label || plugin.category}</span></span> : null}
             <span>{t("plugins.default_state")}: {plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")}</span>
@@ -131,7 +136,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             {dependents.length > 0 ? <span>{t("plugins.required_by")}: <span className="font-mono">{dependents.join(", ")}</span></span> : null}
           </div>
           {plugin.recommendation ? (
-            <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+            <p className="mt-3 rounded border border-info/30 bg-info/10 px-3 py-2 text-sm leading-6 text-info">
               <span className="font-medium">{t("plugins.suggested")}</span>{" "}
               {plugin.recommendation.reason}{" "}
               <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
@@ -140,16 +145,20 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           {toggle.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(toggle.error, t("plugins.error_toggle"))}</p> : null}
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
-          <span title={disableTooltip}>
-            <Button
-              disabled={toggle.isPending || (plugin.enabled && (!plugin.disableable || disableBlocked))}
-              onClick={() => toggle.mutate(undefined)}
-              variant="secondary"
-            >
-              {toggle.isPending ? t("plugins.saving") : plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
-            </Button>
-          </span>
-          <PluginMetadata plugin={plugin} />
+          <div className="flex flex-wrap justify-start gap-2 sm:justify-end">
+            <Link className={buttonClasses("secondary")} to={`${location.pathname.replace(/\/$/, "")}/${encodeURIComponent(plugin.name)}`}>
+              {t("plugins.details")}
+            </Link>
+            <span title={disableTooltip}>
+              <Button
+                disabled={toggle.isPending || (plugin.enabled && (!plugin.disableable || disableBlocked))}
+                onClick={() => toggle.mutate(undefined)}
+                variant="secondary"
+              >
+                {toggle.isPending ? t("plugins.saving") : plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
+              </Button>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -190,34 +199,11 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         </details>
       ) : null}
 
-      <details className="mt-4">
-        <summary className="cursor-pointer select-none text-xs font-medium uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          {t("plugins.extension_points_heading")}
-        </summary>
-        {plugin.extension_points.length > 0 ? (
-          <div className="mt-2 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                <tr>
-                  <th className="py-2 pr-4 font-medium">{t("plugins.col_extension_point")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("plugins.col_class")}</th>
-                  <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {plugin.extension_points.map((extension) => <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />)}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("plugins.no_extension_points")}</p>
-        )}
-      </details>
     </article>
   )
 }
 
-function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
+export function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
   const rows = [
     plugin.author ? [t("plugins.author"), plugin.author] : null,
@@ -238,7 +224,7 @@ function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
   )
 }
 
-function ExtensionPointRow({ extension }: { extension: AdminPluginExtensionPoint }) {
+export function ExtensionPointRow({ extension }: { extension: AdminPluginExtensionPoint }) {
   const { t } = useT("admin")
   const count = extension.availability.configured_count
 
@@ -257,20 +243,20 @@ function ExtensionPointRow({ extension }: { extension: AdminPluginExtensionPoint
   )
 }
 
-function StatusBadge({ status, label }: { status: string; label: string }) {
+export function StatusBadge({ status, label }: { status: string; label: string }) {
   const tone = statusTone(status)
   return <span className={`rounded px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
 }
 
-function statusTone(status: string) {
-  if (["available", "configured", "enabled", "registered"].includes(status)) return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+export function statusTone(status: string) {
+  if (["available", "configured", "enabled", "ok", "registered"].includes(status)) return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
   if (status === "required") return "bg-info/10 text-info"
   if (["disabled", "not_configured"].includes(status)) return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
   if (status === "error") return "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
   return "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
 }
 
-function extensionPointLabel(point: string, t: (key: string, opts?: Record<string, unknown>) => string) {
+export function extensionPointLabel(point: string, t: (key: string, opts?: Record<string, unknown>) => string) {
   return t(`plugins.extension_points.${point}`, { defaultValue: point })
 }
 

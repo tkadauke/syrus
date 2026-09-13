@@ -92,6 +92,8 @@ module Syrus
         @provides = {}
         @routes = []
         @frontend = {}
+        @links = []
+        @metrics = []
         @effects = []
         @boot_blocks = []
         @suggestion = nil
@@ -127,6 +129,15 @@ module Syrus
         @routes << { verb: verb.to_s.upcase, path: path, controller: to }
       end
 
+      def link(label, path:, description: nil, requires_enabled: true)
+        @links << {
+          label: label.to_s,
+          path: path.to_s,
+          description: description&.to_s,
+          requires_enabled: requires_enabled
+        }.compact
+      end
+
       def frontend(pairs = {})
         return @frontend if pairs.empty?
 
@@ -159,6 +170,7 @@ module Syrus
         raise Error, "metrics requires a block" unless block
 
         plugin_name = name
+        @metrics = MetricDeclarations.new(plugin_name).tap { |declarations| declarations.instance_eval(&block) }.to_a
         while_enabled("metrics") do |scope|
           scope.effect("metrics") do
             declared = Syrus::Metrics.declare_plugin(plugin_name, &block)
@@ -239,12 +251,48 @@ module Syrus
           version: version || Syrus::PluginApi.default_version,
           provides: resolved_provides,
           routes: (routes if routes.any?),
-          frontend: (frontend if frontend.any?)
+          frontend: (frontend if frontend.any?),
+          links: (@links if @links.any?),
+          metrics: (@metrics if @metrics.any?)
         }.merge(
           SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact
         ).merge(
           LISTS.each_with_object({}) { |field, args| args[field] = @lists[field] if @lists.key?(field) }
         ).compact
+      end
+
+      class MetricDeclarations
+        def initialize(plugin_name)
+          @plugin_name = plugin_name
+          @declarations = []
+        end
+
+        def counter(name, tags: [], comment: nil, share: false)
+          add(name, :counter, tags: tags, comment: comment, share: share)
+        end
+
+        def gauge(name, tags: [], comment: nil, share: false)
+          add(name, :gauge, tags: tags, comment: comment, share: share)
+        end
+
+        def histogram(name, buckets:, tags: [], comment: nil, share: false)
+          add(name, :histogram, tags: tags, comment: comment, share: share, buckets: buckets)
+        end
+
+        def to_a = @declarations
+
+        private
+
+        def add(name, type, tags:, comment:, share:, buckets: nil)
+          @declarations << {
+            name: "syrus_#{@plugin_name}_#{name}",
+            type: type.to_s,
+            tags: Array(tags).map(&:to_s),
+            comment: comment.to_s,
+            shared: !!share,
+            buckets: buckets
+          }.compact
+        end
       end
 
       def resolved_provides

@@ -196,6 +196,57 @@ otherwise push that past the section truncation. Naming the plugin in the query
 boosts its teaser, since one teaser otherwise competes with dozens of core
 files. A plugin that cannot be disabled never produces one.
 
+Admin -> Plugins is the scan-and-filter inventory. Each row links to
+`/admin/plugins/<name>`, the canonical plugin detail page. The detail page is
+where long manifest copy, health, dependency metadata, config schema/current
+values, extension points, declared routes, plugin-owned docs, plugin-owned
+metrics, and plugin-provided links are shown. The index response deliberately
+does not load docs bodies or metric detail so large plugin sets stay cheap to
+scan.
+
+The detail page reads plugin docs from the same
+`plugins/<name>/docs/syrus_docs/*.md` convention `search_syrus_docs` uses. If a
+plugin has no files there, the page renders an empty state instead of looking
+for core docs about the plugin.
+
+## Plugin-provided links (`link`)
+
+A plugin can declare operator-facing destinations in its manifest:
+
+```ruby
+syrus_plugin "terminal" do
+  link "Open Terminal", path: "/terminal",
+       description: "Open the Terminal workspace UI"
+end
+```
+
+Links are conservative metadata, not code. They have:
+
+| Field | Meaning |
+|---|---|
+| `label` | Button/link text shown on the plugin detail page. |
+| `path` | Internal app path or external `https://` URL. |
+| `description` | Optional tooltip/help text. |
+| `requires_enabled` | Defaults to `true`; hidden while the plugin is disabled. Set `false` only for links that remain meaningful before enablement, such as external setup docs. |
+
+The API serializes these as `links` on both the plugin index and detail
+payloads. The detail page renders enabled links as action buttons so an
+operator who just enabled a plugin lands where the new capability lives.
+
+## Plugin detail metrics
+
+Plugin metrics remain declared in the manifest's `metrics` block and still
+register under `while_enabled` semantics: disabling a plugin removes its series
+from `/metrics` rather than emitting zeroes. The manifest also retains a
+read-only copy of the declaration metadata for Admin -> Plugins detail pages.
+Each row shows the fully qualified metric name, type, labels, comment, and
+whether the metric is currently registered in `Syrus::Metrics`.
+
+If the Metrics Dashboard plugin is installed with retained samples, the detail
+payload includes the latest bounded sample for each declared metric. The page
+does not expose an arbitrary query builder; broader Prometheus/Grafana-style
+analysis belongs outside this manifest-level view.
+
 ## Plugin categories (`category`)
 
 A manifest's `category:` kwarg must resolve to a key from
