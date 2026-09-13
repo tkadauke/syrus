@@ -84,6 +84,29 @@ RSpec.describe MetricsDashboard::Recorder do
     expect(MetricsDashboardSample.pluck(:metric)).to eq([ "syrus_feature_used_total" ])
   end
 
+  # Dev and test run SQLite, production runs MySQL, and the two disagree about
+  # upsert conflict targets: MySQL raises on `unique_by` because ON DUPLICATE
+  # KEY UPDATE fires on any unique index, while SQLite needs the target or it
+  # conflicts on the primary key and inserts duplicates. Passing it
+  # unconditionally passed every spec here and raised on every prod tick.
+  describe "upsert options" do
+    it "names the conflict target on adapters that take one" do
+      expect(described_class.new.send(:upsert_options))
+        .to include(unique_by: :idx_metrics_dashboard_series_minute, update_only: %i[value labels])
+    end
+
+    it "omits the conflict target on adapters that reject it, such as MySQL" do
+      connection = MetricsDashboardSample.connection
+      allow(MetricsDashboardSample).to receive(:connection).and_return(connection)
+      allow(connection).to receive(:supports_insert_conflict_target?).and_return(false)
+
+      options = described_class.new.send(:upsert_options)
+
+      expect(options).to eq(update_only: %i[value labels])
+      expect(options).not_to have_key(:unique_by)
+    end
+  end
+
   it "keeps a gauge whose name merely ends in a histogram suffix" do
     render_metrics(<<~TEXT)
       # TYPE syrus_global_queue_ready_count gauge

@@ -43,12 +43,25 @@ module MetricsDashboard
         }
       end
 
-      MetricsDashboardSample.upsert_all(
-        rows,
-        unique_by: :idx_metrics_dashboard_series_minute,
-        update_only: %i[value labels]
-      )
+      MetricsDashboardSample.upsert_all(rows, **upsert_options)
       rows.size
+    end
+
+    # MySQL rejects `unique_by` outright -- ON DUPLICATE KEY UPDATE fires on any
+    # unique index, so there is no conflict target to name -- while SQLite and
+    # Postgres need one, or they conflict on the primary key and insert
+    # duplicates instead of updating the minute's row.
+    #
+    # Dev and test run SQLite and production runs MySQL, so passing it
+    # unconditionally passed every spec and could never have worked in
+    # production. `supports_insert_conflict_target?` is the same predicate
+    # ActiveRecord::InsertAll checks before raising.
+    def upsert_options
+      options = { update_only: %i[value labels] }
+      if MetricsDashboardSample.connection.supports_insert_conflict_target?
+        options[:unique_by] = :idx_metrics_dashboard_series_minute
+      end
+      options
     end
 
     private
