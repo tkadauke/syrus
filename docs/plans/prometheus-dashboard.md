@@ -327,3 +327,203 @@ failure: work present, workers alive, nothing moving.
 - Should the exporter run on the web role only, or on workers too? Counters are
   per-process and need every pod scraped; gauges must be computed once. Likely
   answer: gauges on web, counters everywhere, `syrus_` prefix on both.
+
+---
+
+# Metrics subsystem design
+
+## The premise worth correcting first
+
+The hardest requirement stated for this system was: *"find a good way to reset
+the time interval counters at the right time while exporting every counter
+accurately."*
+
+**Don't reset them.** That problem is an artifact of the push/delta model, and
+the industry settled it by removing the reset rather than by timing it well.
+
+| | Delta / push (StatsD) | Cumulative / pull (Prometheus) |
+|---|---|---|
+| Counter | accumulates, flushes, **resets** | **monotonic, never resets** |
+| Rate computed | by the client, at flush time | by the query engine, at read time |
+| Lost flush/scrape | **data lost** | resolution lost, data intact |
+| Consumers | one (the flush target) | any number, independently |
+| Reset timing | must be correct | does not exist |
+
+In the cumulative model a counter only ever goes up. `rate(x[5m])` and
+`increase(x[1h])` are computed at query time from two samples, and PromQL
+explicitly handles the one legitimate reset — process restart, where the series
+drops to zero — by detecting the drop and compensating. So "entries processed
+per interval" is a monotonic counter plus `rate()`, and the interval is chosen
+by whoever asks the question, not baked in at write time.
+
+This is why the whole class of "did we reset before or after the scrape read
+it?" bugs simply does not arise. **Adopt cumulative counters. The requirement to
+reset them correctly is one to delete, not to satisfy.**
+
+StatsD remains reachable as an *output* (see adapters) — the point is that our
+internal model stays cumulative, because a delta is derivable from cumulative
+state and never the reverse.
+
+## Instrument types
+
+- **Counter** — monotonic, only increments. Things that happen: runs started,
+  queue entries processed, admission denials. Never `set`, never decrement.
+- **Gauge** — goes up and down, sampled. Things that *are*: CPU percent, queue
+  depth, active agent runs. The "absolute values" case.
+- **Histogram** — bucketed observations for durations: run duration, step
+  duration, time-to-land. Quantiles at query time without storing every sample.
+  Buckets are declared per metric; a step duration spanning seconds-to-hours
+  needs exponential buckets, not the defaults, which top out near 10s.
+
+Deliberately omitted: Summary. Client-side quantiles are not aggregatable across
+pods, which makes them useless in a multi-pod deployment.
+
+## Topology: what makes export nearly free
+
+Puma runs **single-process, multi-threaded** here (no `workers` directive in
+`config/puma.rb`), and `bin/jobs` is likewise one process with thread pools. So
+**one OS process per pod**, which means:
+
+- A plain in-memory, thread-safe registry per process is exactly right.
+- No `DirectFileStore`, no shared-memory aggregation — none of the usual Ruby
+  multiprocess metrics pain. Worth not squandering: if Puma is ever switched to
+  cluster mode this design needs revisiting, so that change should cite this doc.
+- Prometheus scrapes **every pod**; summing across them is a query concern.
+
+`/metrics` therefore serializes in-memory state and **never touches the
+database**. That rule is what keeps it cheap, and it should be enforced by a
+spec rather than by discipline: a metrics endpoint that queries the DB becomes a
+liability exactly when the DB is the thing struggling.
+
+## Opportunistic observation
+
+Capturing queue length where it is already looked up is right, and is standard
+practice — instrument where the value exists rather than re-deriving it:
+
+```ruby
+# in LandingQueueProcessor, which already computed this
+Syrus::Metrics.landing_queue_depth.set(entries.size, tags: { reason: key })
+```
+
+But it has a failure mode that must be designed for: **an opportunistic gauge
+goes stale silently.** If the code path stops being hit — because work stopped,
+which is precisely the incident we want to detect — the last value keeps being
+exported and the dashboard shows the system as it was, confidently and wrongly.
+A queue-depth gauge frozen at 12 during an outage is worse than no gauge.
+
+Two mitigations, both needed:
+
+1. Pair each opportunistic gauge with
+   `syrus_<name>_last_observed_timestamp_seconds` so alerts can assert freshness.
+2. For gauges that must be trustworthy *during* an outage — queue depth and
+   oldest-age above all — do not rely on opportunistic observation. Sample them
+   on a timer.
+
+Opportunistic observation is for cheapness on the hot path. Anything that
+answers "is the system stuck?" gets an active sampler.
+
+## Global vs per-pod metrics
+
+The real subtlety, and the easiest thing to get wrong.
+
+- **Per-pod** (CPU, this pod's counters, its active runs): labeled by instance,
+  aggregated in PromQL. No coordination needed.
+- **Global facts** (queue depth, landing queue depth, table sizes): one truth
+  about the cluster. If six pods each export
+  `syrus_queue_ready_count{queue="polling"}`, Prometheus gets six near-identical
+  series and any `sum()` reports six times the real backlog.
+
+Options:
+
+1. **Leader-elected sampling** — only the leader exports globals.
+   `config/queue.yml` already documents the `connectivity` queue's
+   `concurrency: 1` as the leader-election mechanism, so the seam exists.
+   Downside: one pod is the single point of observation.
+2. **Sample once, cache, render everywhere** — a recurring job (Solid Queue
+   recurring tasks already execute cluster-singleton) computes globals every 15s
+   into Solid Cache; every pod renders the cached value. Scrape path stays
+   memory/cache-only. All pods report the same number, so queries must use
+   `max by (queue) (...)`, never `sum`.
+3. **A dedicated single-replica exporter Deployment** — unambiguous, one target
+   per metric, at the cost of another pod to run and monitor.
+
+**Recommendation: (2), with (3) as the escape hatch** if `max by` proves too easy
+to misuse. It needs no new deployment, keeps the scrape path free of DB work, and
+survives any single pod dying. The aggregation rule must be encoded in the
+shipped dashboard JSON so nobody hand-writes `sum`, and global metrics take a
+`syrus_global_` prefix so the rule is legible from the name alone.
+
+## Library choice
+
+| | `prometheus-client` | **Yabeda** | Hand-rolled |
+|---|---|---|---|
+| Instrument once, export many formats | no | **yes** (Prometheus, StatsD, Datadog) | no |
+| Declaration DSL | minimal | clean | ours to build |
+| Rails / ActiveRecord / Puma presets | no | yes | no |
+| Extra abstraction | none | one layer | none |
+
+**Recommendation: Yabeda**, specifically because of the requirement to stick
+with standard formats and plug into other tools. It is a thin facade over a
+pluggable adapter set: metrics are declared once, and whether they leave as a
+Prometheus scrape, a StatsD flush, or both becomes a deployment choice rather
+than a code change. `yabeda-prometheus` first; `yabeda-statsd` later without
+touching a call site.
+
+Honest caveat: if Prometheus is the only consumer forever, Yabeda is a layer we
+did not need and `prometheus-client` alone is simpler. The requirement is
+explicitly multi-tool, so the layer earns its place — but this is the decision to
+revisit if StatsD never materialises.
+
+Exporting *to* StatsD does reintroduce delta semantics, because that is StatsD's
+model. That is a property of that wire protocol, not of our internal state, and
+is exactly why our own model stays cumulative.
+
+## API sketch
+
+```ruby
+# Declaration — boot-time, one place, so the metric set is greppable
+Syrus::Metrics.declare do
+  counter   :runs_total,           comment: "Runs by terminal state",
+                                   tags: %i[state trigger_kind]
+  gauge     :active_agent_runs,    comment: "Agent invocations in flight on this pod"
+  gauge     :global_queue_ready,   comment: "Ready jobs (GLOBAL — aggregate with max by)",
+                                   tags: %i[queue]
+  histogram :run_duration_seconds, comment: "Run wall clock",
+                                   buckets: [1, 5, 15, 60, 300, 900, 1800, 3600, 7200]
+end
+
+# Use — cheap, non-raising, safe from anywhere
+Syrus::Metrics.runs_total.increment(tags: { state: "succeeded", trigger_kind: "initial" })
+Syrus::Metrics.active_agent_runs.set(3)
+Syrus::Metrics.run_duration_seconds.measure(elapsed, tags: { step_kind: "implement" })
+```
+
+Two guarantees the wrapper must make, because this code runs in hot paths and
+inside `ensure` blocks:
+
+- **Never raises.** A metrics failure must not fail a Run. Rescue and log.
+- **Never blocks.** No IO, no DB, no network on the instrumentation path.
+
+## Cardinality
+
+The standard way to destroy a Prometheus install, so state it as a rule:
+**labels must have small, bounded value sets.**
+
+Allowed: `queue`, `state`, `trigger_kind`, `step_kind`, `decision`, `role`.
+Forbidden: `job_id`, `run_id`, `workflow_id`, `sha`, `branch`, `user_email`, and
+repository slug on any instance with many repositories.
+
+A guard spec should assert every declared metric's tags come from an allowlist.
+High-cardinality identifiers belong in logs and `performance_log_events`, which
+is what those already exist for.
+
+## Open questions
+
+- Scrape interval: 15s is the instinct; the global sampler's period must be at
+  most that, or the gauge is older than the scrape reading it.
+- `/metrics` on the web role only, or on workers too? Counters are per-process
+  and need every pod scraped; global gauges would be duplicated. Leaning: expose
+  everywhere, render globals only when `SYRUS_ROLE=web`, so the duplicate set is
+  two and not six.
+- Whether to backfill `performance_log_events` into histograms, or leave
+  historical latency analysis where it already works.
