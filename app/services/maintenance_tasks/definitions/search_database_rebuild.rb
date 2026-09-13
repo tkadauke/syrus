@@ -88,39 +88,36 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        return mark_plugin_step_done(task, "jobs") unless defined?(GlobalSearch::JobIndex)
+        provider = search_rebuild_provider("jobs")
+        return mark_plugin_step_done(task, "jobs") unless provider
 
         task.current_step_key = "jobs"
         task.current_step_title = "Index jobs"
-        processed = 0
-        Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          GlobalSearch::JobIndex.upsert(job)
-          task.checkpoint_will_change!
-          task.checkpoint["last_job_id"] = job.id
-          processed += 1
-        end
-        task.checkpoint_will_change!
-        task.checkpoint["jobs_done"] = true if processed.zero? || task.checkpoint["last_job_id"].to_i >= Job.maximum(:id).to_i
-
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
+        index_search_records(task, provider: provider, checkpoint_key: "last_job_id", done_key: "jobs_done", message_label: "job")
       end
 
       def index_epics(task)
-        return mark_plugin_step_done(task, "epics") unless defined?(GlobalSearch::EpicIndex)
+        provider = search_rebuild_provider("epics")
+        return mark_plugin_step_done(task, "epics") unless provider
 
         task.current_step_key = "epics"
         task.current_step_title = "Index epics"
+        index_search_records(task, provider: provider, checkpoint_key: "last_epic_id", done_key: "epics_done", message_label: "epic")
+      end
+
+      def index_search_records(task, provider:, checkpoint_key:, done_key:, message_label:)
         processed = 0
-        Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          GlobalSearch::EpicIndex.upsert(epic)
+        scope = provider.search_rebuild_scope
+        scope.where("id > ?", task.checkpoint[checkpoint_key].to_i).limit(task.batch_size).find_each do |record|
+          provider.index_search_record(record)
           task.checkpoint_will_change!
-          task.checkpoint["last_epic_id"] = epic.id
+          task.checkpoint[checkpoint_key] = record.id
           processed += 1
         end
         task.checkpoint_will_change!
-        task.checkpoint["epics_done"] = true if processed.zero? || task.checkpoint["last_epic_id"].to_i >= Epic.maximum(:id).to_i
+        task.checkpoint[done_key] = true if processed.zero? || task.checkpoint[checkpoint_key].to_i >= scope.maximum(:id).to_i
 
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} epic(s).", level: "progress")
+        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} #{message_label}(s).", level: "progress")
       end
 
       def index_operational_logs(task)
@@ -176,15 +173,15 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        defined?(GlobalSearch::JobIndex) && indexed_count("job_fts", "job_id") < Job.count
+        (provider = search_rebuild_provider("jobs")) && indexed_count("job_fts", "job_id") < provider.search_rebuild_scope.count
       rescue StandardError
-        defined?(GlobalSearch::JobIndex) && Job.exists?
+        search_rebuild_provider("jobs")&.search_rebuild_scope&.exists? || false
       end
 
       def epics_need_rebuild?
-        defined?(GlobalSearch::EpicIndex) && indexed_count("epic_fts", "epic_id") < Epic.count
+        (provider = search_rebuild_provider("epics")) && indexed_count("epic_fts", "epic_id") < provider.search_rebuild_scope.count
       rescue StandardError
-        defined?(GlobalSearch::EpicIndex) && Epic.exists?
+        search_rebuild_provider("epics")&.search_rebuild_scope&.exists? || false
       end
 
       def operational_logs_need_rebuild?
@@ -200,9 +197,22 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = defined?(GlobalSearch::JobIndex) ? Job.count : 0
-      def epics_count = defined?(GlobalSearch::EpicIndex) ? Epic.count : 0
+      def jobs_count = search_rebuild_provider("jobs")&.search_rebuild_scope&.count || 0
+      def epics_count = search_rebuild_provider("epics")&.search_rebuild_scope&.count || 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
+
+      def search_rebuild_provider(key)
+        return nil unless defined?(Syrus::PluginRegistry)
+
+        Syrus::PluginRegistry.providers_for("global_search:source").find do |provider|
+          provider.respond_to?(:search_rebuild_key) &&
+            provider.respond_to?(:search_rebuild_scope) &&
+            provider.respond_to?(:index_search_record) &&
+            provider.search_rebuild_key.to_s == key.to_s
+        end
+      rescue StandardError
+        nil
+      end
 
       def bind(value)
         ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
