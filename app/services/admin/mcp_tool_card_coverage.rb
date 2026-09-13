@@ -30,6 +30,7 @@ module Admin
 
     def as_json
       {
+        ranked_gaps: ranked_gap_rows,
         high_volume_without_custom_card: missing_card_rows(used_tool_rows),
         high_error_with_weak_or_no_custom_card: weak_or_missing_card_rows(error_tool_rows),
         unused_advertised_tools: unused_advertised_tool_rows
@@ -41,7 +42,9 @@ module Admin
     attr_reader :usages, :advertised_tools, :single_tool_name, :chat_session
 
     def used_tool_rows
-      @used_tool_rows ||= aggregate_rows(usages, order_by: :calls)
+      @used_tool_rows ||= used_rank_rows.map do |row|
+        row.slice(:tool_name, :calls, :errors, :error_rate)
+      end
     end
 
     def error_tool_rows
@@ -72,6 +75,72 @@ module Admin
       end
     end
 
+    def ranked_gap_rows
+      rows = used_rank_rows.filter_map do |row|
+        card = cards[row[:tool_name]]
+        next if card&.strong?
+
+        ranked_row_payload(row, card: card)
+      end
+
+      used = rows.map { |row| row[:tool_name] }.to_set
+      unused_advertised_tool_rows.each do |row|
+        next if row[:card_status] == "registered"
+        next if used.include?(row[:tool_name])
+
+        rows << row.merge(
+          calls: 0,
+          errors: 0,
+          error_rate: 0.0,
+          result_bytes: 0,
+          last_used_at: nil,
+          server_names: [],
+          recommendation: "ignore_for_now"
+        )
+      end
+
+      rows
+        .sort_by { |row| ranked_sort_key(row) }
+        .first(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
+    end
+
+    def used_rank_rows
+      @used_rank_rows ||= begin
+        grouped = gap_candidate_usages
+          .group(:normalized_tool_name)
+          .order(Arel.sql("#{count_expression} DESC, #{error_count_expression} DESC, #{result_bytes_expression} DESC, #{last_used_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC"))
+          .limit(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
+          .pluck(
+            :normalized_tool_name,
+            Arel.sql(count_expression),
+            Arel.sql(error_count_expression),
+            Arel.sql(result_bytes_expression),
+            Arel.sql(last_used_expression),
+            Arel.sql(server_names_expression)
+          )
+
+        grouped.map do |tool_name, count, errors, result_bytes, last_used_at, server_names|
+          count = count.to_i
+          errors = errors.to_i
+          {
+            tool_name: tool_name.to_s,
+            calls: count,
+            errors: errors,
+            error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0,
+            result_bytes: result_bytes.to_i,
+            last_used_at: last_used_at,
+            server_names: server_names.to_s.split(",").reject(&:blank?).sort
+          }
+        end
+      end
+    end
+
+    def gap_candidate_usages
+      return usages if strong_card_tool_names.empty?
+
+      usages.where.not(normalized_tool_name: strong_card_tool_names)
+    end
+
     def aggregate_order(order_by)
       if order_by == :error_rate
         Arel.sql("#{error_rate_expression} DESC, #{error_count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
@@ -92,6 +161,18 @@ module Admin
       "(#{error_count_expression} * 1.0 / NULLIF(#{count_expression}, 0))"
     end
 
+    def result_bytes_expression
+      "COALESCE(SUM(#{McpToolUsage.quoted_table_name}.result_bytes), 0)"
+    end
+
+    def last_used_expression
+      "MAX(COALESCE(#{McpToolUsage.quoted_table_name}.completed_at, #{McpToolUsage.quoted_table_name}.started_at, #{McpToolUsage.quoted_table_name}.created_at))"
+    end
+
+    def server_names_expression
+      "GROUP_CONCAT(DISTINCT #{McpToolUsage.quoted_table_name}.server_name)"
+    end
+
     def missing_card_rows(rows)
       rows.filter_map do |row|
         next if cards.key?(row[:tool_name])
@@ -110,17 +191,19 @@ module Admin
     end
 
     def unused_advertised_tool_rows
-      used = usages.distinct.pluck(:normalized_tool_name).map(&:to_s).to_set
-      (advertised_tools - used.to_a).map do |tool_name|
-        owner = owners[tool_name] || Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
-        card = cards[tool_name]
-        {
-          tool_name: tool_name,
-          owner_type: owner.owner_type,
-          owner_name: owner.owner_name,
-          recommendation_target: owner.recommendation_target,
-          card_status: card ? (card.strong? ? "registered" : "weak") : "missing"
-        }
+      @unused_advertised_tool_rows ||= begin
+        used = usages.distinct.pluck(:normalized_tool_name).map(&:to_s).to_set
+        (advertised_tools - used.to_a).map do |tool_name|
+          owner = owners[tool_name] || Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
+          card = cards[tool_name]
+          {
+            tool_name: tool_name,
+            owner_type: owner.owner_type,
+            owner_name: owner.owner_name,
+            recommendation_target: owner.recommendation_target,
+            card_status: card ? (card.strong? ? "registered" : "weak") : "missing"
+          }
+        end
       end
     end
 
@@ -137,8 +220,48 @@ module Admin
       }
     end
 
+    def ranked_row_payload(row, card:)
+      row_payload(row).merge(
+        card_status: card ? "weak" : "missing",
+        result_bytes: row[:result_bytes],
+        last_used_at: iso8601_time(row[:last_used_at]),
+        server_names: row[:server_names],
+        recommendation: recommendation_for(row)
+      )
+    end
+
+    def recommendation_for(row)
+      return "custom_card_next" if row[:calls] >= 10 || row[:errors].positive? || row[:result_bytes] >= 64.kilobytes
+      return "watch" if row[:calls].positive?
+
+      "ignore_for_now"
+    end
+
+    def ranked_sort_key(row)
+      [
+        -row[:calls].to_i,
+        -row[:errors].to_i,
+        -row[:result_bytes].to_i,
+        row[:last_used_at].present? ? -Time.zone.parse(row[:last_used_at].to_s).to_i : 0,
+        row[:tool_name].to_s
+      ]
+    end
+
+    def iso8601_time(value)
+      return if value.blank?
+      return value.iso8601 if value.respond_to?(:iso8601)
+
+      Time.zone.parse(value.to_s)&.iso8601
+    rescue ArgumentError, TypeError
+      nil
+    end
+
     def owners
       @owners ||= core_tool_owners.merge(plugin_tool_owners)
+    end
+
+    def strong_card_tool_names
+      @strong_card_tool_names ||= cards.values.select(&:strong?).map(&:tool_name)
     end
 
     def core_tool_owners
