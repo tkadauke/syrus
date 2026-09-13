@@ -1,6 +1,7 @@
 class WorkflowSourceSnapshot < ApplicationRecord
   belongs_to :workflow
   belongs_to :creator_step, class_name: "Step"
+  has_one_attached :prepared_workspace_archive
 
   validates :source_sha, :source_ref, :published_at, presence: true
   validate :has_tree_identity
@@ -11,6 +12,10 @@ class WorkflowSourceSnapshot < ApplicationRecord
 
   def tree_identity
     tree_sha.presence || fingerprint.presence
+  end
+
+  def purge_prepared_workspace_archive!
+    prepared_workspace_archive.purge if prepared_workspace_archive.attached?
   end
 
   private

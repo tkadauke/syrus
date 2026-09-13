@@ -38,7 +38,12 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
   end
 
   before do
-    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    Feature.find_or_initialize_by(slug: "distributed_workflow_dag").tap do |feature|
+      feature.category = "Operations"
+      feature.name = "Distributed workflow DAG"
+      feature.enabled = true
+      feature.save!
+    end
     seed_remote(bare_remote_dir)
     @data_root = Dir.mktmpdir("syrus-immutable-source-data")
     ENV["SYRUS_DATA_ROOT"] = @data_root
@@ -137,6 +142,35 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "restores prepared state from the source snapshot archive on another worker storage root" do
+    described_class.new(step).setup
+    first_cache_details = step.reload.details.fetch("prepare_cache")
+    expect(snapshot.reload.prepared_workspace_archive).to be_attached
+
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
+    second_checkout = described_class.new(second_step)
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout.setup
+
+    second_cache_details = second_step.reload.details.fetch("prepare_cache")
+    expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(second_cache_details).to include(
+      "status" => "archive_hit",
+      "worker_storage_key" => "storage-b",
+      "workflow_id" => workflow.id,
+      "source_snapshot_id" => snapshot.id,
+      "source_snapshot_sha" => main_sha,
+      "prepare_fingerprint" => first_cache_details.fetch("prepare_fingerprint")
+    )
+    expect(second_cache_details["cache_key"]).not_to eq(first_cache_details.fetch("cache_key"))
+    expect(second_step.reload.details.fetch("immutable_source_checkout")).to include(
+      "worker_storage_key" => "storage-b",
+      "prepare_cache_status" => "archive_hit"
+    )
+    expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
   it "misses naturally when the prepare fingerprint changes" do
     described_class.new(step).setup
     first_cache_key = step.reload.details.dig("prepare_cache", "cache_key")
@@ -162,11 +196,18 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     checkout = described_class.new(step)
     checkout.setup
     step.update!(state: "succeeded")
+    snapshot.prepared_workspace_archive.attach(
+      io: StringIO.new("archive"),
+      filename: "prepared.tar.gz",
+      content_type: "application/gzip"
+    )
+    expect(snapshot.reload.prepared_workspace_archive).to be_attached
 
-    WorkflowWorkspace.cleanup_for(workflow)
+    workflow.cleanup_workspace!
 
     expect(WorkflowWorkspace.path_for(workflow)).not_to exist
     expect(workflow.reload.cleaned_up_at).to be_present
+    expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
   end
 
   it "classifies a missing source ref as infrastructure state" do

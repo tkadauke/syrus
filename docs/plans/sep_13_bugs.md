@@ -432,6 +432,14 @@ prepare into one shared immutable workspace snapshot plus cheap per-grader
 copies. Cap parallel grader fanout by current host pressure, not only by a
 static repository setting.
 
+**Fixed:** Immutable-source grader checkouts now have a cross-worker prepared
+workspace archive layer. After the first local prepare succeeds for a workflow
+source snapshot, Syrus uploads a best-effort `tar.gz` archive to Active Storage.
+Later grader checkouts for the same workflow/source/prepare fingerprint restore
+that archive, validate the expected commit, seed their worker-local prepare
+cache, and skip rerunning prepare commands. Restore/upload failures fall back to
+the existing local prepare path.
+
 ### Prepared workspace snapshots for grader fanout
 
 **Performance idea:** The `prepare` step should be able to publish a prepared
@@ -467,6 +475,12 @@ in the archive.
 **Expected impact:** Parallel graders stop multiplying the expensive prepare
 cost across worker hosts. This should reduce IO pressure and wall time most for
 workflows with many graders and heavyweight dependency installs.
+
+**Fixed:** Implemented for immutable-source grader fanout through
+`WorkflowSourceSnapshot#prepared_workspace_archive`. Archives are scoped to one
+workflow source snapshot and prepare fingerprint, restored opportunistically,
+and purged after workflow cleanup succeeds. A future slice can add a TTL sweeper
+for orphaned archives whose workflow cleanup never ran.
 
 ### Stale distributed grader runs delay workflow completion
 

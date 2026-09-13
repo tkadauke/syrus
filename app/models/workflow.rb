@@ -183,6 +183,7 @@ class Workflow < ApplicationRecord
     end
 
     if self.class.where(id: id).pick(:cleaned_up_at).present?
+      purge_prepared_source_snapshot_archives!
       log_workspace_event("[workspace] cleanup complete")
     else
       log_workspace_event("[workspace] cleanup incomplete — directory may still be on disk; prune job will retry")
@@ -705,6 +706,12 @@ class Workflow < ApplicationRecord
   # Detach and delete the visual artifact blob for the given type.
   def purge_visual_artifact!(type)
     visual_artifact_for(type)&.purge
+  end
+
+  def purge_prepared_source_snapshot_archives!
+    source_snapshots.includes(prepared_workspace_archive_attachment: :blob).find_each(&:purge_prepared_workspace_archive!)
+  rescue StandardError => e
+    Rails.logger.warn("[Workflow] purge prepared source snapshot archives failed for Workflow ##{id}: #{e.class}: #{e.message}")
   end
 
 

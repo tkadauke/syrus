@@ -1,6 +1,7 @@
 require "fileutils"
 require "digest"
 require "json"
+require "open3"
 require "securerandom"
 
 class ImmutableSourceCheckout
@@ -8,6 +9,7 @@ class ImmutableSourceCheckout
   PREPARE_CACHE_ROOT = ".syrus/immutable-checkouts/prepare-cache".freeze
   PREPARE_CACHE_LOCK_ROOT = ".syrus/immutable-checkouts/prepare-cache-locks".freeze
   PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
+  PREPARED_ARCHIVE_CONTENT_TYPE = "application/gzip".freeze
 
   attr_reader :path
 
@@ -170,6 +172,12 @@ class ImmutableSourceCheckout
         return
       end
 
+      if restore_prepared_archive!(snapshot, prepare_cache)
+        record_prepare_cache!(prepare_cache, "archive_hit")
+        log("[immutable_source_checkout] prepare archive hit: #{prepare_cache.short_cache_key}")
+        return
+      end
+
       record_prepare_cache!(prepare_cache, "miss")
       prepare!(snapshot, prepare_cache)
     end
@@ -199,6 +207,7 @@ class ImmutableSourceCheckout
 
     record_prepared!(snapshot, plan, prepare_cache)
     prepare_cache.store_from!(path)
+    publish_prepared_archive!(snapshot, prepare_cache)
   end
 
   def record_prepared!(snapshot, plan, prepare_cache)
@@ -277,6 +286,95 @@ class ImmutableSourceCheckout
 
   def raise_infrastructure!(message)
     raise WorkflowSourceSnapshots::InfrastructureStateError, message
+  end
+
+  def restore_prepared_archive!(snapshot, prepare_cache)
+    attachment = snapshot.prepared_workspace_archive
+    return false unless attachment.attached?
+    return false unless prepared_archive_metadata_matches?(attachment.blob.metadata, snapshot, prepare_cache)
+
+    archive_path = temporary_archive_path("restore")
+    File.open(archive_path, "wb") do |file|
+      attachment.download { |chunk| file.write(chunk) }
+    end
+
+    FileUtils.rm_rf(path.to_s)
+    FileUtils.mkdir_p(path)
+    run_tar!("tar", "-xzf", archive_path.to_s, "-C", path.to_s)
+    verify_head!(snapshot)
+    ensure_exclude_entry
+    record_prepared!(snapshot, prepare_cache.plan, prepare_cache)
+    prepare_cache.store_from!(path)
+    true
+  rescue StandardError => e
+    log("[immutable_source_checkout] prepared archive restore failed; falling back to local prepare: #{e.class}: #{e.message}")
+    FileUtils.rm_rf(path.to_s)
+    materialize!(snapshot)
+    verify_head!(snapshot)
+    ensure_exclude_entry
+    false
+  ensure
+    FileUtils.rm_f(archive_path.to_s) if archive_path
+  end
+
+  def publish_prepared_archive!(snapshot, prepare_cache)
+    archive_path = temporary_archive_path("publish")
+    run_tar!("tar", "-czf", archive_path.to_s, "-C", path.to_s, ".")
+    File.open(archive_path, "rb") do |file|
+      snapshot.prepared_workspace_archive.attach(
+        io: file,
+        filename: "workflow-source-snapshot-#{snapshot.id}-prepared.tar.gz",
+        content_type: PREPARED_ARCHIVE_CONTENT_TYPE,
+        identify: false,
+        metadata: prepared_archive_metadata(snapshot, prepare_cache)
+      )
+    end
+    log("[immutable_source_checkout] uploaded prepared workspace archive for snapshot ##{snapshot.id}")
+  rescue StandardError => e
+    log("[immutable_source_checkout] prepared archive upload failed; continuing with local cache only: #{e.class}: #{e.message}")
+  ensure
+    FileUtils.rm_f(archive_path.to_s) if archive_path
+  end
+
+  def prepared_archive_metadata_matches?(metadata, snapshot, prepare_cache)
+    metadata.to_h.slice(
+      "workflow_id",
+      "source_snapshot_id",
+      "source_sha",
+      "prepare_fingerprint"
+    ) == prepared_archive_metadata(snapshot, prepare_cache).slice(
+      "workflow_id",
+      "source_snapshot_id",
+      "source_sha",
+      "prepare_fingerprint"
+    )
+  end
+
+  def prepared_archive_metadata(snapshot, prepare_cache)
+    {
+      "workflow_id" => @workflow.id,
+      "source_snapshot_id" => snapshot.id,
+      "source_sha" => snapshot.source_sha,
+      "source_ref" => snapshot.source_ref,
+      "tree_sha" => snapshot.tree_sha,
+      "prepare_fingerprint" => prepare_cache.prepare_fingerprint,
+      "prepare_source" => prepare_cache.plan.source,
+      "uploaded_at" => Time.current.iso8601
+    }.compact
+  end
+
+  def temporary_archive_path(prefix)
+    WorkflowWorkspace.path_for(@workflow).join(
+      ".syrus",
+      "immutable-checkouts",
+      "archives",
+      "#{prefix}-#{@step.id}-#{Process.pid}-#{SecureRandom.hex(6)}.tar.gz"
+    ).tap { |archive_path| FileUtils.mkdir_p(archive_path.dirname) }
+  end
+
+  def run_tar!(*args)
+    _stdout, stderr, status = Open3.capture3(*args)
+    raise "tar failed: #{stderr.presence || status.exitstatus}" unless status.success?
   end
 
   def copy_tree!(source, destination)
