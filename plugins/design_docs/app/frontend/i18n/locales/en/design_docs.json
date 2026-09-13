@@ -1,5 +1,6 @@
 {
   "tab_design_docs": "Design Docs",
+  "list_tool_filter_placeholder": "Filter design docs",
   "preview_see_more": "See more",
   "preview_not_accessible": "Not accessible",
   "preview_owner": "Owner: {{name}}",

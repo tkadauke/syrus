@@ -1,5 +1,6 @@
 {
   "tab_design_docs": "Documenta consilii",
+  "list_tool_filter_placeholder": "Filtra documenta consilii",
   "preview_see_more": "Vide amplius",
   "preview_not_accessible": "Non accessibile",
   "preview_owner": "Dominus: {{name}}",
