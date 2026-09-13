@@ -1148,7 +1148,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_012500) do
     t.datetime "bucket_started_at", null: false
     t.datetime "created_at", null: false
     t.string "credential_key", limit: 64, null: false
-    t.integer "installation_id"
+    t.bigint "installation_id"
     t.integer "last_limit"
     t.integer "last_remaining"
     t.datetime "last_reset_at"
@@ -1157,12 +1157,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_012500) do
     t.string "operation", limit: 96, null: false
     t.integer "rate_limited_count", default: 0, null: false
     t.string "repo_slug"
-    t.integer "repository_id"
+    t.bigint "repository_id"
     t.string "repository_key", limit: 96, null: false
     t.integer "request_count", default: 0, null: false
     t.string "resource", limit: 32, null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id"
+    t.bigint "user_id"
     t.index ["bucket_started_at", "auth_source", "credential_key", "repository_key", "operation", "resource"], name: "idx_github_api_usage_rollups_unique_bucket", unique: true
     t.index ["installation_id"], name: "index_github_api_usage_rollups_on_installation_id"
     t.index ["repository_id"], name: "index_github_api_usage_rollups_on_repository_id"
@@ -3322,7 +3322,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_012500) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  add_foreign_key "github_api_usage_rollups", "installations"
-  add_foreign_key "github_api_usage_rollups", "repositories"
-  add_foreign_key "github_api_usage_rollups", "users"
 end
