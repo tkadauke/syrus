@@ -88,13 +88,14 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        return mark_plugin_step_done(task, "jobs") unless job_index_provider?
+        providers = job_index_providers
+        return mark_plugin_step_done(task, "jobs") if providers.empty?
 
         task.current_step_key = "jobs"
         task.current_step_title = "Index jobs"
         processed = 0
         Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          job_index_providers.each { |provider| provider.index_job(job) }
+          providers.each { |provider| upsert_job(provider, job) }
           task.checkpoint_will_change!
           task.checkpoint["last_job_id"] = job.id
           processed += 1
@@ -106,13 +107,14 @@ module MaintenanceTasks
       end
 
       def index_epics(task)
-        return mark_plugin_step_done(task, "epics") unless epic_index_provider?
+        providers = epic_index_providers
+        return mark_plugin_step_done(task, "epics") if providers.empty?
 
         task.current_step_key = "epics"
         task.current_step_title = "Index epics"
         processed = 0
         Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          epic_index_providers.each { |provider| provider.index_epic(epic) }
+          providers.each { |provider| upsert_epic(provider, epic) }
           task.checkpoint_will_change!
           task.checkpoint["last_epic_id"] = epic.id
           processed += 1
@@ -208,11 +210,27 @@ module MaintenanceTasks
       def epic_index_provider? = epic_index_providers.any?
 
       def job_index_providers
-        search_source_providers.select { |provider| provider.respond_to?(:index_job) }
+        search_source_providers.select { |provider| provider.respond_to?(:upsert_job) || provider.respond_to?(:index_job) }
       end
 
       def epic_index_providers
-        search_source_providers.select { |provider| provider.respond_to?(:index_epic) }
+        search_source_providers.select { |provider| provider.respond_to?(:upsert_epic) || provider.respond_to?(:index_epic) }
+      end
+
+      def upsert_job(provider, job)
+        if provider.respond_to?(:upsert_job)
+          provider.upsert_job(job)
+        else
+          provider.index_job(job)
+        end
+      end
+
+      def upsert_epic(provider, epic)
+        if provider.respond_to?(:upsert_epic)
+          provider.upsert_epic(epic)
+        else
+          provider.index_epic(epic)
+        end
       end
 
       def search_source_providers

@@ -124,7 +124,12 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
   end
 
   it "exposes the built-in job and epic indexer through the search source host" do
-    expect(Syrus::PluginRegistry.providers_for("global_search:source"))
-      .to include(GlobalSearch::BuiltInSource)
+    providers = Syrus::PluginRegistry.providers_for("global_search:source")
+
+    expect(providers).to include(GlobalSearch::BuiltInSource)
+    expect(GlobalSearch::BuiltInSource).to respond_to(:upsert_job)
+    expect(GlobalSearch::BuiltInSource).to respond_to(:upsert_epic)
+    expect(GlobalSearch::BuiltInSource).to respond_to(:index_job)
+    expect(GlobalSearch::BuiltInSource).to respond_to(:index_epic)
   end
 end
