@@ -93,6 +93,29 @@ RSpec.describe PollPullRequestJob, :ci_only do
   end
 
   describe "close conditions" do
+    it "delays autonomous polling while the persisted rate limit is exhausted" do
+      reset_at = 30.minutes.from_now
+      user.update!(
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: reset_at,
+        gh_rate_limit_observed_at: Time.current
+      )
+
+      expect_any_instance_of(GithubClient).not_to receive(:pull_request)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to have_enqueued_job(described_class).with(job.id, manual: false)
+    end
+
+    it "treats TooManyRequests as coordinated autonomous poll backoff" do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_raise(Octokit::TooManyRequests.new)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to have_enqueued_job(described_class).with(job.id, manual: false)
+    end
+
     it "closes the Job with reason=pr_merged when the PR is merged" do
       stub_pr(state: "closed", merged: true)
       expect { described_class.perform_now(job.id) }.to change { job.reload.state }.to("closed")

@@ -1772,7 +1772,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect {
       post "/api/v1/app/repositories/#{repository.id}/check_ci_now", params: { return_to: "detail", page: 1 }
-    }.to have_enqueued_job(PollMainBranchHealthJob).with(repository.id)
+    }.to have_enqueued_job(PollMainBranchHealthJob).with(repository.id, manual: true)
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("CI check enqueued for acme/widgets.")
