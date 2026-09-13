@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { matchPath, useLocation } from "react-router-dom"
-import { fetchSidebarPluginPages } from "./api/sidebarPages"
+import { fetchSidebarPluginPages, sidebarPluginPagesQueryKey } from "./api/sidebarPages"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {
@@ -49,7 +49,7 @@ export function pluginSidebarComponentFor(key: string | null | undefined) {
 /** Every path plugins have claimed, for registering real routes. */
 export function usePluginSidebarPaths({ enabled }: { enabled: boolean }) {
   const pages = useQuery({
-    queryKey: ["sidebar", "plugin_pages"],
+    queryKey: sidebarPluginPagesQueryKey,
     queryFn: fetchSidebarPluginPages,
     staleTime: 30_000,
     // Gated on being signed in, exactly as AppChromeV2 gates the same query:
@@ -67,7 +67,7 @@ export function usePluginSidebarPage() {
   const location = useLocation()
   const normalizedPath = location.pathname.replace(/^\/app-shell/, "") || "/"
   const pages = useQuery({
-    queryKey: ["sidebar", "plugin_pages"],
+    queryKey: sidebarPluginPagesQueryKey,
     queryFn: fetchSidebarPluginPages,
     staleTime: 30_000
   })

@@ -22,6 +22,7 @@ import { AdminInvitations } from "./AdminInvitations"
 import { AdminInstallations } from "./AdminInstallations"
 import { AdminOverview, AdminResourceAdmission, AdminScopedChatEvents } from "./AdminOverview"
 import { AdminPlugins } from "./AdminPlugins"
+import { AdminPluginDetail } from "./AdminPluginDetail"
 import { AdminQueueRoute } from "./AdminQueue"
 import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
 import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
@@ -67,7 +68,7 @@ import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 import { PluginSidebarPageRoute, usePluginSidebarPaths } from "../pluginSidebarPages"
 import { isAuthPath } from "./appChromeV2/helpers"
-import { fetchSidebarPluginPages } from "../api/sidebarPages"
+import { fetchSidebarPluginPages, sidebarPluginPagesQueryKey } from "../api/sidebarPages"
 
 type AppRouteDefinition = {
   path: string
@@ -113,6 +114,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/github_app/register", element: <AdminGithubAppRegister /> },
   { path: "/admin/github_app/confirm", element: <AdminGithubAppConfirm /> },
   { path: "/admin/features", element: <AdminFeatures /> },
+  { path: "/admin/plugins/:name", element: <AdminPluginDetail /> },
   { path: "/admin/*", element: <PluginAdminPageRoute /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
@@ -569,7 +571,7 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   // Plugins can own a settings page (agent memory, say); they declare
   // section "settings" on their sidebar_page metadata.
   const pluginPages = useQuery({
-    queryKey: ["sidebar", "plugin_pages"],
+    queryKey: sidebarPluginPagesQueryKey,
     queryFn: fetchSidebarPluginPages,
     staleTime: 30_000
   })

@@ -2,7 +2,7 @@ import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 
 const reloadMock = vi.hoisted(() => vi.fn())
@@ -99,9 +99,9 @@ describe("AdminPlugins", () => {
     expect(within(list).getByRole("heading", { name: "Codex Agent" })).toBeInTheDocument()
     expect(within(list).getByText("codex_agent")).toBeInTheDocument()
     expect(within(list).getByText("1.2.3")).toBeInTheDocument()
-    expect(within(list).getByText("AgentProviders::Codex")).toBeInTheDocument()
-    expect(within(list).getByText("Available")).toBeInTheDocument()
-    expect(within(list).getByText("OpenAI")).toBeInTheDocument()
+    expect(within(list).getByRole("link", { name: "Details" })).toHaveAttribute("href", "/app-shell/admin/plugins/codex_agent")
+    expect(within(list).queryByText("AgentProviders::Codex")).not.toBeInTheDocument()
+    expect(within(list).queryByText("OpenAI")).not.toBeInTheDocument()
   })
 
   it("renders the plugin icon at the expected size", async () => {
@@ -160,7 +160,7 @@ describe("AdminPlugins", () => {
     expect(screen.queryByText("Source")).not.toBeInTheDocument()
   })
 
-  it("shows extension points in a collapsed section", async () => {
+  it("keeps extension points off the inventory cards", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
         {
@@ -189,12 +189,11 @@ describe("AdminPlugins", () => {
     renderRoute(<AdminPlugins />)
 
     await screen.findByRole("region", { name: "Registered plugins" })
-    expect(screen.getByText("Extension points")).toBeInTheDocument()
-    // Content exists in DOM (inside details) but section is collapsed by default
-    expect(screen.getByText("AgentProviders::Claude")).toBeInTheDocument()
+    expect(screen.queryByText("Extension points")).not.toBeInTheDocument()
+    expect(screen.queryByText("AgentProviders::Claude")).not.toBeInTheDocument()
   })
 
-  it("uses semantic info tokens for required extension point status badges", async () => {
+  it("uses semantic info tokens for required status badges", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
         {
@@ -203,19 +202,13 @@ describe("AdminPlugins", () => {
           disable_blockers: [],
           version: "1.0.0",
           enabled: true,
-          disableable: true,
+          disableable: false,
           default_enabled: true,
           description: null,
           homepage: null,
           author: null,
           source: null,
-          extension_points: [
-            {
-              extension_point: "rails_artifact_renderer",
-              class_name: "Rails::ArtifactRenderer",
-              availability: { status: "required", label: "Required" }
-            }
-          ]
+          extension_points: []
         }
       ]
     }))
@@ -562,8 +555,25 @@ describe("AdminPlugins", () => {
     expect(reloadMock).not.toHaveBeenCalled()
   })
 
-  it("reloads the page after enabling a plugin", async () => {
-    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+  it("navigates to the plugin detail page after enabling a plugin", async () => {
+    let resolveSidebarPages: (() => void) | undefined
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/sidebar_pages") {
+        return new Promise<Response>((resolve) => {
+          resolveSidebarPages = () => resolve(jsonResponse({
+            pages: [
+              {
+                id: "codex_agent",
+                label: "Codex Agent",
+                path: "/codex",
+                paths: ["/codex"],
+                order: 50,
+                component: "codex_agent/CodexAgent"
+              }
+            ]
+          }))
+        })
+      }
       if (String(input).endsWith("/enable") && init?.method === "POST") {
         return Promise.resolve(jsonResponse({ plugins: [] }))
       }
@@ -587,7 +597,11 @@ describe("AdminPlugins", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Enable" }))
 
-    await waitFor(() => expect(reloadMock).toHaveBeenCalled())
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/sidebar_pages", expect.anything()))
+    expect(screen.getByTestId("location").textContent).toBe("/app-shell/admin/plugins")
+    resolveSidebarPages?.()
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/app-shell/admin/plugins/codex_agent"))
+    expect(reloadMock).not.toHaveBeenCalled()
   })
 
   it("shows why a disabled plugin is worth enabling, with the evidence behind it", async () => {
@@ -640,8 +654,14 @@ function renderRoute(children: ReactNode) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={["/app-shell/admin/plugins"]}>
+        <LocationProbe />
         {children}
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <span data-testid="location">{location.pathname}</span>
 }

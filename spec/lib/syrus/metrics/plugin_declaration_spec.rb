@@ -78,5 +78,24 @@ RSpec.describe "Plugin metric declaration", :reset_plugin_registry do
       scope.dispose
       expect(Syrus::Metrics.registry.declared?(:syrus_probe_plugin_probe_total)).to be(false)
     end
+
+    it "keeps manifest metadata for metrics and plugin-provided links" do
+      definition = Syrus::PluginApi::Definition.new(
+        name: "probe_plugin", namespace: Module.new, lib_dir: Rails.root.to_s
+      )
+      definition.link "Open Probe", path: "/probe", description: "Primary probe surface"
+      definition.metrics do
+        counter :probe_total, tags: %i[outcome], comment: "Probe"
+        histogram :latency_seconds, tags: %i[state], buckets: [ 0.1, 1.0 ], comment: "Latency"
+      end
+
+      expect(definition.manifest_arguments[:links]).to contain_exactly(
+        include(label: "Open Probe", path: "/probe", description: "Primary probe surface", requires_enabled: true)
+      )
+      expect(definition.manifest_arguments[:metrics]).to contain_exactly(
+        include(name: "syrus_probe_plugin_probe_total", type: "counter", tags: [ "outcome" ], comment: "Probe"),
+        include(name: "syrus_probe_plugin_latency_seconds", type: "histogram", tags: [ "state" ], buckets: [ 0.1, 1.0 ], comment: "Latency")
+      )
+    end
   end
 end

@@ -112,6 +112,85 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     )
   end
 
+  it "returns one plugin detail with docs, metrics, links, and enabled state" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    docs_dir = Rails.root.join("plugins", "detail-plugin", "docs/syrus_docs")
+    FileUtils.mkdir_p(docs_dir)
+    File.write(docs_dir.join("detail.md"), "# Detail Plugin\n\nOperator notes.", mode: "w")
+    Syrus::Metrics.declare_plugin("detail_plugin") do
+      counter :events_total, tags: %i[state], comment: "Plugin events."
+    end
+    Syrus::PluginRegistry.register(
+      name: "detail-plugin",
+      display_name: "Detail Plugin",
+      version: "1.2.3",
+      description: "Short detail.",
+      long_description: "Long detail.",
+      links: [
+        { label: "Open surface", path: "/detail", description: "Primary surface" }
+      ],
+      metrics: [
+        { name: "syrus_detail_plugin_events_total", type: "counter", tags: [ "state" ], comment: "Plugin events." }
+      ]
+    )
+
+    get "/api/v1/app/admin/plugins/detail-plugin"
+
+    expect(response).to have_http_status(:ok)
+    plugin = parse_body
+    expect(plugin).to include(
+      "name" => "detail-plugin",
+      "display_name" => "Detail Plugin",
+      "enabled" => true,
+      "description" => "Short detail.",
+      "long_description" => "Long detail."
+    )
+    expect(plugin.fetch("links")).to contain_exactly(
+      include("label" => "Open surface", "path" => "/detail", "description" => "Primary surface", "requires_enabled" => true)
+    )
+    expect(plugin.fetch("docs")).to contain_exactly(
+      include("title" => "Detail Plugin", "path" => "plugins/detail-plugin/docs/syrus_docs/detail.md", "body" => "# Detail Plugin\n\nOperator notes.")
+    )
+    expect(plugin.fetch("metrics")).to contain_exactly(
+      include(
+        "name" => "syrus_detail_plugin_events_total",
+        "type" => "counter",
+        "tags" => [ "state" ],
+        "comment" => "Plugin events.",
+        "available" => true
+      )
+    )
+  ensure
+    Syrus::Metrics.undeclare([ :syrus_detail_plugin_events_total ])
+    FileUtils.rm_rf(Rails.root.join("plugins", "detail-plugin"))
+  end
+
+  it "returns disabled plugin detail without loading docs into the index response" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "disabled-detail-plugin", version: "1.0.0")
+    PluginRecord.find_by!(name: "disabled-detail-plugin").update!(enabled: false)
+
+    get "/api/v1/app/admin/plugins"
+
+    expect(response).to have_http_status(:ok)
+    plugin = parse_body.fetch("plugins").sole
+    expect(plugin).to include("name" => "disabled-detail-plugin", "enabled" => false)
+    expect(plugin).not_to have_key("docs")
+    expect(plugin).not_to have_key("metrics")
+  end
+
+  it "404s for a missing plugin detail" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+
+    get "/api/v1/app/admin/plugins/nope"
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("not_found")
+  end
+
   it "includes icon_url when the manifest sets one" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!

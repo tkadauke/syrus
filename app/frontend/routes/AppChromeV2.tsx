@@ -16,7 +16,7 @@ import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fe
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
 import { fetchAdminMaintenanceTask, fetchMaintenanceSidebar, runMaintenanceTaskAction, type MaintenanceTask } from "../api/maintenanceTasks"
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
-import { fetchSidebarPluginPages, type SidebarPluginPage } from "../api/sidebarPages"
+import { fetchSidebarPluginPages, sidebarPluginPagesQueryKey, type SidebarPluginPage } from "../api/sidebarPages"
 import { fetchSmartFolderNavigation } from "../api/smartFolders"
 import { fetchThemes } from "../api/themes"
 import { useT } from "../hooks/useT"
@@ -105,7 +105,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     : children ?? <Outlet />
 
   const sidebarPluginPages = useQuery({
-    queryKey: ["sidebar", "plugin_pages"],
+    queryKey: sidebarPluginPagesQueryKey,
     queryFn: fetchSidebarPluginPages,
     staleTime: 30_000,
     enabled: Boolean(user)

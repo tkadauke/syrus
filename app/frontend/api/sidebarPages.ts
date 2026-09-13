@@ -21,6 +21,8 @@ export type SidebarPluginPagesPayload = {
   pages: SidebarPluginPage[]
 }
 
+export const sidebarPluginPagesQueryKey = ["sidebar", "plugin_pages"] as const
+
 export function fetchSidebarPluginPages() {
   return getJson<SidebarPluginPagesPayload>("/api/v1/app/sidebar_pages")
 }
