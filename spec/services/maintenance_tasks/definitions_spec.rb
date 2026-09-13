@@ -96,6 +96,40 @@ RSpec.describe "maintenance task definitions" do
       expect(result.processed).to eq(1)
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
+
+    it "indexes jobs through an enabled search source provider" do
+      task = maintenance_task_for(definition)
+      task.checkpoint["schema_prepared"] = true
+      job = Factories.job_record
+      provider = Class.new do
+        class_attribute :indexed_jobs, default: []
+
+        def self.indexes_jobs? = true
+        def self.index_job(job) = self.indexed_jobs += [ job.id ]
+      end
+
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
+      allow(definition).to receive(:missing_chat_messages_count).and_return(0)
+      allow(definition).to receive(:indexed_count).with("job_fts", "job_id").and_return(0)
+      allow(definition).to receive(:epics_need_rebuild?).and_return(false)
+      allow(definition).to receive(:operational_logs_need_rebuild?).and_return(false)
+
+      result = definition.perform_batch(task)
+
+      expect(provider.indexed_jobs).to eq([ job.id ])
+      expect(result.message).to include("Indexed 1 job")
+    end
+
+    it "marks the jobs step done when no enabled provider indexes jobs" do
+      task = maintenance_task_for(definition)
+
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([])
+
+      result = definition.send(:index_jobs, task)
+
+      expect(task.checkpoint["jobs_done"]).to be(true)
+      expect(result.message).to include("Jobs index is not available")
+    end
   end
 
   def maintenance_task_for(definition)
