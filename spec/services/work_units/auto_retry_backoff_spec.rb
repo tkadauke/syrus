@@ -46,6 +46,7 @@ RSpec.describe WorkUnits::AutoRetryBackoff do
 
   it "blocks the same work unit while a same-attempt retry is sleeping" do
     workflow.update!(work_unit: unit)
+    unit.work_intent.update!(state: "failed")
     attempt = attempt!(retry_kind: "failed_step")
 
     described_class.record!(attempt)
@@ -60,6 +61,7 @@ RSpec.describe WorkUnits::AutoRetryBackoff do
       "retry_kind" => "failed_step",
       "failure_classification" => "timeout"
     )
+    expect(unit.work_intent.reload).to be_requested
     expect(unit.work_unit_locks.active.pluck(:lock_key)).to include("job:#{job.id}")
   end
 

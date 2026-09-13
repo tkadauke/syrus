@@ -37,7 +37,9 @@ class WorkIntent < ApplicationRecord
       state: "requested",
       wait_reason: nil,
       wait_until: nil,
-      wait_details: {}
+      wait_details: {},
+      satisfied_at: nil,
+      cancelled_at: nil
     )
   end
 

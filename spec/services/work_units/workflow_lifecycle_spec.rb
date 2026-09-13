@@ -16,6 +16,17 @@ RSpec.describe WorkUnits::WorkflowLifecycle do
     expect(unit.finished_at).to be_nil
   end
 
+  it "reactivates a failed intent when an existing workflow is reopened" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+    unit = workflow.work_unit
+    unit.mark_terminal!("failed")
+
+    described_class.started!(workflow)
+
+    expect(unit.reload).to have_attributes(state: "running")
+    expect(unit.work_intent.reload).to be_requested
+  end
+
   it "marks the attached work unit terminal when the workflow finishes" do
     workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
     workflow.work_unit.mark_running!

@@ -59,6 +59,16 @@ RSpec.describe WorkIntents::TerminalUnitSync do
     expect(failed.work_unit.work_intent.reload).to be_failed
   end
 
+  it "can re-request a terminal WorkIntent when its WorkUnit becomes active again" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    intent = workflow.work_unit.work_intent
+    workflow.work_unit.mark_terminal!("failed")
+
+    workflow.work_unit.mark_running!
+
+    expect(intent.reload).to have_attributes(state: "requested")
+  end
+
   it "does not fail the WorkIntent while another WorkUnit for it is still active" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     intent = workflow.work_unit.work_intent

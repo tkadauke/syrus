@@ -85,27 +85,34 @@ class WorkUnit < ApplicationRecord
   end
 
   def block!(reason:, blocked_until: nil, details: {}, user: nil)
-    update!(
-      state: "blocked",
-      blocked_reason: reason,
-      blocked_until: blocked_until,
-      blocked_details: details || {},
-      blocked_by_user: user
-    )
+    transaction do
+      reactivate_work_intent!
+      update!(
+        state: "blocked",
+        blocked_reason: reason,
+        blocked_until: blocked_until,
+        blocked_details: details || {},
+        blocked_by_user: user
+      )
+    end
   end
 
   def unblock!
-    update!(
-      state: "queued",
-      blocked_reason: nil,
-      blocked_until: nil,
-      blocked_details: {},
-      blocked_by_user: nil
-    )
+    transaction do
+      reactivate_work_intent!
+      update!(
+        state: "queued",
+        blocked_reason: nil,
+        blocked_until: nil,
+        blocked_details: {},
+        blocked_by_user: nil
+      )
+    end
   end
 
   def mark_running!
     transaction do
+      reactivate_work_intent!
       ensure_active_locks!
       update!(
         state: "running",
@@ -211,6 +218,13 @@ class WorkUnit < ApplicationRecord
   def runtime_member_jobs
     jobs = work_unit_members.includes(:job).order(:id).map(&:job).compact
     jobs.presence || [ workflow.job ].compact
+  end
+
+  def reactivate_work_intent!
+    return unless work_intent
+    return if work_intent.requested? || work_intent.waiting?
+
+    work_intent.request!
   end
 
   def primary_job
