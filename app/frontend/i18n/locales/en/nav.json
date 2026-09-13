@@ -28,6 +28,13 @@
   "sidebar_smart_folders_all": "All {{label}}",
   "sidebar_smart_folders_aria": "{{label}} smart folders",
   "sidebar_smart_folders_heading": "Folders",
+  "maintenance_tasks": {
+    "aria": "Maintenance tasks",
+    "heading": "Maintenance",
+    "all": "All",
+    "collapsed_count_one": "{{count}} maintenance task",
+    "collapsed_count_other": "{{count}} maintenance tasks"
+  },
   "shell": {
     "update_ready": "Relaunch to update",
     "update_version": "Version {{version}} ready",

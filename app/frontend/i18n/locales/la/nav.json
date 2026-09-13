@@ -28,6 +28,13 @@
   "sidebar_smart_folders_all": "Omnia {{label}}",
   "sidebar_smart_folders_aria": "Scrinia callida pro {{label}}",
   "sidebar_smart_folders_heading": "Scrinia",
+  "maintenance_tasks": {
+    "aria": "Opera curae",
+    "heading": "Cura",
+    "all": "Omnia",
+    "collapsed_count_one": "{{count}} opus curae",
+    "collapsed_count_other": "{{count}} opera curae"
+  },
   "shell": {
     "update_ready": "Resuscita ut renoves",
     "update_version": "Versio {{version}} parata",

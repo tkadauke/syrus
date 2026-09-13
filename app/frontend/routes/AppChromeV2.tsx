@@ -1029,6 +1029,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 }
 
 function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
+  const { t } = useT("nav")
   const queryClient = useQueryClient()
   const [collapsed, setCollapsed] = useState(false)
   const [docsTask, setDocsTask] = useState<MaintenanceTask | null>(null)
@@ -1065,7 +1066,7 @@ function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
   }
 
   return (
-    <section aria-label="Maintenance tasks">
+    <section aria-label={t("maintenance_tasks.aria")}>
       <Surface className="space-y-2" padding="sm" variant="subtle">
         <div className="mb-2 flex items-center justify-between gap-2">
           <button
@@ -1075,9 +1076,9 @@ function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
             type="button"
           >
             <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "-rotate-90" : ""}`} />
-            <span>Maintenance</span>
+            <span>{t("maintenance_tasks.heading")}</span>
           </button>
-          <LinkText className="text-xs" to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>All</LinkText>
+          <LinkText className="text-xs" to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>{t("maintenance_tasks.all")}</LinkText>
         </div>
         {collapsed ? (
           <button
@@ -1085,7 +1086,7 @@ function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
             onClick={() => setCollapsed(false)}
             type="button"
           >
-            <span>{visibleTasks.length} maintenance task{visibleTasks.length === 1 ? "" : "s"}</span>
+            <span>{t("maintenance_tasks.collapsed_count", { count: visibleTasks.length })}</span>
             <span className="rounded-full bg-surface-raised px-1.5 py-0.5 text-[10px] font-semibold text-text-muted">{visibleTasks.length}</span>
           </button>
         ) : (
