@@ -17,6 +17,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
   RETAIN_AFTER_FAILURE = 7.days
 
   RETAIN_CHAT_WORKSPACES = 7.days
+  RETAIN_PREPARED_SOURCE_ARCHIVES = 24.hours
 
   # Recurring (no args): the coordinator runs the cluster-wide DB/branch and
   # chat sweeps, then fans the local-disk filesystem sweep out to every live
@@ -131,6 +132,23 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     end
 
     Rails.logger.info("[WorkflowWorkspacePrune] db_sweep cleaned #{n} workflow workspaces") if n > 0
+    prune_prepared_source_archives
+  end
+
+  def prune_prepared_source_archives
+    cutoff = RETAIN_PREPARED_SOURCE_ARCHIVES.ago
+    n = 0
+
+    WorkflowSourceSnapshot.joins(:prepared_workspace_archive_attachment)
+                          .where("workflow_source_snapshots.published_at < ?", cutoff)
+                          .find_each do |snapshot|
+      snapshot.purge_prepared_workspace_archive!
+      n += 1
+    rescue StandardError => e
+      Rails.logger.warn("[WorkflowWorkspacePrune] failed to purge prepared source archive for WorkflowSourceSnapshot ##{snapshot.id}: #{e.class}: #{e.message}")
+    end
+
+    Rails.logger.info("[WorkflowWorkspacePrune] purged #{n} prepared source archive(s)") if n > 0
   end
 
   # Walk $SYRUS_DATA_ROOT/workflows/ and remove any directory whose

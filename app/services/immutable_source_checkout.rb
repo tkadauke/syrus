@@ -10,6 +10,7 @@ class ImmutableSourceCheckout
   PREPARE_CACHE_LOCK_ROOT = ".syrus/immutable-checkouts/prepare-cache-locks".freeze
   PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
   PREPARED_ARCHIVE_CONTENT_TYPE = "application/gzip".freeze
+  PREPARED_ARCHIVE_MAX_BYTES = 1.gigabyte
 
   attr_reader :path
 
@@ -320,6 +321,12 @@ class ImmutableSourceCheckout
   def publish_prepared_archive!(snapshot, prepare_cache)
     archive_path = temporary_archive_path("publish")
     run_tar!("tar", "-czf", archive_path.to_s, "-C", path.to_s, ".")
+    archive_bytes = archive_path.size
+    if archive_bytes > PREPARED_ARCHIVE_MAX_BYTES
+      log("[immutable_source_checkout] prepared archive upload skipped: #{archive_bytes} bytes exceeds #{PREPARED_ARCHIVE_MAX_BYTES} byte limit")
+      return
+    end
+
     File.open(archive_path, "rb") do |file|
       snapshot.prepared_workspace_archive.attach(
         io: file,
@@ -359,6 +366,7 @@ class ImmutableSourceCheckout
       "tree_sha" => snapshot.tree_sha,
       "prepare_fingerprint" => prepare_cache.prepare_fingerprint,
       "prepare_source" => prepare_cache.plan.source,
+      "max_bytes" => PREPARED_ARCHIVE_MAX_BYTES,
       "uploaded_at" => Time.current.iso8601
     }.compact
   end

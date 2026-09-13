@@ -171,6 +171,15 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "skips prepared archive upload when the archive exceeds the size cap" do
+    stub_const("ImmutableSourceCheckout::PREPARED_ARCHIVE_MAX_BYTES", 1)
+
+    described_class.new(step).setup
+
+    expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
+    expect(step.reload.details.fetch("prepare_cache")).to include("status" => "miss")
+  end
+
   it "misses naturally when the prepare fingerprint changes" do
     described_class.new(step).setup
     first_cache_key = step.reload.details.dig("prepare_cache", "cache_key")

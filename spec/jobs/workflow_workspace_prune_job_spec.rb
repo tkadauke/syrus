@@ -109,6 +109,50 @@ RSpec.describe WorkflowWorkspacePruneJob do
     described_class.perform_now
   end
 
+  it "db_sweep purges prepared source snapshot archives past their TTL" do
+    workflow = make_workflow(state: "running", finished_at: nil)
+    step = Step.create!(workflow: workflow, kind: "grader_fanout", position: 0, state: "succeeded")
+    snapshot = WorkflowSourceSnapshot.create!(
+      workflow: workflow,
+      creator_step: step,
+      source_sha: "abc123",
+      source_ref: "refs/heads/syrus/source-snapshots/test",
+      tree_sha: "tree123",
+      published_at: described_class::RETAIN_PREPARED_SOURCE_ARCHIVES.ago - 1.minute
+    )
+    snapshot.prepared_workspace_archive.attach(
+      io: StringIO.new("archive"),
+      filename: "prepared.tar.gz",
+      content_type: "application/gzip"
+    )
+
+    described_class.perform_now
+
+    expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
+  end
+
+  it "db_sweep keeps recent prepared source snapshot archives" do
+    workflow = make_workflow(state: "running", finished_at: nil)
+    step = Step.create!(workflow: workflow, kind: "grader_fanout", position: 0, state: "succeeded")
+    snapshot = WorkflowSourceSnapshot.create!(
+      workflow: workflow,
+      creator_step: step,
+      source_sha: "abc123",
+      source_ref: "refs/heads/syrus/source-snapshots/test",
+      tree_sha: "tree123",
+      published_at: 1.minute.ago
+    )
+    snapshot.prepared_workspace_archive.attach(
+      io: StringIO.new("archive"),
+      filename: "prepared.tar.gz",
+      content_type: "application/gzip"
+    )
+
+    described_class.perform_now
+
+    expect(snapshot.reload.prepared_workspace_archive).to be_attached
+  end
+
   it "db_sweep defers a terminal workflow while a spawned process is still active" do
     workflow = make_workflow(
       state: "succeeded",
