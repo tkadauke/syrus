@@ -3,7 +3,7 @@ import { useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { discoverMaintenanceTasks, fetchAdminMaintenanceTask, fetchAdminMaintenanceTasks, runMaintenanceTaskAction } from "../api/maintenanceTasks"
 import type { AdminMaintenanceTasksPayload, MaintenanceTask, MaintenanceTaskEvent } from "../api/maintenanceTasks"
-import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass } from "../components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, disabledPaginationClass, paginationLinkClass } from "../components/AdminEventLogPanel"
 import type { AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
@@ -75,8 +75,8 @@ export function AdminMaintenanceTaskDetail() {
   const queryClient = useQueryClient()
   const [documentationOpen, setDocumentationOpen] = useState(false)
   const detail = useQuery({
-    queryKey: ["admin", "maintenance_tasks", id],
-    queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", signal),
+    queryKey: ["admin", "maintenance_tasks", id, location.search],
+    queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", location.search, signal),
     enabled: Boolean(id),
     refetchInterval: POLL_INTERVAL_MS
   })
@@ -108,7 +108,7 @@ export function AdminMaintenanceTaskDetail() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-text-primary">{t("maintenance_tasks.task_log")}</h2>
-        <TaskEventLog events={task.events} />
+        <TaskEventLog task={task} prefix={prefix} />
       </section>
 
       {documentationOpen ? <TaskDocumentationModal task={task} onClose={() => setDocumentationOpen(false)} /> : null}
@@ -300,31 +300,53 @@ export function TaskProgress({ task, large = false, showMeta = true }: { task: M
   )
 }
 
-function TaskEventLog({ events }: { events: MaintenanceTaskEvent[] }) {
+function TaskEventLog({ prefix, task }: { prefix: string; task: { events: MaintenanceTaskEvent[]; events_pagination: { page: number; total: number; total_pages: number; first_item: number; last_item: number; previous_path: string | null; next_path: string | null } } }) {
   const { t } = useT("admin")
+  const { events, events_pagination: pagination } = task
   if (events.length === 0) return <AdminEventPanelMessage>{t("maintenance_tasks.no_events")}</AdminEventPanelMessage>
 
   return (
-    <DataTable.Root density="compact">
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell>{t("maintenance_tasks.col_time")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("maintenance_tasks.col_level")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("maintenance_tasks.col_step")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
-        {events.map((event) => (
-          <DataTable.Row key={event.id}>
-            <DataTable.Cell className="whitespace-nowrap text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap"><TonePill tone={event.level === "error" ? "red" : event.level === "warn" ? "amber" : "blue"}>{event.level}</TonePill></DataTable.Cell>
-            <DataTable.Cell className="text-text-muted">{event.step_title || "-"}</DataTable.Cell>
-            <DataTable.Cell>{event.message}</DataTable.Cell>
+    <div className="rounded border border-border bg-surface">
+      <div className="border-b border-border px-4 py-3 text-sm text-text-muted">
+        {t("maintenance_tasks.log_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total })}
+      </div>
+      <DataTable.Root density="compact">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_time")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_level")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_step")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
           </DataTable.Row>
-        ))}
-      </DataTable.Body>
-    </DataTable.Root>
+        </DataTable.Header>
+        <DataTable.Body>
+          {events.map((event) => (
+            <DataTable.Row key={event.id}>
+              <DataTable.Cell className="whitespace-nowrap text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</DataTable.Cell>
+              <DataTable.Cell className="whitespace-nowrap"><TonePill tone={event.level === "error" ? "red" : event.level === "warning" ? "amber" : "blue"}>{event.level}</TonePill></DataTable.Cell>
+              <DataTable.Cell className="text-text-muted">{event.step_title || "-"}</DataTable.Cell>
+              <DataTable.Cell>{event.message}</DataTable.Cell>
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
+      <TaskEventPagination pagination={pagination} prefix={prefix} />
+    </div>
+  )
+}
+
+function TaskEventPagination({ pagination, prefix }: { pagination: { page: number; total_pages: number; previous_path: string | null; next_path: string | null }; prefix: string }) {
+  const { t } = useT("admin")
+  if (pagination.total_pages <= 1) return null
+
+  return (
+    <nav aria-label={t("maintenance_tasks.log_pagination")} className="flex items-center justify-between border-t border-border px-4 py-3 text-sm text-text-muted">
+      <span>{t("maintenance_tasks.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
+      <div className="flex items-center gap-2">
+        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>{t("maintenance_tasks.previous")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.previous")}</span>}
+        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>{t("maintenance_tasks.next")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.next")}</span>}
+      </div>
+    </nav>
   )
 }
 

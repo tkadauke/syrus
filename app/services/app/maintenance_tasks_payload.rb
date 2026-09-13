@@ -8,6 +8,7 @@ module App
       { name: "trigger_kind", label: "Trigger" },
       { name: "query", label: "Search" }
     ].freeze
+    EVENTS_PER_PAGE = 100
 
     def self.sidebar
       {
@@ -39,9 +40,28 @@ module App
       }
     end
 
-    def self.show(task)
+    def self.show(task, params: {})
+      page = page_param(params)
+      total = task.events.count
+      total_pages = [ (total.to_f / EVENTS_PER_PAGE).ceil, 1 ].max
+      events = task.events
+        .order(created_at: :desc, id: :desc)
+        .offset((page - 1) * EVENTS_PER_PAGE)
+        .limit(EVENTS_PER_PAGE)
+        .to_a
+
       serialize_task(task, include_documentation: true).merge(
-        events: task.events.order(created_at: :desc, id: :desc).limit(500).map { |event| serialize_event(event) }
+        events: events.map { |event| serialize_event(event) },
+        events_pagination: {
+          page: page,
+          per_page: EVENTS_PER_PAGE,
+          total: total,
+          total_pages: total_pages,
+          first_item: events.empty? ? 0 : ((page - 1) * EVENTS_PER_PAGE) + 1,
+          last_item: events.empty? ? 0 : ((page - 1) * EVENTS_PER_PAGE) + events.length,
+          previous_path: page > 1 ? maintenance_task_path(task, page: page - 1) : nil,
+          next_path: page < total_pages ? maintenance_task_path(task, page: page + 1) : nil
+        }
       )
     end
 
@@ -153,6 +173,15 @@ module App
         label: field.fetch(:label),
         operators: [ "is" ]
       }
+    end
+
+    def self.page_param(params)
+      [ params[:page].to_i, 1 ].max
+    end
+
+    def self.maintenance_task_path(task, page:)
+      query = page == 1 ? "" : "?page=#{page}"
+      "/admin/maintenance_tasks/#{task.id}#{query}"
     end
   end
 end
