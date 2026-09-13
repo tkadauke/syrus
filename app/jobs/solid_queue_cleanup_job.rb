@@ -10,11 +10,13 @@ class SolidQueueCleanupJob < ApplicationJob
   OBSOLETE_READY_QUEUE_NAMES = [ "default" ].freeze
   OBSOLETE_READY_QUEUE_PREFIXES = [ "resume-" ].freeze
   DUPLICATE_WORKFLOW_PHASE_ADMISSION_SCAN_LIMIT = 2_500
+  DUPLICATE_POLLING_SCAN_LIMIT = 10_000
 
   def perform
     prune_finished_jobs
     prune_obsolete_ready_jobs
     prune_duplicate_workflow_phase_admission_jobs
+    prune_duplicate_polling_jobs
   end
 
   private
@@ -102,8 +104,7 @@ class SolidQueueCleanupJob < ApplicationJob
   end
 
   def workflow_phase_admission_key(arguments)
-    payload = arguments.is_a?(String) ? JSON.parse(arguments) : arguments
-    args = payload.is_a?(Hash) ? (payload["arguments"] || payload[:arguments]) : payload
+    args = active_job_arguments(arguments)
     return nil unless args.is_a?(Array)
 
     workflow_id = args[0].presence
@@ -111,6 +112,57 @@ class SolidQueueCleanupJob < ApplicationJob
 
     step_id = args[1].presence
     [ workflow_id.to_s, step_id.to_s.presence || "workflow" ]
+  end
+
+  def prune_duplicate_polling_jobs
+    seen = {}
+    duplicate_ids = []
+
+    duplicate_polling_scope.find_each(batch_size: BATCH_SIZE) do |job|
+      key = duplicate_polling_key(job)
+      next if key.blank?
+
+      if seen.key?(key)
+        duplicate_ids << job.id
+      else
+        seen[key] = job.id
+      end
+
+      break if seen.size + duplicate_ids.size >= DUPLICATE_POLLING_SCAN_LIMIT
+    end
+
+    return if duplicate_ids.empty?
+
+    SolidQueue::ReadyExecution.where(job_id: duplicate_ids).delete_all
+    SolidQueue::ScheduledExecution.where(job_id: duplicate_ids).delete_all
+    SolidQueue::Job.where(id: duplicate_ids).delete_all
+
+    Rails.logger.info("[SolidQueueCleanupJob] pruned #{duplicate_ids.size} duplicate polling jobs")
+  end
+
+  def duplicate_polling_scope
+    SolidQueue::Job
+      .where(finished_at: nil)
+      .where(queue_name: "polling")
+      .where.not(id: SolidQueue::ClaimedExecution.select(:job_id))
+      .where.not(id: SolidQueue::BlockedExecution.select(:job_id))
+      .where.not(id: SolidQueue::FailedExecution.select(:job_id))
+      .includes(:ready_execution, :scheduled_execution)
+      .order(:class_name, :created_at, :id)
+  end
+
+  def duplicate_polling_key(job)
+    args = active_job_arguments(job.arguments)
+    return nil unless args.is_a?(Array)
+
+    [ job.class_name, JSON.generate(args) ]
+  rescue JSON::GeneratorError
+    nil
+  end
+
+  def active_job_arguments(arguments)
+    payload = arguments.is_a?(String) ? JSON.parse(arguments) : arguments
+    payload.is_a?(Hash) ? (payload["arguments"] || payload[:arguments]) : payload
   rescue JSON::ParserError, TypeError
     nil
   end

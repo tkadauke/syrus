@@ -1,4 +1,6 @@
 class PollMainBranchHealthJob < ApplicationJob
+  include SkipIfPending
+
   queue_as :polling
 
   limits_concurrency to: 1, key: ->(repo_id, *) { "poll_main_health:#{repo_id}" }

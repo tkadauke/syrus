@@ -1,4 +1,6 @@
 class PollRepositoryJob < ApplicationJob
+  include SkipIfPending
+
   queue_as :polling
 
   # Serialize per-repo polling so a manual "Poll now" click can't race

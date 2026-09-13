@@ -1,4 +1,5 @@
 class PollPullRequestJob < ApplicationJob
+  include SkipIfPending
   include GithubPrPollHelpers
 
   queue_as :polling

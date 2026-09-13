@@ -1,4 +1,6 @@
 class PollRepositoryDeploymentStagesJob < ApplicationJob
+  include SkipIfPending
+
   queue_as :polling
 
   LOOKBACK = (Integer(ENV["SYRUS_DEPLOYMENT_STAGE_POLL_LOOKBACK_DAYS"], exception: false) || 14).days

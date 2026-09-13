@@ -5,6 +5,8 @@
 # hotfix commit or manually merged PR to `main` — and dispatches
 # HotfixSyncDispatcher to mechanically sync them back.
 class PollHotfixSyncJob < ApplicationJob
+  include SkipIfPending
+
   queue_as :polling
 
   limits_concurrency to: 1, key: ->(repo_id, *) { "poll_hotfix_sync:#{repo_id}" }

@@ -1,4 +1,5 @@
 class PollMergeStateJob < ApplicationJob
+  include SkipIfPending
   include GithubPrPollHelpers
 
   queue_as :polling

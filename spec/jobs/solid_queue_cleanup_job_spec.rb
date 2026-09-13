@@ -49,6 +49,7 @@ RSpec.describe SolidQueueCleanupJob do
     allow_any_instance_of(described_class).to receive(:sleep)
     allow_any_instance_of(described_class).to receive(:prune_obsolete_ready_jobs)
     allow_any_instance_of(described_class).to receive(:prune_duplicate_workflow_phase_admission_jobs)
+    allow_any_instance_of(described_class).to receive(:prune_duplicate_polling_jobs)
 
     described_class.perform_now
 
@@ -116,6 +117,7 @@ RSpec.describe SolidQueueCleanupJob do
     job = described_class.new
     allow(job).to receive(:prune_finished_jobs)
     allow(job).to receive(:prune_duplicate_workflow_phase_admission_jobs)
+    allow(job).to receive(:prune_duplicate_polling_jobs)
     allow(job).to receive(:obsolete_ready_job_scope).and_return(relation)
     allow(job).to receive(:sleep)
 
@@ -140,12 +142,65 @@ RSpec.describe SolidQueueCleanupJob do
       job = described_class.new
       allow(job).to receive(:prune_finished_jobs)
       allow(job).to receive(:prune_obsolete_ready_jobs)
+      allow(job).to receive(:prune_duplicate_polling_jobs)
 
       job.perform
 
       expect(SolidQueue::Job.where(id: [ keep_workflow.id, keep_step.id, other_workflow.id ]).pluck(:id)).to contain_exactly(keep_workflow.id, keep_step.id, other_workflow.id)
       expect(SolidQueue::Job.where(id: [ duplicate_workflow.id, duplicate_step.id ])).to be_empty
       expect(SolidQueue::ReadyExecution.where(job_id: [ duplicate_workflow.id, duplicate_step.id ])).to be_empty
+    end
+  ensure
+    clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+  end
+
+  it "keeps one pending polling job per class and serialized argument list" do
+    ensure_solid_queue_test_tables!
+    clear_solid_queue_test_tables!
+
+    travel_to Time.zone.local(2026, 9, 13, 12, 0, 0) do
+      keep_pr = solid_queue_job(
+        class_name: "PollPullRequestJob",
+        queue_name: "polling",
+        arguments: { "arguments" => [ 4795 ] },
+        created_at: 5.minutes.ago
+      )
+      duplicate_pr = solid_queue_job(
+        class_name: "PollPullRequestJob",
+        queue_name: "polling",
+        arguments: { "arguments" => [ 4795 ] },
+        created_at: 4.minutes.ago
+      )
+      other_pr = solid_queue_job(
+        class_name: "PollPullRequestJob",
+        queue_name: "polling",
+        arguments: { "arguments" => [ 4796 ] },
+        created_at: 3.minutes.ago
+      )
+      other_class = solid_queue_job(
+        class_name: "PollMergeStateJob",
+        queue_name: "polling",
+        arguments: { "arguments" => [ 4795 ] },
+        created_at: 2.minutes.ago
+      )
+      non_polling = solid_queue_job(
+        class_name: "PollPullRequestJob",
+        queue_name: "control_plane",
+        arguments: { "arguments" => [ 4795 ] },
+        created_at: 1.minute.ago
+      )
+
+      job = described_class.new
+      allow(job).to receive(:prune_finished_jobs)
+      allow(job).to receive(:prune_obsolete_ready_jobs)
+      allow(job).to receive(:prune_duplicate_workflow_phase_admission_jobs)
+
+      job.perform
+
+      expect(SolidQueue::Job.where(id: [ keep_pr.id, other_pr.id, other_class.id, non_polling.id ]).pluck(:id))
+        .to contain_exactly(keep_pr.id, other_pr.id, other_class.id, non_polling.id)
+      expect(SolidQueue::Job.where(id: duplicate_pr.id)).to be_empty
+      expect(SolidQueue::ReadyExecution.where(job_id: duplicate_pr.id)).to be_empty
     end
   ensure
     clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
@@ -161,14 +216,21 @@ RSpec.describe SolidQueueCleanupJob do
     )
   end
 
-  def solid_queue_job(arguments:, created_at:)
+  def solid_queue_job(arguments:, created_at:, class_name: "WorkflowPhaseAdmissionJob", queue_name: "control_plane")
     SolidQueue::Job.create!(
-      class_name: "WorkflowPhaseAdmissionJob",
-      queue_name: "control_plane",
+      class_name: class_name,
+      queue_name: queue_name,
       priority: 0,
       arguments: arguments,
       created_at: created_at,
       updated_at: created_at
-    )
+    ).tap do |job|
+      SolidQueue::ReadyExecution.create!(
+        job_id: job.id,
+        queue_name: queue_name,
+        priority: 0,
+        created_at: created_at
+      )
+    end
   end
 end

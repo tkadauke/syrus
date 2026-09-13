@@ -13,12 +13,16 @@ RSpec.describe SkipIfPending do
   # in this single-DB test setup (CLAUDE.md). Stub the constant with
   # a bare class so referencing `.where(...)` doesn't trigger schema
   # introspection against a table that doesn't exist.
-  let(:relation) { double("relation", exists?: false) }
+  let(:relation) { double("relation", exists?: false, limit: pending_jobs) }
+  let(:pending_jobs) { [] }
   before do
+    connection = double("connection", adapter_name: "SQLite")
     fake_job_class = Class.new do
       def self.where(*); end
+      def self.connection; end
     end
     stub_const("SolidQueue::Job", fake_job_class)
+    allow(SolidQueue::Job).to receive(:connection).and_return(connection)
     allow(SolidQueue::Job).to receive(:where)
       .with(class_name: "SkipIfPendingTestJob", finished_at: nil)
       .and_return(relation)
@@ -38,14 +42,31 @@ RSpec.describe SkipIfPending do
   end
 
   describe "with arguments" do
-    it "bypasses the guard for positional args" do
-      expect(SolidQueue::Job).not_to receive(:where)
+    it "enqueues when no pending job has the same positional args" do
+      expect { SkipIfPendingTestJob.perform_later(42) }
+        .to have_enqueued_job(SkipIfPendingTestJob).with(42)
+    end
+
+    it "skips enqueue when a pending job has the same positional args" do
+      allow(relation).to receive(:limit).with(1_000).and_return([
+        double("solid queue job", arguments: { "arguments" => [ 42 ] })
+      ])
+
+      expect { SkipIfPendingTestJob.perform_later(42) }
+        .not_to have_enqueued_job(SkipIfPendingTestJob)
+    end
+
+    it "does not skip enqueue when only different positional args are pending" do
+      allow(relation).to receive(:limit).with(1_000).and_return([
+        double("solid queue job", arguments: { "arguments" => [ 41 ] })
+      ])
+
       expect { SkipIfPendingTestJob.perform_later(42) }
         .to have_enqueued_job(SkipIfPendingTestJob).with(42)
     end
 
     it "bypasses the guard for keyword args" do
-      expect(SolidQueue::Job).not_to receive(:where)
+      expect(relation).not_to receive(:limit)
       expect { SkipIfPendingTestJob.perform_later(foo: "bar") }
         .to have_enqueued_job(SkipIfPendingTestJob)
     end
