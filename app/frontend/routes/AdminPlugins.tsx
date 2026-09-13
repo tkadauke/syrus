@@ -1,10 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { type ReactNode, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   disableAdminPlugin,
   enableAdminPlugin,
+  fetchAdminPlugin,
   fetchAdminPlugins,
   type AdminPlugin,
   type AdminPluginDisableConfirmation,
@@ -12,11 +13,13 @@ import {
   type AdminPluginsPayload
 } from "../api/adminPlugins"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
-import { Button } from "../components/Button"
+import { Button, buttonClasses } from "../components/Button"
 import { FilterBar, filterTreeFromPayload, topFilterChildren } from "../components/FilterBar"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { Markdown } from "../lib/Markdown"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 import * as pageReload from "../lib/pageReload"
 
 export function AdminPlugins() {
@@ -59,6 +62,30 @@ export function AdminPlugins() {
   )
 }
 
+export function AdminPluginDetail() {
+  const { t } = useT("admin")
+  const { name = "" } = useParams()
+  const location = useLocation()
+  usePageTitle(t("plugins.detail_title", { name }))
+
+  const query = useQuery({
+    queryKey: ["admin", "plugins", name],
+    queryFn: () => fetchAdminPlugin(name),
+    enabled: name.length > 0
+  })
+
+  return (
+    <main aria-label={t("plugins.aria_plugin_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
+      <Link className="text-sm font-medium text-brand hover:underline" to={withRoutePrefix("/admin/plugins", routePrefix(location.pathname))}>
+        {t("plugins.back_to_plugins")}
+      </Link>
+      {query.isPending ? <PanelMessage>{t("plugins.detail_loading")}</PanelMessage> : null}
+      {query.isError ? <PanelMessage tone="error">{errorMessage(query.error, t("plugins.detail_error_load"))}</PanelMessage> : null}
+      {query.isSuccess ? <PluginDetailView plugin={query.data.plugin} /> : null}
+    </main>
+  )
+}
+
 function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFiltered: boolean }) {
   const { t } = useT("admin")
   if (plugins.length === 0) {
@@ -83,6 +110,8 @@ function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFilter
 
 function PluginCard({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
+  const location = useLocation()
+  const navigate = useNavigate()
   const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
   const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation, unknown, boolean | undefined>({
     mutationFn: (confirmCascade) => plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name),
@@ -91,7 +120,11 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         setPendingCascade(data)
         return
       }
-      pageReload.reloadPage()
+      if (plugin.enabled) {
+        pageReload.reloadPage()
+      } else {
+        navigate(withRoutePrefix(`/admin/plugins/${encodeURIComponent(plugin.name)}`, routePrefix(location.pathname)))
+      }
     }
   })
   const disableBlockers = plugin.disable_blockers || []
@@ -123,7 +156,6 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
           </div>
           {plugin.description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.description}</p> : null}
-          {plugin.long_description ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             {plugin.category ? <span>{t("plugins.category")}: <span className="font-mono">{plugin.category_label || plugin.category}</span></span> : null}
             <span>{t("plugins.default_state")}: {plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")}</span>
@@ -140,6 +172,12 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           {toggle.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(toggle.error, t("plugins.error_toggle"))}</p> : null}
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
+          <Link
+            className={buttonClasses("secondary", "md")}
+            to={withRoutePrefix(`/admin/plugins/${encodeURIComponent(plugin.name)}`, routePrefix(location.pathname))}
+          >
+            {t("plugins.details")}
+          </Link>
           <span title={disableTooltip}>
             <Button
               disabled={toggle.isPending || (plugin.enabled && (!plugin.disableable || disableBlocked))}
@@ -189,31 +227,218 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           </ul>
         </details>
       ) : null}
-
-      <details className="mt-4">
-        <summary className="cursor-pointer select-none text-xs font-medium uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          {t("plugins.extension_points_heading")}
-        </summary>
-        {plugin.extension_points.length > 0 ? (
-          <div className="mt-2 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                <tr>
-                  <th className="py-2 pr-4 font-medium">{t("plugins.col_extension_point")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("plugins.col_class")}</th>
-                  <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {plugin.extension_points.map((extension) => <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />)}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("plugins.no_extension_points")}</p>
-        )}
-      </details>
     </article>
+  )
+}
+
+function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
+  const { t } = useT("admin")
+  const visibleLinks = (plugin.links || []).filter((link) => link.available !== false)
+  const disabledLinks = (plugin.links || []).filter((link) => link.available === false)
+
+  return (
+    <>
+      <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
+        <div className="flex flex-wrap items-center gap-3">
+          {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-10 w-10 shrink-0" src={plugin.icon_url} /> : null}
+          <div className="min-w-0">
+            <PageHeading className="break-words">{plugin.display_name || plugin.name}</PageHeading>
+            <p className="mt-1 font-mono text-sm text-gray-500 dark:text-gray-400">{plugin.name}</p>
+          </div>
+          <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
+          <StatusBadge status={plugin.health?.state || "ok"} label={plugin.health?.state || "ok"} />
+        </div>
+        {plugin.description ? <p className="mt-4 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-300">{plugin.description}</p> : null}
+        {plugin.long_description ? <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
+        {plugin.recommendation ? (
+          <p className="mt-4 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+            <span className="font-medium">{t("plugins.suggested")}</span>{" "}
+            {plugin.recommendation.reason} <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
+          </p>
+        ) : null}
+        {visibleLinks.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {visibleLinks.map((link) => (
+              <a className={buttonClasses(link.kind === "primary" ? "primary" : "secondary", "md")} href={link.url} key={`${link.label}-${link.url}`}>
+                {link.label}
+              </a>
+            ))}
+          </div>
+        ) : null}
+        {disabledLinks.length > 0 ? <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{t("plugins.links_disabled")}</p> : null}
+      </header>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="space-y-6">
+          <DetailSection title={t("plugins.config_heading")}>
+            {(plugin.config_schema || []).length > 0 ? (
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                {(plugin.config_schema || []).map((entry) => {
+                  const key = String(entry.key || "")
+                  return (
+                    <div className="rounded border border-gray-200 p-3 dark:border-gray-800" key={key}>
+                      <dt className="font-medium text-gray-900 dark:text-gray-100">{String(entry.label || key)}</dt>
+                      <dd className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{key} · {String(entry.type || "value")}</dd>
+                    </div>
+                  )
+                })}
+              </dl>
+            ) : <EmptyState>{t("plugins.no_config")}</EmptyState>}
+          </DetailSection>
+
+          <DetailSection title={t("plugins.extension_points_heading")}>
+            {plugin.extension_points.length > 0 ? <ExtensionPointsTable extensions={plugin.extension_points} /> : <EmptyState>{t("plugins.no_extension_points")}</EmptyState>}
+          </DetailSection>
+
+          <DetailSection title={t("plugins.routes_heading")}>
+            {(plugin.routes || []).length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {(plugin.routes || []).map((route) => (
+                      <tr key={`${route.verb}-${route.path}`}>
+                        <td className="py-2 pr-4 font-mono text-xs">{route.verb}</td>
+                        <td className="py-2 pr-4 font-mono text-xs">{route.path}</td>
+                        <td className="py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{route.controller}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <EmptyState>{t("plugins.no_routes")}</EmptyState>}
+          </DetailSection>
+
+          <DetailSection title={t("plugins.docs_heading")}>
+            {(plugin.docs || []).length > 0 ? (
+              <div className="space-y-4">
+                {(plugin.docs || []).map((doc) => (
+                  <article className="rounded border border-gray-200 p-4 dark:border-gray-800" key={doc.path}>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{doc.title}</h3>
+                    <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{doc.path}</p>
+                    <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={doc.body} />
+                  </article>
+                ))}
+              </div>
+            ) : <EmptyState>{t("plugins.no_docs")}</EmptyState>}
+          </DetailSection>
+
+          <DetailSection title={t("plugins.metrics_heading")}>
+            {(plugin.metrics || []).length > 0 ? <MetricsTable metrics={plugin.metrics || []} /> : <EmptyState>{t("plugins.no_metrics")}</EmptyState>}
+          </DetailSection>
+        </div>
+
+        <aside className="space-y-4">
+          <DetailRail plugin={plugin} />
+        </aside>
+      </div>
+    </>
+  )
+}
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <SectionHeading>{title}</SectionHeading>
+      {children}
+    </section>
+  )
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return <p className="rounded border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{children}</p>
+}
+
+function DetailRail({ plugin }: { plugin: AdminPlugin }) {
+  const { t } = useT("admin")
+  const rows = [
+    [t("plugins.author"), plugin.author],
+    [t("plugins.version"), plugin.version],
+    [t("plugins.category"), plugin.category_label || plugin.category],
+    [t("plugins.default_state"), plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")],
+    [t("plugins.disableability"), plugin.disableable ? t("plugins.disableable") : t("plugins.required")],
+    [t("plugins.homepage"), plugin.homepage],
+    [t("plugins.source"), plugin.source]
+  ].filter((row): row is string[] => Boolean(row[1]))
+
+  const relationshipRows: Array<[string, string[]]> = [
+    [t("plugins.depends_on"), plugin.depends_on || []],
+    [t("plugins.optional_depends_on"), plugin.optionally_depends_on || []],
+    [t("plugins.required_by"), plugin.dependents || []],
+    [t("plugins.conflicts_with"), plugin.conflicts_with || []]
+  ]
+  const relationships = relationshipRows.filter(([, values]) => values.length > 0)
+
+  return (
+    <section className="rounded border border-gray-200 p-4 dark:border-gray-800">
+      <SectionHeading>{t("plugins.metadata_heading")}</SectionHeading>
+      <dl className="mt-3 space-y-3 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</dt>
+            <dd className="mt-1 break-words text-gray-800 dark:text-gray-200">{value}</dd>
+          </div>
+        ))}
+        {relationships.map(([label, values]) => (
+          <div key={label}>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</dt>
+            <dd className="mt-1 font-mono text-xs text-gray-800 dark:text-gray-200">{values.join(", ")}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
+function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtensionPoint[] }) {
+  const { t } = useT("admin")
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-left text-sm">
+        <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          <tr>
+            <th className="py-2 pr-4 font-medium">{t("plugins.col_extension_point")}</th>
+            <th className="py-2 pr-4 font-medium">{t("plugins.col_class")}</th>
+            <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {extensions.map((extension) => <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />)}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function MetricsTable({ metrics }: { metrics: NonNullable<AdminPlugin["metrics"]> }) {
+  const { t } = useT("admin")
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-left text-sm">
+        <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          <tr>
+            <th className="py-2 pr-4 font-medium">{t("plugins.col_metric")}</th>
+            <th className="py-2 pr-4 font-medium">{t("plugins.col_type")}</th>
+            <th className="py-2 pr-4 font-medium">{t("plugins.col_tags")}</th>
+            <th className="py-2 font-medium">{t("plugins.col_recent")}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {metrics.map((metric) => (
+            <tr key={metric.name}>
+              <td className="py-3 pr-4">
+                <div className="font-mono text-xs text-gray-800 dark:text-gray-200">{metric.name}</div>
+                {metric.comment ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{metric.comment}</div> : null}
+              </td>
+              <td className="py-3 pr-4 font-mono text-xs">{metric.type}</td>
+              <td className="py-3 pr-4 font-mono text-xs">{metric.tags.length > 0 ? metric.tags.join(", ") : "none"}</td>
+              <td className="py-3 text-xs text-gray-600 dark:text-gray-300">
+                {metric.recent_sample ? `${metric.recent_sample.value} at ${metric.recent_sample.recorded_at}` : t("plugins.metric_no_sample")}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

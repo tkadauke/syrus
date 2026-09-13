@@ -2,7 +2,7 @@ import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 
 const reloadMock = vi.hoisted(() => vi.fn())
@@ -11,7 +11,7 @@ vi.mock("../lib/pageReload", () => ({
   reloadPage: reloadMock
 }))
 
-import { AdminPlugins } from "./AdminPlugins"
+import { AdminPluginDetail, AdminPlugins } from "./AdminPlugins"
 
 const pluginFilterSchema = [
   {
@@ -67,7 +67,7 @@ const pluginFilterSchema = [
 ]
 
 describe("AdminPlugins", () => {
-  it("renders registered plugins and extension points", async () => {
+  it("renders registered plugins with compact detail links", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
         {
@@ -99,8 +99,8 @@ describe("AdminPlugins", () => {
     expect(within(list).getByRole("heading", { name: "Codex Agent" })).toBeInTheDocument()
     expect(within(list).getByText("codex_agent")).toBeInTheDocument()
     expect(within(list).getByText("1.2.3")).toBeInTheDocument()
-    expect(within(list).getByText("AgentProviders::Codex")).toBeInTheDocument()
-    expect(within(list).getByText("Available")).toBeInTheDocument()
+    expect(within(list).getByRole("link", { name: "Details" })).toHaveAttribute("href", "/app-shell/admin/plugins/codex_agent")
+    expect(within(list).queryByText("AgentProviders::Codex")).not.toBeInTheDocument()
     expect(within(list).getByText("OpenAI")).toBeInTheDocument()
   })
 
@@ -160,67 +160,43 @@ describe("AdminPlugins", () => {
     expect(screen.queryByText("Source")).not.toBeInTheDocument()
   })
 
-  it("shows extension points in a collapsed section", async () => {
+  it("shows extension points on the detail page", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "claude_agent",
-          display_name: "Claude Agent",
-          disable_blockers: [],
-          version: "0.1.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: [
-            {
-              extension_point: "agent_provider",
-              class_name: "AgentProviders::Claude",
-              availability: { status: "available", label: "Available" }
-            }
-          ]
-        }
-      ]
+      plugin: detailPlugin({
+        name: "claude_agent",
+        display_name: "Claude Agent",
+        extension_points: [
+          {
+            extension_point: "agent_provider",
+            class_name: "AgentProviders::Claude",
+            availability: { status: "available", label: "Available" }
+          }
+        ]
+      })
     }))
 
-    renderRoute(<AdminPlugins />)
+    renderDetailRoute("/app-shell/admin/plugins/claude_agent")
 
-    await screen.findByRole("region", { name: "Registered plugins" })
-    expect(screen.getByText("Extension points")).toBeInTheDocument()
-    // Content exists in DOM (inside details) but section is collapsed by default
-    expect(screen.getByText("AgentProviders::Claude")).toBeInTheDocument()
+    expect(await screen.findByText("Extension points")).toBeInTheDocument()
+    expect(await screen.findByText("AgentProviders::Claude")).toBeInTheDocument()
   })
 
   it("uses semantic info tokens for required extension point status badges", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      plugins: [
-        {
-          name: "rails",
-          display_name: "Rails",
-          disable_blockers: [],
-          version: "1.0.0",
-          enabled: true,
-          disableable: true,
-          default_enabled: true,
-          description: null,
-          homepage: null,
-          author: null,
-          source: null,
-          extension_points: [
-            {
-              extension_point: "rails_artifact_renderer",
-              class_name: "Rails::ArtifactRenderer",
-              availability: { status: "required", label: "Required" }
-            }
-          ]
-        }
-      ]
+      plugin: detailPlugin({
+        name: "rails",
+        display_name: "Rails",
+        extension_points: [
+          {
+            extension_point: "rails_artifact_renderer",
+            class_name: "Rails::ArtifactRenderer",
+            availability: { status: "required", label: "Required" }
+          }
+        ]
+      })
     }))
 
-    renderRoute(<AdminPlugins />)
+    renderDetailRoute("/app-shell/admin/plugins/rails")
 
     const badge = await screen.findByText("Required")
     expect(badge.className).toContain("bg-info/10")
@@ -562,7 +538,7 @@ describe("AdminPlugins", () => {
     expect(reloadMock).not.toHaveBeenCalled()
   })
 
-  it("reloads the page after enabling a plugin", async () => {
+  it("navigates to the detail page after enabling a plugin", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input).endsWith("/enable") && init?.method === "POST") {
         return Promise.resolve(jsonResponse({ plugins: [] }))
@@ -583,11 +559,71 @@ describe("AdminPlugins", () => {
       }))
     })
 
-    renderRoute(<AdminPlugins />)
+    renderRoute(<><AdminPlugins /><LocationProbe /></>)
 
     fireEvent.click(await screen.findByRole("button", { name: "Enable" }))
 
-    await waitFor(() => expect(reloadMock).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/admin/plugins/codex_agent"))
+    expect(reloadMock).not.toHaveBeenCalled()
+  })
+
+  it("renders detail docs, metrics, config, routes, and provided links", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugin: detailPlugin({
+        name: "terminal",
+        display_name: "Terminal",
+        enabled: true,
+        default_enabled: false,
+        category: "tooling",
+        category_label: "Tooling",
+        description: "Interactive shells.",
+        long_description: "Longer detail.",
+        homepage: "https://example.test",
+        icon_url: "/plugin-icons/terminal.svg",
+        author: "Ada",
+        source: "/plugins/terminal",
+        links: [{ label: "Open Terminal", url: "/terminal", kind: "primary", available: true }],
+        routes: [{ verb: "GET", path: "/api/v1/app/terminal_sessions", controller: "api/v1/app/terminal_sessions#index" }],
+        config_schema: [{ key: "hostname", label: "Hostname", type: "string" }],
+        docs: [{ title: "Terminal", path: "plugins/terminal/docs/syrus_docs/terminal.md", body: "# Terminal\n\nOperator docs." }],
+        metrics: [{ name: "syrus_terminal_sessions_total", type: "counter", tags: ["outcome"], comment: "Sessions.", available: true }]
+      })
+    }))
+
+    renderDetailRoute()
+
+    expect(await screen.findByText("Interactive shells.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open Terminal" })).toHaveAttribute("href", "/terminal")
+    expect(screen.getByText("Hostname")).toBeInTheDocument()
+    expect(screen.getByText("/api/v1/app/terminal_sessions")).toBeInTheDocument()
+    expect(screen.getByText("Operator docs.")).toBeInTheDocument()
+    expect(screen.getByText("syrus_terminal_sessions_total")).toBeInTheDocument()
+    expect(screen.getByText("Sessions.")).toBeInTheDocument()
+  })
+
+  it("renders detail empty states and hides enabled-only links for disabled plugins", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugin: detailPlugin({
+        name: "empty",
+        display_name: "Empty",
+        enabled: false,
+        links: [{ label: "Open Empty", url: "/empty", available: false }],
+        routes: [],
+        config_schema: [],
+        extension_points: [],
+        docs: [],
+        metrics: []
+      })
+    }))
+
+    renderDetailRoute("/app-shell/admin/plugins/empty")
+
+    expect(await screen.findByRole("heading", { name: "Empty" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Open Empty" })).not.toBeInTheDocument()
+    expect(screen.getByText("Plugin-provided links appear after the plugin is enabled.")).toBeInTheDocument()
+    expect(screen.getByText("This plugin does not declare configurable settings.")).toBeInTheDocument()
+    expect(screen.getByText("No plugin docs found under plugins/<name>/docs/syrus_docs/.")).toBeInTheDocument()
+    expect(screen.getByText("No plugin metrics are currently declared.")).toBeInTheDocument()
   })
 
   it("shows why a disabled plugin is worth enabling, with the evidence behind it", async () => {
@@ -644,4 +680,50 @@ function renderRoute(children: ReactNode) {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function renderDetailRoute(initialEntry = "/app-shell/admin/plugins/terminal") {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route path="/app-shell/admin/plugins/:name" element={<AdminPluginDetail />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <span data-testid="location">{location.pathname}</span>
+}
+
+function detailPlugin(overrides: Record<string, unknown>) {
+  return {
+    name: "plugin",
+    display_name: "Plugin",
+    disable_blockers: [],
+    version: "1.0.0",
+    enabled: true,
+    disableable: true,
+    default_enabled: true,
+    description: null,
+    long_description: null,
+    homepage: null,
+    icon_url: null,
+    author: null,
+    source: null,
+    links: [],
+    routes: [],
+    config_schema: [],
+    extension_points: [],
+    depends_on: [],
+    optionally_depends_on: [],
+    conflicts_with: [],
+    dependents: [],
+    docs: [],
+    metrics: [],
+    ...overrides
+  }
 }

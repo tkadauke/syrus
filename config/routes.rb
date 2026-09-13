@@ -360,6 +360,7 @@ Rails.application.routes.draw do
           get "overview", to: "overview#show"
           get "worker_health", to: "worker_health#show"
           get "plugins", to: "plugins#index"
+          get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
           get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
@@ -488,6 +489,7 @@ Rails.application.routes.draw do
         get "backend_exceptions", to: "backend_exceptions#index"
         get "worker_health", to: "worker_health#show"
         get "plugins",  to: "plugins#index"
+        get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }
         post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
         post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
         get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
@@ -617,6 +619,7 @@ Rails.application.routes.draw do
   get "admin/installations", to: "spa#show", as: :admin_installations
   get "admin/github_app/register", to: "spa#show", as: :admin_github_app_register
   get "admin/github_app/confirm", to: "spa#show", as: :admin_github_app_confirm
+  get "admin/plugins/:name", to: "spa#show", as: :admin_plugin, constraints: { name: /[^\/]+/ }
 
   namespace :admin do
     # Raw transcript download for offline analysis.

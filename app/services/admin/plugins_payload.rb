@@ -10,15 +10,26 @@ module Admin
     # `params:` switches this payload into that mode and adds `filter`/
     # `controls` to the JSON the same way Admin::Queue::Payload and
     # Admin::Users::Payload do.
-    def initialize(query: nil, params: nil, user: nil)
+    def initialize(query: nil, params: nil, user: nil, name: nil, include_detail: false)
       @query = query
       @params = params
       @user = user
+      @name = name
+      @include_detail = include_detail
     end
 
     def as_json(*)
       PerformanceLogging.phase("admin_plugins_payload") do
         all_manifests = Syrus::PluginRegistry.all_plugins
+        if @name.present?
+          manifest = all_manifests.find { |candidate| candidate.name == @name.to_s }
+          raise ActiveRecord::RecordNotFound, "Plugin not found" unless manifest
+
+          record = PluginRecord.find_by(name: manifest.name)
+          dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
+          return { plugin: plugin_payload(manifest, record, dependency_graph, detail: true) }
+        end
+
         manifests = filtered_manifests(all_manifests)
         records = PluginRecord.where(name: manifests.map(&:name)).index_by(&:name)
         # Dependency graph is built from *all* registered manifests, not the
@@ -26,7 +37,7 @@ module Admin
         # that fell outside the query.
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
         payload = {
-          plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph) }
+          plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph, detail: @include_detail) }
         }
         payload.merge!(filter: filter.to_h, controls: controls_json) if @params
         payload
@@ -67,12 +78,12 @@ module Admin
       manifests.select { |manifest| matching_names.include?(manifest.name) }
     end
 
-    def plugin_payload(manifest, record, dependency_graph)
+    def plugin_payload(manifest, record, dependency_graph, detail: false)
       PerformanceLogging.phase("admin_plugins.plugin", plugin: manifest.name) do
         spec = PerformanceLogging.phase("admin_plugins.plugin.gem_spec", plugin: manifest.name) { gem_spec_for(manifest) }
         metadata = manifest.metadata.with_indifferent_access
 
-        {
+        payload = {
           disable_blockers: disable_blockers_payload(manifest),
           name: manifest.name,
           display_name: manifest.display_name.presence || metadata[:display_name].presence || manifest.name.to_s.titleize,
@@ -90,6 +101,7 @@ module Admin
           source: source_for(spec, metadata),
           frontend: metadata[:frontend].presence || {},
           routes: Array(metadata[:routes]).map { |route| route.to_h },
+          links: links_payload(manifest),
           extension_points: PerformanceLogging.phase("admin_plugins.plugin.extension_points", plugin: manifest.name) { extension_points_payload(manifest) },
           depends_on: Array(manifest.depends_on),
           optionally_depends_on: Array(manifest.optionally_depends_on),
@@ -99,7 +111,79 @@ module Admin
           recommendation: recommendation_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
+
+        payload.merge!(detail_payload(manifest)) if detail
+        payload
       end
+    end
+
+    def detail_payload(manifest)
+      {
+        docs: docs_payload(manifest),
+        metrics: metrics_payload(manifest)
+      }
+    end
+
+    def links_payload(manifest)
+      Array(manifest.links).map do |link|
+        data = link.with_indifferent_access
+        enabled_only = data.key?(:enabled_only) ? data[:enabled_only] : true
+        {
+          label: data[:label],
+          url: data[:url],
+          kind: data[:kind] || "primary",
+          description: data[:description],
+          enabled_only: enabled_only,
+          available: !enabled_only || manifest.enabled?
+        }.compact
+      end
+    end
+
+    def docs_payload(manifest)
+      dir = Rails.root.join("plugins", manifest.name.to_s, "docs/syrus_docs")
+      return [] unless Dir.exist?(dir)
+
+      Dir.glob(dir.join("**/*.md")).sort.map do |path|
+        content = File.read(path, encoding: "utf-8")
+        {
+          title: content.match(/\A#\s+(.+)/)&.captures&.first&.strip || File.basename(path, ".md").humanize,
+          path: Pathname.new(path).relative_path_from(Rails.root).to_s,
+          body: content
+        }
+      rescue StandardError => e
+        Rails.logger.warn("[admin_plugins.docs] skipped #{path}: #{e.class}: #{e.message}")
+        nil
+      end.compact
+    end
+
+    def metrics_payload(manifest)
+      Syrus::Metrics.definitions.select { |definition| definition.owner.to_s == manifest.name.to_s }.map do |definition|
+        {
+          name: definition.name.to_s,
+          type: definition.type.to_s,
+          tags: definition.tags.map(&:to_s),
+          comment: definition.comment.to_s.presence,
+          available: Syrus::Metrics.registry.declared?(definition.name),
+          recent_sample: recent_metric_sample(definition.name.to_s)
+        }.compact
+      end
+    end
+
+    def recent_metric_sample(metric_name)
+      return nil unless defined?(::MetricsDashboardSample)
+      return nil unless ::MetricsDashboardSample.table_exists?
+
+      row = ::MetricsDashboardSample
+        .where(metric: metric_name, recorded_at: 24.hours.ago..)
+        .order(recorded_at: :desc)
+        .limit(1)
+        .pick(:value, :labels, :recorded_at)
+      return nil unless row
+
+      value, labels, recorded_at = row
+      { value: value, labels: labels || {}, recorded_at: recorded_at&.iso8601 }
+    rescue ActiveRecord::ActiveRecordError
+      nil
     end
 
     # Why this instance might want a plugin it currently has off. Present only

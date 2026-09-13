@@ -9,6 +9,10 @@ module Api
             render json: ::Admin::PluginsPayload.new(params: params, user: Current.user).as_json
           end
 
+          def show
+            render json: ::Admin::PluginsPayload.new(name: params[:name], user: Current.user).as_json
+          end
+
           def show_config
             record = find_plugin_record
             manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == record.name }

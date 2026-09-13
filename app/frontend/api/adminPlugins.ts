@@ -12,6 +12,34 @@ export type AdminPluginExtensionPoint = {
   }
 }
 
+export type AdminPluginLink = {
+  label: string
+  url: string
+  kind?: string
+  description?: string | null
+  enabled_only?: boolean
+  available?: boolean
+}
+
+export type AdminPluginDoc = {
+  title: string
+  path: string
+  body: string
+}
+
+export type AdminPluginMetric = {
+  name: string
+  type: string
+  tags: string[]
+  comment?: string | null
+  available: boolean
+  recent_sample?: {
+    value: number
+    labels: Record<string, unknown>
+    recorded_at: string | null
+  } | null
+}
+
 export type AdminPlugin = {
   disable_blockers: Array<{ kind: string; label: string; count: number }>
   recommendation?: { reason: string; evidence: string } | null
@@ -29,9 +57,19 @@ export type AdminPlugin = {
   icon_url: string | null
   author: string | null
   source: string | null
+  frontend?: Record<string, unknown>
+  routes?: Array<{ verb: string; path: string; controller: string }>
+  links?: AdminPluginLink[]
   extension_points: AdminPluginExtensionPoint[]
+  health?: { state: string; reasons: string[] }
   depends_on?: string[]
+  optionally_depends_on?: string[]
+  conflicts_with?: string[]
   dependents?: string[]
+  config_schema?: Array<Record<string, unknown>>
+  config?: Record<string, unknown>
+  docs?: AdminPluginDoc[]
+  metrics?: AdminPluginMetric[]
 }
 
 export type AdminPluginsPayload = {
@@ -43,6 +81,10 @@ export type AdminPluginsPayload = {
   controls?: { filter_schema: FilterSchemaField[] }
 }
 
+export type AdminPluginPayload = {
+  plugin: AdminPlugin
+}
+
 export type AdminPluginDisableConfirmation = {
   requires_confirmation: true
   plugin_name: string
@@ -51,6 +93,10 @@ export type AdminPluginDisableConfirmation = {
 
 export function fetchAdminPlugins(search = "") {
   return getJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins${search}`)
+}
+
+export function fetchAdminPlugin(name: string) {
+  return getJson<AdminPluginPayload>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}`)
 }
 
 export function enableAdminPlugin(name: string) {

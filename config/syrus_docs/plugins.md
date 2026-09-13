@@ -29,11 +29,23 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_tab`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
-(`/admin/plugins`). The page shows each plugin's name, version, enabled state,
-default enabled state, disableability policy, category, author/source metadata
-when available, and every class registered for an extension point. Disableable
-installed plugins can be enabled or disabled live; new requests and sidecars use
-the latest `PluginRecord` state through `PluginRegistry.providers_for`.
+(`/admin/plugins`). The index page is an inventory view: it shows each plugin's
+name, version, enabled state, default enabled state, disableability policy,
+category, short description, and a Details link. Disableable installed plugins
+can be enabled or disabled live; enabling a plugin from the inventory navigates
+to that plugin's canonical detail page at `/admin/plugins/:name`, while disable
+keeps the existing cascade confirmation and reload behavior. New requests and
+sidecars use the latest `PluginRecord` state through
+`PluginRegistry.providers_for`.
+
+`GET /api/v1/app/admin/plugins/:name` and the bearer-token mirror
+`GET /api/v1/admin/plugins/:name` return the same single-plugin detail payload.
+The detail page owns the heavier inspection work that used to crowd the
+inventory cards: long description, health/recommendation, author/version/source
+metadata, dependencies/dependents/conflicts, config schema/current config,
+declared routes, extension points, plugin-provided links, plugin docs, and
+plugin metrics. The list endpoint deliberately does **not** load plugin docs
+bodies, so `/admin/plugins` stays bounded for large installs.
 
 The page filters plugins with the same chip-based `FilterBar` query builder
 used on `/admin/queue` and `/admin/users` (no smart-folder saved-filter nav).
@@ -61,6 +73,36 @@ The bearer-token `GET /api/v1/admin/plugins` API is unchanged: it keeps its
 original plain-text `q=<text>` full-text search (via `Admin::PluginsPayload`'s
 legacy `query:` argument), independent of the chip filter framework, so
 existing external tooling built against it keeps working.
+
+## Plugin detail pages
+
+A plugin can advertise operator destinations with manifest links:
+
+```ruby
+syrus_plugin "terminal" do
+  link "Open Terminal", "/terminal", description: "Top-level terminal session UI"
+end
+```
+
+`link` (alias: `surface`) accepts a label, URL, optional `kind`, optional
+description, and `enabled_only:` (default `true`). Enabled-only links stay in
+the API payload when a plugin is disabled but are marked unavailable, so the
+detail page can explain that the destination appears after enablement instead
+of rendering a dead action. Links are intentionally conservative: they point to
+already-declared app/admin/plugin surfaces; they are not a new routing system.
+
+Plugin-owned docs continue to live under
+`plugins/<name>/docs/syrus_docs/*.md`. The detail endpoint reads only the
+selected plugin's markdown files and returns their title, path, and body. If no
+docs exist, the page shows an empty state. Do not move plugin docs into
+`config/syrus_docs`; deleting a plugin directory should still delete its docs.
+
+Plugin metrics are read-only on the detail page. The payload lists metrics whose
+registry owner is the plugin name, including metric name, type, tags, comment,
+and whether that definition is currently declared. If the Metrics Dashboard
+plugin's sample table is available, the payload includes a single most recent
+sample from the last 24 hours for each listed metric; otherwise it omits sampled
+values. This is deliberately a small summary, not a Prometheus query builder.
 
 Installation and enablement are deliberately separate. Installed plugin gems are
 loaded at boot, so their Ruby code, controllers, frontend modules, and i18n

@@ -12,6 +12,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
   after do
     Syrus::PluginRegistry.reset!
+    Syrus::Metrics.reset!
   end
 
   it "401s with a JSON error when signed out" do
@@ -347,6 +348,110 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
     extension = parse_body.dig("plugins", 0, "extension_points", 0)
     expect(extension.fetch("availability")).to include("status" => "unavailable", "label" => "Unavailable")
+  end
+
+  describe "GET /api/v1/app/admin/plugins/:name" do
+    around do |example|
+      docs_dir = Rails.root.join("plugins/detail_docs/docs/syrus_docs")
+      FileUtils.mkdir_p(docs_dir)
+      File.write(docs_dir.join("detail_docs.md"), "# Detail Docs\n\nPlugin-owned guidance.")
+      example.run
+    ensure
+      FileUtils.rm_rf(Rails.root.join("plugins/detail_docs"))
+    end
+
+    it "returns one plugin with docs, metrics, links, config, and enabled state" do
+      sign_in_as(admin)
+      Syrus::PluginRegistry.reset!
+      Syrus::PluginRegistry.register(
+        name: "detail_docs",
+        version: "1.0.0",
+        description: "Detail plugin.",
+        links: [
+          { label: "Open surface", url: "/surface", description: "Primary surface" }
+        ],
+        routes: [
+          { verb: "GET", path: "/api/v1/app/detail_docs", controller: "detail_docs#index" }
+        ],
+        config_schema: [
+          { key: "hostname", label: "Hostname", type: :string }
+        ]
+      )
+      Syrus::Metrics.declare_plugin("detail_docs") do
+        counter :events_total, tags: %i[outcome], comment: "Events by outcome."
+      end
+
+      get "/api/v1/app/admin/plugins/detail_docs"
+
+      expect(response).to have_http_status(:ok)
+      plugin = parse_body.fetch("plugin")
+      expect(plugin).to include(
+        "name" => "detail_docs",
+        "enabled" => true,
+        "links" => [
+          include(
+            "label" => "Open surface",
+            "url" => "/surface",
+            "description" => "Primary surface",
+            "available" => true
+          )
+        ],
+        "routes" => [
+          include("verb" => "GET", "path" => "/api/v1/app/detail_docs")
+        ]
+      )
+      expect(plugin.fetch("docs")).to contain_exactly(
+        include("title" => "Detail Docs", "path" => "plugins/detail_docs/docs/syrus_docs/detail_docs.md", "body" => include("Plugin-owned guidance."))
+      )
+      expect(plugin.fetch("metrics")).to contain_exactly(
+        include(
+          "name" => "syrus_detail_docs_events_total",
+          "type" => "counter",
+          "tags" => [ "outcome" ],
+          "comment" => "Events by outcome.",
+          "available" => true
+        )
+      )
+      expect(plugin.fetch("config_schema")).to contain_exactly(include("key" => "hostname"))
+    end
+
+    it "returns empty docs and metrics arrays when none are available" do
+      sign_in_as(admin)
+      Syrus::PluginRegistry.reset!
+      Syrus::PluginRegistry.register(name: "empty-detail", version: "1.0.0")
+
+      get "/api/v1/app/admin/plugins/empty-detail"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("plugin", "docs")).to eq([])
+      expect(parse_body.dig("plugin", "metrics")).to eq([])
+    end
+
+    it "marks enabled-only links unavailable for disabled plugins" do
+      sign_in_as(admin)
+      Syrus::PluginRegistry.reset!
+      Syrus::PluginRegistry.register(
+        name: "disabled-link-plugin",
+        version: "1.0.0",
+        links: [ { label: "Open surface", url: "/surface" } ]
+      )
+      PluginRecord.find_by!(name: "disabled-link-plugin").update!(enabled: false)
+
+      get "/api/v1/app/admin/plugins/disabled-link-plugin"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("plugin", "enabled")).to be(false)
+      expect(parse_body.dig("plugin", "links", 0)).to include("available" => false, "enabled_only" => true)
+    end
+
+    it "404s for a missing plugin" do
+      sign_in_as(admin)
+      Syrus::PluginRegistry.reset!
+
+      get "/api/v1/app/admin/plugins/missing-plugin"
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   it "enables and disables an installed disableable plugin live" do

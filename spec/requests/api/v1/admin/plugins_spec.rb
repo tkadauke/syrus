@@ -7,7 +7,10 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
   def auth = { "Authorization" => "Bearer #{admin_token}" }
   def parse_body = JSON.parse(response.body)
 
-  after { Syrus::PluginRegistry.reset! }
+  after do
+    Syrus::PluginRegistry.reset!
+    Syrus::Metrics.reset!
+  end
 
   it "401s without a token" do
     get "/api/v1/admin/plugins"
@@ -62,6 +65,26 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "api-search-target-plugin" ])
+  end
+
+  it "returns one plugin through the token admin API" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "api-detail-plugin",
+      version: "1.0.0",
+      links: [ { label: "Open API detail", url: "/api-detail" } ]
+    )
+
+    get "/api/v1/admin/plugins/api-detail-plugin", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugin")).to include(
+      "name" => "api-detail-plugin",
+      "links" => [ include("label" => "Open API detail", "url" => "/api-detail") ],
+      "docs" => [],
+      "metrics" => []
+    )
   end
 
   it "toggles installed plugins through the token admin API" do

@@ -91,6 +91,7 @@ module Syrus
         @lists = {}
         @provides = {}
         @routes = []
+        @links = []
         @frontend = {}
         @effects = []
         @boot_blocks = []
@@ -126,6 +127,18 @@ module Syrus
       def route(verb, path, to:)
         @routes << { verb: verb.to_s.upcase, path: path, controller: to }
       end
+
+      def link(label, url, kind: "primary", description: nil, enabled_only: true)
+        @links << {
+          label: label,
+          url: url,
+          kind: kind,
+          description: description,
+          enabled_only: enabled_only
+        }.compact
+      end
+
+      alias surface link
 
       def frontend(pairs = {})
         return @frontend if pairs.empty?
@@ -239,6 +252,7 @@ module Syrus
           version: version || Syrus::PluginApi.default_version,
           provides: resolved_provides,
           routes: (routes if routes.any?),
+          links: (@links if @links.any?),
           frontend: (frontend if frontend.any?)
         }.merge(
           SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact

@@ -109,7 +109,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], prepare_priority: 100, hosts: [], **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], prepare_priority: 100, hosts: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -150,6 +150,7 @@ module Syrus
             depends_on:      Array(depends_on).map(&:to_s),
             optionally_depends_on: Array(optionally_depends_on).map(&:to_s),
             conflicts_with:  Array(conflicts_with).map(&:to_s),
+            links:           normalize_links(links),
             prepare_priority: prepare_priority,
             hosts:           Array(hosts)
           )
@@ -169,6 +170,7 @@ module Syrus
               icon_url: icon_url,
               category: category,
               author: metadata[:author],
+              links: normalize_links(links),
               extension_points: provides.keys.map(&:to_s).sort
             }.compact
           )
@@ -176,6 +178,24 @@ module Syrus
           # Table/database not available (e.g. asset precompile or
           # db:schema:load in progress). Ignore - the registry operates in
           # memory; the DB record will be created on first boot with DB access.
+        end
+      end
+
+      def normalize_links(links)
+        Array(links).filter_map do |link|
+          data = link.respond_to?(:to_h) ? link.to_h : {}
+          data = data.with_indifferent_access
+          label = data[:label].to_s.presence
+          url = data[:url].to_s.presence
+          next if label.blank? || url.blank?
+
+          {
+            label: label,
+            url: url,
+            kind: data[:kind].to_s.presence || "primary",
+            description: data[:description].to_s.presence,
+            enabled_only: data.key?(:enabled_only) ? ActiveModel::Type::Boolean.new.cast(data[:enabled_only]) : true
+          }.compact
         end
       end
 
