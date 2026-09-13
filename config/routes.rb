@@ -95,6 +95,7 @@ Rails.application.routes.draw do
         post "jobs", to: "direct_jobs#create"
         get "jobs/:id/source", to: "jobs#source", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_diff", to: "jobs#source_diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:job_id/target_graph", to: "target_graphs#job", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/diff_review_versions", to: "diff_review_versions#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/diff_review_versions/:id", to: "diff_review_versions#show", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         get "jobs/:id/timeline", to: "jobs#timeline", constraints: { id: /[a-zA-Z0-9_-]+/ }
@@ -327,6 +328,7 @@ Rails.application.routes.draw do
             post :sync_fork
             post :check_ci_now
             get :coverage_trend
+            get :target_graph, to: "target_graphs#repository"
           end
           post "recommendations/:recommendation_id", to: "repository_recommendations#create"
           resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
@@ -343,6 +345,7 @@ Rails.application.routes.draw do
         delete "repositories/:repository_id/preview", to: "repository_preview#destroy", constraints: { repository_id: /\d+/ }
         get "workflows/:workflow_id/coverage_hit_map", to: "workflows#coverage_hit_map", constraints: { workflow_id: /\d+/ }
         get "workflows/:workflow_id/visual_artifact", to: "workflows#visual_artifact", constraints: { workflow_id: /\d+/ }
+        get "workflows/:workflow_id/target_graph", to: "target_graphs#workflow", constraints: { workflow_id: /\d+/ }
         get "repositories/:repository_id/input_sources/:type", to: "input_sources#show"
         patch "repositories/:repository_id/input_sources/:type", to: "input_sources#update"
         get "repositories/:repository_id/documents", to: "repository_documents#index"
