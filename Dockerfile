@@ -103,8 +103,10 @@ RUN npm ci
 # Copy application code
 COPY . .
 
-# Build the React SPA bundle into app/assets/builds for Propshaft.
-RUN npm run build
+# Build the React SPA bundle into app/assets/builds for Propshaft. Jemalloc is
+# a runtime Ruby optimization, but Node/Vite native bundler code has crashed
+# under it on Linux/arm64 during chunk rendering.
+RUN env -u LD_PRELOAD npm run build
 
 # Precompile bootsnap code for faster boot times.
 # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
