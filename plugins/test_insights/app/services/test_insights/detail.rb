@@ -25,12 +25,13 @@ module TestInsights
         .order(created_at: :desc, id: :desc)
         .limit(@history_limit)
         .to_a
+      classifications = TestCase.classifications_for(history_cases)
 
       {
         repository: repository_payload(repository),
-        test: test_identity_payload(identity, history_cases: history_cases),
+        test: test_identity_payload(identity, history_cases: history_cases, classifications: classifications),
         history_limit: @history_limit,
-        history: history_cases.map { |test_case| safe_history_payload(test_case) },
+        history: history_cases.map { |test_case| safe_history_payload(test_case, classifications.fetch(test_case.id, TestCase::CLASSIFICATION_SCORED)) },
         duration_points: duration_points(identity),
         related: related_payload(history_cases)
       }
@@ -56,8 +57,8 @@ module TestInsights
       }
     end
 
-    def test_identity_payload(identity, history_cases:)
-      stats = stats_for_history(history_cases)
+    def test_identity_payload(identity, history_cases:, classifications:)
+      stats = stats_for_history(history_cases, classifications: classifications)
 
       {
         id: identity.id,
@@ -83,11 +84,14 @@ module TestInsights
       }
     end
 
-    def stats_for_history(history_cases)
-      total = history_cases.size
-      failed = history_cases.count { |test_case| test_case.status.in?(%w[failed error]) }
-      passed = history_cases.count { |test_case| test_case.status == "passed" }
-      durations = history_cases.filter_map(&:duration_ms)
+    def stats_for_history(history_cases, classifications:)
+      scored_cases = history_cases.reject do |test_case|
+        classifications[test_case.id] == TestCase::CLASSIFICATION_WIP_REPAIR_FAILURE
+      end
+      total = scored_cases.size
+      failed = scored_cases.count { |test_case| test_case.status.in?(%w[failed error]) }
+      passed = scored_cases.count { |test_case| test_case.status == "passed" }
+      durations = scored_cases.filter_map(&:duration_ms)
 
       {
         total_count: total,
@@ -98,7 +102,7 @@ module TestInsights
       }
     end
 
-    def history_payload(test_case)
+    def history_payload(test_case, classification)
       test_run = test_case.test_run
       run = test_run.run
       job = run.job
@@ -107,6 +111,7 @@ module TestInsights
           id: test_case.id,
           type: "TestCase",
           status: test_case.status,
+          classification: classification,
           duration_ms: test_case.duration_ms,
           created_at: iso8601(test_case.created_at)
         },
@@ -143,8 +148,8 @@ module TestInsights
     # A single malformed TestCase (missing run/job chain) must not 500
     # the whole history -- mirrors Admin::JobStateSerializer's per-record
     # degrade shape.
-    def safe_history_payload(test_case)
-      history_payload(test_case)
+    def safe_history_payload(test_case, classification)
+      history_payload(test_case, classification)
     rescue StandardError => e
       Rails.logger.warn("[test_insights/detail] failed to serialize TestCase##{test_case.id}: #{e.class}: #{e.message}")
       { test_case: { id: test_case.id, type: "TestCase" }, error_serializing: "#{e.class}: #{e.message}" }
