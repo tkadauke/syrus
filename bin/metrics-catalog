@@ -1,0 +1,14 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Regenerates docs/metrics-catalog.md from the live metric registry. Run this
+# after declaring a core metric; spec/docs/metrics_catalog_spec.rb fails the
+# build if the committed file drifts from what this script would produce.
+#
+# Core metrics only — see Syrus::Metrics::Catalog for why enumerating plugin
+# metrics in a core document would make those plugins undeletable.
+
+require_relative "../config/environment"
+
+path = Syrus::Metrics::Catalog.write!
+puts "Wrote #{path} (#{Syrus::Metrics.definitions.count(&:core?)} core metrics)"

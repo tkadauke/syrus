@@ -139,6 +139,34 @@ module Syrus
         @effects << { scoped: true, label: label, block: block }
       end
 
+      # Metrics the plugin owns, declared here so a plugin stays one
+      # self-describing unit and deleting its directory takes its metrics with
+      # it. Core cannot hold the list: a central file naming every metric would
+      # make every plugin undeletable, which is what bin/plugin-boundary-audit
+      # exists to prevent.
+      #
+      #   metrics do
+      #     counter :relay_requests_total, tags: %i[outcome], comment: "..."
+      #     histogram :relay_duration_seconds, buckets: [0.01, 0.25, 1, 5]
+      #   end
+      #
+      # Registered as a `while_enabled` effect, so a disabled plugin declares
+      # nothing and emits no series. That is the correct reading of "disabled":
+      # not zero, which would mean enabled-but-unused, but absent. The registry
+      # applies the `syrus_<plugin>_` prefix itself, so a plugin cannot declare
+      # into core's namespace.
+      def metrics(&block)
+        raise Error, "metrics requires a block" unless block
+
+        plugin_name = name
+        while_enabled("metrics") do |scope|
+          scope.effect("metrics") do
+            declared = Syrus::Metrics.declare_plugin(plugin_name, &block)
+            -> { Syrus::Metrics.undeclare(declared) }
+          end
+        end
+      end
+
       # Effects that must hold whether the plugin is enabled or not. Owning
       # rows on a core record is the case that matters: disabling a plugin
       # stops it doing work, it does not orphan the data it already wrote, and

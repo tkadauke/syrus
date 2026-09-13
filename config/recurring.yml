@@ -63,6 +63,12 @@ default: &default
     class: FlushObservabilityEventsJob
     queue: low_priority_maintenance
     schedule: every minute
+  # control_plane, not polling: these gauges exist to reveal a polling backlog,
+  # so sampling them from behind one would hide the very thing they measure.
+  sample_queue_metrics:
+    class: SampleQueueMetricsJob
+    queue: control_plane
+    schedule: every minute
   prune_operational_logs:
     class: PruneOperationalLogsJob
     queue: cleanup

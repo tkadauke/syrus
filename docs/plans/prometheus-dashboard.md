@@ -1011,3 +1011,37 @@ settings screen lists shared metrics grouped by owner, so a plugin's request to
 share is visible as its own line rather than folded invisibly into a total.
 Deferred to the telemetry step, but the registry should carry the owner on every
 metric from the start so the choice stays open.
+
+## Implementation note: no Yabeda, for now
+
+Step 1 shipped with a small hand-written registry rather than Yabeda, which the
+library-choice section above recommends. Two reasons, recorded here so the
+decision is revisitable rather than silently reversed:
+
+1. **Plugin enable/disable needs `undeclare`.** Plugin metrics follow
+   `while_enabled` semantics, so disabling a plugin must *remove* its metrics --
+   absent, not zero. Yabeda's registry is built for declare-once-at-boot and has
+   no supported teardown, so the toggle would have fought it.
+2. **The surrounding machinery is ours either way.** Owner tracking, share
+   flags, the plugin prefix, the cardinality allowlist and the generated catalog
+   are all Syrus-specific and would sit on top of Yabeda regardless. What
+   remained -- the exposition format -- is small, fully specified, and now lives
+   behind `Syrus::Metrics::TextFormat`.
+
+That class is the adapter seam the Yabeda recommendation was really about: a
+StatsD or OTLP output can be added there without touching a single call site,
+which preserves the multi-format optionality without taking the dependency now.
+Revisit if a second output actually arrives, since at that point Yabeda's
+adapter set is worth more than a hand-rolled second renderer.
+
+## Implementation note: "never touches the database" is one lookup, not zero
+
+The rule as stated above is that `/metrics` must not touch the database. As
+built it does one thing: reads the cached queue sample, which under
+`solid_cache_store` is a DB-backed key lookup.
+
+The invariant that actually matters is intact -- **no aggregate query runs on
+the scrape path** -- and `MetricsController` memoizes the refresh for five
+seconds so concurrent scrapes collapse onto a single read. Stating it precisely
+rather than aspirationally, because the next person to add a gauge needs to know
+which part of the rule is load-bearing.
