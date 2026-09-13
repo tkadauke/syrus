@@ -82,4 +82,20 @@ RSpec.describe "MySQL fresh install compatibility", :ci_only do
 
     expect(offenders).to be_empty
   end
+
+  it "requires reference helpers added after the rollup regression to opt out of foreign keys" do
+    offenders = migration_sources.flat_map do |filename, source|
+      next [] if filename < "20260911223000"
+
+      source.each_line.filter_map.with_index(1) do |line, line_number|
+        next unless line.match?(/\b(?:t\.references|t\.belongs_to|add_reference)\b/)
+        next if line.include?("foreign_key: false")
+        next if line.match?(/polymorphic:\s*true/)
+
+        "#{filename}:#{line_number}: #{line.strip}"
+      end
+    end
+
+    expect(offenders).to be_empty
+  end
 end
