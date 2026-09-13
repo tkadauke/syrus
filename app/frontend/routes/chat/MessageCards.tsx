@@ -27,6 +27,7 @@ import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from ".
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
+import { ToolErrorCard } from "./toolErrorCard"
 
 
 
@@ -575,6 +576,8 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // below exactly as an unregistered tool's error would.
   const pluginBody = pluginToolCardExpandedBody(toolCardContext(call))
   if (pluginBody != null) return <>{pluginBody}</>
+
+  if (call.result_error) return <ToolErrorCard call={call} />
 
   return <HighlightedToolResult code={redactToolCardText(call.result_body)} detail={redactToolCardText(call.detail)} error={call.result_error} />
 }

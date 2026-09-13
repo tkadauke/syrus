@@ -1,4 +1,3 @@
-import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, Row, StatePill } from "./toolCardUi"
 
 // Shared parsing/rendering for the core proposal tools (propose_job,
@@ -124,4 +123,8 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
       <MaterializedOutcomeDetail materialized={proposal.materialized} />
     </CardShell>
   )
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]"
 }
