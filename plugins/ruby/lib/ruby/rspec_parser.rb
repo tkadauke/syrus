@@ -15,7 +15,12 @@ module Ruby
     def self.can_parse?(output_path:, format_hint: nil)
       return true if format_hint.to_s == "rspec"
 
+      path = Pathname.new(output_path.to_s)
+      return false if path.extname.casecmp(".xml").zero?
+
       content = File.read(output_path.to_s)
+      return false if content.lstrip.start_with?("<?xml", "<testsuite", "<testsuites")
+
       content.match?(/\d+ examples?/) && content.match?(/failure|pending/i)
     rescue Errno::ENOENT, Errno::EACCES
       false

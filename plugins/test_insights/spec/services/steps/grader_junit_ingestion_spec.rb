@@ -106,6 +106,46 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
     XML
   end
 
+  let(:merged_rspec_junit_xml) do
+    <<~XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <testsuites tests="3" failures="1" errors="0" skipped="1" time="1.75">
+        <testsuite name="spec/models/widget_spec.rb" tests="2" failures="1" errors="0" skipped="0" time="1.25">
+          <testcase classname="spec.models.widget_spec"
+                    name="Widget#price returns the base price"
+                    file="./spec/models/widget_spec.rb"
+                    time="0.25"/>
+          <testcase classname="spec.models.widget_spec"
+                    name="Widget#price applies the discount"
+                    file="./spec/models/widget_spec.rb"
+                    time="1.0">
+            <failure message="expected: 9.99">
+      <![CDATA[
+      Failures:
+
+        1) Widget#price applies the discount
+           Failure/Error: expect(widget.price).to eq(9.99)
+
+             expected: 9.99
+                  got: 12.50
+
+           # ./spec/models/widget_spec.rb:42:in `block (3 levels) in <top (required)>'
+
+      Finished in 1.25 seconds (files took 2.0 seconds to load)
+      2 examples, 1 failure
+      ]]>
+            </failure>
+          </testcase>
+        </testsuite>
+        <testsuite name="spec/services/report_spec.rb" tests="1" failures="0" errors="0" skipped="1" time="0.5">
+          <testcase classname="spec.services.report_spec" name="Report#call is pending" file="./spec/services/report_spec.rb" time="0.5">
+            <skipped/>
+          </testcase>
+        </testsuite>
+      </testsuites>
+    XML
+  end
+
   context "when junit_output is configured and file exists" do
     it "creates a TestInsights::TestRun and TestInsights::TestCase records" do
       step = make_step(junit_output: "tmp/results.xml")
@@ -221,6 +261,37 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
       test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "tests")
       expect(test_run).to have_attributes(total_count: 2, passed_count: 2, failed_count: 0)
       expect(TestInsights::RuntimeSummary.where(repository: job.repository).count).to eq(4)
+    end
+
+    it "prefers JUnit XML over the Ruby RSpec text parser for merged RSpec JUnit output", requires_plugin: "ruby" do
+      unless Syrus::PluginRegistry.registered_names.include?("ruby")
+        Syrus::PluginRegistry.register(
+          name:    "ruby",
+          version: Syrus::PluginApi.default_version,
+          provides: { "test_insights:parser" => Ruby::RspecParser }
+        )
+      end
+
+      step = make_step(junit_output: "tmp/rspec-junit.xml")
+      @ws_path.join("tmp").mkpath
+      @ws_path.join("tmp/rspec-junit.xml").write(merged_rspec_junit_xml)
+      handler, run = handler_for(step)
+
+      expect { handler.call }
+        .to change(TestInsights::TestRun, :count).by(1)
+        .and change(TestInsights::TestCase, :count).by(3)
+
+      test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "tests")
+      expect(test_run).to have_attributes(total_count: 3, passed_count: 1, failed_count: 1, skipped_count: 1)
+      expect(test_run.test_cases.failed.sole).to have_attributes(
+        suite_name: "spec.models.widget_spec",
+        name: "Widget#price applies the discount",
+        file_path: "./spec/models/widget_spec.rb",
+        failure_message: "expected: 9.99"
+      )
+      expect(run.reload.job_logs.pluck(:chunk).join).to include("ingested 3 test case(s) from rspec-junit.xml")
+    ensure
+      Syrus::PluginRegistry.reset!
     end
   end
 

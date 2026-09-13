@@ -48,8 +48,11 @@ module TestInsights
     end
 
     # Language plugins contribute framework-native parsers through
-    # "test_insights:parser"; JUnit XML is the fallback every language can emit.
+    # "test_insights:parser"; JUnit XML is the common interchange format every
+    # language can emit, so XML/JUnit-looking files go through core first.
     def self.parse(path, format_hint)
+      return [ "JunitXmlParser", ::JunitXmlParser.parse(path.read) ] if junit_xml?(path, format_hint)
+
       Syrus::PluginRegistry.providers_for("test_insights:parser").each do |provider|
         can_parse = PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :can_parse) do
           provider.can_parse?(output_path: path, format_hint: format_hint)
@@ -63,6 +66,16 @@ module TestInsights
       end
 
       [ "JunitXmlParser", ::JunitXmlParser.parse(path.read) ]
+    end
+
+    def self.junit_xml?(path, format_hint)
+      return true if format_hint.to_s.casecmp("xml").zero?
+      return true if path.extname.casecmp(".xml").zero?
+
+      head = path.open("rb") { |file| file.read(1024).to_s }
+      head.lstrip.start_with?("<?xml", "<testsuite", "<testsuites")
+    rescue Errno::ENOENT, Errno::EACCES
+      false
     end
   end
 end
