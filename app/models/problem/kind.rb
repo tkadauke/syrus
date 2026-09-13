@@ -71,6 +71,9 @@ class Problem
       Entry.new(code: "disk_full", scope: :external, retryable: true,
                 default_remediation: :defer,
                 label: "Disk full"),
+      Entry.new(code: "storage_unavailable", scope: :external, retryable: true,
+                default_remediation: :defer,
+                label: "Storage unavailable"),
 
       # -- The workspace ------------------------------------------------------
       Entry.new(code: "workspace_checkout_invalid", scope: :run, retryable: true,

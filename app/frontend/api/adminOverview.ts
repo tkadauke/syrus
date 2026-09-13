@@ -53,6 +53,12 @@ export type AdminOverviewPayload = {
     observed_at: string
     level: "ok" | "warning" | "critical" | string
   } | null
+  active_storage?: {
+    available: boolean
+    service?: string | null
+    error_class?: string | null
+    message?: string | null
+  }
   worker_data_root_usages?: {
     hostname: string
     path: string

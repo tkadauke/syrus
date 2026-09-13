@@ -66,6 +66,8 @@ class RunFailureClassifier
       result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
     when source_snapshot_metadata_invalid?
       result("source_snapshot_metadata_invalid", 0.95, true, "Workflow source snapshot metadata is missing or does not match the requested immutable checkout.")
+    when storage_unavailable?
+      result("storage_unavailable", 0.95, true, "Active Storage is temporarily unavailable; retry after the storage backend recovers.")
     when timeout?
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when provider_prompt_too_long?
@@ -200,6 +202,11 @@ class RunFailureClassifier
   def source_snapshot_metadata_invalid?
     diagnostic&.error_class.to_s.match?(/WorkflowSourceSnapshots::InfrastructureStateError/) ||
       text_match?(/workflow source snapshot metadata (missing|mismatch)|source snapshot metadata (missing|mismatch)/i)
+  end
+
+  def storage_unavailable?
+    diagnostic&.error_class.to_s.match?(/JobAttachmentContext::StorageUnavailable/) ||
+      text_match?(/storage is temporarily unavailable|Active Storage.*unavailable|storage_unavailable|ECONNREFUSED.*minio|MinIO.*connection refused/i)
   end
 
   def provider_prompt_too_long?
