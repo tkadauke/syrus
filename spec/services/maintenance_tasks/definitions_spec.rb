@@ -167,7 +167,6 @@ RSpec.describe "maintenance task definitions" do
       provider = Class.new do
         class_attribute :indexed_jobs, default: []
 
-        def self.indexes_jobs? = true
         def self.index_job(job) = self.indexed_jobs += [ job.id ]
       end
 

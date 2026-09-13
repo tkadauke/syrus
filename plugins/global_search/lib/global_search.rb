@@ -1,5 +1,5 @@
 require "global_search/source"
-require "global_search/search_source"
+require "global_search/built_in_source"
 
 module GlobalSearch
   extend Syrus::PluginApi
@@ -14,12 +14,10 @@ module GlobalSearch
     category "collaboration"
     default_enabled true
     disableable true
-    hosts [ :source, :rebuild_source ]
-    provides callbacks: "GlobalSearch::Callbacks",
-             domain_subscriber: "GlobalSearch::Subscribers",
-             "global_search:source" => "GlobalSearch::SearchSource",
-             "global_search:rebuild_source" => "GlobalSearch::IndexRebuildSource",
-             sidebar_page: "GlobalSearch::SidebarPages"
+    hosts [ :source ]
+    provides domain_subscriber: "GlobalSearch::Subscribers",
+             sidebar_page: "GlobalSearch::SidebarPages",
+             "global_search:source" => "GlobalSearch::BuiltInSource"
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" }
   end
