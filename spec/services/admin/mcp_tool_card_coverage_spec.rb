@@ -130,9 +130,9 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     TS
 
     create_usage("core_used_tool", count: 4)
-    create_usage("core_missing_tool", count: 12)
-    create_usage("plugin_used_tool", count: 9)
-    create_usage("plugin_error_tool", count: 5, errors: 3)
+    create_usage("core_missing_tool", count: 12, result_bytes: 2048, server_name: "syrus-chat-sidecar")
+    create_usage("plugin_used_tool", count: 9, result_bytes: 40.kilobytes, server_name: "plugin-sidecar")
+    create_usage("plugin_error_tool", count: 5, errors: 3, result_bytes: 1024, server_name: "plugin-sidecar")
     create_usage("core_error_tool", count: 4, errors: 2)
     create_usage("workflow_only_tool", count: 20, surface: "workflow")
 
@@ -161,10 +161,56 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
       include(tool_name: "core_error_tool", errors: 2, error_rate: 0.5, owner_type: "core", recommendation_target: "core", card_status: "missing")
     )
 
+    priorities = report.fetch(:card_gap_priorities)
+    expect(priorities.first).to include(
+      tool_name: "plugin_used_tool",
+      calls: 9,
+      result_bytes: 9 * 40.kilobytes,
+      server_names: [ "plugin-sidecar" ],
+      priority_label: "build_next",
+      card_status: "missing"
+    )
+    expect(priorities).to include(
+      include(tool_name: "core_missing_tool", calls: 12, result_bytes: 12 * 2048, last_used_at: match(/\A\d{4}-\d{2}-\d{2}T/), priority_label: "build_next"),
+      include(tool_name: "plugin_error_tool", errors: 3, priority_label: "investigate_errors", card_status: "weak"),
+      include(tool_name: "plugin_unused_tool", calls: 0, result_bytes: 0, last_used_at: nil, priority_label: "defer")
+    )
+
     expect(report.fetch(:unused_advertised_tools)).to include(
       include(tool_name: "core_unused_tool", owner_type: "core", recommendation_target: "core", card_status: "missing"),
       include(tool_name: "plugin_unused_tool", owner_type: "plugin", owner_name: "coverage_plugin", recommendation_target: "plugin:coverage_plugin", card_status: "missing")
     )
+  end
+
+  it "applies the priority dashboard limit after excluding strong custom cards" do
+    strong_tool_names = 101.times.map do |index|
+      tool_name = "strong_tool_#{index}"
+      add_card("app/frontend/routes/chat/tool_cards/#{tool_name}.tsx", <<~TS)
+        export default { toolName: "#{tool_name}", collapsedSummary: () => "ok", renderExpanded: () => null }
+      TS
+      create_usage(tool_name, count: 3)
+      tool_name
+    end
+    create_usage("buried_missing_tool", count: 1, errors: 1, result_bytes: 1024, server_name: "syrus-chat-sidecar")
+
+    report = described_class.call(
+      usages: McpToolUsage.where(surface: "chat"),
+      advertised_tools: strong_tool_names + [ "buried_missing_tool" ]
+    )
+
+    priorities = report.fetch(:card_gap_priorities)
+    expect(priorities).to include(
+      include(
+        tool_name: "buried_missing_tool",
+        calls: 1,
+        errors: 1,
+        result_bytes: 1024,
+        server_names: [ "syrus-chat-sidecar" ],
+        priority_label: "investigate_errors",
+        card_status: "missing"
+      )
+    )
+    expect(priorities).not_to include(include(tool_name: match(/\Astrong_tool_/)))
   end
 
   def add_card(relative_path, source)
@@ -174,18 +220,20 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     @card_paths << path.to_s
   end
 
-  def create_usage(tool_name, count:, errors: 0, surface: "chat")
+  def create_usage(tool_name, count:, errors: 0, surface: "chat", result_bytes: nil, server_name: nil)
     count.times do |index|
       failed = index < errors
       McpToolUsage.create!(
         surface: surface,
         raw_tool_name: tool_name,
+        server_name: server_name,
         tool_name: tool_name,
         normalized_tool_name: tool_name,
         status: failed ? "failed" : "completed",
         error: failed,
-        started_at: Time.current,
-        completed_at: Time.current
+        result_bytes: result_bytes,
+        started_at: index.minutes.ago,
+        completed_at: index.minutes.ago
       )
     end
   end

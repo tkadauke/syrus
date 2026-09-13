@@ -48,8 +48,15 @@ plugin/core state. The payload compares chat-surface usage and currently
 advertised chat tools against registered frontend custom tool-card renderers
 where that renderer metadata can be discovered from core
 `app/frontend/routes/chat/tool_cards/*.tsx` files and plugin
-`plugins/*/app/frontend/tool_cards/*.tsx` files. The section has three buckets:
+`plugins/*/app/frontend/tool_cards/*.tsx` files. The section includes a ranked
+`card_gap_priorities` dashboard plus the compatibility buckets older consumers
+already read:
 
+- `card_gap_priorities` — missing or weak custom-card candidates sorted by a
+  usage-weighted priority score. Rows include call count, error count/rate,
+  result byte volume, top observed server names, last-used timestamp,
+  core/plugin owner, recommendation target, card status, and a
+  `priority_label` of `build_next`, `investigate_errors`, or `defer`.
 - `high_volume_without_custom_card` — the highest-volume chat tools in the
   selected window that have no registered custom card.
 - `high_error_with_weak_or_no_custom_card` — chat tools with errors whose card
@@ -60,7 +67,10 @@ where that renderer metadata can be discovered from core
 
 Each row carries `owner_type`, `owner_name`, and `recommendation_target`.
 Plugin-defined tools point at `plugin:<plugin_name>` so follow-up card work can
-land in the owning plugin rather than in core; core tools use `core`.
+land in the owning plugin rather than in core; core tools use `core`. Tools with
+no calls in the selected window remain visible as `defer` rows in the unused
+advertised-tool bucket so operators can distinguish high-signal gaps from
+obscure advertised tools.
 Plugin-advertised tools are availability-filtered with the same `available_for?`
 gate the chat sidecar uses, so installed but currently unavailable gated plugin
 tools do not appear as unused advertised-tool gaps merely because their plugin
