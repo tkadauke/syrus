@@ -4,11 +4,26 @@ module WorkUnits
       attr_reader :lock_key, :work_unit
 
       def initialize(lock_key:, work_unit:)
+        work_unit ||= PendingWorkUnit.new
         @lock_key = lock_key
         @work_unit = work_unit
-        super("active WorkUnit ##{work_unit.id} already owns lock #{lock_key}")
+        label = work_unit.respond_to?(:label) ? work_unit.label : "active WorkUnit ##{work_unit.id}"
+        super("#{label} already owns lock #{lock_key}")
       end
     end
+
+    PendingWorkUnit = Data.define(:id, :slug) do
+      def initialize(id: nil, slug: "unknown active WorkUnit")
+        super
+      end
+
+      def label
+        slug
+      end
+    end
+
+    ACTIVE_DEDUP_OWNER_LOOKUP_ATTEMPTS = 3
+    ACTIVE_DEDUP_OWNER_LOOKUP_DELAY = 0.05
 
     Result = Data.define(:workflow, :run, :intent, :work_unit, :status, :reason, :gate_result) do
       def started? = status == "started"
@@ -261,10 +276,8 @@ module WorkUnits
       raise unless active_dedup_unique_violation?(e)
 
       dedup_key = "#{scope_type}:#{scope_id}:#{definition.kind}"
-      owner = Ownership.active_unit_for_dedup_key(dedup_key)
-      raise LockConflict.new(lock_key: dedup_key, work_unit: owner) if owner
-
-      raise
+      owner = active_dedup_owner_for_conflict(dedup_key)
+      raise LockConflict.new(lock_key: dedup_key, work_unit: owner)
     end
 
     def unit_ref_metadata_attributes(intent)
@@ -361,6 +374,18 @@ module WorkUnits
 
     def active_dedup_unique_violation?(error)
       self.class.active_dedup_unique_violation?(error)
+    end
+
+    def active_dedup_owner_for_conflict(dedup_key)
+      ACTIVE_DEDUP_OWNER_LOOKUP_ATTEMPTS.times do |index|
+        ActiveRecord::Base.connection.clear_query_cache
+        owner = ActiveRecord::Base.uncached { Ownership.active_unit_for_dedup_key(dedup_key) }
+        return owner if owner
+
+        sleep(ACTIVE_DEDUP_OWNER_LOOKUP_DELAY) if index < ACTIVE_DEDUP_OWNER_LOOKUP_ATTEMPTS - 1
+      end
+
+      nil
     end
 
     def scope_type
