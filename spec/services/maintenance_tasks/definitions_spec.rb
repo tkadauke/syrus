@@ -180,6 +180,17 @@ RSpec.describe "maintenance task definitions" do
       expect(provider.indexed_ids).to eq([ job.id ])
       expect(task.checkpoint["last_job_id"]).to eq(job.id)
     end
+
+    it "marks the jobs step done when no search rebuild provider is installed" do
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([])
+      task = maintenance_task_for(definition)
+
+      result = definition.send(:index_jobs, task)
+
+      expect(result.processed).to eq(0)
+      expect(result.message).to include("Jobs index is not available")
+      expect(task.checkpoint["jobs_done"]).to be(true)
+    end
   end
 
   def maintenance_task_for(definition)

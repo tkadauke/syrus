@@ -1454,6 +1454,14 @@ The older name remains supported as an alias for the same semantics:
 def self.rebuild_search_table(name) = MyPlugin::Index.rebuild!
 ```
 
+The host plugin itself uses the same provider point for maintenance backfills
+of built-in search tables:
+
+```ruby
+def self.index_job(job) = MyPlugin::JobIndex.upsert(job)
+def self.index_epic(epic) = MyPlugin::EpicIndex.upsert(epic)
+```
+
 To also appear in global search, a provider declares a result type:
 
 | Method | Purpose |

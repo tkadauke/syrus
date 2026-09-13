@@ -123,11 +123,11 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
     expect(calls).to eq([ :prepare, :backfill ])
   end
 
-  it "contributes job and epic indexers for maintenance rebuilds" do
-    expect(GlobalSearch::SearchSource).to be_indexes_jobs
-    expect(GlobalSearch::SearchSource).to be_indexes_epics
-    expect(GlobalSearch::SearchSource).to respond_to(:index_job)
-    expect(GlobalSearch::SearchSource).to respond_to(:index_epic)
+  it "contributes job and epic rebuild providers for maintenance rebuilds" do
+    expect(GlobalSearch::JobRebuildSource.search_rebuild_key).to eq("jobs")
+    expect(GlobalSearch::EpicRebuildSource.search_rebuild_key).to eq("epics")
+    expect(GlobalSearch::JobRebuildSource).to respond_to(:index_search_record)
+    expect(GlobalSearch::EpicRebuildSource).to respond_to(:index_search_record)
   end
 
   it "registers the built-in job and epic backfill provider" do
@@ -138,5 +138,9 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
     expect(GlobalSearch::BuiltInSource).to respond_to(:upsert_epic)
     expect(GlobalSearch::BuiltInSource).to respond_to(:index_job)
     expect(GlobalSearch::BuiltInSource).to respond_to(:index_epic)
+  end
+
+  it "registers the host plugin's built-in indexing provider" do
+    expect(Syrus::PluginRegistry.providers_for("global_search:source")).to include(GlobalSearch::SourceProvider)
   end
 end

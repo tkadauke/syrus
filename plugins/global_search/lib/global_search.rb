@@ -18,6 +18,8 @@ module GlobalSearch
     provides domain_subscriber: "GlobalSearch::Subscribers",
              sidebar_page: "GlobalSearch::SidebarPages",
              "global_search:source" => [
+               "GlobalSearch::SourceProvider",
+               "GlobalSearch::BuiltInSource",
                "GlobalSearch::JobRebuildSource",
                "GlobalSearch::EpicRebuildSource"
              ]
