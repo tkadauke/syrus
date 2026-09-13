@@ -99,20 +99,12 @@ function Panel({ panel }: { panel: MetricsPanel }) {
 }
 
 function Sparklines({ panel }: { panel: MetricsPanel }) {
-  // One shared vertical scale across every line in a panel, so two series in
-  // the same chart are actually comparable. A per-series scale would make a
-  // queue at depth 3 look identical to one at 3,000.
-  const max = Math.max(
-    ...panel.series.flatMap((series) => series.points.map(([ , value ]) => value)),
-    1
-  )
-
   return (
     <ul className="space-y-2">
       {panel.series.map((series) => (
         <li className="grid grid-cols-[8rem_1fr_5rem] items-center gap-2" key={series.name}>
           <span className="truncate font-mono text-xs" title={series.name}>{series.name}</span>
-          <Sparkline max={max} series={series} />
+          <Sparkline series={series} />
           <span className="text-right font-mono text-xs tabular-nums">{formatLatest(series)}</span>
         </li>
       ))}
@@ -120,18 +112,49 @@ function Sparklines({ panel }: { panel: MetricsPanel }) {
   )
 }
 
-function Sparkline({ series, max }: { series: MetricsSeries; max: number }) {
+/**
+ * Each series is scaled to its own range, not to a shared zero-anchored one.
+ *
+ * The first version shared one scale across a panel so the lines would be
+ * comparable, which made every chart unreadable: `cleanup` at 4 and `polling`
+ * at 24,124 share an axis, so everything but the largest series flattens
+ * against the floor. Anchoring at zero then flattened the largest one too --
+ * polling climbing 21,614 -> 24,124 is a 10% move, about three pixels of a
+ * 28-pixel chart, so the queue backing up by 40 minutes looked like a
+ * horizontal line.
+ *
+ * Magnitude is already carried by the number printed beside the line. The line
+ * only has to show shape, which is what a sparkline is for.
+ */
+export function sparklinePoints(values: number[], width = 200, height = 28) {
+  if (values.length === 0) return ""
+
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min
+
+  // A genuinely flat series draws down the middle rather than along an edge,
+  // so "steady" reads as steady instead of as pinned at a limit.
+  const y = (value: number) => (span === 0 ? height / 2 : height - ((value - min) / span) * height)
+  const step = values.length > 1 ? width / (values.length - 1) : width
+
+  return values.map((value, index) => `${(index * step).toFixed(1)},${y(value).toFixed(1)}`).join(" ")
+}
+
+function Sparkline({ series }: { series: MetricsSeries }) {
   if (series.points.length === 0) return <span />
 
   const width = 200
   const height = 28
-  const step = series.points.length > 1 ? width / (series.points.length - 1) : width
-  const points = series.points
-    .map(([ , value ], index) => `${(index * step).toFixed(1)},${(height - (value / max) * height).toFixed(1)}`)
-    .join(" ")
+  const points = sparklinePoints(series.points.map(([ , value ]) => value), width, height)
 
   return (
-    <svg aria-hidden="true" className="h-7 w-full" preserveAspectRatio="none" viewBox={`0 0 ${width} ${height}`}>
+    <svg
+      aria-hidden="true"
+      className="h-7 w-full"
+      preserveAspectRatio="none"
+      viewBox={`0 0 ${width} ${height}`}
+    >
       <polyline
         fill="none"
         points={points}
