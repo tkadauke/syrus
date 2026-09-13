@@ -1176,6 +1176,41 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk).grep(/compute host admission deferred/)).to be_empty
     end
 
+    it "skips a nested visual_review prefilter before host admission without a root config" do
+      job = job_with_single_run(step_kind: "visual_review")
+      wf = job.workflows.last
+      step = wf.first_step
+      run = step.runs.first
+      project_syrus_yml = <<~YAML
+        project:
+          id: web
+        preview:
+          start: npm run dev
+        visual_review:
+          enabled: true
+          when_files_changed:
+            - "src/**"
+      YAML
+      initialize_workspace_repo(
+        wf,
+        "apps/web/.syrus.yml" => project_syrus_yml,
+        "docs/readme.md" => "docs only\n"
+      )
+      record_critical_worker_pressure!
+      expect(RunHostAdmission).not_to receive(:call)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.not_to have_enqueued_job(RunJob)
+
+      expect(run.reload).to be_succeeded
+      expect(step.reload.details).to include(
+        "skipped" => true,
+        "skip_reason" => "visual_review_when_files_changed_no_match"
+      )
+      expect(wf.reload.artifact("run_host_admission")).to be_nil
+    end
+
     it "does not skip visual_review when the captured agent diff matches even if the workspace diff does not" do
       job = job_with_single_run(step_kind: "visual_review")
       wf = job.workflows.last
