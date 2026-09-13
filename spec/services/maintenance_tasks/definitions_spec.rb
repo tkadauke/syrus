@@ -160,26 +160,25 @@ RSpec.describe "maintenance task definitions" do
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
 
-    it "indexes jobs through an enabled search source provider" do
-      task = maintenance_task_for(definition)
-      task.checkpoint["schema_prepared"] = true
+    it "indexes jobs through search source providers" do
       job = Factories.job_record
       provider = Class.new do
         class_attribute :indexed_jobs, default: []
 
-        def self.indexes_jobs? = true
-        def self.index_job(job) = self.indexed_jobs += [ job.id ]
+        def self.index_job(job) = self.indexed_jobs += [ job ]
       end
-
       allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
+      task = maintenance_task_for(definition)
+      task.checkpoint["schema_prepared"] = true
+
       allow(definition).to receive(:missing_chat_messages_count).and_return(0)
-      allow(definition).to receive(:indexed_count).with("job_fts", "job_id").and_return(0)
-      allow(definition).to receive(:epics_need_rebuild?).and_return(false)
-      allow(definition).to receive(:operational_logs_need_rebuild?).and_return(false)
+      allow(definition).to receive(:jobs_need_rebuild?).and_return(true)
 
       result = definition.perform_batch(task)
 
-      expect(provider.indexed_jobs).to eq([ job.id ])
+      expect(result.processed).to eq(1)
+      expect(provider.indexed_jobs).to eq([ job ])
+      expect(task.checkpoint["last_job_id"]).to eq(job.id)
       expect(result.message).to include("Indexed 1 job")
     end
 
