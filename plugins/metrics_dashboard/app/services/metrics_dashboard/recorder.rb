@@ -37,13 +37,13 @@ module MetricsDashboard
         {
           metric: sample.metric,
           labels: sample.labels,
-          series_key: MetricsDashboardSample.series_key_for(sample.labels),
+          series_key: Sample.series_key_for(sample.labels),
           value: sample.value,
           recorded_at: @minute
         }
       end
 
-      MetricsDashboardSample.upsert_all(rows, **upsert_options)
+      Sample.upsert_all(rows, **upsert_options)
       rows.size
     end
 
@@ -58,7 +58,7 @@ module MetricsDashboard
     # ActiveRecord::InsertAll checks before raising.
     def upsert_options
       options = { update_only: %i[value labels] }
-      if MetricsDashboardSample.connection.supports_insert_conflict_target?
+      if Sample.connection.supports_insert_conflict_target?
         options[:unique_by] = :idx_metrics_dashboard_series_minute
       end
       options

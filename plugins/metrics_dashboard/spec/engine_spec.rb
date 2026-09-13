@@ -40,6 +40,6 @@ RSpec.describe MetricsDashboard::Engine do
   # and drops it. Without the prefix the plugin would be disableable but not
   # actually uninstallable.
   it "owns a table the purge machinery can find" do
-    expect(MetricsDashboardSample.table_name).to start_with("metrics_dashboard")
+    expect(MetricsDashboard::Sample.table_name).to start_with("metrics_dashboard")
   end
 end
