@@ -5,7 +5,7 @@ module MaintenanceTasks
     class SearchDatabaseRebuild < Base
       key "search_database_rebuild"
       title "Rebuild search database"
-      summary "Creates missing core search tables and backfills searchable chats and operational logs."
+      summary "Creates missing search tables and backfills searchable chats, jobs, epics, logs, and plugin-provided search sources."
       category "index"
       recurrence "repeatable"
       required_role "admin"
@@ -16,14 +16,16 @@ module MaintenanceTasks
 
       step "schema", "Prepare search schema", "Creates or repairs the local SQLite FTS tables used by global search."
       step "chats", "Index chat messages", "Indexes searchable user and assistant chat messages."
+      step "jobs", "Index jobs", "Indexes job titles, descriptions, and summaries when Global Search is installed."
+      step "epics", "Index epics", "Indexes epic titles and descriptions when Global Search is installed."
       step "logs", "Index operational logs", "Indexes operational logs when instance logging is configured."
 
       def estimate_total_units
-        1 + chat_messages_count + operational_logs_count
+        1 + chat_messages_count + jobs_count + epics_count + operational_logs_count
       end
 
       def pending?
-        search_database_needs_prepare? || missing_chat_messages_count.positive? || operational_logs_need_rebuild?
+        search_database_needs_prepare? || missing_chat_messages_count.positive? || jobs_need_rebuild? || epics_need_rebuild? || operational_logs_need_rebuild?
       end
 
       def pending_reason
@@ -37,6 +39,14 @@ module MaintenanceTasks
 
         if missing_chat_messages_count.positive?
           return index_chat_messages(task)
+        end
+
+        if jobs_need_rebuild?
+          return index_jobs(task)
+        end
+
+        if epics_need_rebuild?
+          return index_epics(task)
         end
 
         if operational_logs_need_rebuild?
@@ -75,6 +85,42 @@ module MaintenanceTasks
         task.checkpoint["chats_done"] = true if processed.zero? || task.checkpoint["last_chat_message_id"].to_i >= ChatMessage.maximum(:id).to_i
 
         Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} chat message(s).", level: "progress")
+      end
+
+      def index_jobs(task)
+        return mark_plugin_step_done(task, "jobs") unless job_index_provider?
+
+        task.current_step_key = "jobs"
+        task.current_step_title = "Index jobs"
+        processed = 0
+        Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
+          job_index_providers.each { |provider| provider.index_job(job) }
+          task.checkpoint_will_change!
+          task.checkpoint["last_job_id"] = job.id
+          processed += 1
+        end
+        task.checkpoint_will_change!
+        task.checkpoint["jobs_done"] = true if processed.zero? || task.checkpoint["last_job_id"].to_i >= Job.maximum(:id).to_i
+
+        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
+      end
+
+      def index_epics(task)
+        return mark_plugin_step_done(task, "epics") unless epic_index_provider?
+
+        task.current_step_key = "epics"
+        task.current_step_title = "Index epics"
+        processed = 0
+        Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
+          epic_index_providers.each { |provider| provider.index_epic(epic) }
+          task.checkpoint_will_change!
+          task.checkpoint["last_epic_id"] = epic.id
+          processed += 1
+        end
+        task.checkpoint_will_change!
+        task.checkpoint["epics_done"] = true if processed.zero? || task.checkpoint["last_epic_id"].to_i >= Epic.maximum(:id).to_i
+
+        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} epic(s).", level: "progress")
       end
 
       def index_operational_logs(task)
@@ -129,6 +175,18 @@ module MaintenanceTasks
         )
       end
 
+      def jobs_need_rebuild?
+        job_index_provider? && indexed_count("job_fts", "job_id") < Job.count
+      rescue StandardError
+        job_index_provider? && Job.exists?
+      end
+
+      def epics_need_rebuild?
+        epic_index_provider? && indexed_count("epic_fts", "epic_id") < Epic.count
+      rescue StandardError
+        epic_index_provider? && Epic.exists?
+      end
+
       def operational_logs_need_rebuild?
         OperationalLogging.configured_for_instance? && indexed_count("operational_log_fts", "operational_log_event_id") < OperationalLogEvent.count
       rescue StandardError
@@ -142,7 +200,29 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
+      def jobs_count = job_index_provider? ? Job.count : 0
+      def epics_count = epic_index_provider? ? Epic.count : 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
+
+      def job_index_provider? = job_index_providers.any?
+      def epic_index_provider? = epic_index_providers.any?
+
+      def job_index_providers
+        search_source_providers.select { |provider| provider.respond_to?(:index_job) }
+      end
+
+      def epic_index_providers
+        search_source_providers.select { |provider| provider.respond_to?(:index_epic) }
+      end
+
+      def search_source_providers
+        return [] unless defined?(Syrus::PluginRegistry)
+
+        Syrus::PluginRegistry.providers_for("global_search:source")
+      rescue StandardError => e
+        Rails.logger&.warn("[search] could not resolve search source providers: #{e.class}: #{e.message}")
+        []
+      end
 
       def bind(value)
         ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
