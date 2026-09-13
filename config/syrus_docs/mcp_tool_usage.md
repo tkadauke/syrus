@@ -48,7 +48,14 @@ plugin/core state. The payload compares chat-surface usage and currently
 advertised chat tools against registered frontend custom tool-card renderers
 where that renderer metadata can be discovered from core
 `app/frontend/routes/chat/tool_cards/*.tsx` files and plugin
-`plugins/*/app/frontend/tool_cards/*.tsx` files. The section has three buckets:
+`plugins/*/app/frontend/tool_cards/*.tsx` files. The section includes a
+usage-ranked dashboard plus three compatibility buckets:
+
+- `ranked_gaps` — missing or weak/generic chat cards ordered by observed impact
+  in the selected window. Each row carries call count, error count/rate, summed
+  result byte volume, MCP server names, `last_used_at`, owner metadata, and a
+  recommendation (`custom_card_next`, `watch`, or `ignore_for_now`) so operators
+  can separate obvious next-card candidates from obscure unused tools.
 
 - `high_volume_without_custom_card` — the highest-volume chat tools in the
   selected window that have no registered custom card.

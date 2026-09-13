@@ -898,6 +898,8 @@
     "error_rates_heading": "Höchste Fehlerquoten",
     "unused_tools_heading": "Ungenutzte angebotene Tools",
     "unused_tools_empty": "Jedes angebotene Tool wurde in diesem Zeitraum mindestens einmal aufgerufen.",
+    "card_gap_ranking_heading": "Custom-Card-Lueckenranking",
+    "card_gap_ranking_empty": "Keine fehlenden oder schwachen Custom-Card-Luecken in diesem Zeitraum.",
     "surface_breakdown_heading": "Oberfläche",
     "provider_breakdown_heading": "Anbieter",
     "server_breakdown_heading": "Server",
@@ -908,6 +910,10 @@
     "col_calls": "Aufrufe",
     "col_errors": "Fehler",
     "col_error_rate": "Fehlerquote",
+    "col_result_bytes": "Ergebnisbytes",
+    "col_owner": "Besitzer",
+    "col_last_used": "Zuletzt genutzt",
+    "col_recommendation": "Empfehlung",
     "col_time": "Zeit",
     "col_call": "Aufruf",
     "col_status": "Status",
@@ -915,7 +921,9 @@
     "link_job": "JOB-{{id}}",
     "link_workflow": "Workflow #{{id}}",
     "link_run": "Lauf #{{id}}",
-    "link_chat": "Chat"
+    "link_chat": "Chat",
+    "owner_core": "Core",
+    "never_used": "ungenutzt"
   },
   "transcript": {
     "loading": "Transkript wird geladen...",
