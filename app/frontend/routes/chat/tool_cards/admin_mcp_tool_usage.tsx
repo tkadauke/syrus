@@ -53,6 +53,7 @@ type UsageCard = {
     highVolumeWithoutCustomCard: CardGapRow[]
     highErrorWithWeakOrNoCustomCard: CardGapRow[]
     unusedAdvertisedTools: CardGapRow[]
+    unclassifiedAdvertisedTools: CardGapRow[]
   }
   recentCalls: RecentCall[]
 }
@@ -173,7 +174,8 @@ function parseCustomCardGaps(value: unknown) {
     rankedGaps: parseCardGapRows(gaps.ranked_gaps),
     highVolumeWithoutCustomCard: parseCardGapRows(gaps.high_volume_without_custom_card),
     highErrorWithWeakOrNoCustomCard: parseCardGapRows(gaps.high_error_with_weak_or_no_custom_card),
-    unusedAdvertisedTools: parseCardGapRows(gaps.unused_advertised_tools)
+    unusedAdvertisedTools: parseCardGapRows(gaps.unused_advertised_tools),
+    unclassifiedAdvertisedTools: parseCardGapRows(gaps.unclassified_advertised_tools)
   }
 }
 
@@ -414,10 +416,11 @@ function renderExpanded(context: ToolCardContext) {
         <ToolRows heading="Error priorities" intent="error" rows={card.errorRates} />
       </div>
       <RankedCardGaps rows={card.customCardGaps.rankedGaps} />
-      <div className="grid min-w-0 gap-2 lg:grid-cols-3">
+      <div className="grid min-w-0 gap-2 lg:grid-cols-4">
         <CardGapRows heading="Missing high-volume cards" rows={card.customCardGaps.highVolumeWithoutCustomCard} />
         <CardGapRows heading="Weak or missing error cards" rows={card.customCardGaps.highErrorWithWeakOrNoCustomCard} />
         <CardGapRows heading="Unused advertised tools" rows={card.customCardGaps.unusedAdvertisedTools} showVolume={false} />
+        <CardGapRows heading="Unclassified advertised tools" rows={card.customCardGaps.unclassifiedAdvertisedTools} showVolume={false} />
       </div>
       <div className="grid gap-2 lg:grid-cols-2">
         <BreakdownRows label="Surface" rows={card.surfaceBreakdown} />
