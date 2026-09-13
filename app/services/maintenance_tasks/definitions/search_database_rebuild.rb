@@ -88,13 +88,14 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        return mark_plugin_step_done(task, "jobs") unless job_index_provider?
+        providers = job_index_providers
+        return mark_plugin_step_done(task, "jobs") if providers.empty?
 
         task.current_step_key = "jobs"
         task.current_step_title = "Index jobs"
         processed = 0
         Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          job_index_providers.each { |provider| provider.index_job(job) }
+          providers.each { |provider| upsert_or_index_job(provider, job) }
           task.checkpoint_will_change!
           task.checkpoint["last_job_id"] = job.id
           processed += 1
@@ -106,13 +107,14 @@ module MaintenanceTasks
       end
 
       def index_epics(task)
-        return mark_plugin_step_done(task, "epics") unless epic_index_provider?
+        providers = epic_index_providers
+        return mark_plugin_step_done(task, "epics") if providers.empty?
 
         task.current_step_key = "epics"
         task.current_step_title = "Index epics"
         processed = 0
         Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          epic_index_providers.each { |provider| provider.index_epic(epic) }
+          providers.each { |provider| upsert_or_index_epic(provider, epic) }
           task.checkpoint_will_change!
           task.checkpoint["last_epic_id"] = epic.id
           processed += 1
@@ -176,15 +178,15 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        job_index_provider? && indexed_count("job_fts", "job_id") < Job.count
+        job_index_providers.any? && indexed_count("job_fts", "job_id") < Job.count
       rescue StandardError
-        job_index_provider? && Job.exists?
+        job_index_providers.any? && Job.exists?
       end
 
       def epics_need_rebuild?
-        epic_index_provider? && indexed_count("epic_fts", "epic_id") < Epic.count
+        epic_index_providers.any? && indexed_count("epic_fts", "epic_id") < Epic.count
       rescue StandardError
-        epic_index_provider? && Epic.exists?
+        epic_index_providers.any? && Epic.exists?
       end
 
       def operational_logs_need_rebuild?
@@ -200,19 +202,28 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = job_index_provider? ? Job.count : 0
-      def epics_count = epic_index_provider? ? Epic.count : 0
+      def jobs_count = job_index_providers.any? ? Job.count : 0
+      def epics_count = epic_index_providers.any? ? Epic.count : 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
 
-      def job_index_provider? = job_index_providers.any?
-      def epic_index_provider? = epic_index_providers.any?
-
       def job_index_providers
-        search_source_providers.select { |provider| provider.respond_to?(:index_job) }
+        search_source_providers.select { |provider| provider.respond_to?(:upsert_job) || provider.respond_to?(:index_job) }
       end
 
       def epic_index_providers
-        search_source_providers.select { |provider| provider.respond_to?(:index_epic) }
+        search_source_providers.select { |provider| provider.respond_to?(:upsert_epic) || provider.respond_to?(:index_epic) }
+      end
+
+      def upsert_or_index_job(provider, job)
+        return provider.upsert_job(job) if provider.respond_to?(:upsert_job)
+
+        provider.index_job(job)
+      end
+
+      def upsert_or_index_epic(provider, epic)
+        return provider.upsert_epic(epic) if provider.respond_to?(:upsert_epic)
+
+        provider.index_epic(epic)
       end
 
       def search_source_providers
