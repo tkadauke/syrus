@@ -1,5 +1,6 @@
 class McpToolUsageRecorder
   Result = Struct.new(:server_name, :tool_name, :normalized_tool_name, keyword_init: true)
+  ToolOwner = Struct.new(:tool_name, :owner_type, :owner_name, keyword_init: true)
 
   MCP_PREFIX = "mcp__".freeze
 
@@ -139,23 +140,41 @@ class McpToolUsageRecorder
   end
 
   def self.chat_tool_names(chat_session: nil)
-    McpToolRegistry.summaries(surface: :chat)
-      .map { |entry| entry[:tool_name].to_s }
-      .concat(plugin_chat_tool_names(chat_session: chat_session))
-      .uniq
-      .sort
+    advertised_chat_tool_owners(chat_session: chat_session).keys.sort
+  end
+
+  def self.advertised_chat_tool_owners(chat_session: nil)
+    core_chat_tool_owners.merge(plugin_chat_tool_owners(chat_session: chat_session))
   end
 
   CHAT_TOOL_TIERS = %i[essential deferred].freeze
 
-  def self.plugin_chat_tool_names(chat_session:)
-    Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |tool_set|
-      CHAT_TOOL_TIERS.flat_map do |tier|
-        next [] unless plugin_chat_tool_set_available?(tool_set, chat_session: chat_session, tier: tier)
+  def self.core_chat_tool_owners
+    McpToolRegistry.summaries(surface: :chat).each_with_object({}) do |entry, index|
+      tool_name = entry[:tool_name].to_s
+      index[tool_name] = ToolOwner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
+    end
+  end
+  private_class_method :core_chat_tool_owners
 
-        tool_definitions(tool_set, tier: tier, chat_session: chat_session)
+  def self.plugin_chat_tool_owners(chat_session:)
+    enabled_tool_sets = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).to_set
+    Syrus::PluginRegistry.all_plugins.each_with_object({}) do |manifest, index|
+      Array(manifest.provides[:chat_mcp_tool_set]).select { |tool_set| enabled_tool_sets.include?(tool_set) }.each do |tool_set|
+        plugin_chat_tool_names(tool_set, chat_session: chat_session).each do |tool_name|
+          index[tool_name] = ToolOwner.new(tool_name: tool_name, owner_type: "plugin", owner_name: manifest.name)
+        end
       end
-    end.filter_map { |definition| definition[:name].presence&.to_s }
+    end
+  end
+  private_class_method :plugin_chat_tool_owners
+
+  def self.plugin_chat_tool_names(tool_set, chat_session:)
+    CHAT_TOOL_TIERS.flat_map do |tier|
+      next [] unless plugin_chat_tool_set_available?(tool_set, chat_session: chat_session, tier: tier)
+
+      tool_definitions(tool_set, tier: tier, chat_session: chat_session)
+    end.filter_map { |definition| definition[:name].presence&.to_s }.uniq
   end
   private_class_method :plugin_chat_tool_names
 

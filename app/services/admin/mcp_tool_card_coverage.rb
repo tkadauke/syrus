@@ -138,54 +138,9 @@ module Admin
     end
 
     def owners
-      @owners ||= core_tool_owners.merge(plugin_tool_owners)
-    end
-
-    def core_tool_owners
-      McpToolRegistry.summaries(surface: :chat).each_with_object({}) do |entry, index|
-        tool_name = entry[:tool_name].to_s
-        index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
+      @owners ||= McpToolUsageRecorder.advertised_chat_tool_owners(chat_session: chat_session).transform_values do |owner|
+        Owner.new(tool_name: owner.tool_name, owner_type: owner.owner_type, owner_name: owner.owner_name)
       end
-    end
-
-    def plugin_tool_owners
-      enabled_tool_sets = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).to_set
-      Syrus::PluginRegistry.all_plugins.each_with_object({}) do |manifest, index|
-        Array(manifest.provides[:chat_mcp_tool_set]).select { |tool_set| enabled_tool_sets.include?(tool_set) }.each do |tool_set|
-          plugin_tool_names(tool_set).each do |tool_name|
-            index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "plugin", owner_name: manifest.name)
-          end
-        end
-      end
-    end
-
-    def plugin_tool_names(tool_set)
-      McpToolUsageRecorder::CHAT_TOOL_TIERS.flat_map do |tier|
-        next [] unless plugin_chat_tool_set_available?(tool_set, tier: tier)
-
-        tool_definitions(tool_set, tier: tier)
-      end.filter_map { |definition| definition[:name].presence&.to_s }.uniq
-    end
-
-    def plugin_chat_tool_set_available?(tool_set, tier:)
-      tool_set.available_for?(chat_session, tier: tier)
-    rescue StandardError, NoMethodError
-      false
-    end
-
-    def tool_definitions(tool_set, tier:)
-      method = tool_set.method(:tool_definitions)
-      keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
-      if keywords.include?(:tier)
-        args = { tier: tier }
-        args[:chat_session] = chat_session if keywords.include?(:chat_session)
-        return Array(tool_set.tool_definitions(**args))
-      end
-      return Array(tool_set.tool_definitions(context: nil)) if keywords.include?(:context)
-
-      Array(tool_set.tool_definitions)
-    rescue StandardError, NotImplementedError
-      []
     end
 
     def cards
