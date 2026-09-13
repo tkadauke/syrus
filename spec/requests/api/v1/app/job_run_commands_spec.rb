@@ -131,7 +131,7 @@ RSpec.describe "App API job run commands", type: :request do
     expect {
       post app_job_path("/recheck_pr_checks"), as: :json
     }.to have_enqueued_job(PollPullRequestJob).with(job.id, manual: true)
-      .and have_enqueued_job(PollMainBranchHealthJob).with(job.repository_id)
+      .and have_enqueued_job(PollMainBranchHealthJob).with(job.repository_id, manual: true)
       .and have_enqueued_job(LandingQueueProcessorJob)
 
     expect(response).to have_http_status(:ok)
