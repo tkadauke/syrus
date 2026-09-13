@@ -22,6 +22,7 @@ import { AdminInvitations } from "./AdminInvitations"
 import { AdminInstallations } from "./AdminInstallations"
 import { AdminOverview, AdminResourceAdmission, AdminScopedChatEvents } from "./AdminOverview"
 import { AdminPlugins } from "./AdminPlugins"
+import { AdminPluginDetail } from "./AdminPluginDetail"
 import { AdminQueueRoute } from "./AdminQueue"
 import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
 import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
@@ -113,6 +114,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/github_app/register", element: <AdminGithubAppRegister /> },
   { path: "/admin/github_app/confirm", element: <AdminGithubAppConfirm /> },
   { path: "/admin/features", element: <AdminFeatures /> },
+  { path: "/admin/plugins/:name", element: <AdminPluginDetail /> },
   { path: "/admin/*", element: <PluginAdminPageRoute /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },

@@ -30,6 +30,33 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").sole).to include("name" => "api-plugin", "version" => "2.0.0")
   end
 
+  it "returns one plugin detail through the token admin API" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "api-detail-plugin",
+      version: "2.0.0",
+      links: [ { label: "Open API Detail", path: "/api-detail" } ],
+      metrics: [ { name: "syrus_api_detail_plugin_events_total", type: "counter", tags: [], comment: "Events." } ]
+    )
+
+    get "/api/v1/admin/plugins/api-detail-plugin", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("name" => "api-detail-plugin", "version" => "2.0.0")
+    expect(parse_body.fetch("links")).to contain_exactly(include("label" => "Open API Detail", "path" => "/api-detail"))
+    expect(parse_body.fetch("metrics")).to contain_exactly(include("name" => "syrus_api_detail_plugin_events_total", "available" => false))
+  end
+
+  it "404s missing plugin detail through the token admin API" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+
+    get "/api/v1/admin/plugins/missing-plugin", headers: auth
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "falls back to the SPQR eagle icon when the manifest has no icon_url" do
     admin_token
     Syrus::PluginRegistry.reset!

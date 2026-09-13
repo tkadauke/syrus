@@ -10,10 +10,11 @@ module Admin
     # `params:` switches this payload into that mode and adds `filter`/
     # `controls` to the JSON the same way Admin::Queue::Payload and
     # Admin::Users::Payload do.
-    def initialize(query: nil, params: nil, user: nil)
+    def initialize(query: nil, params: nil, user: nil, detail: false)
       @query = query
       @params = params
       @user = user
+      @detail = detail
     end
 
     def as_json(*)
@@ -30,6 +31,17 @@ module Admin
         }
         payload.merge!(filter: filter.to_h, controls: controls_json) if @params
         payload
+      end
+    end
+
+    def show(name)
+      PerformanceLogging.phase("admin_plugin_detail_payload", plugin: name) do
+        manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == name.to_s }
+        raise ActiveRecord::RecordNotFound, "Plugin not found" unless manifest
+
+        record = PluginRecord.find_by(name: manifest.name)
+        dependency_graph = Admin::PluginDependencyGraph.new(Syrus::PluginRegistry.all_plugins)
+        plugin_payload(manifest, record, dependency_graph)
       end
     end
 
@@ -97,9 +109,81 @@ module Admin
           dependents: dependency_graph.dependents_for(manifest.name),
           health: health_payload(manifest),
           recommendation: recommendation_payload(manifest),
+          links: links_payload(metadata[:links]),
+          **detail_payload(manifest, metadata),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
       end
+    end
+
+    def detail_payload(manifest, metadata)
+      return {} unless @detail
+
+      {
+        docs: docs_payload(manifest),
+        metrics: metrics_payload(metadata[:metrics])
+      }
+    end
+
+    def links_payload(links)
+      Array(links).map do |link|
+        link = link.with_indifferent_access
+        {
+          label: link[:label].to_s,
+          path: link[:path].to_s,
+          description: link[:description],
+          requires_enabled: link.fetch(:requires_enabled, true)
+        }.compact
+      end
+    end
+
+    def docs_payload(manifest)
+      dir = Rails.root.join("plugins", manifest.name.to_s, "docs/syrus_docs")
+      return [] unless Dir.exist?(dir)
+
+      Dir.glob(dir.join("**/*.md")).sort.map do |path|
+        content = File.read(path, encoding: "utf-8")
+        {
+          title: content.match(/\A#\s+(.+)/)&.captures&.first&.strip || File.basename(path, ".md").titleize,
+          path: Pathname.new(path).relative_path_from(Rails.root).to_s,
+          body: content
+        }
+      end
+    end
+
+    def metrics_payload(metrics)
+      Array(metrics).map do |metric|
+        metric = metric.with_indifferent_access
+        {
+          name: metric[:name],
+          type: metric[:type],
+          tags: Array(metric[:tags]),
+          comment: metric[:comment],
+          buckets: metric[:buckets],
+          available: Syrus::Metrics.registry.declared?(metric[:name]),
+          latest_sample: latest_metric_sample(metric[:name])
+        }.compact
+      end
+    end
+
+    def latest_metric_sample(metric_name)
+      return nil unless defined?(::MetricsDashboardSample)
+      return nil unless ::MetricsDashboardSample.table_exists?
+
+      row = ::MetricsDashboardSample
+        .for_metric(metric_name.to_s)
+        .order(recorded_at: :desc)
+        .limit(1)
+        .first
+      return nil unless row
+
+      {
+        value: row.value,
+        labels: row.labels,
+        recorded_at: row.recorded_at&.iso8601
+      }
+    rescue ActiveRecord::ActiveRecordError
+      nil
     end
 
     # Why this instance might want a plugin it currently has off. Present only
