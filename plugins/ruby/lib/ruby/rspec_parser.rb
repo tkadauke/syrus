@@ -16,7 +16,7 @@ module Ruby
       return true if format_hint.to_s == "rspec"
 
       content = File.read(output_path.to_s)
-      return false if content.match?(/\A\s*(?:<\?xml[^>]*>\s*)?</)
+      return false if content.match?(/\A\s*(?:<\?xml\b|<testsuites?\b)/)
 
       content.match?(/\d+ examples?/) && content.match?(/failure|pending/i)
     rescue Errno::ENOENT, Errno::EACCES

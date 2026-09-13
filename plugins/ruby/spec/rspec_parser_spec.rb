@@ -24,6 +24,33 @@ RSpec.describe Ruby::RspecParser do
       expect(described_class.can_parse?(output_path: path)).to be true
     end
 
+    it "returns true for RSpec text whose first group starts with angle brackets" do
+      Tempfile.create("rspec-component-output") do |f|
+        f.write(<<~OUTPUT)
+          <Button>
+            renders a label
+            applies disabled styles
+            fails accessibly
+
+          Failures:
+
+            1) <Button> fails accessibly
+               Failure/Error: expect(button).to be_accessible
+
+                 expected component to be accessible
+
+               # ./spec/components/button_spec.rb:12:in `block (2 levels) in <main>'
+
+          Finished in 0.1 seconds
+          3 examples, 1 failure
+        OUTPUT
+        f.flush
+
+        expect(described_class.can_parse?(output_path: f.path)).to be true
+        expect(described_class.call(output_path: f.path).cases.sole.name).to eq("<Button> fails accessibly")
+      end
+    end
+
     it "returns false for non-existent files" do
       expect(described_class.can_parse?(output_path: "/nonexistent/file.txt")).to be false
     end
