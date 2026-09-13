@@ -10,8 +10,8 @@
   "panels": {
     "queue_oldest_age": "Ältester wartender Job, nach Queue",
     "queue_ready": "Wartende Jobs, nach Queue",
-    "queue_failed": "Fehlgeschlagene Ausführungen, nach Job-Klasse",
+    "queue_failed": "Neue fehlgeschlagene Ausführungen, nach Job-Klasse",
     "queue_orphaned": "Verwaiste Queue-Zeilen",
-    "feature_usage": "Feature-Nutzung"
+    "feature_usage": "Feature-Nutzungen, nach Feature"
   }
 }

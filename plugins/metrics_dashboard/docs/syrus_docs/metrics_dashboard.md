@@ -69,6 +69,32 @@ plausible-but-wrong zero is worse than one that shows nothing.
 
 ## Reading the panels
 
+**Every panel shares one bucket grid.** The payload publishes `buckets` once, at
+the top level, and each series carries one value per bucket — so index *i* is
+the same instant in every chart. That is what makes a single crosshair across
+all of them meaningful: hovering one chart shows what every other metric was
+doing at that moment. Bucket size follows the window (1h -> 1m, 6h -> 5m,
+24h -> 15m, 7d -> 1h), and the grid is aligned to the bucket size so two loads
+of the same window agree on the timestamps.
+
+**Gauges are drawn as values; counters are drawn as rates.** A panel's `mode`
+says which. `syrus_global_queue_ready_count` is a gauge — the chart shows the
+highest reading in each bucket, since a spike that a later sample missed still
+happened. `syrus_global_queue_failed_count` is a cumulative counter, and drawing
+it raw gives a flat line at a large number: it sat at 3,319 all day, which says
+nothing about whether anything is failing *now*. Rate panels show the change per
+bucket instead, so 19 new failures read as 19. A decrease is treated as a
+counter reset and the new value is counted, the same way PromQL's `rate()` does
+— an in-memory counter returns to zero when its process restarts.
+
+**Empty is not zero.** A bucket with no sample is `null` and leaves a gap in the
+line; a rate panel reports a real `0` only inside the range it actually
+observed. A line drawn through a gap would invent an outage that did not happen.
+
+Rate panels keep only the series that moved, capped at
+`DashboardPayload::RATE_SERIES_LIMIT`, so one busy job class is not buried under
+a dozen flat ones.
+
 Series prefixed `syrus_global_` are **one cluster-wide fact**, rendered
 identically by every process that serves `/metrics`. The payload reduces them
 with `max`, never `sum` — summing them would multiply by the number of

@@ -10,8 +10,8 @@
   "panels": {
     "queue_oldest_age": "Vetustissimum opus exspectans, per ordinem",
     "queue_ready": "Opera exspectantia, per ordinem",
-    "queue_failed": "Executiones lapsae, per genus operis",
+    "queue_failed": "Novae executiones lapsae, per genus operis",
     "queue_orphaned": "Lineae ordinis orbatae",
-    "feature_usage": "Usus facultatum"
+    "feature_usage": "Usus facultatum, per facultatem"
   }
 }
