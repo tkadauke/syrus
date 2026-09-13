@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   fetchAdminMcpToolUsage,
   type McpToolUsageBreakdownRow,
+  type McpToolCardGapRow,
   type McpToolUsagePayload,
   type McpToolUsageRecentCall,
   type McpToolUsageToolRow
@@ -30,6 +31,17 @@ const WINDOW_PRESETS = [
 ] as const
 
 const SURFACES = ["all", "workflow", "chat"] as const
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 1000) / 10}%`
+}
+
+function formatBytes(value: number | null | undefined) {
+  const bytes = value ?? 0
+  if (bytes >= 1024 * 1024) return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
+  if (bytes >= 1024) return `${Math.round((bytes / 1024) * 10) / 10} KB`
+  return `${bytes} B`
+}
 
 export function AdminMcpToolUsage() {
   const { t } = useT("admin")
@@ -179,6 +191,8 @@ function McpToolUsageView({ payload }: { payload: McpToolUsagePayload }) {
         <ToolRowsPanel heading={t("mcp_tool_usage.error_rates_heading")} rows={payload.error_rates} />
       </div>
 
+      <CardGapPriorityPanel rows={payload.custom_card_gaps.card_gap_priorities || []} />
+
       <UnusedToolsPanel tools={payload.unused_advertised_tools} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -226,7 +240,56 @@ function ToolRowsPanel({ heading, rows }: { heading: string; rows: McpToolUsageT
                 </td>
                 <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.calls}</td>
                 <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.errors}</td>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{Math.round(row.error_rate * 1000) / 10}%</td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{formatPercent(row.error_rate)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  )
+}
+
+function CardGapPriorityPanel({ rows }: { rows: McpToolCardGapRow[] }) {
+  const { t } = useT("admin")
+  return (
+    <section className="overflow-hidden rounded border border-amber-200 bg-white dark:border-amber-900/60 dark:bg-gray-900">
+      <SectionHeading className="border-b border-amber-100 px-4 py-3 dark:border-amber-950/60">{t("mcp_tool_usage.card_gap_priorities_heading")}</SectionHeading>
+      {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.card_gap_priorities_empty")}</AdminEventPanelMessage> : (
+        <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+          <thead className="bg-amber-50 text-left text-xs font-medium uppercase text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            <tr>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_priority")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_tool")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_owner")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_calls")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_errors")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_result_bytes")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_last_used")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {rows.map((row) => (
+              <tr key={`${row.tool_name}-${row.card_status}`}>
+                <td className="px-4 py-2 align-top">
+                  <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
+                    {t(`mcp_tool_usage.priority_${row.priority_label || "defer"}`)}
+                  </span>
+                  {row.priority_score != null ? <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{row.priority_score}</div> : null}
+                </td>
+                <td className="px-4 py-2 align-top">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{t(`mcp_tool_usage.card_status_${row.card_status}`)}</div>
+                  {row.server_names && row.server_names.length > 0 ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{row.server_names.join(", ")}</div> : null}
+                </td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">
+                  <div>{row.owner_type === "plugin" ? row.owner_name : t("mcp_tool_usage.owner_core")}</div>
+                  <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{row.recommendation_target}</div>
+                </td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.calls ?? 0}</td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.errors ?? 0}{row.error_rate != null ? <div className="text-xs text-gray-500 dark:text-gray-400">{formatPercent(row.error_rate)}</div> : null}</td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{formatBytes(row.result_bytes)}</td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.last_used_at ? formatEventDate(row.last_used_at) : t("mcp_tool_usage.never_used")}</td>
               </tr>
             ))}
           </tbody>
@@ -275,7 +338,7 @@ function BreakdownPanel({ heading, labelKey, rows }: { heading: string; labelKey
                 <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row[labelKey] || t("mcp_tool_usage.unknown")}</td>
                 <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.calls}</td>
                 <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.errors}</td>
-                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{Math.round(row.error_rate * 1000) / 10}%</td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{formatPercent(row.error_rate)}</td>
               </tr>
             ))}
           </tbody>
