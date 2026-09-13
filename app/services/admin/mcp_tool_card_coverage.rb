@@ -16,15 +16,16 @@ module Admin
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
 
     class << self
-      def call(usages:, advertised_tools:, single_tool_name: nil)
-        new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name).as_json
+      def call(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
+        new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name, chat_session: chat_session).as_json
       end
     end
 
-    def initialize(usages:, advertised_tools:, single_tool_name: nil)
+    def initialize(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
       @usages = usages
       @advertised_tools = advertised_tools.map(&:to_s).uniq.sort
       @single_tool_name = single_tool_name.to_s.presence
+      @chat_session = chat_session
     end
 
     def as_json
@@ -37,7 +38,7 @@ module Admin
 
     private
 
-    attr_reader :usages, :advertised_tools, :single_tool_name
+    attr_reader :usages, :advertised_tools, :single_tool_name, :chat_session
 
     def used_tool_rows
       @used_tool_rows ||= aggregate_rows(usages, order_by: :calls)
@@ -148,24 +149,38 @@ module Admin
     end
 
     def plugin_tool_owners
+      enabled_tool_sets = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).to_set
       Syrus::PluginRegistry.all_plugins.each_with_object({}) do |manifest, index|
-        plugin_tool_names(manifest).each do |tool_name|
-          index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "plugin", owner_name: manifest.name)
+        Array(manifest.provides[:chat_mcp_tool_set]).select { |tool_set| enabled_tool_sets.include?(tool_set) }.each do |tool_set|
+          plugin_tool_names(tool_set).each do |tool_name|
+            index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "plugin", owner_name: manifest.name)
+          end
         end
       end
     end
 
-    def plugin_tool_names(manifest)
-      (Array(manifest.provides[:chat_mcp_tool_set]) + Array(manifest.provides[:mcp_tool_set]))
-        .flat_map { |tool_set| tool_definitions(tool_set) }
-        .filter_map { |definition| definition[:name].presence&.to_s }
-        .uniq
+    def plugin_tool_names(tool_set)
+      McpToolUsageRecorder::CHAT_TOOL_TIERS.flat_map do |tier|
+        next [] unless plugin_chat_tool_set_available?(tool_set, tier: tier)
+
+        tool_definitions(tool_set, tier: tier)
+      end.filter_map { |definition| definition[:name].presence&.to_s }.uniq
     end
 
-    def tool_definitions(tool_set)
+    def plugin_chat_tool_set_available?(tool_set, tier:)
+      tool_set.available_for?(chat_session, tier: tier)
+    rescue StandardError, NoMethodError
+      false
+    end
+
+    def tool_definitions(tool_set, tier:)
       method = tool_set.method(:tool_definitions)
       keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
-      return Array(tool_set.tool_definitions(tier: nil)) if keywords.include?(:tier)
+      if keywords.include?(:tier)
+        args = { tier: tier }
+        args[:chat_session] = chat_session if keywords.include?(:chat_session)
+        return Array(tool_set.tool_definitions(**args))
+      end
       return Array(tool_set.tool_definitions(context: nil)) if keywords.include?(:context)
 
       Array(tool_set.tool_definitions)
