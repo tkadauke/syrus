@@ -1606,6 +1606,11 @@ dependency graph without making it required.
 
 Core does not enforce an interface on a plugin-hosted point; its shape is the
 host's business, and the host validates its own contributors at call time.
+For the `test_insights:parser` point specifically, the host keeps
+JUnit/XML-looking output core-owned: `JunitXmlParser` runs before custom
+parsers for `.xml` files or content starting with `<testsuite>`/`<testsuites>`.
+Contributed parsers are for framework-native or otherwise non-XML output and
+are tried in registration order only after that XML check declines the file.
 
 ## Installation effects
 
@@ -2001,8 +2006,10 @@ error.
 ## `ci_log_parser`
 
 Lets a plugin claim a CI log before `CiLogParser` falls back to its own
-built-in parsers — same "plugin tries first, core generic parser is the
-fallback" pattern as `:test_result_parser` and `:coverage_analyzer`.
+built-in parsers — the same "plugin tries first, core generic parser is the
+fallback" pattern as `:coverage_analyzer`. `test_insights:parser` is slightly
+different because XML/JUnit-looking output is parsed by core before custom
+test-result parsers are tried.
 `CiLogParser#parse` feeds the diagnostic summary a `ci_failure` repair agent
 sees (`error_summary`, `failing_tests`/`offenses`, `error_block`).
 
@@ -2709,7 +2716,7 @@ Bundled plugins:
   `:prompt_injector` reminding the agent to activate/use a virtual
   environment or dependency-manager run-prefix. Does not provide a custom
   `:test_result_parser`/`:coverage_analyzer` — plain `pytest --junitxml=`
-  output is already handled by core's `JunitXmlParser` fallback and
+  output is already handled by core's `JunitXmlParser` and
   `coverage xml` (Cobertura format) is already handled by
   `CoverageAnalysis::Parsers::Cobertura`, both via `.syrus.yml` wiring only.
   Also provides `:review_criteria_provider` (`Python::ReviewCriteriaProvider`
@@ -2725,7 +2732,7 @@ Bundled plugins:
 - `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
   → `go mod download` (`prepare_priority: 40`). Does not provide a custom
   `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
-  output is already handled by core's `JunitXmlParser` fallback, same as the
+  output is already handled by core's `JunitXmlParser`, same as the
   `python` plugin's `pytest --junitxml=` case, via `.syrus.yml` wiring only.
   Does not provide a `:coverage_analyzer` either, but unlike Python this is a
   genuine gap: `go test -coverprofile=coverage.out` has no built-in XML/lcov

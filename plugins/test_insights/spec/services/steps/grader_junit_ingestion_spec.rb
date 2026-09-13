@@ -95,6 +95,38 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
     XML
   end
 
+  let(:merged_rspec_junit_xml_with_rspec_text) do
+    <<~XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <testsuites tests="3" failures="1" errors="0" skipped="1" time="1.23">
+        <testsuite name="spec/models/widget_spec.rb" tests="2" failures="1" errors="0" skipped="0" time="0.75">
+          <testcase classname="spec.models.widget_spec" name="Widget calculates price" file="spec/models/widget_spec.rb" time="0.12"/>
+          <testcase classname="spec.models.widget_spec" name="Widget applies discounts" file="spec/models/widget_spec.rb" time="0.63">
+            <failure message="expected: 20 got: 25"><![CDATA[
+      Failures:
+
+        1) Widget applies discounts
+           Failure/Error: expect(widget.price).to eq(20)
+
+             expected: 20
+                  got: 25
+
+           # ./spec/models/widget_spec.rb:42:in `block (3 levels) in <main>'
+
+      Finished in 1.23 seconds
+      3 examples, 1 failure, 1 pending
+            ]]></failure>
+          </testcase>
+        </testsuite>
+        <testsuite name="spec/services/report_spec.rb" tests="1" failures="0" errors="0" skipped="1" time="0.48">
+          <testcase classname="spec.services.report_spec" name="Report exports CSV" file="spec/services/report_spec.rb" time="0.48">
+            <skipped/>
+          </testcase>
+        </testsuite>
+      </testsuites>
+    XML
+  end
+
   let(:passing_vitest_xml) do
     <<~XML
       <testsuites name="vitest tests" tests="2" failures="0" errors="0" skipped="0" time="0.4">
@@ -204,6 +236,36 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
         name: "fails",
         failure_message: "expected true"
       )
+    end
+
+    it "prefers core JUnit parsing for merged RSpec XML even when a text parser could claim the failure body" do
+      Syrus::PluginRegistry.register(
+        name: "ruby",
+        version: "1.0.0",
+        provides: { "test_insights:parser" => Ruby::RspecParser }
+      )
+
+      step = make_step(junit_output: ".syrus/grade-output/rspec-junit.xml")
+      @ws_path.join(".syrus/grade-output").mkpath
+      @ws_path.join(".syrus/grade-output/rspec-junit.xml").write(merged_rspec_junit_xml_with_rspec_text)
+
+      expect(Ruby::RspecParser).not_to receive(:can_parse?)
+      handler, run = handler_for(step)
+
+      expect { handler.call }
+        .to change(TestInsights::TestRun, :count).by(1)
+        .and change(TestInsights::TestCase, :count).by(3)
+
+      test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "tests")
+      expect(test_run).to have_attributes(total_count: 3, passed_count: 1, failed_count: 1, skipped_count: 1)
+      expect(test_run.test_cases.failed.sole).to have_attributes(
+        suite_name: "spec.models.widget_spec",
+        name: "Widget applies discounts",
+        file_path: "spec/models/widget_spec.rb",
+        failure_message: "expected: 20 got: 25"
+      )
+    ensure
+      Syrus::PluginRegistry.reset!
     end
 
     it "ingests passing frontend JUnit output on adapters without conflict-target support" do

@@ -47,9 +47,11 @@ module TestInsights
       Rails.logger.warn("[TestInsights] could not write job log: #{e.class}: #{e.message}")
     end
 
-    # Language plugins contribute framework-native parsers through
-    # "test_insights:parser"; JUnit XML is the fallback every language can emit.
+    # JUnit/XML-looking files belong to the core parser before language
+    # plugins get a chance to sniff framework-native text output.
     def self.parse(path, format_hint)
+      return parse_junit_xml(path) if junit_xml_candidate?(path)
+
       Syrus::PluginRegistry.providers_for("test_insights:parser").each do |provider|
         can_parse = PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :can_parse) do
           provider.can_parse?(output_path: path, format_hint: format_hint)
@@ -62,7 +64,20 @@ module TestInsights
         return [ provider.to_s, parsed ]
       end
 
+      parse_junit_xml(path)
+    end
+
+    def self.parse_junit_xml(path)
       [ "JunitXmlParser", ::JunitXmlParser.parse(path.read) ]
+    end
+
+    def self.junit_xml_candidate?(path)
+      return true if path.extname.downcase == ".xml"
+
+      head = path.open("rb") { |file| file.read(512).to_s }
+      head.match?(/\A\s*(?:<\?xml[^>]*>\s*)?<testsuites?\b/)
+    rescue Errno::ENOENT, Errno::EACCES
+      false
     end
   end
 end
