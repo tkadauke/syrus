@@ -79,10 +79,12 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
     )
     expect(body["unused_advertised_tools"]).to include("submit_summary")
     expect(body["custom_card_gaps"]).to include(
+      "dashboard",
       "high_volume_without_custom_card",
       "high_error_with_weak_or_no_custom_card",
       "unused_advertised_tools"
     )
+    expect(body.dig("custom_card_gaps", "dashboard")).to be_an(Array)
 
     expect(body["provider_breakdown"]).to contain_exactly(
       include("provider" => "claude", "calls" => 2, "errors" => 1)
@@ -235,7 +237,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       expect(usage_queries).to all(match(/normalized_tool_name/i))
       expect(usage_queries).to all(match(/server_name/i))
       expect(aggregate_tool_queries).to all(match(/LIMIT/i))
-      expect_performance_budget(metrics, max_sql: 14, max_payload_bytes: 80.kilobytes)
+      expect_performance_budget(metrics, max_sql: 15, max_payload_bytes: 80.kilobytes)
     end
   end
 end

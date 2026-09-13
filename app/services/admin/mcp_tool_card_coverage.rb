@@ -30,6 +30,7 @@ module Admin
 
     def as_json
       {
+        dashboard: dashboard_rows,
         high_volume_without_custom_card: missing_card_rows(used_tool_rows),
         high_error_with_weak_or_no_custom_card: weak_or_missing_card_rows(error_tool_rows),
         unused_advertised_tools: unused_advertised_tool_rows
@@ -72,6 +73,54 @@ module Admin
       end
     end
 
+    def dashboard_rows
+      aggregate_dashboard_rows(usages).filter_map do |row|
+        card = cards[row[:tool_name]]
+        next if card&.strong?
+
+        row_payload(row).merge(
+          server_name: row[:server_name],
+          result_bytes: row[:result_bytes],
+          last_used_at: iso8601_time(row[:last_used_at]),
+          card_status: card ? "weak" : "missing"
+        )
+      end.first(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
+    end
+
+    def aggregate_dashboard_rows(scope)
+      scope
+        .group(:normalized_tool_name, :server_name)
+        .order(Arel.sql([
+          "#{count_expression} DESC",
+          "#{error_count_expression} DESC",
+          "#{result_bytes_expression} DESC",
+          "#{last_used_expression} DESC",
+          "#{McpToolUsage.quoted_table_name}.normalized_tool_name ASC"
+        ].join(", ")))
+        .limit(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT * 5)
+        .pluck(
+          :normalized_tool_name,
+          :server_name,
+          Arel.sql(count_expression),
+          Arel.sql(error_count_expression),
+          Arel.sql(result_bytes_expression),
+          Arel.sql(last_used_expression)
+        )
+        .map do |tool_name, server_name, count, errors, result_bytes, last_used_at|
+          count = count.to_i
+          errors = errors.to_i
+          {
+            tool_name: tool_name.to_s,
+            server_name: server_name,
+            calls: count,
+            errors: errors,
+            error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0,
+            result_bytes: result_bytes.to_i,
+            last_used_at: last_used_at
+          }
+        end
+    end
+
     def aggregate_order(order_by)
       if order_by == :error_rate
         Arel.sql("#{error_rate_expression} DESC, #{error_count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
@@ -90,6 +139,23 @@ module Admin
 
     def error_rate_expression
       "(#{error_count_expression} * 1.0 / NULLIF(#{count_expression}, 0))"
+    end
+
+    def result_bytes_expression
+      "SUM(COALESCE(#{McpToolUsage.quoted_table_name}.result_bytes, 0))"
+    end
+
+    def last_used_expression
+      table_name = McpToolUsage.quoted_table_name
+      "MAX(COALESCE(#{table_name}.completed_at, #{table_name}.started_at, #{table_name}.created_at))"
+    end
+
+    def iso8601_time(value)
+      return if value.blank?
+
+      value.respond_to?(:iso8601) ? value.iso8601 : Time.zone.parse(value.to_s)&.iso8601
+    rescue ArgumentError, TypeError
+      value.to_s
     end
 
     def missing_card_rows(rows)

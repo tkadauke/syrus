@@ -45,6 +45,26 @@ function payload() {
       { sidecar_mode: "stdio", calls: 10, errors: 2, error_rate: 0.2 }
     ],
     unused_advertised_tools: ["submit_summary"],
+    custom_card_gaps: {
+      dashboard: [
+        {
+          tool_name: "repo_info",
+          server_name: "syrus-chat-sidecar",
+          calls: 4,
+          errors: 2,
+          error_rate: 0.5,
+          result_bytes: 2048,
+          last_used_at: "2026-08-20T12:00:00Z",
+          owner_type: "core",
+          owner_name: "core",
+          recommendation_target: "core",
+          card_status: "missing"
+        }
+      ],
+      high_volume_without_custom_card: [],
+      high_error_with_weak_or_no_custom_card: [],
+      unused_advertised_tools: []
+    },
     recent_calls: [
       {
         id: 1,
@@ -83,7 +103,9 @@ describe("AdminMcpToolUsage", () => {
     expect(String(fetchSpy.mock.calls[0][0])).toBe("/api/v1/app/admin/mcp_tool_usage")
 
     expect((await screen.findAllByText("read_live_state")).length).toBeGreaterThan(0)
-    expect(screen.getByText("repo_info")).toBeInTheDocument()
+    expect(screen.getAllByText("repo_info").length).toBeGreaterThan(0)
+    expect(screen.getByRole("heading", { name: "Custom-card gap dashboard" })).toBeInTheDocument()
+    expect(screen.getByText("2 KB")).toBeInTheDocument()
     expect(screen.getByText("submit_summary")).toBeInTheDocument()
 
     const jobLink = screen.getByRole("link", { name: "JOB-42" })
