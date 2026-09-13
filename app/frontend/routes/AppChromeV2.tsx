@@ -871,7 +871,7 @@ function SidebarContent({
             </Button>
           ) : null}
           <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
-          <SidebarMaintenanceTasks prefix={prefix} />
+          {user?.admin ? <SidebarMaintenanceTasks prefix={prefix} /> : null}
         </div>
         <div className="px-3 pb-4">
           <nav aria-label={t("nav:primary_nav_aria")} className="flex flex-col gap-1 text-sm">

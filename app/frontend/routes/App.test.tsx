@@ -111,36 +111,34 @@ describe("App", () => {
   })
 
   it("loads bootstrap data into the SPA shell", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          current_user: {
-            id: 1,
-            email_address: "operator@example.com",
-            name: "Operator",
-            first_name: null,
-            last_name: null,
-            display_name: "Operator",
-            admin: true,
-            scheduling_paused: false,
-            landing_paused: false,
-            agent_provider: "claude",
-            agent_max_turns: 200,
-            theme: "light"
-          },
-          team_user_count: 1,
-          app: {
-            revision: "dev",
-            revision_url: null
-          },
-          navigation: {
-            default_chat_path: "/dashboard"
-          },
-          csrf_token: "csrf-token",
-          feature_flags: {}
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
+    const payload = {
+      current_user: {
+        id: 1,
+        email_address: "operator@example.com",
+        name: "Operator",
+        first_name: null,
+        last_name: null,
+        display_name: "Operator",
+        admin: true,
+        scheduling_paused: false,
+        landing_paused: false,
+        agent_provider: "claude",
+        agent_max_turns: 200,
+        theme: "light"
+      },
+      team_user_count: 1,
+      app: {
+        revision: "dev",
+        revision_url: null
+      },
+      navigation: {
+        default_chat_path: "/dashboard"
+      },
+      csrf_token: "csrf-token",
+      feature_flags: {}
+    }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
     render(
