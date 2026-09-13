@@ -106,6 +106,15 @@ const POPULATED_PAYLOAD = {
         recommendation_target: "plugin:example_plugin",
         card_status: "missing"
       }
+    ],
+    unclassified_advertised_tools: [
+      {
+        tool_name: "new_plugin_tool",
+        owner_type: "plugin",
+        owner_name: "example_plugin",
+        recommendation_target: "plugin:example_plugin",
+        card_status: "missing"
+      }
     ]
   },
   recent_calls: [
@@ -180,7 +189,9 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("Missing high-volume cards")).toBeInTheDocument()
     expect(screen.getByText("Weak or missing error cards")).toBeInTheDocument()
     expect(screen.getAllByText("Unused advertised tools").length).toBeGreaterThan(0)
+    expect(screen.getByText("Unclassified advertised tools")).toBeInTheDocument()
     expect(screen.getAllByText("plugin:example_plugin").length).toBeGreaterThan(0)
+    expect(screen.getByText("new_plugin_tool")).toBeInTheDocument()
     expect(screen.getAllByText("admin_mcp_tool_usage").length).toBeGreaterThan(0)
     expect(screen.getAllByText("11.8%").length).toBeGreaterThan(0)
     expect(screen.getByText("Custom card gap ranking")).toBeInTheDocument()
@@ -204,7 +215,8 @@ describe("admin_mcp_tool_usage tool card", () => {
         ranked_gaps: [],
         high_volume_without_custom_card: [],
         high_error_with_weak_or_no_custom_card: [],
-        unused_advertised_tools: []
+        unused_advertised_tools: [],
+        unclassified_advertised_tools: []
       },
       recent_calls: []
     }
@@ -215,7 +227,7 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("No tool volume in this window.")).toBeInTheDocument()
     expect(screen.getByText("No high-error tools in this window.")).toBeInTheDocument()
     expect(screen.getByText("No missing or weak card gaps in this window.")).toBeInTheDocument()
-    expect(screen.getAllByText("No card coverage gaps in this bucket.").length).toBe(3)
+    expect(screen.getAllByText("No card coverage gaps in this bucket.").length).toBe(4)
     expect(screen.getByText("No recent calls found.")).toBeInTheDocument()
   })
 
