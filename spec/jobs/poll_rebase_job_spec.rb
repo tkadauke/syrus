@@ -22,6 +22,28 @@ RSpec.describe PollRebaseJob, :ci_only do
   end
 
   describe "happy path" do
+    it "delays autonomous polling while the persisted rate limit is exhausted" do
+      user.update!(
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: 30.minutes.from_now,
+        gh_rate_limit_observed_at: Time.current
+      )
+
+      expect_any_instance_of(GithubClient).not_to receive(:pull_request)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to have_enqueued_job(described_class).with(job.id, bypass_cache: false)
+    end
+
+    it "treats TooManyRequests as coordinated autonomous poll backoff" do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_raise(Octokit::TooManyRequests.new)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to have_enqueued_job(described_class).with(job.id, bypass_cache: false)
+    end
+
     it "creates a rebase Run when the PR is unmergeable and we own the head" do
       stub_pr(pr_resource(mergeable: false))
 

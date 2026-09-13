@@ -1,4 +1,5 @@
 class PollMergeStateJob < ApplicationJob
+  include GithubPollingRateLimitGuard
   include GithubPrPollHelpers
 
   queue_as :polling
@@ -22,35 +23,37 @@ class PollMergeStateJob < ApplicationJob
     return if RebaseWorkflowSelector.active_for_stack?(@job)
 
     pr_repo = @job.effective_pr_repository
-    return if pr_repo.github_api_rate_limited_for?(user: @job.user)
+    return if github_polling_rate_limited?(pr_repo, user: @job.user, retry_args: [ job_id ])
 
-    @client = GithubClient.for(repository: pr_repo, user: @job.user)
-    @pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: false)
-    @client.clear_api_blocked!
+    with_github_polling_rate_limit_backoff(pr_repo, user: @job.user, retry_args: [ job_id ]) do
+      @client = GithubClient.for(repository: pr_repo, user: @job.user)
+      @pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: false)
+      @client.clear_api_blocked!
 
-    # A preempted Job tracks an external PR only to keep it rebased while
-    # that PR is open. Once the external PR reaches a terminal state,
-    # finalize the Job so PollAllMergeStatesJob stops re-selecting it —
-    # otherwise it re-fetches the PR and bumps the Job (via
-    # persist_mergeability) every poll forever, surfacing long-closed
-    # work as "recent activity". (PollExternalPrJob does this for *open*
-    # Jobs; closed-preempted Jobs only flow through here.)
-    return if finalize_terminal_external_pr(@pr)
+      # A preempted Job tracks an external PR only to keep it rebased while
+      # that PR is open. Once the external PR reaches a terminal state,
+      # finalize the Job so PollAllMergeStatesJob stops re-selecting it —
+      # otherwise it re-fetches the PR and bumps the Job (via
+      # persist_mergeability) every poll forever, surfacing long-closed
+      # work as "recent activity". (PollExternalPrJob does this for *open*
+      # Jobs; closed-preempted Jobs only flow through here.)
+      return if finalize_terminal_external_pr(@pr)
 
-    persist_mergeability(@pr)
-    compute_commits_behind(@pr)
+      persist_mergeability(@pr)
+      compute_commits_behind(@pr)
 
-    return if @pr.merged
-    return if @pr.state == "closed"
-    return unless we_control_head?(@pr)
+      return if @pr.merged
+      return if @pr.state == "closed"
+      return unless we_control_head?(@pr)
 
-    gate = AutoMergeGate.new(job: @job, client: @client, bypass_cache: true, pr: @pr).evaluate
-    if gate.merge_ready?
-      approve_for_landing
-    elsif rebaseable_mergeable_state?
-      dispatch_rebase
-    elsif proactive_rebase_threshold_exceeded?
-      dispatch_rebase
+      gate = AutoMergeGate.new(job: @job, client: @client, bypass_cache: true, pr: @pr).evaluate
+      if gate.merge_ready?
+        approve_for_landing
+      elsif rebaseable_mergeable_state?
+        dispatch_rebase
+      elsif proactive_rebase_threshold_exceeded?
+        dispatch_rebase
+      end
     end
   end
 
