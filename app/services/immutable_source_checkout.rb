@@ -9,8 +9,8 @@ class ImmutableSourceCheckout
   PREPARE_CACHE_ROOT = ".syrus/immutable-checkouts/prepare-cache".freeze
   PREPARE_CACHE_LOCK_ROOT = ".syrus/immutable-checkouts/prepare-cache-locks".freeze
   PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
-  PREPARED_ARCHIVE_CONTENT_TYPE = "application/gzip".freeze
-  PREPARED_ARCHIVE_MAX_BYTES = 1.gigabyte
+  PREPARED_ARCHIVE_CONTENT_TYPE = PreparedWorkspaceArchive::CONTENT_TYPE
+  PREPARED_ARCHIVE_MAX_BYTES = PreparedWorkspaceArchive::MAX_BYTES
 
   attr_reader :path
 
@@ -319,28 +319,14 @@ class ImmutableSourceCheckout
   end
 
   def publish_prepared_archive!(snapshot, prepare_cache)
-    archive_path = temporary_archive_path("publish")
-    run_tar!("tar", "-czf", archive_path.to_s, "-C", path.to_s, ".")
-    archive_bytes = archive_path.size
-    if archive_bytes > PREPARED_ARCHIVE_MAX_BYTES
-      log("[immutable_source_checkout] prepared archive upload skipped: #{archive_bytes} bytes exceeds #{PREPARED_ARCHIVE_MAX_BYTES} byte limit")
-      return
-    end
-
-    File.open(archive_path, "rb") do |file|
-      snapshot.prepared_workspace_archive.attach(
-        io: file,
-        filename: "workflow-source-snapshot-#{snapshot.id}-prepared.tar.gz",
-        content_type: PREPARED_ARCHIVE_CONTENT_TYPE,
-        identify: false,
-        metadata: prepared_archive_metadata(snapshot, prepare_cache)
-      )
-    end
-    log("[immutable_source_checkout] uploaded prepared workspace archive for snapshot ##{snapshot.id}")
-  rescue StandardError => e
-    log("[immutable_source_checkout] prepared archive upload failed; continuing with local cache only: #{e.class}: #{e.message}")
-  ensure
-    FileUtils.rm_f(archive_path.to_s) if archive_path
+    PreparedWorkspaceArchive.publish!(
+      workflow: @workflow,
+      snapshot: snapshot,
+      step: @step,
+      path: path,
+      plan: prepare_cache.plan,
+      log: ->(message, **_kwargs) { log("[immutable_source_checkout] #{message}") }
+    )
   end
 
   def prepared_archive_metadata_matches?(metadata, snapshot, prepare_cache)
@@ -358,17 +344,7 @@ class ImmutableSourceCheckout
   end
 
   def prepared_archive_metadata(snapshot, prepare_cache)
-    {
-      "workflow_id" => @workflow.id,
-      "source_snapshot_id" => snapshot.id,
-      "source_sha" => snapshot.source_sha,
-      "source_ref" => snapshot.source_ref,
-      "tree_sha" => snapshot.tree_sha,
-      "prepare_fingerprint" => prepare_cache.prepare_fingerprint,
-      "prepare_source" => prepare_cache.plan.source,
-      "max_bytes" => PREPARED_ARCHIVE_MAX_BYTES,
-      "uploaded_at" => Time.current.iso8601
-    }.compact
+    PreparedWorkspaceArchive.metadata(workflow: @workflow, snapshot: snapshot, plan: prepare_cache.plan)
   end
 
   def temporary_archive_path(prefix)
@@ -522,12 +498,7 @@ class ImmutableSourceCheckout
     end
 
     def fingerprint_for(plan)
-      Digest::SHA256.hexdigest(JSON.generate(
-        "source" => plan.source,
-        "note" => plan.note,
-        "guessed" => plan.guessed?,
-        "commands" => plan.commands
-      ))
+      PreparedWorkspaceArchive.prepare_fingerprint_for(plan)
     end
 
     def sanitized_worker_storage_key

@@ -58,6 +58,7 @@ module Steps
       continuation = step.next_step
       insertion_position = step.position + 1
       offset = graders.size
+      source_snapshot = nil
 
       with_materialization_lock_retries do
         Step.transaction do
@@ -95,6 +96,8 @@ module Steps
           continuation&.update!(depends_on_ids: new_steps.map(&:id))
         end
       end
+
+      publish_prepared_workspace_archive!(source_snapshot) if source_snapshot
     end
 
     def link_materialized_grader_steps!(new_steps, continuation)
@@ -185,6 +188,31 @@ module Steps
       )
       log("[preflight_grader_fanout] recorded source snapshot ##{snapshot.id} #{source_ref}@#{source_sha.first(7)}")
       snapshot
+    end
+
+    def publish_prepared_workspace_archive!(source_snapshot)
+      plan = RepoPrepPlan.for(workspace.path)
+      unless prepared_workspace_matches_current_plan?(plan)
+        log("[preflight_grader_fanout] prepared workspace archive skipped; prepare output does not match current plan")
+        return
+      end
+
+      PreparedWorkspaceArchive.publish!(
+        workflow: workflow,
+        snapshot: source_snapshot,
+        step: step,
+        path: workspace.path,
+        plan: plan,
+        log: ->(message, **_kwargs) { log(message) }
+      )
+    end
+
+    def prepared_workspace_matches_current_plan?(plan)
+      fresh_workflow = workflow.reload
+      prepared = fresh_workflow.artifact("prepared_workspace").to_h
+      return false if fresh_workflow.artifact("prepare_failure").present?
+
+      prepared["prepare_fingerprint"] == PreparedWorkspaceArchive.prepare_fingerprint_for(plan)
     end
 
     def distributed_grader_projection_enabled?

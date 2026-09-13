@@ -96,6 +96,7 @@ module Steps
 
       if plan.commands.empty?
         log("[prepare] no commands to run; skipping")
+        record_prepared_workspace!(plan)
         return
       end
 
@@ -114,9 +115,21 @@ module Steps
       end
 
       log("[prepare] all commands completed successfully")
+      record_prepared_workspace!(plan)
     end
 
     private
+
+    def record_prepared_workspace!(plan)
+      workflow.set_artifact!("prepared_workspace", {
+        "source" => plan.source,
+        "note" => plan.note,
+        "guessed" => plan.guessed?,
+        "commands" => plan.commands,
+        "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(plan),
+        "prepared_at" => Time.current.iso8601
+      }.compact)
+    end
 
     # `bash -c` so quoting / pipelines / && in commands work.
     # cwd = workspace path. Env scrubbed via PREP_ENV_FORWARD +

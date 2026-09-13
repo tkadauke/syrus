@@ -47,6 +47,11 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(chunks).to include("no commands to run")
     expect(workflow.reload.artifact("prepare_failure")).to be_nil
     expect(step.reload.details["prepare_failure"]).to be_nil
+    expect(workflow.artifact("prepared_workspace")).to include(
+      "source" => "auto-detect",
+      "commands" => [],
+      "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(RepoPrepPlan.for(@ws_path))
+    )
   end
 
   it "runs each command from .syrus.yml in order" do
@@ -69,6 +74,11 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(chunks.last).to include("all commands completed successfully")
     expect(workflow.reload.artifact("prepare_failure")).to be_nil
     expect(step.reload.details["prepare_failure"]).to be_nil
+    expect(workflow.artifact("prepared_workspace")).to include(
+      "source" => ".syrus.yml",
+      "commands" => [ "echo first", "echo second" ],
+      "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(RepoPrepPlan.for(@ws_path))
+    )
   end
 
   it "auto-detects bundle install on a Gemfile-bearing repo" do

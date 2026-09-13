@@ -172,6 +172,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
   end
 
   it "skips prepared archive upload when the archive exceeds the size cap" do
+    stub_const("PreparedWorkspaceArchive::MAX_BYTES", 1)
     stub_const("ImmutableSourceCheckout::PREPARED_ARCHIVE_MAX_BYTES", 1)
 
     described_class.new(step).setup

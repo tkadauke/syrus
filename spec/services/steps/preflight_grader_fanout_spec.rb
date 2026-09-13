@@ -51,6 +51,18 @@ RSpec.describe Steps::PreflightGraderFanout do
     File.write(@ws_path.join(".syrus.yml"), content)
   end
 
+  def record_prepared_workspace!
+    plan = RepoPrepPlan.for(@ws_path)
+    workflow.set_artifact!("prepared_workspace", {
+      "source" => plan.source,
+      "note" => plan.note,
+      "guessed" => plan.guessed?,
+      "commands" => plan.commands,
+      "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(plan),
+      "prepared_at" => Time.current.iso8601
+    }.compact)
+  end
+
   it "materializes preflight_grader steps for each configured grader" do
     write_grade_config(<<~YAML)
       grade:
@@ -93,6 +105,7 @@ RSpec.describe Steps::PreflightGraderFanout do
         - name: tests
           run: bin/rspec
     YAML
+    record_prepared_workspace!
 
     handler.call
 
@@ -107,6 +120,7 @@ RSpec.describe Steps::PreflightGraderFanout do
         - name: tests
           run: bin/rspec
     YAML
+    record_prepared_workspace!
 
     handler.call
 
@@ -124,6 +138,7 @@ RSpec.describe Steps::PreflightGraderFanout do
         - name: tests
           run: bin/rspec
     YAML
+    record_prepared_workspace!
 
     handler.call
 
@@ -140,6 +155,14 @@ RSpec.describe Steps::PreflightGraderFanout do
       "source_sha" => "abc123",
       "source_ref" => "refs/heads/main",
       "tree_sha" => "tree123"
+    )
+    expect(snapshot.reload.prepared_workspace_archive).to be_attached
+    expect(snapshot.prepared_workspace_archive.blob.metadata).to include(
+      "workflow_id" => workflow.id,
+      "source_snapshot_id" => snapshot.id,
+      "source_sha" => "abc123",
+      "tree_sha" => "tree123",
+      "prepare_source" => ".syrus.yml"
     )
   end
 
