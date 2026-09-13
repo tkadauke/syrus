@@ -88,13 +88,14 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        return mark_plugin_step_done(task, "jobs") unless defined?(GlobalSearch::JobIndex)
+        provider = job_index_provider
+        return mark_plugin_step_done(task, "jobs") unless provider
 
         task.current_step_key = "jobs"
         task.current_step_title = "Index jobs"
         processed = 0
         Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          GlobalSearch::JobIndex.upsert(job)
+          provider.upsert_job(job)
           task.checkpoint_will_change!
           task.checkpoint["last_job_id"] = job.id
           processed += 1
@@ -106,13 +107,14 @@ module MaintenanceTasks
       end
 
       def index_epics(task)
-        return mark_plugin_step_done(task, "epics") unless defined?(GlobalSearch::EpicIndex)
+        provider = epic_index_provider
+        return mark_plugin_step_done(task, "epics") unless provider
 
         task.current_step_key = "epics"
         task.current_step_title = "Index epics"
         processed = 0
         Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          GlobalSearch::EpicIndex.upsert(epic)
+          provider.upsert_epic(epic)
           task.checkpoint_will_change!
           task.checkpoint["last_epic_id"] = epic.id
           processed += 1
@@ -176,15 +178,15 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        defined?(GlobalSearch::JobIndex) && indexed_count("job_fts", "job_id") < Job.count
+        job_index_provider && indexed_count("job_fts", "job_id") < Job.count
       rescue StandardError
-        defined?(GlobalSearch::JobIndex) && Job.exists?
+        job_index_provider && Job.exists?
       end
 
       def epics_need_rebuild?
-        defined?(GlobalSearch::EpicIndex) && indexed_count("epic_fts", "epic_id") < Epic.count
+        epic_index_provider && indexed_count("epic_fts", "epic_id") < Epic.count
       rescue StandardError
-        defined?(GlobalSearch::EpicIndex) && Epic.exists?
+        epic_index_provider && Epic.exists?
       end
 
       def operational_logs_need_rebuild?
@@ -200,9 +202,25 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = defined?(GlobalSearch::JobIndex) ? Job.count : 0
-      def epics_count = defined?(GlobalSearch::EpicIndex) ? Epic.count : 0
+      def jobs_count = job_index_provider ? Job.count : 0
+      def epics_count = epic_index_provider ? Epic.count : 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
+
+      def job_index_provider
+        search_source_providers.find { |provider| provider.respond_to?(:upsert_job) }
+      end
+
+      def epic_index_provider
+        search_source_providers.find { |provider| provider.respond_to?(:upsert_epic) }
+      end
+
+      def search_source_providers
+        return [] unless defined?(Syrus::PluginRegistry)
+
+        Syrus::PluginRegistry.providers_for("global_search:source")
+      rescue StandardError
+        []
+      end
 
       def bind(value)
         ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
