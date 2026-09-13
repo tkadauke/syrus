@@ -38,6 +38,10 @@ module App
       new(workspace_path, changed_files: changed_files).call
     end
 
+    def self.configured_when_files_changed(workspace_path:)
+      new(workspace_path, changed_files: []).configured_when_files_changed
+    end
+
     def initialize(workspace_path, changed_files:)
       @workspace_path = Pathname.new(workspace_path)
       @changed_files = Array(changed_files).map(&:to_s)
@@ -57,6 +61,13 @@ module App
     rescue StandardError => e
       Rails.logger.warn("[App::VisualReviewProjects] unavailable for #{workspace_path}: #{e.class}: #{e.message}")
       Result.new(choices: [], unavailable_reason: "visual_review_project_resolution_failed")
+    end
+
+    def configured_when_files_changed
+      project_choices.flat_map { |project| Array(scoped_when_files_changed(project)) }.uniq
+    rescue StandardError => e
+      Rails.logger.warn("[App::VisualReviewProjects] could not resolve visual_review.when_files_changed for #{workspace_path}: #{e.class}: #{e.message}")
+      []
     end
 
     private
