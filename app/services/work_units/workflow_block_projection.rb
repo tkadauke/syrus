@@ -2,6 +2,7 @@ module WorkUnits
   class WorkflowBlockProjection
     REASON_MAP = {
       "manual_pause" => "manual_pause",
+      "landing_paused" => "manual_pause",
       "provider_availability" => "provider_availability",
       "workflow_admission_budget" => "admission_control",
       "landing start blocked: workflow admission budget" => "admission_control",

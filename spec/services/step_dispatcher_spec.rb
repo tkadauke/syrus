@@ -2892,6 +2892,65 @@ RSpec.describe StepDispatcher, "main_health queue gate", :ci_only do
   end
 end
 
+RSpec.describe StepDispatcher, "landing queue pause gate", :ci_only do
+  include ActiveJob::TestHelper
+  include StepDispatcherSpecAttachWorkUnit
+
+  let(:user) { Factories.user }
+  let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
+  let(:job_model) do
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 501,
+      pr_number: 501,
+      branch_name: "syrus/issue-501",
+      state: "landing"
+    )
+  end
+  let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "auto_merge") }
+  let!(:s1) { Step.create!(workflow: workflow, kind: "prepare", position: 0) }
+  let!(:s2) { Step.create!(workflow: workflow, kind: "auto_merge", position: 1) }
+
+  before do
+    s1.update!(next_step_id: s2.id)
+    attach_work_unit(workflow)
+    user.update!(landing_paused: true)
+  end
+
+  it "does not create the first run while the landing queue is paused" do
+    expect {
+      described_class.start_workflow(workflow)
+    }.not_to change { Run.count }
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("landing_paused")
+    expect(workflow.work_unit.reload).to be_blocked
+    expect(workflow.work_unit.blocked_reason).to eq("manual_pause")
+    expect(workflow.work_unit.blocked_details).to include("start_blocked_reason" => "landing_paused")
+  end
+
+  it "does not enqueue the next landing step when the queue is paused mid-workflow" do
+    s1.update!(state: "succeeded")
+    s1.runs.create!(
+      job: job_model,
+      trigger_kind: workflow.trigger_kind,
+      state: "succeeded",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago
+    )
+
+    expect {
+      described_class.advance_from(s1)
+    }.not_to change { s2.runs.count }
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("landing_paused")
+    expect(workflow.artifact("start_blocked_details")).to include(
+      "phase_step_id" => s2.id,
+      "phase_step_kind" => "auto_merge"
+    )
+  end
+end
+
 RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_only do
   include ActiveJob::TestHelper
   include StepDispatcherSpecAttachWorkUnit

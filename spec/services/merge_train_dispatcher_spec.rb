@@ -88,6 +88,16 @@ RSpec.describe MergeTrainDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "does not dispatch while the Epic owner's landing queue is paused" do
+    approved_child(1)
+    user.update!(landing_paused: true)
+
+    expect(described_class.blocker_reason(epic)).to eq("landing queue is paused")
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does nothing when the Epic has not released its children for execution" do
     epic.update_columns(state: "backlog")
     epic.reload

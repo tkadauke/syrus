@@ -63,6 +63,7 @@ class MergeTrainDispatcher
 
   def blocker_reason
     return "merge trains are disabled" unless AppSetting.merge_train_enabled?
+    return "landing queue is paused" if landing_queue_paused?
     return "waiting for Epic to release" unless @epic.releases_jobs_for_execution?
     return "#{@epic.slug} already has an active merge train" if active_train_in_progress?
 
@@ -91,6 +92,10 @@ class MergeTrainDispatcher
   end
 
   private
+
+  def landing_queue_paused?
+    @epic.user.landing_paused? || @epic.owner_user&.landing_paused?
+  end
 
   def active_train_in_progress?
     MergeTrain.active.where(epic_id: @epic.id).exists? ||

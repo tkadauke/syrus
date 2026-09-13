@@ -69,6 +69,14 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, MANUAL_PAUSE_REASON)
 
+    if landing_queue_paused?(workflow)
+      record_landing_queue_pause!(workflow)
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
+      warn_if_stuck_queued(workflow, LANDING_PAUSE_BLOCK_REASON)
+      return
+    end
+    clear_start_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON)
+
     if workflow.job.dependencies_failed_for_execution?
       return fail_unstartable_landing_workflow!(workflow, "landing start blocked: dependency failed") if workflow.landing_workflow?
 
@@ -219,6 +227,7 @@ class StepDispatcher
   PAUSE_REASON_ADMISSION = ADMISSION_BLOCK_REASON
   PAUSE_REASON_RESOURCE_SAFETY = "resource_safety"
   MANUAL_PAUSE_REASON = "manual_pause"
+  LANDING_PAUSE_BLOCK_REASON = "landing_paused"
   PHASE_ADMISSION_RECHECK_DELAY = 10.minutes
   START_BLOCKED_BACKOFF = 5.minutes
 
@@ -228,6 +237,13 @@ class StepDispatcher
     end
 
     workflow.job.manual_paused?
+  end
+
+  def self.landing_queue_paused?(workflow)
+    return false unless workflow.landing_workflow?
+
+    job = workflow.job
+    job.user.landing_paused? || job.owner_user&.landing_paused?
   end
 
   def self.main_health_blocking?(workflow)
@@ -480,6 +496,11 @@ class StepDispatcher
       return nil if step.terminal?
       return nil if step.runs.active.exists?
 
+      if check_phase_admission && landing_queue_pause_deferred?(step, workflow)
+        return nil
+      end
+      clear_start_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON)
+
       if check_phase_admission && work_unit_runtime_deferred?(step, workflow)
         return nil
       end
@@ -682,6 +703,34 @@ class StepDispatcher
     record_work_unit_blocked!(workflow, MANUAL_PAUSE_REASON, blocked_until: nil, details: details)
   end
 
+  def self.record_landing_queue_pause!(workflow, step: nil)
+    now = Time.current
+    current = workflow.artifacts || {}
+    details = {
+      "action" => "resume_landing_queue",
+      "reason" => LANDING_PAUSE_BLOCK_REASON
+    }
+    details["phase_step_id"] = step.id if step
+    details["phase_step_kind"] = step.kind if step
+    details["phase_step_position"] = step.position if step
+
+    artifacts = current.merge(
+      "pause_reason" => LANDING_PAUSE_BLOCK_REASON,
+      "pause_kind" => "landing_queue",
+      "pause_started_at" => current["pause_reason"] == LANDING_PAUSE_BLOCK_REASON ? current["pause_started_at"] : now.iso8601,
+      "pause_last_seen_at" => now.iso8601,
+      "pause_next_check_at" => (now + START_BLOCKED_BACKOFF).iso8601,
+      "pause_details" => details,
+      "start_blocked_reason" => LANDING_PAUSE_BLOCK_REASON,
+      "start_blocked_at" => current["start_blocked_reason"] == LANDING_PAUSE_BLOCK_REASON ? current["start_blocked_at"] : now.iso8601,
+      "start_blocked_last_seen_at" => now.iso8601,
+      "start_blocked_next_check_at" => (now + START_BLOCKED_BACKOFF).iso8601,
+      "start_blocked_details" => details
+    )
+    workflow.update!(artifacts: artifacts)
+    record_work_unit_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON, blocked_until: now + START_BLOCKED_BACKOFF, details: details)
+  end
+
   def self.append_phase_deferral_log!(workflow, step, admission)
     run = step.previous_step&.latest_run ||
       Run.joins(:step).where(steps: { workflow_id: workflow.id }).order(:created_at).last
@@ -728,6 +777,7 @@ class StepDispatcher
     step = step_id ? workflow.steps.find_by(id: step_id) : next_queued_step_without_run(workflow)
     return unless step&.queued?
     return if step.runs.any?
+    return if landing_queue_pause_deferred?(step, workflow)
 
     previous = step.previous_step
     if step.id == workflow.first_step&.id
@@ -799,6 +849,7 @@ class StepDispatcher
       runnable_steps = next_steps.reject { |step| step.runs.any? }
       return if runnable_steps.empty?
       return if runnable_steps.any? { |step| manually_paused_before_next_step?(step) }
+      return if runnable_steps.any? { |step| landing_queue_paused_before_next_step?(step) }
 
       created_runs = runnable_steps.filter_map do |step|
         self.class.create_run_and_enqueue(step, @workflow, check_phase_admission: @check_phase_admission)
@@ -844,7 +895,7 @@ class StepDispatcher
         )
       )
 
-      if continuation&.queued? && continuation.runs.none? && !manually_paused_before_next_step?(continuation)
+      if continuation&.queued? && continuation.runs.none? && !paused_before_next_step?(continuation)
         self.class.create_run_and_enqueue(continuation, @workflow)
       elsif continuation.nil?
         finish_workflow!
@@ -946,7 +997,7 @@ class StepDispatcher
     Step.transaction do
       implement_step.skip_with_reason!(cancellation_reason) if implement_step&.may_skip?
 
-      if continuation.queued? && continuation.runs.none? && !manually_paused_before_next_step?(continuation)
+      if continuation.queued? && continuation.runs.none? && !paused_before_next_step?(continuation)
         self.class.create_run_and_enqueue(continuation, @workflow)
       end
     end
@@ -1083,7 +1134,7 @@ class StepDispatcher
           "try_branch_failure_code" => failure_code
         )
       )
-      self.class.create_run_and_enqueue(new_steps.first, @workflow) unless manually_paused_before_next_step?(new_steps.first)
+      self.class.create_run_and_enqueue(new_steps.first, @workflow) unless paused_before_next_step?(new_steps.first)
     end
   end
 
@@ -1179,10 +1230,22 @@ class StepDispatcher
       ([ previous ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
       new_steps.last.update!(next_step_id: continuation&.id)
 
-      unless manually_paused_before_next_step?(new_steps.first)
+      unless paused_before_next_step?(new_steps.first)
         self.class.create_run_and_enqueue(new_steps.first, @workflow, parent_session_id: prior_iteration_session_id)
       end
     end
+  end
+
+  def self.landing_queue_pause_deferred?(step, workflow)
+    return false unless landing_queue_paused?(workflow)
+
+    record_landing_queue_pause!(workflow, step: step)
+    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
+    true
+  end
+
+  def paused_before_next_step?(step)
+    manually_paused_before_next_step?(step) || landing_queue_paused_before_next_step?(step)
   end
 
   def manually_paused_before_next_step?(step)
@@ -1190,6 +1253,10 @@ class StepDispatcher
 
     self.class.record_manual_pause!(@workflow, step: step)
     true
+  end
+
+  def landing_queue_paused_before_next_step?(step)
+    self.class.landing_queue_pause_deferred?(step, @workflow)
   end
 
   def placement_policy_for(kind)

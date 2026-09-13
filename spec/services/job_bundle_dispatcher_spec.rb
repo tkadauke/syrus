@@ -60,6 +60,17 @@ RSpec.describe JobBundleDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "does not dispatch while a bundle member owner's landing queue is paused" do
+    approved_job(1)
+    approved_job(2)
+    user.update!(landing_paused: true)
+
+    expect(described_class.blocker_reason(repository)).to eq("landing queue is paused")
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does nothing when the repository already has a landing in progress" do
     approved_job(1)
     approved_job(2)

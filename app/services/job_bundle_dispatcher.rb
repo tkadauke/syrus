@@ -83,6 +83,8 @@ class JobBundleDispatcher
     end
 
     potential_members = potential_member_candidates
+    return "landing queue is paused" if landing_queue_paused?(potential_members)
+
     if (active_work = active_member_work(potential_members))
       return active_member_work_reason(active_work)
     end
@@ -100,6 +102,7 @@ class JobBundleDispatcher
 
     readiness = LandingBundleAssembler.for_repository(@repository, include_active: true)
     return readiness.reason unless readiness.ready?
+    return "landing queue is paused" if landing_queue_paused?(readiness.members)
 
     if (active_work = active_member_work(readiness.members))
       return active_member_work_reason(active_work)
@@ -167,6 +170,10 @@ class JobBundleDispatcher
 
   def effective_owner_id(job)
     job.owner_user_id.presence || job.user_id
+  end
+
+  def landing_queue_paused?(jobs)
+    jobs.any? { |job| job.user.landing_paused? || job.owner_user&.landing_paused? }
   end
 
   def active_member_work?(members)
