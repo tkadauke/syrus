@@ -26,3 +26,4 @@ are computed at read time with `rate()`.
 | `syrus_global_queue_orphaned_rows` | gauge | — | no | Unfinished job rows with no execution row -- unreachable by work and by the finished-job pruner (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_ready_count` | gauge | `queue` | no | Jobs ready to be claimed (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_global_queue_sample_age_seconds` | gauge | — | no | Age of the cached queue sample; large means the sampler has stopped |
+| `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |

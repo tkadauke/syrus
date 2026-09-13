@@ -14,6 +14,7 @@
 # nothing (see Syrus::PluginApi::Definition#metrics).
 Rails.application.config.to_prepare do
   [
+    "SkipIfPending",
     "Metrics::QueueSampler",
     "Metrics::PluginSampler",
     "Metrics::ProductUsage"

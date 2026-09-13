@@ -36,6 +36,14 @@ RSpec.describe SkipIfPending do
 
     it "skips enqueue when an unfinished instance already exists" do
       allow(relation).to receive(:exists?).and_return(true)
+      expect(Syrus::Metrics.counter(:syrus_skip_if_pending_skips_total)).to receive(:increment).with(
+        tags: {
+          job_class: "SkipIfPendingTestJob",
+          queue: "control_plane",
+          mode: "class"
+        }
+      )
+
       expect { SkipIfPendingTestJob.perform_later }
         .not_to have_enqueued_job(SkipIfPendingTestJob)
     end
@@ -51,6 +59,13 @@ RSpec.describe SkipIfPending do
       allow(relation).to receive(:limit).with(1_000).and_return([
         double("solid queue job", arguments: { "arguments" => [ 42 ] })
       ])
+      expect(Syrus::Metrics.counter(:syrus_skip_if_pending_skips_total)).to receive(:increment).with(
+        tags: {
+          job_class: "SkipIfPendingTestJob",
+          queue: "control_plane",
+          mode: "arguments"
+        }
+      )
 
       expect { SkipIfPendingTestJob.perform_later(42) }
         .not_to have_enqueued_job(SkipIfPendingTestJob)
