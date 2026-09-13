@@ -400,7 +400,30 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(body["suggestion"]["state"]).to eq("accepted")
       expect(body["job"]).not_to be_nil
       expect(body.dig("job", "state")).to be_present
-      expect(suggestion.reload.created_job).to be_present
+      created_job = suggestion.reload.created_job
+      expect(created_job).to be_present
+      expect(created_job).to be_queued
+      expect(created_job).to have_attributes(
+        kind: "direct",
+        job_provider_setting: "default"
+      )
+      expect(created_job.workflows.where(trigger_kind: "initial")).to exist
+    end
+
+    it "preserves an explicit agent provider the same way direct job creation does" do
+      user.update!(codex_api_key: "ck-test")
+      suggestion = create_suggestion(suggested_prompt: "Fix the thing")
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "accept", create_job: true, prompt: "Fix the thing", agent_provider: "codex" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      created_job = suggestion.reload.created_job
+      expect(created_job).to have_attributes(
+        agent_provider: "codex",
+        job_provider_setting: "codex"
+      )
+      expect(created_job.workflow_agent_provider).to eq("codex")
     end
 
     it "returns 422 when create_job is true but prompt is blank" do

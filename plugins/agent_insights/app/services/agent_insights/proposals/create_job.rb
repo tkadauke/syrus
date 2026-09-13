@@ -9,7 +9,10 @@ module AgentInsights
           return Result.error("Prompt can't be blank when creating a job.") if prompt_text.blank?
 
           repository = suggestion.repository
-          agent_provider = params[:agent_provider].to_s.presence || repository.effective_agent_provider
+          agent_provider_setting = params[:agent_provider].to_s.presence || Job::ProviderSetting::Base::DEFAULT_VALUE
+          agent_provider = Job::ProviderSetting::Base.for(agent_provider_setting).resolve(
+            Job.new(repository: repository, user: actor, owner_user: actor)
+          )
 
           created_job = actor.jobs.create!(
             repository: repository,
@@ -19,6 +22,7 @@ module AgentInsights
             title_pending: false,
             issue_body: prompt_text,
             agent_provider: agent_provider,
+            job_provider_setting: agent_provider_setting,
             priority: "medium",
             state: Job.initial_state_for_creator(actor)
           )
