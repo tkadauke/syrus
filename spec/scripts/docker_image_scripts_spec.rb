@@ -16,6 +16,7 @@ RSpec.describe "Docker image scripts" do
     expect(helper).to include("SYRUS_DOCKER_REGISTRY_CACHE")
     expect(helper).to include("syrus_ghcr_login()")
     expect(helper).to include("syrus_verify_pushed()")
+    expect(helper).to include("syrus_worker_native_build_smoke()")
     expect(helper).to include("syrus_docker_build_image()")
     expect(helper).to include("syrus_docker_buildx_image()")
   end
@@ -44,7 +45,37 @@ RSpec.describe "Docker image scripts" do
     expect(deploy).to include('. "${SCRIPT_DIR}/docker-image-lib"')
     expect(deploy).to include("syrus_docker_build_image app \"$SHA\"")
     expect(deploy).to include("syrus_docker_build_image worker-dev \"$SHA\"")
+    expect(deploy).to include('syrus_worker_native_build_smoke "${WORKER_DEV_REGISTRY}:${SHA}"')
     expect(deploy).to include("syrus_verify_pushed \"$1\" \"$2\"")
+  end
+
+  it "smoke-checks native compilation as the worker UID before publishing and after rollout" do
+    smoke = helper[/syrus_worker_native_build_smoke\(\)[\s\S]*?\n}/]
+
+    expect(smoke).to include('docker run --rm --entrypoint bash "$image"')
+    expect(smoke).to include('test "$(id -u)" = "1000"')
+    expect(smoke).to include("command -v gcc")
+    expect(smoke).to include("command -v make")
+    expect(smoke).to include('cd "$(mktemp -d)"')
+    expect(smoke).to include("ruby -rmkmf -e")
+    expect(smoke).to include("try_compile")
+    expect(smoke).to include("int main(){return 0;}")
+
+    expect(publish_image).to include('syrus_worker_native_build_smoke "$TEST_TAG"')
+    expect(publish_image.index('syrus_worker_native_build_smoke "$TEST_TAG"')).to be < publish_image.index("if [ \"$SKIP_TESTS\" = 1 ]; then")
+    expect(deploy.index('syrus_worker_native_build_smoke "${WORKER_DEV_REGISTRY}:${SHA}"')).to be < deploy.index("docker push \"${WORKER_DEV_REGISTRY}:${SHA}\"")
+
+    expect(deploy).to include("WORKER_WORKLOADS=(deployment/syrus-worker-home daemonset/syrus-worker-compute)")
+    expect(deploy).to include('verify_worker_native_toolchain "$label" "$kubeconfig" "$namespace"')
+    expect(deploy.index('verify_sha "$label" "$kubeconfig" "$namespace"')).to be < deploy.index('verify_worker_native_toolchain "$label" "$kubeconfig" "$namespace"')
+
+    live_smoke = deploy[/verify_worker_native_toolchain\(\)[\s\S]*?\n}/]
+    expect(live_smoke).to include('kubectl exec -n "$namespace" "$workload" -- bash -c')
+    expect(live_smoke).to include('test "$(id -u)" = "1000"')
+    expect(live_smoke).to include("command -v gcc")
+    expect(live_smoke).to include("command -v make")
+    expect(live_smoke).to include('cd "$(mktemp -d)"')
+    expect(live_smoke).to include("try_compile")
   end
 
   it "restores the local bundle before deploy's eager-load preflight" do
