@@ -88,37 +88,23 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        return mark_plugin_step_done(task, "jobs") unless defined?(GlobalSearch::JobIndex)
+        source = search_source_for("job_fts")
+        return mark_plugin_step_done(task, "jobs") unless source
 
         task.current_step_key = "jobs"
         task.current_step_title = "Index jobs"
-        processed = 0
-        Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          GlobalSearch::JobIndex.upsert(job)
-          task.checkpoint_will_change!
-          task.checkpoint["last_job_id"] = job.id
-          processed += 1
-        end
-        task.checkpoint_will_change!
-        task.checkpoint["jobs_done"] = true if processed.zero? || task.checkpoint["last_job_id"].to_i >= Job.maximum(:id).to_i
+        processed = index_search_source(source, task, "last_job_id", "jobs_done")
 
         Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
       end
 
       def index_epics(task)
-        return mark_plugin_step_done(task, "epics") unless defined?(GlobalSearch::EpicIndex)
+        source = search_source_for("epic_fts")
+        return mark_plugin_step_done(task, "epics") unless source
 
         task.current_step_key = "epics"
         task.current_step_title = "Index epics"
-        processed = 0
-        Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          GlobalSearch::EpicIndex.upsert(epic)
-          task.checkpoint_will_change!
-          task.checkpoint["last_epic_id"] = epic.id
-          processed += 1
-        end
-        task.checkpoint_will_change!
-        task.checkpoint["epics_done"] = true if processed.zero? || task.checkpoint["last_epic_id"].to_i >= Epic.maximum(:id).to_i
+        processed = index_search_source(source, task, "last_epic_id", "epics_done")
 
         Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} epic(s).", level: "progress")
       end
@@ -176,15 +162,17 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        defined?(GlobalSearch::JobIndex) && indexed_count("job_fts", "job_id") < Job.count
+        source = search_source_for("job_fts")
+        source && indexed_count(source.search_table_name, source.search_id_column) < source.count
       rescue StandardError
-        defined?(GlobalSearch::JobIndex) && Job.exists?
+        source && source.exists?
       end
 
       def epics_need_rebuild?
-        defined?(GlobalSearch::EpicIndex) && indexed_count("epic_fts", "epic_id") < Epic.count
+        source = search_source_for("epic_fts")
+        source && indexed_count(source.search_table_name, source.search_id_column) < source.count
       rescue StandardError
-        defined?(GlobalSearch::EpicIndex) && Epic.exists?
+        source && source.exists?
       end
 
       def operational_logs_need_rebuild?
@@ -200,9 +188,41 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = defined?(GlobalSearch::JobIndex) ? Job.count : 0
-      def epics_count = defined?(GlobalSearch::EpicIndex) ? Epic.count : 0
+      def jobs_count = search_source_for("job_fts")&.count.to_i
+      def epics_count = search_source_for("epic_fts")&.count.to_i
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
+
+      def index_search_source(source, task, checkpoint_key, done_key)
+        processed = 0
+        source.records.where("id > ?", task.checkpoint[checkpoint_key].to_i).limit(task.batch_size).find_each do |record|
+          source.upsert(record)
+          task.checkpoint_will_change!
+          task.checkpoint[checkpoint_key] = record.id
+          processed += 1
+        end
+        task.checkpoint_will_change!
+        task.checkpoint[done_key] = true if processed.zero? || task.checkpoint[checkpoint_key].to_i >= source.records.maximum(:id).to_i
+        processed
+      end
+
+      def search_source_for(table_name)
+        search_sources.find { |source| source.search_table_name.to_s == table_name }
+      end
+
+      def search_sources
+        return [] unless defined?(Syrus::PluginRegistry)
+
+        Syrus::PluginRegistry.providers_for("global_search:source").select do |provider|
+          provider.respond_to?(:search_table_name) &&
+            provider.respond_to?(:search_id_column) &&
+            provider.respond_to?(:records) &&
+            provider.respond_to?(:count) &&
+            provider.respond_to?(:exists?) &&
+            provider.respond_to?(:upsert)
+        end
+      rescue StandardError
+        []
+      end
 
       def bind(value)
         ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)

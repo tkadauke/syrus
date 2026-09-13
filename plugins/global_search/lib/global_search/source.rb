@@ -22,6 +22,16 @@ module GlobalSearch
   #
   #   def self.search_type = "my_thing"
   #   def self.search(query:, user:, limit:) = [ { id:, title:, path: } ]
+  #
+  # Providers that own built-in or plugin search tables can also expose
+  # maintenance rebuild hooks:
+  #
+  #   def self.search_table_name = "my_plugin_fts"
+  #   def self.search_id_column = "my_plugin_id"
+  #   def self.records = MyPlugin::Record.order(:id)
+  #   def self.count = MyPlugin::Record.count
+  #   def self.exists? = MyPlugin::Record.exists?
+  #   def self.upsert(record) = MyPlugin::Index.upsert(record)
   # The contract for a search result type contributed through this plugin's
   # "global_search:source" point.
   #
