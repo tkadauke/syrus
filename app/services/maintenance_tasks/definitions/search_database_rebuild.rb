@@ -88,39 +88,11 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        return mark_plugin_step_done(task, "jobs") unless defined?(GlobalSearch::JobIndex)
-
-        task.current_step_key = "jobs"
-        task.current_step_title = "Index jobs"
-        processed = 0
-        Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          GlobalSearch::JobIndex.upsert(job)
-          task.checkpoint_will_change!
-          task.checkpoint["last_job_id"] = job.id
-          processed += 1
-        end
-        task.checkpoint_will_change!
-        task.checkpoint["jobs_done"] = true if processed.zero? || task.checkpoint["last_job_id"].to_i >= Job.maximum(:id).to_i
-
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
+        index_plugin_source(task, table_name: "job_fts", last_id_key: "last_job_id", done_key: "jobs_done", fallback_step: "jobs")
       end
 
       def index_epics(task)
-        return mark_plugin_step_done(task, "epics") unless defined?(GlobalSearch::EpicIndex)
-
-        task.current_step_key = "epics"
-        task.current_step_title = "Index epics"
-        processed = 0
-        Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          GlobalSearch::EpicIndex.upsert(epic)
-          task.checkpoint_will_change!
-          task.checkpoint["last_epic_id"] = epic.id
-          processed += 1
-        end
-        task.checkpoint_will_change!
-        task.checkpoint["epics_done"] = true if processed.zero? || task.checkpoint["last_epic_id"].to_i >= Epic.maximum(:id).to_i
-
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} epic(s).", level: "progress")
+        index_plugin_source(task, table_name: "epic_fts", last_id_key: "last_epic_id", done_key: "epics_done", fallback_step: "epics")
       end
 
       def index_operational_logs(task)
@@ -141,6 +113,22 @@ module MaintenanceTasks
         task.checkpoint_will_change!
         task.checkpoint["#{step}_done"] = true
         Result.new(done: false, processed: 0, failed: 0, message: "#{step.humanize} index is not available in this installation.", level: "info")
+      end
+
+      def index_plugin_source(task, table_name:, last_id_key:, done_key:, fallback_step:)
+        source = SyrusSearchDatabaseTasks.search_backfill_source(table_name)
+        return mark_plugin_step_done(task, fallback_step) unless source
+
+        task.current_step_key = source.search_backfill_step_key
+        task.current_step_title = source.search_backfill_step_title
+        batch = source.search_backfill_batch(after_id: task.checkpoint[last_id_key].to_i, limit: task.batch_size)
+        task.checkpoint_will_change!
+        task.checkpoint[last_id_key] = batch[:last_id] if batch[:last_id].present?
+        task.checkpoint[done_key] = true if batch[:done]
+        processed = batch[:processed].to_i
+        label = source.search_backfill_record_label
+
+        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} #{label}(s).", level: "progress")
       end
 
       def search_database_needs_prepare?
@@ -176,15 +164,11 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        defined?(GlobalSearch::JobIndex) && indexed_count("job_fts", "job_id") < Job.count
-      rescue StandardError
-        defined?(GlobalSearch::JobIndex) && Job.exists?
+        SyrusSearchDatabaseTasks.search_backfill_source("job_fts")&.search_backfill_needed? || false
       end
 
       def epics_need_rebuild?
-        defined?(GlobalSearch::EpicIndex) && indexed_count("epic_fts", "epic_id") < Epic.count
-      rescue StandardError
-        defined?(GlobalSearch::EpicIndex) && Epic.exists?
+        SyrusSearchDatabaseTasks.search_backfill_source("epic_fts")&.search_backfill_needed? || false
       end
 
       def operational_logs_need_rebuild?
@@ -200,8 +184,8 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = defined?(GlobalSearch::JobIndex) ? Job.count : 0
-      def epics_count = defined?(GlobalSearch::EpicIndex) ? Epic.count : 0
+      def jobs_count = SyrusSearchDatabaseTasks.search_backfill_source("job_fts")&.search_backfill_total_count.to_i || 0
+      def epics_count = SyrusSearchDatabaseTasks.search_backfill_source("epic_fts")&.search_backfill_total_count.to_i || 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
 
       def bind(value)

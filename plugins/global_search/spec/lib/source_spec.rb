@@ -58,4 +58,10 @@ RSpec.describe "search_source plugin tables" do
   it "has no rebuild hook for a table nobody claims" do
     expect(SyrusSearchDatabaseTasks.plugin_rebuild_hook("unclaimed_fts")).to be_nil
   end
+
+  it "contributes backfill sources for its built-in job and epic indexes" do
+    source_tables = SyrusSearchDatabaseTasks.search_backfill_sources.map(&:search_backfill_table_name)
+
+    expect(source_tables).to include("job_fts", "epic_fts")
+  end
 end

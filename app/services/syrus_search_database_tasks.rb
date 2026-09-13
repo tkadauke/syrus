@@ -150,6 +150,24 @@ module SyrusSearchDatabaseTasks
     nil
   end
 
+  def search_backfill_sources
+    return [] unless defined?(Syrus::PluginRegistry)
+
+    Syrus::PluginRegistry.providers_for("global_search:source").select do |provider|
+      provider.respond_to?(:search_backfill_table_name) &&
+        provider.respond_to?(:search_backfill_total_count) &&
+        provider.respond_to?(:search_backfill_needed?) &&
+        provider.respond_to?(:search_backfill_batch)
+    end
+  rescue StandardError => e
+    Rails.logger&.error("[search] could not resolve plugin search backfill sources: #{e.class}: #{e.message}")
+    []
+  end
+
+  def search_backfill_source(table_name)
+    search_backfill_sources.find { |provider| provider.search_backfill_table_name.to_s == table_name.to_s }
+  end
+
   def prepare!
     SearchRecord.connection_pool.migration_context.migrate
     ensure_required_tables!
