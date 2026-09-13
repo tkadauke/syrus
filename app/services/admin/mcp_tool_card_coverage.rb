@@ -4,40 +4,80 @@ module Admin
       def strong? = has_collapsed_summary
     end
 
-    Owner = Data.define(:tool_name, :owner_type, :owner_name) do
+    Owner = Data.define(:tool_name, :owner_type, :owner_name, :tier, :mutation) do
       def recommendation_target
         owner_type == "plugin" ? "plugin:#{owner_name}" : "core"
       end
     end
 
+    Tool = Data.define(:tool_name, :owner, :card) do
+      def core_owned? = owner.owner_type == "core"
+      def plugin_owned? = owner.owner_type == "plugin"
+      def deferred? = owner.tier == "deferred"
+      def mutating? = owner.mutation == true
+      def card_owner_type = card&.owner_type
+      def custom_card? = card.present?
+      def strong_card? = card&.strong? == true
+    end
+
     CORE_CARD_GLOB = "app/frontend/routes/chat/tool_cards/*.tsx"
     PLUGIN_CARD_GLOB = "plugins/*/app/frontend/tool_cards/*.tsx"
     TEST_CARD_PATTERN = /\.test\.tsx\z/
-    TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
+    TOOL_NAME_PATTERNS = [
+      /toolName:\s*["']([^"']+)["']/,
+      /export\s+default\s+\w+\(["']([^"']+)["']\)/
+    ].freeze
+    GENERIC_CARD_ACCEPTABLE_TOOLS = Set.new([
+      "read_file",
+      "write_file",
+      "run_command",
+      "git_diff",
+      "git_status",
+      "read_run_transcript",
+      "read_chat_messages",
+      "read_worker_health",
+      "admin_read_operational_logs"
+    ]).freeze
+    HIDDEN_ACK_ONLY_TOOLS = Set.new([
+      "set_bookmark",
+      "rename_chat",
+      "mark_goal_completed",
+      "mark_goal_blocked",
+      "submit_chat_feedback"
+    ]).freeze
 
     class << self
-      def call(usages:, advertised_tools:, single_tool_name: nil)
-        new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name).as_json
+      def call(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
+        new(
+          usages: usages,
+          advertised_tools: advertised_tools,
+          single_tool_name: single_tool_name,
+          chat_session: chat_session
+        ).as_json
       end
     end
 
-    def initialize(usages:, advertised_tools:, single_tool_name: nil)
+    def initialize(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
       @usages = usages
       @advertised_tools = advertised_tools.map(&:to_s).uniq.sort
       @single_tool_name = single_tool_name.to_s.presence
+      @chat_session = chat_session
     end
 
     def as_json
       {
         high_volume_without_custom_card: missing_card_rows(used_tool_rows),
         high_error_with_weak_or_no_custom_card: weak_or_missing_card_rows(error_tool_rows),
-        unused_advertised_tools: unused_advertised_tool_rows
+        unused_advertised_tools: unused_advertised_tool_rows,
+        classification_counts: classification_counts,
+        classified_tools: classified_tool_rows,
+        unclassified_tools: unclassified_tool_rows
       }
     end
 
     private
 
-    attr_reader :usages, :advertised_tools, :single_tool_name
+    attr_reader :usages, :advertised_tools, :single_tool_name, :chat_session
 
     def used_tool_rows
       @used_tool_rows ||= aggregate_rows(usages, order_by: :calls)
@@ -93,46 +133,97 @@ module Admin
 
     def missing_card_rows(rows)
       rows.filter_map do |row|
-        next if cards.key?(row[:tool_name])
+        coverage = classification_for(row[:tool_name])
+        next if coverage[:has_custom_card]
+        next unless coverage[:classification] == "unclassified"
 
-        row_payload(row).merge(card_status: "missing")
+        row_payload(row).merge(card_status: "missing", classification: coverage[:classification])
       end
     end
 
     def weak_or_missing_card_rows(rows)
       rows.filter_map do |row|
-        card = cards[row[:tool_name]]
-        next if card&.strong?
+        coverage = classification_for(row[:tool_name])
+        next if coverage[:card_status] == "registered"
+        next unless coverage[:classification] == "custom_card" || coverage[:classification] == "plugin_custom_card" || coverage[:classification] == "unclassified"
 
-        row_payload(row).merge(card_status: card ? "weak" : "missing")
+        row_payload(row).merge(card_status: coverage[:card_status], classification: coverage[:classification])
       end
     end
 
     def unused_advertised_tool_rows
       used = usages.distinct.pluck(:normalized_tool_name).map(&:to_s).to_set
       (advertised_tools - used.to_a).map do |tool_name|
-        owner = owners[tool_name] || Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
-        card = cards[tool_name]
-        {
-          tool_name: tool_name,
-          owner_type: owner.owner_type,
-          owner_name: owner.owner_name,
-          recommendation_target: owner.recommendation_target,
-          card_status: card ? (card.strong? ? "registered" : "weak") : "missing"
-        }
+        classification_for(tool_name).slice(
+          :tool_name,
+          :owner_type,
+          :owner_name,
+          :recommendation_target,
+          :card_status,
+          :classification
+        )
       end
     end
 
     def row_payload(row)
-      owner = owners[row[:tool_name]] || Owner.new(tool_name: row[:tool_name], owner_type: "core", owner_name: "core")
+      coverage = classification_for(row[:tool_name])
       {
         tool_name: row[:tool_name],
         calls: row[:calls],
         errors: row[:errors],
         error_rate: row[:error_rate],
+        owner_type: coverage[:owner_type],
+        owner_name: coverage[:owner_name],
+        recommendation_target: coverage[:recommendation_target]
+      }
+    end
+
+    def classified_tool_rows
+      classified_tool_names.map { |tool_name| classification_for(tool_name) }
+    end
+
+    def classified_tool_names
+      return advertised_tools unless single_tool_name
+
+      advertised_tools.include?(single_tool_name) ? [ single_tool_name ] : []
+    end
+
+    def unclassified_tool_rows
+      classified_tool_rows.select { |row| row[:classification] == "unclassified" }
+    end
+
+    def classification_counts
+      classified_tool_rows
+        .group_by { |row| row[:classification] }
+        .transform_values(&:count)
+        .sort
+        .to_h
+    end
+
+    def classification_for(tool_name)
+      tool = Tool.new(
+        tool_name: tool_name,
+        owner: owners[tool_name] || Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core", tier: nil, mutation: nil),
+        card: cards[tool_name]
+      )
+      classification = CardClassification.for(tool)
+      owner = tool.owner
+      card = tool.card
+
+      {
+        tool_name: tool.tool_name,
         owner_type: owner.owner_type,
         owner_name: owner.owner_name,
-        recommendation_target: owner.recommendation_target
+        recommendation_target: owner.recommendation_target,
+        tier: owner.tier,
+        mutation: owner.mutation,
+        card_status: card ? (card.strong? ? "registered" : "weak") : "missing",
+        card_owner_type: card&.owner_type,
+        card_owner_name: card&.owner_name,
+        card_path: card&.path,
+        has_custom_card: tool.custom_card?,
+        classification: classification.name,
+        classification_reason: classification.reason
       }
     end
 
@@ -143,29 +234,63 @@ module Admin
     def core_tool_owners
       McpToolRegistry.summaries(surface: :chat).each_with_object({}) do |entry, index|
         tool_name = entry[:tool_name].to_s
-        index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
+        index[tool_name] = Owner.new(
+          tool_name: tool_name,
+          owner_type: "core",
+          owner_name: "core",
+          tier: entry[:tier]&.to_s,
+          mutation: entry[:mutation] == true
+        )
       end
     end
 
     def plugin_tool_owners
       Syrus::PluginRegistry.all_plugins.each_with_object({}) do |manifest, index|
-        plugin_tool_names(manifest).each do |tool_name|
-          index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "plugin", owner_name: manifest.name)
+        plugin_tool_entries(manifest).each do |entry|
+          tool_name = entry.fetch(:name)
+          next if index.key?(tool_name)
+
+          index[tool_name] = Owner.new(
+            tool_name: tool_name,
+            owner_type: "plugin",
+            owner_name: manifest.name,
+            tier: entry[:tier],
+            mutation: entry[:mutation]
+          )
         end
       end
     end
 
-    def plugin_tool_names(manifest)
-      (Array(manifest.provides[:chat_mcp_tool_set]) + Array(manifest.provides[:mcp_tool_set]))
-        .flat_map { |tool_set| tool_definitions(tool_set) }
-        .filter_map { |definition| definition[:name].presence&.to_s }
+    def plugin_tool_entries(manifest)
+      Array(manifest.provides[:chat_mcp_tool_set]).flat_map do |tool_set|
+        %i[essential deferred].flat_map do |tier|
+          next [] unless plugin_chat_tool_set_available?(tool_set, tier: tier)
+
+          tool_definitions(tool_set, tier: tier).filter_map do |definition|
+            name = definition[:name].presence&.to_s
+            next if name.blank?
+
+            { name: name, tier: tier.to_s, mutation: definition[:mutation] == true }
+          end
+        end
+      end
         .uniq
     end
 
-    def tool_definitions(tool_set)
+    def plugin_chat_tool_set_available?(tool_set, tier:)
+      tool_set.available_for?(chat_session, tier: tier)
+    rescue StandardError, NoMethodError
+      false
+    end
+
+    def tool_definitions(tool_set, tier: nil)
       method = tool_set.method(:tool_definitions)
       keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
-      return Array(tool_set.tool_definitions(tier: nil)) if keywords.include?(:tier)
+      if keywords.include?(:tier)
+        args = { tier: tier }
+        args[:chat_session] = chat_session if keywords.include?(:chat_session)
+        return Array(tool_set.tool_definitions(**args))
+      end
       return Array(tool_set.tool_definitions(context: nil)) if keywords.include?(:context)
 
       Array(tool_set.tool_definitions)
@@ -187,7 +312,7 @@ module Admin
 
     def card_from_path(path)
       source = File.read(path)
-      tool_name = source[TOOL_NAME_PATTERN, 1]
+      tool_name = TOOL_NAME_PATTERNS.lazy.filter_map { |pattern| source[pattern, 1] }.first
       return if tool_name.blank?
 
       owner_type, owner_name = card_owner(path)
@@ -204,7 +329,7 @@ module Admin
 
     def card_owner(path)
       relative = relative_path(path)
-      match = relative.match(%r{\Aplugins/([^/]+)/})
+      match = relative.match(%r{(?:\A|/)plugins/([^/]+)/})
       return [ "plugin", match[1] ] if match
 
       [ "core", "core" ]
@@ -214,6 +339,78 @@ module Admin
       Pathname.new(path).relative_path_from(Rails.root).to_s
     rescue ArgumentError
       path.to_s
+    end
+
+    class CardClassification
+      Result = Data.define(:name, :reason)
+
+      class << self
+        def for(tool)
+          classifiers.each do |classifier|
+            result = classifier.call(tool)
+            return result if result
+          end
+        end
+
+        private
+
+        def classifiers
+          @classifiers ||= [
+            PluginCustomCard,
+            CoreCustomCard,
+            GenericCardAcceptable,
+            HiddenAckOnly,
+            IntentionallyObscureDeferred,
+            Unclassified
+          ].freeze
+        end
+      end
+
+      class PluginCustomCard
+        def self.call(tool)
+          return unless tool.card_owner_type == "plugin"
+
+          Result.new(name: "plugin_custom_card", reason: "plugin-owned custom card renderer is registered")
+        end
+      end
+
+      class CoreCustomCard
+        def self.call(tool)
+          return unless tool.custom_card?
+
+          Result.new(name: "custom_card", reason: "core custom card renderer is registered")
+        end
+      end
+
+      class GenericCardAcceptable
+        def self.call(tool)
+          return unless GENERIC_CARD_ACCEPTABLE_TOOLS.include?(tool.tool_name)
+
+          Result.new(name: "generic_card_acceptable", reason: "raw transcript-style output is acceptable for this diagnostic tool")
+        end
+      end
+
+      class HiddenAckOnly
+        def self.call(tool)
+          return unless HIDDEN_ACK_ONLY_TOOLS.include?(tool.tool_name)
+
+          Result.new(name: "hidden_ack_only", reason: "successful calls are acknowledgement-only or normally hidden from chat")
+        end
+      end
+
+      class IntentionallyObscureDeferred
+        def self.call(tool)
+          return unless tool.deferred?
+
+          Result.new(name: "intentionally_obscure_deferred", reason: "deferred-tier tool is intentionally obscure unless usage proves card value")
+        end
+      end
+
+      class Unclassified
+        def self.call(_tool)
+          Result.new(name: "unclassified", reason: "advertised chat tool has no registered card or explicit coverage classification")
+        end
+      end
     end
   end
 end

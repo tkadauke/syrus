@@ -46,15 +46,34 @@ tool input/result — only the same bounded, already-truncated
 `custom_card_gaps` is reporting-only. It never creates proposals or mutates
 plugin/core state. The payload compares chat-surface usage and currently
 advertised chat tools against registered frontend custom tool-card renderers
-where that renderer metadata can be discovered from core
-`app/frontend/routes/chat/tool_cards/*.tsx` files and plugin
-`plugins/*/app/frontend/tool_cards/*.tsx` files. The section has three buckets:
+where that renderer metadata can be discovered from the same registration entry
+point chat rendering uses: core `app/frontend/routes/chat/tool_cards/*.tsx`
+files and plugin `plugins/*/app/frontend/tool_cards/*.tsx` files. The section
+includes a full `classified_tools` inventory for every advertised chat MCP
+tool, sparse `classification_counts`, and `unclassified_tools` for advertised
+tools that have neither a registered card nor an explicit "generic/deferred/ack"
+classification.
+
+Coverage classifications:
+
+- `custom_card` — core-owned custom card renderer is registered.
+- `plugin_custom_card` — plugin-owned custom card renderer is registered.
+- `generic_card_acceptable` — the generic raw transcript-style body is
+  acceptable for this diagnostic tool.
+- `hidden_ack_only` — successful calls are acknowledgement-only or normally
+  hidden from chat.
+- `intentionally_obscure_deferred` — a deferred-tier tool is intentionally
+  obscure unless usage proves custom-card value.
+- `unclassified` — advertised chat tool has no registered card or explicit
+  coverage classification, and should be treated as audit debt.
+
+The section still exposes the existing priority buckets:
 
 - `high_volume_without_custom_card` — the highest-volume chat tools in the
-  selected window that have no registered custom card.
+  selected window that have no registered custom card and remain unclassified.
 - `high_error_with_weak_or_no_custom_card` — chat tools with errors whose card
-  is missing or weak. A weak card is one with an expanded renderer but no
-  collapsed summary metadata.
+  is missing/unclassified or weak. A weak card is one with an expanded renderer
+  but no collapsed summary metadata.
 - `unused_advertised_tools` — chat tools advertised for the current chat
   availability context but not used in the selected window.
 
