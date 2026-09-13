@@ -253,6 +253,13 @@ the workflow step UI and include it in API payloads. Add a regression test for
 `cancel_terminal_workflow_active_descendants` that asserts each cancelled
 descendant carries the cause.
 
+**Fixed:** `Workflow#cancel_active_descendants!` now stamps active Step
+descendants with a concise cancellation reason and structured cleanup details,
+including the terminal workflow state and source failed Step when available.
+Run cancellation reason is captured through existing state-transition metadata
+from the reconciler repair action. Covered by
+`spec/services/work_engine/reconciler_spec.rb`.
+
 ### Control-plane steps are blocked by compute host pressure
 
 **Symptom:** Landing and merge-train workflows can stop moving even after all
@@ -275,6 +282,12 @@ is unhealthy.
 `control_plane` steps should bypass compute host pressure and should not need a
 pinned workspace host.
 
+**Fixed:** `RunHostAdmission` now admits concrete
+`Step::PlacementPolicy::CONTROL_PLANE` steps before applying compute-host
+pressure guards. This lets cheap orchestration steps such as `grader_collect`
+finish or fail workflows even while hosts are too pressured for agentic or
+high-cost grader work. Covered by `spec/services/run_host_admission_spec.rb`.
+
 ### Main-branch graders compete with landing graders
 
 **Symptom:** During landing pressure, main-branch health runs consume worker
@@ -291,6 +304,12 @@ main-health grading when the cluster is saturated.
 **Fix direction:** Add an admission priority policy: landing publication and
 landing collectors first, active landing graders next, main-health and insight
 work only when there is spare capacity.
+
+**Fixed:** `RunHostAdmission` now makes background `main_grader`,
+`main_branch_repair`, and `agent_insight` runs yield on warning-or-worse hosts
+when active landing work exists for the same repository. Control-plane steps
+still bypass host pressure, and landing graders do not yield to background main
+health. Covered by `spec/services/run_host_admission_spec.rb`.
 
 ### Main-branch repair fanout can create duplicate all-grader failures
 
@@ -452,6 +471,12 @@ parallel fanout and reconciler-created work.
 Prefer database-backed atomic increments or retry-on-unique-violation around
 the smallest creation transaction.
 
+**Fixed:** `JobLog` already retried optimistic append collisions. The remaining
+gap was command-span instrumentation: `GraderCommandSpans::Recorder` now
+retries `CommandSpan` sequence collisions and records the span at the next free
+sequence instead of failing the grader run. Covered by
+`spec/services/grader_command_spans/recorder_spec.rb`.
+
 ### Rails process shutdown bookkeeping is slow
 
 **Symptom:** Ad hoc Rails runners and app processes repeatedly log slow
@@ -467,3 +492,10 @@ noticeable latency or lock pressure during incident debugging.
 **Fix direction:** Add the missing index or reduce write frequency/contention
 for `instance_versions` shutdown updates. Confirm with slow-query samples after
 deploy.
+
+**Fixed:** `SyrusVersion.server_process?` now requires both `SYRUS_ROLE` and a
+long-lived server/worker command shape (`rails server`, `puma`, `thrust`, or
+`bin/jobs`). Ad hoc Rails runners and maintenance commands inside pods no
+longer register transient `instance_versions` rows or run at-exit finalize
+updates. Covered by `spec/services/syrus_version_spec.rb` and
+`spec/services/instance_version_supervisor_spec.rb`.

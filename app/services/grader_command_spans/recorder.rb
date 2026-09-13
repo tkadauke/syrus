@@ -7,6 +7,7 @@ module GraderCommandSpans
     MARKER_START = "\x1e"
     MARKER_END = "\x1f"
     MAX_SPANS_PER_RUN = 50
+    MAX_CREATE_ATTEMPTS = 5
 
     attr_reader :plan
 
@@ -160,23 +161,46 @@ module GraderCommandSpans
     end
 
     def create_span!(sequence:, name:, command_excerpt:, started_at:, metadata:)
-      CommandSpan.create!(
-        job: @run.job,
-        workflow: @workflow,
-        step: @step,
-        run: @run,
-        spawned_process_id: @spawned_process_id,
-        sequence: sequence,
-        name: name.to_s.safe_byteslice(0, 128),
-        command_excerpt: command_excerpt.to_s.safe_byteslice(0, Plan::MAX_COMMAND_EXCERPT),
-        started_at: started_at,
-        hostname: Socket.gethostname,
-        metadata: metadata
-      )
+      next_sequence = sequence.to_i
+      attempts = 0
+
+      begin
+        CommandSpan.create!(
+          job: @run.job,
+          workflow: @workflow,
+          step: @step,
+          run: @run,
+          spawned_process_id: @spawned_process_id,
+          sequence: next_sequence,
+          name: name.to_s.safe_byteslice(0, 128),
+          command_excerpt: command_excerpt.to_s.safe_byteslice(0, Plan::MAX_COMMAND_EXCERPT),
+          started_at: started_at,
+          hostname: Socket.gethostname,
+          metadata: metadata
+        )
+      rescue ActiveRecord::RecordNotUnique
+        attempts += 1
+        raise if attempts >= MAX_CREATE_ATTEMPTS
+
+        next_sequence = next_available_sequence
+        retry
+      rescue ActiveRecord::RecordInvalid => e
+        raise unless e.record.errors.of_kind?(:sequence, :taken)
+
+        attempts += 1
+        raise if attempts >= MAX_CREATE_ATTEMPTS
+
+        next_sequence = next_available_sequence
+        retry
+      end
     end
 
     def span_sequence(sequence)
       @sequence_offset + sequence
+    end
+
+    def next_available_sequence
+      (CommandSpan.where(run_id: @run.id).maximum(:sequence) || 0) + 1
     end
 
     def finish_span!(span, finished_at:, exit_status:, outcome:)

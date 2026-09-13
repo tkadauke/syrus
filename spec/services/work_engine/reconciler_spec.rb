@@ -3097,6 +3097,34 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload).to have_attributes(state: "cancelled", agent_outcome: nil)
   end
 
+  it "records why active descendant Steps were cancelled under a terminal Workflow" do
+    failed_step = Step.create!(workflow: workflow, kind: "grader_collect", position: 2)
+    queued_tail = Step.create!(workflow: workflow, kind: "summarize", position: 3)
+    step.update!(next_step: failed_step)
+    failed_step.update!(next_step: queued_tail)
+    step.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+    failed_step.update_columns(state: "failed", started_at: 8.minutes.ago, finished_at: 7.minutes.ago)
+    queued_tail.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 6.minutes.ago)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(plan(result, :cancel_terminal_workflow_active_descendants)).to have_attributes(auto_executable: true)
+    expect(queued_tail.reload).to have_attributes(
+      state: "cancelled",
+      cancellation_reason: "cancel_terminal_workflow_active_descendants"
+    )
+    expect(queued_tail.details).to include(
+      "cancelled_by" => "terminal_workflow_cleanup",
+      "cancelled_reason" => "cancel_terminal_workflow_active_descendants",
+      "cancelled_workflow_id" => workflow.id,
+      "cancelled_workflow_state" => "failed",
+      "cancelled_source_step_id" => failed_step.id,
+      "cancelled_source_step_kind" => "grader_collect"
+    )
+  end
+
   it "does not cancel a persisted running Step whose latest Run is already terminal" do
     isolated_workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed", finished_at: 10.minutes.ago)
     isolated_step = Step.create!(

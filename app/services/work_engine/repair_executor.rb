@@ -894,7 +894,7 @@ module WorkEngine
           return skipped("Workflow has no active descendants") unless workflow.active_descendants?
 
           with_transition_reason do
-            workflow.cancel_active_descendants!
+            workflow.cancel_active_descendants!(reason: plan.action)
           end
 
           workflow.reload

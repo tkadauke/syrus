@@ -27,9 +27,21 @@ module SyrusVersion
   # True when this Rails process is one whose lifetime is worth tracking
   # in the instance_versions table — i.e. a web pod or a worker pod.
   # Skips rake tasks, console, tests, migrations. Driven by SYRUS_ROLE
-  # being set explicitly in K8s manifests rather than guessing from
-  # $PROGRAM_NAME.
+  # being set explicitly in K8s manifests plus the process command being a
+  # long-lived server/worker command, so ad hoc Rails runners inside a pod do
+  # not register and finalize transient rows.
   def server_process?
-    ENV["SYRUS_ROLE"].present? && !sidecar_process? && !Rails.env.test?
+    ENV["SYRUS_ROLE"].present? && server_command? && !sidecar_process? && !Rails.env.test?
+  end
+
+  def server_command?
+    program = File.basename($PROGRAM_NAME.to_s)
+    argv = ARGV.map(&:to_s)
+    return true if program.in?(%w[jobs puma pumactl thrust])
+    return true if program == "rails" && argv.first == "server"
+    return true if program == "bin/rails" && argv.first == "server"
+    return true if argv.include?("server") && argv.any? { |arg| arg.end_with?("bin/rails", "/rails") }
+
+    false
   end
 end

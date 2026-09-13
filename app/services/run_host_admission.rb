@@ -34,6 +34,7 @@ class RunHostAdmission
   # profiles for the grader exception; host-correlated profiles still describe
   # ambient fleet pressure rather than the step's own demand.
   ALWAYS_GUARDED_STEP_KINDS = Step::AGENTIC_KINDS.freeze
+  BACKGROUND_TRIGGER_KINDS = %w[main_grader main_branch_repair agent_insight].freeze
 
   def self.call(...) = new(...).call
 
@@ -47,12 +48,14 @@ class RunHostAdmission
     return admit("not_queued") unless run&.queued?
     return admit("non_compute_queue") unless compute_queue?
     return admit("missing_execution_graph") unless workflow && step
+    return admit("control_plane_step") if control_plane_step?
 
-    # Measured first, and for every kind of run: a host in trouble should stop
-    # taking work, not just stop taking *agentic* work. This is the gate that
-    # replaced the predicted-cost budget, so it has to be the one that
-    # actually decides.
+    # Measured before admitting any compute-bound run: a host in trouble should
+    # stop taking more agentic or high-cost grader work. Control-plane steps
+    # already returned above; they are the cheap orchestration path that can
+    # unblock or terminate expensive work.
     return defer("local_worker_pressure_critical") if critical_local_pressure?
+    return defer("landing_work_has_priority") if background_work_should_yield?
 
     # Beyond that, agentic runs are rationed per host to bound how far a burst
     # can overshoot a stale sample. High-cost graders get a narrower guard only
@@ -104,6 +107,10 @@ class RunHostAdmission
     queue_name.to_s.start_with?("resume-")
   end
 
+  def control_plane_step?
+    step.placement_policy == Step::PlacementPolicy::CONTROL_PLANE
+  end
+
   # Host readings trail the work that produced them, so admitting several runs
   # against one sample overshoots before the next sample can object. Leaving a
   # gap between admissions on a host means each decision sees a measurement
@@ -121,6 +128,24 @@ class RunHostAdmission
 
   def critical_local_pressure?
     local_health.fetch(:level, local_health["level"]) == "critical"
+  end
+
+  def background_work_should_yield?
+    background_work? && local_health_warning? && active_landing_work_for_repository?
+  end
+
+  def background_work?
+    run.trigger_kind.to_s.in?(BACKGROUND_TRIGGER_KINDS)
+  end
+
+  def active_landing_work_for_repository?
+    Workflow
+      .joins(:job)
+      .where(jobs: { repository_id: workflow.job.repository_id })
+      .where(state: Workflow::TriggerKind::ACTIVE_STATES)
+      .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
+      .where.not(id: workflow.id)
+      .exists?
   end
 
   def compute_queue?

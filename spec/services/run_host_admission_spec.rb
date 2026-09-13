@@ -115,6 +115,39 @@ RSpec.describe RunHostAdmission do
     expect(decision.reason).to eq("host_capacity_available")
   end
 
+  it "admits control-plane steps on a worker with critical local pressure" do
+    enable_distributed_workflow_dag!
+    worker_sample(cpu_pressure_some: 55.0)
+    landing_workflow = Workflows::MergeTrain.instantiate(job: job, agent_provider: "codex")
+    landing_workflow.update!(worker_hostname: "worker-a")
+    collect_step = landing_workflow.steps.find_by!(kind: "grader_collect")
+    collect_run = collect_step.runs.create!(
+      job: job,
+      trigger_kind: landing_workflow.trigger_kind,
+      agent_provider: landing_workflow.agent_provider
+    )
+
+    decision = described_class.call(run: collect_run, queue_name: "merges")
+
+    expect(decision).to be_admit
+    expect(decision.reason).to eq("control_plane_step")
+    expect(decision.details).to include(
+      "queue_name" => "merges",
+      "step_kind" => "grader_collect"
+    )
+  end
+
+  def enable_distributed_workflow_dag!
+    Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+      feature.category = "Operations"
+      feature.name = "Distributed workflow DAG"
+    end.update!(enabled: true)
+    Feature.clear_enabled_cache!
+    repository.update!(distributed_workflow_dag_enabled: true)
+    repository.reload
+    job.association(:repository).reset
+  end
+
   # The per-host slot count is a lag backstop, not a capacity model, so a spec
   # that wants "the host is full" has to actually fill it.
   def saturate_guarded_slots!(count: RunHostAdmission::GUARDED_RUNS_PER_HOST)
@@ -224,6 +257,68 @@ RSpec.describe RunHostAdmission do
       low_cost_profile(step_kind: "grader", grader_name: "rspec")
 
       decision = described_class.call(run: grader_run)
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("resource_guard_not_needed")
+    end
+
+    it "defers background main-health graders on a warning host while landing work is active" do
+      worker_sample(cpu_pressure_some: 25.0)
+      landing_workflow = Workflows::AutoMerge.instantiate(job: job, agent_provider: "codex")
+      landing_workflow.update!(state: "running", worker_hostname: "worker-a")
+      main_grader_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        kind: "main_grader",
+        state: "running",
+        issue_number: nil,
+        issue_title: "main_grader:abc123"
+      )
+      main_workflow = Workflows::MainGrader.instantiate(job: main_grader_job, agent_provider: "codex")
+      main_workflow.update!(state: "running", worker_hostname: "worker-a")
+      main_step = Step.create!(workflow: main_workflow, kind: "grader", position: 99, details: { "name" => "rspec" })
+      main_run = main_step.runs.create!(
+        job: main_grader_job,
+        trigger_kind: main_workflow.trigger_kind,
+        agent_provider: main_workflow.agent_provider
+      )
+
+      decision = described_class.call(run: main_run)
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("landing_work_has_priority")
+    end
+
+    it "does not make landing graders yield to background main-health work" do
+      worker_sample(cpu_pressure_some: 25.0)
+      main_grader_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        kind: "main_grader",
+        state: "running",
+        issue_number: nil,
+        issue_title: "main_grader:abc123"
+      )
+      main_workflow = Workflows::MainGrader.instantiate(job: main_grader_job, agent_provider: "codex")
+      main_workflow.update!(state: "running", worker_hostname: "worker-a")
+      main_step = Step.create!(workflow: main_workflow, kind: "grader", position: 99, state: "running", details: { "name" => "rspec" })
+      main_step.runs.create!(
+        job: main_grader_job,
+        trigger_kind: main_workflow.trigger_kind,
+        agent_provider: main_workflow.agent_provider,
+        state: "running",
+        started_at: 1.minute.ago
+      )
+      landing_workflow = Workflows::AutoMerge.instantiate(job: job, agent_provider: "codex")
+      landing_workflow.update!(state: "running", worker_hostname: "worker-a")
+      landing_step = Step.create!(workflow: landing_workflow, kind: "grader", position: 99, details: { "name" => "rspec" })
+      landing_run = landing_step.runs.create!(
+        job: job,
+        trigger_kind: landing_workflow.trigger_kind,
+        agent_provider: landing_workflow.agent_provider
+      )
+
+      decision = described_class.call(run: landing_run)
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("resource_guard_not_needed")

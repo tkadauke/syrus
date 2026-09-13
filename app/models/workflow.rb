@@ -336,10 +336,11 @@ class Workflow < ApplicationRecord
     end
   end
 
-  def cancel_active_descendants!
+  def cancel_active_descendants!(reason: "terminal_workflow_active_descendants")
     request_live_process_kill!
     Step.suppress_cancel_cascade do
       active_steps = projected_active_steps
+      cancellation_details = active_descendant_cancellation_details(reason)
 
       runs.active.find_each do |run|
         if run.may_cancel?
@@ -350,6 +351,8 @@ class Workflow < ApplicationRecord
 
       active_steps.each do |step|
         if step.may_cancel?
+          step.cancellation_reason = reason
+          step.details = step.details.to_h.merge(cancellation_details)
           step.cancel!
           step.save!
         end
@@ -369,6 +372,18 @@ class Workflow < ApplicationRecord
       .find_each { |process| process.request_kill! }
   rescue StandardError => e
     Rails.logger.warn("[Workflow##{id}] failed to request spawned process kills: #{e.class}: #{e.message}")
+  end
+
+  def active_descendant_cancellation_details(reason)
+    source_step = steps.where(state: "failed").reorder(position: :desc, id: :desc).first
+    {
+      "cancelled_by" => "terminal_workflow_cleanup",
+      "cancelled_reason" => reason,
+      "cancelled_workflow_id" => id,
+      "cancelled_workflow_state" => state,
+      "cancelled_source_step_id" => source_step&.id,
+      "cancelled_source_step_kind" => source_step&.kind
+    }.compact
   end
 
   def runs

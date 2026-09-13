@@ -18,4 +18,29 @@ RSpec.describe GraderCommandSpans::Recorder do
 
     expect(run.reload.command_spans.sole.sequence).to eq(4)
   end
+
+  it "uses the next free sequence when another writer claimed the expected sequence" do
+    CommandSpan.create!(
+      job: job,
+      workflow: workflow,
+      step: step,
+      run: run,
+      sequence: 1,
+      name: "existing",
+      command_excerpt: "printf existing",
+      started_at: 1.minute.ago
+    )
+
+    described_class.new(
+      run: run,
+      step: step,
+      workflow: workflow,
+      plan: plan
+    )
+
+    expect(run.reload.command_spans.ordered.pluck(:name, :sequence)).to eq([
+      [ "existing", 1 ],
+      [ "printf ready #1", 2 ]
+    ])
+  end
 end
