@@ -15,7 +15,7 @@ module GlobalSearch
     default_enabled true
     disableable true
     hosts [ :source ]
-    provides "global_search:source" => "GlobalSearch::BuiltInSource",
+    provides "global_search:source" => [ "GlobalSearch::JobSource", "GlobalSearch::EpicSource" ],
              domain_subscriber: "GlobalSearch::Subscribers",
              sidebar_page: "GlobalSearch::SidebarPages"
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"

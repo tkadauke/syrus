@@ -29,15 +29,27 @@ module GlobalSearch
   #   def self.search_rows(query:, user:, limit:) = [ { my_thing_id:, rank:, snippet: } ]
   #   def self.row_id_key = :my_thing_id
   #   def self.result_json(row:, user:) = { id:, title:, path: }
+  #
+  # Providers that own built-in or plugin search tables can also expose
+  # maintenance rebuild hooks:
+  #
+  #   def self.search_table_name = "my_plugin_fts"
+  #   def self.search_id_column = "my_plugin_id"
+  #   def self.records = MyPlugin::Record.order(:id)
+  #   def self.count = MyPlugin::Record.count
+  #   def self.exists? = MyPlugin::Record.exists?
+  #   def self.upsert(record) = MyPlugin::Index.upsert(record)
+  #
+  # Legacy providers may expose narrower built-in hooks instead:
+  #
+  #   def self.index_job(job) = ...
+  #   def self.index_epic(epic) = ...
   # The contract for a search result type contributed through this plugin's
   # "global_search:source" point.
   #
   # The global_search plugin also uses this hosted point for optional
   # maintenance hooks that backfill built-in core models without core naming
   # plugin-owned index constants:
-  #
-  #   def self.index_job(job) = ...
-  #   def self.index_epic(epic) = ...
   #
   # Contributors do not `include` this module: doing so would make them load a
   # Search constant, turning an optional hook into a hard load-time dependency
