@@ -35,6 +35,41 @@ RSpec.describe Ruby::RspecParser do
         expect(described_class.can_parse?(output_path: f.path)).to be false
       end
     end
+
+    it "returns false for JUnit XML even when failure text contains an RSpec summary" do
+      Tempfile.create([ "rspec-junit", ".xml" ]) do |f|
+        f.write(<<~XML)
+          <?xml version="1.0" encoding="UTF-8"?>
+          <testsuites>
+            <testsuite name="spec/models/widget_spec.rb">
+              <testcase classname="spec/models/widget_spec.rb" name="Widget#price applies discounts">
+                <failure message="expected: 10">
+                  Failures:
+
+                    1) Widget#price applies discounts
+                       Failure/Error: expect(widget.price).to eq(10)
+
+                  Finished in 1.23 seconds
+                  4 examples, 1 failure
+                </failure>
+              </testcase>
+            </testsuite>
+          </testsuites>
+        XML
+        f.flush
+
+        expect(described_class.can_parse?(output_path: f.path)).to be false
+      end
+    end
+
+    it "allows explicit RSpec format hints to parse XML-looking content" do
+      Tempfile.create([ "rspec-output", ".xml" ]) do |f|
+        f.write("<testsuites>4 examples, 1 failure</testsuites>")
+        f.flush
+
+        expect(described_class.can_parse?(output_path: f.path, format_hint: "rspec")).to be true
+      end
+    end
   end
 
   describe ".call" do

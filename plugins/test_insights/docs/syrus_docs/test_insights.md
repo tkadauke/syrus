@@ -22,10 +22,11 @@ grade:
     junit_output: .syrus/grade-output/rspec-junit.xml
 ```
 
-After the grader command runs (pass or fail), `Steps::Grader#ingest_test_output!`
-(`app/services/steps/grader.rb:99,156-186`) reads the file at that path and
-writes one `TestInsights::TestRun`, one `TestInsights::TestCase` row per parsed case, and links each case
-to its stable `TestInsights::TestIdentity`, tagged with the grader's name.
+After the grader command runs (pass or fail), `Steps::Grader#announce_test_output!`
+publishes the configured output path to Test Insights. The inline subscriber
+reads the file at that path and writes one `TestInsights::TestRun`, one
+`TestInsights::TestCase` row per parsed case, and links each case to its
+stable `TestInsights::TestIdentity`, tagged with the grader's name.
 A missing file is not an error — it logs
 `"junit_output ... not found — skipping ingestion"` and moves on, so a
 `junit_output` path that's only produced by one variant of a grader (see
@@ -40,13 +41,20 @@ for that variant.
 
 ## How the file gets parsed: the `test_result_parser` extension point
 
-`ingest_test_output!` tries every registered `test_result_parser` plugin
-provider in registration order (`Syrus::PluginRegistry.providers_for(:test_result_parser)`),
-calling `can_parse?(output_path:, format_hint: nil)` on each; the first
-provider that returns `true` handles the file via `call(output_path:, format_hint: nil)`.
-If no plugin claims the file, core falls back to `JunitXmlParser`, which
-parses standard JUnit XML (`<testsuite>`/`<testsuites>` with `<testcase>`
-elements, `<failure>`/`<error>`/`<skipped>` children).
+Test Insights gives standard JUnit XML to core's `JunitXmlParser` before
+trying plugin text parsers. Files with an `.xml` output path, or content that
+starts with a `<testsuite>`/`<testsuites>` root, are treated as JUnit XML so
+RSpec JUnit files cannot be claimed by `Ruby::RspecParser` just because a
+failure body contains RSpec's progress-output summary text.
+
+For non-JUnit output, Test Insights tries every registered
+`test_result_parser` plugin provider in registration order
+(`Syrus::PluginRegistry.providers_for("test_insights:parser")`), calling
+`can_parse?(output_path:, format_hint:)` on each; the first provider that
+returns `true` handles the file via `call(output_path:, format_hint:)`. If no
+plugin claims the file, core falls back to `JunitXmlParser`, which parses
+standard JUnit XML (`<testsuite>`/`<testsuites>` with `<testcase>` elements,
+`<failure>`/`<error>`/`<skipped>` children).
 
 A parser's `call` must return an object duck-typed to
 `JunitXmlParser::ParsedRun`: it responds to `total_count`, `passed_count`,
@@ -57,11 +65,10 @@ See `lib/syrus/plugin/test_result_parser.rb` for the full contract and
 `plugins/ruby/lib/ruby/rspec_parser.rb` (`Ruby::RspecParser`)
 for a reference implementation.
 
-`format_hint` is currently always `nil` for `test_result_parser` calls — it
-exists in the interface for parity with `coverage_analyzer` (which does thread
-a `format:` value from `.syrus.yml` through), but `ingest_test_output!` doesn't
-read a format hint from the grader config today. Parsers must decide
-`can_parse?` from the file's content or extension alone.
+`format_hint` is the configured output path's file extension, such as `"xml"`
+for `.syrus/grade-output/rspec-junit.xml` or `"txt"` for progress-output
+captures. Parsers should still inspect the file content when needed; the hint
+is only a lightweight routing clue, not a trusted format declaration.
 
 ### Why this repo's own rspec grader uses JUnit XML, not `Ruby::RspecParser`'s native format
 
@@ -86,9 +93,9 @@ bin/rspec spec plugins --format progress --require rspec_junit_formatter --forma
 ```
 
 Because JUnit XML enumerates every example (passed, failed, and skipped),
-`JunitXmlParser` (the core fallback — `Ruby::RspecParser.can_parse?`
-declines XML content, since it doesn't match the progress-format summary
-line) creates one `TestCase` row per example per grader Run, giving
+`JunitXmlParser` (the core XML parser — `Ruby::RspecParser.can_parse?`
+declines JUnit XML content unless explicitly called with `format_hint: "rspec"`)
+creates one `TestCase` row per example per grader Run, giving
 `TestCase.top_flaky_tests` real signal.
 
 `junit_output` is attached to the grader entry that produced it, independent of
