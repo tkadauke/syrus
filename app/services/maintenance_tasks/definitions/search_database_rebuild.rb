@@ -88,14 +88,14 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        provider = job_search_source
-        return mark_plugin_step_done(task, "jobs") unless provider
+        indexer = job_index_rebuild_source
+        return mark_plugin_step_done(task, "jobs") unless indexer
 
         task.current_step_key = "jobs"
         task.current_step_title = "Index jobs"
         processed = 0
         Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          provider.index_job(job)
+          indexer.upsert_job(job)
           task.checkpoint_will_change!
           task.checkpoint["last_job_id"] = job.id
           processed += 1
@@ -107,14 +107,14 @@ module MaintenanceTasks
       end
 
       def index_epics(task)
-        provider = epic_search_source
-        return mark_plugin_step_done(task, "epics") unless provider
+        indexer = epic_index_rebuild_source
+        return mark_plugin_step_done(task, "epics") unless indexer
 
         task.current_step_key = "epics"
         task.current_step_title = "Index epics"
         processed = 0
         Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          provider.index_epic(epic)
+          indexer.upsert_epic(epic)
           task.checkpoint_will_change!
           task.checkpoint["last_epic_id"] = epic.id
           processed += 1
@@ -178,15 +178,15 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        job_search_source && indexed_count("job_fts", "job_id") < Job.count
+        job_index_rebuild_source && indexed_count("job_fts", "job_id") < Job.count
       rescue StandardError
-        job_search_source && Job.exists?
+        job_index_rebuild_source && Job.exists?
       end
 
       def epics_need_rebuild?
-        epic_search_source && indexed_count("epic_fts", "epic_id") < Epic.count
+        epic_index_rebuild_source && indexed_count("epic_fts", "epic_id") < Epic.count
       rescue StandardError
-        epic_search_source && Epic.exists?
+        epic_index_rebuild_source && Epic.exists?
       end
 
       def operational_logs_need_rebuild?
@@ -202,22 +202,20 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = job_search_source ? Job.count : 0
-      def epics_count = epic_search_source ? Epic.count : 0
+      def jobs_count = job_index_rebuild_source ? Job.count : 0
+      def epics_count = epic_index_rebuild_source ? Epic.count : 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
 
-      def job_search_source
-        search_sources.find { |provider| provider.respond_to?(:indexes_jobs?) && provider.indexes_jobs? && provider.respond_to?(:index_job) }
+      def job_index_rebuild_source
+        global_search_rebuild_sources.find { |source| source.respond_to?(:upsert_job) }
       end
 
-      def epic_search_source
-        search_sources.find { |provider| provider.respond_to?(:indexes_epics?) && provider.indexes_epics? && provider.respond_to?(:index_epic) }
+      def epic_index_rebuild_source
+        global_search_rebuild_sources.find { |source| source.respond_to?(:upsert_epic) }
       end
 
-      def search_sources
-        return [] unless defined?(Syrus::PluginRegistry)
-
-        Syrus::PluginRegistry.providers_for("global_search:source")
+      def global_search_rebuild_sources
+        @global_search_rebuild_sources ||= Syrus::PluginRegistry.providers_for("global_search:rebuild_source")
       rescue StandardError
         []
       end
