@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_143000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -1799,6 +1799,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_143000) do
     t.index ["repository_id", "finished_at"], name: "idx_merge_trains_repo_finished_at"
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
     t.index ["state", "id"], name: "idx_merge_trains_state_id"
+  end
+
+  create_table "metrics_dashboard_samples", force: :cascade do |t|
+    t.json "labels"
+    t.string "metric", limit: 190, null: false
+    t.datetime "recorded_at", null: false
+    t.string "series_key", limit: 190, null: false
+    t.float "value", null: false
+    t.index ["metric", "series_key", "recorded_at"], name: "idx_metrics_dashboard_series_minute", unique: true
+    t.index ["recorded_at"], name: "index_metrics_dashboard_samples_on_recorded_at"
   end
 
   create_table "mockups", force: :cascade do |t|

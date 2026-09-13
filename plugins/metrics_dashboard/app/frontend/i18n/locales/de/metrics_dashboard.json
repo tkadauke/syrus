@@ -1,0 +1,17 @@
+{
+  "heading": "Metriken",
+  "subheading": "Aufgezeichnet vom /metrics-Endpunkt dieser Instanz.",
+  "aria_page": "Metrik-Dashboard",
+  "loading": "Metriken werden geladen…",
+  "error": "Metriken konnten nicht geladen werden.",
+  "panel_empty": "In diesem Zeitraum wurden noch keine Daten aufgezeichnet.",
+  "no_data_notice": "Es wurde noch nichts aufgezeichnet. Die Aufzeichnung beginnt eine Minute nach Aktivierung des Plugins.",
+  "stale_notice": "Die Aufzeichnung scheint gestoppt zu sein. Letzte Messung: {{at}}.",
+  "panels": {
+    "queue_oldest_age": "Ältester wartender Job, nach Queue",
+    "queue_ready": "Wartende Jobs, nach Queue",
+    "queue_failed": "Fehlgeschlagene Ausführungen, nach Job-Klasse",
+    "queue_orphaned": "Verwaiste Queue-Zeilen",
+    "feature_usage": "Feature-Nutzung"
+  }
+}

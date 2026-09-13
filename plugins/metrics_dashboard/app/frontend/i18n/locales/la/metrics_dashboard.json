@@ -1,0 +1,17 @@
+{
+  "heading": "Metra",
+  "subheading": "Ex ipsius instantiae /metrics collecta.",
+  "aria_page": "Tabula metrorum",
+  "loading": "Metra onerantur…",
+  "error": "Metra onerari non potuerunt.",
+  "panel_empty": "Nulla data hoc intervallo adhuc collecta.",
+  "no_data_notice": "Nihil adhuc collectum est. Collectio post minutum ab instrumento incitato incipit.",
+  "stale_notice": "Collectio cessavisse videtur. Ultimum exemplum: {{at}}.",
+  "panels": {
+    "queue_oldest_age": "Vetustissimum opus exspectans, per ordinem",
+    "queue_ready": "Opera exspectantia, per ordinem",
+    "queue_failed": "Executiones lapsae, per genus operis",
+    "queue_orphaned": "Lineae ordinis orbatae",
+    "feature_usage": "Usus facultatum"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "heading": "Metrics",
+  "subheading": "Recorded from this instance's own /metrics endpoint.",
+  "aria_page": "Metrics dashboard",
+  "loading": "Loading metrics…",
+  "error": "Could not load metrics.",
+  "panel_empty": "No data recorded in this window yet.",
+  "no_data_notice": "Nothing has been recorded yet. Recording starts a minute after the plugin is enabled.",
+  "stale_notice": "Recording appears to have stopped. Last sample: {{at}}.",
+  "panels": {
+    "queue_oldest_age": "Oldest waiting job, by queue",
+    "queue_ready": "Jobs waiting, by queue",
+    "queue_failed": "Failed executions, by job class",
+    "queue_orphaned": "Orphaned queue rows",
+    "feature_usage": "Feature usage"
+  }
+}

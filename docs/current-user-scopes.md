@@ -234,6 +234,7 @@ admin-only:
   - app/controllers/api/v1/app/admin/installations_controller.rb
   - app/controllers/api/v1/app/admin/invitations_controller.rb
   - app/controllers/api/v1/app/admin/maintenance_tasks_controller.rb
+  - plugins/metrics_dashboard/app/controllers/api/v1/app/metrics_dashboard_controller.rb
   - app/controllers/api/v1/app/maintenance_tasks_controller.rb
   - app/controllers/api/v1/app/admin/mcp_tool_usage_controller.rb
   - app/controllers/api/v1/app/admin/plugins_controller.rb
