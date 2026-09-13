@@ -74,8 +74,11 @@ describe("semantic color design tokens", () => {
     expect(css).toContain("--color-warning-surface: color-mix(in srgb, var(--color-surface) 94%, var(--color-warning));")
     expect(css).toContain("--color-info-text: var(--color-info);")
     expect(css).toContain("--color-link: var(--color-brand-emphasis);")
+    expect(css).toContain("--color-code-surface: var(--color-surface-inset);")
+    expect(css).toContain("--color-code-keyword: var(--color-brand-emphasis);")
     expect(css).not.toContain("--color-warning-surface: #fff7ed;")
     expect(css).not.toContain("--color-info-text: #1e40af;")
+    expect(css).not.toContain("--color-code-surface: #111827;")
   })
 })
 

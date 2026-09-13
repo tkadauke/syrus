@@ -12,6 +12,9 @@ export { PageHeading, SectionHeading } from "../Heading"
 export { Cluster, Inline, Stack, Toolbar } from "./Layout"
 export type { ClusterProps, InlineProps, LayoutAlign, LayoutGap, LayoutJustify, StackProps, ToolbarProps } from "./Layout"
 
+export { CodeSurface, codeSurfaceClasses } from "./CodeSurface"
+export type { CodeSurfaceMode, CodeSurfaceOverflow, CodeSurfaceProps, CodeTokenProps, CodeTokenTone } from "./CodeSurface"
+
 export { DataTable } from "./DataTable"
 export type { DataTableAlign, DataTableCellProps, DataTableDensity, DataTableEmptyProps, DataTableHeadCellProps, DataTableRootProps, DataTableRowProps, DataTableSortDirection } from "./DataTable"
 
@@ -20,6 +23,9 @@ export type { DescriptionListDensity, DescriptionListItemProps, DescriptionListR
 
 export { LinkText, linkTextClasses } from "./LinkText"
 export type { LinkTextProps } from "./LinkText"
+
+export { Metric, Stat } from "./Metric"
+export type { MetricCardProps, MetricDensity, MetricGroupProps, StatGroupProps, StatProps } from "./Metric"
 
 export { Input } from "../Input"
 export type { InputProps } from "../Input"
@@ -63,6 +69,12 @@ export type { TextProps, TextTone, TextVariant } from "./Text"
 
 export { Textarea } from "../Textarea"
 export type { TextareaProps } from "../Textarea"
+
+export { Timeline, ActivityRow } from "./Timeline"
+export type { ActivityRowRootProps, TimelineItemProps, TimelineRootProps } from "./Timeline"
+
+export { ToolCard } from "./ToolCard"
+export type { ToolCardBadgeProps, ToolCardHeaderProps, ToolCardRootProps, ToolCardSectionProps, ToolCardState } from "./ToolCard"
 
 export { Toggle } from "../Toggle"
 export type { ToggleProps } from "../Toggle"

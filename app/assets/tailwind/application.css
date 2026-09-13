@@ -92,6 +92,12 @@
   --color-neutral-surface: color-mix(in srgb, var(--color-surface) 94%, var(--color-neutral));
   --color-neutral-border: color-mix(in srgb, var(--color-surface) 70%, var(--color-neutral));
   --color-neutral-text: var(--color-neutral);
+  --color-code-surface: var(--color-surface-inset);
+  --color-code-text: var(--color-text-primary);
+  --color-code-muted: var(--color-text-muted);
+  --color-code-keyword: var(--color-brand-emphasis);
+  --color-code-string: var(--color-success);
+  --color-code-number: var(--color-info);
   --color-on-brand: #ffffff;
 
   --radius-control: 0.375rem;
@@ -174,6 +180,12 @@
   --color-neutral-surface: color-mix(in srgb, var(--color-surface) 94%, var(--color-neutral));
   --color-neutral-border: color-mix(in srgb, var(--color-surface) 70%, var(--color-neutral));
   --color-neutral-text: var(--color-neutral);
+  --color-code-surface: var(--color-surface-inset);
+  --color-code-text: var(--color-text-primary);
+  --color-code-muted: var(--color-text-muted);
+  --color-code-keyword: var(--color-brand-emphasis);
+  --color-code-string: var(--color-success);
+  --color-code-number: var(--color-info);
   --color-on-brand: #ffffff;
 
   --shiki-foreground: var(--color-text-primary);
@@ -227,6 +239,12 @@
   --color-neutral-surface: var(--color-neutral-surface);
   --color-neutral-border: var(--color-neutral-border);
   --color-neutral-text: var(--color-neutral-text);
+  --color-code-surface: var(--color-code-surface);
+  --color-code-text: var(--color-code-text);
+  --color-code-muted: var(--color-code-muted);
+  --color-code-keyword: var(--color-code-keyword);
+  --color-code-string: var(--color-code-string);
+  --color-code-number: var(--color-code-number);
   --color-on-brand: var(--color-on-brand);
 }
 
