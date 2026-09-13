@@ -23,4 +23,21 @@ RSpec.describe PollAllRepositoriesJob do
       described_class.perform_now
     }.not_to have_enqueued_job(PollRepositoryJob)
   end
+
+  it "skips repositories whose GitHub App installation is rate-limited" do
+    user = Factories.user
+    repo = Factories.repository(user: user, polling_enabled: true)
+    installation = Factories.installation(
+      user: user,
+      account_login: repo.owner,
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_observed_at: Time.current
+    )
+    repo.update!(installation: installation)
+
+    expect {
+      described_class.perform_now
+    }.not_to have_enqueued_job(PollRepositoryJob).with(repo.id)
+  end
 end

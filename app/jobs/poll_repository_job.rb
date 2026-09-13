@@ -1,5 +1,6 @@
 class PollRepositoryJob < ApplicationJob
   include SkipIfPending
+  include GithubPollingRateLimitGuard
 
   queue_as :polling
 
@@ -15,25 +16,42 @@ class PollRepositoryJob < ApplicationJob
     return if repository.archived?
     return unless force || repository.polling_enabled?
 
+    retry_kwargs = { force: force }
+    return if github_polling_rate_limited?(
+      repository,
+      user: repository.user,
+      manual: force,
+      retry_args: [ repository_id ],
+      retry_kwargs: retry_kwargs
+    )
+
     previous_poll_started_at = repository.last_poll_started_at
     incremental_since = force ? nil : previous_poll_started_at
     repository.mark_poll_started!
 
     begin
-      client = GithubClient.for(repository: repository, user: repository.user)
-      issues = list_labeled_issues(client, repository, since: incremental_since)
-      closed_issues = list_labeled_issues(client, repository, state: "closed", since: incremental_since)
+      with_github_polling_rate_limit_backoff(
+        repository,
+        user: repository.user,
+        manual: force,
+        retry_args: [ repository_id ],
+        retry_kwargs: retry_kwargs
+      ) do
+        client = GithubClient.for(repository: repository, user: repository.user)
+        issues = list_labeled_issues(client, repository, since: incremental_since)
+        closed_issues = list_labeled_issues(client, repository, state: "closed", since: incremental_since)
 
-      stats = Hash.new(0)
-      issues.each do |issue|
-        stats[ingest(issue, repository, client: client)] += 1
+        stats = Hash.new(0)
+        issues.each do |issue|
+          stats[ingest(issue, repository, client: client)] += 1
+        end
+        closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
+        InputSources::PendingWorkWakeup.call(repository)
+        update_untagged_open_issue_count!(repository, client)
+
+        log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
+        repository.mark_poll_success!
       end
-      closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
-      InputSources::PendingWorkWakeup.call(repository)
-      update_untagged_open_issue_count!(repository, client)
-
-      log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
-      repository.mark_poll_success!
     rescue => e
       repository.mark_poll_failure!(e.message)
       raise

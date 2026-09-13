@@ -53,6 +53,28 @@ RSpec.describe PollForkReviewPrJob, :ci_only do
     WorkUnit.where(workflow_id: job.workflows.select(:id)).find_each { |unit| unit.mark_terminal!("succeeded") }
   end
 
+  it "delays autonomous polling while the persisted rate limit is exhausted" do
+    user.update!(
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_observed_at: Time.current
+    )
+
+    expect_any_instance_of(GithubClient).not_to receive(:pull_request)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to have_enqueued_job(described_class).with(job.id)
+  end
+
+  it "treats TooManyRequests as coordinated autonomous poll backoff" do
+    allow_any_instance_of(GithubClient).to receive(:pull_request).and_raise(Octokit::TooManyRequests.new)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to have_enqueued_job(described_class).with(job.id)
+  end
+
   it "does nothing when the job has no fork_review_pr_number" do
     other_job = Factories.job(repository: fork_repo, issue_number: 99)
     expect(ForkReviewApprover).not_to receive(:new)

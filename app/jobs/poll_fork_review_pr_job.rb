@@ -1,5 +1,6 @@
 class PollForkReviewPrJob < ApplicationJob
   include SkipIfPending
+  include GithubPollingRateLimitGuard
   include GithubPrPollHelpers
 
   queue_as :polling
@@ -12,33 +13,35 @@ class PollForkReviewPrJob < ApplicationJob
     return unless @job&.open? && @job.fork_review_pr_number.present?
     return if @job.pr_number.present?  # upstream PR already created; normal polling takes over
     return if @job.repository.archived?
-    return if @job.repository.github_api_rate_limited_for?(user: @job.user)
+    return if github_polling_rate_limited?(@job.repository, user: @job.user, retry_args: [ job_id ])
 
-    @client = GithubClient.for(repository: @job.repository, user: @job.user)
-    @pr = @client.pull_request(@job.repository.slug, @job.fork_review_pr_number)
-    @client.clear_api_blocked!
+    with_github_polling_rate_limit_backoff(@job.repository, user: @job.user, retry_args: [ job_id ]) do
+      @client = GithubClient.for(repository: @job.repository, user: @job.user)
+      @pr = @client.pull_request(@job.repository.slug, @job.fork_review_pr_number)
+      @client.clear_api_blocked!
 
-    # Accidental merge: the fork PR was merged on GitHub before Syrus detected an
-    # approval signal. Treat the merge as the approval — skip the close step.
-    if @pr.merged
-      clear_fork_pr_closed_attention_if_set
-      handle_approval!(review_url: @pr.html_url, fork_pr_merged: true)
-      return
+      # Accidental merge: the fork PR was merged on GitHub before Syrus detected an
+      # approval signal. Treat the merge as the approval — skip the close step.
+      if @pr.merged
+        clear_fork_pr_closed_attention_if_set
+        handle_approval!(review_url: @pr.html_url, fork_pr_merged: true)
+        return
+      end
+
+      if @pr.state == "closed"
+        handle_fork_pr_closed
+        return
+      end
+
+      # PR is open — if we were in a grace period from a prior close, the
+      # PR was reopened. Clear the alert and cancel the timer.
+      if @job.needs_attention_reason == "fork_pr_closed"
+        clear_fork_pr_closed_attention_if_set
+      end
+
+      check_for_review_approval
+      react_to_fork_review_comments
     end
-
-    if @pr.state == "closed"
-      handle_fork_pr_closed
-      return
-    end
-
-    # PR is open — if we were in a grace period from a prior close, the
-    # PR was reopened. Clear the alert and cancel the timer.
-    if @job.needs_attention_reason == "fork_pr_closed"
-      clear_fork_pr_closed_attention_if_set
-    end
-
-    check_for_review_approval
-    react_to_fork_review_comments
   end
 
   private

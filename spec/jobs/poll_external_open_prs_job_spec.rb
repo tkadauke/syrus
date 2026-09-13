@@ -33,6 +33,28 @@ RSpec.describe PollExternalOpenPrsJob do
     allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([])
   end
 
+  it "delays autonomous polling while the persisted rate limit is exhausted" do
+    user.update!(
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_observed_at: Time.current
+    )
+
+    expect_any_instance_of(GithubClient).not_to receive(:list_open_pull_requests)
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(described_class).with(repository.id)
+  end
+
+  it "treats TooManyRequests as coordinated autonomous poll backoff" do
+    allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_raise(Octokit::TooManyRequests.new)
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(described_class).with(repository.id)
+  end
+
   describe "ingestion" do
     it "creates external_pr Jobs for open PRs on the repo" do
       allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([

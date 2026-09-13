@@ -714,6 +714,49 @@ RSpec.describe PollRepositoryJob, :ci_only do
       expect(repository.last_poll_started_at).to be_present
     end
 
+    it "delays autonomous polling while the persisted rate limit is exhausted" do
+      user.update!(
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: 30.minutes.from_now,
+        gh_rate_limit_observed_at: Time.current
+      )
+
+      expect_any_instance_of(GithubClient).not_to receive(:issues_with_label)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false)
+
+      repository.reload
+      expect(repository.last_poll_status).to be_nil
+      expect(repository.last_poll_started_at).to be_nil
+    end
+
+    it "treats TooManyRequests as coordinated autonomous poll backoff" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_raise(Octokit::TooManyRequests.new)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to have_enqueued_job(described_class).with(repository.id, force: false)
+
+      repository.reload
+      expect(repository.last_poll_status).to be_nil
+      expect(repository.last_poll_started_at).to be_present
+    end
+
+    it "lets manual force polls surface TooManyRequests normally" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_raise(Octokit::TooManyRequests.new)
+
+      expect {
+        described_class.perform_now(repository.id, force: true)
+      }.to raise_error(Octokit::TooManyRequests)
+
+      expect(described_class).not_to have_been_enqueued.with(repository.id, force: true)
+      expect(repository.reload.last_poll_status).to eq("failed")
+    end
+
     it "does not update poll status when the repository is archived (no poll ran)" do
       repository.archive!
       described_class.perform_now(repository.id, force: true)
