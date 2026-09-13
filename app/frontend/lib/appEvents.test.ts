@@ -998,6 +998,7 @@ function chatPayload(messages: Array<ReturnType<typeof message>>) {
       title_pending: true,
       pinned: false,
       pinned_context: null,
+      chat_model: null,
       chat_path: "/chats/9",
       repository: null,
       stop_requested_at: null,

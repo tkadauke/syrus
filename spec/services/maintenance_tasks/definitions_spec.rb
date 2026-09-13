@@ -160,40 +160,31 @@ RSpec.describe "maintenance task definitions" do
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
 
-    it "indexes jobs through search source providers" do
-      job = Factories.job_record
+    it "indexes jobs through the global search source provider" do
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      job = Factories.job_record(user: user, repository: repository, issue_title: "Rebuild searchable job")
       provider = Class.new do
-        class_attribute :indexed_jobs, default: []
+        @upserted_ids = []
 
-        def self.index_job(job) = self.indexed_jobs += [ job ]
+        class << self
+          attr_reader :upserted_ids
+
+          def search_table_name = "job_fts"
+          def search_id_column = "job_id"
+          def records = Job.order(:id)
+          def count = Job.count
+          def exists? = Job.exists?
+          def upsert(record) = @upserted_ids << record.id
+        end
       end
       allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
-      task = maintenance_task_for(definition)
-      task.checkpoint["schema_prepared"] = true
 
-      allow(definition).to receive(:missing_chat_messages_count).and_return(0)
-      allow(definition).to receive(:jobs_need_rebuild?).and_return(true)
-
-      result = definition.perform_batch(task)
+      result = definition.send(:index_jobs, maintenance_task_for(definition))
 
       expect(result.processed).to eq(1)
-      expect(provider.indexed_jobs).to eq([ job ])
-      expect(task.checkpoint["last_job_id"]).to eq(job.id)
+      expect(provider.upserted_ids).to eq([ job.id ])
       expect(result.message).to include("Indexed 1 job")
-    end
-
-    it "delegates job indexing to upsert-capable search source providers" do
-      job = Factories.job_record
-      provider = double("search source", upsert_job: true)
-      task = maintenance_task_for(definition)
-
-      expect(definition).to receive(:search_source_providers).and_return([ provider ])
-      expect(provider).to receive(:upsert_job).with(job)
-
-      result = definition.send(:index_jobs, task)
-
-      expect(result.processed).to eq(1)
-      expect(task.checkpoint["last_job_id"]).to eq(job.id)
     end
 
     it "marks the jobs step done when no enabled provider indexes jobs" do
