@@ -111,6 +111,13 @@ RSpec.describe "Dockerfile" do
     expect(worker_dev).to include("RUN go version")
   end
 
+  it "fails worker image builds when native compilation is unavailable as the rails user" do
+    worker_dev = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+
+    expect(worker_dev.index("USER 1000:1000")).to be < worker_dev.index("try_compile")
+    expect(worker_dev).to include(%q{cd "$(mktemp -d)" && ruby -rmkmf -e 'abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'})
+  end
+
   it "installs headless Chromium via Playwright, only in the worker image" do
     stage = worker_deps_stage
     app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]

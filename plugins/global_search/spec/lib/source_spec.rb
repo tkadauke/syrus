@@ -143,4 +143,10 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
   it "registers the host plugin's built-in indexing provider" do
     expect(Syrus::PluginRegistry.providers_for("global_search:source")).to include(GlobalSearch::SourceProvider)
   end
+
+  it "contributes backfill sources for its built-in job and epic indexes" do
+    source_tables = SyrusSearchDatabaseTasks.search_backfill_sources.map(&:search_backfill_table_name)
+
+    expect(source_tables).to include("job_fts", "epic_fts")
+  end
 end
