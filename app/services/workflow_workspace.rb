@@ -675,6 +675,8 @@ class WorkflowWorkspace
 
     message = "existing workflow workspace at #{path} has no valid HEAD"
     unless safe_to_reclone_existing_workspace?
+      return if restore_invalid_checkout_from_checkpoint!(message)
+
       raise GitRunner::GitError.new([ "rev-parse", "--verify", "HEAD" ], 128, message)
     end
 
@@ -698,6 +700,54 @@ class WorkflowWorkspace
     # Reclone when only deterministic/read-only setup has succeeded; keep
     # failing loudly if a prior agentic step may have produced unpushed commits.
     succeeded_steps.where(kind: Step::AGENTIC_KINDS).none?
+  end
+
+  def restore_invalid_checkout_from_checkpoint!(message)
+    checkpoint = RunCheckpoint.published.where(workflow: @workflow).recent.first
+    return false unless checkpoint
+
+    notify("#{message}; restoring from checkpoint #{checkpoint.remote_ref}")
+    FileUtils.rm_rf(path)
+    clone_for_checkpoint_restore!
+    fetch_checkpoint_to_work_branch!(checkpoint)
+    true
+  rescue GitRunner::GitError => e
+    notify("#{message}; checkpoint restore failed: #{e.message}")
+    FileUtils.rm_rf(path)
+    false
+  end
+
+  def clone_for_checkpoint_restore!
+    FileUtils.mkdir_p(path.dirname)
+    @git.run(
+      "clone",
+      "--branch", checkpoint_restore_base_branch,
+      "--no-tags", authenticated_url, path.to_s,
+      env: @env
+    )
+    @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: path.to_s)
+  end
+
+  def checkpoint_restore_base_branch
+    branch = base_branch
+    return branch if branch.present? && remote_branch_exists?(branch)
+
+    @job.base_default_branch
+  end
+
+  def fetch_checkpoint_to_work_branch!(checkpoint)
+    authenticated_git("git_workflow_restore_invalid_checkout_checkpoint") do |url|
+      @git.run("fetch", url, "#{checkpoint.remote_ref}:refs/heads/#{@branch_name}", chdir: path.to_s, env: @env)
+    end
+    @git.run("checkout", @branch_name, chdir: path.to_s)
+    actual = @git.run("rev-parse", "HEAD", chdir: path.to_s).strip
+    return if actual == checkpoint.commit_sha
+
+    raise GitRunner::GitError.new(
+      [ "rev-parse", "HEAD" ],
+      128,
+      "checkpoint restored #{actual}, expected #{checkpoint.commit_sha}"
+    )
   end
 
   # For main_grader workflows: detach HEAD at the exact SHA that was

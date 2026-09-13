@@ -208,6 +208,51 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(ws.path.join("agent-output.tmp")).to exist
       end
 
+      it "restores an invalid post-agentic workspace from the latest published checkpoint" do
+        ws = described_class.new(workflow)
+        ws.setup
+        File.write(ws.path.join("checkpoint.rb"), "CHECKPOINT\n")
+        sh("git -C #{ws.path} add checkpoint.rb")
+        sh("git -C #{ws.path} commit -q -m 'checkpointed agent work'")
+        checkpoint_sha = sh("git -C #{ws.path} rev-parse HEAD").strip
+        checkpoint_ref = "refs/syrus/checkpoints/runs/12345"
+        sh("git -C #{ws.path} push -q origin HEAD:#{checkpoint_ref}")
+
+        implement_step = workflow.steps.create!(kind: "implement", position: 1, state: "succeeded")
+        run = implement_step.runs.create!(
+          job: job,
+          trigger_kind: workflow.trigger_kind,
+          state: "succeeded",
+          iteration: implement_step.iteration,
+          head_sha: checkpoint_sha
+        )
+        RunCheckpoint.create!(
+          run: run,
+          workflow: workflow,
+          step: implement_step,
+          job: job,
+          repository: repository,
+          user: user,
+          step_kind: "implement",
+          commit_sha: checkpoint_sha,
+          remote_ref: checkpoint_ref,
+          status: "published",
+          published_at: Time.current
+        )
+
+        FileUtils.rm_rf(ws.path)
+        FileUtils.mkdir_p(ws.path)
+        File.write(ws.path.join("agent-output.tmp"), "broken checkout")
+
+        described_class.new(workflow).setup
+
+        restored = described_class.new(workflow)
+        expect(sh("git -C #{restored.path} rev-parse HEAD").strip).to eq(checkpoint_sha)
+        expect(sh("git -C #{restored.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-7-#{job.id}")
+        expect(restored.path.join("checkpoint.rb")).to exist
+        expect(restored.path.join("agent-output.tmp")).not_to exist
+      end
+
       it "creates a fresh branch when the target branch isn't on origin" do
         ws = described_class.new(workflow)
         ws.setup

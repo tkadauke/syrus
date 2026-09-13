@@ -60,6 +60,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     allow(@git).to receive(:run).with("diff", "--name-only", anything, chdir: anything).and_return("")
     allow(GithubAuthenticatedGit).to receive(:run) { |**_, &block| block.call("file://remote") }
     allow(@git).to receive(:run)
+      .with("ls-remote", "file://remote", anything, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      .and_return("")
+    allow(@git).to receive(:run)
       .with("push", "file://remote", /\Aabc123:refs\/syrus\/source-snapshots\/runs\/\d+\z/, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
       .and_return("")
   end
@@ -305,6 +308,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
           run: bin/rspec
     YAML
 
+    allow(@git).to receive(:run)
+      .with("ls-remote", "file://remote", "refs/syrus/checkpoints/runs/#{implement_run.id}", chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      .and_return("abc123\trefs/syrus/checkpoints/runs/#{implement_run.id}\n")
     expect(@git).not_to receive(:run).with("push", anything, anything, chdir: anything, env: anything)
 
     handler.call
@@ -314,6 +320,57 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.steps.find_by!(kind: "grader").details["source_snapshot"]).to include(
       "source_ref" => "refs/syrus/checkpoints/runs/#{implement_run.id}"
     )
+  end
+
+  it "falls back to a fresh source-snapshot ref when a published checkpoint ref is missing remotely" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    implement_step = Step.create!(
+      workflow: workflow,
+      kind: "implement",
+      position: 100,
+      state: "succeeded",
+      started_at: 1.minute.ago,
+      finished_at: 30.seconds.ago
+    )
+    implement_run = implement_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      state: "succeeded",
+      head_sha: "abc123"
+    )
+    RunCheckpoint.create!(
+      run: implement_run,
+      workflow: workflow,
+      step: implement_step,
+      job: job,
+      repository: job.repository,
+      user: job.user,
+      step_kind: "implement",
+      commit_sha: "abc123",
+      base_sha: "base123",
+      remote_ref: "refs/syrus/checkpoints/runs/#{implement_run.id}",
+      status: "published",
+      published_at: Time.current
+    )
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    allow(@git).to receive(:run)
+      .with("ls-remote", "file://remote", "refs/syrus/checkpoints/runs/#{implement_run.id}", chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      .and_return("")
+    expect(@git).to receive(:run)
+      .with("push", "file://remote", /\Aabc123:refs\/syrus\/source-snapshots\/runs\/\d+\z/, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      .and_return("")
+
+    handler.call
+
+    snapshot = workflow.source_snapshots.sole
+    expect(snapshot.source_ref).to match(%r{\Arefs/syrus/source-snapshots/runs/\d+\z})
+    expect(snapshot.source_ref).not_to eq("refs/syrus/checkpoints/runs/#{implement_run.id}")
   end
 
   it "reuses the current workflow source snapshot for all materialized graders when distributed workflows are enabled" do

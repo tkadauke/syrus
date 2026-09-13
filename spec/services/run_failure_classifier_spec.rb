@@ -67,14 +67,14 @@ RSpec.describe RunFailureClassifier, :ci_only do
     )
   end
 
-  it "classifies worker_died under critical host pressure as non-retryable resource pressure" do
+  it "classifies worker_died under critical host pressure as retryable resource pressure" do
     run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
     create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "CPU pressure 55.0% >= 50%" ])
 
     result = classification
 
     expect(result.classification).to eq("worker_died_under_resource_pressure")
-    expect(result.retryable).to eq(false)
+    expect(result.retryable).to eq(true)
     expect(result.classifier_inputs).to include(
       "host_pressure_level" => "critical",
       "host_pressure_reasons" => [ "CPU pressure 55.0% >= 50%" ]
@@ -120,9 +120,10 @@ RSpec.describe RunFailureClassifier, :ci_only do
       expect(result.classifier_inputs).to include("deploy_rollover_near_failure" => true)
     end
 
-    # One version running is steady state, however bad the host looks -- that
-    # is a genuine resource casualty and must stay non-retryable.
-    it "still reports resource pressure when no rollout was in flight" do
+    # One version running is steady state, however bad the host looks. Keep the
+    # clearer resource-pressure label, but bounded retries are still safer than
+    # permanently stranding an otherwise valid workflow.
+    it "still reports retryable resource pressure when no rollout was in flight" do
       run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
       create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "cpu 100.0% >= 98%" ])
       rollout!(at: run.finished_at - 1.minute, versions: %w[samesha samesha])
@@ -130,7 +131,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
       result = classification
 
       expect(result.classification).to eq("worker_died_under_resource_pressure")
-      expect(result.retryable).to eq(false)
+      expect(result.retryable).to eq(true)
       expect(result.classifier_inputs).to include("deploy_rollover_near_failure" => false)
     end
 
@@ -161,7 +162,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
 
     classification = run.reload.run_failure_classification
     expect(classification.classification).to eq("worker_died_under_resource_pressure")
-    expect(classification.retryable).to eq(false)
+    expect(classification.retryable).to eq(true)
   end
 
   it "uses captured diagnostics when classifying exception failures" do

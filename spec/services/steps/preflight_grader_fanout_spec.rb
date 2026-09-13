@@ -166,6 +166,28 @@ RSpec.describe Steps::PreflightGraderFanout do
     )
   end
 
+  it "snapshots the published base ref for unpublished main repair branches" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.update!(branch_name: "syrus/direct-#{job.id}", pr_number: nil)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main", branch_name: "syrus/direct-#{job.id}")
+    allow(handler).to receive(:workspace).and_return(fake_ws)
+    write_grade_config(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+    record_prepared_workspace!
+
+    handler.call
+
+    snapshot = workflow.source_snapshots.sole
+    expect(snapshot.source_ref).to eq("refs/heads/main")
+    expect(workflow.steps.find_by!(kind: "preflight_grader").details["source_snapshot"]).to include(
+      "source_ref" => "refs/heads/main"
+    )
+  end
+
   # The distributed gate had only ever done half its job here: it gave preflight
   # graders an immutable-source placement (so each gets its own checkout and its
   # own Solid Queue concurrency key) while the fanout still chained them into a

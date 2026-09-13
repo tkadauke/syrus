@@ -81,7 +81,7 @@ class RunFailureClassifier
     when missing_required_tool_call?
       result("missing_required_tool_call", 0.85, true, "The reviewer agent completed analysis but didn't call the step's required MCP tool; safe to retry since these steps are read-only (workspace changes are discarded before this failure is raised).")
     when process_died_under_resource_pressure?
-      result("worker_died_under_resource_pressure", 0.95, false, "The worker or agent process disappeared while the host was under critical resource pressure.")
+      result("worker_died_under_resource_pressure", 0.95, true, "The worker or agent process disappeared while the host was under critical resource pressure; retry after admission pressure settles.")
     when agent_gave_up_waiting?
       result("agent_gave_up_waiting", 0.90, true, "The agent ended the turn with no repository diff while expecting a background command or ScheduleWakeup to continue the same Step Run.")
     when process_died?

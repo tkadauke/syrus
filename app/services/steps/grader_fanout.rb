@@ -516,11 +516,25 @@ module Steps
     end
 
     def checkpoint_ref_for(source_sha)
-      RunCheckpoint.published
+      checkpoint = RunCheckpoint.published
         .where(workflow: workflow, commit_sha: source_sha)
         .recent
         .first
-        &.remote_ref
+      return nil unless checkpoint
+      return checkpoint.remote_ref if remote_ref_available?(checkpoint.remote_ref)
+
+      log("[grader_fanout] checkpoint ref #{checkpoint.remote_ref} for #{source_sha.first(7)} is missing; publishing a source-snapshot ref instead")
+      nil
+    end
+
+    def remote_ref_available?(ref)
+      output = authenticated_git("git_workflow_source_snapshot_ls_remote") do |url|
+        GitRunner.new.run("ls-remote", url, ref, chdir: workspace.path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
+      end
+      output.to_s.lines.any? { |line| line.split(/\s+/).last == ref }
+    rescue GitRunner::GitError => e
+      log("[grader_fanout] could not verify checkpoint ref #{ref}: #{e.message}")
+      false
     end
 
     def publish_source_snapshot_ref!(source_sha)

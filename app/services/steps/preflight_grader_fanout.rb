@@ -244,8 +244,22 @@ module Steps
     end
 
     def current_source_ref
+      return current_base_source_ref if workflow.trigger_kind == "main_branch_repair" && unpublished_repair_branch?
+
       branch_name = workspace.respond_to?(:branch_name) ? workspace.branch_name.to_s.presence : nil
       branch_name ? "refs/heads/#{branch_name}" : "HEAD"
+    end
+
+    def unpublished_repair_branch?
+      job.pr_number.blank? && job.fork_review_pr_number.blank?
+    end
+
+    def current_base_source_ref
+      base_ref = workspace.respond_to?(:base_ref) ? workspace.base_ref.to_s.presence : nil
+      return "HEAD" if base_ref.blank?
+
+      branch = base_ref.delete_prefix("origin/")
+      "refs/heads/#{branch}"
     end
 
     def materialized_grader_steps
