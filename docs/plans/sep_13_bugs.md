@@ -38,6 +38,13 @@ starts before collector completion.
 `serial_grader_retry_blocks_tail.yml` cover stale dirty retry-until barriers
 and assert the post-loop tail does not run.
 
+**Fixed:** Workflow finalization now refuses to mark a workflow succeeded if
+the latest required retry-until barrier for any loop is not `succeeded`. This
+protects historical leaked-tail shapes where post-loop steps already reached
+terminal success before the dirty barrier was noticed. Covered by
+`spec/services/step_dispatcher_spec.rb` and
+`spec/services/run_completion_reconciler_spec.rb`.
+
 ### Retry loop tail steps can succeed while later repair iterations are still failing
 
 **Symptom:** JOB-4790 ran five grader-loop attempts with different grader sets
@@ -80,6 +87,11 @@ blocked-tail half; `parallel_grader_retry_cleared_barrier_allows_tail.yml`
 guards the opposite case, where a later collector succeeds and the tail must
 be allowed to continue even if an older collector failed.
 
+**Fixed:** The workflow success path now keys retry-until barrier cleanliness
+by `loop_id` and authoritative latest barrier position, so a later successful
+collector clears an earlier failed collector, but a latest failed/cancelled
+collector prevents workflow success.
+
 ### Same grade-loop leak produces inconsistent job outcomes
 
 **Symptom:** JOB-4944 also leaked past repeated grader-loop failures, but its
@@ -114,6 +126,10 @@ checks before workflow success and job implementation: require the latest
 required grade-loop collector to be `succeeded`, and fail loudly if a workflow
 has successful post-loop steps after a non-success collector. Add a data repair
 or admin diagnostic for jobs with PRs opened from dirty grade loops.
+
+**Fixed:** The success finalizer now turns this race into an explicit workflow
+failure with `failure_reason = "uncleared_retry_until_barrier_after_success"`
+instead of allowing race-sensitive `succeeded` vs `failed` outcomes.
 
 ### Merge train can land while grader repair iteration is still running
 
@@ -151,6 +167,11 @@ second collector succeeds.
 **Simulator coverage:** `parallel_merge_train_blocks_dirty_publication.yml`
 reproduces the dirty merge-train publication wakeup and expects deferred resume
 to return `not_ready` instead of starting `merge_train_land`.
+
+**Fixed:** Publication steps are still primarily blocked by dispatcher
+readiness. As an additional backstop, a workflow cannot reach `succeeded`
+after publication if any latest retry-until barrier remains dirty; the
+terminal result becomes an explicit dirty-barrier failure instead.
 
 ### Branch-divergence banner can mix job commits with unrelated base commits
 
@@ -223,6 +244,10 @@ return to grading instead of opening a PR.
 reproduces a failed tail after an uncleared grader barrier and asserts the
 retry path falls back to a full implementation retry rather than checkpoint
 resume.
+
+**Fixed:** Checkpoint selection already rejects tail retries across dirty
+barriers; workflow finalization now applies the same invariant at terminal
+success so a resumed tail cannot silently bless an earlier dirty grade loop.
 
 ### Cancelled steps do not show why they were cancelled
 

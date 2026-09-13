@@ -131,6 +131,33 @@ RSpec.describe RunCompletionReconciler do
         expect(workflow.reload).to be_succeeded
         expect(job.reload.pr_number).to eq(7)
       end
+
+      it "does not reconcile a workflow to success behind an uncleared retry barrier" do
+        workflow.steps.destroy_all
+        loop_id = SecureRandom.uuid
+        Step.create!(
+          workflow: workflow,
+          kind: "grader_collect",
+          position: 10,
+          loop_id: loop_id,
+          iteration: 1,
+          state: "failed",
+          started_at: 3.minutes.ago,
+          finished_at: 2.minutes.ago
+        )
+        run = make_pr_open_run
+        job.update!(pr_number: nil)
+        JobLog.append!(run: run, chunk: "pr_open: opened PR #7")
+        allow(StepDispatcher).to receive(:advance_from)
+
+        result = described_class.call(run)
+
+        expect(result).to be_reconciled
+        expect(run.reload).to be_succeeded
+        expect(run.step.reload).to be_succeeded
+        expect(workflow.reload).to be_failed
+        expect(workflow.failure_reason).to eq("uncleared_retry_until_barrier_after_success")
+      end
     end
 
     context "with a running auto_merge step" do

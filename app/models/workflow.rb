@@ -319,6 +319,19 @@ class Workflow < ApplicationRecord
     Workflows::JobLifecyclePropagation.new(self).pr_publication_missing_after_success?
   end
 
+  def uncleared_retry_until_barrier?
+    steps
+      .where.not(loop_id: [ nil, "" ])
+      .reorder(position: :desc, id: :desc)
+      .each_with_object({}) do |step, latest_by_loop|
+        next unless retry_until_barrier_step?(step)
+
+        latest_by_loop[step.loop_id] ||= step
+      end
+      .values
+      .any? { |step| !step.succeeded? }
+  end
+
   # Workflow#reopen drives :failed → :running for "Retry from failed
   # step." Keep the parent Job in sync with that live workflow. If the
   # original failure pushed the Job to :failed, retry_after_failure!
@@ -696,6 +709,12 @@ class Workflow < ApplicationRecord
 
 
   private
+
+  def retry_until_barrier_step?(step)
+    Step::Kind.fetch(step.kind).fail_policy == :loop_iteration
+  rescue ArgumentError
+    false
+  end
 
   def publication_branch_name
     artifact("publication_branch").presence || job.branch_name.presence

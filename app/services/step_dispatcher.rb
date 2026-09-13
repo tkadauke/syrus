@@ -1427,6 +1427,10 @@ class StepDispatcher
   def finish_workflow!
     return if @workflow.live_descendants?
 
+    if @workflow.uncleared_retry_until_barrier?
+      return hard_fail_workflow!("uncleared_retry_until_barrier_after_success")
+    end
+
     if @workflow.pr_publication_missing_after_success?
       return hard_fail_workflow!("pr_publication_missing_after_success")
     end

@@ -212,6 +212,13 @@ class RunCompletionReconciler
     workflow.reload
     return unless workflow.running?
     return if workflow.live_descendants?
+    if workflow.uncleared_retry_until_barrier?
+      workflow.failure_reason = "uncleared_retry_until_barrier_after_success"
+      workflow.artifacts = workflow.artifacts.to_h.merge("failure_reason" => workflow.failure_reason)
+      workflow.fail!
+      workflow.save!
+      return
+    end
     return unless workflow.may_succeed?
 
     workflow.succeed!
