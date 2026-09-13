@@ -51,12 +51,40 @@ export type McpToolCardGapRow = {
   owner_name: string
   recommendation_target: string
   card_status: "missing" | "weak" | "registered"
+  classification?: McpToolCardCoverageClassification
+}
+
+export type McpToolCardCoverageClassification =
+  | "custom_card"
+  | "plugin_custom_card"
+  | "generic_card_acceptable"
+  | "hidden_ack_only"
+  | "intentionally_obscure_deferred"
+  | "unclassified"
+
+export type McpToolCardCoverageRow = {
+  tool_name: string
+  owner_type: "core" | "plugin"
+  owner_name: string
+  recommendation_target: string
+  tier: string | null
+  mutation: boolean | null
+  card_status: "missing" | "weak" | "registered"
+  card_owner_type: "core" | "plugin" | null
+  card_owner_name: string | null
+  card_path: string | null
+  has_custom_card: boolean
+  classification: McpToolCardCoverageClassification
+  classification_reason: string
 }
 
 export type McpToolCardGaps = {
   high_volume_without_custom_card: McpToolCardGapRow[]
   high_error_with_weak_or_no_custom_card: McpToolCardGapRow[]
   unused_advertised_tools: McpToolCardGapRow[]
+  classification_counts: Partial<Record<McpToolCardCoverageClassification, number>>
+  classified_tools: McpToolCardCoverageRow[]
+  unclassified_tools: McpToolCardCoverageRow[]
 }
 
 export type McpToolUsagePayload = {

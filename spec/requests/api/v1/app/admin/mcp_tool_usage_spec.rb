@@ -81,7 +81,14 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
     expect(body["custom_card_gaps"]).to include(
       "high_volume_without_custom_card",
       "high_error_with_weak_or_no_custom_card",
-      "unused_advertised_tools"
+      "unused_advertised_tools",
+      "classification_counts",
+      "classified_tools",
+      "unclassified_tools"
+    )
+    expect(body.dig("custom_card_gaps", "classification_counts")).to include("custom_card")
+    expect(body.dig("custom_card_gaps", "classified_tools")).to include(
+      include("tool_name" => "repo_info", "classification" => "custom_card", "owner_type" => "core")
     )
 
     expect(body["provider_breakdown"]).to contain_exactly(
