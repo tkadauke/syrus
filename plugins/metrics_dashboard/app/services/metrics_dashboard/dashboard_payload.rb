@@ -55,11 +55,11 @@ module MetricsDashboard
     def last_recorded_at
       return @last_recorded_at if defined?(@last_recorded_at)
 
-      @last_recorded_at = MetricsDashboardSample.maximum(:recorded_at)
+      @last_recorded_at = MetricsDashboard::Sample.maximum(:recorded_at)
     end
 
     def series_for(panel)
-      rows = MetricsDashboardSample
+      rows = MetricsDashboard::Sample
         .for_metric(panel[:metric])
         .since(since)
         .order(:recorded_at)
