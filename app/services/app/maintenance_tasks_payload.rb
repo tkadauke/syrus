@@ -1,5 +1,7 @@
 module App
   class MaintenanceTasksPayload
+    EVENTS_PER_PAGE = 100
+
     FILTER_FIELDS = [
       { name: "state", label: "State" },
       { name: "recurrence", label: "Type" },
@@ -39,9 +41,28 @@ module App
       }
     end
 
-    def self.show(task)
+    def self.show(task, params: {})
+      events_scope = task.events.order(created_at: :desc, id: :desc)
+      events_total = events_scope.count
+      events_total_pages = [ (events_total.to_f / EVENTS_PER_PAGE).ceil, 1 ].max
+      events_page = [ positive_integer(params[:events_page] || params["events_page"], default: 1), events_total_pages ].min
+      events_offset = (events_page - 1) * EVENTS_PER_PAGE
+      events = events_scope.offset(events_offset).limit(EVENTS_PER_PAGE).to_a
+
       serialize_task(task, include_documentation: true).merge(
-        events: task.events.order(created_at: :desc, id: :desc).limit(500).map { |event| serialize_event(event) }
+        events: events.map { |event| serialize_event(event) },
+        events_pagination: {
+          page: events_page,
+          per_page: EVENTS_PER_PAGE,
+          total: events_total,
+          total_pages: events_total_pages,
+          first_item: events.empty? ? 0 : events_offset + 1,
+          last_item: events.empty? ? 0 : events_offset + events.length,
+          has_previous_page: events_page > 1,
+          has_next_page: events_page < events_total_pages,
+          previous_page: events_page > 1 ? events_page - 1 : nil,
+          next_page: events_page < events_total_pages ? events_page + 1 : nil
+        }
       )
     end
 
@@ -153,6 +174,11 @@ module App
         label: field.fetch(:label),
         operators: [ "is" ]
       }
+    end
+
+    def self.positive_integer(value, default:)
+      parsed = value.to_i
+      parsed.positive? ? parsed : default
     end
   end
 end

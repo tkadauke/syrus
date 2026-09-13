@@ -58,6 +58,18 @@ export type AdminMaintenanceTasksPayload = {
 
 export type AdminMaintenanceTaskDetailPayload = MaintenanceTask & {
   events: MaintenanceTaskEvent[]
+  events_pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+    first_item: number
+    last_item: number
+    has_previous_page: boolean
+    has_next_page: boolean
+    previous_page?: number | null
+    next_page?: number | null
+  }
 }
 
 export function fetchMaintenanceSidebar(signal?: AbortSignal) {
@@ -68,8 +80,10 @@ export function fetchAdminMaintenanceTasks(search: string, signal?: AbortSignal)
   return getJson<AdminMaintenanceTasksPayload>(`/api/v1/app/admin/maintenance_tasks${search}`, { signal })
 }
 
-export function fetchAdminMaintenanceTask(id: string | number, signal?: AbortSignal) {
-  return getJson<AdminMaintenanceTaskDetailPayload>(`/api/v1/app/admin/maintenance_tasks/${id}`, { signal })
+export function fetchAdminMaintenanceTask(id: string | number, searchOrSignal: string | AbortSignal = "", signal?: AbortSignal) {
+  const search = typeof searchOrSignal === "string" ? searchOrSignal : ""
+  const requestSignal = typeof searchOrSignal === "string" ? signal : searchOrSignal
+  return getJson<AdminMaintenanceTaskDetailPayload>(`/api/v1/app/admin/maintenance_tasks/${id}${search}`, { signal: requestSignal })
 }
 
 export function runMaintenanceTaskAction(id: string | number, action: "start" | "pause" | "resume" | "cancel" | "dismiss") {
