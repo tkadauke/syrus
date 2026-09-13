@@ -25,6 +25,24 @@ export class ApiError extends Error {
   }
 }
 
+const SIGN_IN_PATH = "/session/new"
+
+/**
+ * Send the browser to sign in after a 401 -- unless it is already there.
+ *
+ * `assign()` to the current URL is a reload, so an unguarded redirect turns any
+ * authenticated query still mounted on the sign-in page into a loop: 401 ->
+ * reload -> remount -> 401, at browser speed. A logged-out tab sitting on the
+ * login screen held ~26 requests/second this way.
+ */
+function redirectToSignIn() {
+  // The desktop shell mounts the app under /app-shell; normalize before comparing
+  // so the guard holds under both mounts.
+  if (window.location.pathname.replace(/^\/app-shell/, "") === SIGN_IN_PATH) return
+
+  window.location.assign(SIGN_IN_PATH)
+}
+
 const REVISION_HEADER = "X-Syrus-Revision"
 const RELOAD_STORAGE_KEY = "syrus:revision-reload"
 const MAX_RECENT_API_REQUESTS = 20
@@ -53,7 +71,7 @@ export async function getJson<T>(path: string, options: { signal?: AbortSignal }
   reloadIfBackendRevisionChanged(response)
 
   if (response.status === 401) {
-    window.location.assign("/session/new")
+    redirectToSignIn()
   }
 
   if (!response.ok) {
@@ -92,7 +110,7 @@ export async function getJsonWithMeta<T>(path: string, options: { signal?: Abort
   reloadIfBackendRevisionChanged(response)
 
   if (response.status === 401) {
-    window.location.assign("/session/new")
+    redirectToSignIn()
   }
 
   if (!response.ok) {
@@ -143,7 +161,7 @@ export async function postForm<T>(path: string, body: FormData): Promise<T> {
   reloadIfBackendRevisionChanged(response)
 
   if (response.status === 401) {
-    window.location.assign("/session/new")
+    redirectToSignIn()
   }
 
   if (!response.ok) {
@@ -185,7 +203,7 @@ async function writeJson<T>(path: string, method: "POST" | "PATCH" | "DELETE", b
   reloadIfBackendRevisionChanged(response)
 
   if (response.status === 401) {
-    window.location.assign("/session/new")
+    redirectToSignIn()
   }
 
   if (!response.ok) {

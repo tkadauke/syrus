@@ -871,7 +871,7 @@ function SidebarContent({
             </Button>
           ) : null}
           <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
-          <SidebarMaintenanceTasks prefix={prefix} />
+          <SidebarMaintenanceTasks prefix={prefix} signedIn={Boolean(user)} />
         </div>
         <div className="px-3 pb-4">
           <nav aria-label={t("nav:primary_nav_aria")} className="flex flex-col gap-1 text-sm">
@@ -1028,7 +1028,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
   )
 }
 
-function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
+function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedIn: boolean }) {
   const queryClient = useQueryClient()
   const [collapsed, setCollapsed] = useState(false)
   const [docsTask, setDocsTask] = useState<MaintenanceTask | null>(null)
@@ -1036,7 +1036,10 @@ function SidebarMaintenanceTasks({ prefix }: { prefix: string }) {
   const tasks = useQuery({
     queryKey: ["maintenance_tasks", "sidebar"],
     queryFn: ({ signal }) => fetchMaintenanceSidebar(signal),
-    refetchInterval: 15_000
+    refetchInterval: 15_000,
+    // The chrome renders on the sign-in page too, where this endpoint 401s.
+    // Every sibling query here is gated the same way.
+    enabled: signedIn
   })
   const action = useMutation({
     mutationFn: ({ task, name }: { task: MaintenanceTask; name: "start" | "pause" | "resume" | "cancel" | "dismiss" }) => runMaintenanceTaskAction(task.id, name),

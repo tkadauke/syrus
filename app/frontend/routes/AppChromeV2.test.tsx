@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as chatsApi from "../api/chats"
+import * as maintenanceApi from "../api/maintenanceTasks"
 import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayload } from "../api/chats"
 import { AppChromeV2 } from "./AppChromeV2"
 import { adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
@@ -2102,6 +2103,40 @@ describe("chatSectionsFromPayload", () => {
     })
   })
 })
+
+describe("AppChromeV2 signed-out chrome", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // The chrome renders on the sign-in page, where this endpoint 401s -- and the
+  // 401 handler navigates to the sign-in page, which remounts the chrome. Left
+  // ungated the pair spins: a logged-out tab held ~26 requests/second.
+  it("does not request the maintenance sidebar when nobody is signed in", async () => {
+    const sidebar = vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
+
+    renderAppChrome(<div>Sign in</div>, {
+      bootstrap: signedOutBootstrap(),
+      initialEntries: [ "/session/new" ]
+    })
+
+    await waitFor(() => expect(screen.getByText("Sign in")).toBeInTheDocument())
+    expect(sidebar).not.toHaveBeenCalled()
+  })
+
+  it("requests it once somebody is signed in", async () => {
+    const sidebar = vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
+      .mockResolvedValue({ tasks: [] })
+
+    renderAppChrome(<div>Dashboard</div>, { initialEntries: [ "/dashboard" ] })
+
+    await waitFor(() => expect(sidebar).toHaveBeenCalled())
+  })
+})
+
+function signedOutBootstrap(): BootstrapPayload {
+  return { ...bootstrapPayload(), current_user: null }
+}
 
 function renderAppChrome(
   ui: ReactElement = <div>Dashboard</div>,

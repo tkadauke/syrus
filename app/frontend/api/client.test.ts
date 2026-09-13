@@ -38,6 +38,68 @@ describe("API revision reload guard", () => {
   })
 })
 
+describe("401 sign-in redirect", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it("sends the browser to sign in when a request is unauthorized", async () => {
+    const assign = stubLocation("/dashboard")
+    const { getJson } = await import("./client")
+    vi.spyOn(window, "fetch").mockResolvedValue(unauthorizedResponse())
+
+    await expect(getJson("/api/v1/app/maintenance_tasks/sidebar")).rejects.toThrow()
+
+    expect(assign).toHaveBeenCalledWith("/session/new")
+  })
+
+  // The log storm: assign() to the current URL is a reload, so an authenticated
+  // query left mounted on the sign-in page loops 401 -> reload -> remount -> 401
+  // at browser speed. A logged-out tab held ~26 requests/second this way.
+  it("does not redirect when the browser is already on the sign-in page", async () => {
+    const assign = stubLocation("/session/new")
+    const { getJson } = await import("./client")
+    vi.spyOn(window, "fetch").mockResolvedValue(unauthorizedResponse())
+
+    await expect(getJson("/api/v1/app/maintenance_tasks/sidebar")).rejects.toThrow()
+
+    expect(assign).not.toHaveBeenCalled()
+  })
+
+  it("recognizes the sign-in page under the desktop shell mount", async () => {
+    const assign = stubLocation("/app-shell/session/new")
+    const { getJson } = await import("./client")
+    vi.spyOn(window, "fetch").mockResolvedValue(unauthorizedResponse())
+
+    await expect(getJson("/api/v1/app/maintenance_tasks/sidebar")).rejects.toThrow()
+
+    expect(assign).not.toHaveBeenCalled()
+  })
+
+  it("still reports the error so callers can render it", async () => {
+    stubLocation("/dashboard")
+    const { getJson } = await import("./client")
+    vi.spyOn(window, "fetch").mockResolvedValue(unauthorizedResponse())
+
+    await expect(getJson("/api/v1/app/chats")).rejects.toMatchObject({ status: 401 })
+  })
+})
+
+function stubLocation(pathname: string) {
+  const assign = vi.fn()
+  vi.stubGlobal("location", { ...window.location, pathname, assign })
+  return assign
+}
+
+function unauthorizedResponse() {
+  return new Response(JSON.stringify({ error: { message: "Unauthorized" } }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" }
+  })
+}
+
 function installBootstrapRevision(revision: string) {
   const script = document.createElement("script")
   script.id = "syrus-bootstrap-data"
