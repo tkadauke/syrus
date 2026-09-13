@@ -14173,6 +14173,11 @@ describe("App", () => {
   })
 
   it("shows rejected proposal state on proposal cards", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
     const proposalMessage = {
       type: "message",
       id: 10,
@@ -14201,21 +14206,37 @@ describe("App", () => {
         materialized: { kind: "rejected", reason: "rejected" }
       }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const payload = chatPayload({ messages: [...chatPayload().messages, proposalMessage] })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8" || (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH")) {
+        return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(new Response(JSON.stringify({ pages: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
 
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
 
-    expect(await screen.findByRole("heading", { name: "Map auth" })).toBeInTheDocument()
-    expect(screen.getAllByText("Rejected").length).toBeGreaterThan(0)
-    expect(screen.queryByText(/Job\s+#/)).not.toBeInTheDocument()
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("heading", { name: "Map auth" })).toBeInTheDocument()
+      expect(screen.getAllByText("Rejected").length).toBeGreaterThan(0)
+      expect(screen.queryByText(/Job\s+#/)).not.toBeInTheDocument()
+    } finally {
+      script.remove()
+    }
   })
 
   it("loads older chat messages when scrolling near the top", async () => {
