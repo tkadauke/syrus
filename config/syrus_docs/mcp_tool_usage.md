@@ -47,11 +47,18 @@ tool input/result — only the same bounded, already-truncated
 plugin/core state. The payload compares chat-surface usage and currently
 advertised chat tools against registered frontend custom tool-card renderers
 where that renderer metadata can be discovered from core
-`app/frontend/routes/chat/tool_cards/*.tsx` files and plugin
-`plugins/*/app/frontend/tool_cards/*.tsx` files. The section includes a
-usage-ranked dashboard plus three compatibility buckets:
+`app/frontend/routes/chat/tool_cards/*.tsx` files, plugin
+`plugins/*/app/frontend/tool_cards/*.tsx` files, and shared helper wrappers
+such as `maintenanceToolCard("tool_name")` and
+`runtimeToolCardRenderer("tool_name")`. Tools without a card must have an
+explicit coverage decision in `Admin::McpToolCardCoverage` before they are
+allowed out of the regression audit: `generic` means the raw/generic renderer
+is intentional for now, `deferred` means the tool is deliberately obscure or
+deferred-tier, and `hidden` means another surrounding UI or confirmation card
+is the user-facing surface. The section includes a usage-ranked dashboard plus
+four compatibility buckets:
 
-- `ranked_gaps` — missing or weak/generic chat cards ordered by observed impact
+- `ranked_gaps` — missing or weak chat cards ordered by observed impact
   in the selected window. Each row carries call count, error count/rate, summed
   result byte volume, MCP server names, `last_used_at`, owner metadata, and a
   recommendation (`custom_card_next`, `watch`, or `ignore_for_now`) so operators
@@ -63,7 +70,14 @@ usage-ranked dashboard plus three compatibility buckets:
   is missing or weak. A weak card is one with an expanded renderer but no
   collapsed summary metadata.
 - `unused_advertised_tools` — chat tools advertised for the current chat
-  availability context but not used in the selected window.
+  availability context but not used in the selected window. Each row carries a
+  `card_status` of `registered`, `weak`, `missing`, `generic`, `deferred`, or
+  `hidden`.
+- `unclassified_advertised_tools` — advertised chat tools with neither a
+  discoverable card registration nor an explicit coverage decision. This bucket
+  should be empty in CI. Its rows include guidance telling implementers to add
+  a core/plugin card file or record an explicit generic/deferred/hidden
+  decision instead of silently relying on raw JSON.
 
 Each row carries `owner_type`, `owner_name`, and `recommendation_target`.
 Plugin-defined tools point at `plugin:<plugin_name>` so follow-up card work can

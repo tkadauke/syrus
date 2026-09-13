@@ -19,6 +19,7 @@ import addJobDependencyCard from "./add_job_dependency"
 import removeJobDependencyCard from "./remove_job_dependency"
 import unapproveJobCard from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
+import assignJobToEpicCard from "./assign_job_to_epic"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -49,13 +50,14 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["add_job_dependency", addJobDependencyCard],
   ["remove_job_dependency", removeJobDependencyCard],
   ["unapprove_job", unapproveJobCard],
-  ["remove_job_from_epic", removeJobFromEpicCard]
+  ["remove_job_from_epic", removeJobFromEpicCard],
+  ["assign_job_to_epic", assignJobToEpicCard]
 ]
 
 describe("Job and Epic maintenance tool cards", () => {
   it("registers under the exact MCP tool names", () => {
-    expect(CARDS).toHaveLength(18)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(18)
+    expect(CARDS).toHaveLength(19)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(19)
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {

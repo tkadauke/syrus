@@ -53,8 +53,16 @@ export type McpToolCardGapRow = {
   owner_type: "core" | "plugin"
   owner_name: string
   recommendation_target: string
-  card_status: "missing" | "weak" | "registered"
+  card_status: "missing" | "weak" | "registered" | "generic" | "deferred" | "hidden"
   recommendation?: "custom_card_next" | "watch" | "ignore_for_now"
+}
+
+export type McpToolCardUnclassifiedRow = {
+  tool_name: string
+  owner_type: "core" | "plugin"
+  owner_name: string
+  recommendation_target: string
+  guidance: string
 }
 
 export type McpToolCardGaps = {
@@ -62,6 +70,7 @@ export type McpToolCardGaps = {
   high_volume_without_custom_card: McpToolCardGapRow[]
   high_error_with_weak_or_no_custom_card: McpToolCardGapRow[]
   unused_advertised_tools: McpToolCardGapRow[]
+  unclassified_advertised_tools: McpToolCardUnclassifiedRow[]
 }
 
 export type McpToolUsagePayload = {
