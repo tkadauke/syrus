@@ -13,31 +13,34 @@ module MaintenanceTasks
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       result = @definition.perform_batch(@task)
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      current_step_key = @task.current_step_key
+      current_step_title = @task.current_step_title
 
-      @task.with_lock do
-        @task.reload
-        return unless @task.state == "running"
+      task = MaintenanceTask.find(@task.id)
+      task.with_lock do
+        task.reload
+        return unless task.state == "running"
 
-        completed = @task.completed_units.to_i + result.processed.to_i
-        failed = @task.failed_units.to_i + result.failed.to_i
-        @task.assign_attributes(
+        completed = task.completed_units.to_i + result.processed.to_i
+        failed = task.failed_units.to_i + result.failed.to_i
+        task.assign_attributes(
           completed_units: completed,
           failed_units: failed,
-          current_step_key: @task.current_step_key,
-          current_step_title: @task.current_step_title,
-          eta_seconds: eta_seconds(completed, @task.total_units, elapsed, result.processed.to_i),
+          current_step_key: current_step_key,
+          current_step_title: current_step_title,
+          eta_seconds: eta_seconds(completed, task.total_units, elapsed, result.processed.to_i),
           last_error: nil
         )
 
         if result.done
-          @task.state = "succeeded"
-          @task.finished_at = Time.current
-          @task.completed_units = @task.total_units if @task.total_units.positive?
-          @task.eta_seconds = 0
+          task.state = "succeeded"
+          task.finished_at = Time.current
+          task.completed_units = task.total_units if task.total_units.positive?
+          task.eta_seconds = 0
         end
 
-        @task.save!
-        @task.log!(
+        task.save!
+        task.log!(
           result.message.presence || "Processed #{result.processed.to_i} item(s).",
           level: result.level.presence || "progress",
           metadata: { elapsed_seconds: elapsed.round(3) }

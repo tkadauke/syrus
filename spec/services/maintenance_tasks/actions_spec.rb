@@ -46,6 +46,31 @@ RSpec.describe MaintenanceTasks::Actions do
     expect(task.dismissed_at).to be_nil
   end
 
+  it "clears stale failure details when a retry discovers no remaining work" do
+    task.update!(
+      state: "failed",
+      completed_units: 1,
+      failed_units: 1,
+      current_step_key: "retire",
+      current_step_title: "Retire stale insight cards",
+      last_error: "RuntimeError: stale error"
+    )
+    allow(definition).to receive(:estimate_total_units).and_return(0)
+
+    described_class.start!(task, user: admin)
+
+    expect(task.reload).to have_attributes(
+      state: "not_needed",
+      total_units: 0,
+      completed_units: 0,
+      failed_units: 0,
+      current_step_key: nil,
+      current_step_title: nil,
+      last_error: nil
+    )
+    expect(task.events.last.message).to eq("No matching maintenance work remains.")
+  end
+
   it "pauses and resumes a running task" do
     described_class.start!(task, user: admin)
     described_class.pause!(task, user: admin)

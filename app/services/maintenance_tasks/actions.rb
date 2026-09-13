@@ -54,7 +54,17 @@ module MaintenanceTasks
 
         total = @task.definition.estimate_total_units
         if total.zero?
-          @task.update!(state: "not_needed", total_units: 0, completed_units: 0, eta_seconds: 0, finished_at: Time.current)
+          @task.update!(
+            state: "not_needed",
+            total_units: 0,
+            completed_units: 0,
+            failed_units: 0,
+            current_step_key: nil,
+            current_step_title: nil,
+            eta_seconds: 0,
+            last_error: nil,
+            finished_at: Time.current
+          )
           @task.log!("No matching maintenance work remains.")
           return @task
         end
