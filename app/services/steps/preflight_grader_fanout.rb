@@ -82,9 +82,30 @@ module Steps
             )
           end
 
-          ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
-          new_steps.last.update!(next_step_id: continuation&.id)
+          link_materialized_grader_steps!(new_steps, continuation)
+
+          # The graders all run from this fanout and the continuation waits for
+          # every one of them. Stating that as edges is what makes them
+          # *parallel*: with no edges, Step#dependencies_settled? falls back to
+          # the linked-list predecessor, so grader N waits on grader N-1 and the
+          # batch runs single-file no matter what the placement policy or the
+          # Solid Queue concurrency key allow (WF-28163 ran 14 of them one at a
+          # time, ~1s apart, with the distributed gate fully on).
+          new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
+          continuation&.update!(depends_on_ids: new_steps.map(&:id))
         end
+      end
+    end
+
+    def link_materialized_grader_steps!(new_steps, continuation)
+      if distributed_parallel_grader_projection_enabled?
+        step.update!(next_step_id: new_steps.first&.id || continuation&.id)
+        new_steps.each { |grader| grader.update!(next_step_id: continuation&.id) }
+      else
+        # Gate-off workflows keep the legacy linked-list shape: graders run one
+        # after another, then the continuation collects them.
+        ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
+        new_steps.last.update!(next_step_id: continuation&.id)
       end
     end
 
@@ -168,6 +189,10 @@ module Steps
 
     def distributed_grader_projection_enabled?
       Feature.distributed_workflow_dag_enabled?(repository)
+    end
+
+    def distributed_parallel_grader_projection_enabled?
+      distributed_grader_projection_enabled?
     end
 
     def grader_placement_policy

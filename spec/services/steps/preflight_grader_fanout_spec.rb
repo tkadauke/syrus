@@ -143,6 +143,83 @@ RSpec.describe Steps::PreflightGraderFanout do
     )
   end
 
+  # The distributed gate had only ever done half its job here: it gave preflight
+  # graders an immutable-source placement (so each gets its own checkout and its
+  # own Solid Queue concurrency key) while the fanout still chained them into a
+  # linked list. With no edges, Step#dependencies_settled? falls back to the
+  # linked-list predecessor, so grader N waits on grader N-1 and
+  # StepDispatcher#distributed_ready_set can only ever collect one of them.
+  # WF-28163 ran 14 preflight graders strictly single-file, ~1s apart, with the
+  # gate fully on.
+  it "projects preflight graders as parallel siblings behind the collect barrier when distributed workflows are enabled" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_grade_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+        - name: lint
+          run: bin/rubocop
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec lint])
+    expect(step.reload.next_step_id).to eq(grader_steps.first.id)
+    # Every grader points at the barrier, not at its sibling.
+    expect(grader_steps.map(&:next_step_id)).to eq([ collect_step.id, collect_step.id ])
+    expect(grader_steps.map(&:depends_on_step_ids)).to eq([ [ step.id ], [ step.id ] ])
+    expect(collect_step.reload.depends_on_step_ids).to eq(grader_steps.map(&:id))
+  end
+
+  # The property that actually matters: every grader is ready at once, so the
+  # dispatcher's ready set contains the whole batch rather than one step.
+  it "makes every preflight grader ready as soon as the fanout settles" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_grade_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+        - name: lint
+          run: bin/rubocop
+        - name: types
+          run: bin/typecheck
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
+    expect(grader_steps.size).to eq(3)
+    expect(grader_steps).to all(satisfy { |g| g.dependencies_settled?(settled_step: step) })
+    # The barrier must NOT be ready yet, or the batch would be collected before
+    # it has run.
+    expect(collect_step.reload.dependencies_settled?(settled_step: step)).to be(false)
+  end
+
+  it "keeps the serial chain when the distributed gate is off" do
+    write_grade_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+        - name: lint
+          run: bin/rubocop
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
+    expect(step.reload.next_step_id).to eq(grader_steps.first.id)
+    expect(grader_steps.first.next_step_id).to eq(grader_steps.second.id)
+    expect(grader_steps.second.next_step_id).to eq(collect_step.id)
+    # Edges are written either way (as grader_fanout does); what keeps a
+    # gate-off workflow serial is the pinned placement -- these Steps share one
+    # workflow workspace, so StepDispatcher#parallel_runnable_step? refuses them
+    # and the legacy cursor walk dispatches one at a time.
+    expect(grader_steps.map(&:placement_policy)).to all(eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE))
+  end
+
   it "does not filter graders by when_files_changed — runs all graders regardless" do
     write_grade_config(<<~YAML)
       grade:
