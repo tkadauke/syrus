@@ -89,7 +89,13 @@ RSpec.describe Steps::ExternalPrMerge do
     described_class.new(run).call
 
     expect(push_git).to have_received(:run)
-      .with("push", "https://token@example.com/acme/widgets.git", "HEAD:refs/heads/contributor-branch", chdir: "/tmp/external-pr-workspace")
+      .with(
+        "push",
+        "--force-with-lease=refs/heads/contributor-branch:abc123",
+        "https://token@example.com/acme/widgets.git",
+        "HEAD:refs/heads/contributor-branch",
+        chdir: "/tmp/external-pr-workspace"
+      )
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 99, hash_including(sha: "def456"))
   end
@@ -176,6 +182,42 @@ RSpec.describe Steps::ExternalPrMerge do
       "base_sha" => "current-base",
       "validation_source" => "final_clean_rebase"
     )
+  end
+
+  it "does not stale-push the workflow workspace after a trusted clean base-move rebase already published the head" do
+    repository.update!(trust_clean_rebase_grade: true)
+    job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+    workflow.set_artifact!("external_pr_head_repo", "acme/widgets")
+    workflow.set_artifact!("external_pr_head_ref", "contributor-branch")
+    rebase_result = AutoRebase::Result.new(
+      true,
+      "rebased",
+      "advanced abc1234 → def5678",
+      changed: true,
+      pre_sha: "abc123",
+      post_sha: "def5678",
+      base_sha: "current-base"
+    )
+    allow(AutoRebase).to receive(:new).and_return(instance_double(AutoRebase, call: rebase_result))
+    allow(client).to receive(:pull_request).and_return(pr(head_sha: "abc123", base_sha: "current-base"))
+    allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("current-base")
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+
+    workspace = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/external-pr-workspace"))
+    rev_git = instance_double(GitRunner)
+    push_git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(rev_git, push_git)
+    allow(rev_git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/external-pr-workspace").and_return("abc123\n")
+    allow(push_git).to receive(:run)
+    allow_any_instance_of(described_class).to receive(:workspace).and_return(workspace)
+
+    described_class.new(run).call
+
+    expect(push_git).not_to have_received(:run)
+    expect(client).to have_received(:merge_pull_request)
+      .with("acme/widgets", 99, hash_including(merge_method: "rebase", sha: "def5678"))
+    expect(job.reload).to be_closed
+    expect(workflow.artifact("external_pr_head_sha")).to eq("def5678")
   end
 
   it "raises StepFailed instead of merging when the prepared head SHA is missing" do
