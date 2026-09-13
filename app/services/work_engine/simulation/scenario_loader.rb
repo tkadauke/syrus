@@ -9,6 +9,7 @@ module WorkEngine
       REPOSITORY_UPDATE_KEYS = %w[
         auto_merge_enabled main_branch_health_enabled main_branch_repair_enabled
         main_branch_repair_blocks_work landing_paused land_on_inherited_check_failure
+        distributed_workflow_dag_enabled
       ].freeze
       JOB_UPDATE_KEYS = %w[
         state closure_reason pr_number branch_name pr_checks_state pr_checks_sha
@@ -32,6 +33,7 @@ module WorkEngine
 
         ActiveRecord::Base.transaction(requires_new: true) do
           user = create_user!(data.fetch("user", {}))
+          configure_features!(data.fetch("features", {}))
           configure_app_settings!(data.fetch("app_settings", {}))
           repository = create_repository!(user, data.fetch("repository", {}))
           create_main_branch_health_checks!(repository, data.fetch("main_branch_health_checks", []))
@@ -81,6 +83,18 @@ module WorkEngine
         return if attrs.blank?
 
         AppSetting.current.update!(attrs.slice(*AppSetting.column_names))
+      end
+
+      def configure_features!(attrs)
+        attrs.to_h.each do |slug, enabled|
+          Feature.find_or_initialize_by(slug: slug.to_s).tap do |feature|
+            feature.category ||= "Simulation"
+            feature.name ||= slug.to_s.humanize
+            feature.enabled = enabled == true
+            feature.save!
+          end
+        end
+        Feature.clear_enabled_cache!
       end
 
       def create_repository!(user, attrs)
@@ -277,24 +291,39 @@ module WorkEngine
         )
         workflow.save!(validate: false)
         workflow.update_columns(created_at: parse_optional_time(config["created_at"])) if config["created_at"].present?
-        steps = Array(config.fetch("steps")).each_with_index.map do |step_config, index|
+        step_configs = Array(config.fetch("steps"))
+        step_keys = {}
+        steps = step_configs.each_with_index.map do |step_config, index|
+          kind = step_config.fetch("kind")
           Step.create!(
             workflow: workflow,
-            kind: step_config.fetch("kind"),
+            kind: kind,
             position: step_config.fetch("position", index),
             state: step_config.fetch("state", "queued"),
             iteration: step_config.fetch("iteration", 1),
             loop_id: step_config["loop_id"],
+            placement_policy: step_config["placement_policy"] || Step::Kind.fetch(kind).placement_policy_for(job.repository),
             details: step_config.fetch("details", {})
           ).tap do |step|
+            step_keys[step_config["key"].to_s] = step if step_config["key"].present?
             step.update_columns(created_at: parse_optional_time(step_config["created_at"])) if step_config["created_at"].present?
-            step.update_columns(depends_on_ids: step_config["depends_on_ids"]) if step_config.key?("depends_on_ids")
             create_run!(job, workflow, step, step_config["run"]) if step_config["run"]
           end
         end
         steps.each_cons(2) do |step, next_step|
           step.update!(next_step: next_step)
           next_step.update!(depends_on_ids: [ step.id ]) unless next_step.depends_on_ids.present?
+        end
+        step_configs.zip(steps).each do |step_config, step|
+          if step_config.key?("depends_on")
+            step.update!(depends_on_ids: Array(step_config["depends_on"]).map { |key| step_keys.fetch(key.to_s).id })
+          elsif step_config.key?("depends_on_ids")
+            step.update_columns(depends_on_ids: step_config["depends_on_ids"])
+          end
+          if step_config.key?("next_step")
+            next_step = step_config["next_step"].present? ? step_keys.fetch(step_config["next_step"].to_s) : nil
+            step.update!(next_step: next_step)
+          end
         end
         attach_work_unit!(job, workflow, config)
         workflow
@@ -315,6 +344,7 @@ module WorkEngine
           updates[:head_sha] = config["head_sha"] if config["head_sha"].present?
           updates[:base_sha] = config["base_sha"] if config["base_sha"].present?
           run.update_columns(updates)
+          create_run_checkpoint!(run, config["checkpoint"]) if config["checkpoint"]
           diagnostic = config["diagnostic"]
           if diagnostic
             RunDiagnostic.create!(
@@ -352,6 +382,25 @@ module WorkEngine
             )
           end
         end
+      end
+
+      def create_run_checkpoint!(run, config)
+        attrs = config.is_a?(Hash) ? config : {}
+        sha = attrs["commit_sha"].presence || run.head_sha.presence || simulated_sha("checkpoint", run.id)
+        RunCheckpoint.create!(
+          run: run,
+          workflow: run.workflow,
+          step: run.step,
+          job: run.job,
+          repository: run.job.repository,
+          user: run.job.user,
+          step_kind: run.step.kind,
+          commit_sha: sha,
+          base_sha: attrs["base_sha"].presence || run.base_sha.presence || simulated_sha("checkpoint-base", run.id),
+          remote_ref: attrs["remote_ref"].presence || RunCheckpoint.remote_ref_for(run),
+          status: attrs.fetch("status", "published"),
+          published_at: parse_optional_time(attrs["published_at"]) || Time.current
+        )
       end
 
       def create_auto_retry_attempts!(jobs, definitions)

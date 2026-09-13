@@ -19,8 +19,6 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")
     workflow.work_unit.block!(reason: "admission_control", details: { "action" => "delay_until" })
 
-    expect(StepDispatcher).not_to receive(:resume_deferred_phase)
-
     result = described_class.call(workflow.id)
 
     expect(result).to be_started
@@ -48,6 +46,115 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     expect(result).to be_started
     expect(result.run.step).to eq(next_step)
     expect(workflow.work_unit.reload).to be_queued
+  end
+
+  it "does not resume a step whose DAG dependencies are not ready" do
+    feature = Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |record|
+      record.name = "Distributed workflow DAG"
+      record.category = "Specs"
+    end
+    feature.update!(
+      name: "Distributed workflow DAG",
+      category: "Specs",
+      enabled: true
+    )
+    Feature.clear_enabled_cache!
+    repository.update!(distributed_workflow_dag_enabled: true)
+    job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "running",
+      agent_provider: "codex",
+      chain_template: []
+    )
+    attach_work_unit(workflow, state: "running")
+    stale_barrier = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 1,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop",
+      placement_policy: Step::PlacementPolicy::CONTROL_PLANE
+    )
+    tail = Step.create!(
+      workflow: workflow,
+      kind: "summarize",
+      position: 2,
+      state: "queued",
+      depends_on_ids: [ stale_barrier.id ]
+    )
+
+    result = described_class.call(workflow.id, tail.id)
+
+    expect(result.status).to eq("not_ready")
+    expect(result.run).to be_nil
+    expect(tail.runs).to be_empty
+  end
+
+  it "resumes a tail step after a later retry-until barrier succeeds" do
+    feature = Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |record|
+      record.name = "Distributed workflow DAG"
+      record.category = "Specs"
+    end
+    feature.update!(
+      name: "Distributed workflow DAG",
+      category: "Specs",
+      enabled: true
+    )
+    Feature.clear_enabled_cache!
+    repository.update!(distributed_workflow_dag_enabled: true)
+    job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "running",
+      agent_provider: "codex",
+      chain_template: []
+    )
+    attach_work_unit(workflow, state: "running")
+    stale_barrier = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 1,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop",
+      placement_policy: Step::PlacementPolicy::CONTROL_PLANE
+    )
+    repair = Step.create!(
+      workflow: workflow,
+      kind: "implement",
+      position: 2,
+      state: "succeeded",
+      iteration: 2,
+      loop_id: "grade-loop"
+    )
+    fresh_barrier = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 3,
+      state: "succeeded",
+      iteration: 2,
+      loop_id: "grade-loop",
+      placement_policy: Step::PlacementPolicy::CONTROL_PLANE
+    )
+    tail = Step.create!(
+      workflow: workflow,
+      kind: "summarize",
+      position: 4,
+      state: "queued",
+      depends_on_ids: [ stale_barrier.id ]
+    )
+    stale_barrier.update!(next_step: repair)
+    repair.update!(next_step: fresh_barrier)
+    fresh_barrier.update!(next_step: tail)
+
+    result = described_class.call(workflow.id, tail.id)
+
+    expect(result).to be_started
+    expect(result.run.step).to eq(tail)
   end
 
   it "keeps a blocked WorkUnit blocked without falling through to legacy resume" do

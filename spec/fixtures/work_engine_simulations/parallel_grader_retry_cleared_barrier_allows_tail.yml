@@ -1,0 +1,91 @@
+name: parallel grader retry cleared barrier allows tail
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: parallel-grader-retry-cleared-barrier-allows-tail
+  distributed_workflow_dag_enabled: true
+jobs:
+  job:
+    title: Parallel grader retry cleared barrier allows tail
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - key: old_fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: old_grader
+          kind: grader
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          details:
+            name: lint
+        - key: old_collect
+          kind: grader_collect
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - old_grader
+        - key: repair
+          kind: implement
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - repair
+        - key: lint
+          kind: grader
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          details:
+            name: lint
+        - key: collect
+          kind: grader_collect
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - lint
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on:
+            - old_collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+events:
+  - name: deferred tail wakeup
+    do:
+      resume_deferred_phase:
+        job: job
+        step: summarize
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - "deferred phase resume for JOB-"
+    - "started"
+    - "summarize -> success"
+    - "pr_open -> success"

@@ -732,6 +732,8 @@ class StepDispatcher
     previous = step.previous_step
     if step.id == workflow.first_step&.id
       start_workflow(workflow)
+    elsif step_id && new(workflow).send(:ready?, step)
+      create_run_and_enqueue(step, workflow, check_phase_admission: check_phase_admission)
     elsif distributed_deferred_resume_ready?(workflow, step)
       create_run_and_enqueue(step, workflow, check_phase_admission: check_phase_admission)
     elsif completed_predecessor?(previous)
@@ -1343,6 +1345,7 @@ class StepDispatcher
   # whose edges were never written.
   def ready?(step)
     return false if waiting_for_grader_batch?(step)
+    return false if blocked_by_uncleared_retry_until_barrier?(step)
 
     step.dependencies_settled?(settled_step: @from_step)
   rescue StandardError => e
@@ -1360,6 +1363,39 @@ class StepDispatcher
   def waiting_for_grader_batch?(step)
     grader_kind = Step::Kind.fetch(step.kind).waits_for_terminal_step_kind
     grader_kind.present? && grader_batch_for(step, grader_kind).any? { |grader| !grader.terminal? }
+  rescue ArgumentError
+    false
+  end
+
+  def blocked_by_uncleared_retry_until_barrier?(step)
+    return false if step.loop_id.present?
+
+    barrier_dependencies_for(step).any? do |dependency|
+      next false unless retry_until_barrier_step?(dependency)
+
+      latest_retry_until_barrier_for(step, dependency.loop_id)&.succeeded? != true
+    end
+  end
+
+  def latest_retry_until_barrier_for(step, loop_id)
+    @workflow.steps
+             .where(loop_id: loop_id)
+             .where("position < ?", step.position)
+             .reorder(position: :desc, id: :desc)
+             .detect { |candidate| retry_until_barrier_step?(candidate) }
+  end
+
+  def barrier_dependencies_for(step)
+    if step.depends_on_step_ids.any?
+      step.depends_on_steps
+    else
+      Array(step.previous_step)
+    end
+  end
+
+  def retry_until_barrier_step?(dependency)
+    dependency&.loop_id.present? &&
+      Step::Kind.fetch(dependency.kind).fail_policy == :loop_iteration
   rescue ArgumentError
     false
   end

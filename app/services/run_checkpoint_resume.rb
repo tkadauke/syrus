@@ -30,6 +30,9 @@ class RunCheckpointResume
     failed_step = RetryFailedStepEnqueuer.failed_step_for(source)
     return failure("No failed step is available for checkpoint resume.") unless failed_step
     return failure("Step #{failed_step.kind} is not safe to resume from a checkpoint.") unless safe_failed_step?(failed_step)
+    if RetryFailedStepEnqueuer.crosses_uncleared_retry_until_barrier?(failed_step)
+      return failure("Workflow has an uncleared retry-until failure before #{failed_step.kind}.")
+    end
 
     checkpoint = checkpoint_before(failed_step)
     return failure("No published mutation checkpoint is available before #{failed_step.kind}.") unless checkpoint
@@ -55,7 +58,10 @@ class RunCheckpointResume
        .order(created_at: :desc, id: :desc)
        .detect do |workflow|
          failed_step = RetryFailedStepEnqueuer.failed_step_for(workflow)
-         failed_step && safe_failed_step?(failed_step) && checkpoint_before(failed_step).present?
+         failed_step &&
+           safe_failed_step?(failed_step) &&
+           !RetryFailedStepEnqueuer.crosses_uncleared_retry_until_barrier?(failed_step) &&
+           checkpoint_before(failed_step).present?
        end
   end
 

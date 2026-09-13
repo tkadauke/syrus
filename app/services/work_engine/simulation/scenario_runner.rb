@@ -36,8 +36,8 @@ module WorkEngine
         raw = world.outcomes.to_h
         steps = raw.fetch("steps", {}).each_with_object({}) do |(key, value), result|
           token = key.to_s
-          if token.include?(":")
-            job_key, step_kind = token.split(":", 2)
+          job_key, step_kind = token.split(":", 2)
+          if step_kind.present? && world.jobs_by_key.key?(job_key)
             job = world.jobs_by_key.fetch(job_key)
             result["#{job.id}:#{step_kind}"] = translate_value(value, world)
           else

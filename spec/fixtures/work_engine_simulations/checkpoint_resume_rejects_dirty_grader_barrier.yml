@@ -1,0 +1,92 @@
+name: checkpoint resume rejects dirty grader barrier
+jobs:
+  job:
+    title: Checkpoint resume rejects dirty grader barrier
+    state: failed
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      chain_template:
+        - type: step
+          kind: prepare
+        - type: step
+          kind: implement
+        - type: retry_until
+          max_iterations: 2
+          repair:
+            - implement
+          check:
+            - grader_fanout
+            - grader_collect
+        - type: step
+          kind: summarize
+        - type: step
+          kind: test_plan
+        - type: step
+          kind: pr_open
+      steps:
+        - key: prepare
+          kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - key: implement
+          kind: implement
+          state: succeeded
+          run:
+            state: succeeded
+            head_sha: checkpointsha
+            base_sha: basesha
+            checkpoint: true
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: collect
+          kind: grader_collect
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          run:
+            state: failed
+        - key: summarize
+          kind: summarize
+          state: succeeded
+          depends_on:
+            - collect
+          run:
+            state: succeeded
+        - key: test_plan
+          kind: test_plan
+          state: failed
+          depends_on:
+            - summarize
+          run:
+            state: failed
+auto_retry_attempts:
+  retry_tail_failure:
+    job: job
+    workflow_kind: initial
+    step_kind: test_plan
+    retry_kind: failed_step
+    failure_classification: timeout
+    agent_provider: codex
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - "retry JOB-"
+    - "via implementation"
+    - "pr_open -> success"
+  absent_events:
+    - "checkpoint_resume"

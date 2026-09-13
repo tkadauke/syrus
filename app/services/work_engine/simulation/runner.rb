@@ -165,6 +165,7 @@ module WorkEngine
           when "break_main_branch" then break_main_branch!(value)
           when "heal_main_branch" then heal_main_branch!(value)
           when "wake_provider_admission" then wake_provider_admission!(value)
+          when "resume_deferred_phase" then resume_deferred_phase!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
         end
@@ -246,6 +247,17 @@ module WorkEngine
         resumed = resume_blocked_workflows!(WorkUnits::Gates::ProviderAvailability::REASON, provider: provider)
         events << "provider admission wakeup: #{admission.workflow_count} workflows, " \
                   "#{admission.auto_retry_count} auto retries, #{resumed} deferred phases resumed"
+      end
+
+      def resume_deferred_phase!(value)
+        attrs = value.is_a?(Hash) ? value : { "job" => value }
+        job = Job.find(attrs.fetch("job"))
+        workflow = job.workflows.order(:id).last
+        step = if attrs["step"].present?
+          workflow.steps.find_by!(kind: attrs.fetch("step").to_s)
+        end
+        result = WorkUnits::DeferredPhaseResume.call(workflow.id, step&.id)
+        events << "deferred phase resume for #{job.slug}: #{result.status}"
       end
 
       # Runs the same resume the enqueued WorkflowPhaseAdmissionJob would run,
@@ -531,6 +543,10 @@ module WorkEngine
         when "success"
           simulate_side_effects!(run, outcome)
           succeed_run_and_step!(run)
+        when "pending"
+          # Leave the run active for another tick. This lets scenarios model
+          # parallel fanout where one grader is still running while another
+          # sibling has already failed.
         when "worker_died"
           fail_run!(run, agent_outcome: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
         when "failure"
@@ -718,7 +734,11 @@ module WorkEngine
 
       def outcome_for(run)
         step_key = "#{run.job_id}:#{run.step&.kind}"
+        named_step_key = "#{step_key}:#{run.step&.details.to_h["name"]}" if run.step&.details.to_h["name"].present?
+        named_kind_key = "#{run.step&.kind}:#{run.step&.details.to_h["name"]}" if run.step&.details.to_h["name"].present?
         scripted = outcomes.fetch("steps", {})[step_key] ||
+          outcomes.fetch("steps", {})[named_step_key] ||
+          outcomes.fetch("steps", {})[named_kind_key] ||
           outcomes.fetch("steps", {})[run.step&.kind.to_s]
         sequence_outcome(scripted, run) || outcomes.fetch("default", "success")
       end
@@ -757,7 +777,9 @@ module WorkEngine
         expected_jobs_match? &&
           expected_epics_match? &&
           expected_queues_match? &&
+          expected_absent_active_steps_match? &&
           expected_events_match? &&
+          expected_absent_events_match? &&
           expected_ordered_events_match?
       end
 
@@ -788,6 +810,12 @@ module WorkEngine
         end
       end
 
+      def expected_absent_events_match?
+        Array(expectations["absent_events"]).none? do |unexpected|
+          events.any? { |line| line.include?(unexpected.to_s) }
+        end
+      end
+
       def expected_jobs_match?
         expectations.fetch("jobs", {}).all? do |id, expected|
           Array(expected).map(&:to_s).include?(Job.find(id).state)
@@ -810,6 +838,13 @@ module WorkEngine
           else raise ArgumentError, "unknown simulation queue expectation #{key.inspect}"
           end
         end
+      end
+
+      def expected_absent_active_steps_match?
+        unexpected_kinds = Array(expectations["absent_active_steps"]).map(&:to_s)
+        return true if unexpected_kinds.empty?
+
+        active_runs.none? { |run| unexpected_kinds.include?(run.step&.kind.to_s) }
       end
 
       def expected_landing_blocked_reasons_match?(expected)

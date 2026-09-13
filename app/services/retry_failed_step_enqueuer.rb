@@ -11,8 +11,37 @@ class RetryFailedStepEnqueuer
 
   def self.call(...) = new(...).call
   def self.failed_step_for(workflow)
-    workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).first ||
+    step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).first ||
       cancelled_publication_step_for(workflow)
+    return unless step
+    return if crosses_uncleared_retry_until_barrier?(step)
+
+    step
+  end
+
+  def self.crosses_uncleared_retry_until_barrier?(step)
+    return false if step.loop_id.present?
+
+    latest_retry_until_barriers_before(step).any? { |barrier| !barrier.succeeded? }
+  end
+
+  def self.retry_until_barrier_step?(step)
+    step.loop_id.present? &&
+      Step::Kind.fetch(step.kind).fail_policy == :loop_iteration
+  rescue ArgumentError
+    false
+  end
+
+  def self.latest_retry_until_barriers_before(step)
+    step.workflow.steps
+        .where("position < ?", step.position)
+        .reorder(position: :desc, id: :desc)
+        .each_with_object({}) do |candidate, barriers|
+          next unless retry_until_barrier_step?(candidate)
+
+          barriers[candidate.loop_id] ||= candidate
+        end
+        .values
   end
 
   def self.cancelled_publication_step_for(workflow)

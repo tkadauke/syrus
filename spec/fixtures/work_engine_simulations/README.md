@@ -102,11 +102,32 @@ verifies (`{ job:, failed_checks:, base_sha:, base_healthy: }`; pass
 `base_healthy: false` to exercise the suppression instead);
 `set_job_provider` switches a job's provider through the real setting change
 (`{ job:, provider: }`); `break_main_branch` / `heal_main_branch` flip the
-repo health columns the main-health gate reads. Failure outcomes can carry
+repo health columns the main-health gate reads; `resume_deferred_phase`
+models a queued `WorkflowPhaseAdmissionJob` waking a workflow phase after a
+WorkUnit gate passes (`{ job:, step: }`, with `step` optional). Failure outcomes can carry
 a `failure_code` (`- status: failure` plus `failure_code:`), stamped like a
 real step handler would stamp it so `Try` branches match. Workflow event
 conditions accept `start_blocked:` alongside `state:` to match on the
 current start-block reason.
+
+Feature flags can be enabled for a scenario with a top-level `features:` map,
+and repository columns can be set under `repository:`. For distributed-workflow
+regressions, set both `features.distributed_workflow_dag: true` and
+`repository.distributed_workflow_dag_enabled: true`; manually seeded steps then
+receive the same `placement_policy` their `Step::Kind` would receive in a real
+workflow unless the fixture overrides it.
+
+Manual workflows can use stable per-step keys for graph edges:
+
+```yaml
+steps:
+  - key: fanout
+    kind: grader_fanout
+    state: succeeded
+  - key: collect
+    kind: grader_collect
+    depends_on: [fanout]
+```
 
 For end-to-end orchestration scenarios, use `expect:` to describe the final
 world state. This lets a scenario model "the operator approves once ready, then
@@ -115,7 +136,8 @@ the desired endpoint. `expect:` also accepts `events`, a list of required
 substrings over the tick event log -- use it to pin that the middle of the
 story happened, not just the final state. Without this, a pause-then-resume
 scenario whose pause silently stops engaging still passes on the final state
-alone:
+alone. Use `absent_events` and `absent_active_steps` for negative assertions
+such as "do not enqueue publication while a grader barrier is dirty":
 
 ```yaml
 expect:
@@ -126,6 +148,8 @@ expect:
     active_runs: empty
     active_work_units: empty
     landing: empty
+  absent_active_steps:
+    - merge_train_land
 ```
 
 Event conditions currently support `job`, `workflow`, `work_unit`, and `queue`,

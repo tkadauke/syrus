@@ -1,0 +1,118 @@
+name: parallel merge train blocks dirty publication
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: parallel-merge-train-blocks-dirty-publication
+  distributed_workflow_dag_enabled: true
+jobs:
+  member:
+    title: Merge train member with dirty grader barrier
+    state: landing
+    pr_number: 12001
+    workflow:
+      kind: merge_train
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - key: assemble
+          kind: merge_train_assemble
+          state: succeeded
+        - key: build
+          kind: merge_train_build
+          state: succeeded
+        - key: reconcile
+          kind: merge_train_reconcile
+          state: succeeded
+        - key: prepare
+          kind: prepare
+          state: succeeded
+        - key: old_fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: landing-grade-loop
+        - key: old_grader
+          kind: grader
+          state: failed
+          iteration: 1
+          loop_id: landing-grade-loop
+          details:
+            name: lint
+        - key: old_collect
+          kind: grader_collect
+          state: failed
+          iteration: 1
+          loop_id: landing-grade-loop
+          depends_on:
+            - old_grader
+        - key: repair
+          kind: landing_fix
+          state: succeeded
+          iteration: 2
+          loop_id: landing-grade-loop
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 2
+          loop_id: landing-grade-loop
+          depends_on:
+            - repair
+        - key: lint
+          kind: grader
+          state: failed
+          iteration: 2
+          loop_id: landing-grade-loop
+          depends_on:
+            - fanout
+          details:
+            name: lint
+        - key: rspec
+          kind: grader
+          state: cancelled
+          iteration: 2
+          loop_id: landing-grade-loop
+          depends_on:
+            - fanout
+          details:
+            name: rspec
+        - key: collect
+          kind: grader_collect
+          state: failed
+          iteration: 2
+          loop_id: landing-grade-loop
+          depends_on:
+            - lint
+            - rspec
+        - key: land
+          kind: merge_train_land
+          state: queued
+          depends_on:
+            - old_collect
+outcomes:
+  default: success
+  steps:
+    grader:lint:
+      status: failure
+      error_message: simulated lint failure
+    grader:rspec: pending
+events:
+  - name: deferred publication wakeup
+    do:
+      resume_deferred_phase:
+        job: member
+        step: merge_train_land
+expect:
+  jobs:
+    member:
+      - landing
+  queues:
+    active_runs: empty
+  events:
+    - "deferred phase resume for JOB-"
+    - "not_ready"
+  absent_active_steps:
+    - merge_train_land
+  absent_events:
+    - "merge_train_land -> success"

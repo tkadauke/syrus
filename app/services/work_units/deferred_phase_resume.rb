@@ -33,24 +33,11 @@ module WorkUnits
       end
       StepDispatcher.clear_start_blocked!(workflow.reload, prior_block_reason) if prior_block_reason.present?
 
-      if first_step?(step)
-        launcher_result = WorkUnits::Launcher.start!(workflow)
-        return Result.new(
-          workflow: workflow,
-          run: launcher_result.run,
-          work_unit: work_unit,
-          status: launcher_result.status,
-          reason: launcher_result.reason
-        )
-      end
+      before_run_ids = step.runs.pluck(:id)
+      StepDispatcher.resume_deferred_phase(workflow.id, step.id, check_phase_admission: false)
+      run = step.runs.where.not(id: before_run_ids).order(:id).last
 
-      run = StepDispatcher.create_run_and_enqueue(
-        step,
-        workflow,
-        parent_session_id: step.upstream_session_id,
-        check_phase_admission: false
-      )
-      Result.new(workflow: workflow, run: run, work_unit: work_unit, status: run ? "started" : "not_started", reason: nil)
+      Result.new(workflow: workflow, run: run, work_unit: work_unit, status: run ? "started" : "not_ready", reason: nil)
     end
 
     private
@@ -67,10 +54,6 @@ module WorkUnits
       else
         StepDispatcher.next_queued_step_without_run(workflow)
       end
-    end
-
-    def first_step?(step)
-      step.id == workflow.first_step&.id
     end
 
     def result(status, reason: nil)

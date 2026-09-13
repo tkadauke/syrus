@@ -1,0 +1,106 @@
+name: parallel grader retry blocks tail
+runner:
+  auto_retry_failed_jobs: false
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: parallel-grader-retry-blocks-tail
+  distributed_workflow_dag_enabled: true
+jobs:
+  job:
+    title: Parallel grader retry blocks tail
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - key: old_fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: old_grader
+          kind: grader
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          details:
+            name: lint
+        - key: old_collect
+          kind: grader_collect
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - old_grader
+        - key: repair
+          kind: implement
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - repair
+        - key: lint
+          kind: grader
+          state: failed
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          details:
+            name: lint
+        - key: rspec
+          kind: grader
+          state: cancelled
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          details:
+            name: rspec
+        - key: collect
+          kind: grader_collect
+          state: failed
+          iteration: 2
+          loop_id: grade-loop
+          depends_on:
+            - lint
+            - rspec
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on:
+            - old_collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+outcomes:
+  default: success
+  steps:
+    grader_collect:
+      status: failure
+      error_message: "required graders failed: lint"
+    grader:lint:
+      status: failure
+      error_message: simulated lint failure
+    grader:rspec: pending
+expect:
+  jobs:
+    job:
+      - failed
+  queues:
+    active_runs: empty
+  absent_active_steps:
+    - summarize
+    - pr_open
+  absent_events:
+    - "summarize -> success"
+    - "pr_open -> success"

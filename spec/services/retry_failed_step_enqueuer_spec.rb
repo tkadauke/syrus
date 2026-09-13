@@ -23,6 +23,67 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(old_failure.runs).to be_empty
   end
 
+  it "does not retry a tail step in place across a failed retry-until barrier" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    barrier = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 10,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop"
+    )
+    failed_tail = Step.create!(workflow: workflow, kind: "test_plan", position: 12, state: "failed")
+    barrier.update!(next_step: failed_tail)
+
+    expect(described_class.failed_step_for(workflow)).to be_nil
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_success
+    expect(result.error).to eq("No failed step to retry.")
+    expect(failed_tail.reload).to be_failed
+    expect(failed_tail.runs).to be_empty
+  end
+
+  it "retries a tail step when a later retry-until barrier cleared the earlier failure" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    old_barrier = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 10,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop"
+    )
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 11, state: "succeeded", iteration: 2, loop_id: "grade-loop")
+    new_barrier = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 12,
+      state: "succeeded",
+      iteration: 2,
+      loop_id: "grade-loop"
+    )
+    failed_tail = Step.create!(workflow: workflow, kind: "test_plan", position: 13, state: "failed")
+    old_barrier.update!(next_step: repair)
+    repair.update!(next_step: new_barrier)
+    new_barrier.update!(next_step: failed_tail)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.step).to eq(failed_tail)
+    expect(failed_tail.reload).to be_queued
+    expect(failed_tail.runs.last).to eq(result.run)
+  end
+
   it "can create a retry run that explicitly disables provider resume" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
