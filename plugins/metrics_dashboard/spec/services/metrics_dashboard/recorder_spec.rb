@@ -22,11 +22,11 @@ RSpec.describe MetricsDashboard::Recorder do
 
     expect(described_class.record!).to eq(3)
 
-    polling = MetricsDashboardSample.find_by(metric: "syrus_global_queue_ready_count", series_key: "queue=polling")
+    polling = MetricsDashboard::Sample.find_by(metric: "syrus_global_queue_ready_count", series_key: "queue=polling")
     expect(polling.value).to eq(2715)
     expect(polling.labels).to eq({ "queue" => "polling" })
 
-    orphans = MetricsDashboardSample.find_by(metric: "syrus_global_queue_orphaned_rows")
+    orphans = MetricsDashboard::Sample.find_by(metric: "syrus_global_queue_orphaned_rows")
     expect(orphans.value).to eq(553_671)
     expect(orphans.series_key).to eq("")
   end
@@ -41,7 +41,7 @@ RSpec.describe MetricsDashboard::Recorder do
     render_metrics("syrus_global_queue_ready_count{queue=\"polling\"} 25\n")
     described_class.record!(now: now + 30.seconds)
 
-    samples = MetricsDashboardSample.where(metric: "syrus_global_queue_ready_count")
+    samples = MetricsDashboard::Sample.where(metric: "syrus_global_queue_ready_count")
     expect(samples.count).to eq(1)
     expect(samples.sole.value).to eq(25), "the later value in the minute should win"
   end
@@ -53,7 +53,7 @@ RSpec.describe MetricsDashboard::Recorder do
     described_class.record!(now: base)
     described_class.record!(now: base + 1.minute)
 
-    expect(MetricsDashboardSample.where(metric: "syrus_global_queue_ready_count").count).to eq(2)
+    expect(MetricsDashboard::Sample.where(metric: "syrus_global_queue_ready_count").count).to eq(2)
   end
 
   # A recorder that raises would fail the plugin tick and could retry into a
@@ -62,7 +62,7 @@ RSpec.describe MetricsDashboard::Recorder do
     allow(Metrics::QueueSampler).to receive(:refresh_gauges!).and_raise(ActiveRecord::StatementInvalid, "nope")
 
     expect { described_class.record! }.not_to raise_error
-    expect(MetricsDashboardSample.count).to eq(0)
+    expect(MetricsDashboard::Sample.count).to eq(0)
   end
 
   # Histograms are exposed as _bucket/_sum/_count families. Charting a quantile
@@ -81,7 +81,7 @@ RSpec.describe MetricsDashboard::Recorder do
 
     described_class.record!
 
-    expect(MetricsDashboardSample.pluck(:metric)).to eq([ "syrus_feature_used_total" ])
+    expect(MetricsDashboard::Sample.pluck(:metric)).to eq([ "syrus_feature_used_total" ])
   end
 
   it "keeps a gauge whose name merely ends in a histogram suffix" do
@@ -94,7 +94,7 @@ RSpec.describe MetricsDashboard::Recorder do
 
     described_class.record!
 
-    expect(MetricsDashboardSample.pluck(:metric)).to contain_exactly(
+    expect(MetricsDashboard::Sample.pluck(:metric)).to contain_exactly(
       "syrus_global_queue_ready_count", "syrus_global_queue_blocked_count"
     )
   end

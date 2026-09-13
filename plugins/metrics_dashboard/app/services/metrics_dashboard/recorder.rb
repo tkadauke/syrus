@@ -37,13 +37,13 @@ module MetricsDashboard
         {
           metric: sample.metric,
           labels: sample.labels,
-          series_key: MetricsDashboardSample.series_key_for(sample.labels),
+          series_key: MetricsDashboard::Sample.series_key_for(sample.labels),
           value: sample.value,
           recorded_at: @minute
         }
       end
 
-      MetricsDashboardSample.upsert_all(
+      MetricsDashboard::Sample.upsert_all(
         rows,
         unique_by: :idx_metrics_dashboard_series_minute,
         update_only: %i[value labels]

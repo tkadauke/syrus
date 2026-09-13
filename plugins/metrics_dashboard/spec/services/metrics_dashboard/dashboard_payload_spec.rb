@@ -2,9 +2,9 @@ require "rails_helper"
 
 RSpec.describe MetricsDashboard::DashboardPayload do
   def sample(metric:, labels:, value:, at:)
-    MetricsDashboardSample.create!(
+    MetricsDashboard::Sample.create!(
       metric: metric, labels: labels,
-      series_key: MetricsDashboardSample.series_key_for(labels),
+      series_key: MetricsDashboard::Sample.series_key_for(labels),
       value: value, recorded_at: at
     )
   end
@@ -62,7 +62,7 @@ RSpec.describe MetricsDashboard::DashboardPayload do
     sample(metric: "syrus_global_queue_orphaned_rows", labels: {}, value: 1, at: Time.current)
     expect(described_class.build[:recording]).to be(true)
 
-    MetricsDashboardSample.update_all(recorded_at: 2.hours.ago)
+    MetricsDashboard::Sample.update_all(recorded_at: 2.hours.ago)
     expect(described_class.build[:recording]).to be(false)
   end
 end
