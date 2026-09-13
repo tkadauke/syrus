@@ -20,7 +20,6 @@ class Run < ApplicationRecord
   has_many :auto_retry_attempts, dependent: :nullify
   has_many :spawned_processes, dependent: :nullify
   has_many :command_spans, -> { order(:sequence, :id) }, dependent: :destroy
-  has_many :workflow_step_worker_slots, dependent: :destroy
   has_many :diff_review_comments, dependent: :nullify
   has_many :diff_review_versions, dependent: :nullify
   has_one :agent, as: :resumable, dependent: :destroy
@@ -151,8 +150,6 @@ class Run < ApplicationRecord
                        if: :saved_change_to_state_to_failed?
   after_update_commit :propagate_succeeded_run!,
                        if: :saved_change_to_state_to_succeeded?
-  after_update_commit :release_workflow_step_worker_slots!,
-                       if: :saved_change_to_state_to_terminal?
   after_update_commit :propagate_terminal_run!,
                        if: :saved_change_to_state_to_terminal?
   after_update_commit :propagate_run_state_change!, if: :saved_change_to_state?
@@ -191,10 +188,6 @@ class Run < ApplicationRecord
 
   def wake_workflow_admission_after_completion!
     Runs::LifecyclePropagation.wake_workflow_admission!(self)
-  end
-
-  def release_workflow_step_worker_slots!
-    WorkflowStepWorkerSlot.release_for_run!(self)
   end
 
   def propagate_run_state_change!

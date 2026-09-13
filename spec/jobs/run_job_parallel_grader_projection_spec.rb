@@ -94,7 +94,6 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
     )
     expect(workflow.artifact("grader_loops").first.fetch("wall_clock_s")).to be > 0
     expect(workflow.artifact("grader_loops").first.fetch("summed_duration_s")).to be > 0
-    expect(WorkflowStepWorkerSlot.where(workflow: workflow)).to be_empty
   end
 
   private

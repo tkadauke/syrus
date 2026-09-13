@@ -382,10 +382,6 @@ module App
         command_spans_by_run_id.fetch(run.id, [])
       end
 
-      def worker_slots_for_step(step)
-        workflow_step_worker_slots_by_step_id.fetch(step.id, [])
-      end
-
       def warnings_for(step)
         workflow_warnings_by_step_id.fetch(step.id, [])
       end
@@ -495,9 +491,10 @@ module App
 
       def step_placement_json(step, workflow:)
         details = step.details.to_h
-        latest_slot = worker_slots_for_step(step).max_by { |slot| [ slot.acquired_at || Time.zone.at(0), slot.id || 0 ] }
         latest_run = ordered_runs_for(step).max_by { |run| [ run.started_at || run.created_at || Time.zone.at(0), run.id || 0 ] }
         latest_admission = latest_admission_details_for(step, workflow: workflow)
+        checkout = details["immutable_source_checkout"].is_a?(Hash) ? details["immutable_source_checkout"] : {}
+        checkout_storage_key = checkout["worker_storage_key"].presence
 
         {
           policy: step.placement_policy,
@@ -505,12 +502,9 @@ module App
           projected_target_fingerprint: details["projected_target_fingerprint"],
           projected_resource_key: details["projected_resource_key"],
           source_snapshot: source_snapshot_json(details["source_snapshot"]),
-          worker_hostname: latest_slot&.worker_hostname || latest_run_worker_hostname(latest_run) || workflow.worker_hostname,
-          worker_storage_key: latest_slot&.worker_storage_key || workflow.worker_storage_key,
-          worker_key: latest_slot&.worker_key,
-          worker_slot_acquired_at: iso8601(latest_slot&.acquired_at),
-          worker_slot_released_at: iso8601(latest_slot&.released_at),
-          worker_slot_release_reason: latest_slot&.release_reason,
+          worker_hostname: checkout["worker_hostname"].presence || latest_run_worker_hostname(latest_run) || workflow.worker_hostname,
+          worker_storage_key: checkout_storage_key || workflow.worker_storage_key,
+          worker_key: checkout_storage_key ? "storage:#{checkout_storage_key}" : nil,
           prepare_cache: prepare_cache_json(details),
           admission: latest_admission
         }.compact
@@ -576,7 +570,6 @@ module App
 
       def admission_artifacts_for(workflow)
         [
-          workflow.artifact("workflow_step_worker_slot_admission"),
           workflow.artifact("run_host_admission")
         ].select { |value| value.is_a?(Hash) }
       end
@@ -988,17 +981,6 @@ module App
 
           rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, grouped|
             grouped[row.fetch("run_id").to_i] << row.fetch("id").to_i
-          end
-        end
-      end
-
-      def workflow_step_worker_slots_by_step_id
-        @workflow_step_worker_slots_by_step_id ||= begin
-          ids = visible_step_ids
-          if ids.empty?
-            {}
-          else
-            WorkflowStepWorkerSlot.where(step_id: ids).order(:step_id, :acquired_at, :id).group_by(&:step_id)
           end
         end
       end

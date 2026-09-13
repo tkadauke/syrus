@@ -581,6 +581,10 @@ RSpec.describe App::JobDetailPayload, :ci_only do
             "source_ref" => snapshot.source_ref,
             "tree_sha" => snapshot.tree_sha
           },
+          "immutable_source_checkout" => {
+            "worker_hostname" => "worker-alpha",
+            "worker_storage_key" => "storage-alpha"
+          },
           "prepare_cache" => { "hit" => true, "key" => "prepare-alpha" }
         }
       )
@@ -618,16 +622,6 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         hostname: "worker-alpha",
         outcome: "succeeded"
       )
-      WorkflowStepWorkerSlot.create!(
-        workflow: workflow,
-        step: alpha,
-        run: alpha_run,
-        worker_key: "storage:alpha",
-        worker_hostname: "worker-alpha",
-        worker_storage_key: "storage-alpha",
-        released_at: Time.current,
-        release_reason: "run_terminal"
-      )
       beta_run = Run.create!(
         job: job,
         step: beta,
@@ -636,10 +630,10 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         state: "queued"
       )
       workflow.set_artifact!(
-        "workflow_step_worker_slot_admission",
+        "run_host_admission",
         {
-          "reason" => "worker_slot_busy",
-          "worker_key" => "storage:beta",
+          "reason" => "local_worker_pressure_critical",
+          "action" => "defer",
           "worker_hostname" => "worker-beta",
           "worker_storage_key" => "storage-beta",
           "step_id" => beta.id,
@@ -661,8 +655,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         projected_resource_key: "target://:grade/alpha",
         worker_hostname: "worker-alpha",
         worker_storage_key: "storage-alpha",
-        worker_key: "storage:alpha",
-        worker_slot_release_reason: "run_terminal",
+        worker_key: "storage:storage-alpha",
         prepare_cache: include("hit" => true, "key" => "prepare-alpha"),
         source_snapshot: include(
           "id" => snapshot.id,
@@ -681,7 +674,8 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(beta_payload.dig(:dependencies, :barrier_progress)).to be_nil
       expect(alpha_payload.dig(:runs, 0, :command_spans)).to contain_exactly(include(hostname: "worker-alpha", name: "alpha"))
       expect(beta_payload.dig(:placement, :admission)).to include(
-        "reason" => "worker_slot_busy",
+        "reason" => "local_worker_pressure_critical",
+        "action" => "defer",
         "worker_hostname" => "worker-beta",
         "worker_storage_key" => "storage-beta"
       )

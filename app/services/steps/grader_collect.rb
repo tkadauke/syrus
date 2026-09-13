@@ -248,9 +248,8 @@ module Steps
       cache_key = grader_steps.map(&:id)
       @rollout_metrics_for[cache_key] ||= begin
         latest_runs = latest_runs_by_step_id(grader_steps)
-        latest_slots = latest_worker_slots_by_step_id(grader_steps)
         waits = grader_steps.filter_map { |grader| queue_wait_s(latest_runs[grader.id]) }
-        worker_keys = grader_steps.filter_map { |grader| worker_key_for(grader, latest_slots[grader.id]) }.uniq
+        worker_keys = grader_steps.filter_map { |grader| worker_key_for(grader) }.uniq
         classifications = latest_runs.values.filter_map { |grader_run| grader_run.run_failure_classification&.classification }
         cache_statuses = grader_steps.filter_map { |grader| grader.details.to_h.dig("prepare_cache", "status").presence }
 
@@ -276,15 +275,6 @@ module Steps
       )
     end
 
-    def latest_worker_slots_by_step_id(grader_steps)
-      @latest_worker_slots_by_step_id ||= {}
-      ids = grader_steps.map(&:id)
-      cache_key = ids.sort
-      @latest_worker_slots_by_step_id[cache_key] ||= latest_by_step_id(
-        WorkflowStepWorkerSlot.where(step_id: ids).order(acquired_at: :desc, id: :desc)
-      )
-    end
-
     def latest_by_step_id(records)
       records.each_with_object({}) do |record, memo|
         memo[record.step_id] ||= record
@@ -297,9 +287,9 @@ module Steps
       [ latest_run.started_at - latest_run.created_at, 0 ].max.round(3)
     end
 
-    def worker_key_for(grader, latest_slot)
-      latest_slot&.worker_key.presence ||
-        grader.details.to_h.dig("immutable_source_checkout", "worker_storage_key").presence
+    def worker_key_for(grader)
+      storage_key = grader.details.to_h.dig("immutable_source_checkout", "worker_storage_key").presence
+      storage_key ? "storage:#{storage_key}" : nil
     end
 
     def infrastructure_failure_classification?(classification)

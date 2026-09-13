@@ -694,6 +694,7 @@ RSpec.describe Steps::GraderCollect do
           "name" => name,
           "required" => true,
           "duration_s" => 0.30,
+          "immutable_source_checkout" => { "worker_storage_key" => "worker-#{index % 2}" },
           "prepare_cache" => { "status" => index.zero? ? "miss" : "hit" }
         }
       )
@@ -706,16 +707,6 @@ RSpec.describe Steps::GraderCollect do
         created_at: base_time - (index + 1).seconds,
         started_at: grader_step.started_at,
         finished_at: grader_step.finished_at
-      )
-      WorkflowStepWorkerSlot.create!(
-        workflow: workflow,
-        step: grader_step,
-        run: grader_run,
-        worker_key: "storage:worker-#{index % 2}",
-        worker_storage_key: "worker-#{index % 2}",
-        worker_hostname: "host-#{index % 2}",
-        released_at: Time.current,
-        release_reason: "run_terminal"
       )
     end
 
@@ -834,21 +825,11 @@ RSpec.describe Steps::GraderCollect do
         reason: "not used for passed rollout metrics",
         classified_at: Time.current
       )
-      WorkflowStepWorkerSlot.create!(
-        workflow: workflow,
-        step: grader_step,
-        run: grader_run,
-        worker_key: "storage:worker-#{grader_step.id}",
-        worker_storage_key: "worker-#{grader_step.id}",
-        released_at: Time.current,
-        release_reason: "run_terminal"
-      )
     end
 
     queries = capture_sql { handler.call }
 
     expect(selects_from(queries, "runs").grep(/"runs"\."step_id" IN/).size).to eq(1)
-    expect(selects_from(queries, "workflow_step_worker_slots").grep(/"workflow_step_worker_slots"\."step_id" IN/).size).to eq(1)
     expect(selects_from(queries, "run_failure_classifications").size).to eq(1)
   end
 
