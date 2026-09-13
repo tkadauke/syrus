@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   fetchAdminMcpToolUsage,
   type McpToolUsageBreakdownRow,
+  type McpToolCardGapRow,
   type McpToolUsagePayload,
   type McpToolUsageRecentCall,
   type McpToolUsageToolRow
@@ -174,6 +175,8 @@ function McpToolUsageView({ payload }: { payload: McpToolUsagePayload }) {
         <StatTile label={t("mcp_tool_usage.totals_error_rate")} value={`${errorRate}%`} />
       </section>
 
+      <CardGapDashboardPanel rows={payload.custom_card_gaps.dashboard} />
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ToolRowsPanel heading={t("mcp_tool_usage.top_tools_heading")} rows={payload.top_tools} />
         <ToolRowsPanel heading={t("mcp_tool_usage.error_rates_heading")} rows={payload.error_rates} />
@@ -193,12 +196,63 @@ function McpToolUsageView({ payload }: { payload: McpToolUsagePayload }) {
   )
 }
 
+function formatBytes(value: number | undefined) {
+  const bytes = value || 0
+  if (bytes >= 1024 * 1024) return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
+  if (bytes >= 1024) return `${Math.round((bytes / 1024) * 10) / 10} KB`
+  return `${bytes} B`
+}
+
 function StatTile({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
       <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{value}</div>
     </div>
+  )
+}
+
+function CardGapDashboardPanel({ rows }: { rows: McpToolCardGapRow[] }) {
+  const { t } = useT("admin")
+  return (
+    <section className="overflow-hidden rounded border border-amber-200 bg-white dark:border-amber-900/60 dark:bg-gray-900">
+      <SectionHeading className="border-b border-amber-100 px-4 py-3 dark:border-amber-900/60">{t("mcp_tool_usage.card_gap_dashboard_heading")}</SectionHeading>
+      {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.card_gap_dashboard_empty")}</AdminEventPanelMessage> : (
+        <table className="min-w-full divide-y divide-amber-100 text-sm dark:divide-amber-950/60">
+          <thead className="bg-amber-50 text-left text-xs font-medium uppercase text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+            <tr>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_priority")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_tool")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_owner")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_calls")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_errors")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_result_bytes")}</th>
+              <th className="px-4 py-2">{t("mcp_tool_usage.col_last_used")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-amber-50 dark:divide-amber-950/50">
+            {rows.map((row, index) => (
+              <tr key={`${row.server_name || "-"}.${row.tool_name}`}>
+                <td className="px-4 py-2 align-top font-mono text-gray-700 dark:text-gray-200">{index + 1}</td>
+                <td className="px-4 py-2 align-top">
+                  <div className="break-words font-medium text-gray-900 dark:text-gray-100">{row.tool_name}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{row.server_name || "-"}</div>
+                  <span className="mt-1 inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-200">{row.card_status}</span>
+                </td>
+                <td className="px-4 py-2 align-top">
+                  <div className="text-gray-700 dark:text-gray-200">{row.owner_type === "plugin" ? row.owner_name : t("mcp_tool_usage.owner_core")}</div>
+                  <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{row.recommendation_target}</div>
+                </td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.calls || 0}</td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.errors || 0}</td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{formatBytes(row.result_bytes)}</td>
+                <td className="px-4 py-2 align-top text-gray-700 dark:text-gray-200">{row.last_used_at ? formatEventDate(row.last_used_at) : t("mcp_tool_usage.unknown")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   )
 }
 

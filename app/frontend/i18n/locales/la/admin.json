@@ -898,6 +898,8 @@
     "error_rates_heading": "Rationes errorum maximae",
     "unused_tools_heading": "Instrumenta praedicata non usitata",
     "unused_tools_empty": "Omne instrumentum praedicatum semel saltem hoc tempore vocatum est.",
+    "card_gap_dashboard_heading": "Tabula lacunarum chartarum propriarum",
+    "card_gap_dashboard_empty": "Nullae chartae frequenter usitatae absentes aut genericae hoc tempore.",
     "surface_breakdown_heading": "Superficies",
     "provider_breakdown_heading": "Praebitor",
     "server_breakdown_heading": "Server",
@@ -908,6 +910,10 @@
     "col_calls": "Vocationes",
     "col_errors": "Errores",
     "col_error_rate": "Ratio errorum",
+    "col_priority": "Prioritas",
+    "col_owner": "Possessor",
+    "col_result_bytes": "Bytes eventus",
+    "col_last_used": "Novissime usum",
     "col_time": "Tempus",
     "col_call": "Vocatio",
     "col_status": "Status",
@@ -915,7 +921,8 @@
     "link_job": "JOB-{{id}}",
     "link_workflow": "Workflow #{{id}}",
     "link_run": "Cursus #{{id}}",
-    "link_chat": "Colloquium"
+    "link_chat": "Colloquium",
+    "owner_core": "core"
   },
   "transcript": {
     "loading": "Transcriptum onerans...",

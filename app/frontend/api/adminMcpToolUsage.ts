@@ -44,9 +44,12 @@ export type McpToolUsageRecentCall = {
 
 export type McpToolCardGapRow = {
   tool_name: string
+  server_name?: string | null
   calls?: number
   errors?: number
   error_rate?: number
+  result_bytes?: number
+  last_used_at?: string | null
   owner_type: "core" | "plugin"
   owner_name: string
   recommendation_target: string
@@ -54,6 +57,7 @@ export type McpToolCardGapRow = {
 }
 
 export type McpToolCardGaps = {
+  dashboard: McpToolCardGapRow[]
   high_volume_without_custom_card: McpToolCardGapRow[]
   high_error_with_weak_or_no_custom_card: McpToolCardGapRow[]
   unused_advertised_tools: McpToolCardGapRow[]

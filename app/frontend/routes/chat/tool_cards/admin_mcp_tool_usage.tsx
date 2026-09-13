@@ -9,9 +9,12 @@ type BreakdownRow = { key: string; label: string; calls: number; errors: number;
 type CardGapRow = {
   key: string
   toolName: string
+  serverName: string | null
   calls: number | null
   errors: number | null
   errorRate: number | null
+  resultBytes: number | null
+  lastUsedAt: string | null
   ownerType: string
   ownerName: string
   recommendationTarget: string
@@ -45,6 +48,7 @@ type UsageCard = {
   sidecarModeBreakdown: BreakdownRow[]
   unusedAdvertisedTools: string[]
   customCardGaps: {
+    dashboard: CardGapRow[]
     highVolumeWithoutCustomCard: CardGapRow[]
     highErrorWithWeakOrNoCustomCard: CardGapRow[]
     unusedAdvertisedTools: CardGapRow[]
@@ -54,6 +58,13 @@ type UsageCard = {
 
 function percent(value: number) {
   return `${(Math.round(value * 1000) / 10).toFixed(1)}%`
+}
+
+function formatBytes(value: number | null) {
+  const bytes = value || 0
+  if (bytes >= 1024 * 1024) return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
+  if (bytes >= 1024) return `${Math.round((bytes / 1024) * 10) / 10} KB`
+  return `${bytes} B`
 }
 
 function parseToolRow(value: unknown, index: number): ToolRow | null {
@@ -91,9 +102,12 @@ function parseCardGapRow(value: unknown, index: number): CardGapRow | null {
   return {
     key: `${toolName}-${cardStatus}-${index}`,
     toolName,
+    serverName: displayValue(value.server_name),
     calls: numberValue(value.calls),
     errors: numberValue(value.errors),
     errorRate: numberValue(value.error_rate),
+    resultBytes: numberValue(value.result_bytes),
+    lastUsedAt: displayValue(value.last_used_at),
     ownerType,
     ownerName,
     recommendationTarget,
@@ -151,6 +165,7 @@ function parseFilters(value: unknown) {
 function parseCustomCardGaps(value: unknown) {
   const gaps = isPlainObject(value) ? value : {}
   return {
+    dashboard: parseCardGapRows(gaps.dashboard),
     highVolumeWithoutCustomCard: parseCardGapRows(gaps.high_volume_without_custom_card),
     highErrorWithWeakOrNoCustomCard: parseCardGapRows(gaps.high_error_with_weak_or_no_custom_card),
     unusedAdvertisedTools: parseCardGapRows(gaps.unused_advertised_tools)
@@ -279,7 +294,7 @@ function CardGapRows({ heading, rows, showVolume = true }: { heading: string; ro
             <div className="min-w-0 space-y-1 px-2 py-2" key={row.key}>
               <div className="min-w-0">
                 <div className="break-words font-medium text-gray-900 dark:text-gray-100">{row.toolName}</div>
-                <div className="break-words text-2xs text-gray-500 dark:text-gray-400">{row.ownerType === "plugin" ? row.ownerName : "core"}</div>
+                <div className="break-words text-2xs text-gray-500 dark:text-gray-400">{[row.serverName, row.ownerType === "plugin" ? row.ownerName : "core"].filter(Boolean).join(" / ")}</div>
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-1">
                 <StatePill state={row.cardStatus} tone={row.cardStatus === "registered" ? "success" : "warning"} />
@@ -290,6 +305,43 @@ function CardGapRows({ heading, rows, showVolume = true }: { heading: string; ro
             </div>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+function CardGapDashboard({ rows }: { rows: CardGapRow[] }) {
+  return (
+    <div className="min-w-0 rounded border border-amber-200 dark:border-amber-900/60">
+      <div className="border-l-4 border-amber-500 px-2 py-1">
+        <SectionLabel>Card gap dashboard</SectionLabel>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState>No missing or generic high-usage cards in this window.</EmptyState>
+      ) : (
+        <Table>
+          <THead columns={["#", "Tool", "Owner", "Calls", "Errors", "Bytes", "Last"]} />
+          <TBody>
+            {rows.map((row, index) => (
+              <tr key={row.key}>
+                <Td mono>{index + 1}</Td>
+                <Td maxWidth title={[row.serverName, row.toolName].filter(Boolean).join(".")}>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{row.toolName}</div>
+                  <div className="text-2xs text-gray-500 dark:text-gray-400">{row.serverName || "-"}</div>
+                  <StatePill state={row.cardStatus} tone={row.cardStatus === "registered" ? "success" : "warning"} />
+                </Td>
+                <Td maxWidth title={row.recommendationTarget}>
+                  <div>{row.ownerType === "plugin" ? row.ownerName : "core"}</div>
+                  <div className="font-mono text-2xs text-gray-500 dark:text-gray-400">{row.recommendationTarget}</div>
+                </Td>
+                <Td mono>{row.calls ?? 0}</Td>
+                <Td mono>{row.errors ?? 0}</Td>
+                <Td mono>{formatBytes(row.resultBytes)}</Td>
+                <Td mono>{row.lastUsedAt || "-"}</Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
       )}
     </div>
   )
@@ -349,6 +401,7 @@ function renderExpanded(context: ToolCardContext) {
         <StatTile label="Error rate" value={percent(rate)} tone={card.totals.errors > 0 ? "error" : "neutral"} />
       </div>
       {card.totals.calls === 0 ? <EmptyState>No MCP tool calls found for this window.</EmptyState> : null}
+      <CardGapDashboard rows={card.customCardGaps.dashboard} />
       <div className="grid gap-2 lg:grid-cols-2">
         <ToolRows heading="Volume priorities" intent="volume" rows={card.topTools} />
         <ToolRows heading="Error priorities" intent="error" rows={card.errorRates} />
