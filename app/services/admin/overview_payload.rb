@@ -31,6 +31,7 @@ module Admin
           provider_circuits: PerformanceLogging.phase("admin_overview.provider_circuits") { provider_circuits },
           agent_session_capture_rate: PerformanceLogging.phase("admin_overview.capture_rate") { capture_rate_payload },
           data_root_disk_usage: PerformanceLogging.phase("admin_overview.data_root_disk_usage") { data_root_disk_usage_payload },
+          active_storage: PerformanceLogging.phase("admin_overview.active_storage") { active_storage_payload },
           worker_data_root_usages: PerformanceLogging.phase("admin_overview.worker_data_root_usages") { InstanceVersion.worker_data_root_usages },
           worker_health: PerformanceLogging.phase("admin_overview.worker_health") { worker_health_payload(sample_limit_per_host: 4) }
         }
@@ -133,6 +134,17 @@ module Admin
       # Prefer the most-full worker's own reported usage (multi-worker aware);
       # fall back to the single cached snapshot on single-worker / dev.
       InstanceVersion.worst_data_root&.data_root_usage_json || DataRootDiskUsage.current&.as_json
+    end
+
+    def active_storage_payload
+      StorageConnectivity.check.as_json
+    rescue StandardError => e
+      {
+        available: false,
+        service: nil,
+        error_class: e.class.name,
+        message: e.message.to_s
+      }
     end
 
     def worker_health_payload(sample_limit_per_host:)

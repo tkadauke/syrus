@@ -39,6 +39,20 @@ module Api
             type: attachment.content_type || "application/octet-stream",
             disposition: "inline"
           )
+        rescue StandardError => e
+          raise unless StorageConnectivity.transient_error?(e)
+
+          Rails.logger.warn(
+            "[WorkflowsController] Active Storage unavailable while serving visual artifact " \
+            "for Workflow ##{workflow&.id}: #{e.class}: #{e.message}"
+          )
+          response.set_header("Retry-After", StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
+          render json: {
+            error: {
+              code: "storage_unavailable",
+              message: "Visual artifact storage is temporarily unavailable. Please retry shortly."
+            }
+          }, status: :service_unavailable
         end
 
         private

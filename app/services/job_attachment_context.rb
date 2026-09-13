@@ -1,4 +1,8 @@
 class JobAttachmentContext
+  class StorageUnavailable < Steps::Base::StepFailed
+    problem_code :storage_unavailable
+  end
+
   ATTACHMENTS_DIR = Pathname("tmp/attachments").freeze
   PREVIEW_PANEL_MOCKUP_REF_PREFIX = "preview_panel_version:"
 
@@ -63,6 +67,21 @@ class JobAttachmentContext
       url: nil,
       reference_only: preview_panel_mockup?(attachment)
     )
+  rescue StandardError => e
+    raise unless StorageConnectivity.transient_error?(e)
+
+    raise StorageUnavailable.new(
+      "attached file storage is temporarily unavailable while materializing #{attachment_name(attachment)}: #{e.class}: #{e.message}",
+      evidence: {
+        storage_error_class: e.class.name,
+        attachment_id: attachment.id,
+        job_id: job.id
+      }
+    )
+  end
+
+  def attachment_name(attachment)
+    attachment.file.filename.to_s.presence || "attachment ##{attachment.id}"
   end
 
   def preview_panel_mockup?(attachment)

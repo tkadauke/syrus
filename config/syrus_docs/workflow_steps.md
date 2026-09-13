@@ -111,6 +111,13 @@ class BranchDiverged < StepFailed
 end
 ```
 
+`JobAttachmentContext::StorageUnavailable` uses the same mechanism for
+agentic startup failures caused by transient ActiveStorage/MinIO connectivity
+while materializing uploaded Job attachments. It declares
+`storage_unavailable`, a retryable/deferred problem, so a temporary storage
+outage does not become a terminal workflow failure before the provider process
+starts.
+
 The declared code is persisted on the Run's diagnostic and read by the layers
 that act on the failure — `RunFailureClassifier` returns it directly (with
 confidence `1.0`, because it is a report rather than a guess), and
