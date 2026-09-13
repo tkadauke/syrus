@@ -233,6 +233,7 @@ admin-only:
   - app/controllers/api/v1/app/admin/github_app_controller.rb
   - app/controllers/api/v1/app/admin/installations_controller.rb
   - app/controllers/api/v1/app/admin/invitations_controller.rb
+  - app/controllers/api/v1/app/admin/maintenance_tasks_controller.rb
   - app/controllers/api/v1/app/admin/mcp_tool_usage_controller.rb
   - app/controllers/api/v1/app/admin/plugins_controller.rb
   - app/controllers/api/v1/app/admin/queue_controller.rb
@@ -246,6 +247,7 @@ admin-only:
   - app/controllers/api/v1/app/credentials_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
+  - app/controllers/api/v1/app/maintenance_tasks_controller.rb
   - plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
@@ -451,6 +453,8 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/admin/github_app_controller.rb` | admin-only | Builds GitHub App manifests using the current admin's identity/contact context. |
 | `app/controllers/api/v1/app/admin/installations_controller.rb` | admin-only | Queues installation sync for the current admin. |
 | `app/controllers/api/v1/app/admin/invitations_controller.rb` | admin-only | Records the current admin as invitation creator. |
+| `app/controllers/api/v1/app/admin/maintenance_tasks_controller.rb` | admin-only | Starts, pauses, resumes, cancels, and dismisses maintenance tasks with the current admin recorded as actor. |
+| `app/controllers/api/v1/app/maintenance_tasks_controller.rb` | admin-only | Sidebar maintenance task visibility is gated on `Current.user.admin?`; non-admin users receive an empty task list. |
 | `app/controllers/api/v1/app/admin/queue_controller.rb` | admin-only | Reads queue/process state through admin-only payloads and user-aware filters. |
 | `app/controllers/api/v1/app/admin/restart_controller.rb` | admin-only | Writes the Rails.cache restart poison-pill and passes the current admin as actor for `AdminAction` audit logging. |
 | `app/controllers/api/v1/app/admin/spawned_processes_controller.rb` | admin-only | Lists and kills subprocesses through admin payloads, with the current admin passed for authorization/audit. |
