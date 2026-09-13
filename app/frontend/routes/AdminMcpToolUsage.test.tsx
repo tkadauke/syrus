@@ -45,6 +45,27 @@ function payload() {
       { sidecar_mode: "stdio", calls: 10, errors: 2, error_rate: 0.2 }
     ],
     unused_advertised_tools: ["submit_summary"],
+    custom_card_gaps: {
+      ranked_gaps: [
+        {
+          tool_name: "bulk_read_jobs",
+          calls: 19,
+          errors: 0,
+          error_rate: 0,
+          result_bytes: 98304,
+          last_used_at: "2026-08-20T12:00:00Z",
+          server_names: ["syrus-chat-sidecar"],
+          owner_type: "core",
+          owner_name: "core",
+          recommendation_target: "core",
+          card_status: "missing",
+          recommendation: "custom_card_next"
+        }
+      ],
+      high_volume_without_custom_card: [],
+      high_error_with_weak_or_no_custom_card: [],
+      unused_advertised_tools: []
+    },
     recent_calls: [
       {
         id: 1,
@@ -85,6 +106,9 @@ describe("AdminMcpToolUsage", () => {
     expect((await screen.findAllByText("read_live_state")).length).toBeGreaterThan(0)
     expect(screen.getByText("repo_info")).toBeInTheDocument()
     expect(screen.getByText("submit_summary")).toBeInTheDocument()
+    expect(screen.getByText("Custom card gap ranking")).toBeInTheDocument()
+    expect(screen.getByText("bulk_read_jobs")).toBeInTheDocument()
+    expect(screen.getByText("custom card next")).toBeInTheDocument()
 
     const jobLink = screen.getByRole("link", { name: "JOB-42" })
     expect(jobLink).toHaveAttribute("href", "/jobs/42")

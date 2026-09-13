@@ -1026,6 +1026,8 @@
     "totals_error_rate": "Error rate",
     "top_tools_heading": "Top tools",
     "error_rates_heading": "Highest error rates",
+    "card_gaps_heading": "Custom card gap ranking",
+    "card_gaps_empty": "No missing or weak custom cards in this window.",
     "unused_tools_heading": "Unused advertised tools",
     "unused_tools_empty": "Every advertised tool was called at least once in this window.",
     "surface_breakdown_heading": "Surface",
@@ -1038,6 +1040,10 @@
     "col_calls": "Calls",
     "col_errors": "Errors",
     "col_error_rate": "Error rate",
+    "col_owner": "Owner",
+    "col_result_bytes": "Result bytes",
+    "col_last_used": "Last used",
+    "col_recommendation": "Recommendation",
     "col_time": "Time",
     "col_call": "Call",
     "col_status": "Status",
@@ -1045,7 +1051,11 @@
     "link_job": "JOB-{{id}}",
     "link_workflow": "Workflow #{{id}}",
     "link_run": "Run #{{id}}",
-    "link_chat": "Chat"
+    "link_chat": "Chat",
+    "owner_core": "core",
+    "recommendation_custom_card_next": "custom card next",
+    "recommendation_watch": "watch",
+    "recommendation_ignore_for_now": "ignore for now"
   },
   "transcript": {
     "loading": "Loading transcript...",

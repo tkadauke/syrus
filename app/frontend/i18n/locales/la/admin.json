@@ -896,6 +896,8 @@
     "totals_error_rate": "Ratio errorum",
     "top_tools_heading": "Instrumenta maxime usitata",
     "error_rates_heading": "Rationes errorum maximae",
+    "card_gaps_heading": "Ordo lacunarum schedarum propriarum",
+    "card_gaps_empty": "Nullae schedae propriae desunt aut infirmae hoc tempore.",
     "unused_tools_heading": "Instrumenta praedicata non usitata",
     "unused_tools_empty": "Omne instrumentum praedicatum semel saltem hoc tempore vocatum est.",
     "surface_breakdown_heading": "Superficies",
@@ -908,6 +910,10 @@
     "col_calls": "Vocationes",
     "col_errors": "Errores",
     "col_error_rate": "Ratio errorum",
+    "col_owner": "Possessor",
+    "col_result_bytes": "Byte eventuum",
+    "col_last_used": "Ultime usum",
+    "col_recommendation": "Consilium",
     "col_time": "Tempus",
     "col_call": "Vocatio",
     "col_status": "Status",
@@ -915,7 +921,11 @@
     "link_job": "JOB-{{id}}",
     "link_workflow": "Workflow #{{id}}",
     "link_run": "Cursus #{{id}}",
-    "link_chat": "Colloquium"
+    "link_chat": "Colloquium",
+    "owner_core": "core",
+    "recommendation_custom_card_next": "scheda propria proxima",
+    "recommendation_watch": "observa",
+    "recommendation_ignore_for_now": "nunc ignora"
   },
   "transcript": {
     "loading": "Transcriptum onerans...",
