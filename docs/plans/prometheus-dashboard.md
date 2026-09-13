@@ -876,3 +876,138 @@ endpoint, and telemetry is downstream of the recorder.
    everything above and because the privacy surface deserves its own review.
 
 Steps 1-4 stand alone and are worth doing regardless of whether 5-7 happen.
+
+---
+
+# Where metrics get declared
+
+An earlier section said declarations live "boot-time, one place, so the metric
+set is greppable". That does not survive the plugin system: plugins own
+behaviour core cannot see, they are independently installable and deletable, and
+`bin/plugin-boundary-audit` proves a bundled plugin can be physically removed
+with the suite still green. A core file listing every metric would make every
+plugin undeletable, which is the exact failure mode the boundary audit exists to
+prevent.
+
+So declaration is **distributed**, and the greppability it costs is bought back
+by generating a catalog instead of maintaining one.
+
+## Two declaration sites
+
+**Core metrics** are declared next to the subsystem they measure — queue gauges
+with the queue sampler, run counters near the run lifecycle — not in a central
+file. Declaration next to instrumentation is what keeps the two from drifting.
+
+**Plugin metrics** are declared in the plugin manifest, alongside the
+capabilities it already registers there:
+
+```ruby
+syrus_plugin "git_history" do
+  display_name "Git History"
+  provides repo_page_tab: "GitHistory::RepoPageTabs"
+  route :get, "/api/v1/app/repositories/:repository_id/git_history/commits", to: "..."
+
+  metrics do
+    counter :relay_requests_total, tags: %i[outcome],
+            comment: "Bare-clone reads served to web pods"
+    histogram :relay_duration_seconds, buckets: [0.01, 0.05, 0.25, 1, 5]
+  end
+end
+```
+
+This puts metrics in the same place as `provides` and `route`, so a plugin
+remains a single self-describing unit and deleting its directory takes its
+metrics with it.
+
+## Namespacing
+
+Plugin metrics are emitted as `syrus_<plugin>_<metric>`:
+
+```
+syrus_git_history_relay_requests_total{outcome="hit"}
+```
+
+The prefix, not a `plugin` label, because in Prometheus the metric *name* is the
+identity of the thing being measured and labels are its dimensions. A prefix
+also makes ownership legible without a lookup, makes collisions structurally
+impossible, and lets an operator keep or drop a whole plugin's series with one
+relabel rule. The cost is that aggregating "all plugin request counters" needs a
+name regex rather than a label selector — a trade worth making, since that query
+is rare and the ownership question is constant.
+
+## Disabled plugins declare nothing
+
+A plugin's metrics are registered under the same `while_enabled` semantics as
+the rest of its effects: **disabled plugins register no metrics and emit no
+series.**
+
+This interacts with the "absence is the signal" rule for product metrics in a
+way that turns out to be exactly right, provided the two cases stay
+distinguishable:
+
+| Situation | Series | Reading |
+|---|---|---|
+| Plugin enabled, feature unused | counter present, value `0` | **actionable** — shipped, nobody uses it |
+| Plugin disabled | no series | not applicable, not a signal |
+| Plugin not installed | no series | not applicable |
+
+`syrus_plugin_enabled{plugin}` (0/1 per *installed* plugin) is what separates
+the second row from the third, and it is why that gauge is worth having beyond
+mere inventory. Without it "no series" is ambiguous, and a product decision made
+on that ambiguity would be wrong in the expensive direction — concluding nobody
+wants a feature that was merely switched off.
+
+## Rules the registry enforces at boot
+
+Distributed declaration needs the registry to be strict, because there is no
+longer one file to read:
+
+- **Duplicate names raise.** Two declarations of the same metric fail boot
+  loudly rather than last-write-wins. Silent shadowing between a plugin and core
+  would be near-undebuggable from a dashboard.
+- **Tags come from the allowlist.** The cardinality rule is enforced over
+  whatever is registered, by iterating the registry rather than by naming
+  metrics. That satisfies the core-specs-must-not-enumerate-plugin-things rule:
+  the spec asserts the *property*, never the inventory.
+- **Declaration precedes use.** Incrementing an undeclared metric raises in
+  development and test, and is a no-op plus a warning in production — a metrics
+  bug must never take down a Run.
+- **Plugin prefix is applied by the registry**, not by the plugin author, so a
+  plugin cannot accidentally or deliberately declare into core's namespace.
+
+## The generated catalog
+
+Distributed declaration loses the single greppable list. Rather than reinstate
+it by hand — which would drift within a release — the registry generates it:
+
+```
+bin/metrics-catalog        # writes docs/metrics-catalog.md from the live registry
+```
+
+Each entry carries name, type, tags, help text, owner (core or plugin), and
+whether it is shared by telemetry. A spec asserts the committed catalog matches
+the registry, so adding a metric without regenerating fails CI. That gives the
+greppable artifact, keeps it honest, and makes every new metric visible in
+review.
+
+The catalog also **is the telemetry transparency document**. The settings screen
+renders the shared subset from the same source, so "what does Syrus send?" is
+answered by generated fact rather than by prose that ages badly.
+
+## Plugins and telemetry: one open question
+
+A plugin can mark its own metrics `share: :aggregate`, which means a plugin
+author — potentially a third party — participates in deciding what leaves an
+operator's install. The structural protections still hold (bounded labels mean
+no identifiers can ride along, and the payload preview shows everything), but
+consent granularity is a real question:
+
+- Does enabling telemetry consent to *all* installed plugins' shared metrics?
+- Or is sharing opt-in per plugin, with newly installed plugins defaulting to
+  not-shared until the operator says otherwise?
+
+The second is more honest and probably correct, and it fits the catalog: the
+settings screen lists shared metrics grouped by owner, so a plugin's request to
+share is visible as its own line rather than folded invisibly into a total.
+Deferred to the telemetry step, but the registry should carry the owner on every
+metric from the start so the choice stays open.
