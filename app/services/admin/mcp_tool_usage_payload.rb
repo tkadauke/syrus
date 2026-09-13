@@ -237,6 +237,7 @@ module Admin
       Admin::McpToolCardCoverage.call(
         usages: chat_usages,
         advertised_tools: advertised,
+        chat_session: chat_session,
         single_tool_name: tool_name
       )
     end
