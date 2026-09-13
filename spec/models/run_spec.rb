@@ -36,6 +36,51 @@ RSpec.describe Run, :ci_only do
     end
   end
 
+  describe "#resume_worker_queue" do
+    it "uses the workflow storage queue for mutable workflow runs" do
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        worker_storage_key: "storage-alpha"
+      )
+      step = Step.create!(
+        workflow: workflow,
+        kind: "implement",
+        position: 0,
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
+      queue = Workflow.resume_queue_name("storage-alpha")
+
+      allow(InstanceVersion).to receive(:worker_queue_live?).with(queue).and_return(true)
+
+      expect(run.resume_worker_queue).to eq(queue)
+    end
+
+    it "does not pin immutable distributed grader runs to the workflow storage queue" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "merge_train",
+        worker_storage_key: "storage-alpha"
+      )
+      step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 0,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT
+      )
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
+
+      expect(InstanceVersion).not_to receive(:worker_queue_live?)
+      expect(run.resume_worker_queue).to be_nil
+    end
+  end
+
   describe "AASM state machine (was Job's)" do
     it "starts queued" do
       expect(job.initial_run).to be_queued

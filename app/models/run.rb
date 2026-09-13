@@ -298,6 +298,8 @@ class Run < ApplicationRecord
   # recorded, or for legacy hostname-only rows when that worker pod is gone.
   # Public so callers like DiagnoseRunJob dispatch can use the same routing logic.
   def resume_worker_queue
+    return nil if distributed_parallel_run?
+
     storage_key = workflow&.worker_storage_key.presence
     if storage_key.present?
       queue = Workflow.resume_queue_name(storage_key)
