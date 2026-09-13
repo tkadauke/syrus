@@ -208,6 +208,12 @@ button focused on actual job output. Add a regression test where a stale
 workflow branch is rebased over new main commits before push fails, and assert
 the banner does not present those base commits as workflow-owned changes.
 
+**Fixed:** `Steps::PrOpen` now summarizes the "published by replacing" side
+against the workflow workspace base ref instead of `remote_sha..local_sha`.
+That keeps unrelated base commits brought in by a clean rebase out of the
+operator-facing replacement list while retaining the remote-only discarded
+commit summary. Covered by `spec/services/steps/pr_open_spec.rb`.
+
 ### Checkpoint resume can bypass an uncleared grade loop
 
 **Symptom:** JOB-4947 ended up `implemented` with a PR even though its original

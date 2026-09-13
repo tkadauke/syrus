@@ -452,11 +452,25 @@ module Steps
 
       {
         "discarded" => divergence_commits(git, "#{local_sha}..#{remote_sha}"),
-        "published" => divergence_commits(git, "#{remote_sha}..#{local_sha}"),
+        "published" => divergence_commits(git, published_divergence_range(remote_sha, local_sha)),
+        "published_base_ref" => divergence_published_base_ref,
         "discarded_files" => divergence_files(git, local_sha, remote_sha)
       }.compact.presence
     rescue StandardError => e
       log("pr_open: could not summarize branch divergence: #{e.class}: #{e.message}")
+      nil
+    end
+
+    def published_divergence_range(remote_sha, local_sha)
+      base_ref = divergence_published_base_ref
+      return "#{base_ref}..#{local_sha}" if base_ref.present?
+
+      "#{remote_sha}..#{local_sha}"
+    end
+
+    def divergence_published_base_ref
+      workspace.base_ref.to_s.presence
+    rescue StandardError
       nil
     end
 

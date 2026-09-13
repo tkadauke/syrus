@@ -989,7 +989,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       .with("log", "--no-merges", "--format=%h\x1f%an\x1f%aI\x1f%s", "-n", "11", "local-sha..remote-sha", chdir: path.to_s)
       .and_return("abc1234\x1fReviewer\x1f2026-09-07T10:00:00Z\x1fHand-edit on the PR branch\n")
     allow(git).to receive(:run)
-      .with("log", "--no-merges", "--format=%h\x1f%an\x1f%aI\x1f%s", "-n", "11", "remote-sha..local-sha", chdir: path.to_s)
+      .with("log", "--no-merges", "--format=%h\x1f%an\x1f%aI\x1f%s", "-n", "11", "origin/main..local-sha", chdir: path.to_s)
       .and_return("def5678\x1fSyrus\x1f2026-09-07T03:00:00Z\x1fImplement the thing\n")
     allow(git).to receive(:run)
       .with("diff", "--name-only", "local-sha...remote-sha", chdir: path.to_s)
@@ -1003,7 +1003,47 @@ RSpec.describe Steps::PrOpen, :ci_only do
     )
     expect(comparison["discarded"]["truncated"]).to be(false)
     expect(comparison["published"]["commits"].first).to include("subject" => "Implement the thing")
+    expect(comparison["published_base_ref"]).to eq("origin/main")
     expect(comparison["discarded_files"]["files"]).to eq([ "app/models/widget.rb" ])
+  end
+
+  it "does not present rebased base commits as workflow output in divergence diagnostics" do
+    job.update!(state: "running", pr_number: 77)
+    pr_open_run = Run.create!(
+      job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    branch = "syrus/issue-42-#{job.id}"
+    workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path, base_ref: "origin/main")
+    client = instance_double(GithubClient, access_token: "token")
+    git = instance_double(GitRunner)
+    push_url = repository.authenticated_push_url("token")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(git).to receive(:run).with("fetch", push_url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("")
+    allow(git).to receive(:run).with("rev-parse", "refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("remote-sha\n")
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("local-sha\n")
+    allow(git).to receive(:run).with("merge-base", "--is-ancestor", "remote-sha", "HEAD", chdir: path.to_s)
+      .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+    allow(git).to receive(:run)
+      .with("log", "--no-merges", "--format=%h\x1f%an\x1f%aI\x1f%s", "-n", "11", "local-sha..remote-sha", chdir: path.to_s)
+      .and_return("abc1234\x1fReviewer\x1f2026-09-07T10:00:00Z\x1fHand-edit on the PR branch\n")
+    allow(git).to receive(:run)
+      .with("log", "--no-merges", "--format=%h\x1f%an\x1f%aI\x1f%s", "-n", "11", "origin/main..local-sha", chdir: path.to_s)
+      .and_return("def5678\x1fSyrus\x1f2026-09-07T03:00:00Z\x1fOnly the workflow commit\n")
+    allow(git).to receive(:run)
+      .with("diff", "--name-only", "local-sha...remote-sha", chdir: path.to_s)
+      .and_return("app/models/widget.rb\n")
+
+    expect { handler.send(:push_branch) }.to raise_error(Steps::PrOpen::BranchDiverged)
+
+    comparison = workflow.reload.artifact("branch_divergence")["comparison"]
+    expect(comparison["published"]["commits"].map { |commit| commit["subject"] }).to eq([ "Only the workflow commit" ])
+    expect(comparison["published_base_ref"]).to eq("origin/main")
   end
 
   # The comparison is a nicety; losing it must never turn a recoverable
