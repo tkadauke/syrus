@@ -1,5 +1,6 @@
 class PollMainBranchHealthJob < ApplicationJob
   include SkipIfPending
+  include GithubPollingRateLimitGuard
 
   queue_as :polling
 
@@ -14,12 +15,12 @@ class PollMainBranchHealthJob < ApplicationJob
     Faraday::ConnectionFailed
   ].freeze
 
-  def perform(repository_id)
+  def perform(repository_id, manual: false)
     repository = Repository.find_by(id: repository_id)
     return unless repository
     return if repository.archived?
     return unless repository.main_branch_health_enabled?
-    return if repository.github_api_rate_limited_for?
+    return if github_polling_rate_limited?(repository, user: repository.user, manual: manual, retry_args: [ repository_id ])
 
     # Grading main is the instance's work, not the repository owner's; see
     # InstanceIdentity. It still runs as the owner, but a repository with no
@@ -32,136 +33,138 @@ class PollMainBranchHealthJob < ApplicationJob
 
     client = GithubClient.for(repository: repository, user: identity.user)
 
-    sha = begin
-      client.branch_head_sha(repository.slug, repository.default_branch)
-    rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
-      handle_transient_github_error!(repository, e)
-      return
-    end
-    client.clear_api_blocked!
-    return unless sha
+    with_github_polling_rate_limit_backoff(repository, user: repository.user, manual: manual, retry_args: [ repository_id ]) do
+      sha = begin
+        client.branch_head_sha(repository.slug, repository.default_branch)
+      rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+        handle_transient_github_error!(repository, e)
+        return
+      end
+      client.clear_api_blocked!
+      return unless sha
 
-    repository.reset_main_health_poll_error_streak!
+      repository.reset_main_health_poll_error_streak!
 
-    previous_main_sha = repository.last_health_checked_sha.presence
-    sha_changed = sha != previous_main_sha
-    previous_health = repository.main_health
-    grading_needed = sha != repository.last_graded_sha
+      previous_main_sha = repository.last_health_checked_sha.presence
+      sha_changed = sha != previous_main_sha
+      previous_health = repository.main_health
+      grading_needed = sha != repository.last_graded_sha
 
-    # Health is scoped to the default-branch SHA. When main advances, stale
-    # healthy states from the prior SHA must not leak onto the new one while
-    # GitHub checks or the main-grader workflow are still running. Broken states
-    # are different: once work has been paused because main is broken, keep the
-    # current signal broken until the replacement SHA gets a conclusive green
-    # signal. Otherwise the UI and queue gate briefly look recovered while the
-    # fix is still being validated.
-    if sha_changed
-      repository.update_columns(
-        last_health_checked_sha: sha,
-        ci_health: repository.ci_health_broken? ? "broken" : "unknown",
-        grader_health: repository.grader_health_broken? ? "broken" : "unknown"
-      )
-      repository.reload
-    end
+      # Health is scoped to the default-branch SHA. When main advances, stale
+      # healthy states from the prior SHA must not leak onto the new one while
+      # GitHub checks or the main-grader workflow are still running. Broken states
+      # are different: once work has been paused because main is broken, keep the
+      # current signal broken until the replacement SHA gets a conclusive green
+      # signal. Otherwise the UI and queue gate briefly look recovered while the
+      # fix is still being validated.
+      if sha_changed
+        repository.update_columns(
+          last_health_checked_sha: sha,
+          ci_health: repository.ci_health_broken? ? "broken" : "unknown",
+          grader_health: repository.grader_health_broken? ? "broken" : "unknown"
+        )
+        repository.reload
+      end
 
-    # Fire the grader workflow when the SHA hasn't been graded yet.
-    # MainGraderWorkflowJob enforces at-most-one active grading job per repo;
-    # if one is already running it will skip and PollMainBranchHealthJob will
-    # retry on the next tick (grading_needed stays true until the workflow
-    # records a settled grader result).
-    if grading_needed && sha_changed && previous_main_sha
-      MainGraderWorkflowJob.perform_later(
-        repository.id,
-        sha,
-        previous_main_sha: previous_main_sha
-      )
-    elsif grading_needed
-      MainGraderWorkflowJob.perform_later(repository.id, sha)
-    end
+      # Fire the grader workflow when the SHA hasn't been graded yet.
+      # MainGraderWorkflowJob enforces at-most-one active grading job per repo;
+      # if one is already running it will skip and PollMainBranchHealthJob will
+      # retry on the next tick (grading_needed stays true until the workflow
+      # records a settled grader result).
+      if grading_needed && sha_changed && previous_main_sha
+        MainGraderWorkflowJob.perform_later(
+          repository.id,
+          sha,
+          previous_main_sha: previous_main_sha
+        )
+      elsif grading_needed
+        MainGraderWorkflowJob.perform_later(repository.id, sha)
+      end
 
-    # Skip CI health check when SHA unchanged, health is already known, and
-    # grading is also up to date — nothing new to evaluate. `ci_evaluated`
-    # guards against a stale carried-forward signal: when main advances off a
-    # broken SHA, `ci_health` is carried forward as "broken" (and
-    # `last_health_checked_sha` advances) BEFORE the new SHA's checks are read.
-    # `last_ci_evaluated_sha` only advances when CI is *conclusively* measured
-    # for a SHA, so until it matches we must keep re-polling — otherwise a
-    # carried-forward "broken" that has since turned green never gets corrected
-    # (the guard would early-return because main_health isn't "unknown").
-    ci_evaluated = repository.last_ci_evaluated_sha == sha
-    if !sha_changed && !repository.main_health_unknown? && !grading_needed && ci_evaluated
-      MainHealthChangedService.ensure_repair_job!(repository) if repository.main_health_broken?
-      return
-    end
+      # Skip CI health check when SHA unchanged, health is already known, and
+      # grading is also up to date — nothing new to evaluate. `ci_evaluated`
+      # guards against a stale carried-forward signal: when main advances off a
+      # broken SHA, `ci_health` is carried forward as "broken" (and
+      # `last_health_checked_sha` advances) BEFORE the new SHA's checks are read.
+      # `last_ci_evaluated_sha` only advances when CI is *conclusively* measured
+      # for a SHA, so until it matches we must keep re-polling — otherwise a
+      # carried-forward "broken" that has since turned green never gets corrected
+      # (the guard would early-return because main_health isn't "unknown").
+      ci_evaluated = repository.last_ci_evaluated_sha == sha
+      if !sha_changed && !repository.main_health_unknown? && !grading_needed && ci_evaluated
+        MainHealthChangedService.ensure_repair_job!(repository) if repository.main_health_broken?
+        return
+      end
 
 
-    already_recorded_no_ci = repository.ci_health_not_configured? && repository.last_health_checked_sha == sha
+      already_recorded_no_ci = repository.ci_health_not_configured? && repository.last_health_checked_sha == sha
 
-    summary = begin
-      client.main_branch_check_runs_summary_for(repository.slug, sha)
-    rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
-      handle_transient_github_error!(repository, e)
-      return
-    end
+      summary = begin
+        client.main_branch_check_runs_summary_for(repository.slug, sha)
+      rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+        handle_transient_github_error!(repository, e)
+        return
+      end
 
-    repository.reset_main_health_poll_error_streak!
+      repository.reset_main_health_poll_error_streak!
 
-    unless summary[:any?]
-      repository.update_columns(
-        ci_health: "not_configured",
-        last_health_checked_sha: sha,
-        last_ci_evaluated_sha: sha
-      )
-      repository.reload
-      unless already_recorded_no_ci
+      unless summary[:any?]
+        repository.update_columns(
+          ci_health: "not_configured",
+          last_health_checked_sha: sha,
+          last_ci_evaluated_sha: sha
+        )
+        repository.reload
+        unless already_recorded_no_ci
+          MainBranchHealthCheck.record_ci_poll(
+            repository: repository,
+            sha: sha,
+            ci_health: "not_configured",
+            ci_failed_checks: []
+          )
+        end
+        if repository.main_health != previous_health
+          MainHealthChangedService.on_health_change!(repository)
+        elsif repository.main_health_broken?
+          MainHealthChangedService.ensure_repair_job!(repository)
+        end
+        return
+      end
+
+      if summary[:pending?]
+        # Checks still running. Keep ci_health unknown so later polls keep
+        # refreshing this same SHA until GitHub reaches a terminal result.
+        return
+      end
+
+      new_ci_health = if summary[:any_failed?]
+        "broken"
+      elsif summary[:all_passed?]
+        "healthy"
+      elsif summary[:any_cancelled?]
+        "inconclusive"
+      end
+
+      if new_ci_health
+        repository.update_columns(
+          ci_health: new_ci_health,
+          last_health_checked_sha: sha,
+          last_ci_evaluated_sha: sha
+        )
         MainBranchHealthCheck.record_ci_poll(
           repository: repository,
           sha: sha,
-          ci_health: "not_configured",
-          ci_failed_checks: []
+          ci_health: new_ci_health,
+          ci_failed_checks: summary[:failed_checks]
         )
       end
+
+      repository.reload
       if repository.main_health != previous_health
         MainHealthChangedService.on_health_change!(repository)
       elsif repository.main_health_broken?
         MainHealthChangedService.ensure_repair_job!(repository)
       end
-      return
-    end
-
-    if summary[:pending?]
-      # Checks still running. Keep ci_health unknown so later polls keep
-      # refreshing this same SHA until GitHub reaches a terminal result.
-      return
-    end
-
-    new_ci_health = if summary[:any_failed?]
-      "broken"
-    elsif summary[:all_passed?]
-      "healthy"
-    elsif summary[:any_cancelled?]
-      "inconclusive"
-    end
-
-    if new_ci_health
-      repository.update_columns(
-        ci_health: new_ci_health,
-        last_health_checked_sha: sha,
-        last_ci_evaluated_sha: sha
-      )
-      MainBranchHealthCheck.record_ci_poll(
-        repository: repository,
-        sha: sha,
-        ci_health: new_ci_health,
-        ci_failed_checks: summary[:failed_checks]
-      )
-    end
-
-    repository.reload
-    if repository.main_health != previous_health
-      MainHealthChangedService.on_health_change!(repository)
-    elsif repository.main_health_broken?
-      MainHealthChangedService.ensure_repair_job!(repository)
     end
   end
 

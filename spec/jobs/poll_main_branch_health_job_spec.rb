@@ -14,6 +14,28 @@ RSpec.describe PollMainBranchHealthJob do
     allow_any_instance_of(GithubClient).to receive(:main_branch_check_runs_summary_for).and_return(summary)
   end
 
+  it "delays autonomous polling while the persisted rate limit is exhausted" do
+    user.update!(
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_observed_at: Time.current
+    )
+
+    expect_any_instance_of(GithubClient).not_to receive(:branch_head_sha)
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(described_class).with(repository.id)
+  end
+
+  it "treats TooManyRequests as coordinated autonomous poll backoff" do
+    allow_any_instance_of(GithubClient).to receive(:branch_head_sha).and_raise(Octokit::TooManyRequests.new)
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(described_class).with(repository.id)
+  end
+
   it "sets ci_health to healthy when all checks pass" do
     stub_sha(sha)
     stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })
