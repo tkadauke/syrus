@@ -49,7 +49,15 @@ advertised chat tools against registered frontend custom tool-card renderers
 where that renderer metadata can be discovered from core
 `app/frontend/routes/chat/tool_cards/*.tsx` files and plugin
 `plugins/*/app/frontend/tool_cards/*.tsx` files. The section includes a
-usage-ranked dashboard plus three compatibility buckets:
+usage-ranked dashboard plus four compatibility buckets. A tool is classified
+as `registered` when it has a custom card with collapsed-summary metadata,
+`weak` when it has only an expanded custom renderer, `generic` when raw/generic
+rendering is an explicit product decision, `deferred` when a custom card is
+intentionally postponed, and `hidden` when the result is an implementation
+acknowledgement that should not drive card work. An advertised tool with no
+card and no explicit decision is reported as `missing` and appears in
+`unclassified_advertised_tools`; that bucket is the regression guard for newly
+advertised chat tools.
 
 - `ranked_gaps` — missing or weak/generic chat cards ordered by observed impact
   in the selected window. Each row carries call count, error count/rate, summed
@@ -64,6 +72,11 @@ usage-ranked dashboard plus three compatibility buckets:
   collapsed summary metadata.
 - `unused_advertised_tools` — chat tools advertised for the current chat
   availability context but not used in the selected window.
+- `unclassified_advertised_tools` — currently advertised chat tools with no
+  custom card registration and no explicit `generic`, `deferred`, or `hidden`
+  coverage decision. A non-empty list means the implementation should add a
+  card file or record an explicit non-card decision instead of silently relying
+  on raw JSON rendering.
 
 Each row carries `owner_type`, `owner_name`, and `recommendation_target`.
 Plugin-defined tools point at `plugin:<plugin_name>` so follow-up card work can
