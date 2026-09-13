@@ -87,21 +87,21 @@ week and neither is trustworthy.
 
 ## The Syrus exporter
 
-A single authenticated `GET /metrics` on the **web** role, Prometheus text
-format. Prefer the plain `prometheus-client` registry over Yabeda unless we
-want Yabeda's Rails/Sidekiq presets — most of what we need is gauges computed
-from SQL, not counters incremented in request paths.
+An authenticated `GET /metrics`, Prometheus text format. See the metrics
+subsystem design at the end of this document for the library choice (Yabeda),
+the instrument model, and the global-vs-per-pod question — this section is only
+the metric inventory.
 
-Two categories, and they need different implementations:
+Two categories, implemented differently:
 
-**Gauges computed on scrape** (queue depth, backlog age, landing queue). These
-are aggregate SQL. Scrape interval 15-30s; cache results for ~10s so a
-scrape storm cannot hammer the queue DB. Every query here must be indexed and
-bounded — a `/metrics` endpoint that is itself slow makes the outage worse.
+**Gauges over global state** (queue depth, backlog age, landing queue). These
+are aggregate SQL and must *not* run on the scrape path — they are sampled on a
+timer into Solid Cache and rendered from there, so `/metrics` never touches the
+database. Every query behind them must be indexed and bounded.
 
 **Counters accumulated in-process** (runs started/finished, admission
-decisions). Multi-process: each web/worker pod exposes its own, Prometheus
-scrapes each pod separately and sums. Do **not** try to centralize these.
+decisions). Each pod exposes its own and Prometheus sums across pods. Do **not**
+try to centralize these.
 
 ### Metric inventory
 
