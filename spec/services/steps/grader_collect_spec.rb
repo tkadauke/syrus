@@ -782,7 +782,7 @@ RSpec.describe Steps::GraderCollect do
       classified_at: Time.current
     )
 
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed due to infrastructure: rspec")
 
     metrics = workflow.reload.artifact("grader_loops").first
     expect(metrics).to include(
@@ -791,6 +791,7 @@ RSpec.describe Steps::GraderCollect do
       "queue_wait_avg_s" => 2.0,
       "queue_wait_max_s" => 2.0
     )
+    expect(GraderConclusion.where(workflow: workflow)).to be_empty
   end
 
   it "batch-loads rollout metric inputs for grader batches" do

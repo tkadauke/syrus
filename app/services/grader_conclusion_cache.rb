@@ -47,10 +47,16 @@ class GraderConclusionCache
   def self.failed?(repository:, commit_sha:, grader_fingerprint:)
     return false if repository.blank? || commit_sha.blank? || grader_fingerprint.blank?
 
-    GraderConclusion.aggregate
-                    .failed
-                    .where(repository: repository, commit_sha: commit_sha, grader_fingerprint: grader_fingerprint)
-                    .exists?
+    scope = GraderConclusion
+      .where(repository: repository, commit_sha: commit_sha, grader_fingerprint: grader_fingerprint)
+    return false unless scope.aggregate.failed.exists?
+
+    failed_steps = scope.failed
+      .where.not(grader_name: GraderConclusion::AGGREGATE_NAME)
+      .includes(run: :run_failure_classification)
+    return true if failed_steps.empty?
+
+    failed_steps.any? { |conclusion| deterministic_failed_conclusion?(conclusion) }
   end
 
   # Convenience for repair/reconciliation code that only has a Workflow in
@@ -160,6 +166,15 @@ class GraderConclusionCache
     Rails.logger.warn("[GraderConclusionCache] record failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
     nil
   end
+
+  def self.deterministic_failed_conclusion?(conclusion)
+    classification = conclusion.run&.run_failure_classification
+    return true unless classification
+    return true unless classification.retryable?
+
+    false
+  end
+  private_class_method :deterministic_failed_conclusion?
 
   def self.status_for_step(step)
     state = step.visible_state

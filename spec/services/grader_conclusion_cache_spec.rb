@@ -94,4 +94,106 @@ RSpec.describe GraderConclusionCache do
 
     expect(described_class.status_for_step(step)).to eq("passed")
   end
+
+  it "does not treat retryable infrastructure grader conclusions as deterministic cached failures" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "running")
+    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "failed")
+    collect_step = Step.create!(workflow: workflow, kind: "grader_collect", position: 1, state: "failed")
+    grader_run = Run.create!(job: job, step: grader_step, trigger_kind: "retry", state: "failed")
+    grader_run.create_run_failure_classification!(
+      classification: "database_lock",
+      confidence: 0.9,
+      retryable: true,
+      reason: "telemetry sequence collision",
+      classified_at: Time.current
+    )
+    collect_run = Run.create!(job: job, step: collect_step, trigger_kind: "retry", state: "failed")
+
+    GraderConclusion.create!(
+      repository: repository,
+      job: job,
+      workflow: workflow,
+      step: grader_step,
+      run: grader_run,
+      commit_sha: "abc123",
+      grader_fingerprint: "fp",
+      grader_name: "migration-lint",
+      required: true,
+      status: "failed",
+      checked_at: 1.minute.ago
+    )
+    GraderConclusion.create!(
+      repository: repository,
+      job: job,
+      workflow: workflow,
+      step: collect_step,
+      run: collect_run,
+      commit_sha: "abc123",
+      grader_fingerprint: "fp",
+      grader_name: GraderConclusion::AGGREGATE_NAME,
+      required: true,
+      status: "failed",
+      checked_at: 1.minute.ago
+    )
+
+    expect(described_class.failed?(
+      repository: repository,
+      commit_sha: "abc123",
+      grader_fingerprint: "fp"
+    )).to be false
+  end
+
+  it "still treats non-retryable grader conclusions as deterministic cached failures" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "running")
+    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "failed")
+    collect_step = Step.create!(workflow: workflow, kind: "grader_collect", position: 1, state: "failed")
+    grader_run = Run.create!(job: job, step: grader_step, trigger_kind: "retry", state: "failed")
+    grader_run.create_run_failure_classification!(
+      classification: "grader_failure",
+      confidence: 1.0,
+      retryable: false,
+      reason: "real test failure",
+      classified_at: Time.current
+    )
+    collect_run = Run.create!(job: job, step: collect_step, trigger_kind: "retry", state: "failed")
+
+    GraderConclusion.create!(
+      repository: repository,
+      job: job,
+      workflow: workflow,
+      step: grader_step,
+      run: grader_run,
+      commit_sha: "abc123",
+      grader_fingerprint: "fp",
+      grader_name: "migration-lint",
+      required: true,
+      status: "failed",
+      checked_at: 1.minute.ago
+    )
+    GraderConclusion.create!(
+      repository: repository,
+      job: job,
+      workflow: workflow,
+      step: collect_step,
+      run: collect_run,
+      commit_sha: "abc123",
+      grader_fingerprint: "fp",
+      grader_name: GraderConclusion::AGGREGATE_NAME,
+      required: true,
+      status: "failed",
+      checked_at: 1.minute.ago
+    )
+
+    expect(described_class.failed?(
+      repository: repository,
+      commit_sha: "abc123",
+      grader_fingerprint: "fp"
+    )).to be true
+  end
 end

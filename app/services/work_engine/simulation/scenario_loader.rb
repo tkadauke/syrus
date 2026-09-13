@@ -43,6 +43,7 @@ module WorkEngine
           create_epic_dependencies!(epics, data.fetch("epics", {}))
           create_job_dependencies!(jobs, epics, data.fetch("jobs", {}))
           create_workflows!(jobs, data.fetch("jobs", {}))
+          create_grader_conclusions!(repository, jobs, data.fetch("grader_conclusions", []))
           create_auto_retry_attempts!(jobs, data.fetch("auto_retry_attempts", {}))
           create_merge_trains!(repository, epics, jobs, data.fetch("merge_trains", {}))
           work_intents = create_standalone_work!(repository, user, jobs, data.fetch("work_intents", {}), data.fetch("work_units", {}))
@@ -218,6 +219,57 @@ module WorkEngine
           workflow.update_columns(state: workflow_config.fetch("state", workflow.state))
           sync_work_unit_state!(workflow, workflow_config)
         end
+      end
+
+      def create_grader_conclusions!(repository, jobs, definitions)
+        Array(definitions).each do |attrs|
+          job = jobs.fetch(attrs.fetch("job").to_s)
+          workflow = attrs["workflow"].present? ? workflow_by_key(job, attrs.fetch("workflow")) : job.workflows.order(:created_at).last
+          step = attrs["step"].present? ? step_by_key(workflow, attrs.fetch("step")) : nil
+          run = attrs["run"].present? ? run_by_key(workflow, attrs.fetch("run")) : step&.runs&.order(:created_at)&.last
+          GraderConclusion.create!(
+            repository: repository,
+            job: job,
+            workflow: workflow,
+            step: step,
+            run: run,
+            commit_sha: attrs.fetch("commit_sha"),
+            grader_fingerprint: attrs.fetch("grader_fingerprint"),
+            grader_name: attrs.fetch("grader_name"),
+            required: attrs.key?("required") ? attrs["required"] : true,
+            status: attrs.fetch("status"),
+            exit_code: attrs["exit_code"],
+            timed_out: attrs.fetch("timed_out", false),
+            checked_at: parse_optional_time(attrs["checked_at"]) || Time.current,
+            metadata: attrs.fetch("metadata", {})
+          )
+        end
+      end
+
+      def workflow_by_key(job, key)
+        workflows = job.workflows.order(:created_at, :id).to_a
+        return workflows.fetch(Integer(key)) if key.to_s.match?(/\A\d+\z/)
+
+        workflows.find { |workflow| workflow.trigger_kind == key.to_s } ||
+          raise(KeyError, "workflow #{key.inspect} not found for #{job.slug}")
+      end
+
+      def step_by_key(workflow, key)
+        workflow.steps.order(:position, :id).find { |step| step_key_matches?(step, key) } ||
+          raise(KeyError, "step #{key.inspect} not found for Workflow ##{workflow.id}")
+      end
+
+      def run_by_key(workflow, key)
+        step_by_key(workflow, key).runs.order(:created_at, :id).last ||
+          raise(KeyError, "run for step #{key.inspect} not found for Workflow ##{workflow.id}")
+      end
+
+      def step_key_matches?(step, key)
+        key = key.to_s
+        return true if step.kind == key
+
+        details = step.details.to_h
+        step.kind == "grader" && [ details["name"], "grader:#{details['name']}" ].include?(key)
       end
 
       def create_merge_trains!(repository, epics, jobs, definitions)

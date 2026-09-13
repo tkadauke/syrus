@@ -54,6 +54,8 @@ class RunFailureClassifier
     case
     when provider_usage_limit?
       result(ProviderUsageLimit::CLASSIFICATION, 0.95, false, "The provider or model usage limit is exhausted.")
+    when command_span_sequence_collision?
+      result("database_lock", 0.90, true, "Command-span telemetry hit a transient sequence collision while recording concurrent run output.")
     when rate_limited?
       result("rate_limited", 0.90, true, "The run hit an external rate limit.")
     when workspace_clone_timeout?
@@ -155,6 +157,11 @@ class RunFailureClassifier
 
   def rate_limited?
     ProviderRateLimitEvidence.direct?(run, text: rate_limit_searchable_text)
+  end
+
+  def command_span_sequence_collision?
+    diagnostic&.error_class.to_s.match?(/ActiveRecord::RecordInvalid|ActiveRecord::RecordNotUnique/) &&
+      text_match?(/Sequence has already been taken|CommandSpan|command span/i)
   end
 
   def provider_usage_limit?

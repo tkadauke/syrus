@@ -777,6 +777,7 @@ module WorkEngine
         expected_jobs_match? &&
           expected_epics_match? &&
           expected_queues_match? &&
+          expected_grader_conclusion_cache_match? &&
           expected_absent_active_steps_match? &&
           expected_events_match? &&
           expected_absent_events_match? &&
@@ -845,6 +846,18 @@ module WorkEngine
         return true if unexpected_kinds.empty?
 
         active_runs.none? { |run| unexpected_kinds.include?(run.step&.kind.to_s) }
+      end
+
+      def expected_grader_conclusion_cache_match?
+        Array(expectations["grader_conclusion_cache"]).all? do |entry|
+          attrs = entry.to_h
+          job = Job.find(attrs.fetch("job"))
+          GraderConclusionCache.failed?(
+            repository: job.repository,
+            commit_sha: attrs.fetch("commit_sha"),
+            grader_fingerprint: attrs.fetch("grader_fingerprint")
+          ) == attrs.fetch("failed")
+        end
       end
 
       def expected_landing_blocked_reasons_match?(expected)

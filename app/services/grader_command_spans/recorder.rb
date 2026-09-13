@@ -112,7 +112,7 @@ module GraderCommandSpans
           "fallback_reason" => plan.fallback_reason
         }.compact
       )
-      @span_ids_by_sequence[1] = span.id
+      @span_ids_by_sequence[1] = span.id if span
     end
 
     def record_marker(marker)
@@ -142,6 +142,8 @@ module GraderCommandSpans
         started_at: time_from_ms(parts.fetch(3)),
         metadata: { "instrumentation" => "bash_marker" }
       )
+      return unless span
+
       @span_ids_by_sequence[sequence] = span.id
       @open_spans[sequence] = span
     end
@@ -180,7 +182,7 @@ module GraderCommandSpans
         )
       rescue ActiveRecord::RecordNotUnique
         attempts += 1
-        raise if attempts >= MAX_CREATE_ATTEMPTS
+        return abandon_span!(error: e, sequence: sequence) if attempts >= MAX_CREATE_ATTEMPTS
 
         next_sequence = next_available_sequence
         retry
@@ -188,11 +190,19 @@ module GraderCommandSpans
         raise unless e.record.errors.of_kind?(:sequence, :taken)
 
         attempts += 1
-        raise if attempts >= MAX_CREATE_ATTEMPTS
+        return abandon_span!(error: e, sequence: sequence) if attempts >= MAX_CREATE_ATTEMPTS
 
         next_sequence = next_available_sequence
         retry
       end
+    end
+
+    def abandon_span!(error:, sequence:)
+      Rails.logger.warn(
+        "[GraderCommandSpans::Recorder] command span telemetry disabled for Run ##{@run.id} " \
+        "sequence #{sequence}: #{error.class}: #{error.message}"
+      )
+      nil
     end
 
     def span_sequence(sequence)

@@ -1,0 +1,93 @@
+name: infrastructure grader failure does not poison cache
+runner:
+  auto_retry_failed_jobs: false
+repository:
+  owner: simulation
+  name: infrastructure-grader-failure-does-not-poison-cache
+jobs:
+  job:
+    title: Infrastructure grader failure does not poison cache
+    state: running
+    workflow:
+      kind: retry
+      state: running
+      artifacts:
+        grade_plan_head_sha: abc123
+        grade_plan_fingerprint: fp
+      work_unit:
+        state: running
+      steps:
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: migration_lint
+          kind: grader
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          details:
+            name: migration-lint
+            required: true
+          run:
+            state: failed
+            classification:
+              classification: database_lock
+              retryable: true
+              reason: command span sequence collision
+        - key: collect
+          kind: grader_collect
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - migration_lint
+          run:
+            state: queued
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on:
+            - collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+grader_conclusions:
+  - job: job
+    workflow: retry
+    step: grader:migration-lint
+    run: grader:migration-lint
+    commit_sha: abc123
+    grader_fingerprint: fp
+    grader_name: migration-lint
+    required: true
+    status: failed
+  - job: job
+    workflow: retry
+    step: grader_collect
+    run: grader_collect
+    commit_sha: abc123
+    grader_fingerprint: fp
+    grader_name: __aggregate__
+    required: true
+    status: failed
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  grader_conclusion_cache:
+    - job: job
+      commit_sha: abc123
+      grader_fingerprint: fp
+      failed: false
+  events:
+    - "grader_collect -> success"
+    - "summarize -> success"
+    - "pr_open -> success"

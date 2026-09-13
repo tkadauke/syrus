@@ -121,6 +121,29 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(span.exit_status).to eq(Steps::Grader::TIMEOUT_EXIT_CODE)
   end
 
+  it "offsets grader command spans after prepare dependency spans on the same Run" do
+    CommandSpan.create!(
+      job: job,
+      workflow: workflow,
+      step: step,
+      run: run,
+      sequence: 1,
+      name: "prepare",
+      command_excerpt: "bundle install",
+      started_at: 1.minute.ago,
+      finished_at: 30.seconds.ago,
+      duration_ms: 30_000,
+      exit_status: 0,
+      outcome: "succeeded"
+    )
+
+    handler.call
+
+    expect(run.reload.command_spans.ordered.pluck(:sequence)).to eq([ 1, 2 ])
+    expect(run.command_spans.ordered.first.name).to eq("prepare")
+    expect(run.command_spans.ordered.second.command_excerpt).to eq("ruby -e 'puts \"durable output\"'")
+  end
+
   it "records a formatter-like warning when a style grader times out" do
     step.update!(details: step.details.merge("name" => "usort", "command" => "usort check ."))
     fake_result = ProcessRunner::Result.new(

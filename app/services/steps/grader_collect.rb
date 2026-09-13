@@ -28,11 +28,19 @@ module Steps
         g.details && g.details["required"] && g.state == "failed"
       end
       record_grader_loop_metrics!(grader_steps, failed_required: failed_required)
-      aggregate_status = GraderConclusionCache.aggregate_status_for(failed_required)
-      record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
+      infrastructure_failed_required = failed_required.select { |g| infrastructure_failed_step?(g) }
+      real_failed_required = failed_required - infrastructure_failed_required
+      if infrastructure_failed_required.empty?
+        aggregate_status = GraderConclusionCache.aggregate_status_for(real_failed_required)
+        record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
+      else
+        log("[grader_collect] grader conclusion not cached — required grader infrastructure failure")
+      end
 
       grader_fingerprint = workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
-      if current_head_sha.present? && (grader_steps.any? || carried_forward.any?)
+      if infrastructure_failed_required.any?
+        # Already logged above with the reason.
+      elsif current_head_sha.present? && (grader_steps.any? || carried_forward.any?)
         log("[grader_collect] grader conclusion cached for #{current_head_sha.first(7)} (fingerprint: #{grader_fingerprint&.first(8)})")
       elsif target_health_skipped.any?
         log("[grader_collect] grader conclusion not cached — all results came from target health records")
@@ -47,14 +55,23 @@ module Steps
         return
       end
 
-      return if dismissed_by_rung_zero?(failed_required)
+      if real_failed_required.empty?
+        names = grader_names(infrastructure_failed_required)
+        classifications = infrastructure_failed_required.filter_map { |g| infrastructure_failure_classification_for(g) }.uniq
+        code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "database_lock"
+        log("[grader_collect] required graders failed due to infrastructure: #{names.join(', ')}")
+        fail_with!(code, "required graders failed due to infrastructure: #{names.join(', ')}",
+                   evidence: { grader_names: names, classifications: classifications })
+      end
 
-      failed_names = grader_names(failed_required).join(", ")
+      return if dismissed_by_rung_zero?(real_failed_required)
+
+      failed_names = grader_names(real_failed_required).join(", ")
       log("[grader_collect] required graders failed: #{failed_names}")
       # The same Problem rung 0 just adjudicated, carried on the failure rather
       # than re-derived from this message downstream.
       fail_with!(:grader_failure, "required graders failed: #{failed_names}",
-                 evidence: { grader_names: grader_names(failed_required) })
+                 evidence: { grader_names: grader_names(real_failed_required) })
     end
 
     private
@@ -303,6 +320,14 @@ module Steps
         worker_died
         worker_died_under_resource_pressure
       ])
+    end
+
+    def infrastructure_failed_step?(grader_step)
+      infrastructure_failure_classification?(infrastructure_failure_classification_for(grader_step))
+    end
+
+    def infrastructure_failure_classification_for(grader_step)
+      latest_runs_by_step_id([ grader_step ])[grader_step.id]&.run_failure_classification&.classification
     end
 
     def rounded_average(values)

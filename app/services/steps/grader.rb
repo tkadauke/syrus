@@ -47,7 +47,13 @@ module Steps
 
       sink, flush = buffered_log_sink
       span_plan = GraderCommandSpans::Plan.for(command)
-      span_recorder = GraderCommandSpans::Recorder.new(run: run, step: step, workflow: workflow, plan: span_plan)
+      span_recorder = GraderCommandSpans::Recorder.new(
+        run: run,
+        step: step,
+        workflow: workflow,
+        plan: span_plan,
+        sequence_offset: run.command_spans.maximum(:sequence).to_i
+      )
       runner_command = span_recorder.wrap(span_plan.shell_command)
 
       git_status_before = capture_git_status(name: name)
