@@ -121,7 +121,7 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     )
   end
 
-  it "separates missing high-volume cards, weak high-error cards, and unused advertised tools by owner" do
+  it "separates and ranks usage-driven card gaps by volume, errors, bytes, owner, and recency" do
     add_card("app/frontend/routes/chat/tool_cards/core_used_tool.tsx", <<~TS)
       export default { toolName: "core_used_tool", collapsedSummary: () => "ok", renderExpanded: () => null }
     TS
@@ -129,12 +129,13 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
       export default { toolName: "plugin_error_tool", renderExpanded: () => null }
     TS
 
-    create_usage("core_used_tool", count: 4)
-    create_usage("core_missing_tool", count: 12)
-    create_usage("plugin_used_tool", count: 9)
-    create_usage("plugin_error_tool", count: 5, errors: 3)
-    create_usage("core_error_tool", count: 4, errors: 2)
-    create_usage("workflow_only_tool", count: 20, surface: "workflow")
+    now = Time.zone.parse("2026-09-10 12:00:00")
+    create_usage("core_used_tool", count: 4, at: now)
+    create_usage("core_missing_tool", count: 12, result_bytes: 30, at: now - 2.hours)
+    create_usage("plugin_used_tool", count: 9, server_name: "plugin-sidecar", result_bytes: 200, at: now - 1.hour)
+    create_usage("plugin_error_tool", count: 5, errors: 3, server_name: "plugin-sidecar", result_bytes: 50, at: now - 30.minutes)
+    create_usage("core_error_tool", count: 4, errors: 2, result_bytes: 400, at: now - 10.minutes)
+    create_usage("workflow_only_tool", count: 20, surface: "workflow", at: now)
 
     report = described_class.call(
       usages: McpToolUsage.where(surface: "chat"),
@@ -148,6 +149,41 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
         plugin_unused_tool
       ]
     )
+
+    expect(report.fetch(:dashboard)).to include(
+      include(
+        tool_name: "core_missing_tool",
+        server_name: "syrus-chat-sidecar",
+        calls: 12,
+        errors: 0,
+        result_bytes: 360,
+        last_used_at: (now - 2.hours).iso8601,
+        owner_type: "core",
+        recommendation_target: "core",
+        card_status: "missing"
+      ),
+      include(
+        tool_name: "plugin_used_tool",
+        server_name: "plugin-sidecar",
+        calls: 9,
+        result_bytes: 1800,
+        owner_type: "plugin",
+        owner_name: "coverage_plugin",
+        recommendation_target: "plugin:coverage_plugin",
+        card_status: "missing"
+      ),
+      include(
+        tool_name: "plugin_error_tool",
+        server_name: "plugin-sidecar",
+        calls: 5,
+        errors: 3,
+        result_bytes: 250,
+        card_status: "weak"
+      )
+    )
+    expect(report.fetch(:dashboard).first).to include(tool_name: "core_missing_tool")
+    expect(report.fetch(:dashboard)).not_to include(include(tool_name: "core_used_tool"))
+    expect(report.fetch(:dashboard)).not_to include(include(tool_name: "workflow_only_tool"))
 
     expect(report.fetch(:high_volume_without_custom_card)).to include(
       include(tool_name: "core_missing_tool", calls: 12, owner_type: "core", recommendation_target: "core", card_status: "missing"),
@@ -167,6 +203,28 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     )
   end
 
+  it "applies the dashboard limit after excluding tools with strong cards" do
+    stub_const("Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT", 1)
+
+    6.times do |index|
+      tool_name = "strong_tool_#{index}"
+      add_card("app/frontend/routes/chat/tool_cards/#{tool_name}.tsx", <<~TS)
+        export default { toolName: "#{tool_name}", collapsedSummary: () => "ok", renderExpanded: () => null }
+      TS
+      create_usage(tool_name, count: 20 - index)
+    end
+    create_usage("real_missing_gap", count: 1)
+
+    report = described_class.call(
+      usages: McpToolUsage.where(surface: "chat"),
+      advertised_tools: %w[real_missing_gap]
+    )
+
+    expect(report.fetch(:dashboard)).to contain_exactly(
+      include(tool_name: "real_missing_gap", calls: 1, card_status: "missing")
+    )
+  end
+
   def add_card(relative_path, source)
     path = @card_dir.join(relative_path)
     FileUtils.mkdir_p(path.dirname)
@@ -174,18 +232,22 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     @card_paths << path.to_s
   end
 
-  def create_usage(tool_name, count:, errors: 0, surface: "chat")
+  def create_usage(tool_name, count:, errors: 0, surface: "chat", server_name: "syrus-chat-sidecar", result_bytes: 0, at: Time.current)
     count.times do |index|
       failed = index < errors
       McpToolUsage.create!(
         surface: surface,
         raw_tool_name: tool_name,
+        server_name: server_name,
         tool_name: tool_name,
         normalized_tool_name: tool_name,
         status: failed ? "failed" : "completed",
         error: failed,
-        started_at: Time.current,
-        completed_at: Time.current
+        started_at: at,
+        completed_at: at,
+        result_bytes: result_bytes,
+        created_at: at,
+        updated_at: at
       )
     end
   end

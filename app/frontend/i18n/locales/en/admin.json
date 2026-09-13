@@ -1028,6 +1028,8 @@
     "error_rates_heading": "Highest error rates",
     "unused_tools_heading": "Unused advertised tools",
     "unused_tools_empty": "Every advertised tool was called at least once in this window.",
+    "card_gap_dashboard_heading": "Custom-card gap dashboard",
+    "card_gap_dashboard_empty": "No missing or generic high-usage cards in this window.",
     "surface_breakdown_heading": "Surface",
     "provider_breakdown_heading": "Provider",
     "server_breakdown_heading": "Server",
@@ -1038,6 +1040,10 @@
     "col_calls": "Calls",
     "col_errors": "Errors",
     "col_error_rate": "Error rate",
+    "col_priority": "Priority",
+    "col_owner": "Owner",
+    "col_result_bytes": "Result bytes",
+    "col_last_used": "Last used",
     "col_time": "Time",
     "col_call": "Call",
     "col_status": "Status",
@@ -1045,7 +1051,8 @@
     "link_job": "JOB-{{id}}",
     "link_workflow": "Workflow #{{id}}",
     "link_run": "Run #{{id}}",
-    "link_chat": "Chat"
+    "link_chat": "Chat",
+    "owner_core": "core"
   },
   "transcript": {
     "loading": "Loading transcript...",
