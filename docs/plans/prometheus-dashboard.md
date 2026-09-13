@@ -670,23 +670,70 @@ Scope honestly: the recorder scrapes every pod, which is trivial for a
 single-host Docker install (one process tree) and fine for a handful of pods. It
 is not a fleet monitoring system and should say so in its own docs.
 
-## Metrics as a consolidation, not a new thing
+## Metrics are additive. Almost nothing gets migrated.
 
-Syrus already implements this pattern nine times, each with its own schema,
-pruner, reader and admin payload:
+An earlier draft of this document called the existing tables "nine partial
+implementations" of a metrics system and proposed replacing them. That was
+wrong, and the correction matters enough to record: **most of those tables are
+event-shaped, not counter-shaped**, and events are not a worse version of
+metrics. They are a different thing with different powers.
 
+| | Metrics | Events |
+|---|---|---|
+| Grain | pre-aggregated over time | one row per occurrence |
+| Dimensions | few, bounded, declared | many, arbitrary, including identifiers |
+| Answers | "how many, how fast, trending which way" | "what exactly happened to *this* run" |
+| Cost | ~bytes per series | ~row per event |
+| Lossy | **yes, by design** | no |
+
+The question "can this table become a metric?" has three tests, and a table has
+to pass all three:
+
+1. Is every column either a bounded label or a number? No free text, no foreign
+   keys, no JSON blobs.
+2. Is it *never* read for one specific entity? The moment someone asks "what
+   happened to run 4485", it is an event table.
+3. Is its cardinality small and bounded?
+
+Applying that honestly:
+
+| Table | Shape | Migrate? |
+|---|---|---|
+| `mcp_tool_usages` | event — `backtrace_excerpt`, `error_class`, `input_bytes`, `job_id`, `run_id`, `session_id` | **No.** Emit a counter at the same call site. |
+| `performance_log_events` | event — per-request `path`, `controller`, `sql_count`, `request_id` | **No.** |
+| `operational_log_events` | event | **No.** |
+| `main_branch_health_checks` | event — per SHA, per source, with failed check names | **No.** |
+| `run_resource_summaries` | event — one per Run, with `host_pressure_reasons` JSON, read during diagnosis | **No.** |
+| `test_insight_runtime_summaries` | aggregate, but keyed per *test identity* — cardinality is the test suite (5.9M cases) | **No.** Fails test 3 by orders of magnitude. |
+| `filter_usages` | aggregate, but it is **application state** powering filter suggestions, not observability | **No.** |
+| `github_api_usage_rollups` | rollup, but carries `credential_key` / `installation_id` | **Partly** — emit a bounded counter (by `auth_source`, rate-limited yes/no); keep the table. |
+| `worker_host_health_samples` | genuinely metric-shaped: numeric gauges keyed by hostname/role/time | Emit gauges **for display**; keep the table (see below). |
+
+So the net is: **no table is deleted.** The metrics layer sits *beside* the event
+tables as a cheap aggregate index over the same moments, and the one table that
+is genuinely metric-shaped is also the one that cannot be migrated, because it
+feeds admission control.
+
+The relationship is one call site, two outputs:
+
+```ruby
+McpToolUsage.create!(...)                           # event: full detail, kept for debugging
+Syrus::Metrics.mcp_tool_calls_total.increment(      # metric: bounded, cheap, chartable
+  tags: { tool: normalized_tool_name }
+)
 ```
-filter_usages                 mcp_tool_usages              run_resource_summaries
-github_api_usage_rollups      operational_log_events       test_insight_runtime_summaries
-main_branch_health_checks     performance_log_events       worker_host_health_samples
-```
 
-So "migrate the worker metrics in the admin UI onto the new system" is not
-adding a system — it is **replacing nine partial ones**. That is the strongest
-argument for building this properly, and equally an argument for doing it
-incrementally rather than as one migration.
+The counter costs an increment and means a dashboard never scans the event
+table. That direction matters: deriving dashboard aggregates by scanning event
+rows at query time is exactly the slow path the "`/metrics` must never touch the
+database" rule exists to prevent — and with `job_logs` at 15.7M rows and
+`test_insight_cases` at 5.9M, MySQL is in no position to serve that.
 
-### But display and control must not be conflated
+This makes the whole metrics layer **purely additive and low-risk**: nothing to
+migrate, nothing to break, no debugging capability traded away. It is a weaker
+claim than "replaces nine systems" and a much more honest one.
+
+### Display and control must not be conflated either
 
 `worker_host_health_samples` is not only displayed. It is read by
 `RunHostAdmission` and `WorkflowAdmissionBudget` — it is **control flow**. That
