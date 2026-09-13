@@ -6,6 +6,8 @@ import {
   Card,
   Checkbox,
   Cluster,
+  CodeSurface,
+  ActivityRow,
   DataTable,
   DescriptionList,
   Form,
@@ -13,6 +15,7 @@ import {
   Inline,
   LinkText,
   Modal,
+  Metric,
   Notice,
   Page,
   PageHeading,
@@ -22,11 +25,14 @@ import {
   Section,
   Skeleton,
   Stack,
+  Stat,
   StatusPill,
   Surface,
   Text,
   Textarea,
+  Timeline,
   Toggle,
+  ToolCard,
   TonePill,
   Toolbar,
   buttonClasses
@@ -280,6 +286,30 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("table", { name: "Jobs" })).toBeInTheDocument()
     expect(screen.getByText("Repository").tagName).toBe("DT")
     expect(screen.getByText("tkadauke/syrus").tagName).toBe("DD")
+  })
+
+  it("exports operational diagnostics primitives", () => {
+    render(
+      <>
+        <CodeSurface aria-label="Command" code="bundle exec rspec" mode="command" />
+        <Metric.Group aria-label="Metrics"><Metric.Card label="Queued" value={3} /></Metric.Group>
+        <Stat.Group aria-label="Stats"><Stat.Card label="Passed" tone="success" value="99%" /></Stat.Group>
+        <Timeline.Root aria-label="Events"><Timeline.ActivityRow title="Run started" /></Timeline.Root>
+        <ActivityRow title="Run finished" />
+        <ToolCard.Root aria-label="Tool result" role="region">
+          <ToolCard.Header title="Read job" />
+          <ToolCard.Body>Loaded</ToolCard.Body>
+        </ToolCard.Root>
+      </>
+    )
+
+    expect(screen.getByLabelText("Command")).toHaveAttribute("data-code-surface-mode", "command")
+    expect(screen.getByRole("list", { name: "Events" })).toBeInTheDocument()
+    expect(screen.getByText("Run started")).toBeInTheDocument()
+    expect(screen.getByText("Run finished")).toBeInTheDocument()
+    expect(screen.getByText("Queued")).toBeInTheDocument()
+    expect(screen.getByText("Passed")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Tool result" })).toBeInTheDocument()
   })
 
   it("exports LinkText for router and external anchor links", () => {
