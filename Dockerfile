@@ -496,6 +496,7 @@ FROM worker-deps AS worker-dev
 USER 1000:1000
 
 RUN go version
+RUN cd "$(mktemp -d)" && ruby -rmkmf -e 'abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'
 
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails

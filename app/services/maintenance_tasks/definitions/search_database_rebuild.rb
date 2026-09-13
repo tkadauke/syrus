@@ -5,7 +5,7 @@ module MaintenanceTasks
     class SearchDatabaseRebuild < Base
       key "search_database_rebuild"
       title "Rebuild search database"
-      summary "Creates missing core search tables and backfills searchable chats and operational logs."
+      summary "Creates missing search tables and backfills searchable chats, jobs, epics, logs, and plugin-provided search sources."
       category "index"
       recurrence "repeatable"
       required_role "admin"
@@ -16,14 +16,16 @@ module MaintenanceTasks
 
       step "schema", "Prepare search schema", "Creates or repairs the local SQLite FTS tables used by global search."
       step "chats", "Index chat messages", "Indexes searchable user and assistant chat messages."
+      step "jobs", "Index jobs", "Indexes job titles, descriptions, and summaries when Global Search is installed."
+      step "epics", "Index epics", "Indexes epic titles and descriptions when Global Search is installed."
       step "logs", "Index operational logs", "Indexes operational logs when instance logging is configured."
 
       def estimate_total_units
-        1 + chat_messages_count + operational_logs_count
+        1 + chat_messages_count + jobs_count + epics_count + operational_logs_count
       end
 
       def pending?
-        search_database_needs_prepare? || missing_chat_messages_count.positive? || operational_logs_need_rebuild?
+        search_database_needs_prepare? || missing_chat_messages_count.positive? || jobs_need_rebuild? || epics_need_rebuild? || operational_logs_need_rebuild?
       end
 
       def pending_reason
@@ -37,6 +39,14 @@ module MaintenanceTasks
 
         if missing_chat_messages_count.positive?
           return index_chat_messages(task)
+        end
+
+        if jobs_need_rebuild?
+          return index_jobs(task)
+        end
+
+        if epics_need_rebuild?
+          return index_epics(task)
         end
 
         if operational_logs_need_rebuild?
@@ -77,6 +87,14 @@ module MaintenanceTasks
         Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} chat message(s).", level: "progress")
       end
 
+      def index_jobs(task)
+        index_plugin_source(task, table_name: "job_fts", last_id_key: "last_job_id", done_key: "jobs_done", fallback_step: "jobs")
+      end
+
+      def index_epics(task)
+        index_plugin_source(task, table_name: "epic_fts", last_id_key: "last_epic_id", done_key: "epics_done", fallback_step: "epics")
+      end
+
       def index_operational_logs(task)
         task.current_step_key = "logs"
         task.current_step_title = "Index operational logs"
@@ -95,6 +113,22 @@ module MaintenanceTasks
         task.checkpoint_will_change!
         task.checkpoint["#{step}_done"] = true
         Result.new(done: false, processed: 0, failed: 0, message: "#{step.humanize} index is not available in this installation.", level: "info")
+      end
+
+      def index_plugin_source(task, table_name:, last_id_key:, done_key:, fallback_step:)
+        source = SyrusSearchDatabaseTasks.search_backfill_source(table_name)
+        return mark_plugin_step_done(task, fallback_step) unless source
+
+        task.current_step_key = source.search_backfill_step_key
+        task.current_step_title = source.search_backfill_step_title
+        batch = source.search_backfill_batch(after_id: task.checkpoint[last_id_key].to_i, limit: task.batch_size)
+        task.checkpoint_will_change!
+        task.checkpoint[last_id_key] = batch[:last_id] if batch[:last_id].present?
+        task.checkpoint[done_key] = true if batch[:done]
+        processed = batch[:processed].to_i
+        label = source.search_backfill_record_label
+
+        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} #{label}(s).", level: "progress")
       end
 
       def search_database_needs_prepare?
@@ -129,6 +163,14 @@ module MaintenanceTasks
         )
       end
 
+      def jobs_need_rebuild?
+        SyrusSearchDatabaseTasks.search_backfill_source("job_fts")&.search_backfill_needed? || false
+      end
+
+      def epics_need_rebuild?
+        SyrusSearchDatabaseTasks.search_backfill_source("epic_fts")&.search_backfill_needed? || false
+      end
+
       def operational_logs_need_rebuild?
         OperationalLogging.configured_for_instance? && indexed_count("operational_log_fts", "operational_log_event_id") < OperationalLogEvent.count
       rescue StandardError
@@ -142,6 +184,8 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
+      def jobs_count = SyrusSearchDatabaseTasks.search_backfill_source("job_fts")&.search_backfill_total_count.to_i || 0
+      def epics_count = SyrusSearchDatabaseTasks.search_backfill_source("epic_fts")&.search_backfill_total_count.to_i || 0
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
 
       def bind(value)
