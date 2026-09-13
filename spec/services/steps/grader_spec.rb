@@ -121,6 +121,36 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(span.exit_status).to eq(Steps::Grader::TIMEOUT_EXIT_CODE)
   end
 
+  it "records a formatter-like warning when a style grader times out" do
+    step.update!(details: step.details.merge("name" => "usort", "command" => "usort check ."))
+    fake_result = ProcessRunner::Result.new(
+      exit_status: nil, timed_out: true, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 60.0, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      kwargs[:on_output_chunk]&.call("checking imports")
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader usort failed/)
+
+    warning = WorkflowWarning.find_by!(kind: "formatter_like_grader_failure")
+    expect(warning.workflow).to eq(workflow)
+    expect(warning.step).to eq(step)
+    expect(warning.severity).to eq("high")
+    expect(warning.evidence).to include(
+      "grader_name" => "usort",
+      "command" => "usort check .",
+      "exit_code" => Steps::Grader::TIMEOUT_EXIT_CODE,
+      "timed_out" => true,
+      "suggested_section" => "formatters"
+    )
+    expect(warning.suggested_prompt).to include("formatters:")
+    expect(warning.suggested_prompt).to include("scoped to changed files")
+  end
+
   it "fails grader runs when ProcessRunner reports a non-exit failure" do
     fake_result = ProcessRunner::Result.new(
       exit_status: nil, timed_out: false, stopped: false,
@@ -138,6 +168,23 @@ RSpec.describe Steps::Grader, :ci_only do
     details = step.reload.details
     expect(details["exit_code"]).to be_nil
     expect(@ws_path.join(details["log_path"]).read).to include("[grader:tests] failed")
+  end
+
+  it "does not record a formatter-like warning for an ordinary failing test grader" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      kwargs[:on_output_chunk]&.call("1 failure")
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader tests failed/)
+
+    expect(WorkflowWarning.where(kind: "formatter_like_grader_failure")).to be_empty
   end
 
   it "runs the configured command without formatter-specific mutation" do

@@ -408,6 +408,13 @@ diagnostics, flag graders that look formatter-like and repeatedly fail with
 autofixable output. Consider auto-suggesting config changes when a repair only
 narrows or applies formatter output.
 
+**Fixed:** `Steps::Grader` now emits a non-fatal
+`formatter_like_grader_failure` workflow warning when a failing grader looks
+like a deterministic formatter/style checker (`usort`, `black`, `ruff`,
+`rubocop`, `prettier`, `eslint`, `gofmt`, etc.). Timeouts are high severity
+and the suggested fix prompt points at `.syrus.yml` `formatters:` while still
+allowing intentional check-only graders to remain graders.
+
 ### Parallel immutable graders amplify IO pressure
 
 **Symptom:** Parallel grader execution can make the cluster slower by starting

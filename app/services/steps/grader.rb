@@ -18,6 +18,12 @@ module Steps
 
     TIMEOUT_EXIT_CODE = 124
     OUTPUT_INLINE_BYTES = 16 * 1024
+    FORMATTER_LIKE_GRADER_PATTERN = /
+      \b(
+        usort|black|ruff|rubocop|prettier|eslint|gofmt|rustfmt|swiftformat|ktlint|
+        cargo\s+fmt|mix\s+format
+      )\b
+    /ix
 
     def call
       workspace.setup
@@ -107,6 +113,13 @@ module Steps
         "log_bytes" => absolute_log_path.size,
         "output" => output_excerpt
       ))
+
+      record_formatter_like_grader_failure_warning!(
+        name: name,
+        command: command,
+        exit_code: exit_code,
+        timed_out: timed_out
+      ) unless passed
 
       run_grader_augmentors!(name: name, command: command) unless passed
 
@@ -211,6 +224,39 @@ module Steps
     def grader_side_effect_prompt(name:, command:, changed_files:)
       <<~PROMPT.strip
         Grader `#{name}` (`#{command}`) produced uncommitted changes to the workspace when it ran on this Job (files: `#{changed_files.join(', ')}`). Run this grader locally and reproduce the output. Determine whether the generated/modified files should be gitignored — if so, add them to `.gitignore` and stop. If not, root-cause why the grader produces this output. If the output is genuinely important and should be committed, consider moving this grader's command from `grade:` to `.syrus.yml`'s `formatters:` or `generated:` section instead, so it runs as an explicit deterministic pass rather than a validation step. Otherwise, use your judgment to fix the grader (or its command/config) so it does not mutate the codebase when run as a grader in this project.
+      PROMPT
+    end
+
+    def record_formatter_like_grader_failure_warning!(name:, command:, exit_code:, timed_out:)
+      return unless formatter_like_grader?(name: name, command: command)
+
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: "formatter_like_grader_failure",
+        severity: timed_out ? "high" : "medium",
+        title: "Formatter-like grader #{name.inspect} failed",
+        evidence: {
+          "grader_name" => name,
+          "command" => command,
+          "exit_code" => exit_code,
+          "timed_out" => timed_out,
+          "suggested_section" => "formatters"
+        },
+        suggested_prompt: formatter_like_grader_failure_prompt(name: name, command: command, timed_out: timed_out)
+      )
+    rescue StandardError => e
+      log("[grader:#{name}] warning: failed to record formatter-like grader warning: #{e.class}: #{e.message}")
+    end
+
+    def formatter_like_grader?(name:, command:)
+      "#{name} #{command}".match?(FORMATTER_LIKE_GRADER_PATTERN)
+    end
+
+    def formatter_like_grader_failure_prompt(name:, command:, timed_out:)
+      timeout_note = timed_out ? " It timed out, so also check whether the command is being run too broadly and can be scoped to changed files." : ""
+      <<~PROMPT.strip
+        Grader `#{name}` (`#{command}`) looks like a deterministic formatter or style checker, but it failed while running as a required grader. Reproduce the command locally and decide whether this should remain a check-only grader or move to `.syrus.yml`'s `formatters:` section so Syrus can apply the deterministic change before graders run.#{timeout_note} If it must remain a grader, tighten the command/config so it is fast and reliable when run by Syrus.
       PROMPT
     end
 

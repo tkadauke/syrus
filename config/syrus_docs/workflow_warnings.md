@@ -66,6 +66,22 @@ matching the non-fatal posture of `record_prepare_soft_failure!`
 (`app/services/steps/prepare.rb`) and `record_autofix_failure!`
 (`app/services/steps/autofix.rb`).
 
+## Second consumer: formatter-like grader failures
+
+`Steps::Grader` also records a `kind: "formatter_like_grader_failure"`
+warning when a failing grader's name or command looks like a deterministic
+formatter/style checker (`usort`, `black`, `ruff`, `rubocop`, `prettier`,
+`eslint`, `gofmt`, `rustfmt`, and similar tools). The warning includes
+`evidence: { "grader_name" => ..., "command" => ..., "exit_code" => ...,
+"timed_out" => ..., "suggested_section" => "formatters" }` and asks the agent
+to decide whether the command should remain a check-only grader or move to
+`.syrus.yml`'s `formatters:` section so Syrus can apply deterministic fixes
+before semantic graders run.
+
+This is advisory only. Some teams intentionally keep style tools as
+check-only graders; the warning exists to make expensive formatter drift and
+timeout patterns visible instead of treating them like opaque test failures.
+
 ## Third consumer: prepare target side-effect detection
 
 `Steps::Grader` (via the shared `Steps::PrepareTargetExecution` module, also
@@ -81,7 +97,7 @@ idempotent environment setup and should never modify tracked source files.
 Like the grader consumer above, this never fails the grader Step or the
 workflow.
 
-## Second consumer: coverage branch-threshold misses
+## Fourth consumer: coverage branch-threshold misses
 
 `Steps::CoverageAnalyze` records a `kind: "coverage_branches_threshold_miss"`
 warning when measured branch coverage falls below `coverage.threshold.branches`
