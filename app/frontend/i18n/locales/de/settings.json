@@ -592,7 +592,7 @@
     "check_auto_merge": "Genehmigte Syrus-PRs automatisch mergen",
     "check_trust_rebase": "Sauberen Rebases vertrauen (nach konfliktfreiem Rebase nicht neu bewerten)",
     "check_distributed_workflow_dag": "Verteilte Workflow-DAG-Ausführung für geeignete Schritte verwenden",
-    "distributed_workflow_dag_hint": "Erfordert, dass die instanzweite Funktion für verteilte Workflows und die Worker-Slot-Zulassung aktiviert sind.",
+    "distributed_workflow_dag_hint": "Erfordert die instanzweite Funktion für verteilte Workflows; geeignete Grader verwenden unveränderliche Checkouts und RunHostAdmission.",
     "check_main_health": "Main-Branch-Gesundheit überwachen",
     "check_main_repair": "Automatisch einen Fix-Job erstellen, wenn Main bricht",
     "check_main_repair_blocks_work": "Arbeit pausieren, wenn Main defekt ist",

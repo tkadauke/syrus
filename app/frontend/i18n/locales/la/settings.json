@@ -592,7 +592,7 @@
     "check_auto_merge": "PR Syrus probatos automatice permiscere",
     "check_trust_rebase": "Rebasibus mundis fidere (post rebase sine conflictu non iterum aestimare)",
     "check_distributed_workflow_dag": "Exsecutionem DAG distributam pro gradibus idoneis uti",
-    "distributed_workflow_dag_hint": "Requirit ut functio distributa totius instantiae et admissio locorum operatorum activae sint.",
+    "distributed_workflow_dag_hint": "Requirit functionem distributam totius instantiae; gradatores idonei checkout immutabilia et RunHostAdmission utuntur.",
     "check_main_health": "Sanitatem rami main observare",
     "check_main_repair": "Automatice opus reparationis creare cum main frangitur",
     "check_main_repair_blocks_work": "Opus intermittere cum main fractus est",

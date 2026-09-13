@@ -71,7 +71,7 @@ Job detail workflow payloads expose this runtime placement data on each Step
 under `steps[].placement` and dependency/barrier data under
 `steps[].dependencies`. Placement fields describe the Step runtime object:
 `policy`, source snapshot SHA/ref/tree, worker hostname/storage key, latest
-worker-slot metadata, immutable-checkout prepare cache hit/miss, and any
+host-admission metadata, immutable-checkout prepare cache hit/miss, and any
 admission block that applies to that Step. Projected target fields such as
 `projected_target_label`, `projected_target_fingerprint`, and
 `projected_resource_key` remain descriptive target-graph metadata; they explain
@@ -84,9 +84,9 @@ separate grader-batch model: `grader_fanout` materializes `grader` Steps,
 dependency states. Individual grader Steps still expose their own Step
 dependency edges, target metadata, placement, and admission state, but they do
 not present the collector's batch progress as their own. Admission blocks are
-likewise Step-scoped. Worker-slot admission artifacts include a `step_id`; host
-pickup deferrals include a `run_id`, which the payload resolves back to the
-owning Step before showing the block. Sibling Steps therefore remain queued,
+likewise Step-scoped. Host pickup deferrals include a `run_id`, which the
+payload resolves back to the owning Step before showing the block. Sibling
+Steps therefore remain queued,
 running, failed, or completed on their own merits instead of making the whole
 workflow look paused.
 
