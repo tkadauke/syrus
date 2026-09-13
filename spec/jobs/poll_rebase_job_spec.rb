@@ -21,6 +21,48 @@ RSpec.describe PollRebaseJob, :ci_only do
     allow_any_instance_of(GithubClient).to receive(:branch_head_sha).and_return("base")
   end
 
+  describe "GitHub rate-limit backoff" do
+    before { job }
+
+    it "skips autonomous polling while the installation core bucket is exhausted" do
+      installation = Factories.installation(
+        user: user,
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: 10.minutes.from_now,
+        gh_rate_limit_resource: "core"
+      )
+      repository.update!(installation: installation)
+
+      expect_any_instance_of(GithubClient).not_to receive(:pull_request)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "preserves manual mergeability checks even while cached rate-limit state is exhausted" do
+      user.update!(
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: 10.minutes.from_now,
+        gh_rate_limit_resource: "core"
+      )
+      stub_pr(pr_resource(mergeable: true))
+
+      expect {
+        described_class.perform_now(job.id, bypass_cache: true)
+      }.not_to raise_error
+    end
+
+    it "treats TooManyRequests as coordinated autonomous backoff" do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_raise(Octokit::TooManyRequests)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to raise_error
+
+      expect(user.reload.gh_rate_limit_remaining).to eq(0)
+      expect(user.gh_rate_limit_reset_at).to be_present
+    end
+  end
+
   describe "happy path" do
     it "creates a rebase Run when the PR is unmergeable and we own the head" do
       stub_pr(pr_resource(mergeable: false))

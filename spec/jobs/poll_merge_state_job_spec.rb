@@ -64,6 +64,31 @@ RSpec.describe PollMergeStateJob, :ci_only do
     described_class.perform_now(job.id)
   end
 
+  it "skips autonomous polling while the installation core bucket is exhausted" do
+    installation = Factories.installation(
+      user: user,
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 10.minutes.from_now,
+      gh_rate_limit_resource: "core"
+    )
+    repository.update!(installation: installation)
+
+    expect_any_instance_of(GithubClient).not_to receive(:pull_request)
+
+    described_class.perform_now(job.id)
+  end
+
+  it "treats TooManyRequests as coordinated autonomous backoff" do
+    allow_any_instance_of(GithubClient).to receive(:pull_request).and_raise(Octokit::TooManyRequests)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.not_to raise_error
+
+    expect(user.reload.gh_rate_limit_remaining).to eq(0)
+    expect(user.gh_rate_limit_reset_at).to be_present
+  end
+
   it "fetches the PR from effective_pr_repository when it differs from repository" do
     upstream = Factories.repository(user: user, owner: "upstream-org", name: "widgets", auto_merge_enabled: true)
     fork_job = Factories.job(user: user, repository: repository, pr_number: 8, pr_repository: upstream,

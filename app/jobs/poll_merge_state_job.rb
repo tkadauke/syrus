@@ -1,4 +1,5 @@
 class PollMergeStateJob < ApplicationJob
+  include AutonomousGithubPollingGuard
   include GithubPrPollHelpers
 
   queue_as :polling
@@ -22,7 +23,7 @@ class PollMergeStateJob < ApplicationJob
     return if RebaseWorkflowSelector.active_for_stack?(@job)
 
     pr_repo = @job.effective_pr_repository
-    return if pr_repo.github_api_rate_limited_for?(user: @job.user)
+    return if autonomous_github_polling_rate_limited?(pr_repo, user: @job.user)
 
     @client = GithubClient.for(repository: pr_repo, user: @job.user)
     @pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: false)
@@ -52,6 +53,12 @@ class PollMergeStateJob < ApplicationJob
     elsif proactive_rebase_threshold_exceeded?
       dispatch_rebase
     end
+  rescue Octokit::TooManyRequests => e
+    handle_autonomous_github_polling_rate_limit(
+      e,
+      repository: @job&.effective_pr_repository || @job&.repository,
+      user: @job&.user
+    )
   end
 
   private

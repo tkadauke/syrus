@@ -92,6 +92,50 @@ RSpec.describe PollPullRequestJob, :ci_only do
     )
   end
 
+  describe "GitHub rate-limit backoff" do
+    it "skips autonomous polling while the installation core bucket is exhausted" do
+      installation = Factories.installation(
+        user: user,
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: 10.minutes.from_now,
+        gh_rate_limit_resource: "core"
+      )
+      repository.update!(installation: installation)
+
+      expect_any_instance_of(GithubClient).not_to receive(:pull_request)
+
+      described_class.perform_now(job.id)
+    end
+
+    it "preserves manual feedback checks even while cached rate-limit state is exhausted" do
+      user.update!(
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: 10.minutes.from_now,
+        gh_rate_limit_resource: "core"
+      )
+      stub_pr
+      stub_reviews([])
+      stub_issue_comments([])
+      stub_review_comments([])
+      stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+
+      expect {
+        described_class.perform_now(job.id, manual: true)
+      }.not_to raise_error
+    end
+
+    it "treats an autonomous TooManyRequests response as backoff instead of a failed job" do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_raise(Octokit::TooManyRequests)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to raise_error
+
+      expect(user.reload.gh_rate_limit_remaining).to eq(0)
+      expect(user.gh_rate_limit_reset_at).to be_present
+    end
+  end
+
   describe "close conditions" do
     it "closes the Job with reason=pr_merged when the PR is merged" do
       stub_pr(state: "closed", merged: true)

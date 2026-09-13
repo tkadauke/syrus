@@ -1,4 +1,6 @@
 class PollMainBranchHealthJob < ApplicationJob
+  include AutonomousGithubPollingGuard
+
   queue_as :polling
 
   limits_concurrency to: 1, key: ->(repo_id, *) { "poll_main_health:#{repo_id}" }
@@ -17,7 +19,7 @@ class PollMainBranchHealthJob < ApplicationJob
     return unless repository
     return if repository.archived?
     return unless repository.main_branch_health_enabled?
-    return if repository.github_api_rate_limited_for?
+    return if autonomous_github_polling_rate_limited?(repository)
 
     # Grading main is the instance's work, not the repository owner's; see
     # InstanceIdentity. It still runs as the owner, but a repository with no
@@ -161,6 +163,8 @@ class PollMainBranchHealthJob < ApplicationJob
     elsif repository.main_health_broken?
       MainHealthChangedService.ensure_repair_job!(repository)
     end
+  rescue Octokit::TooManyRequests => e
+    handle_autonomous_github_polling_rate_limit(e, repository: repository)
   end
 
   private

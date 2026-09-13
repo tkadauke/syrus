@@ -1,4 +1,5 @@
 class PollPullRequestJob < ApplicationJob
+  include AutonomousGithubPollingGuard
   include GithubPrPollHelpers
 
   queue_as :polling
@@ -37,9 +38,10 @@ class PollPullRequestJob < ApplicationJob
     @job = Job.find_by(id: job_id)
     return unless @job&.open? && @job.pr_number.present?
     return if @job.repository.archived?
-    return if @job.effective_pr_repository.github_api_rate_limited_for?(user: @job.user)
 
     pr_repo = @job.effective_pr_repository
+    return if autonomous_github_polling_rate_limited?(pr_repo, user: @job.user, manual: @manual)
+
     @client = GithubClient.for(repository: pr_repo, user: @job.user)
     @slug = pr_repo.slug
     @pr = @client.pull_request(@slug, @job.pr_number)
@@ -62,6 +64,13 @@ class PollPullRequestJob < ApplicationJob
     react_to_pr_reviews
     react_to_pr_comments
     react_to_ci_failures
+  rescue Octokit::TooManyRequests => e
+    handle_autonomous_github_polling_rate_limit(
+      e,
+      repository: @job&.effective_pr_repository || @job&.repository,
+      user: @job&.user,
+      manual: @manual
+    )
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
     # The pull_request fetch itself failed on permissions — record
     # for the banner, then re-raise so SolidQueue's failed_executions

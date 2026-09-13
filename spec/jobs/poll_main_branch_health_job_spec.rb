@@ -14,6 +14,33 @@ RSpec.describe PollMainBranchHealthJob do
     allow_any_instance_of(GithubClient).to receive(:main_branch_check_runs_summary_for).and_return(summary)
   end
 
+  describe "GitHub rate-limit backoff" do
+    it "skips autonomous polling while the installation core bucket is exhausted" do
+      installation = Factories.installation(
+        user: user,
+        gh_rate_limit_remaining: 0,
+        gh_rate_limit_reset_at: 10.minutes.from_now,
+        gh_rate_limit_resource: "core"
+      )
+      repository.update!(installation: installation)
+
+      expect_any_instance_of(GithubClient).not_to receive(:branch_head_sha)
+
+      described_class.perform_now(repository.id)
+    end
+
+    it "treats TooManyRequests as coordinated autonomous backoff" do
+      expect_any_instance_of(GithubClient).to receive(:branch_head_sha).and_raise(Octokit::TooManyRequests)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to raise_error
+
+      expect(user.reload.gh_rate_limit_remaining).to eq(0)
+      expect(user.gh_rate_limit_reset_at).to be_present
+    end
+  end
+
   it "sets ci_health to healthy when all checks pass" do
     stub_sha(sha)
     stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })

@@ -1,4 +1,5 @@
 class PollRebaseJob < ApplicationJob
+  include AutonomousGithubPollingGuard
   include GithubPrPollHelpers
 
   queue_as :polling
@@ -48,6 +49,8 @@ class PollRebaseJob < ApplicationJob
     return unless pr_number
 
     pr_repo = @job.effective_pr_repository
+    return if autonomous_github_polling_rate_limited?(pr_repo, user: @job.user, manual: bypass_cache)
+
     @client = GithubClient.for(repository: pr_repo, user: @job.user)
     pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: bypass_cache)
 
@@ -77,6 +80,13 @@ class PollRebaseJob < ApplicationJob
     Rails.logger.info("[PollRebaseJob] #{@job.slug} PR ##{pr_number} unmergeable; instantiating rebase workflow")
     workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: pr)
     WorkUnits::Launcher.start!(workflow)
+  rescue Octokit::TooManyRequests => e
+    handle_autonomous_github_polling_rate_limit(
+      e,
+      repository: @job&.effective_pr_repository || @job&.repository,
+      user: @job&.user,
+      manual: bypass_cache
+    )
   end
 
   def persist_mergeability(pr)
