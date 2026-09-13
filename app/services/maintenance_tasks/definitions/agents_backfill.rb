@@ -8,7 +8,7 @@ module MaintenanceTasks
       recurrence "one_off"
       required_role "admin"
       concurrency_key "agents_backfill"
-      batch_size 250
+      batch_size 1_000
       max_parallelism 1
       documentation_path Rails.root.join("app/services/maintenance_tasks/docs/agents_backfill.md")
 
@@ -65,65 +65,123 @@ module MaintenanceTasks
       end
 
       def unattributed_processes_count
-        SpawnedProcess.where(agent_id: nil).where.not(run_id: nil).count +
-          SpawnedProcess.where(agent_id: nil, run_id: nil).where.not(chat_session_id: nil).count
+        attachable_processes_count(resumable_type: "Run", foreign_key: "run_id") +
+          attachable_processes_count(
+            resumable_type: "ChatSession",
+            foreign_key: "chat_session_id",
+            extra_where: "spawned_processes.run_id IS NULL"
+          )
       end
 
       def backfill_run_agents(task)
-        processed = 0
-        Run.left_outer_joins(:agent).where(agents: { id: nil }).order(:id).limit(task.batch_size).find_each do |run|
-          Agent.find_or_create_for!(run)
-          processed += 1
-        end
+        processed = bulk_create_agents_for(Run, task.batch_size)
         task.current_step_key = "runs"
         task.current_step_title = "Create Agent rows for historical Runs"
         Result.new(done: false, processed: processed, failed: 0, message: "Created #{processed} Run Agent row(s).", level: "progress")
       end
 
       def backfill_chat_agents(task)
-        processed = 0
-        ChatSession.left_outer_joins(:agent).where(agents: { id: nil }).order(:id).limit(task.batch_size).find_each do |chat_session|
-          Agent.find_or_create_for!(chat_session)
-          processed += 1
-        end
+        processed = bulk_create_agents_for(ChatSession, task.batch_size)
         task.current_step_key = "chats"
         task.current_step_title = "Create Agent rows for historical Chats"
         Result.new(done: false, processed: processed, failed: 0, message: "Created #{processed} Chat Agent row(s).", level: "progress")
       end
 
       def backfill_design_doc_agent_run_agents(task)
-        processed = 0
-        design_doc_agent_run_class.left_outer_joins(:agent).where(agents: { id: nil }).order(:id).limit(task.batch_size).find_each do |agent_run|
-          Agent.find_or_create_for!(agent_run)
-          processed += 1
-        end
+        processed = bulk_create_agents_for(design_doc_agent_run_class, task.batch_size)
         task.current_step_key = "design_docs"
         task.current_step_title = "Create Agent rows for Design Doc agent runs"
         Result.new(done: false, processed: processed, failed: 0, message: "Created #{processed} Design Doc Agent row(s).", level: "progress")
       end
 
       def backfill_process_agents(task)
-        processed = 0
-        scope = SpawnedProcess.where(agent_id: nil).where.not(run_id: nil).order(:id).limit(task.batch_size)
-        scope.find_each do |process|
-          next unless process.run
-
-          process.update_columns(agent_id: Agent.find_or_create_for!(process.run).id, updated_at: Time.current)
-          processed += 1
-        end
+        processed = bulk_attach_process_agents(resumable_type: "Run", foreign_key: "run_id", limit: task.batch_size)
 
         if processed < task.batch_size
-          SpawnedProcess.where(agent_id: nil, run_id: nil).where.not(chat_session_id: nil).order(:id).limit(task.batch_size - processed).find_each do |process|
-            next unless process.chat_session
-
-            process.update_columns(agent_id: Agent.find_or_create_for!(process.chat_session).id, updated_at: Time.current)
-            processed += 1
-          end
+          processed += bulk_attach_process_agents(
+            resumable_type: "ChatSession",
+            foreign_key: "chat_session_id",
+            limit: task.batch_size - processed,
+            extra_where: "spawned_processes.run_id IS NULL"
+          )
         end
 
         task.current_step_key = "processes"
         task.current_step_title = "Attach spawned processes to Agents"
         Result.new(done: false, processed: processed, failed: 0, message: "Attached #{processed} spawned process row(s).", level: "progress")
+      end
+
+      def bulk_create_agents_for(model_class, limit)
+        ids = model_class.left_outer_joins(:agent)
+          .where(agents: { id: nil })
+          .reorder(:id)
+          .limit(limit)
+          .pluck(:id)
+        return 0 if ids.empty?
+
+        now = Time.current
+        rows = ids.map do |id|
+          {
+            resumable_type: model_class.name,
+            resumable_id: id,
+            created_at: now,
+            updated_at: now
+          }
+        end
+        Agent.insert_all(rows)
+        ids.size
+      end
+
+      def bulk_attach_process_agents(resumable_type:, foreign_key:, limit:, extra_where: nil)
+        return 0 if limit.to_i <= 0
+
+        connection = ActiveRecord::Base.connection
+        where_clauses = [
+          "spawned_processes.agent_id IS NULL",
+          "spawned_processes.#{foreign_key} IS NOT NULL"
+        ]
+        where_clauses << extra_where if extra_where.present?
+        rows = connection.select_all(<<~SQL.squish).to_a
+          SELECT spawned_processes.id AS process_id, agents.id AS agent_id
+          FROM spawned_processes
+          JOIN agents
+            ON agents.resumable_type = #{connection.quote(resumable_type)}
+           AND agents.resumable_id = spawned_processes.#{foreign_key}
+          WHERE #{where_clauses.join(" AND ")}
+          ORDER BY spawned_processes.id
+          LIMIT #{Integer(limit)}
+        SQL
+        return 0 if rows.empty?
+
+        ids = rows.map { |row| Integer(row["process_id"]) }
+        cases = rows.map do |row|
+          "WHEN #{Integer(row["process_id"])} THEN #{Integer(row["agent_id"])}"
+        end.join(" ")
+
+        connection.update(<<~SQL.squish)
+          UPDATE spawned_processes
+          SET agent_id = CASE id #{cases} END,
+              updated_at = #{connection.quote(Time.current)}
+          WHERE id IN (#{ids.join(",")})
+        SQL
+      end
+
+      def attachable_processes_count(resumable_type:, foreign_key:, extra_where: nil)
+        connection = ActiveRecord::Base.connection
+        where_clauses = [
+          "spawned_processes.agent_id IS NULL",
+          "spawned_processes.#{foreign_key} IS NOT NULL"
+        ]
+        where_clauses << extra_where if extra_where.present?
+
+        connection.select_value(<<~SQL.squish).to_i
+          SELECT COUNT(*)
+          FROM spawned_processes
+          JOIN agents
+            ON agents.resumable_type = #{connection.quote(resumable_type)}
+           AND agents.resumable_id = spawned_processes.#{foreign_key}
+          WHERE #{where_clauses.join(" AND ")}
+        SQL
       end
 
       def design_doc_agent_run_class

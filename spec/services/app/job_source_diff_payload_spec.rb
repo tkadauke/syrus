@@ -309,6 +309,42 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(job.diff_review_versions.count).to eq(1)
   end
 
+  it "falls back to a stored review version when GitHub cannot compare the current branch" do
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+    step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+    run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded",
+                      base_sha: "branch-base", head_sha: "implemented-head")
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "branch-base",
+      head_sha: "implemented-head",
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      files: [
+        { path: "app/models/implemented.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+implemented" }
+      ],
+      reason: "initial"
+    )
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_raise(StandardError, "GitHub unavailable")
+    expect(github).not_to receive(:compare_files)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload[:diff_error]).to be_nil
+    expect(payload.dig(:version, :id)).to eq(version.id)
+    expect(payload[:files]).to contain_exactly(
+      path: "app/models/implemented.rb",
+      status: "modified",
+      additions: 2,
+      deletions: 0,
+      patch: "@@ -1 +1,2 @@\n+implemented"
+    )
+  end
+
   it "does not create an All changes version with main as the head when an ahead branch has no stored review version" do
     allow(github).to receive(:compare_commits)
       .with("acme/widgets", "main", "syrus/issue-42")

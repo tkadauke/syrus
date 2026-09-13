@@ -2,7 +2,14 @@ require "rails_helper"
 
 RSpec.describe MaintenanceTasks::Actions do
   let(:admin) { User.create!(email_address: "admin@example.test", password: "password", password_confirmation: "password", global_role: "admin") }
-  let(:definition) { instance_double(MaintenanceTasks::Definitions::AgentsBackfill, estimate_total_units: 3) }
+  let(:definition) do
+    instance_double(
+      MaintenanceTasks::Definitions::AgentsBackfill,
+      estimate_total_units: 3,
+      batch_size: 1_000,
+      max_parallelism: 1
+    )
+  end
   let(:task) do
     MaintenanceTask.create!(
       definition_key: "agents_backfill",
@@ -30,6 +37,8 @@ RSpec.describe MaintenanceTasks::Actions do
 
     expect(task.reload.state).to eq("running")
     expect(task.started_at).to be_present
+    expect(task.batch_size).to eq(1_000)
+    expect(task.max_parallelism).to eq(1)
     expect(task.requested_by_user).to eq(admin)
     expect(task.events.last.message).to eq("Started by #{admin.display_name}.")
   end

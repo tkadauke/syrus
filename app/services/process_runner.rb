@@ -24,8 +24,8 @@ class ProcessRunner
 
   TERM_GRACE_SECONDS = 5
   READ_CHUNK_BYTES = 16 * 1024
-  KILL_POLL_INTERVAL_SECONDS = 1
-  SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 60
+  KILL_POLL_INTERVAL_SECONDS = 5
+  SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 120
   SYNC_STDIN_BYTES = 32 * 1024
   # Live process resource samples are useful for the admin UI, but the JSON
   # update is a hot write on long-running agent/grader processes. Persist
@@ -190,9 +190,8 @@ class ProcessRunner
 
         kill_poll = ->(now) {
           # Cross-pod kill via DB: the operator's Kill button stamps
-          # SpawnedProcess#kill_requested_at; we poll for it once a
-          # second from the loop. Avoids hammering the DB on every
-          # 100ms iteration.
+          # SpawnedProcess#kill_requested_at; poll coarsely so long-running
+          # graders do not turn operator-kill checks into DB read pressure.
           return false unless @spawned_process
           return false if now - last_kill_check < KILL_POLL_INTERVAL_SECONDS
 

@@ -1,6 +1,68 @@
 require "rails_helper"
 
 RSpec.describe "maintenance task definitions" do
+  describe MaintenanceTasks::Definitions::AgentsBackfill do
+    let(:definition) { described_class.new }
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "bulk creates missing Agent rows for runs" do
+      job = Factories.job_with_run(user: user, repository: repository)
+      run = job.runs.first
+      Agent.where(resumable: run).delete_all
+      task = maintenance_task_for(definition)
+
+      result = definition.perform_batch(task)
+
+      expect(result.processed).to eq(1)
+      expect(result.message).to include("Run Agent")
+      expect(Agent.find_by!(resumable: run)).to be_present
+    end
+
+    it "bulk attaches spawned processes to existing run and chat agents" do
+      job = Factories.job_with_run(user: user, repository: repository)
+      run = job.runs.first
+      chat = ChatSession.create!(user: user, repository: repository)
+      run_agent = Agent.find_or_create_for!(run)
+      chat_agent = Agent.find_or_create_for!(chat)
+      run_process = SpawnedProcess.create!(
+        run: run,
+        workflow: run.workflow,
+        kind: "agent",
+        command: "true",
+        hostname: "worker-1",
+        started_at: Time.current
+      )
+      chat_process = SpawnedProcess.create!(
+        chat_session: chat,
+        kind: "chat_prepare",
+        command: "true",
+        hostname: "worker-1",
+        started_at: Time.current
+      )
+      task = maintenance_task_for(definition)
+
+      result = definition.perform_batch(task)
+
+      expect(result.processed).to eq(2)
+      expect(result.message).to include("spawned process")
+      expect(run_process.reload.agent).to eq(run_agent)
+      expect(chat_process.reload.agent).to eq(chat_agent)
+    end
+
+    it "does not count orphaned spawned processes as attachable work" do
+      SpawnedProcess.create!(
+        run_id: 123_456_789,
+        kind: "agent",
+        command: "true",
+        hostname: "worker-1",
+        started_at: Time.current
+      )
+
+      expect(definition.estimate_total_units).to eq(0)
+    end
+  end
+
   describe MaintenanceTasks::Definitions::LandedCommitsBackfill do
     let(:definition) { described_class.new }
     let(:user) { Factories.user }

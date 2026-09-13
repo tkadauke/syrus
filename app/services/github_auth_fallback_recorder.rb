@@ -1,6 +1,17 @@
 class GithubAuthFallbackRecorder
+  COALESCE_WINDOW = 10.minutes
+
   def self.record!(repository:, installation:, operation_type:, error:, refresh_attempted:, refresh_succeeded:, run: Thread.current[:syrus_current_run])
     return unless repository && installation
+    return if recently_recorded?(
+      repository: repository,
+      installation: installation,
+      operation_type: operation_type,
+      error: error,
+      refresh_attempted: refresh_attempted,
+      refresh_succeeded: refresh_succeeded,
+      run: run
+    )
 
     diagnostic = GithubAuthFallbackDiagnostic.create!(
       repository: repository,
@@ -25,6 +36,17 @@ class GithubAuthFallbackRecorder
     Rails.logger.warn("[GithubAuthFallback] diagnostic write failed: #{e.class}: #{e.message}")
     nil
   end
+
+  def self.recently_recorded?(repository:, installation:, operation_type:, error:, refresh_attempted:, refresh_succeeded:, run:)
+    GithubAuthFallbackDiagnostic
+      .where(repository: repository, installation: installation, run: run)
+      .where(operation_type: operation_type.to_s)
+      .where(error_class: error.class.name, error_status: error_status(error))
+      .where(refresh_attempted: refresh_attempted, refresh_succeeded: refresh_succeeded)
+      .where("created_at >= ?", COALESCE_WINDOW.ago)
+      .exists?
+  end
+  private_class_method :recently_recorded?
 
   def self.error_status(error)
     return error.response_status if error.respond_to?(:response_status) && error.response_status.present?

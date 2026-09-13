@@ -48,6 +48,11 @@ module App
           versions: diff_versions_json
         )
     rescue => e
+      if @job.branch_name.present? && !explicit_selection?
+        version = DiffReviewVersion.default_for_review(@job)
+        return stored_review_version_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha) if version
+      end
+
       base_payload(base_ref: nil, head_ref: nil)
         .merge(files: [], truncated: false, diff_error: e.message, version: nil, versions: diff_versions_json)
     end

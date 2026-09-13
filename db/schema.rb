@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_012500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_13_143000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1029,6 +1029,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_012500) do
     t.integer "workflow_id"
     t.index ["job_id", "base_sha", "head_sha", "source_key"], name: "idx_diff_review_versions_identity", unique: true
     t.index ["job_id", "created_at", "id"], name: "index_diff_review_versions_on_job_id_and_created_at_and_id"
+    t.index ["job_id", "reason", "version_index", "id"], name: "idx_diff_review_versions_job_reason_latest"
     t.index ["job_id", "version_index"], name: "index_diff_review_versions_on_job_id_and_version_index", unique: true
     t.index ["run_id"], name: "index_diff_review_versions_on_run_id"
     t.index ["workflow_id"], name: "index_diff_review_versions_on_workflow_id"

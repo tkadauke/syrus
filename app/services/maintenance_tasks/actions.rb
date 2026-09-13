@@ -72,6 +72,8 @@ module MaintenanceTasks
         @task.update!(
           state: "running",
           total_units: total,
+          batch_size: @task.definition.batch_size,
+          max_parallelism: @task.definition.max_parallelism,
           requested_by_user: @user,
           dismissed_at: nil,
           dismissed_by_user: nil,
