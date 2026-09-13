@@ -519,7 +519,7 @@ module Steps
     end
 
     def distributed_grader_projection_enabled?
-      Feature.distributed_workflow_dag_enabled?(repository) && WorkflowStepWorkerSlot.enabled?
+      Feature.distributed_workflow_dag_enabled?(repository)
     end
 
     def distributed_parallel_grader_projection_enabled?

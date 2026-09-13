@@ -316,7 +316,7 @@ class AppSettingRegistry
       min: nil,
       max: nil,
       category: "Instance operations",
-      operational_meaning: "When enabled, each worker host/storage key admits at most one active workflow Step at a time.",
+      operational_meaning: "Deprecated legacy guard. When enabled, each worker host/storage key admits at most one active workflow Step at a time; distributed graders use RunHostAdmission instead.",
       zero_means: nil,
       admin_editable: false,
       secret: false

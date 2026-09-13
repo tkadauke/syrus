@@ -741,7 +741,6 @@ class StepDispatcher
 
   def self.distributed_deferred_resume_ready?(workflow, step)
     return false unless Feature.distributed_workflow_dag_enabled?(workflow.job.repository)
-    return false unless WorkflowStepWorkerSlot.enabled?
 
     new(workflow).send(:ready?, step)
   end
@@ -1312,14 +1311,12 @@ class StepDispatcher
   end
 
   def distributed_ready_set_enabled?
-    Feature.distributed_workflow_dag_enabled?(@workflow.job.repository) &&
-      WorkflowStepWorkerSlot.enabled?
+    Feature.distributed_workflow_dag_enabled?(@workflow.job.repository)
   end
 
   def parallel_runnable_step?(step)
     step.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
-      step.distributed_workflow_dag_enabled? &&
-      WorkflowStepWorkerSlot.enabled?
+      step.distributed_workflow_dag_enabled?
   end
 
   def downstream_work_pending?

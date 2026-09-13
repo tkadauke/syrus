@@ -1,4 +1,7 @@
 class WorkflowStepWorkerSlot < ApplicationRecord
+  # Legacy strict per-worker mutex. Distributed grader projection and graph
+  # scheduling no longer depend on this flag; RunHostAdmission is the modern
+  # pressure guard for concurrent immutable-source grader runs.
   Acquisition = Data.define(:acquired, :reason, :delay, :details) do
     def acquired? = acquired
     def deferred? = !acquired

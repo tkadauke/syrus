@@ -881,7 +881,7 @@ RSpec.describe StepDispatcher, :ci_only do
 
     it "queues every ready immutable-source sibling under the distributed execution gates" do
       enable_distributed_workflow_dag!(job.repository)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
       s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
@@ -909,7 +909,7 @@ RSpec.describe StepDispatcher, :ci_only do
 
     it "continues past a blocked immutable sibling to enqueue unrelated ready siblings" do
       enable_distributed_workflow_dag!(job.repository)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
       blocked_on = Step.create!(
@@ -991,7 +991,7 @@ RSpec.describe StepDispatcher, :ci_only do
 
     it "resumes a deferred immutable sibling without waiting for its linked-list predecessor" do
       enable_distributed_workflow_dag!(job.repository)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
       s2.update!(
@@ -1022,7 +1022,7 @@ RSpec.describe StepDispatcher, :ci_only do
 
     it "dispatches parallel immutable siblings that cannot be consumed by the inline RunJob driver" do
       enable_distributed_workflow_dag!(job.repository)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
       s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
@@ -1065,12 +1065,11 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(s3.runs.count).to eq(0)
     end
 
-    it "keeps gate-off workflows on the legacy first-successor walk despite explicit sibling edges" do
-      enable_distributed_workflow_dag!(job.repository)
+    it "keeps distributed-DAG-off workflows on the legacy first-successor walk despite explicit sibling edges" do
       AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       workflow.update!(state: "running", started_at: 1.minute.ago)
-      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
-      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s2.update_columns(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s3.update_columns(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
       s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
 
       expect {

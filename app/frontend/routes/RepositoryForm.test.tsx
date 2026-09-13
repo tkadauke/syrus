@@ -155,7 +155,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
       expect(label).not.toHaveClass("inline-flex")
     }
 
-    expect(screen.getByText("Requires the instance-wide distributed workflow feature and worker-slot admission to be enabled.")).toBeInTheDocument()
+    expect(screen.getByText("Requires the instance-wide distributed workflow feature; eligible graders use immutable checkouts and RunHostAdmission.")).toBeInTheDocument()
   })
 
   it("keeps monitoring enabled when enabling main branch repair or broken-main pausing", async () => {

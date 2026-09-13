@@ -13,8 +13,8 @@ class RunJob < ApplicationJob
   # $SYRUS_DATA_ROOT/workflows/<workflow_id>/, because two concurrent Runs on
   # the same Job could interleave on disk. Distributed immutable-source Steps
   # are different: each projected grader gets its own detached checkout and
-  # worker-slot admission bounds per-worker pressure, so their Solid Queue key
-  # is per Run under the distributed gate.
+  # RunHostAdmission bounds per-worker pressure, so their Solid Queue key is
+  # per Run under the distributed gate.
   limits_concurrency to: 1, key: ->(run_id) {
     ::RunJob.concurrency_key_for(run_id)
   }
@@ -38,8 +38,7 @@ class RunJob < ApplicationJob
       repository = step&.workflow&.job&.repository
       step&.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
         repository.present? &&
-        Feature.distributed_workflow_dag_enabled?(repository) &&
-        WorkflowStepWorkerSlot.enabled?
+        Feature.distributed_workflow_dag_enabled?(repository)
     end
   end
 

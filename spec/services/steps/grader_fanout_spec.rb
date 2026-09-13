@@ -174,7 +174,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "records immutable placement and descriptive DAG metadata for materialized graders when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
-    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
     write_config(<<~YAML)
       grade:
         - name: rspec
@@ -202,10 +202,10 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
-  it "projects legacy graders as parallel siblings behind a collect barrier when worker-slot admission is enabled" do
+  it "projects legacy graders as parallel siblings behind a collect barrier when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
-    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
     write_config(<<~YAML)
       grade:
         - name: rspec
@@ -224,8 +224,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(collect.reload.depends_on_step_ids).to eq(grader_steps.map(&:id))
   end
 
-  it "falls back to pinned serial in-workflow grading until worker-slot admission is enabled" do
-    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+  it "falls back to pinned serial in-workflow grading until distributed workflows are enabled" do
     job.repository.update!(distributed_workflow_dag_enabled: true)
     AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
     write_config(<<~YAML)

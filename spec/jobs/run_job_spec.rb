@@ -783,7 +783,7 @@ RSpec.describe RunJob, :ci_only do
         feature.name = "Distributed workflow DAG"
       end.update!(enabled: true)
       repository.update!(distributed_workflow_dag_enabled: true)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       workflow = job.workflows.last
       fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 100, state: "succeeded")
       grader = Step.create!(
@@ -799,7 +799,7 @@ RSpec.describe RunJob, :ci_only do
       expect(described_class.concurrency_key_for(run.id)).to eq("run:#{run.id}")
     end
 
-    it "keeps mutable-workspace and partially gated runs on the per-job Solid Queue concurrency key" do
+    it "keeps mutable-workspace runs on the per-job Solid Queue concurrency key" do
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
         feature.category = "Operations"
         feature.name = "Distributed workflow DAG"
@@ -821,7 +821,7 @@ RSpec.describe RunJob, :ci_only do
         agent_provider: workflow.agent_provider
       )
 
-      expect(described_class.concurrency_key_for(immutable_run.id)).to eq("job:#{job.id}")
+      expect(described_class.concurrency_key_for(immutable_run.id)).to eq("run:#{immutable_run.id}")
       expect(described_class.concurrency_key_for(pinned_run.id)).to eq("job:#{job.id}")
     end
 
@@ -831,7 +831,7 @@ RSpec.describe RunJob, :ci_only do
         feature.name = "Distributed workflow DAG"
       end.update!(enabled: true)
       repository.update!(distributed_workflow_dag_enabled: true)
-      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
       File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-checkpoint\n")
       allow(SyrusVersion).to receive(:hostname).and_return("worker-checkpoint")
       allow(GithubAuthenticatedGit).to receive(:run) do |repository:, user:, git:, operation_type:, log:, &block|
