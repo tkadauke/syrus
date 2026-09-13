@@ -88,11 +88,11 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        index_plugin_source(task, table_name: "job_fts", last_id_key: "last_job_id", done_key: "jobs_done", fallback_step: "jobs")
+        index_plugin_search_source(task, "jobs")
       end
 
       def index_epics(task)
-        index_plugin_source(task, table_name: "epic_fts", last_id_key: "last_epic_id", done_key: "epics_done", fallback_step: "epics")
+        index_plugin_search_source(task, "epics")
       end
 
       def index_operational_logs(task)
@@ -115,20 +115,13 @@ module MaintenanceTasks
         Result.new(done: false, processed: 0, failed: 0, message: "#{step.humanize} index is not available in this installation.", level: "info")
       end
 
-      def index_plugin_source(task, table_name:, last_id_key:, done_key:, fallback_step:)
-        source = SyrusSearchDatabaseTasks.search_backfill_source(table_name)
-        return mark_plugin_step_done(task, fallback_step) unless source
+      def index_plugin_search_source(task, key)
+        source = plugin_search_source(key)
+        return mark_plugin_step_done(task, key) unless source&.respond_to?(:search_database_rebuild_batch)
 
-        task.current_step_key = source.search_backfill_step_key
-        task.current_step_title = source.search_backfill_step_title
-        batch = source.search_backfill_batch(after_id: task.checkpoint[last_id_key].to_i, limit: task.batch_size)
-        task.checkpoint_will_change!
-        task.checkpoint[last_id_key] = batch[:last_id] if batch[:last_id].present?
-        task.checkpoint[done_key] = true if batch[:done]
-        processed = batch[:processed].to_i
-        label = source.search_backfill_record_label
-
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} #{label}(s).", level: "progress")
+        PerformanceLogging.plugin_call(extension_point: "global_search:source", provider: source, operation: :search_database_rebuild_batch) do
+          source.search_database_rebuild_batch(task: task)
+        end
       end
 
       def search_database_needs_prepare?
@@ -164,11 +157,15 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        SyrusSearchDatabaseTasks.search_backfill_source("job_fts")&.search_backfill_needed? || false
+        plugin_search_source_pending?("jobs")
+      rescue StandardError
+        false
       end
 
       def epics_need_rebuild?
-        SyrusSearchDatabaseTasks.search_backfill_source("epic_fts")&.search_backfill_needed? || false
+        plugin_search_source_pending?("epics")
+      rescue StandardError
+        false
       end
 
       def operational_logs_need_rebuild?
@@ -184,9 +181,36 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = SyrusSearchDatabaseTasks.search_backfill_source("job_fts")&.search_backfill_total_count.to_i || 0
-      def epics_count = SyrusSearchDatabaseTasks.search_backfill_source("epic_fts")&.search_backfill_total_count.to_i || 0
+      def jobs_count = plugin_search_source_units("jobs")
+      def epics_count = plugin_search_source_units("epics")
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
+
+      def plugin_search_source_pending?(key)
+        source = plugin_search_source(key)
+        source&.respond_to?(:search_database_rebuild_pending?) && source.search_database_rebuild_pending?
+      end
+
+      def plugin_search_source_units(key)
+        source = plugin_search_source(key)
+        return 0 unless source&.respond_to?(:search_database_rebuild_units)
+
+        source.search_database_rebuild_units.to_i
+      end
+
+      def plugin_search_source(key)
+        plugin_search_sources.find do |source|
+          source.respond_to?(:search_database_rebuild_key) &&
+            source.search_database_rebuild_key.to_s == key.to_s
+        end
+      end
+
+      def plugin_search_sources
+        return [] unless defined?(Syrus::PluginRegistry)
+
+        @plugin_search_sources ||= Syrus::PluginRegistry.providers_for("global_search:source")
+      rescue StandardError
+        []
+      end
 
       def bind(value)
         ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
