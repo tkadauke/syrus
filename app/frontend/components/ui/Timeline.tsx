@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react"
+import { Children, cloneElement, isValidElement, type HTMLAttributes, type ReactElement, type ReactNode } from "react"
 import { classes } from "./classes"
 import type { SemanticTone } from "./Pill"
 
@@ -30,8 +30,26 @@ const DENSITY_CLASSES: Record<NonNullable<TimelineRootProps["density"]>, string>
   comfortable: "space-y-3"
 }
 
-function Root({ className = "", density = "compact", ...props }: TimelineRootProps) {
-  return <ol className={classes("relative [&>li:last-child_[data-timeline-connector='true']]:hidden", DENSITY_CLASSES[density], className)} {...props} />
+function isActivityRowElement(child: ReactNode): child is ReactElement<ActivityRowProps> {
+  return isValidElement<ActivityRowProps>(child) && child.type === ActivityRow
+}
+
+function Root({ children, className = "", density = "compact", ...props }: TimelineRootProps) {
+  const childArray = Children.toArray(children)
+  const activityRows = childArray.filter(isActivityRowElement)
+  const lastActivityRow = activityRows.at(-1)
+
+  return (
+    <ol className={classes("relative", DENSITY_CLASSES[density], className)} {...props}>
+      {childArray.map((child) => {
+        if (child === lastActivityRow) {
+          return cloneElement(child, { showConnector: false })
+        }
+
+        return child
+      })}
+    </ol>
+  )
 }
 
 export function ActivityRow({

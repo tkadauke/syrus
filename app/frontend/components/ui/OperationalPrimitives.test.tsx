@@ -65,7 +65,7 @@ describe("operational UI primitives", () => {
   })
 
   it("renders timeline activity rows with aria labels, overflow-safe content, and passthrough props", () => {
-    render(
+    const { container } = render(
       <Timeline.Root aria-label="Workflow events" data-testid="timeline" density="comfortable">
         <ActivityRow
           actions={<button type="button">Retry</button>}
@@ -76,17 +76,30 @@ describe("operational UI primitives", () => {
           title="Migration lint failed"
           tone="danger"
         />
+        <ActivityRow title="Follow-up queued" />
       </Timeline.Root>
     )
 
     expect(screen.getByRole("list", { name: "Workflow events" })).toHaveClass("space-y-3")
-    expect(screen.getByRole("list", { name: "Workflow events" }).className).toContain("[&>li:last-child_[data-timeline-connector='true']]:hidden")
     expect(screen.getByTestId("activity-row")).toHaveAttribute("data-testid", "activity-row")
     expect(screen.getByText("Migration lint failed").className).toContain("truncate")
     expect(screen.getByText("RUN-7").className).toContain("truncate")
     expect(screen.getByText("2m ago").className).toContain("whitespace-nowrap")
     expect(screen.getByText("bin/check-migrations")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+    expect(screen.getByText("Follow-up queued")).toBeInTheDocument()
+    expect(container.querySelectorAll("[data-timeline-connector='true']")).toHaveLength(1)
+  })
+
+  it("suppresses the timeline connector for a single-row timeline", () => {
+    const { container } = render(
+      <Timeline.Root aria-label="Single event">
+        <ActivityRow title="Only event" />
+      </Timeline.Root>
+    )
+
+    expect(screen.getByText("Only event")).toBeInTheDocument()
+    expect(container.querySelector("[data-timeline-connector='true']")).not.toBeInTheDocument()
   })
 
   it("lets isolated activity rows suppress the connector", () => {
