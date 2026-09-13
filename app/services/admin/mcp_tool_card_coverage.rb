@@ -108,7 +108,7 @@ module Admin
       @used_rank_rows ||= begin
         grouped = gap_candidate_usages
           .group(:normalized_tool_name)
-          .order(Arel.sql("#{count_expression} DESC, #{error_count_expression} DESC, #{result_bytes_expression} DESC, #{last_used_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC"))
+          .order(Arel.sql(aggregate_rank_order))
           .limit(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
           .pluck(
             :normalized_tool_name,
@@ -119,19 +119,7 @@ module Admin
             Arel.sql(server_names_expression)
           )
 
-        grouped.map do |tool_name, count, errors, result_bytes, last_used_at, server_names|
-          count = count.to_i
-          errors = errors.to_i
-          {
-            tool_name: tool_name.to_s,
-            calls: count,
-            errors: errors,
-            error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0,
-            result_bytes: result_bytes.to_i,
-            last_used_at: last_used_at,
-            server_names: server_names.to_s.split(",").reject(&:blank?).sort
-          }
-        end
+        grouped.map { |row| rank_row_from_grouped_values(*row) }
       end
     end
 
@@ -139,6 +127,28 @@ module Admin
       return usages if strong_card_tool_names.empty?
 
       usages.where.not(normalized_tool_name: strong_card_tool_names)
+    end
+
+    def aggregate_rank_order
+      "#{recommendation_priority_expression} ASC, #{count_expression} DESC, #{error_count_expression} DESC, #{result_bytes_expression} DESC, #{last_used_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC"
+    end
+
+    def recommendation_priority_expression
+      "CASE WHEN #{count_expression} >= 10 OR #{error_count_expression} > 0 OR #{result_bytes_expression} >= #{64.kilobytes} THEN 0 WHEN #{count_expression} > 0 THEN 1 ELSE 2 END"
+    end
+
+    def rank_row_from_grouped_values(tool_name, count, errors, result_bytes, last_used_at, server_names)
+      count = count.to_i
+      errors = errors.to_i
+      {
+        tool_name: tool_name.to_s,
+        calls: count,
+        errors: errors,
+        error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0,
+        result_bytes: result_bytes.to_i,
+        last_used_at: last_used_at,
+        server_names: server_names.to_s.split(",").reject(&:blank?).sort
+      }
     end
 
     def aggregate_order(order_by)
@@ -239,12 +249,21 @@ module Admin
 
     def ranked_sort_key(row)
       [
+        recommendation_priority(row),
         -row[:calls].to_i,
         -row[:errors].to_i,
         -row[:result_bytes].to_i,
         row[:last_used_at].present? ? -Time.zone.parse(row[:last_used_at].to_s).to_i : 0,
         row[:tool_name].to_s
       ]
+    end
+
+    def recommendation_priority(row)
+      recommendation = row[:recommendation] || recommendation_for(row)
+      return 0 if recommendation == "custom_card_next"
+      return 1 if recommendation == "watch"
+
+      2
     end
 
     def iso8601_time(value)

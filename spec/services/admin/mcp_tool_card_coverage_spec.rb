@@ -234,6 +234,25 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     expect(report.fetch(:ranked_gaps)).not_to include(include(tool_name: "covered_tool_0"))
   end
 
+  it "does not let call-count candidates hide erroring or large-result gaps" do
+    25.times do |index|
+      create_usage("watch_gap_#{index}", count: 2)
+    end
+    create_usage("error_gap", count: 1, errors: 1)
+    create_usage("large_result_gap", count: 1, result_bytes: 128.kilobytes)
+
+    report = described_class.call(
+      usages: McpToolUsage.where(surface: "chat"),
+      advertised_tools: [ "error_gap", "large_result_gap" ] + 25.times.map { |index| "watch_gap_#{index}" }
+    )
+
+    expect(report.fetch(:ranked_gaps)).to include(
+      include(tool_name: "error_gap", calls: 1, errors: 1, card_status: "missing", recommendation: "custom_card_next"),
+      include(tool_name: "large_result_gap", calls: 1, result_bytes: 128.kilobytes, card_status: "missing", recommendation: "custom_card_next")
+    )
+    expect(report.fetch(:ranked_gaps).map { |row| row[:tool_name] }).to start_with("error_gap", "large_result_gap")
+  end
+
   def add_card(relative_path, source)
     path = @card_dir.join(relative_path)
     FileUtils.mkdir_p(path.dirname)
