@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
+import { ToolCard as SharedToolCard } from "@app/components/ui"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 
@@ -79,7 +80,7 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 export function CardShell({ children }: { children: ReactNode }) {
-  return <div className="mt-1 space-y-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-900">{children}</div>
+  return <SharedToolCard className="mt-1">{children}</SharedToolCard>
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {

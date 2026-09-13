@@ -7,6 +7,9 @@ export type { CardProps, CardVariant } from "../Card"
 export { Checkbox } from "../Checkbox"
 export type { CheckboxProps } from "../Checkbox"
 
+export { CodeSurface } from "./CodeSurface"
+export type { CodeSurfaceMode, CodeSurfaceProps, CodeSurfaceTone } from "./CodeSurface"
+
 export { PageHeading, SectionHeading } from "../Heading"
 
 export { Cluster, Inline, Stack, Toolbar } from "./Layout"
@@ -20,6 +23,9 @@ export type { DescriptionListDensity, DescriptionListItemProps, DescriptionListR
 
 export { LinkText, linkTextClasses } from "./LinkText"
 export type { LinkTextProps } from "./LinkText"
+
+export { Metric, MetricGroup, Stat, StatGroup } from "./Metric"
+export type { MetricDensity, MetricGroupProps, MetricProps, MetricTone } from "./Metric"
 
 export { Input } from "../Input"
 export type { InputProps } from "../Input"
@@ -64,5 +70,11 @@ export type { TextProps, TextTone, TextVariant } from "./Text"
 export { Textarea } from "../Textarea"
 export type { TextareaProps } from "../Textarea"
 
+export { ActivityRow, Timeline } from "./Timeline"
+export type { ActivityRowProps, TimelineProps, TimelineTone } from "./Timeline"
+
 export { Toggle } from "../Toggle"
 export type { ToggleProps } from "../Toggle"
+
+export { ToolCard } from "./ToolCard"
+export type { ToolCardProps, ToolCardSectionProps } from "./ToolCard"

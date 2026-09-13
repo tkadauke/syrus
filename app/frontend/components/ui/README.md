@@ -28,6 +28,10 @@
 | `Pill` / `Badge` | Tokenized rounded chips for state, tags, and compact labels. | `TonePill` remains the domain status bridge; new generic chips should use these. |
 | `DataTable` | Compound table primitive: `DataTable.Root`, `Header`, `Body`, `Row`, `HeadCell`, `Cell`, and `Empty` with responsive overflow. | Use for dense operational tables, sortable headers, checkbox columns, interactive rows, row group headers, and consistent empty states. |
 | `DescriptionList` | Compound metadata primitive: `DescriptionList.Root` and `DescriptionList.Item`. | Use for settings, diagnostics, repository metadata, and job summary panels instead of hand-rolled `<dl>` grids. |
+| `CodeSurface` | Dense command/log/code surface with command and multiline overflow modes, copy-slot support, and optional Shiki token spans. | Use for run commands, transcripts, generated snippets, and tool-card text output. |
+| `Metric` / `Stat` and `MetricGroup` / `StatGroup` | Compact dashboard/admin summary numbers with semantic tones and responsive groups. | Use for queue, worker, plugin, and repository summary counters. |
+| `Timeline` / `ActivityRow` | Ordered operational event lists with consistent marker tones, metadata, descriptions, and row actions. | Use for job, workflow, run, and admin activity rows. |
+| `ToolCard` | Shared shell for core and plugin MCP/tool result cards, including title, summary, meta, actions, footer, and named sections. | Use as the outer card shell for custom tool-card renderers. |
 
 ## Import Policy
 
