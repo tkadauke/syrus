@@ -121,7 +121,7 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     )
   end
 
-  it "separates missing high-volume cards, weak high-error cards, and unused advertised tools by owner" do
+  it "ranks missing and weak card gaps by usage impact, ownership, and recency" do
     add_card("app/frontend/routes/chat/tool_cards/core_used_tool.tsx", <<~TS)
       export default { toolName: "core_used_tool", collapsedSummary: () => "ok", renderExpanded: () => null }
     TS
@@ -130,9 +130,9 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     TS
 
     create_usage("core_used_tool", count: 4)
-    create_usage("core_missing_tool", count: 12)
-    create_usage("plugin_used_tool", count: 9)
-    create_usage("plugin_error_tool", count: 5, errors: 3)
+    travel_to(Time.zone.parse("2026-09-08 12:00:00")) { create_usage("core_missing_tool", count: 12, result_bytes: 1024, server_name: "syrus-chat-sidecar") }
+    travel_to(Time.zone.parse("2026-09-08 12:05:00")) { create_usage("plugin_used_tool", count: 9, result_bytes: 96.kilobytes, server_name: "plugin-sidecar") }
+    travel_to(Time.zone.parse("2026-09-08 12:10:00")) { create_usage("plugin_error_tool", count: 5, errors: 3, result_bytes: 512, server_name: "plugin-sidecar") }
     create_usage("core_error_tool", count: 4, errors: 2)
     create_usage("workflow_only_tool", count: 20, surface: "workflow")
 
@@ -148,6 +148,45 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
         plugin_unused_tool
       ]
     )
+
+    expect(report.fetch(:ranked_gaps)).to include(
+      include(
+        tool_name: "core_missing_tool",
+        calls: 12,
+        result_bytes: 12_288,
+        last_used_at: "2026-09-08T12:00:00Z",
+        server_names: [ "syrus-chat-sidecar" ],
+        owner_type: "core",
+        card_status: "missing",
+        recommendation: "custom_card_next"
+      ),
+      include(
+        tool_name: "plugin_used_tool",
+        calls: 9,
+        result_bytes: 884_736,
+        owner_type: "plugin",
+        owner_name: "coverage_plugin",
+        server_names: [ "plugin-sidecar" ],
+        recommendation_target: "plugin:coverage_plugin",
+        recommendation: "custom_card_next"
+      ),
+      include(
+        tool_name: "plugin_error_tool",
+        errors: 3,
+        card_status: "weak",
+        recommendation: "custom_card_next"
+      ),
+      include(
+        tool_name: "plugin_unused_tool",
+        calls: 0,
+        result_bytes: 0,
+        last_used_at: nil,
+        owner_type: "plugin",
+        recommendation: "ignore_for_now"
+      )
+    )
+    expect(report.fetch(:ranked_gaps).first).to include(tool_name: "core_missing_tool")
+    expect(report.fetch(:ranked_gaps)).not_to include(include(tool_name: "core_used_tool"))
 
     expect(report.fetch(:high_volume_without_custom_card)).to include(
       include(tool_name: "core_missing_tool", calls: 12, owner_type: "core", recommendation_target: "core", card_status: "missing"),
@@ -174,18 +213,20 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     @card_paths << path.to_s
   end
 
-  def create_usage(tool_name, count:, errors: 0, surface: "chat")
+  def create_usage(tool_name, count:, errors: 0, surface: "chat", result_bytes: nil, server_name: nil)
     count.times do |index|
       failed = index < errors
       McpToolUsage.create!(
         surface: surface,
         raw_tool_name: tool_name,
+        server_name: server_name,
         tool_name: tool_name,
         normalized_tool_name: tool_name,
         status: failed ? "failed" : "completed",
         error: failed,
         started_at: Time.current,
-        completed_at: Time.current
+        completed_at: Time.current,
+        result_bytes: result_bytes
       )
     end
   end
