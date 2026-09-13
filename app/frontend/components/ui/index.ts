@@ -24,6 +24,9 @@ export type { LinkTextProps } from "./LinkText"
 export { Input } from "../Input"
 export type { InputProps } from "../Input"
 
+export { Form } from "./Form"
+export type { FormActionsProps, FormFieldLayout, FormFieldProps, FormLabelProps, FormTextProps } from "./Form"
+
 export { Modal } from "../Modal"
 export type { ModalProps } from "../Modal"
 
@@ -57,6 +60,9 @@ export type { SurfacePadding, SurfaceProps, SurfaceVariant } from "./Surface"
 
 export { Text, textClasses } from "./Text"
 export type { TextProps, TextTone, TextVariant } from "./Text"
+
+export { Textarea } from "../Textarea"
+export type { TextareaProps } from "../Textarea"
 
 export { Toggle } from "../Toggle"
 export type { ToggleProps } from "../Toggle"

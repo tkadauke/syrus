@@ -29,12 +29,12 @@ function stagingConnection(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function setupFetchMock(initial = [stagingConnection()]) {
+function setupFetchMock(initial = [stagingConnection()], options: { createDelay?: Promise<void>; createError?: boolean } = {}) {
   let connections = initial
   let nextId = Math.max(0, ...initial.map((connection) => connection.id)) + 1
   const calls: { body?: Record<string, unknown>; method: string; url: string }[] = []
 
-  const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL, init?: RequestInit) => {
+  const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method || "GET").toUpperCase()
     const body = init?.body ? JSON.parse(String(init.body)) : undefined
@@ -44,6 +44,10 @@ function setupFetchMock(initial = [stagingConnection()]) {
       return Promise.resolve(jsonResponse({ mysql_connections: connections }))
     }
     if (url === "/api/v1/app/admin/mysql_connections" && method === "POST") {
+      await options.createDelay
+      if (options.createError) {
+        return jsonResponse({ error: { code: "validation_failed", message: "Host can't be blank" } }, 422)
+      }
       const created = { ...stagingConnection(), has_password: Boolean(body?.mysql_connection?.password), ...body?.mysql_connection, id: nextId }
       nextId += 1
       connections = [...connections, created]
@@ -255,7 +259,7 @@ describe("MysqlConnections", () => {
   })
 
   it("creates a connection from the add form", async () => {
-    setupFetchMock([])
+    const { calls } = setupFetchMock([])
     renderConnections()
 
     await screen.findByText("No connections yet. Add one to get started.")
@@ -269,6 +273,59 @@ describe("MysqlConnections", () => {
     expect(await screen.findByText("Prod")).toBeInTheDocument()
     expect(await screen.findByText('Connection "Prod" added.')).toBeInTheDocument()
     expect(document.body.textContent).not.toContain("hunter2")
+    expect(calls.find((call) => call.method === "POST" && call.url === "/api/v1/app/admin/mysql_connections")?.body).toEqual({
+      mysql_connection: {
+        label: "Prod",
+        host: "db.prod.internal",
+        port: 3306,
+        username: "app",
+        default_database: "",
+        agentic_access_enabled: false,
+        allow_writes: false,
+        password: "hunter2"
+      }
+    })
+  })
+
+  it("wires add-form labels, help text, and pending state through Form primitives", async () => {
+    let finishCreate: (() => void) | undefined
+    const createDelay = new Promise<void>((resolve) => { finishCreate = resolve })
+    setupFetchMock([], { createDelay })
+    renderConnections()
+
+    const label = await screen.findByLabelText("Label")
+    expect(document.querySelector(`label[for="${label.id}"]`)).toHaveTextContent("Label")
+
+    const agenticAccess = screen.getByLabelText("Allow agentic query access")
+    const agenticHint = screen.getByText("Lets workflow and chat agents browse this connection's schema and run queries against it (read-only unless write access is also allowed).")
+    expect(agenticAccess).toHaveAttribute("aria-describedby", agenticHint.id)
+
+    const allowWrites = screen.getByLabelText("Allow write queries")
+    const writesHint = screen.getByText("By default this connection is read-only and rejects any non-SELECT statement. Enable to allow INSERT/UPDATE/DELETE and other writes from the Query tab.")
+    expect(allowWrites).toHaveAttribute("aria-describedby", writesHint.id)
+
+    fireEvent.change(label, { target: { value: "Prod" } })
+    fireEvent.change(screen.getByLabelText("Host"), { target: { value: "db.prod.internal" } })
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "app" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "hunter2" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add connection" }))
+
+    expect(await screen.findByRole("button", { name: "Adding…" })).toBeDisabled()
+    finishCreate?.()
+    expect(await screen.findByText("Prod")).toBeInTheDocument()
+  })
+
+  it("announces create errors as alerts", async () => {
+    setupFetchMock([], { createError: true })
+    renderConnections()
+
+    fireEvent.change(await screen.findByLabelText("Label"), { target: { value: "Prod" } })
+    fireEvent.change(screen.getByLabelText("Host"), { target: { value: "db.prod.internal" } })
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "app" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "hunter2" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add connection" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Host can't be blank")
   })
 
   it("edits a connection without pre-filling the stored password", async () => {

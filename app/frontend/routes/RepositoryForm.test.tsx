@@ -158,6 +158,87 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     expect(screen.getByText("Requires the instance-wide distributed workflow feature; eligible graders use immutable checkouts and RunHostAdmission.")).toBeInTheDocument()
   })
 
+  it("associates core repository field labels with controls and help text", async () => {
+    mockFetch()
+    renderRoute()
+
+    const owner = await screen.findByLabelText("Working owner")
+    expect(owner).toHaveAttribute("id")
+    expect(screen.getByText("Working owner")).toHaveAttribute("for", owner.id)
+
+    const trigger = screen.getByLabelText("Trigger label")
+    const triggerHint = screen.getByText("Issues with this label are picked up by the poller.")
+    expect(trigger).toHaveAttribute("aria-describedby", triggerHint.id)
+  })
+
+  it("associates repository select fields with their hints", async () => {
+    mockFetch()
+    renderRoute()
+
+    const feedbackPolicy = await screen.findByLabelText("Feedback policy")
+    const feedbackHint = screen.getByText("Job owner comments always trigger automatically regardless of this setting.")
+    expect(feedbackPolicy.tagName).toBe("SELECT")
+    expect(feedbackPolicy).toHaveAttribute("aria-describedby", feedbackHint.id)
+
+    const reviewPolicy = screen.getByLabelText("Review policy")
+    const reviewHint = screen.getByText(/Controls whose approval is required before a Job lands/)
+    expect(reviewPolicy).toHaveAttribute("aria-describedby", reviewHint.id)
+  })
+
+  it("associates core repository field labels with controls and help text", async () => {
+    mockFetch()
+    renderRoute()
+
+    const owner = await screen.findByLabelText("Working owner")
+    expect(owner).toHaveAttribute("id")
+    expect(screen.getByText("Working owner")).toHaveAttribute("for", owner.id)
+
+    const trigger = screen.getByLabelText("Trigger label")
+    const triggerHint = screen.getByText("Issues with this label are picked up by the poller.")
+    expect(trigger).toHaveAttribute("aria-describedby", triggerHint.id)
+  })
+
+  it("associates repository select fields with their hints", async () => {
+    mockFetch()
+    renderRoute()
+
+    const feedbackPolicy = await screen.findByLabelText("Feedback policy")
+    const feedbackHint = screen.getByText("Job owner comments always trigger automatically regardless of this setting.")
+    expect(feedbackPolicy.tagName).toBe("SELECT")
+    expect(feedbackPolicy).toHaveAttribute("aria-describedby", feedbackHint.id)
+
+    const reviewPolicy = screen.getByLabelText("Review policy")
+    const reviewHint = screen.getByText(/Controls whose approval is required before a Job lands/)
+    expect(reviewPolicy).toHaveAttribute("aria-describedby", reviewHint.id)
+  })
+
+  it("associates core repository field labels with controls and help text", async () => {
+    mockFetch()
+    renderRoute()
+
+    const owner = await screen.findByLabelText("Working owner")
+    expect(owner).toHaveAttribute("id")
+    expect(screen.getByText("Working owner")).toHaveAttribute("for", owner.id)
+
+    const trigger = screen.getByLabelText("Trigger label")
+    const triggerHint = screen.getByText("Issues with this label are picked up by the poller.")
+    expect(trigger).toHaveAttribute("aria-describedby", triggerHint.id)
+  })
+
+  it("associates repository select fields with their hints", async () => {
+    mockFetch()
+    renderRoute()
+
+    const feedbackPolicy = await screen.findByLabelText("Feedback policy")
+    const feedbackHint = screen.getByText("Job owner comments always trigger automatically regardless of this setting.")
+    expect(feedbackPolicy.tagName).toBe("SELECT")
+    expect(feedbackPolicy).toHaveAttribute("aria-describedby", feedbackHint.id)
+
+    const reviewPolicy = screen.getByLabelText("Review policy")
+    const reviewHint = screen.getByText(/Controls whose approval is required before a Job lands/)
+    expect(reviewPolicy).toHaveAttribute("aria-describedby", reviewHint.id)
+  })
+
   it("keeps monitoring enabled when enabling main branch repair or broken-main pausing", async () => {
     mockFetch({
       main_branch_health_enabled: false,
@@ -242,6 +323,56 @@ describe("RepositoryForm plugin input-source decoupling", () => {
         "/api/v1/app/repositories/1",
         expect.objectContaining({ method: "PATCH" })
       )
+    })
+  })
+
+  it("keeps the repository submit payload unchanged after semantic form wiring", async () => {
+    const fetchSpy = mockFetch()
+    renderRoute()
+
+    await screen.findByRole("heading", { name: "Linear" })
+
+    fireEvent.change(screen.getByLabelText("Trigger label"), { target: { value: "delegate" } })
+    fireEvent.change(screen.getByLabelText("Auto-approval fallback"), { target: { value: "manual" } })
+    fireEvent.click(screen.getAllByLabelText("Polling enabled")[0])
+    fireEvent.click(screen.getByLabelText("Land when failing checks are already failing on the base branch"))
+    fireEvent.click(screen.getByLabelText("Ingest externally-filed pull requests as Jobs"))
+    fireEvent.click(screen.getByRole("button", { name: "Save Repository" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/repositories/1" && call[1]?.method === "PATCH")
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({
+        repository: {
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          upstream_owner: "",
+          upstream_name: "",
+          upstream_default_branch: "",
+          trigger_label: "delegate",
+          polling_enabled: false,
+          prepare_enabled: true,
+          pr_cost_footer_enabled: true,
+          auto_merge_enabled: false,
+          trust_clean_rebase_grade: false,
+          land_on_inherited_check_failure: true,
+          main_branch_health_enabled: false,
+          main_branch_repair_enabled: false,
+          main_branch_repair_blocks_work: false,
+          main_branch_repair_auto_approve: false,
+          treat_grader_timeouts_as_failures: true,
+          fork_auto_sync_enabled: false,
+          external_pr_ingestion_enabled: true,
+          distributed_workflow_dag_enabled: false,
+          agent_provider: "",
+          auto_approve_mode: "manual",
+          feedback_policy: "confirm",
+          review_policy: "self",
+          epic_dependency_policy: "linear",
+          github_owner_id: "",
+          github_repository_id: ""
+        }
+      })
     })
   })
 
@@ -330,5 +461,17 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     })
 
     expect(await screen.findByText("new-approver@example.com")).toBeInTheDocument()
+  })
+
+  it("associates final approver and input source labels with controls", async () => {
+    mockFetch({ review_policy: "final_say" })
+    renderRoute()
+
+    const email = await screen.findByLabelText("Email")
+    expect(screen.getByText("Email")).toHaveAttribute("for", email.id)
+
+    const apiKey = screen.getByLabelText("API key")
+    expect(apiKey).toHaveAttribute("type", "password")
+    expect(screen.getByText("API key")).toHaveAttribute("for", apiKey.id)
   })
 })

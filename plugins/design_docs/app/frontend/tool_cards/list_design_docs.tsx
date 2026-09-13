@@ -1,5 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, FilterableList, StatePill } from "@app/routes/chat/toolCardUi"
+import i18n from "@app/i18n"
 
 // Demonstrates the plugin-owned tool-card extension point (the Tier 1 tool-card work /
 // the relevant change): this file lives entirely inside the design_docs plugin and is
@@ -28,6 +29,10 @@ function collapsedSummary(context: ToolCardContext) {
   return `${docs.length} design doc${docs.length === 1 ? "" : "s"}`
 }
 
+function t(key: string) {
+  return i18n.t(`design_docs:${key}`)
+}
+
 function renderExpanded(context: ToolCardContext) {
   const docs = designDocs(context)
   if (!docs || docs.length === 0) return null
@@ -37,7 +42,7 @@ function renderExpanded(context: ToolCardContext) {
       <FilterableList
         itemText={(doc) => [doc.doc_ref, doc.id, doc.title, doc.state].filter(Boolean).join(" ")}
         items={docs}
-        placeholder="Filter design docs"
+        placeholder={t("list_tool_filter_placeholder")}
       >
         {(visibleDocs) => (
           <ul className="space-y-1 rounded border border-gray-200 bg-white p-2 text-xs dark:border-gray-800 dark:bg-gray-950">
