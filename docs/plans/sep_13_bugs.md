@@ -477,6 +477,13 @@ the collector and trigger the normal retry or failure path.
 expected command metadata. Mark dead runs failed with a retryable failure when
 the process is missing or the PID now belongs to another command.
 
+**Fixed:** The WorkEngine reconciler no longer treats stale unfinished
+`SpawnedProcess` rows as proof that a running Run still has live worker
+evidence. If the Run heartbeat is stale and the only matching grader/agent
+process row is also stale, the existing worker-died repair path can fail and
+retry the Run instead of waiting behind phantom process liveness. Covered by
+`spec/services/work_engine/reconciler_spec.rb`.
+
 ### Distributed grader failures still surface as generic main breakage
 
 **Symptom:** Some merge-train grader failures are real, but the operator only

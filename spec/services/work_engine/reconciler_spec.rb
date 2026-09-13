@@ -2836,6 +2836,43 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload).to be_running
   end
 
+  it "does not treat a stale unfinished grader process as live worker evidence" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(
+      state: "running",
+      started_at: 40.minutes.ago,
+      last_heartbeat_at: 35.minutes.ago
+    )
+    step.update_columns(kind: "grader", state: "running", started_at: run.started_at)
+    workflow.update_columns(state: "running", started_at: run.started_at)
+    stale_process = SpawnedProcess.create!(
+      run: run,
+      workflow: workflow,
+      kind: "grader",
+      command: "bin/test-slow",
+      hostname: "worker-1",
+      started_at: 40.minutes.ago,
+      last_chunk_at: 20.minutes.ago
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died",
+      check_after: nil
+    )
+    expect(issue.evidence).to include(
+      "live_spawned_process" => nil,
+      "last_heartbeat_age_seconds" => be >= Run::STALE_HEARTBEAT_THRESHOLD.to_i
+    )
+    expect(issue.affected_ids.fetch(:spawned_process_ids)).to include(stale_process.id)
+  end
+
   it "waits for the orphan grace period before repairing a just-orphaned running Run" do
     ensure_solid_queue_test_tables!
     finished_at = 30.seconds.ago
@@ -3564,7 +3601,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       kind: "agent",
       command: "codex exec",
       hostname: "worker-1",
-      started_at: 5.minutes.ago
+      started_at: 5.minutes.ago,
+      last_chunk_at: 30.seconds.ago
     )
     step.update_columns(state: "running", started_at: fresh.started_at)
     live_step.update_columns(state: "running", started_at: live.started_at)

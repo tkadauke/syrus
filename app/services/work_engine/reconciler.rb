@@ -2937,9 +2937,16 @@ module WorkEngine
     def running_spawned_process_for(run)
       # Keep this as an indexed run_id lookup. Ordering by COALESCE here makes
       # MySQL abandon useful indexes; the per-run candidate set is tiny.
-      SpawnedProcess.running.where(run_id: run.id).to_a.max_by do |process|
-        [ process.last_chunk_at || process.started_at || Time.zone.at(0), process.id || 0 ]
-      end
+      SpawnedProcess.running
+        .where(run_id: run.id)
+        .to_a
+        .select { |process| spawned_process_fresh?(process) }
+        .max_by { |process| [ process.last_chunk_at || process.started_at || Time.zone.at(0), process.id || 0 ] }
+    end
+
+    def spawned_process_fresh?(process)
+      timestamp = process.last_chunk_at || process.started_at
+      timestamp.present? && timestamp >= SpawnedProcess::STALE_THRESHOLD.ago(now)
     end
 
     def terminal_spawned_process_for(run)
