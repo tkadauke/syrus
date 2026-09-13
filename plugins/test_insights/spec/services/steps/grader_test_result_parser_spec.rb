@@ -107,6 +107,57 @@ RSpec.describe "Steps::Grader :test_result_parser plugin integration" do
       expect(JunitXmlParser).not_to receive(:parse)
       expect { handler.call rescue nil }.not_to raise_error
     end
+
+    it "parses JUnit-looking XML with JunitXmlParser before asking plugin text parsers" do
+      plugin = parser_provider
+      output_path = @ws_path.join("output/rspec-junit.xml")
+      FileUtils.mkdir_p(output_path.dirname)
+      output_path.write(<<~XML)
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites name="rspec" tests="3" failures="1" errors="0" skipped="0" time="1.23">
+          <testsuite name="spec/models/widget_spec.rb" tests="3" failures="1" errors="0" skipped="0" time="1.23">
+            <testcase classname="spec/models/widget_spec.rb" name="Widget validates its name" time="0.10"/>
+            <testcase classname="spec/models/widget_spec.rb" name="Widget computes its price" time="0.20"/>
+            <testcase classname="spec/models/widget_spec.rb" name="Widget applies discounts" file="spec/models/widget_spec.rb" time="0.93">
+              <failure message="expected: 10">
+        Failures:
+
+          1) Widget applies discounts
+             Failure/Error: expect(widget.price).to eq(10)
+
+               expected: 10
+                    got: 12
+
+             # ./spec/models/widget_spec.rb:42:in `block'
+
+        Finished in 1.23 seconds
+        3 examples, 1 failure
+              </failure>
+            </testcase>
+          </testsuite>
+        </testsuites>
+      XML
+
+      expect(plugin).not_to receive(:can_parse?)
+      expect(plugin).not_to receive(:call)
+      register_parser("text-parser", plugin)
+
+      step = make_step(junit_output: "output/rspec-junit.xml")
+      handler, run = handler_for(step)
+
+      expect { handler.call }
+        .to change(TestInsights::TestRun, :count).by(1)
+        .and change(TestInsights::TestCase, :count).by(3)
+
+      test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "go-tests")
+      expect(test_run).to have_attributes(total_count: 3, passed_count: 2, failed_count: 1)
+      expect(test_run.test_cases.failed.sole).to have_attributes(
+        name: "Widget applies discounts",
+        suite_name: "spec/models/widget_spec.rb",
+        file_path: "spec/models/widget_spec.rb",
+        failure_message: "expected: 10"
+      )
+    end
   end
 
   context "when a plugin's can_parse? returns false" do
