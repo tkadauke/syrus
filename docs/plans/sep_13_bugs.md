@@ -501,6 +501,13 @@ run reaping" rather than compressing everything into a stuck landing state.
 payload, including failed grader names, stale run count, and the current
 admission blocker.
 
+**Fixed:** The landing queue status payload now summarizes suspicious active
+grader barriers instead of going silent whenever a landing workflow is merely
+`running`. It reports collector progress, failed grader names, cancelled
+grader count, and stale running grader count once the barrier has failures,
+cancellations, stale runs, or has waited past the queue-starvation threshold.
+Covered by `spec/services/app/dashboard_payload_spec.rb`.
+
 ### Sequence allocation can fail under concurrent work creation
 
 **Symptom:** Some production failures included `Validation failed: Sequence has

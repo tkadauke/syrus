@@ -161,7 +161,9 @@ module App
         return landing_queue_blocked_work_unit_status(blocked_unit, front_jobs) if blocked_unit
 
         active_unit = landing_queue_active_work_unit(front_jobs)
-        return nil if active_unit&.workflow && Workflow::TriggerKind::ACTIVE_STATES.include?(active_unit.workflow.state)
+        if active_unit&.workflow && Workflow::TriggerKind::ACTIVE_STATES.include?(active_unit.workflow.state)
+          return landing_queue_active_grader_status(active_unit, front_jobs)
+        end
 
         failed_workflow = landing_queue_recent_failed_workflow(front_jobs)
         return landing_queue_failed_workflow_status(failed_workflow, front_jobs) if failed_workflow
@@ -377,6 +379,28 @@ module App
         }
       end
 
+      def landing_queue_active_grader_status(unit, jobs)
+        workflow = unit.workflow
+        collector = latest_grader_collector_for(workflow)
+        return unless collector
+
+        dependencies = collector.depends_on_step_ids
+        return if dependencies.empty?
+
+        grader_steps = workflow.steps.where(id: dependencies).includes(:runs).to_a
+        progress = grader_barrier_progress(grader_steps)
+        return unless suspicious_grader_barrier?(collector, progress)
+
+        detail = grader_barrier_detail(progress)
+        tone = progress.fetch(:stale_running).positive? || progress.fetch(:cancelled).positive? ? "danger" : "warning"
+        {
+          tone: tone,
+          title: "Landing queue is waiting on #{landing_queue_unit_label(jobs)} graders.",
+          summary: "#{workflow.slug} is at #{failed_step_label(collector)}: #{detail}.",
+          links: landing_queue_status_links(jobs, workflow)
+        }
+      end
+
       def landing_queue_failed_workflow_status(workflow, jobs)
         failed_step = workflow.steps.where(state: "failed").order(:position).first
         detail = failed_step ? "#{failed_step_label(failed_step)} failed" : "the workflow failed without a failed Step"
@@ -396,6 +420,58 @@ module App
           summary: "#{job.slug} is marked landing, but no active landing workflow owns it. The reconciler should return it to the queue; retry landing if it remains stuck.",
           links: landing_queue_status_links([ job ])
         }
+      end
+
+      def latest_grader_collector_for(workflow)
+        workflow.steps
+          .where(kind: %w[grader_collect preflight_grader_collect])
+          .order(position: :desc, id: :desc)
+          .first
+      end
+
+      def grader_barrier_progress(grader_steps)
+        counts = grader_steps.each_with_object(Hash.new(0)) { |step, memo| memo[step.visible_state] += 1 }
+        failed_names = grader_steps.select(&:failed?).filter_map { |step| step.details.to_h["name"].presence }
+        stale_running = grader_steps.count { |step| step.running? && step.runs.any? { |run| running_run_stale?(run) } }
+
+        {
+          total: grader_steps.size,
+          completed: grader_steps.count(&:terminal?),
+          queued: counts["queued"],
+          running: counts["running"],
+          succeeded: counts["succeeded"],
+          failed: counts["failed"],
+          cancelled: counts["cancelled"],
+          stale_running: stale_running,
+          failed_names: failed_names
+        }
+      end
+
+      def suspicious_grader_barrier?(collector, progress)
+        progress.fetch(:failed).positive? ||
+          progress.fetch(:cancelled).positive? ||
+          progress.fetch(:stale_running).positive? ||
+          collector.created_at < WorkEngine::Reconciler::QUEUE_STARVATION_AFTER.ago
+      end
+
+      def grader_barrier_detail(progress)
+        parts = [
+          "#{progress.fetch(:completed)}/#{progress.fetch(:total)} complete",
+          "#{progress.fetch(:running)} running",
+          "#{progress.fetch(:queued)} queued"
+        ]
+        parts << "#{progress.fetch(:failed)} failed (#{progress.fetch(:failed_names).join(', ')})" if progress.fetch(:failed).positive?
+        parts << "#{progress.fetch(:cancelled)} cancelled" if progress.fetch(:cancelled).positive?
+        parts << "#{progress.fetch(:stale_running)} stale running" if progress.fetch(:stale_running).positive?
+        parts.join(", ")
+      end
+
+      def running_run_stale?(run)
+        return false unless run.running?
+
+        cutoff = Run::STALE_HEARTBEAT_THRESHOLD.ago
+        timestamp = run.last_heartbeat_at || run.started_at
+        timestamp.present? && timestamp < cutoff
       end
 
       def landing_queue_normal_wait_status(jobs)

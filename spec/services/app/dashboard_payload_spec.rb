@@ -950,6 +950,45 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result.dig(:landing_queue, :status)).to be_nil
     end
 
+    it "summarizes suspicious active grader barriers at the top of the landing queue" do
+      job = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 101)
+      workflow = Workflow.create!(job: job, trigger_kind: "merge_train", state: "running", started_at: 1.hour.ago)
+      fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1, state: "succeeded")
+      failed = Step.create!(workflow: workflow, kind: "grader", position: 2, state: "failed", details: { "name" => "rspec" })
+      running = Step.create!(workflow: workflow, kind: "grader", position: 3, state: "running", details: { "name" => "website-build" })
+      running.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: "claude",
+        state: "running",
+        started_at: 45.minutes.ago,
+        last_heartbeat_at: 40.minutes.ago
+      )
+      Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 4,
+        state: "queued",
+        depends_on_ids: [ failed.id, running.id ],
+        next_step: nil
+      )
+      fanout.update!(next_step: failed)
+      attach_work_unit(workflow, state: "running", kind: "merge_train", member_jobs: [ job ])
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+
+      expect(result.dig(:landing_queue, :status)).to include(
+        tone: "danger",
+        title: "Landing queue is waiting on #{job.slug} graders.",
+        summary: include("#{workflow.slug} is at Aggregate graders: 1/2 complete", "1 failed (rspec)", "1 stale running")
+      )
+      expect(result.dig(:landing_queue, :status, :links)).to include(
+        { label: job.slug, path: "/jobs/#{job.id}" },
+        { label: workflow.slug, path: "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}" }
+      )
+    end
+
     it "does not show the idle dispatch summary while another landing unit is active for the visible repository" do
       first = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 101)
       first.update_columns(
