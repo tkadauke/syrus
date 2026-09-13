@@ -613,6 +613,70 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Showing latest 0 of 5 runs for this step.")).toBeInTheDocument()
   })
 
+  it("surfaces cancellation reasons on cancelled workflow steps", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [{
+              id: 10,
+              slug: "WF-10",
+              path: "/jobs/1?tab=workflows#workflow-10",
+              trigger_kind: "initial",
+              agent_provider: "codex",
+              state: "failed",
+              failure_count: 1,
+              artifacts: null,
+              cleaned_up_at: null,
+              retry_available: true,
+              started_at: null,
+              finished_at: null,
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:00:00Z",
+              app_retry_step_path: "/retry",
+              app_push_commits_path: "/push",
+              app_force_push_branch_path: "/force",
+              app_discard_branch_output_path: "/discard",
+              steps_total: 1,
+              steps_displayed: 1,
+              steps_truncated: false,
+              steps: [{
+                id: 24,
+                kind: "test_plan",
+                display_name: "Test plan",
+                display_status: "cancelled",
+                position: 6,
+                iteration: 1,
+                loop_id: null,
+                state: "cancelled",
+                started_at: null,
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: {
+                  cancelled_reason: "cancel_terminal_workflow_active_descendants",
+                  cancelled_workflow_state: "failed",
+                  cancelled_source_step_id: 23,
+                  cancelled_source_step_kind: "grader"
+                },
+                warnings: [],
+                latest: true,
+                runs: []
+              }]
+            }]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Test plan/ }))
+
+    expect(screen.getByText("Cancelled:")).toBeInTheDocument()
+    expect(screen.getByText(/parent workflow failed after grader STEP-23; cancel terminal workflow active descendants\./)).toBeInTheDocument()
+  })
+
   it("renders distributed grader batches with placement metadata and sibling admission blocks", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

@@ -778,6 +778,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
   const activeRun = runs.find((run) => isActiveState(run.state))
   const displayStatus = activeRun ? activeRun.state : step.display_status
   const prepareFailure = prepareFailureDetails(step)
+  const cancellationNotice = stepCancellationNotice(step)
 
   const artifacts = workflowArtifacts ?? {}
   const summaryArtifact = (step.kind === "summarize" || step.kind === "summarize_amend")
@@ -819,6 +820,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
           <StepPlacementPanel jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} />
+          {cancellationNotice ? <CancellationNotice message={cancellationNotice} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
@@ -857,6 +859,33 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
       ) : null}
     </div>
   )
+}
+
+function CancellationNotice({ message }: { message: string }) {
+  return (
+    <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+      <span className="font-semibold">Cancelled:</span> {message}
+    </div>
+  )
+}
+
+function stepCancellationNotice(step: JobStep) {
+  if (step.state !== "cancelled") return null
+
+  const details = objectDetails(step.details)
+  const sourceKind = stringValue(details.cancelled_source_step_kind)
+  const rawSourceStepId = details.cancelled_source_step_id
+  const sourceStepId = typeof rawSourceStepId === "number" || typeof rawSourceStepId === "string" ? String(rawSourceStepId) : null
+  const reason = stringValue(details.cancelled_reason) || stringValue(details.reason) || stringValue(details.cancel_reason)
+  const workflowState = stringValue(details.cancelled_workflow_state)
+
+  if (sourceKind || sourceStepId) {
+    const source = [ sourceKind ? humanize(sourceKind) : null, sourceStepId ? `STEP-${sourceStepId}` : null ].filter(Boolean).join(" ")
+    return `parent workflow ${workflowState || "ended"} after ${source}; ${humanize(reason || "terminal workflow cleanup")}.`
+  }
+
+  if (reason) return humanize(reason)
+  return "parent workflow ended before this step could run."
 }
 
 function StepPlacementPanel({ step, jobId, prefix, workflowId }: { step: JobStep; jobId: number; prefix: string; workflowId: number }) {
