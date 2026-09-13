@@ -1461,6 +1461,25 @@ To also appear in global search, a provider declares a result type:
 Plugin types sort after the built-ins, so `type_order` stays meaningful, and
 they disappear when the plugin is disabled.
 
+Providers that own an indexed record type can also expose maintenance rebuild
+hooks through the same `global_search:source` provider. The repeatable
+`search_database_rebuild` maintenance task uses these hooks to detect missing
+rows and backfill the provider's FTS table in batches:
+
+| Method | Purpose |
+|---|---|
+| `.search_table_name` | The FTS table this provider owns, e.g. `"my_plugin_fts"` |
+| `.search_id_column` | The unindexed id column inside that FTS table, e.g. `"my_thing_id"` |
+| `.records` | An `ActiveRecord::Relation` ordered or orderable by `id` for batched rebuilds |
+| `.count` | Total source records used for task progress and pending checks |
+| `.exists?` | Fallback pending check when the FTS table cannot be counted |
+| `.upsert(record)` | Index or replace one source record in the provider's FTS table |
+
+The rebuild task only treats a provider as rebuildable when it responds to all
+six methods. Providers may still expose only `search_tables`,
+`rebuild_search_table`, or result-type methods when they manage their own
+backfill lifecycle.
+
 ## `workflow_kinds`
 
 `Workflow::TriggerKind::ENTRIES`, `Step::Kind::ENTRIES` and `Job::KINDS` were
