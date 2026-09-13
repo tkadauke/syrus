@@ -634,7 +634,7 @@ type ChatInvalidateMessagesPayload = {
 
 type ChatHeaderPayload = {
   action: "update_header"
-  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "system_kind" | "pinned_context" | "chat_provider" | "effective_chat_provider" | "effective_chat_provider_label" | "provider_availability" | "mode" | "local_daemon_state" | "local_daemon_repo" | "local_daemon_branch" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
+  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "system_kind" | "pinned_context" | "chat_provider" | "effective_chat_provider" | "effective_chat_provider_label" | "provider_availability" | "chat_model" | "mode" | "local_daemon_state" | "local_daemon_repo" | "local_daemon_branch" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
 }
 
 type ChatBookmarkPayload = {
@@ -759,6 +759,7 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   if (typeof chat.effective_chat_provider === "string") updates.effective_chat_provider = chat.effective_chat_provider
   if (typeof chat.effective_chat_provider_label === "string") updates.effective_chat_provider_label = chat.effective_chat_provider_label
   if (typeof chat.provider_availability === "object" || chat.provider_availability === null) updates.provider_availability = chat.provider_availability
+  if (typeof chat.chat_model === "string" || chat.chat_model === null) updates.chat_model = chat.chat_model
   if (typeof chat.mode === "string" || chat.mode === null) updates.mode = chat.mode as ChatRecord["mode"]
   if (typeof chat.local_daemon_state === "string" || chat.local_daemon_state === null) updates.local_daemon_state = chat.local_daemon_state as ChatRecord["local_daemon_state"]
   if (typeof chat.local_daemon_repo === "string" || chat.local_daemon_repo === null) updates.local_daemon_repo = chat.local_daemon_repo
