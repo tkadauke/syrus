@@ -1334,7 +1334,7 @@ class StepDispatcher
   def dispatch_parallel_inline_runs!(created_runs)
     return unless Thread.current[:syrus_current_run]&.workflow_id == @workflow.id
 
-    created_runs.drop(1).each(&:reenqueue!)
+    created_runs.drop(1).reject(&:distributed_parallel_run?).each(&:reenqueue!)
   end
 
   # Empty edges mean "just my predecessor", so a Step materialized before A5 --

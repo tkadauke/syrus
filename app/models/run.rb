@@ -286,6 +286,12 @@ class Run < ApplicationRecord
     enqueue_run_job(force: true)
   end
 
+  def distributed_parallel_run?
+    step&.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
+      workflow&.job&.repository.present? &&
+      Feature.distributed_workflow_dag_enabled?(workflow.job.repository)
+  end
+
   # When this workflow already ran on a durable worker data root that still has
   # a live consumer, route back to that storage-specific resume queue so it can
   # see the existing on-disk workspace. Returns nil when no storage key was
@@ -339,11 +345,13 @@ class Run < ApplicationRecord
     return if terminal?
     # When a RunJob is currently driving this workflow inline, the
     # next Step's Run was just created by StepDispatcher and should
-    # not bounce through SolidQueue. Runs created for other workflows
-    # in the same thread still need their own queue dispatch.
+    # not bounce through SolidQueue. Immutable-source distributed Runs are the
+    # exception: they are intentionally queue-owned so the worker pool can claim
+    # a grader batch in parallel instead of letting the current worker consume
+    # the first queued sibling inline.
     unless force
       current_workflow_id = Thread.current[:syrus_current_run]&.workflow_id
-      return if current_workflow_id && current_workflow_id == workflow_id
+      return if current_workflow_id && current_workflow_id == workflow_id && !distributed_parallel_run?
     end
 
     queue = resume_worker_queue || workflow_template_class.queue_name

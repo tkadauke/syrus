@@ -268,10 +268,10 @@ Key steps:
   `require_relative` graph plus `app`/`lib` <-> `spec` convention) — it can only
   turn a would-be skip into a run, never the reverse, so no analyzer / a
   declining analyzer / an erroring analyzer all fall back to plain glob
-  matching against the raw diff. Landing
-  workflows may dispatch multiple grader Runs from the fanout in parallel,
-  capped within the landing unit; `grader_collect` waits for every required
-  result before deciding whether repair is needed.
+  matching against the raw diff. When the repository uses distributed workflow
+  execution, any workflow's grader fanout may dispatch multiple grader Runs in
+  parallel; `grader_collect` waits for every required result before deciding
+  whether repair is needed.
 - **`landing_fix`** — Agentic repair step inside auto-merge. It runs only
   after final graders fail on the exact PR branch Syrus is about to land;
   successful repairs are pushed before the merge API call.

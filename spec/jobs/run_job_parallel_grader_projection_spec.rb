@@ -66,13 +66,15 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
     )
     fanout_run = fanout.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
 
-    allow_any_instance_of(RunJob).to receive(:next_inline_run).and_return(nil)
+    enqueued_run_jobs_before = enqueued_jobs.count { |entry| entry[:job] == RunJob }
     RunJob.perform_now(fanout_run.id)
 
     grader_steps = workflow.reload.steps.where(kind: "grader").order(:position).to_a
     expect(grader_steps.map { |step| step.details.fetch("name") }).to eq(%w[alpha beta])
     expect(grader_steps.map(&:next_step_id)).to eq([ collect.id, collect.id ])
     expect(collect.reload.depends_on_step_ids).to eq(grader_steps.map(&:id))
+    expect(grader_steps.map { |step| step.runs.sole.state }).to eq(%w[queued queued])
+    expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(2)
 
     perform_grader_runs_concurrently!(grader_steps.map { |step| step.runs.sole })
 

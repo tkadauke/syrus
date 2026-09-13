@@ -1042,7 +1042,7 @@ RSpec.describe StepDispatcher, :ci_only do
         .and change { s3.runs.count }.by(1)
 
       expect(collect.runs.count).to eq(0)
-      expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(1)
+      expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(2)
     ensure
       Thread.current[:syrus_current_run] = nil
     end

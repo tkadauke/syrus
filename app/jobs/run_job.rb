@@ -34,11 +34,7 @@ class RunJob < ApplicationJob
     end
 
     def distributed_parallel_run?(run)
-      step = run.step
-      repository = step&.workflow&.job&.repository
-      step&.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
-        repository.present? &&
-        Feature.distributed_workflow_dag_enabled?(repository)
+      run&.distributed_parallel_run?
     end
   end
 
@@ -638,7 +634,7 @@ class RunJob < ApplicationJob
     cursor = @step.next_step
     while cursor
       queued = cursor.runs.where(state: "queued").order(:created_at).last
-      return queued if queued
+      return queued if queued && !self.class.distributed_parallel_run?(queued)
       cursor = cursor.next_step
     end
     nil
