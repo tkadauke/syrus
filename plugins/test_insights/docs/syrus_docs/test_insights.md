@@ -100,14 +100,27 @@ before exiting.
 
 ## Flakiness scoring
 
-`TestCase.flakiness_score` (`app/models/test_case.rb`) looks at the most
-recent `FLAKINESS_LOOKBACK` (default 20) rows for a given
+`TestCase.flakiness_score`
+(`plugins/test_insights/app/models/test_insights/test_case.rb`) looks at the
+most recent `FLAKINESS_LOOKBACK` (default 20) **scored** rows for a given
 `(repository, suite_name, name)` tuple, ordered by `created_at` descending. A
 test is flaky if that window contains at least one `passed` row and at least
-one `failed`/`error` row; the score is `failed / total` within the window.
-`TestCase.top_flaky_tests(repository:, lookback:, limit:)` runs the same logic
-as a single SQL query (window functions) to rank the flakiest tests
-repository-wide. `TestCase.batch_flakiness` does the same lookup for an
+one `failed`/`error` row; the score is `failed / total` within the scored
+window.
+
+Scored history deliberately excludes a Job's own self-repaired WIP failures:
+when a failed/error `TestCase` came from a grader Step inside a workflow
+`retry_until` loop and a later grader Step in the same workflow, same loop,
+same grader name, and same `TestIdentity` recorded a pass, that failed/error
+row is treated as `wip_repair_failure`. It remains visible in execution
+history, but it is excluded from flakiness, failure-rate, recent failure-count,
+and `last_failed_at` calculations. Cross-workflow and cross-Job mixed
+pass/fail history still counts normally, so true nondeterministic flakes keep
+their `flaky` signal.
+
+`TestCase.top_flaky_tests(repository:, lookback:, limit:)` runs the same scored
+logic as a single SQL query (window functions) to rank the flakiest tests
+repository-wide. `TestCase.batch_flakiness` does the same scored lookup for an
 arbitrary set of test cases in one query, used to annotate a single Job's test
 results without an N+1.
 
@@ -163,7 +176,11 @@ read-only MCP tools:
 - `read_test_insight(test_identity_id:, history_limit:, include_failures:)`
   returns one `TestIdentity`, recent execution history, duration points,
   related grader/run/job references, and bounded failure
-  message/backtrace/output snippets. Use the list tool first to discover a
+  message/backtrace/output snippets. Each history row's `test_case` object
+  includes `classification`: `scored` when the row contributes to flakiness
+  and failure-rate aggregates, or `wip_repair_failure` when the row is a
+  self-repaired grader-loop failure that is visible for auditability but
+  excluded from those aggregates. Use the list tool first to discover a
   `test_identity_id`.
 - `read_job_test_results(job_id:, grader_name:, include_slow_cases:,
   include_suites:, case_limit:)` returns ingested results for the latest
