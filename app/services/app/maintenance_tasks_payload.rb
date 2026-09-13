@@ -1,5 +1,7 @@
 module App
   class MaintenanceTasksPayload
+    EVENT_LOG_PER_PAGE = 100
+
     FILTER_FIELDS = [
       { name: "state", label: "State" },
       { name: "recurrence", label: "Type" },
@@ -39,9 +41,28 @@ module App
       }
     end
 
-    def self.show(task)
+    def self.show(task, params: {})
+      page = normalized_event_log_page(params)
+      events_scope = task.events.order(created_at: :desc, id: :desc)
+      total_events = events_scope.count
+      total_pages = [ (total_events.to_f / EVENT_LOG_PER_PAGE).ceil, 1 ].max
+      page = total_pages if page > total_pages
+      offset = (page - 1) * EVENT_LOG_PER_PAGE
+
       serialize_task(task, include_documentation: true).merge(
-        events: task.events.order(created_at: :desc, id: :desc).limit(500).map { |event| serialize_event(event) }
+        events: events_scope.offset(offset).limit(EVENT_LOG_PER_PAGE).map { |event| serialize_event(event) },
+        events_pagination: {
+          page: page,
+          per_page: EVENT_LOG_PER_PAGE,
+          total_events: total_events,
+          total_pages: total_pages,
+          first_item: total_events.zero? ? 0 : offset + 1,
+          last_item: [ offset + EVENT_LOG_PER_PAGE, total_events ].min,
+          previous_page: page > 1 ? page - 1 : nil,
+          next_page: page < total_pages ? page + 1 : nil,
+          has_previous_page: page > 1,
+          has_next_page: page < total_pages
+        }
       )
     end
 
@@ -153,6 +174,12 @@ module App
         label: field.fetch(:label),
         operators: [ "is" ]
       }
+    end
+
+    def self.normalized_event_log_page(params)
+      raw_page = params[:log_page] || params["log_page"] || params[:page] || params["page"]
+      page = raw_page.to_i
+      page.positive? ? page : 1
     end
   end
 end
