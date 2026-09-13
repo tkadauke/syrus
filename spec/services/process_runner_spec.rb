@@ -287,8 +287,14 @@ RSpec.describe ProcessRunner, :ci_only do
       kind: "agent",
       command: "agent",
       hostname: "worker-a",
-      started_at: 2.minutes.ago,
-      last_chunk_at: 1.minute.ago,
+      started_at: (ProcessRunner::SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS + 120).seconds.ago,
+      # Older than the liveness-heartbeat throttle on purpose: these two
+      # examples are about the *resource attribution* throttle, and a
+      # last_chunk_at inside the heartbeat window makes heartbeat! return before
+      # it ever reaches that code. Expressed against the constant so tuning the
+      # interval cannot silently neuter them again -- raising it to 120s is
+      # exactly what broke these.
+      last_chunk_at: (ProcessRunner::SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS + 60).seconds.ago,
       resource_attribution: { "method" => "initial" }
     )
     sampler = double("sampler", sample!: nil, payload: { "method" => "sampled" })
@@ -309,8 +315,14 @@ RSpec.describe ProcessRunner, :ci_only do
       kind: "agent",
       command: "agent",
       hostname: "worker-a",
-      started_at: 2.minutes.ago,
-      last_chunk_at: 1.minute.ago,
+      started_at: (ProcessRunner::SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS + 120).seconds.ago,
+      # Older than the liveness-heartbeat throttle on purpose: these two
+      # examples are about the *resource attribution* throttle, and a
+      # last_chunk_at inside the heartbeat window makes heartbeat! return before
+      # it ever reaches that code. Expressed against the constant so tuning the
+      # interval cannot silently neuter them again -- raising it to 120s is
+      # exactly what broke these.
+      last_chunk_at: (ProcessRunner::SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS + 60).seconds.ago,
       resource_attribution: { "method" => "initial" }
     )
     sampler = double("sampler", sample!: nil, payload: { "method" => "sampled" })

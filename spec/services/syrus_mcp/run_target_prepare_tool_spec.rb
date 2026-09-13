@@ -30,7 +30,11 @@ RSpec.describe SyrusMcp::RunTargetPrepareTool do
 
     expect(response).not_to be_error
     expect(workspace_path.join("cli/prepared.txt").read).to eq("ready")
-    expect(workspace_path.join("cli/prepared-from.txt").read.strip).to eq(workspace_path.join("cli").to_s)
+    # See grader_spec: `pwd` reports the resolved path, and macOS temp dirs sit
+    # under a /var -> /private/var symlink, so a literal string comparison is
+    # platform-dependent.
+    expect(File.realpath(workspace_path.join("cli/prepared-from.txt").read.strip))
+      .to eq(File.realpath(workspace_path.join("cli").to_s))
 
     request = workflow.reload.artifact("target_prepare_requests").last
     expect(request).to include(

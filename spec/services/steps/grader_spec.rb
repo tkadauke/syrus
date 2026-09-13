@@ -258,7 +258,11 @@ RSpec.describe Steps::Grader, :ci_only do
 
     handler.call
 
-    expect(@ws_path.join("cli/prepared-from.txt").read.strip).to eq(@ws_path.join("cli").to_s)
+    # `pwd` in the subprocess reports the resolved path, and on macOS the
+    # per-user temp dir lives under a /var -> /private/var symlink, so comparing
+    # the literal strings fails there and passes on Linux only by accident.
+    expect(File.realpath(@ws_path.join("cli/prepared-from.txt").read.strip))
+      .to eq(File.realpath(@ws_path.join("cli").to_s))
     expect(step.reload.details["prepare_target_results"].first["workdir"]).to eq(@ws_path.join("cli").to_s)
   end
 

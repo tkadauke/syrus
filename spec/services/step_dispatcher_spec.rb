@@ -1366,6 +1366,13 @@ RSpec.describe StepDispatcher, :ci_only do
       loop_wf = workflow_with_loop(max_iterations: 3)
       grade = loop_wf.steps.find_by!(kind: "grade", iteration: 1)
       summarize = loop_wf.steps.find_by!(kind: "summarize")
+      # The barrier has to actually be succeeded, as the example name says.
+      # A post-loop step no longer advances past a retry_until barrier that has
+      # not cleanly succeeded (StepDispatcher#blocked_by_uncleared_retry_until_barrier?),
+      # which is the invariant "Guard workflow success on clean retry barriers"
+      # introduced. update_columns so the succeed! callback does not advance the
+      # chain before the assertion does.
+      grade.update_columns(state: "succeeded", finished_at: Time.current)
 
       expect {
         described_class.advance_from(grade)
@@ -1568,6 +1575,10 @@ RSpec.describe StepDispatcher, :ci_only do
       grader_collect = retry_workflow.steps.find_by!(kind: "grader_collect")
       push = retry_workflow.steps.find_by!(kind: "push")
       original_step_count = retry_workflow.steps.count
+      # "when checks pass" means the barrier succeeded; `push` no longer
+      # advances past an uncleared retry_until barrier. See the note on the
+      # grade-step example above.
+      grader_collect.update_columns(state: "succeeded", finished_at: Time.current)
 
       expect {
         described_class.advance_from(grader_collect)

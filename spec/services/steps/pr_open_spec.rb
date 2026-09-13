@@ -1077,7 +1077,15 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     artifact = workflow.reload.artifact("branch_divergence")
     expect(artifact).to include("remote_sha" => "remote-sha", "local_sha" => "local-sha")
-    expect(artifact["comparison"]).to be_nil
+    # What matters is that no commit data is *claimed* when it could not be
+    # computed -- the banner must not imply it knows what replacing would
+    # discard. The hash itself may still carry fields that need no git (the
+    # published base ref), and the UI parser treats a comparison with no commit
+    # lists as absent.
+    comparison = artifact["comparison"] || {}
+    expect(comparison["discarded"]).to be_nil
+    expect(comparison["published"]).to be_nil
+    expect(comparison["discarded_files"]).to be_nil
   end
 
   it "cancels an older retry pr_open when a newer workflow already published the PR branch" do
