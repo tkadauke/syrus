@@ -572,6 +572,47 @@ RSpec.describe MainHealthChangedService, :ci_only do
         expect(status[:failed_jobs].map(&:issue_title)).to contain_exactly("failed repair 0", "failed repair 1", "failed repair 2")
       end
 
+      it "does not spawn another automatic fix Job for the same failed main SHA" do
+        repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "failed repair",
+          issue_body: "Main branch health is broken.\n\nCommit: abc123def456\n",
+          agent_provider: "claude",
+          priority: "high",
+          state: "failed"
+        )
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.not_to change { repository.jobs.where(kind: "direct").count }
+
+        status = MainHealthChangedService.new(repository.reload).repair_status
+        expect(status).to include(
+          blocked_reason: "failed_current_sha",
+          can_request: false,
+          can_spawn: false
+        )
+      end
+
+      it "spawns another fix Job after main advances past a failed repair SHA" do
+        repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "failed repair",
+          issue_body: "Main branch health is broken.\n\nCommit: old123def456\n",
+          agent_provider: "claude",
+          priority: "high",
+          state: "failed"
+        )
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.to change { repository.jobs.where(kind: "direct").count }.by(1)
+      end
+
       it "spawns a new fix Job when the previous one is closed" do
         closed_job = repository.jobs.create!(
           user: user,

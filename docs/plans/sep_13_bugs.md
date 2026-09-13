@@ -372,6 +372,13 @@ preflight cancellation policy that cancels outstanding preflight graders once
 the required gate result is already terminal, but records that as intentional
 short-circuiting rather than "all graders failed."
 
+**Fixed:** Automatic main-branch repair creation now treats an open failed
+repair Job for the current broken SHA as the blocker instead of spawning the
+next repair until the default branch advances. Operators can still force a
+manual repair, and stale failed repairs for older SHAs do not block a new
+repair for the new default-branch tip. Covered by
+`spec/services/main_health_changed_service_spec.rb`.
+
 ### Formatter-style checks are running as expensive graders
 
 **Symptom:** JOB-4959 hit a grader timeout in a main-branch repair even though

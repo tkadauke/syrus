@@ -86,6 +86,13 @@ class MainHealthChangedService
       warn_if_blocking_repair_stuck!(job)
       return
     end
+    if !force && (job = failed_fix_job_for_current_sha)
+      Rails.logger.warn(
+        "[MainHealthChangedService] #{@repository.slug} not spawning main repair job; " \
+        "failed repair job #{job.slug} already covers #{checked_sha}"
+      )
+      return
+    end
     return if !force && suppressed_by_recent_closed_repair?
 
     # The stale-SHA guard keeps AUTOMATIC repairs from firing on a health signal
@@ -159,17 +166,20 @@ class MainHealthChangedService
     blocking = snapshot.fetch(:blocking)
     failed_jobs = snapshot.fetch(:failed_jobs)
     failed_count = snapshot.fetch(:failed_count)
+    failed_current = eligible ? failed_fix_job_for_current_sha : nil
     below_failed_cap = failed_count < MAX_OPEN_FAILED_FIX_JOBS
     evidence_ready = nil
     blocked_reason = if blocking
       blocking_fix_job_reason(blocking)
+    elsif failed_current
+      "failed_current_sha"
     elsif eligible && !below_failed_cap
       "failed_open_cap"
     elsif eligible
       evidence_ready = repair_evidence_ready?
       "waiting_for_health_signals" unless evidence_ready
     end
-    can_request = eligible && blocking.blank? && below_failed_cap
+    can_request = eligible && blocking.blank? && failed_current.blank? && below_failed_cap
 
     {
       enabled: @repository.main_branch_repair_enabled?,
@@ -370,6 +380,16 @@ class MainHealthChangedService
 
   def open_failed_fix_jobs
     repair_jobs.where(state: "failed")
+  end
+
+  def failed_fix_job_for_current_sha
+    sha = checked_sha
+    return if sha == "unknown"
+
+    open_failed_fix_jobs
+      .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
+      .order(updated_at: :desc, id: :desc)
+      .first
   end
 
   def recent_open_failed_fix_jobs
