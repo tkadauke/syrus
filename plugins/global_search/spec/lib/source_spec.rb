@@ -134,5 +134,6 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
     expect(GlobalSearch::EpicSource.search_table_name).to eq("epic_fts")
     expect(GlobalSearch::EpicSource.search_id_column).to eq("epic_id")
     expect(GlobalSearch::EpicSource).to respond_to(:upsert)
+    expect(providers).to include(GlobalSearch::SourceProvider)
   end
 end

@@ -21,7 +21,8 @@ module GlobalSearch
                "GlobalSearch::JobSource",
                "GlobalSearch::EpicSource",
                "GlobalSearch::JobRebuildSource",
-               "GlobalSearch::EpicRebuildSource"
+               "GlobalSearch::EpicRebuildSource",
+               "GlobalSearch::SourceProvider"
              ]
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" }

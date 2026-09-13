@@ -40,13 +40,6 @@ module GlobalSearch
   # The contract for a search result type contributed through this plugin's
   # "global_search:source" point.
   #
-  # The global_search plugin also uses this hosted point for optional
-  # maintenance hooks that backfill built-in core models without core naming
-  # plugin-owned index constants:
-  #
-  #   def self.index_job(job) = ...
-  #   def self.index_epic(epic) = ...
-  #
   # Contributors do not `include` this module: doing so would make them load a
   # Search constant, turning an optional hook into a hard load-time dependency
   # on this plugin. It documents the contract; contributors duck-type it.
