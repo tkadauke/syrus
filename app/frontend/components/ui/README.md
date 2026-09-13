@@ -28,6 +28,10 @@
 | `Pill` / `Badge` | Tokenized rounded chips for state, tags, and compact labels. | `TonePill` remains the domain status bridge; new generic chips should use these. |
 | `DataTable` | Compound table primitive: `DataTable.Root`, `Header`, `Body`, `Row`, `HeadCell`, `Cell`, and `Empty` with responsive overflow. | Use for dense operational tables, sortable headers, checkbox columns, interactive rows, row group headers, and consistent empty states. |
 | `DescriptionList` | Compound metadata primitive: `DescriptionList.Root` and `DescriptionList.Item`. | Use for settings, diagnostics, repository metadata, and job summary panels instead of hand-rolled `<dl>` grids. |
+| `CodeSurface` | Tokenized code/log surface with command and multiline modes, copy-slot support, overflow semantics, and `CodeSurface.Token` styling. | Use for commands, logs, snippets, and large text previews instead of local `<pre>` shells. |
+| `Metric` / `Stat` | Dashboard summary primitives: `Metric.Group`, `Metric.Card`, `Stat.Group`, and `Stat.Item`. | Use for admin/dashboard counters and compact diagnostic summaries. |
+| `Timeline` / `ActivityRow` | Event-row primitives with timeline markers, marker labels, activity titles, metadata, bodies, and actions. | Use for job, workflow, run, and operational-log event rows. |
+| `ToolCard` | Shared tool-result shell: `Root`, `Header`, `Body`, `Section`, and `Badge` with state/tone variants. | Use in core and plugin tool-card renderers instead of duplicating card shell classes. |
 
 ## Import Policy
 
