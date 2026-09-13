@@ -307,26 +307,42 @@ function TaskEventLog({ task }: { task: AdminMaintenanceTaskDetailPayload }) {
 
   return (
     <div>
-      <DataTable.Root density="compact">
-        <DataTable.Header>
-          <DataTable.Row>
-            <DataTable.HeadCell>{t("maintenance_tasks.col_time")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("maintenance_tasks.col_level")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("maintenance_tasks.col_step")}</DataTable.HeadCell>
-            <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {events.map((event) => (
-            <DataTable.Row key={event.id}>
-              <DataTable.Cell className="whitespace-nowrap text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</DataTable.Cell>
-              <DataTable.Cell className="whitespace-nowrap"><TonePill tone={event.level === "error" ? "red" : event.level === "warning" ? "amber" : "blue"}>{event.level}</TonePill></DataTable.Cell>
-              <DataTable.Cell className="text-text-muted">{event.step_title || "-"}</DataTable.Cell>
-              <DataTable.Cell>{event.message}</DataTable.Cell>
+      <div className="hidden sm:block">
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("maintenance_tasks.col_time")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("maintenance_tasks.col_level")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("maintenance_tasks.col_step")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
             </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {events.map((event) => (
+              <DataTable.Row key={event.id}>
+                <DataTable.Cell className="whitespace-nowrap text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap"><TonePill tone={event.level === "error" ? "red" : event.level === "warning" ? "amber" : "blue"}>{event.level}</TonePill></DataTable.Cell>
+                <DataTable.Cell className="text-text-muted">{event.step_title || "-"}</DataTable.Cell>
+                <DataTable.Cell>{event.message}</DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      </div>
+      <div className="divide-y divide-border rounded-[var(--radius-panel)] border border-border bg-surface sm:hidden" data-testid="maintenance-task-log-mobile">
+        <ul className="divide-y divide-border">
+          {events.map((event) => (
+            <li className="space-y-2 px-3 py-3" key={event.id}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</span>
+                <TonePill tone={event.level === "error" ? "red" : event.level === "warning" ? "amber" : "blue"}>{event.level}</TonePill>
+              </div>
+              {event.step_title ? <p className="text-xs font-medium text-text-muted">{event.step_title}</p> : null}
+              <p className="break-words text-sm text-text-primary">{event.message}</p>
+            </li>
           ))}
-        </DataTable.Body>
-      </DataTable.Root>
+        </ul>
+      </div>
       <TaskEventPagination task={task} />
     </div>
   )
@@ -340,11 +356,11 @@ function TaskEventPagination({ task }: { task: AdminMaintenanceTaskDetailPayload
   if (pagination.total_pages <= 1) return null
 
   return (
-    <nav aria-label={t("maintenance_tasks.aria_log_pagination")} className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-      <span>{t("maintenance_tasks.log_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_events })}</span>
-      <div className="flex items-center gap-2">
+    <nav aria-label={t("maintenance_tasks.aria_log_pagination")} className="flex flex-col gap-3 border-t border-gray-200 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+      <span className="whitespace-nowrap">{t("maintenance_tasks.log_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_events })}</span>
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
         {pagination.previous_page ? <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.previous_page), prefix)}>{t("maintenance_tasks.previous")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.previous")}</span>}
-        <span>{t("maintenance_tasks.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
+        <span className="whitespace-nowrap px-1 text-xs text-gray-500 dark:text-gray-400">{t("maintenance_tasks.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
         {pagination.next_page ? <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.next_page), prefix)}>{t("maintenance_tasks.next")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.next")}</span>}
       </div>
     </nav>
