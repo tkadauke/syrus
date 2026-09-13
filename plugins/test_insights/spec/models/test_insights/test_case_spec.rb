@@ -26,6 +26,56 @@ RSpec.describe TestInsights::TestCase do
     )
   end
 
+  def create_identity(name: "it does the thing", suite_name: "MySpec")
+    TestInsights::TestIdentity.create!(
+      repository: repo,
+      fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: suite_name, name: name),
+      suite_name: suite_name,
+      name: name
+    )
+  end
+
+  def create_grader_case(identity:, workflow:, status:, iteration:, loop_id: "grade-loop", grader_name: "rspec", position: iteration)
+    step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: position,
+      iteration: iteration,
+      loop_id: loop_id,
+      state: status == "passed" ? "succeeded" : "failed",
+      details: { "name" => grader_name }
+    )
+    run = Run.create!(
+      job: workflow.job,
+      user: workflow.user,
+      step: step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: status == "passed" ? "succeeded" : "failed"
+    )
+    grader_run = TestInsights::TestRun.create!(
+      run: run,
+      repository: repo,
+      grader_name: grader_name,
+      total_count: 1,
+      passed_count: status == "passed" ? 1 : 0,
+      failed_count: status == "failed" ? 1 : 0,
+      skipped_count: 0,
+      error_count: status == "error" ? 1 : 0
+    )
+
+    TestInsights::TestCase.create!(
+      test_run: grader_run,
+      repository: repo,
+      test_identity: identity,
+      name: identity.name,
+      suite_name: identity.suite_name,
+      status: status,
+      created_at: Time.current + iteration.seconds,
+      updated_at: Time.current + iteration.seconds
+    )
+  end
+
   def backfill_test_identities
     TestInsights::TestIdentity.ensure_for_repository!(repo, index_search: false)
   end
@@ -170,6 +220,41 @@ RSpec.describe TestInsights::TestCase do
       # Our repo has no history
       result = TestInsights::TestCase.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
       expect(result).to be_nil
+    end
+
+    it "excludes self-repaired grader loop failures from scored history" do
+      identity = create_identity
+      workflow = run.workflow
+      create_grader_case(identity: identity, workflow: workflow, status: "failed", iteration: 1)
+      create_grader_case(identity: identity, workflow: workflow, status: "passed", iteration: 2)
+
+      result = TestInsights::TestCase.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result).to include(
+        score: 0.0,
+        failed_count: 0,
+        total_count: 1,
+        flaky: false,
+        run_statuses: [ "passed" ]
+      )
+    end
+
+    it "keeps cross-workflow pass/fail history scored as flaky" do
+      identity = create_identity
+      first_workflow = run.workflow
+      second_job = Factories.job(repository: repo, user: repo.user)
+      second_workflow = second_job.initial_run.workflow
+      create_grader_case(identity: identity, workflow: first_workflow, status: "failed", iteration: 1, loop_id: "first-loop")
+      create_grader_case(identity: identity, workflow: second_workflow, status: "passed", iteration: 2, loop_id: "second-loop")
+
+      result = TestInsights::TestCase.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result).to include(
+        failed_count: 1,
+        total_count: 2,
+        flaky: true,
+        run_statuses: %w[failed passed]
+      )
     end
   end
 
