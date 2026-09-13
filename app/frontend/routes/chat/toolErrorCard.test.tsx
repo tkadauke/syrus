@@ -98,6 +98,34 @@ describe("ToolErrorCard", () => {
     expect(model.recovery).toBe("Inspect target state and raw details before retrying; this tool may have partially changed data.")
   })
 
+  it("redacts sensitive input and result values from the generic error card", () => {
+    const model = buildToolErrorCardModel(call({
+      tool_name: "unregistered_tool",
+      raw_name: "mcp__custom-sidecar__unregistered_tool",
+      raw_payload: {
+        job_id: 4786,
+        access_token: "ghp_abcdefghijklmnopqrstuvwxyz123456"
+      },
+      result_body: JSON.stringify({
+        message: "Request failed with api_key=sk-abcdefghijklmnopqrstuvwxyz123456",
+        details: { password: "correct-horse-battery-staple" }
+      }),
+      result_json: {
+        message: "Request failed with api_key=sk-abcdefghijklmnopqrstuvwxyz123456",
+        details: { password: "correct-horse-battery-staple" }
+      }
+    }))
+
+    const details = JSON.stringify(model.rawDetails)
+
+    expect(model.errorMessage).toBe("Request failed with api_key=[redacted]")
+    expect(details).toContain("[redacted]")
+    expect(details).not.toContain("ghp_abcdefghijklmnopqrstuvwxyz123456")
+    expect(details).not.toContain("sk-abcdefghijklmnopqrstuvwxyz123456")
+    expect(details).not.toContain("correct-horse-battery-staple")
+    expect(model.affectedEntityIds).toContain("job:4786")
+  })
+
   it("renders recovery copy and keeps raw debugging details collapsed by default", () => {
     const { container } = render(<ToolErrorCard call={call({
       result_json: { message: "GitHub unavailable", retryable: true }

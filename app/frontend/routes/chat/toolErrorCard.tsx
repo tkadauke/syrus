@@ -1,4 +1,5 @@
 import type { ChatToolGroupItem } from "../../api/chats"
+import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 import { Badge, CardShell, Disclosure, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { isPlainObject, normalizedToolName } from "./toolRendering"
 
@@ -127,9 +128,11 @@ const ENTITY_KEY_HINTS = new Set([
 
 export function buildToolErrorCardModel(call: ToolCall): ToolErrorCardModel {
   const identity = mcpIdentity(call.raw_name || call.tool_name)
-  const parsed = call.result_json
+  const parsed = redactToolCardValue(call.result_json)
+  const input = redactToolCardValue(call.raw_payload)
+  const resultBody = redactToolCardText(call.result_body)
   const errorClass = errorClassFrom(parsed)
-  const errorMessage = errorMessageFrom(parsed, call.result_body)
+  const errorMessage = errorMessageFrom(parsed, resultBody)
   const retryable = retryableFrom(parsed, errorMessage)
   const sideEffectRisk = sideEffectRiskFor(call.tool_name || identity.tool)
 
@@ -140,14 +143,14 @@ export function buildToolErrorCardModel(call: ToolCall): ToolErrorCardModel {
     mcpToolId: identity.tool,
     errorClass,
     errorMessage,
-    affectedEntityIds: affectedEntityIds(call.raw_payload, parsed),
+    affectedEntityIds: affectedEntityIds(input, parsed),
     retryable,
     sideEffectRisk,
     recovery: recoveryAdvice({ retryable, sideEffectRisk }),
     rawDetails: {
       name: call.raw_name || call.tool_name,
-      input: call.raw_payload,
-      result: parsed ?? call.result_body
+      input,
+      result: parsed ?? resultBody
     }
   }
 }
