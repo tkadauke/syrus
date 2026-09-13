@@ -2,6 +2,9 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
+  before { restore_plugin_registry_boot_snapshot }
+  after  { restore_plugin_registry_boot_snapshot }
+
   around do |example|
     Dir.mktmpdir("tool-card-coverage") do |dir|
       @card_dir = Pathname.new(dir)
@@ -118,6 +121,49 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
 
     expect(report.fetch(:unused_advertised_tools)).to include(
       include(tool_name: "deferred_plugin_tool", owner_type: "plugin", owner_name: "deferred_plugin", recommendation_target: "plugin:deferred_plugin")
+    )
+  end
+
+  it "treats shared helper card wrappers as registered custom cards" do
+    add_card("app/frontend/routes/chat/tool_cards/approve_job.tsx", <<~TS)
+      import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
+
+      export default maintenanceToolCard("approve_job")
+    TS
+    add_card("app/frontend/routes/chat/tool_cards/runtime_start.tsx", <<~TS)
+      import { runtimeToolCardRenderer } from "../runtimeToolCard"
+
+      export default runtimeToolCardRenderer("runtime_start")
+    TS
+
+    report = described_class.call(
+      usages: McpToolUsage.none,
+      advertised_tools: %w[approve_job runtime_start]
+    )
+
+    expect(report.fetch(:unused_advertised_tools)).to include(
+      include(tool_name: "approve_job", card_status: "registered"),
+      include(tool_name: "runtime_start", card_status: "registered")
+    )
+    expect(report.fetch(:unclassified_advertised_tools)).to be_empty
+  end
+
+  it "keeps intentionally generic, deferred, and hidden tools out of unclassified coverage gaps" do
+    report = described_class.call(
+      usages: McpToolUsage.none,
+      advertised_tools: %w[admin_maintenance_tasks get_spending submit_coding_changes new_unclassified_tool]
+    )
+
+    expect(report.fetch(:unused_advertised_tools)).to include(
+      include(tool_name: "admin_maintenance_tasks", card_status: "generic"),
+      include(tool_name: "get_spending", card_status: "deferred"),
+      include(tool_name: "submit_coding_changes", card_status: "hidden")
+    )
+    expect(report.fetch(:unclassified_advertised_tools)).to contain_exactly(
+      include(
+        tool_name: "new_unclassified_tool",
+        guidance: include("Add a tool card")
+      )
     )
   end
 
@@ -257,5 +303,28 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
         result_bytes: result_bytes
       )
     end
+  end
+
+  def restore_plugin_registry_boot_snapshot
+    snapshot = Syrus::PluginRegistry.boot_snapshot
+    return Syrus::PluginRegistry.restore(snapshot) if snapshot
+
+    Syrus::PluginRegistry.reset!
+  end
+end
+
+RSpec.describe "chat MCP tool card coverage" do
+  it "classifies every advertised chat MCP tool with a card or an explicit coverage decision" do
+    coverage = Admin::McpToolCardCoverage.new(
+      usages: McpToolUsage.none,
+      advertised_tools: McpToolUsageRecorder.advertised_tools(surface: :chat)
+    )
+    unclassified = coverage.send(:unclassified_advertised_tool_rows)
+
+    message = unclassified.map do |row|
+      "#{row.fetch(:tool_name)} (#{row.fetch(:recommendation_target)}): #{row.fetch(:guidance)}"
+    end.join("\n")
+
+    expect(unclassified).to be_empty, message
   end
 end
