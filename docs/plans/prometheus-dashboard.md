@@ -375,20 +375,88 @@ state and never the reverse.
   Buckets are declared per metric; a step duration spanning seconds-to-hours
   needs exponential buckets, not the defaults, which top out near 10s.
 
-Deliberately omitted: Summary. Client-side quantiles are not aggregatable across
-pods, which makes them useless in a multi-pod deployment.
+Deliberately omitted: **Summary**, because client-side quantiles cannot be
+aggregated across pods. This is worth spelling out, since it is the reason
+bucket choice matters so much later.
+
+A Summary computes its quantiles inside the process. Say two pods report:
+
+```
+Pod A   1000 observations:  990 @ 10ms, 10 @ 200ms   → p99 = 200ms
+Pod B     10 observations:   10 @ 800ms              → p99 = 800ms
+```
+
+The true fleet p99 over all 1010 observations is **200ms** (sorted ascending,
+the 1000th value). But:
+
+```
+avg(200, 800) = 500ms     2.5x too high
+max(200, 800) = 800ms     4x too high
+```
+
+There is no function of `(p99_A, p99_B)` that yields `p99_combined`. Quantiles
+are not linear and carry no weight information — recovering the combined
+quantile needs the full distributions and their counts, which a Summary has
+already discarded. Pod B's tiny sample dominates any naive combination.
+
+A Histogram aggregates because its buckets are **counters** ("N observations
+≤ le"), and counters sum:
+
+```promql
+histogram_quantile(0.99, sum by (le) (rate(syrus_run_duration_seconds_bucket[5m])))
+```
+
+Summing bucket counts across pods reconstructs the true combined distribution;
+the quantile is then estimated by interpolating inside whichever bucket crosses
+the 99% mark.
+
+The honest trade: a Summary's quantile is *exact but local*; a Histogram's is
+*approximate but global*. The approximation is bounded by bucket width — with
+boundaries at `[1, 5, 15, 60]` a true p99 of 7s is interpolated somewhere
+between 5 and 15. In a multi-pod fleet, globally-correct-and-approximate beats
+locally-exact-and-meaningless, which is why buckets must be placed where the
+resolution is actually needed rather than left at defaults.
 
 ## Topology: what makes export nearly free
 
-Puma runs **single-process, multi-threaded** here (no `workers` directive in
-`config/puma.rb`), and `bin/jobs` is likewise one process with thread pools. So
-**one OS process per pod**, which means:
+The two roles differ, and the difference decides the implementation. Verified
+against production rather than assumed:
 
-- A plain in-memory, thread-safe registry per process is exactly right.
-- No `DirectFileStore`, no shared-memory aggregation — none of the usual Ruby
-  multiprocess metrics pain. Worth not squandering: if Puma is ever switched to
-  cluster mode this design needs revisiting, so that change should cite this doc.
-- Prometheus scrapes **every pod**; summing across them is a query concern.
+**Web** runs **single-process, multi-threaded** (no `workers` directive in
+`config/puma.rb`). One process, one heap, in-memory registry, done.
+
+**Workers do not.** `bin/jobs` is a Solid Queue *fork supervisor*: it forks one
+process per worker definition in `config/queue.yml`, and they share no memory.
+
+```
+syrus-worker-compute-*   4 procs   supervisor, dispatcher, [resume,runs], [merges]
+syrus-worker-home-*     11 procs   supervisor, dispatcher, scheduler,
+                                   [resume,control_plane], [polling], [indexing],
+                                   [cleanup], [low_priority_maintenance],
+                                   [chat], [videos], [connectivity]
+```
+
+So the "no multiprocess machinery needed" simplification holds for web **only**.
+On worker pods a counter incremented in the `runs` process is invisible to any
+other process, including whichever one serves `/metrics`.
+
+This also means a scrape target must exist on worker pods at all — and they are
+the *primary* target, since nearly every interesting counter (runs, steps,
+admission decisions, agent invocations) is incremented there while web pods
+mostly serve the SPA.
+
+Implementation per role:
+
+- **Web**: expose `/metrics` from the Rails app. Trivial.
+- **Worker**: run a small Rack server on a dedicated port (9394) inside the
+  supervisor process, with `prometheus-client`'s **`DirectFileStore`** pointed at
+  an `emptyDir` shared by the forked children. Each child writes counters to
+  mmap'd files; the exporter reads and aggregates them. This is precisely what
+  DirectFileStore exists for, and it is the standard Ruby answer to forked job
+  runners. Prometheus discovers these via a `PodMonitor` on port 9394.
+
+If Puma is ever switched to cluster mode, web joins the worker case and needs
+the same treatment; that change should cite this section.
 
 `/metrics` therefore serializes in-memory state and **never touches the
 database**. That rule is what keeps it cheap, and it should be enforced by a
@@ -433,25 +501,44 @@ The real subtlety, and the easiest thing to get wrong.
   `syrus_queue_ready_count{queue="polling"}`, Prometheus gets six near-identical
   series and any `sum()` reports six times the real backlog.
 
-Options:
+Note this is a problem about **gauges**, not counters. Per-process counters sum
+correctly across pods by construction; it is the "one fact about the cluster"
+gauges that duplicate.
 
-1. **Leader-elected sampling** — only the leader exports globals.
-   `config/queue.yml` already documents the `connectivity` queue's
-   `concurrency: 1` as the leader-election mechanism, so the seam exists.
-   Downside: one pod is the single point of observation.
-2. **Sample once, cache, render everywhere** — a recurring job (Solid Queue
-   recurring tasks already execute cluster-singleton) computes globals every 15s
-   into Solid Cache; every pod renders the cached value. Scrape path stays
-   memory/cache-only. All pods report the same number, so queries must use
-   `max by (queue) (...)`, never `sum`.
-3. **A dedicated single-replica exporter Deployment** — unambiguous, one target
-   per metric, at the cost of another pod to run and monitor.
+| | A. Render on every pod | B. Web pods only | C. Single-replica exporter | D. Leader-elected |
+|---|---|---|---|---|
+| Series per metric | 6 | 2 | **1** | 1 |
+| `sum()` result | 6x wrong | 2x wrong | **correct** | correct |
+| Relies on `max by` discipline | yes | yes | **no** | no |
+| Survives a pod dying | yes | yes | metric gaps | metric moves |
+| New deployment | no | no | **yes** | no |
+| Series churn on failover | — | — | no | **yes** |
 
-**Recommendation: (2), with (3) as the escape hatch** if `max by` proves too easy
-to misuse. It needs no new deployment, keeps the scrape path free of DB work, and
-survives any single pod dying. The aggregation rule must be encoded in the
-shipped dashboard JSON so nobody hand-writes `sum`, and global metrics take a
-`syrus_global_` prefix so the rule is legible from the name alone.
+The failure modes worth weighing:
+
+- **A and B are the same bug at different scale.** Halving the duplication does
+  not make `sum()` correct; it makes it wrong by 2 instead of 6, which is
+  arguably worse because it is less obviously wrong. They also flap: six pods
+  sample at slightly different instants, so `max` jitters between samples.
+- **C gaps when the exporter dies.** This reads as a downside and mostly is not:
+  a gap is honest, whereas a stale duplicate is a confident lie — the exact
+  failure this document is trying to design out. Cover it with an
+  `up{job="syrus-global-exporter"} == 0` alert, which is a real signal rather
+  than silence.
+- **D churns the `instance` label on failover.** Prometheus sees the old series
+  end and a new one begin, which breaks `rate()` continuity and looks identical
+  to a restart. Leader election is clever, and cleverness in a monitoring path
+  is a liability precisely when you need to trust it.
+
+**Recommendation: C.** It is the only option where the aggregation is
+unambiguous by construction rather than by convention, and the worker topology
+above means we are building a standalone exporter surface anyway. Global metrics
+still take a `syrus_global_` prefix so the single-source rule is legible from the
+metric name.
+
+Note C solves only the *global* half. Per-pod counters still require scraping
+every pod, because no central process can see another pod's heap — the two
+mechanisms are complementary, not alternatives.
 
 ## Library choice
 
