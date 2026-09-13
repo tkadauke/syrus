@@ -52,8 +52,8 @@ module MaintenanceTasks
         @task.reload
         raise ArgumentError, "maintenance task is not runnable from #{@task.state}" unless @task.runnable? || @task.state == "dismissed"
 
-        total = @task.definition.estimate_total_units
-        if total.zero?
+        remaining = @task.definition.estimate_total_units
+        if remaining.zero?
           @task.update!(
             state: "not_needed",
             total_units: 0,
@@ -69,6 +69,7 @@ module MaintenanceTasks
           return @task
         end
 
+        total = [ @task.total_units.to_i, @task.completed_units.to_i + remaining ].max
         @task.update!(
           state: "running",
           total_units: total,

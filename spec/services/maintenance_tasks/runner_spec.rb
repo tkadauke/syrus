@@ -18,6 +18,23 @@ RSpec.describe MaintenanceTasks::Runner do
     end
   end
 
+  class SpecProgressRepairMaintenanceDefinition < MaintenanceTasks::Definitions::Base
+    key "spec_progress_repair"
+    title "Spec progress repair"
+    summary "Exercises progress accounting repair."
+    category "cleanup"
+    recurrence "one_off"
+    required_role "admin"
+
+    def estimate_total_units = 3
+
+    def perform_batch(task)
+      task.current_step_key = "repair"
+      task.current_step_title = "Repair progress"
+      Result.new(done: false, processed: 1, failed: 0, message: "Processed one.", level: "progress")
+    end
+  end
+
   it "persists step progress when the definition mutates the task before locking" do
     task = MaintenanceTask.create!(
       definition_key: "spec_dirty_step",
@@ -51,6 +68,35 @@ RSpec.describe MaintenanceTasks::Runner do
       step_key: "retire",
       step_title: "Retire stale cards",
       message: "Done."
+    )
+  end
+
+  it "repairs stale totals when completed progress already exceeds total units" do
+    task = MaintenanceTask.create!(
+      definition_key: "spec_progress_repair",
+      task_key: "spec:progress-repair",
+      state: "running",
+      recurrence: "one_off",
+      category: "cleanup",
+      title: "Spec progress repair",
+      summary: "Exercises progress accounting repair.",
+      trigger_kind: "spec",
+      trigger_key: "progress-repair",
+      required_role: "admin",
+      total_units: 40,
+      completed_units: 60
+    )
+
+    allow(MaintenanceTasks::Registry).to receive(:fetch)
+      .with("spec_progress_repair")
+      .and_return(SpecProgressRepairMaintenanceDefinition.new)
+
+    described_class.new(task).call
+
+    expect(task.reload).to have_attributes(
+      state: "running",
+      completed_units: 61,
+      total_units: 64
     )
   end
 end

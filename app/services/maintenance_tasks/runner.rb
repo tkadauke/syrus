@@ -23,12 +23,14 @@ module MaintenanceTasks
 
         completed = task.completed_units.to_i + result.processed.to_i
         failed = task.failed_units.to_i + result.failed.to_i
+        total = adjusted_total_units(task, completed)
         task.assign_attributes(
           completed_units: completed,
           failed_units: failed,
+          total_units: total,
           current_step_key: current_step_key,
           current_step_title: current_step_title,
-          eta_seconds: eta_seconds(completed, task.total_units, elapsed, result.processed.to_i),
+          eta_seconds: eta_seconds(completed, total, elapsed, result.processed.to_i),
           last_error: nil
         )
 
@@ -61,6 +63,13 @@ module MaintenanceTasks
 
       rate = processed / elapsed.clamp(0.001, TARGET_BATCH_SECONDS)
       ((total - completed).clamp(0, total) / rate).round
+    end
+
+    def adjusted_total_units(task, completed)
+      total = task.total_units.to_i
+      return total if completed <= total
+
+      completed + @definition.estimate_total_units
     end
   end
 end

@@ -92,4 +92,17 @@ RSpec.describe MaintenanceTasks::Actions do
 
     expect(task.reload.state).to eq("running")
   end
+
+  it "preserves completed progress when recomputing remaining work on resume" do
+    task.update!(state: "paused", total_units: 40, completed_units: 60)
+    allow(definition).to receive(:estimate_total_units).and_return(40)
+
+    described_class.resume!(task, user: admin)
+
+    expect(task.reload).to have_attributes(
+      state: "running",
+      completed_units: 60,
+      total_units: 100
+    )
+  end
 end
