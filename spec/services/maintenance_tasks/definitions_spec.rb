@@ -159,6 +159,32 @@ RSpec.describe "maintenance task definitions" do
       expect(result.processed).to eq(1)
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
+
+    it "delegates job indexing to a search source provider" do
+      job = Factories.job_record
+      provider = double("search source", upsert_job: true)
+      task = maintenance_task_for(definition)
+
+      expect(definition).to receive(:search_source_providers).and_return([ provider ])
+      expect(provider).to receive(:upsert_job).with(job)
+
+      result = definition.send(:index_jobs, task)
+
+      expect(result.processed).to eq(1)
+      expect(task.checkpoint["last_job_id"]).to eq(job.id)
+    end
+
+    it "marks job indexing complete when no search source provider is available" do
+      task = maintenance_task_for(definition)
+
+      expect(definition).to receive(:search_source_providers).and_return([])
+
+      result = definition.send(:index_jobs, task)
+
+      expect(result.processed).to eq(0)
+      expect(result.message).to include("not available")
+      expect(task.checkpoint["jobs_done"]).to be(true)
+    end
   end
 
   def maintenance_task_for(definition)
