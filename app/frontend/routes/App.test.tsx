@@ -111,7 +111,7 @@ describe("App", () => {
   })
 
   it("loads bootstrap data into the SPA shell", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           current_user: {
@@ -364,7 +364,7 @@ describe("App", () => {
   })
 
   it("renders a minimal first-run welcome for a new instance", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(publicBootstrapPayload({ first_signup: true })), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -398,7 +398,7 @@ describe("App", () => {
   })
 
   it("renders invitation-only landing CTA for locked instances", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -420,7 +420,7 @@ describe("App", () => {
   })
 
   it("renders account creation CTA when signups are open", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: true })), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -441,7 +441,7 @@ describe("App", () => {
   })
 
   it("renders account creation CTA when an invitation token is present", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -465,7 +465,7 @@ describe("App", () => {
     // Desktop users who are merely signed out already installed the app —
     // they need the sign-in form, not the self-hosting pitch.
     const restoreUserAgent = stubDesktopUserAgent()
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -537,7 +537,7 @@ describe("App", () => {
     // First run IS the desktop first-run screen — no redirect to sign-in
     // (there is nobody to sign in as yet).
     const restoreUserAgent = stubDesktopUserAgent()
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(publicBootstrapPayload({ first_signup: true })), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -561,7 +561,7 @@ describe("App", () => {
   })
 
   it("renders the sign-in route and submits credentials through the auth API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({ error: { code: "invalid_credentials", message: "Try another email address or password." } }),
         { status: 422, headers: { "Content-Type": "application/json" } }
@@ -599,7 +599,7 @@ describe("App", () => {
   })
 
   it("renders the sign-up route from the public signup payload", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           allowed: true,
@@ -630,7 +630,7 @@ describe("App", () => {
   })
 
   it("shows the sign-in link on the sign-up route once users exist", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({ allowed: true, first_signup: false, signups_open: true, invitation: null }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -649,7 +649,7 @@ describe("App", () => {
   })
 
   it("renders the logged-out landing CTA from public bootstrap state", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify(publicBootstrapPayload()),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -682,7 +682,7 @@ describe("App", () => {
     script.type = "application/json"
     script.textContent = JSON.stringify(bootstrapPayload())
     document.body.appendChild(script)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify(
           dashboardPayload({
@@ -714,7 +714,7 @@ describe("App", () => {
   })
 
   it("renders the password request route and shows the API response message", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           message: "Password reset instructions sent (if user with that email address exists).",
@@ -919,7 +919,7 @@ describe("App", () => {
     script.type = "application/json"
     script.textContent = JSON.stringify(bootstrapPayload())
     document.body.appendChild(script)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -947,7 +947,7 @@ describe("App", () => {
     script.textContent = JSON.stringify(bootstrapPayload())
     document.body.appendChild(script)
     const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -973,7 +973,7 @@ describe("App", () => {
   })
 
   it("hides the Publilius Syrus quote on chat routes", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -2128,7 +2128,7 @@ describe("App", () => {
     script.type = "application/json"
     script.textContent = JSON.stringify(bootstrapPayload())
     document.body.appendChild(script)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -2696,7 +2696,7 @@ describe("App", () => {
   })
 
   it("renders the migrated /admin route from the same admin overview component", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           active_runs: { total: 0, by_trigger: {} },
@@ -5962,7 +5962,7 @@ describe("App", () => {
 
   it("renders the admin queue route from the app admin queue API", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           filter: { and: [ { field: "queue_name", op: "is", value: "runs" } ] },
@@ -6333,7 +6333,7 @@ describe("App", () => {
   it("hides the save form for admin queue filters with no active folder", async () => {
     const restoreMedia = mockMediaQuery(false)
     const payload = adminQueuePayloadWithSavedFolder(currentAdminQueueFilter())
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse({
       ...payload,
       active_smart_folder_id: null,
       smart_folders: payload.smart_folders.map((folder) => ({ ...folder, active: false }))
@@ -6388,7 +6388,7 @@ describe("App", () => {
 
   it("hides the update button for admin queue saved folder matching filters", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminQueuePayloadWithSavedFolder(currentAdminQueueFilter())))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse(adminQueuePayloadWithSavedFolder(currentAdminQueueFilter())))
 
     try {
       renderAppAt("/app-shell/admin/queue/active?smart_folder_id=10")
@@ -6403,7 +6403,7 @@ describe("App", () => {
   })
 
   it("renders admin queue workers when SolidQueue reports queue metadata as a string", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           workers: [
@@ -6652,7 +6652,7 @@ describe("App", () => {
 
   it("renders the admin processes route from the app admin processes API", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           filter: { and: [ { field: "state", op: "is", value: "running" } ] },
@@ -6757,7 +6757,7 @@ describe("App", () => {
 
   it("shows an update button for admin process saved folder filter drift", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminProcessesPayloadWithSavedFolder({
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse(adminProcessesPayloadWithSavedFolder({
       and: [ { field: "state", op: "is", value: "finished" } ]
     })))
 
@@ -6777,7 +6777,7 @@ describe("App", () => {
   it("hides the save form for admin process filters with no active folder", async () => {
     const restoreMedia = mockMediaQuery(false)
     const payload = adminProcessesPayloadWithSavedFolder(currentAdminProcessFilter())
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse({
       ...payload,
       active_smart_folder_id: null,
       smart_folders: payload.smart_folders.map((folder) => ({ ...folder, active: false }))
@@ -6832,7 +6832,7 @@ describe("App", () => {
 
   it("hides the update button for admin process saved folder matching filters", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminProcessesPayloadWithSavedFolder(currentAdminProcessFilter())))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse(adminProcessesPayloadWithSavedFolder(currentAdminProcessFilter())))
 
     try {
       renderAppAt("/app-shell/admin/processes?smart_folder_id=11")
@@ -6847,7 +6847,7 @@ describe("App", () => {
   })
 
   it("renders the admin process detail route with React transcript links", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           id: 8,
@@ -6906,7 +6906,7 @@ describe("App", () => {
 
   it("renders the admin users route from the app admin users API", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           filters: { gh_rate: "low" },
@@ -7030,7 +7030,7 @@ describe("App", () => {
 
   it("shows an update button for admin user saved folder filter drift", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminUsersPayloadWithSavedFolder({
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse(adminUsersPayloadWithSavedFolder({
       and: [ { field: "admin", op: "is", value: true } ]
     })))
 
@@ -7050,7 +7050,7 @@ describe("App", () => {
   it("hides the save form for admin user filters with no active folder", async () => {
     const restoreMedia = mockMediaQuery(false)
     const payload = adminUsersPayloadWithSavedFolder(currentAdminUserFilter())
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse({
       ...payload,
       active_smart_folder_id: null,
       smart_folders: payload.smart_folders.map((folder) => ({ ...folder, active: false }))
@@ -7105,7 +7105,7 @@ describe("App", () => {
 
   it("hides the update button for admin user saved folder matching filters", async () => {
     const restoreMedia = mockMediaQuery(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminUsersPayloadWithSavedFolder(currentAdminUserFilter())))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () => jsonResponse(adminUsersPayloadWithSavedFolder(currentAdminUserFilter())))
 
     try {
       renderAppAt("/app-shell/admin/users?smart_folder_id=12")
@@ -7120,7 +7120,7 @@ describe("App", () => {
   })
 
   it("renders the admin transcript route from the app admin transcript API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           run_id: 4,
@@ -7183,7 +7183,7 @@ describe("App", () => {
   })
 
   it("keeps the transcript scrolled to the bottom when new events arrive at the bottom", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(transcriptPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -7221,7 +7221,7 @@ describe("App", () => {
   })
 
   it("shows a new messages button when transcript events arrive away from the bottom", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(transcriptPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -7267,7 +7267,7 @@ describe("App", () => {
   })
 
   it("renders the admin console route from the app admin console API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           settings: {
@@ -7323,7 +7323,7 @@ describe("App", () => {
   })
 
   it("renders the admin installations route from the app admin installations API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           github_app_registered: true,
@@ -7400,7 +7400,7 @@ describe("App", () => {
 
   it("renders the GitHub App registration route from the app admin API", async () => {
     const bounceUrl = "http://localhost:3000/admin/github_app/manifest?state=abc123&syrus_external=1"
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           github_app: {
@@ -7442,7 +7442,7 @@ describe("App", () => {
   })
 
   it("renders the GitHub App confirmation route from the app admin API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           github_app: {
@@ -8129,7 +8129,7 @@ describe("App", () => {
 
   it("rotates an admin API token from the credentials route", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)
-    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockResolvedValue(true), dialog: <></> })
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockImplementation(async () => true), dialog: <></> })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/notification_preferences") {
@@ -8278,7 +8278,7 @@ describe("App", () => {
   })
 
   it("links from the empty direct job form within the React shell", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...directJobFormPayload(),
         repositories: [],
@@ -8689,7 +8689,7 @@ describe("App", () => {
 
   it("runs repository detail commands through the app API", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)
-    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockResolvedValue(true), dialog: <></> })
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockImplementation(async () => true), dialog: <></> })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/repositories/3/poll" && init?.method === "POST") {
@@ -8893,7 +8893,7 @@ describe("App", () => {
 
   it("renders the edit Epic form with React shell links", async () => {
     const basePayload = epicFormPayload()
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...basePayload,
         epic: {
@@ -9174,7 +9174,7 @@ describe("App", () => {
   })
 
   it("does not show claim controls for an Epic owned by another user", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(epicDetailPayload({
+    vi.spyOn(window, "fetch").mockImplementation(async () => new Response(JSON.stringify(epicDetailPayload({
       epic: {
         owner_user_id: 2,
         owner_status: "other_owned",
@@ -9524,7 +9524,7 @@ describe("App", () => {
         issue_title: "Investigate viewport report"
       }
     })
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -9555,7 +9555,7 @@ describe("App", () => {
         epic_path: "/epics/7"
       }
     })
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -10043,7 +10043,7 @@ describe("App", () => {
   }, 60000)
 
   it("labels approval as reapproval after a landing failure", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(jobDetailPayload({
+    vi.spyOn(window, "fetch").mockImplementation(async () => new Response(JSON.stringify(jobDetailPayload({
       job: {
         landing_failure_reason: "auto_merge: PR mergeable_state is \"dirty\" and rebase cap reached"
       },
@@ -11059,7 +11059,7 @@ describe("App", () => {
   })
 
   it("renders a chat attachment add button in the composer", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({ ...chatPayload(), paths: { ...chatPayload().paths, app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs", app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry" } }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11081,7 +11081,7 @@ describe("App", () => {
   it("gates video intake behind the walkthroughs labs flag", async () => {
     // chatPayload() contributes no app_video_walkthroughs_path — which is
     // what a disabled video_walkthroughs plugin looks like to the composer.
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({ ...chatPayload(), gemini_configured: true }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11113,12 +11113,12 @@ describe("App", () => {
   it("blocks sending a ready walkthrough alongside image attachments", async () => {
     // Gemini must be configured or the drop opens the setup sheet instead of
     // creating a walkthrough draft (chatPayload defaults gemini_configured off).
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({ ...chatPayload(), gemini_configured: true, paths: { ...chatPayload().paths, app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs", app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry" } }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     // jsdom implements neither media metadata nor URL.createObjectURL, so the
     // real measureVideoDuration would hang the intake await; resolve it here.
-    vi.spyOn(videoWalkthroughs, "measureVideoDuration").mockResolvedValue(30)
+    vi.spyOn(videoWalkthroughs, "measureVideoDuration").mockImplementation(async () => 30)
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -11154,10 +11154,10 @@ describe("App", () => {
   })
 
   it("blocks dropping a second walkthrough while the first is uploading", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({ ...chatPayload(), gemini_configured: true, paths: { ...chatPayload().paths, app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs", app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry" } }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
-    vi.spyOn(videoWalkthroughs, "measureVideoDuration").mockResolvedValue(30)
+    vi.spyOn(videoWalkthroughs, "measureVideoDuration").mockImplementation(async () => 30)
     // Hold the upload in-flight so the draft stays "uploading" — a settled
     // (ready/failed) draft is replaceable; only an in-flight one is guarded.
     const uploadSpy = vi.spyOn(videoWalkthroughs, "uploadVideoWalkthrough").mockReturnValue(new Promise(() => {}))
@@ -11197,7 +11197,7 @@ describe("App", () => {
   })
 
   it("renders a centered landing layout for an empty chat", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11313,7 +11313,7 @@ describe("App", () => {
   })
 
   it("renders non-empty chats in the standard layout immediately", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11331,7 +11331,7 @@ describe("App", () => {
   })
 
   it("opens and dismisses the chat attachment popover from the compose button", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11359,7 +11359,7 @@ describe("App", () => {
   })
 
   it("triggers the chat file input from the attachment popover", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => undefined)
@@ -11435,7 +11435,7 @@ describe("App", () => {
   })
 
   it("adds a selected chat attachment chip with a remove button", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11456,7 +11456,7 @@ describe("App", () => {
   })
 
   it("removes a selected chat attachment chip", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11536,7 +11536,7 @@ describe("App", () => {
   })
 
   it("blocks chat attachment submission when a file is larger than 5 MB", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11560,7 +11560,7 @@ describe("App", () => {
 
   it("renders chat tabs above the chat panel on mobile", async () => {
     const restoreMedia = mockMediaQuery(false)
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11619,7 +11619,7 @@ describe("App", () => {
   it("truncates a long preview-panel tab title in the mobile tab strip instead of stretching it", async () => {
     const restoreMedia = mockMediaQuery(false)
     const longTitle = "A very long preview panel title that should never be allowed to stretch the tab strip or wrap onto a second line"
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...chatPayload(),
         preview_panels: [{
@@ -11660,7 +11660,7 @@ describe("App", () => {
   })
 
   it("renders low chat token totals without rounding them down to 0k", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({
         cumulativeInputTokens: 12,
         cumulativeOutputTokens: 5,
@@ -11681,7 +11681,7 @@ describe("App", () => {
 
   it("resizes the chat shell from the visual viewport when the mobile keyboard opens", async () => {
     const viewport = stubVisualViewport(720)
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11709,7 +11709,7 @@ describe("App", () => {
   })
 
   it("keeps the chat scrolled to the bottom when new messages arrive at the bottom", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -11748,7 +11748,7 @@ describe("App", () => {
   })
 
   it("shows a new message button when messages arrive away from the bottom", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -11916,7 +11916,7 @@ describe("App", () => {
 
   it("keeps Shift+Enter as a chat input newline on desktop", async () => {
     const restoreViewport = setViewportWidth(1280)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11940,7 +11940,7 @@ describe("App", () => {
 
   it("keeps Enter as a chat input newline on mobile", async () => {
     const restoreViewport = setViewportWidth(390)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11963,7 +11963,7 @@ describe("App", () => {
   })
 
   it("shows and completes slash command suggestions from the chat composer", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -11989,7 +11989,7 @@ describe("App", () => {
 
   it("completes slash commands with Enter before submitting on desktop", async () => {
     const restoreViewport = setViewportWidth(1280)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -12151,7 +12151,7 @@ describe("App", () => {
   })
 
   it("renders shared chats as read-only message streams", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         chat: { id: 8, title: "Aqueduct planning" },
         messages: [
@@ -12508,7 +12508,7 @@ describe("App", () => {
   })
 
   it("cancels mutating skill slash command confirmation without sending", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -12573,7 +12573,7 @@ describe("App", () => {
 
   it("shows an animated chat agent activity indicator", async () => {
     vi.spyOn(Math, "random").mockReturnValue(0)
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({ agentBusy: true, turnInFlight: false })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -12642,7 +12642,7 @@ describe("App", () => {
   })
 
   it("shows a starting state before the chat agent process is running", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({ agentBusy: false, turnInFlight: true })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -12713,7 +12713,7 @@ describe("App", () => {
   })
 
   it("grows the chat input up to five rows", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -12918,7 +12918,7 @@ describe("App", () => {
 
   it("does not push the initial whiteboard scene back through the imperative API", async () => {
     excalidrawMock.updateScene.mockClear()
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -12941,7 +12941,7 @@ describe("App", () => {
       collaborators: {},
       selectedElementIds: { "box-1": true }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -12963,7 +12963,7 @@ describe("App", () => {
       viewBackgroundColor: "#ffffff",
       activeTool: { type: "rectangle", customType: null }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -13022,7 +13022,7 @@ describe("App", () => {
       if (event.error instanceof Error && event.error.message === "Canvas crashed") event.preventDefault()
     }
     window.addEventListener("error", preventExpectedCanvasError)
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -13046,7 +13046,7 @@ describe("App", () => {
   })
 
   it("renders raw chat messages on the frontend", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({
         messages: [
           {
@@ -13315,7 +13315,7 @@ describe("App", () => {
   })
 
   it("keeps unmatched text tool results out of assistant message rendering", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({
         messages: [
           {
@@ -13344,7 +13344,7 @@ describe("App", () => {
   })
 
   it("renders Codex tool rows with descriptive tool labels", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({
         messages: [
           {
@@ -13585,10 +13585,10 @@ describe("App", () => {
   }, 15000)
 
   it("shows Copy button on chat messages and copies text to clipboard", async () => {
-    const writeTextSpy = vi.fn().mockResolvedValue(undefined)
+    const writeTextSpy = vi.fn().mockImplementation(async () => undefined)
     Object.defineProperty(navigator, "clipboard", { value: { writeText: writeTextSpy }, configurable: true })
 
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    vi.spyOn(window, "fetch").mockImplementation(async () => new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -13609,7 +13609,7 @@ describe("App", () => {
 
   it("shows relative timestamp on chat message with created_at within the last hour", async () => {
     const recentCreatedAt = new Date(Date.now() - 4 * 60 * 1000).toISOString()
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+    vi.spyOn(window, "fetch").mockImplementation(async () => new Response(JSON.stringify(chatPayload({
       messages: [
         {
           type: "message",
@@ -13642,7 +13642,7 @@ describe("App", () => {
     const now = new Date()
     const pastDate = new Date(now.getFullYear(), 0, 15, 10, 29, 0)
     const oldCreatedAt = pastDate.toISOString()
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+    vi.spyOn(window, "fetch").mockImplementation(async () => new Response(JSON.stringify(chatPayload({
       messages: [
         {
           type: "message",
@@ -13674,7 +13674,7 @@ describe("App", () => {
   it("shows year in timestamp on chat message with created_at from a previous year", async () => {
     const previousYearDate = new Date(new Date().getFullYear() - 1, 6, 5, 22, 29, 0)
     const oldCreatedAt = previousYearDate.toISOString()
-    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(chatPayload({
+    vi.spyOn(window, "fetch").mockImplementation(async () => new Response(JSON.stringify(chatPayload({
       messages: [
         {
           type: "message",
@@ -13875,7 +13875,7 @@ describe("App", () => {
         materialized_path: null
       }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -13924,7 +13924,7 @@ describe("App", () => {
         materialized_path: null
       }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -13940,7 +13940,7 @@ describe("App", () => {
   })
 
   it("renders queued pending actions as waiting without action buttons", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...chatPayload({
           pendingActions: [
@@ -13966,7 +13966,7 @@ describe("App", () => {
   })
 
   it("renders confirming and failed pending actions with execution details", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...chatPayload({
           pendingActions: [
@@ -14020,7 +14020,7 @@ describe("App", () => {
       text: "A later assistant message.",
       bookmarkable: true
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...chatPayload({
           messages: [userMessage, linkedMessage, laterMessage],
@@ -14056,7 +14056,7 @@ describe("App", () => {
   })
 
   it("renders unanchored pending actions after the last message", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...chatPayload({
           messages: [
@@ -14085,7 +14085,7 @@ describe("App", () => {
   })
 
   it("renders terminal pending actions as read-only badges", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({
         ...chatPayload({
           pendingActions: [
@@ -14152,7 +14152,7 @@ describe("App", () => {
         children: []
       }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -14201,7 +14201,7 @@ describe("App", () => {
         materialized: { kind: "rejected", reason: "rejected" }
       }
     }
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(chatPayload({ messages: [...chatPayload().messages, proposalMessage] })), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
@@ -16757,7 +16757,7 @@ function setViewportWidth(width: number) {
 
 function mockClipboardWrite() {
   const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard")
-  const writeText = vi.fn().mockResolvedValue(undefined)
+  const writeText = vi.fn().mockImplementation(async () => undefined)
 
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
