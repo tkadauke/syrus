@@ -6,7 +6,7 @@ module MetricsDashboard
     queue_as :cleanup
 
     def perform
-      deleted = Sample.prunable.delete_all
+      deleted = MetricsDashboard::Sample.prunable.delete_all
       Rails.logger.info("[MetricsDashboard::PruneJob] pruned #{deleted} samples") if deleted.positive?
       deleted
     end
