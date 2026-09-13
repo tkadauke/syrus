@@ -14,9 +14,9 @@ class CreateGithubApiUsageRollups < ActiveRecord::Migration[8.1]
         t.datetime :bucket_started_at, null: false
         t.string :auth_source, null: false, limit: STRING_LIMITS.fetch(:auth_source)
         t.string :credential_key, null: false, limit: STRING_LIMITS.fetch(:credential_key)
-        t.references :installation
-        t.references :user
-        t.references :repository
+        t.references :installation, type: :bigint, foreign_key: false
+        t.references :user, type: :bigint, foreign_key: false
+        t.references :repository, type: :bigint, foreign_key: false
         t.string :repository_key, null: false, limit: STRING_LIMITS.fetch(:repository_key)
         t.string :repo_slug
         t.string :operation, null: false, limit: STRING_LIMITS.fetch(:operation)
