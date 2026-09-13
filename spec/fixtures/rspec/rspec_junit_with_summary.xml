@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="rspec" tests="3" failures="1" errors="0" skipped="1" time="1.234">
+  <testsuite name="spec/models/widget_spec.rb" tests="3" failures="1" errors="0" skipped="1" time="1.234">
+    <testcase classname="spec.models.widget_spec" name="Widget#price returns the base price" file="spec/models/widget_spec.rb" time="0.100"/>
+    <testcase classname="spec.models.widget_spec" name="Widget#price applies the discount" file="spec/models/widget_spec.rb" time="0.200">
+      <failure message="expected: 100 got: 125"><![CDATA[
+Failures:
+
+  1) Widget#price applies the discount
+     Failure/Error: expect(widget.price).to eq(100)
+
+       expected: 100
+            got: 125
+
+     # ./spec/models/widget_spec.rb:42:in `block (3 levels) in <top (required)>'
+
+Finished in 1.23 seconds (files took 4.56 seconds to load)
+3 examples, 1 failure, 1 pending
+      ]]></failure>
+    </testcase>
+    <testcase classname="spec.models.widget_spec" name="Widget#price handles tax">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -107,6 +107,37 @@ RSpec.describe "Steps::Grader :test_result_parser plugin integration" do
       expect(JunitXmlParser).not_to receive(:parse)
       expect { handler.call rescue nil }.not_to raise_error
     end
+
+    it "prefers JUnit XML for XML output even when a plugin would claim the file" do
+      plugin = parser_provider
+      output_path = @ws_path.join(".syrus/grade-output/rspec-junit.xml")
+      FileUtils.mkdir_p(output_path.dirname)
+      FileUtils.cp(Rails.root.join("spec/fixtures/rspec/rspec_junit_with_summary.xml"), output_path)
+
+      expect(plugin).not_to receive(:can_parse?)
+      expect(plugin).not_to receive(:call)
+      register_parser("text-parser", plugin)
+
+      step = make_step(junit_output: ".syrus/grade-output/rspec-junit.xml")
+      handler, run = handler_for(step)
+
+      expect { handler.call }
+        .to change(TestInsights::TestRun, :count).by(1)
+        .and change(TestInsights::TestCase, :count).by(3)
+
+      test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "go-tests")
+      expect(test_run).to have_attributes(
+        total_count: 3,
+        passed_count: 1,
+        failed_count: 1,
+        skipped_count: 1
+      )
+      expect(test_run.test_cases.pluck(:name)).to contain_exactly(
+        "Widget#price returns the base price",
+        "Widget#price applies the discount",
+        "Widget#price handles tax"
+      )
+    end
   end
 
   context "when a plugin's can_parse? returns false" do

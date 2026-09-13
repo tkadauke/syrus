@@ -124,4 +124,33 @@ RSpec.describe "Steps::Grader real RSpec output ingestion", requires_plugin: "ru
     test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "rspec")
     expect(test_run).to have_attributes(total_count: 6, passed_count: 6, failed_count: 0)
   end
+
+  it "ingests RSpec JUnit XML as JUnit even when failure bodies contain RSpec progress text" do
+    write_fixture("rspec_junit_with_summary.xml", ".syrus/grade-output/rspec-junit.xml")
+    step = make_step(junit_output: ".syrus/grade-output/rspec-junit.xml")
+    handler, run = handler_for(step)
+
+    expect { handler.call }
+      .to change(TestInsights::TestRun, :count).by(1)
+      .and change(TestInsights::TestCase, :count).by(3)
+
+    test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "rspec")
+    expect(test_run).to have_attributes(
+      total_count: 3,
+      passed_count: 1,
+      failed_count: 1,
+      skipped_count: 1,
+      error_count: 0,
+      duration_ms: 1234
+    )
+
+    failed_case = test_run.test_cases.find_by!(name: "Widget#price applies the discount")
+    expect(failed_case).to have_attributes(
+      suite_name: "spec.models.widget_spec",
+      file_path: "spec/models/widget_spec.rb",
+      status: "failed"
+    )
+    expect(failed_case.failure_message).to eq("expected: 100 got: 125")
+    expect(failed_case.failure_backtrace).to include("3 examples, 1 failure, 1 pending")
+  end
 end

@@ -40,13 +40,14 @@ for that variant.
 
 ## How the file gets parsed: the `test_result_parser` extension point
 
-`ingest_test_output!` tries every registered `test_result_parser` plugin
-provider in registration order (`Syrus::PluginRegistry.providers_for(:test_result_parser)`),
-calling `can_parse?(output_path:, format_hint: nil)` on each; the first
-provider that returns `true` handles the file via `call(output_path:, format_hint: nil)`.
-If no plugin claims the file, core falls back to `JunitXmlParser`, which
-parses standard JUnit XML (`<testsuite>`/`<testsuites>` with `<testcase>`
-elements, `<failure>`/`<error>`/`<skipped>` children).
+`ingest_test_output!` prefers core `JunitXmlParser` first for `.xml`/`.junit`
+or JUnit-rooted files (`<testsuite>`/`<testsuites>` with `<testcase>` elements,
+`<failure>`/`<error>`/`<skipped>` children). Other files try every registered
+`test_result_parser` plugin provider in registration order
+(`Syrus::PluginRegistry.providers_for(:test_result_parser)`), calling
+`can_parse?(output_path:, format_hint: nil)` on each; the first provider that
+returns `true` handles the file via `call(output_path:, format_hint: nil)`.
+If no plugin claims the file, core falls back to `JunitXmlParser`.
 
 A parser's `call` must return an object duck-typed to
 `JunitXmlParser::ParsedRun`: it responds to `total_count`, `passed_count`,
@@ -86,10 +87,10 @@ bin/rspec spec plugins --format progress --require rspec_junit_formatter --forma
 ```
 
 Because JUnit XML enumerates every example (passed, failed, and skipped),
-`JunitXmlParser` (the core fallback — `Ruby::RspecParser.can_parse?`
-declines XML content, since it doesn't match the progress-format summary
-line) creates one `TestCase` row per example per grader Run, giving
-`TestCase.top_flaky_tests` real signal.
+`JunitXmlParser` (the core parser preferred for XML output —
+`Ruby::RspecParser.can_parse?` declines XML content unless explicitly called
+with `format_hint: "rspec"`) creates one `TestCase` row per example per
+grader Run, giving `TestCase.top_flaky_tests` real signal.
 
 `junit_output` is attached to the grader entry that produced it, independent of
 phase. If a repository has separate landing and CI commands (for example

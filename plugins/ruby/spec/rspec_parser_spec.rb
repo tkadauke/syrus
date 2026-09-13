@@ -14,6 +14,11 @@ RSpec.describe Ruby::RspecParser do
       expect(described_class.can_parse?(output_path: path, format_hint: "rspec")).to be true
     end
 
+    it "returns true for XML content only when format_hint explicitly asks for RSpec text parsing" do
+      path = fixture("rspec_junit_with_summary.xml")
+      expect(described_class.can_parse?(output_path: path, format_hint: "rspec")).to be true
+    end
+
     it "returns true when content looks like RSpec output (has examples + failure keywords)" do
       path = fixture("progress_output.txt")
       expect(described_class.can_parse?(output_path: path)).to be true
@@ -34,6 +39,11 @@ RSpec.describe Ruby::RspecParser do
         f.flush
         expect(described_class.can_parse?(output_path: f.path)).to be false
       end
+    end
+
+    it "returns false for RSpec JUnit XML even when failure bodies contain RSpec summary text" do
+      path = fixture("rspec_junit_with_summary.xml")
+      expect(described_class.can_parse?(output_path: path)).to be false
     end
   end
 

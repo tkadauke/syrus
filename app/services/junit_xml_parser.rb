@@ -1,4 +1,5 @@
 require "rexml/document"
+require "pathname"
 
 # Parses JUnit XML output files into structured data for TestRun/TestCase ingestion.
 #
@@ -27,6 +28,23 @@ class JunitXmlParser
 
   def self.parse(xml_content)
     new(xml_content).parse
+  end
+
+  def self.preferred_for?(path, format_hint: nil)
+    hint = format_hint.to_s.downcase
+    return true if %w[xml junit].include?(hint)
+
+    pathname = Pathname.new(path.to_s)
+    return true if %w[.xml .junit].include?(pathname.extname.downcase)
+
+    junit_root?(pathname)
+  end
+
+  def self.junit_root?(path)
+    content = File.read(path.to_s, 4096)
+    content.match?(/\A(?:\uFEFF)?\s*(?:<\?xml\b[^>]*>\s*)?<(?:testsuites|testsuite)\b/)
+  rescue Errno::ENOENT, Errno::EACCES
+    false
   end
 
   def initialize(xml_content)

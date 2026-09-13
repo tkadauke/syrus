@@ -14,6 +14,7 @@ module Ruby
     # Returns true when this parser can handle the given output file.
     def self.can_parse?(output_path:, format_hint: nil)
       return true if format_hint.to_s == "rspec"
+      return false if JunitXmlParser.preferred_for?(output_path, format_hint: format_hint)
 
       content = File.read(output_path.to_s)
       content.match?(/\d+ examples?/) && content.match?(/failure|pending/i)

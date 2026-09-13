@@ -49,7 +49,13 @@ module TestInsights
 
     # Language plugins contribute framework-native parsers through
     # "test_insights:parser"; JUnit XML is the fallback every language can emit.
+    # Prefer core JUnit parsing for XML/JUnit-looking files so failure bodies
+    # containing text formatter output do not get claimed by text parsers.
     def self.parse(path, format_hint)
+      if ::JunitXmlParser.preferred_for?(path, format_hint: format_hint)
+        return [ "JunitXmlParser", ::JunitXmlParser.parse(path.read) ]
+      end
+
       Syrus::PluginRegistry.providers_for("test_insights:parser").each do |provider|
         can_parse = PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :can_parse) do
           provider.can_parse?(output_path: path, format_hint: format_hint)
