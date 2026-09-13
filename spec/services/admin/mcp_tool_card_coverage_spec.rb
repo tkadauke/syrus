@@ -14,6 +14,10 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     Class.new do
       include Syrus::Plugin::ChatMcpToolSet
 
+      def self.available_for?(_chat_session, tier:)
+        tier.to_sym == :essential
+      end
+
       def self.tool_definitions(tier:)
         [
           { name: "plugin_used_tool", description: "Used plugin tool", input_schema: {} },
@@ -41,6 +45,79 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
         { tool_name: "core_error_tool" },
         { tool_name: "core_unused_tool" }
       ]
+    )
+  end
+
+  it "attributes session-dependent plugin tools using the current chat session" do
+    admin = Factories.user(admin: true)
+    chat_session = ChatSession.create!(user: admin, title: "Admin chat")
+    session_tool_set = Class.new do
+      include Syrus::Plugin::ChatMcpToolSet
+
+      def self.available_for?(_chat_session, tier:)
+        tier.to_sym == :essential
+      end
+
+      def self.tool_definitions(tier:, chat_session: nil)
+        return [
+          { name: "session_visible_tool", description: "Visible", input_schema: {} },
+          { name: "admin_visible_tool", description: "Admin", input_schema: {} }
+        ] if tier.nil?
+        return [] unless tier.to_sym == :essential
+
+        tools = [ { name: "session_visible_tool", description: "Visible", input_schema: {} } ]
+        tools << { name: "admin_visible_tool", description: "Admin", input_schema: {} } if chat_session&.user&.admin?
+        tools
+      end
+    end
+
+    Syrus::PluginRegistry.register(
+      name: "session_plugin",
+      version: "1.0.0",
+      provides: { chat_mcp_tool_set: session_tool_set }
+    )
+
+    report = described_class.call(
+      usages: McpToolUsage.none,
+      advertised_tools: %w[admin_visible_tool session_visible_tool],
+      chat_session: chat_session
+    )
+
+    expect(report.fetch(:unused_advertised_tools)).to include(
+      include(tool_name: "admin_visible_tool", owner_type: "plugin", owner_name: "session_plugin", recommendation_target: "plugin:session_plugin"),
+      include(tool_name: "session_visible_tool", owner_type: "plugin", owner_name: "session_plugin", recommendation_target: "plugin:session_plugin")
+    )
+  end
+
+  it "attributes deferred-only plugin tools without probing unavailable tiers" do
+    deferred_tool_set = Class.new do
+      include Syrus::Plugin::ChatMcpToolSet
+
+      def self.available_for?(_chat_session, tier:)
+        tier.to_sym == :deferred
+      end
+
+      def self.tool_definitions(tier:)
+        return [ { name: "deferred_plugin_tool", description: "Deferred", input_schema: {} } ] if tier.nil?
+        raise "essential tier should not be inspected" if tier.to_sym == :essential
+
+        [ { name: "deferred_plugin_tool", description: "Deferred", input_schema: {} } ]
+      end
+    end
+
+    Syrus::PluginRegistry.register(
+      name: "deferred_plugin",
+      version: "1.0.0",
+      provides: { chat_mcp_tool_set: deferred_tool_set }
+    )
+
+    report = described_class.call(
+      usages: McpToolUsage.none,
+      advertised_tools: %w[deferred_plugin_tool]
+    )
+
+    expect(report.fetch(:unused_advertised_tools)).to include(
+      include(tool_name: "deferred_plugin_tool", owner_type: "plugin", owner_name: "deferred_plugin", recommendation_target: "plugin:deferred_plugin")
     )
   end
 
