@@ -65,7 +65,7 @@ module Api
         end
 
         # Built-in types plus whatever enabled plugins contribute through
-        # :search_source. Ordering is stable -- plugin types sort after the
+        # "global_search:source". Ordering is stable -- plugin types sort after the
         # built-ins -- so type_order stays meaningful.
         def self.types
           BUILT_IN_TYPES + search_source_providers.map { |provider| provider.search_type.to_s }

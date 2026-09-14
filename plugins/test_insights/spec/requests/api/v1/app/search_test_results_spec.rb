@@ -1,6 +1,6 @@
 require "rails_helper"
 
-# The plugin registers `test_case` as a :search_source, so unified search can
+# The plugin registers `test_case` through "global_search:source", so unified search can
 # return test identities. Core's search spec stays plugin-agnostic; this is
 # the plugin's own end of that contract.
 RSpec.describe "App API unified search: test results", type: :request do
