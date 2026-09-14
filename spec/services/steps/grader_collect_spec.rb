@@ -595,6 +595,43 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "keeps target-health proof refs on skipped grader iteration results" do
+    workflow.steps.where(kind: "grader").delete_all
+    workflow.set_artifact!(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY, [
+      {
+        "name" => "lint",
+        "required" => true,
+        "target_label" => "//:grade/lint",
+        "target_health_record_id" => 123,
+        "target_health_record_refs" => [
+          {
+            "target_health_record_id" => 123,
+            "target_label" => "//:grade/lint",
+            "status" => "passed",
+            "commit_sha" => "previous123"
+          }
+        ],
+        "commit_sha" => "previous123",
+        "checked_at" => "2026-09-14T00:00:00Z",
+        "reason" => "latest target health record passed"
+      }
+    ])
+
+    expect { handler.call }.not_to raise_error
+
+    iteration = workflow.reload.artifact("iterations").first
+    expect(iteration).to contain_exactly(
+      include(
+        "name" => "lint",
+        "status" => "passed",
+        "target_health_skipped" => true,
+        "target_health_record_id" => 123,
+        "target_health_record_refs" => [ include("target_health_record_id" => 123) ],
+        "reason" => "latest target health record passed"
+      )
+    )
+  end
+
   describe "current_head_sha artifact-first lookup" do
     it "reads HEAD SHA from the workflow artifact when ARTIFACT_HEAD_SHA_KEY is present" do
       workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "artifact-sha")
