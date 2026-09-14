@@ -12,5 +12,8 @@
   "index_label": "Index documentorum consilii",
   "columns_label": "Columnae",
   "visible_columns": "Columnae visibiles",
+  "move_left": "{{title}} sinistrorsum move",
+  "move_right": "{{title}} dextrorsum move",
+  "move_up": "Sursum",
   "move_down": "Deorsum"
 }

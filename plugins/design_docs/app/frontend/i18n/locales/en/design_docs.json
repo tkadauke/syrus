@@ -12,5 +12,8 @@
   "index_label": "Design Docs index",
   "columns_label": "Columns",
   "visible_columns": "Visible columns",
+  "move_left": "Move {{title}} left",
+  "move_right": "Move {{title}} right",
+  "move_up": "Up",
   "move_down": "Down"
 }

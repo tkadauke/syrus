@@ -12,5 +12,8 @@
   "index_label": "Design-Docs-Index",
   "columns_label": "Spalten",
   "visible_columns": "Sichtbare Spalten",
+  "move_left": "{{title}} nach links verschieben",
+  "move_right": "{{title}} nach rechts verschieben",
+  "move_up": "Nach oben",
   "move_down": "Nach unten"
 }

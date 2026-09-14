@@ -351,8 +351,8 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
                           />
                           <span className="truncate">{column.title}</span>
                         </label>
-                        <button aria-label={`Move ${column.title} left`} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">Up</button>
-                        <button aria-label={`Move ${column.title} right`} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">{designDocsT("move_down")}</button>
+                        <button aria-label={designDocsT("move_left", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">{designDocsT("move_up")}</button>
+                        <button aria-label={designDocsT("move_right", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">{designDocsT("move_down")}</button>
                       </div>
                     )
                   })}

@@ -71,6 +71,7 @@ class RuntimeControlLease < ApplicationRecord
 
     group = SERIALIZATION_GROUPS.fetch(mode) { raise ArgumentError, "unknown mode #{mode.inspect}" }
     duration = (duration_seconds || DEFAULT_DURATION).to_i.clamp(MIN_DURATION.to_i, MAX_DURATION.to_i)
+    now = Time.current
 
     transaction do
       reap_stale_holder!(runtime_session: runtime_session, group: group)
@@ -83,8 +84,8 @@ class RuntimeControlLease < ApplicationRecord
           mode: mode,
           reason: reason,
           state: "active",
-          acquired_at: Time.current,
-          expires_at: duration.seconds.from_now,
+          acquired_at: now,
+          expires_at: now + duration.seconds,
           cancellable: cancellable
         )
       rescue ActiveRecord::RecordNotUnique
