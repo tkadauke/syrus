@@ -40,6 +40,7 @@ RSpec.describe "maintenance task definitions" do
         hostname: "worker-1",
         started_at: Time.current
       )
+      SpawnedProcess.where(id: [ run_process.id, chat_process.id ]).update_all(agent_id: nil)
       task = maintenance_task_for(definition)
 
       result = definition.perform_batch(task)

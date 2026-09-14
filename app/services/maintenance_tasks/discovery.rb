@@ -22,7 +22,34 @@ module MaintenanceTasks
     end
 
     def ensure_pending_task(definition, task)
-      return if task && !task.state.in?(%w[not_needed cancelled succeeded])
+      if task
+        return unless task.state.in?(%w[not_needed cancelled succeeded])
+
+        task.update!(
+          definition.build_task_attributes(
+            trigger_kind: task.trigger_kind,
+            trigger_key: task.trigger_key,
+            task_key: task.task_key
+          ).except(:state).merge(
+            state: "pending",
+            completed_units: 0,
+            failed_units: 0,
+            current_step_key: nil,
+            current_step_title: nil,
+            eta_seconds: nil,
+            started_at: nil,
+            finished_at: nil,
+            paused_at: nil,
+            cancelled_at: nil,
+            dismissed_at: nil,
+            dismissed_by_user: nil,
+            last_error: nil,
+            checkpoint: {}
+          )
+        )
+        task.log!(task.metadata["pending_reason"].presence || "Maintenance task is pending again.")
+        return
+      end
 
       MaintenanceTask.create!(
         definition.build_task_attributes(

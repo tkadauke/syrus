@@ -36,6 +36,15 @@ RSpec.describe Run, :ci_only do
     end
   end
 
+  describe "agent attribution" do
+    it "creates an Agent row when the Run is created" do
+      run = job.initial_run
+
+      expect(run.agent).to be_present
+      expect(run.agent.resumable).to eq(run)
+    end
+  end
+
   describe "#resume_worker_queue" do
     it "uses the workflow storage queue for mutable workflow runs" do
       workflow = Workflow.create!(

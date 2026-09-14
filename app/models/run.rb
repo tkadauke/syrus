@@ -53,6 +53,7 @@ class Run < ApplicationRecord
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create
   before_validation :set_effective_at
+  after_create :ensure_agent_record!
 
   # Backstop for genuine agent hangs (claude alive but making no
   # progress). Rare in practice — claude almost always streams a chunk
@@ -192,6 +193,10 @@ class Run < ApplicationRecord
 
   def propagate_run_state_change!
     Runs::LifecyclePropagation.state_changed!(self)
+  end
+
+  def ensure_agent_record!
+    Agent.find_or_create_for!(self)
   end
 
   def initial?

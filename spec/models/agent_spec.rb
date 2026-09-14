@@ -8,6 +8,7 @@ RSpec.describe Agent do
 
   describe ".find_or_create_for!" do
     it "creates the first Agent for a resumable" do
+      Agent.where(resumable: run).delete_all
       agent = described_class.find_or_create_for!(run)
 
       expect(agent).to be_persisted
@@ -15,6 +16,7 @@ RSpec.describe Agent do
     end
 
     it "returns the existing Agent when the unique index loses a creation race" do
+      Agent.where(resumable: run).delete_all
       existing = nil
       first_call_entered = Queue.new
       release_first_call = Queue.new
@@ -52,6 +54,7 @@ RSpec.describe Agent do
     end
 
     it "returns the existing Agent when the uniqueness validation loses a creation race" do
+      Agent.where(resumable: run).delete_all
       existing = described_class.create!(resumable: run)
       duplicate = described_class.new(resumable: run)
       duplicate.valid?
@@ -74,14 +77,14 @@ RSpec.describe Agent do
 
   describe "resumable polymorphism" do
     it "resolves a real Run resumable" do
-      agent = described_class.create!(resumable: run)
+      agent = run.agent
 
       expect(agent.reload.resumable).to eq(run)
       expect(run.reload.agent).to eq(agent)
     end
 
     it "resolves a real ChatSession resumable" do
-      agent = described_class.create!(resumable: chat_session)
+      agent = chat_session.agent
 
       expect(agent.reload.resumable).to eq(chat_session)
       expect(chat_session.reload.agent).to eq(agent)
@@ -91,7 +94,7 @@ RSpec.describe Agent do
   describe "#provider_session" do
     it "delegates to the resumable provider_session" do
       provider_session = run.create_provider_session!(session_id: "uuid", transcript_jsonl: "captured")
-      agent = described_class.create!(resumable: run)
+      agent = run.agent
 
       expect(agent.provider_session).to eq(provider_session)
     end

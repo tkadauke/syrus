@@ -47,6 +47,36 @@ RSpec.describe MaintenanceTasks::Discovery do
     expect { described_class.call }.not_to change(MaintenanceTask, :count)
   end
 
+  it "revives a completed detector task when work appears again" do
+    task = MaintenanceTask.create!(
+      definition_key: "stub_backfill",
+      task_key: "detector:stub_backfill",
+      state: "succeeded",
+      recurrence: "one_off",
+      category: "backfill",
+      title: "Stub backfill",
+      summary: "A stub backfill for discovery specs.",
+      trigger_kind: "detector",
+      trigger_key: "stub_backfill",
+      required_role: "admin",
+      total_units: 5,
+      completed_units: 5,
+      finished_at: 1.hour.ago,
+      checkpoint: { "done" => true }
+    )
+
+    expect { described_class.call }.not_to change(MaintenanceTask, :count)
+
+    expect(task.reload).to have_attributes(
+      state: "pending",
+      total_units: 5,
+      completed_units: 0,
+      finished_at: nil,
+      checkpoint: {}
+    )
+    expect(task.events.last.message).to eq("5 rows need backfill.")
+  end
+
   it "marks inactive pending tasks not needed when the definition no longer has work" do
     task = MaintenanceTask.create!(
       definition_key: "stub_backfill",

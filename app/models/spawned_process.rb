@@ -34,6 +34,7 @@ class SpawnedProcess < ApplicationRecord
   validates :command, :hostname, :started_at, presence: true
   validates :outcome, inclusion: { in: OUTCOMES, allow_nil: true }
   before_validation :default_resource_attribution
+  before_validation :default_agent_attribution, on: :create
 
   scope :stale, ->(threshold = STALE_THRESHOLD) {
     running.where("(last_chunk_at IS NULL AND started_at < :t) OR last_chunk_at < :t", t: threshold.ago)
@@ -154,5 +155,12 @@ class SpawnedProcess < ApplicationRecord
 
   def default_resource_attribution
     self.resource_attribution ||= {}
+  end
+
+  def default_agent_attribution
+    return if agent_id.present?
+
+    self.agent = Agent.find_or_create_for!(run) if run
+    self.agent ||= Agent.find_or_create_for!(chat_session) if chat_session
   end
 end

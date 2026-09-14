@@ -22,6 +22,8 @@ RSpec.describe ChatSession do
     expect(session).to be_persisted
     expect(session.attached_repositories).to contain_exactly(repo)
     expect(session.repository).to eq(repo)
+    expect(session.agent).to be_present
+    expect(session.agent.resumable).to eq(session)
     expect(session.cumulative_input_tokens).to eq(0)
     expect(session.cumulative_output_tokens).to eq(0)
     expect(session.cumulative_cost).to eq(0)

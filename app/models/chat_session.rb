@@ -94,6 +94,7 @@ class ChatSession < ApplicationRecord
   before_validation :seed_chat_provider, on: :create
   after_create :attach_initial_repository
   after_create :add_owner_participant
+  after_create :ensure_agent_record!
   # prepend: dependent-association callbacks (declared above) also run
   # as before_destroy; the pending JobDependency placeholders must be
   # released BEFORE `dependent: :destroy` deletes the proposals they
@@ -199,6 +200,10 @@ class ChatSession < ApplicationRecord
 
   def soft_delete_by!(actor)
     update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
+  end
+
+  def ensure_agent_record!
+    Agent.find_or_create_for!(self)
   end
 
   def deleted?

@@ -85,6 +85,28 @@ RSpec.describe SpawnedProcess do
     expect(sp.reload.agent).to eq(agent)
   end
 
+  it "defaults agent attribution from the associated run" do
+    run = Factories.run
+    sp = described_class.create!(base_attrs.merge(run: run))
+
+    expect(sp.reload.agent).to eq(run.agent)
+  end
+
+  it "defaults agent attribution from the associated chat session when there is no run" do
+    chat_session = ChatSession.create!(user: user)
+    sp = described_class.create!(base_attrs.merge(chat_session: chat_session))
+
+    expect(sp.reload.agent).to eq(chat_session.agent)
+  end
+
+  it "prefers run agent attribution when both run and chat session are present" do
+    run = Factories.run
+    chat_session = ChatSession.create!(user: user)
+    sp = described_class.create!(base_attrs.merge(run: run, chat_session: chat_session))
+
+    expect(sp.reload.agent).to eq(run.agent)
+  end
+
   describe ".stale" do
     it "scopes to running rows whose heartbeat is older than the threshold" do
       fresh = described_class.create!(base_attrs.merge(last_chunk_at: 1.minute.ago))
