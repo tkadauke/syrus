@@ -2338,6 +2338,33 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(chat.reload.coding_checkout_branch).to be_nil
     end
 
+    it "discards checkout and closes a fresh coding Job with no branch or PR" do
+      sign_in_as(user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        mode: "coding",
+        coding_checkout_branch: "main",
+        coding_checkout_uncommitted: true
+      )
+      job = Factories.job_record(user: user, repository: repository, kind: "direct",
+                                 issue_number: nil, state: "coding", linked_chat_id: chat.id,
+                                 branch_name: nil, pr_number: nil)
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:cancel_coding_checkout!).with(chat, repository) do
+        chat.update!(coding_checkout_branch: nil, coding_checkout_uncommitted: false)
+      end
+
+      delete "/api/v1/app/chats/#{chat.id}/coding_checkout"
+
+      expect(response).to have_http_status(:ok)
+      expect(ChatWorkspace).to have_received(:cancel_coding_checkout!).with(chat, repository)
+      expect(job.reload).to be_closed
+      expect(job.closure_reason).to eq("cancelled")
+      expect(job.linked_chat_id).to be_nil
+      expect(parse_body["attached_coding_job"]).to be_nil
+    end
+
     it "cancels stale pending handoff actions when detaching the coding Job" do
       sign_in_as(user)
       chat = ChatSession.create!(

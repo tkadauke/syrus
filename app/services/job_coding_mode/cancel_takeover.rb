@@ -21,12 +21,20 @@ module JobCodingMode
 
       ChatWorkspace.cancel_coding_checkout!(@chat_session, @repository)
       cancel_pending_handoff_actions!(job) if job
-      job&.release_coding_mode_takeover!
+      release_or_close_job!(job) if job
 
       Result.new(job: job&.reload, chat_session: @chat_session.reload)
     end
 
     private
+
+    def release_or_close_job!(job)
+      if job.pr_number.present? || job.branch_name.present?
+        job.release_coding_mode_takeover!
+      else
+        job.cancel_new_coding_job!
+      end
+    end
 
     def cancel_pending_handoff_actions!(job)
       @chat_session.pending_actions
