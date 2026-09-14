@@ -366,6 +366,7 @@ Rails.application.routes.draw do
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
           get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
           patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
+          get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }
           get "plugin_pages", to: "plugin_pages#index"
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
           post "queue/reap_stale_runs", to: "queue#reap_stale_runs"
@@ -611,6 +612,7 @@ Rails.application.routes.draw do
   get "admin/resource_admission", to: "spa#show", as: :admin_resource_admission
   get "admin/queue", to: "spa#show", as: :admin_queue_root
   get "admin/queue/:tab", to: "spa#show", as: :admin_queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
+  get "admin/plugins/:name", to: "spa#show", as: :admin_plugin, constraints: { name: /[^\/]+/ }
   get "admin/processes", to: "spa#show", as: :admin_processes
   get "admin/processes/:id", to: "spa#show", as: :admin_process, constraints: { id: /\d+/ }
   get "admin/users", to: "spa#show", as: :admin_users
