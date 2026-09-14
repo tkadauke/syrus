@@ -652,6 +652,7 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("plugins/terminal/docs/syrus_docs/terminal-reference-with-a-long-mobile-path.md")).toHaveClass("break-all")
     expect(screen.getByText("Enabling")).toBeInTheDocument()
     expect(screen.getByTestId("plugin-doc-card")).toHaveClass("min-w-0", "overflow-hidden")
+    expect(screen.getByText(/bin\/terminal-session/).closest(".plugin-docs-prose")).toBeInTheDocument()
     expect(screen.getByText(/bin\/terminal-session/).closest(".overflow-x-auto")).toBeInTheDocument()
     expect(screen.getByText("syrus_terminal_sessions_total")).toBeInTheDocument()
     expect(screen.getByText("Sessions")).toBeInTheDocument()
