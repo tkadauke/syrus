@@ -1,6 +1,13 @@
 module MetricsDashboard
   extend Syrus::PluginApi
 
+  # How often a sample actually lands, which is not the same as `tick_interval`
+  # below: PluginTickSchedulerJob polls on its own cadence, so a 1-minute tick
+  # arrives roughly every 89 seconds in practice. DashboardPayload sizes its
+  # buckets against this -- anything finer misses samples routinely and draws
+  # the gaps as holes in the line.
+  SAMPLE_INTERVAL = 90.seconds
+
   syrus_plugin "metrics_dashboard" do
     display_name "Metrics Dashboard"
     description "Charts Syrus's own metrics -- queue health, throughput, feature usage -- without needing Prometheus."

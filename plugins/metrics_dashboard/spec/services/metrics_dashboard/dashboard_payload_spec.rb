@@ -26,8 +26,18 @@ RSpec.describe MetricsDashboard::DashboardPayload do
     end
 
     it "uses a coarser bucket for a longer window" do
-      expect(described_class.build(window: "1h")[:bucket_seconds]).to eq(60)
+      expect(described_class.build(window: "1h")[:bucket_seconds]).to eq(3.minutes.to_i)
       expect(described_class.build(window: "7d")[:bucket_seconds]).to eq(1.hour.to_i)
+    end
+
+    # The recorder ticks once a minute nominally but lands about every 89
+    # seconds in practice. Any bucket narrower than that misses samples
+    # routinely, which is what turned every chart into a comb.
+    it "never buckets more finely than the recorder can sample" do
+      described_class::WINDOWS.each do |name, config|
+        expect(config[:bucket]).to be >= 2 * MetricsDashboard::SAMPLE_INTERVAL,
+          "#{name} buckets at #{config[:bucket]}s, too fine for the recorder's cadence"
+      end
     end
 
     it "aligns the grid so two builds of the same window agree" do
@@ -56,6 +66,39 @@ RSpec.describe MetricsDashboard::DashboardPayload do
 
       expect(values.count(&:nil?)).to be > 1
       expect(values).not_to include(0)
+    end
+
+    # The recorder samples about every 89 seconds against a fixed grid, so
+    # buckets are missed routinely. A gauge holds its value across those: the
+    # quantity did not vanish, we just did not look. Before this, a constant
+    # 553k line rendered as a dashed comb.
+    it "holds a gauge's value across a bucket the recorder skipped" do
+      now = Time.current.change(sec: 0)
+      labels = { "queue" => "polling" }
+      # Six minutes apart in the 1h window's three-minute buckets: one bucket
+      # in the middle gets no sample, which is the shape the jittering recorder
+      # actually produces.
+      sample(metric: "syrus_global_queue_ready_count", labels: labels, value: 40, at: now - 7.minutes)
+      sample(metric: "syrus_global_queue_ready_count", labels: labels, value: 40, at: now - 1.minute)
+
+      values = panel(described_class.build(window: "1h"), "queue_ready")[:series].sole[:values]
+      first = values.index { |v| !v.nil? }
+      last = values.rindex { |v| !v.nil? }
+
+      expect(values[first..last]).to all(eq(40)),
+        "a skipped bucket should hold the last reading, not punch a hole"
+    end
+
+    # The other kind of gap is real, and must survive: once the recorder has
+    # genuinely stopped, a line still drawing its last value is a confident lie.
+    it "stops holding the value once the samples are older than the staleness bound" do
+      sample(metric: "syrus_global_queue_ready_count", labels: { "queue" => "polling" },
+             value: 5, at: 90.minutes.ago)
+
+      values = panel(described_class.build(window: "6h"), "queue_ready")[:series].sole[:values]
+
+      expect(values.last).to be_nil
+      expect(values.compact).to all(eq(5))
     end
   end
 

@@ -22,8 +22,14 @@ module MetricsDashboard
   class DashboardPayload
     # Bucket sizes chosen so every window lands near 60-170 points: enough to
     # show shape, few enough that each is a visible pixel column.
+    # A bucket must be comfortably wider than the recorder's effective period or
+    # it cannot reliably contain a sample. The recorder declares
+    # `tick_interval 1.minute`, but the plugin tick scheduler adds its own poll
+    # latency on top: measured, samples actually land about every 89 seconds. A
+    # 1-minute bucket therefore missed roughly one in three, and every miss drew
+    # a hole in the line -- the chart reported an outage that was really jitter.
     WINDOWS = {
-      "1h" => { span: 1.hour, bucket: 1.minute },
+      "1h" => { span: 1.hour, bucket: 3.minutes },
       "6h" => { span: 6.hours, bucket: 5.minutes },
       "24h" => { span: 24.hours, bucket: 15.minutes },
       "7d" => { span: 7.days, bucket: 1.hour }
@@ -49,6 +55,8 @@ module MetricsDashboard
     # Rate panels with many series are unreadable and mostly zero; keep the ones
     # that actually moved.
     RATE_SERIES_LIMIT = 8
+    # How long a gauge reading stays good for once the samples stop.
+    STALENESS = 5.minutes
 
     def self.build(window: DEFAULT_WINDOW) = new(window: window).build
 
@@ -147,7 +155,32 @@ module MetricsDashboard
         buckets_values[index] = current.nil? ? value : [ current, value ].max
       end
 
-      buckets_values
+      carry_forward(buckets_values)
+    end
+
+    # A gauge holds its value until a later reading contradicts it: a bucket
+    # with no sample means we did not look, not that the quantity vanished.
+    # Drawing those as gaps rendered a constant 553k line as a dashed comb.
+    #
+    # Bounded, though, because one kind of gap is still real: past STALENESS
+    # with no sample the recorder has stopped, and a line that keeps drawing its
+    # last value there is a confident lie of exactly the kind this dashboard
+    # exists to avoid. Same bound, for the same reason, that Prometheus uses.
+    def carry_forward(values)
+      limit = (STALENESS / bucket).ceil
+      held = nil
+      age = 0
+
+      values.map do |value|
+        if value.nil?
+          age += 1
+          (held if age <= limit)
+        else
+          held = value
+          age = 0
+          value
+        end
+      end
     end
 
     # How much the counter advanced within each bucket. A decrease means the

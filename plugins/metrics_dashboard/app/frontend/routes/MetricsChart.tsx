@@ -55,7 +55,11 @@ export function MetricsChart({
     onHover(Math.min(Math.max(index, 0), buckets.length - 1))
   }
 
-  const activeIndex = hoverIndex ?? buckets.length - 1
+  // When nothing is hovered the legend reports the newest reading, not the
+  // newest bucket -- the last bucket is frequently still empty (the recorder
+  // samples on its own schedule, not the grid's), and reading it literally made
+  // every legend row show an em dash.
+  const activeIndex = hoverIndex ?? lastPopulatedIndex(panel, buckets.length)
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -202,6 +206,16 @@ export function MetricsChart({
       </ul>
     </section>
   )
+}
+
+/** Newest bucket in which any series has a reading; the last bucket if none do. */
+export function lastPopulatedIndex(panel: MetricsPanel, bucketCount: number) {
+  for (let index = bucketCount - 1; index >= 0; index--) {
+    if (panel.series.some((series) => series.values[index] !== null && series.values[index] !== undefined)) {
+      return index
+    }
+  }
+  return bucketCount - 1
 }
 
 export { SERIES_COLORS, formatValue }

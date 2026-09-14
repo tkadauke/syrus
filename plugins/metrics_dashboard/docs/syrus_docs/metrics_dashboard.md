@@ -73,9 +73,18 @@ plausible-but-wrong zero is worse than one that shows nothing.
 the top level, and each series carries one value per bucket — so index *i* is
 the same instant in every chart. That is what makes a single crosshair across
 all of them meaningful: hovering one chart shows what every other metric was
-doing at that moment. Bucket size follows the window (1h -> 1m, 6h -> 5m,
+doing at that moment. Bucket size follows the window (1h -> 3m, 6h -> 5m,
 24h -> 15m, 7d -> 1h), and the grid is aligned to the bucket size so two loads
 of the same window agree on the timestamps.
+
+**A bucket is never narrower than the recorder can sample.** The recorder
+declares `tick_interval 1.minute`, but the plugin tick scheduler adds its own
+poll latency: measured, samples land about every 89 seconds. The 1h window
+originally bucketed at one minute, so roughly one bucket in three contained no
+sample at all and every chart rendered as a comb of disconnected fragments —
+the dashboard reporting an outage that was really just jitter.
+`MetricsDashboard::SAMPLE_INTERVAL` records the real cadence and a spec holds
+every window to at least twice it.
 
 **Gauges are drawn as values; counters are drawn as rates.** A panel's `mode`
 says which. `syrus_global_queue_ready_count` is a gauge — the chart shows the
@@ -87,9 +96,17 @@ bucket instead, so 19 new failures read as 19. A decrease is treated as a
 counter reset and the new value is counted, the same way PromQL's `rate()` does
 — an in-memory counter returns to zero when its process restarts.
 
-**Empty is not zero.** A bucket with no sample is `null` and leaves a gap in the
-line; a rate panel reports a real `0` only inside the range it actually
-observed. A line drawn through a gap would invent an outage that did not happen.
+**Empty is not zero.** A rate panel reports a real `0` only inside the range it
+actually observed; outside it, the bucket is `null` and the line breaks rather
+than inventing an outage that did not happen.
+
+**A gauge, though, holds its value.** A bucket with no sample means nobody
+looked, not that the quantity vanished — so a gauge carries its last reading
+forward rather than punching a hole. That carry is bounded by
+`DashboardPayload::STALENESS` (5 minutes, the same bound and the same reasoning
+Prometheus uses): past it the recorder has genuinely stopped, and a line still
+drawing its last value there would be a confident lie of exactly the kind this
+dashboard exists to avoid. So a short gap closes and a real outage still shows.
 
 Rate panels keep only the series that moved, capped at
 `DashboardPayload::RATE_SERIES_LIMIT`, so one busy job class is not buried under
