@@ -617,7 +617,11 @@ describe("AdminPlugins", () => {
         author: "Thomas",
         source: "/app/plugins/terminal",
         links: [{ label: "Open Terminal", href: "/terminal", description: "Primary surface", kind: "surface", enabled_only: true }],
-        docs: [{ title: "Terminal", path: "plugins/terminal/docs/syrus_docs/terminal.md", body: "# Terminal\n\n## Enabling\n\nEnable it." }],
+        docs: [{
+          title: "Terminal",
+          path: "plugins/terminal/docs/syrus_docs/terminal-reference-with-a-long-mobile-path.md",
+          body: "# Terminal\n\n## Enabling\n\nEnable it.\n\n```sh\nbin/terminal-session --workflow extremely-long-workflow-identifier --workspace /very/long/path/that/should/stay/inside/the/doc/card\n```"
+        }],
         metrics: [{ name: "syrus_terminal_sessions_total", type: "counter", tags: ["outcome"], comment: "Sessions", available: true }],
         routes: [{ verb: "GET", path: "/api/v1/app/terminal_sessions", controller: "api/v1/app/terminal_sessions#index" }],
         config_schema: [{ key: "hostname", label: "Hostname", type: "string" }],
@@ -645,8 +649,10 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("Relay host is unavailable")).toBeInTheDocument()
     expect(screen.getByText("Hostname")).toBeInTheDocument()
     expect(screen.getByText("worker")).toBeInTheDocument()
-    expect(screen.getByText("plugins/terminal/docs/syrus_docs/terminal.md")).toBeInTheDocument()
+    expect(screen.getByText("plugins/terminal/docs/syrus_docs/terminal-reference-with-a-long-mobile-path.md")).toHaveClass("break-all")
     expect(screen.getByText("Enabling")).toBeInTheDocument()
+    expect(screen.getByTestId("plugin-doc-card")).toHaveClass("min-w-0", "overflow-hidden")
+    expect(screen.getByText(/bin\/terminal-session/).closest(".overflow-x-auto")).toBeInTheDocument()
     expect(screen.getByText("syrus_terminal_sessions_total")).toBeInTheDocument()
     expect(screen.getByText("Sessions")).toBeInTheDocument()
     expect(screen.getByText("GET /api/v1/app/terminal_sessions")).toBeInTheDocument()
