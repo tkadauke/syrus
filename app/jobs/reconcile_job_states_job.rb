@@ -24,6 +24,7 @@ class ReconcileJobStatesJob < ApplicationJob
       latest_wf = job.latest_workflow
       return nil unless latest_wf
       return nil if job.runaway_protection.present? && !failed_landing_start_blocker_with_ready_pr?(job, latest_wf)
+      return nil if lifecycle_owned_child_workflow?(latest_wf)
 
       case [ job.state, latest_wf.state ]
       when [ "failed", "succeeded" ]
@@ -190,6 +191,13 @@ class ReconcileJobStatesJob < ApplicationJob
 
       WorkUnits::TerminalWorkflowSync.for_job(job)
       job.reload.active_runtime_work?
+    end
+
+    def self.lifecycle_owned_child_workflow?(workflow)
+      definition = workflow.work_definition
+      definition.child? && definition.manages_own_job_lifecycle?
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def self.ready_pr_with_successful_publication?(job, latest_wf)

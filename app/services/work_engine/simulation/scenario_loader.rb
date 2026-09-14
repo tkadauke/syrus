@@ -18,6 +18,9 @@ module WorkEngine
         external_pr_number external_pr_author external_pr_fork mergeability_base_sha
         mergeability_head_sha github_mergeable github_mergeable_state
       ].freeze
+      WORKFLOW_UPDATE_KEYS = %w[
+        worker_hostname worker_storage_key started_at finished_at cleaned_up_at
+      ].freeze
 
       def self.load!(path) = new(path).load!
 
@@ -237,9 +240,19 @@ module WorkEngine
             create_manual_workflow!(job, workflow_config)
           end
 
-          workflow.update_columns(state: workflow_config.fetch("state", workflow.state))
+          workflow.update_columns(workflow_updates(workflow, workflow_config))
           sync_work_unit_state!(workflow, workflow_config)
         end
+      end
+
+      def workflow_updates(workflow, attrs)
+        updates = { "state" => attrs.fetch("state", workflow.state) }
+        WORKFLOW_UPDATE_KEYS.each do |key|
+          next unless attrs.key?(key)
+
+          updates[key] = key.end_with?("_at") ? parse_optional_time(attrs[key]) : attrs[key]
+        end
+        updates
       end
 
       def create_grader_conclusions!(repository, jobs, definitions)
@@ -434,6 +447,7 @@ module WorkEngine
           updates[:head_sha] = config["head_sha"] if config["head_sha"].present?
           updates[:base_sha] = config["base_sha"] if config["base_sha"].present?
           run.update_columns(updates)
+          run.update_columns(created_at: parse_optional_time(config["created_at"])) if config["created_at"].present?
           create_run_checkpoint!(run, config["checkpoint"]) if config["checkpoint"]
           diagnostic = config["diagnostic"]
           if diagnostic
@@ -477,6 +491,7 @@ module WorkEngine
 
       def create_solid_queue_state!(run, config)
         ensure_solid_queue_tables!
+        clear_solid_queue_tables_once!
 
         attrs = config.to_h
         created_at = parse_optional_time(attrs["created_at"]) || Time.current
@@ -601,14 +616,37 @@ module WorkEngine
           end
         end
 
+        unless connection.table_exists?(:solid_queue_pauses)
+          connection.create_table :solid_queue_pauses do |t|
+            t.datetime :created_at, null: false
+            t.string :queue_name, null: false
+          end
+        end
+
         [
           SolidQueue::Job,
           SolidQueue::ReadyExecution,
           SolidQueue::ScheduledExecution,
           SolidQueue::Process,
           SolidQueue::ClaimedExecution,
-          SolidQueue::FailedExecution
+          SolidQueue::FailedExecution,
+          SolidQueue::Pause
         ].each(&:reset_column_information)
+      end
+
+      def clear_solid_queue_tables_once!
+        return if @solid_queue_tables_cleared
+
+        [
+          SolidQueue::ReadyExecution,
+          SolidQueue::ScheduledExecution,
+          SolidQueue::ClaimedExecution,
+          SolidQueue::FailedExecution,
+          SolidQueue::Pause,
+          SolidQueue::Job,
+          SolidQueue::Process
+        ].each(&:delete_all)
+        @solid_queue_tables_cleared = true
       end
 
       def create_run_checkpoint!(run, config)

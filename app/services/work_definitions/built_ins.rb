@@ -376,6 +376,7 @@ module WorkDefinitions
   class VisualDiff < Base
     include ResumesFailedSteps
     include CancelPreemptable
+    include ManagesOwnJobLifecycle
 
     self.kind = "visual_diff"
     self.workflow_trigger_kind = "visual_diff"

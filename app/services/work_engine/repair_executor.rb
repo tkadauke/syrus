@@ -459,6 +459,10 @@ module WorkEngine
             return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
             return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
+            if plan.issue_kind == "queued_run_on_dead_resume_queue"
+              clear_dead_resume_affinity!(run)
+              delete_stale_solid_queue_jobs!
+            end
             run.reenqueue!
             success("re-enqueued #{run_label(run)}")
           end
@@ -477,6 +481,29 @@ module WorkEngine
           return false if plan.issue_kind == "queued_run_without_queue_claim"
 
           run.step&.kind == "grader_collect" && GraderConclusionCache.failed_for_workflow?(run.workflow)
+        end
+
+        def clear_dead_resume_affinity!(run)
+          workflow = run.workflow
+          return unless workflow
+
+          workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+          run.step&.association(:workflow)&.reset
+          run.association(:step).reset
+          run.association(:job).reset
+        end
+
+        def delete_stale_solid_queue_jobs!
+          ids = Array(plan.affected_ids["solid_queue_job_ids"]).map(&:to_i).select(&:positive?)
+          return if ids.empty?
+
+          SolidQueue::ReadyExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ReadyExecution)
+          SolidQueue::ScheduledExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ScheduledExecution)
+          SolidQueue::ClaimedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ClaimedExecution)
+          SolidQueue::FailedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::FailedExecution)
+          SolidQueue::Job.where(id: ids).delete_all
+        rescue NameError, ActiveRecord::StatementInvalid => e
+          Rails.logger.warn("[WorkEngine::RepairExecutor] failed to delete stale SolidQueue jobs for dead resume queue: #{e.class}: #{e.message}")
         end
       end
 

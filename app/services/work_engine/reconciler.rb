@@ -2409,6 +2409,8 @@ module WorkEngine
         next unless latest_workflow_run?(run)
         next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
+        definition = work_definition_for(run.workflow)
+        next if definition&.child? && definition.manages_own_job_lifecycle?
 
         retryable_worker_failure = run.agent_outcome == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ||
           run.run_failure_classification&.classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
@@ -2446,7 +2448,9 @@ module WorkEngine
         next if step_needs_terminal_run_reconciliation?(run.step)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
-        next if work_definition_for(run.workflow)&.suppresses_layered_auto_repair?
+        definition = work_definition_for(run.workflow)
+        next if definition&.suppresses_layered_auto_repair?
+        next if definition&.child? && definition.manages_own_job_lifecycle?
 
         classification = effective_failure_classification(run)
         next if classification.nil?

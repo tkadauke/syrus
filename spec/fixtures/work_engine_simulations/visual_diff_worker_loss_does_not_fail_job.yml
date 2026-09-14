@@ -1,0 +1,41 @@
+name: visual diff worker loss does not fail job
+runner:
+  auto_retry_failed_jobs: false
+repository:
+  owner: simulation
+  name: visual-diff-worker-loss-does-not-fail-job
+jobs:
+  job:
+    title: Visual diff worker loss does not fail job
+    state: implemented
+    branch_name: syrus/simulated-visual-diff
+    pr_number: 6101
+    workflow:
+      kind: visual_diff
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: visual_diff
+          state: running
+          run:
+            state: running
+            started_at: "2000-01-01 00:00:00 UTC"
+            solid_queue:
+              claimed: true
+              created_at: "2000-01-01 00:00:00 UTC"
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - running_run_without_live_worker_evidence

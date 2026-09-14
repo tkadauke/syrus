@@ -298,6 +298,7 @@ RSpec.describe WorkDefinitions do
       "main_branch_repair",
       "landing_validation",
       "merge_train_validation",
+      "visual_diff",
       "promotion",
       "hotfix_sync"
     )
@@ -443,6 +444,7 @@ RSpec.describe WorkDefinitions do
       "landing_validation",
       "merge_train_validation",
       "job_bundle_validation",
+      "visual_diff",
       "promotion",
       "hotfix_sync"
     )

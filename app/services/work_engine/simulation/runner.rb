@@ -904,7 +904,58 @@ module WorkEngine
           .where(workflows: { state: %w[queued running] })
           .includes(:job, step: :workflow)
           .to_a
+          .reject { |run| queued_run_blocked_by_explicit_solid_queue_state?(run) }
           .reject { |run| run.running? && terminal_spawned_process_for?(run) }
+      end
+
+      def queued_run_blocked_by_explicit_solid_queue_state?(run)
+        return false unless run.queued?
+
+        jobs = explicit_solid_queue_jobs_for_run(run)
+        return false if jobs.empty?
+
+        jobs.none? { |job| explicit_solid_queue_job_can_progress?(job) }
+      end
+
+      def explicit_solid_queue_jobs_for_run(run)
+        return [] unless defined?(SolidQueue::Job)
+
+        SolidQueue::Job.all.select { |job| solid_queue_job_run_id(job) == run.id }
+      rescue ActiveRecord::StatementInvalid, NameError
+        []
+      end
+
+      def explicit_solid_queue_job_can_progress?(job)
+        return false if solid_queue_failed?(job)
+        return false if dead_resume_queue?(job.queue_name)
+        return true if solid_queue_ready?(job)
+        return true if solid_queue_scheduled?(job)
+
+        false
+      end
+
+      def solid_queue_job_run_id(job)
+        payload = job.arguments.is_a?(String) ? JSON.parse(job.arguments) : job.arguments
+        payload&.dig("arguments")&.first.to_i
+      rescue JSON::ParserError, TypeError
+        nil
+      end
+
+      def solid_queue_failed?(job)
+        defined?(SolidQueue::FailedExecution) && SolidQueue::FailedExecution.where(job_id: job.id).exists?
+      end
+
+      def solid_queue_ready?(job)
+        defined?(SolidQueue::ReadyExecution) && SolidQueue::ReadyExecution.where(job_id: job.id).exists?
+      end
+
+      def solid_queue_scheduled?(job)
+        defined?(SolidQueue::ScheduledExecution) && SolidQueue::ScheduledExecution.where(job_id: job.id).exists?
+      end
+
+      def dead_resume_queue?(queue_name)
+        queue_name = queue_name.to_s
+        queue_name.start_with?("resume-") && !InstanceVersion.worker_queue_live?(queue_name)
       end
 
       def active_work_units

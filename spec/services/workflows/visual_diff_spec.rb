@@ -17,6 +17,13 @@ RSpec.describe Workflows::VisualDiff do
     expect(described_class.steps_for(job)).to eq(%w[prepare visual_diff])
   end
 
+  it "does not drive the parent Job lifecycle" do
+    workflow = described_class.instantiate(job: job)
+
+    expect(workflow.work_definition).to be_manages_own_job_lifecycle
+    expect(Workflow::TriggerKind.owns_job_lifecycle?(workflow.trigger_kind)).to eq(true)
+  end
+
   it "dispatches at low queue priority" do
     workflow = described_class.instantiate(job: job)
 

@@ -239,6 +239,8 @@ module WorkEngine
           workflow = primary_workflow
           job = primary_job
           return false unless workflow && job
+          definition = work_definition_for(workflow)
+          return false if definition&.child? && definition.manages_own_job_lifecycle?
 
           workflow.retry_as_new_workflow_available? &&
             job.open? &&
@@ -275,6 +277,12 @@ module WorkEngine
         def active_runtime_work_for_job?(job)
           WorkUnits::TerminalWorkflowSync.for_job(job)
           job.reload.active_runtime_work?
+        end
+
+        def work_definition_for(workflow)
+          workflow.work_definition
+        rescue WorkDefinitions::UnknownKind
+          nil
         end
 
         def retry_after_for_retryable_failure

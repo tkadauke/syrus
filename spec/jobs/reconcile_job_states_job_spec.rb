@@ -67,6 +67,14 @@ RSpec.describe ReconcileJobStatesJob do
     end
   end
 
+  it "does not derive Job state from lifecycle-owned child workflows" do
+    build_workflow(state: "failed", trigger_kind: "visual_diff")
+    job.update!(state: "implemented")
+    finish_work_units!
+
+    expect(ReconcileJobStatesJob::Plan.for(job.reload)).to be_nil
+  end
+
   it "always delegates to the unified reconciler without mutating Jobs directly" do
     build_workflow(state: "succeeded")
     job.update!(state: "failed")

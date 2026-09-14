@@ -1,0 +1,43 @@
+name: dead resume queue reenqueues elsewhere
+repository:
+  owner: simulation
+  name: dead-resume-queue-reenqueues-elsewhere
+jobs:
+  job:
+    title: Dead resume queue reenqueues elsewhere
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_storage_key: lost-worker-storage
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: queued
+          run:
+            state: queued
+            created_at: "2000-01-01 00:00:00 UTC"
+            started_at: "2000-01-01 00:00:00 UTC"
+            solid_queue:
+              ready: true
+              queue_name: resume-lost-worker-storage
+              created_at: "2000-01-01 00:00:00 UTC"
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - queued_run_on_dead_resume_queue
+    - implement -> success
