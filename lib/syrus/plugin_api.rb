@@ -91,6 +91,8 @@ module Syrus
         @lists = {}
         @provides = {}
         @routes = []
+        @links = []
+        @metric_blocks = []
         @frontend = {}
         @effects = []
         @boot_blocks = []
@@ -133,6 +135,25 @@ module Syrus
         @frontend.merge!(pairs)
       end
 
+      def link(label, href, description: nil, kind: :surface, enabled_only: true)
+        @links << {
+          label: label.to_s,
+          href: href.to_s,
+          description: description,
+          kind: kind.to_s,
+          enabled_only: enabled_only != false
+        }.compact
+      end
+
+      def links(entries = nil)
+        return @links if entries.nil?
+
+        Array(entries).each do |entry|
+          attrs = entry.to_h.transform_keys(&:to_sym)
+          link(attrs.fetch(:label), attrs.fetch(:href), description: attrs[:description], kind: attrs.fetch(:kind, :surface), enabled_only: attrs.fetch(:enabled_only, true))
+        end
+      end
+
       # Effects that belong to the plugin being *enabled*: torn down when it is
       # disabled, reinstalled when it is enabled again.
       def while_enabled(label = nil, &block)
@@ -158,6 +179,7 @@ module Syrus
       def metrics(&block)
         raise Error, "metrics requires a block" unless block
 
+        @metric_blocks << block
         plugin_name = name
         while_enabled("metrics") do |scope|
           scope.effect("metrics") do
@@ -239,12 +261,25 @@ module Syrus
           version: version || Syrus::PluginApi.default_version,
           provides: resolved_provides,
           routes: (routes if routes.any?),
+          links: (links if links.any?),
+          metrics: (metric_declarations if metric_declarations.any?),
           frontend: (frontend if frontend.any?)
         }.merge(
           SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact
         ).merge(
           LISTS.each_with_object({}) { |field, args| args[field] = @lists[field] if @lists.key?(field) }
         ).compact
+      end
+
+      def metric_declarations
+        @metric_blocks.flat_map do |block|
+          definitions = Syrus::Metrics::Declaration
+            .new(owner: name, prefix: "#{name}_")
+            .tap { |declaration| declaration.instance_eval(&block) }
+            .definitions
+          definitions.each(&:validate!)
+          definitions.map(&:to_catalog_row)
+        end
       end
 
       def resolved_provides
