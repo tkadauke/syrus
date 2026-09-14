@@ -67,6 +67,33 @@ RSpec.describe JobLog do
     expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first second])
   end
 
+  it "retries inside the lock if another writer claims the fallback sequence" do
+    JobLog.create!(run: run, chunk: "first", sequence: 0)
+    allow(described_class).to receive(:next_sequence_for).and_return(0)
+    original_create = described_class.method(:create!)
+    claimed_fallback_sequence = false
+
+    allow(described_class).to receive(:create!) do |attributes|
+      if attributes[:run_id] == run.id && attributes[:sequence] == 1 && !claimed_fallback_sequence
+        claimed_fallback_sequence = true
+        described_class.insert_all!([
+          {
+            run_id: run.id,
+            sequence: 1,
+            chunk: "racer",
+            created_at: Time.current,
+            updated_at: Time.current
+          }
+        ])
+      end
+
+      original_create.call(attributes)
+    end
+
+    expect { described_class.append!(run: run, chunk: "second") }.not_to raise_error
+    expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first racer second])
+  end
+
   it "does not reload or save dirty state on the caller's run instance" do
     run.assign_attributes(prompt: "dirty in memory")
 

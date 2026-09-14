@@ -49,6 +49,39 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(failed_tail.runs).to be_empty
   end
 
+  it "retries the failed grader instead of the failed collect barrier for a retry-until iteration" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    failed_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 5,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "migration-lint", "required" => true }
+    )
+    collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 6,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop"
+    )
+    failed_grader.update!(next_step: collect)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.step).to eq(failed_grader)
+    expect(failed_grader.reload).to be_queued
+    expect(collect.reload).to be_queued
+    expect(result.run.step).to eq(failed_grader)
+  end
+
   it "retries a tail step when a later retry-until barrier cleared the earlier failure" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")

@@ -13,11 +13,23 @@ class RetryFailedStepEnqueuer
   def self.failed_step_for(workflow)
     step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).first ||
       cancelled_publication_step_for(workflow)
+    step = failed_grader_before_collect(step) if step&.kind == "grader_collect"
     return unless step
     return if crosses_uncleared_retry_until_barrier?(step)
 
     step
   end
+
+  def self.failed_grader_before_collect(step)
+    grader = step.workflow.steps
+      .where(kind: "grader", state: "failed", loop_id: step.loop_id, iteration: step.iteration)
+      .where("position < ?", step.position)
+      .reorder(position: :desc, id: :desc)
+      .first
+
+    grader || step
+  end
+  private_class_method :failed_grader_before_collect
 
   def self.crosses_uncleared_retry_until_barrier?(step)
     return false if step.loop_id.present?
@@ -90,6 +102,7 @@ class RetryFailedStepEnqueuer
     workflow.reopen!
     workflow.save!
     reopen_step!(failed_step)
+    reopen_collect_barrier_after_grader!(failed_step)
     revive_cancelled_downstream_steps!(failed_step)
 
     if workflow.landing_workflow?
@@ -201,6 +214,22 @@ class RetryFailedStepEnqueuer
       end
       cursor = cursor.next_step
     end
+  end
+
+  def reopen_collect_barrier_after_grader!(failed_step)
+    return unless failed_step.kind == "grader"
+
+    collect = failed_step.next_step
+    return unless collect&.failed?
+    return unless collect.kind == "grader_collect"
+    return unless collect.loop_id == failed_step.loop_id && collect.iteration == failed_step.iteration
+
+    collect.update_columns(
+      state: "queued",
+      started_at: nil,
+      finished_at: nil,
+      updated_at: Time.current
+    )
   end
 
   def rebuild_merge_train

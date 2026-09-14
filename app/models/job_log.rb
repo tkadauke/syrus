@@ -61,6 +61,8 @@ class JobLog < ApplicationRecord
   private_class_method :forget_next_sequence!
 
   def self.append_with_run_lock!(run_id:, chunk:, kind:)
+    attempts = 0
+
     Run.transaction do
       Run.where(id: run_id).lock(true).pick(:id)
       log = create!(
@@ -71,6 +73,18 @@ class JobLog < ApplicationRecord
       )
       remember_next_sequence!(run_id, log.sequence + 1)
       log
+    rescue ActiveRecord::RecordNotUnique
+      forget_next_sequence!(run_id)
+      attempts += 1
+      retry if attempts < MAX_APPEND_ATTEMPTS
+      raise
+    rescue ActiveRecord::RecordInvalid => e
+      raise unless e.record.errors.of_kind?(:sequence, :taken)
+
+      forget_next_sequence!(run_id)
+      attempts += 1
+      retry if attempts < MAX_APPEND_ATTEMPTS
+      raise
     end
   end
   private_class_method :append_with_run_lock!
