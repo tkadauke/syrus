@@ -119,6 +119,10 @@ class Workflow < ApplicationRecord
     Workflow::TriggerKind.template_for(trigger_kind).solid_queue_priority(self)
   end
 
+  def coding_takeover_hold?
+    queued? && Workflow::TriggerKind.coding_takeover_hold?(trigger_kind)
+  end
+
   def enforce_job_workflow_runaway_limits_on_create!
     job.enforce_workflow_runaway_limits!(created_workflow: self)
   end
@@ -477,13 +481,18 @@ class Workflow < ApplicationRecord
     (artifacts || {})[key.to_s]
   end
 
-  # Append-only artifact write. Each producing step calls this
-  # once for its outputs. Concurrency-wise the linear chain
-  # guarantees one writer at a time, so a read-modify-write is
-  # safe without locks.
+  # Append-only artifact write. Inline domain-event subscribers can write
+  # artifacts during a step before the step writes its own artifact, so merge
+  # against the locked current row rather than a possibly stale instance copy.
   def set_artifact!(key, value)
-    self.artifacts = (artifacts || {}).merge(key.to_s => value)
-    save!
+    pending = (artifacts || {}).merge(key.to_s => value)
+
+    self.class.transaction do
+      locked = self.class.lock.find(id)
+      locked.artifacts = (locked.artifacts || {}).merge(pending)
+      locked.save!
+      self.artifacts = locked.artifacts
+    end
   end
 
   # Single call site for mutating chain_template at runtime (e.g. bumping a

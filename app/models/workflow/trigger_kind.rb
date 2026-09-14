@@ -44,12 +44,15 @@ class Workflow
       end
     end
 
-    Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind, :runtime_role, :owns_job_lifecycle, :diff_review_labeler) do
+    Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind, :runtime_role, :owns_job_lifecycle, :coding_takeover_hold, :diff_review_labeler) do
       # owns_job_lifecycle defaults to false so existing built-in and
       # plugin-contributed entries that omit it keep the ordinary generic
       # workflow->Job propagation behavior.
-      def initialize(owns_job_lifecycle: false, diff_review_labeler: DiffReviewVersionLabels::Base, **rest)
-        super(owns_job_lifecycle: owns_job_lifecycle, diff_review_labeler: diff_review_labeler, **rest)
+      # coding_takeover_hold marks a queued workflow as compatible with Coding
+      # Mode takeover: it is parked work that should not block the chat from
+      # claiming implementation ownership.
+      def initialize(owns_job_lifecycle: false, coding_takeover_hold: false, diff_review_labeler: DiffReviewVersionLabels::Base, **rest)
+        super(owns_job_lifecycle: owns_job_lifecycle, coding_takeover_hold: coding_takeover_hold, diff_review_labeler: diff_review_labeler, **rest)
       end
 
       # A plugin that owns a workflow keeps its template in its own namespace,
@@ -66,7 +69,7 @@ class Workflow
     RUNTIME_ROLES = %w[first_class child infrastructure legacy].freeze
 
     BUILT_IN_ENTRIES = [
-      Entry.new(kind: "initial",       template: "Initial",     label: "Initial implementation", style: "bg-purple-100 text-purple-700",  retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "initial",       template: "Initial",     label: "Initial implementation", style: "bg-purple-100 text-purple-700",  retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", coding_takeover_hold: true),
       Entry.new(kind: "pr_comment",    template: "PrFeedback",  label: "PR feedback",             style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Static.new("PR comment follow-up")),
       Entry.new(kind: "chat_feedback", template: "ChatFeedback", label: "Chat feedback",           style: "bg-indigo-100 text-indigo-700",  retry_label: "Retry failed step",  feedback_kind: :chat_feedback, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Sequenced),
       Entry.new(kind: "ci_failure",    template: "CiFailure",   label: "CI failure",              style: "bg-red-100 text-red-700",        retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Static.new("CI repair")),
@@ -211,6 +214,10 @@ class Workflow
     # checks.
     def owns_job_lifecycle?(trigger_kind)
       by_kind.fetch(trigger_kind.to_s, nil)&.owns_job_lifecycle || false
+    end
+
+    def coding_takeover_hold?(trigger_kind)
+      by_kind.fetch(trigger_kind.to_s, nil)&.coding_takeover_hold || false
     end
   end
 end

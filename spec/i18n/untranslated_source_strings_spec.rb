@@ -38,7 +38,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       %r{app/frontend/components/(AdminEventActions|Checkbox|FilterBar|ShortcutsHelpModal)\.tsx$},
       %r{app/frontend/components/credentials/},
       %r{app/frontend/components/diff/ReviewableDiff\.tsx$},
-      %r{app/frontend/routes/(AdminInvitations|AdminQueue|AdminStuck|AdminTranscript|AdminWorkUnits|AppChromeV2|Chat|Repositories|RepositoryDetail|Tags)\.tsx$},
+      %r{app/frontend/routes/(AdminInvitations|AdminQueue|AdminStuck|AdminTranscript|AdminWorkUnits|AppChromeV2|Chat|Repositories|RepositoryDetail|RepositoryTargetGraph|Tags)\.tsx$},
       %r{app/frontend/routes/appChromeV2/},
       %r{app/frontend/routes/chat/},
       %r{app/frontend/routes/jobDetail/(SourceBrowser|WorkflowGraph)\.tsx$},

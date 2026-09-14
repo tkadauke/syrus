@@ -49,6 +49,9 @@ module Mcp::Tools
         end
 
         return Mcp::Tools.invalid("Repository not found. Specify repository_id or attach a repository to this chat.") unless repository
+        if Job.where(linked_chat_id: chat_session.id, state: "coding").exists?
+          return Mcp::Tools.invalid("This chat already has an active coding Job.")
+        end
 
         job = user.jobs.new(
           repository: repository,
