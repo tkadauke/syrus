@@ -36,15 +36,15 @@ jobs:
           state: failed
           run:
             state: failed
-            agent_outcome: worker_died
+            agent_outcome: turn_failed
             diagnostic:
-              error_class: Steps::Base::StepFailed
-              error_message: provider authentication expired
+              error_class: CodexInvocation::Error
+              error_message: "Failed to refresh token: auth error code: token_expired"
               problem_code: provider_auth_expired
             classification:
               classification: provider_auth_expired
               retryable: false
-              reason: Provider authentication expired and requires operator reauthorization.
+              reason: The provider authentication token expired and needs operator reauthorization.
 auto_retry_attempts:
   skipped_backoff:
     job: member
