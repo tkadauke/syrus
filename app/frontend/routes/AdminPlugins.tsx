@@ -175,8 +175,9 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             ) : null}
           </div>
           {plugin.recommendation ? (
-            <p className="mt-3 rounded border border-border bg-surface-raised px-3 py-2 text-sm leading-6 text-text-primary">
-              <span className="font-medium">{t("plugins.suggested")}</span> {plugin.recommendation.reason}{" "}
+            <p className="mt-3 rounded border border-info/25 bg-info/10 px-3 py-2 text-sm leading-6 text-info">
+              <span className="font-medium">{t("plugins.suggested")}</span>{" "}
+              {plugin.recommendation.reason}{" "}
               <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
             </p>
           ) : null}
@@ -304,7 +305,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
             {plugin.description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{plugin.description}</p> : null}
             {plugin.long_description ? <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
             {plugin.recommendation ? (
-              <p className="mt-3 max-w-3xl rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+              <p className="mt-3 max-w-3xl rounded border border-info/25 bg-info/10 px-3 py-2 text-sm leading-6 text-info">
                 <span className="font-medium">{t("plugins.suggested")}</span> {plugin.recommendation.reason} <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
               </p>
             ) : null}
@@ -320,8 +321,8 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
         ) : null}
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="space-y-6">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="min-w-0 space-y-6">
           <DetailSection title={t("plugins.config_heading")}>
             {(plugin.config_schema || []).length > 0 ? (
               <div className="space-y-2">
@@ -337,12 +338,12 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
             {(plugin.docs || []).length > 0 ? (
               <div className="space-y-4">
                 {(plugin.docs || []).map((doc) => (
-                  <article className="rounded border border-gray-200 p-4 dark:border-gray-800" key={doc.path}>
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <SectionHeading>{doc.title}</SectionHeading>
-                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{doc.path}</span>
+                  <article className="min-w-0 overflow-hidden rounded border border-gray-200 p-4 dark:border-gray-800" data-testid="plugin-doc-card" key={doc.path}>
+                    <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
+                      <SectionHeading className="break-words">{doc.title}</SectionHeading>
+                      <span className="max-w-full break-all font-mono text-xs text-gray-500 dark:text-gray-400">{doc.path}</span>
                     </div>
-                    <Markdown className="chat-prose text-sm text-gray-700 dark:text-gray-200" text={doc.body} />
+                    <Markdown className="min-w-0 text-sm text-gray-700 dark:text-gray-200" text={doc.body} />
                   </article>
                 ))}
               </div>
@@ -416,7 +417,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
 
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-3">
+    <section className="min-w-0 space-y-3">
       <SectionHeading>{title}</SectionHeading>
       {children}
     </section>
