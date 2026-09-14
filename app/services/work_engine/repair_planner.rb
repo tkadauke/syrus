@@ -941,6 +941,23 @@ module WorkEngine
         end
       end
 
+      class StaleActiveMergeTrainWithoutRuntime < Base
+        def plan
+          automatic_plan(
+            "fail_stale_active_merge_train",
+            primary_job,
+            "The merge train is active only in bookkeeping; its runtime owner is terminal or gone, so failing the stale train releases the landing slot for a fresh attempt.",
+            execution_steps: [ "WorkEngine::RepairExecutor::FailStaleActiveMergeTrain" ],
+            preconditions: {
+              merge_train_id: issue.evidence["merge_train_id"],
+              state: issue.evidence["state"],
+              active_workflow_ids: issue.evidence["active_workflow_ids"],
+              active_work_unit_ids: issue.evidence["active_work_unit_ids"]
+            }
+          )
+        end
+      end
+
       class SucceededMergeTrainFailedMemberReconciliation < Base
         def plan
           automatic_plan(

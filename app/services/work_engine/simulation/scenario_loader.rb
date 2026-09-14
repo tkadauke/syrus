@@ -287,7 +287,8 @@ module WorkEngine
           )
           train.update_columns(
             created_at: parse_optional_time(attrs["created_at"]) || 5.minutes.ago,
-            finished_at: parse_optional_time(attrs["finished_at"]) || 1.minute.ago
+            updated_at: parse_optional_time(attrs["updated_at"]) || parse_optional_time(attrs["created_at"]) || 5.minutes.ago,
+            finished_at: attrs.key?("finished_at") ? parse_optional_time(attrs["finished_at"]) : (train.terminal? ? 1.minute.ago : nil)
           )
           create_merge_train_members!(train, jobs, attrs.fetch("members", []))
           create_landed_commits!(epics, jobs, train, attrs.fetch("landed_commits", {}))

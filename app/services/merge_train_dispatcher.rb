@@ -114,13 +114,18 @@ class MergeTrainDispatcher
   end
 
   def cooling_down_failure
+    excluded_failure_patterns = [
+      "merge_train: base moved%",
+      "merge_train: missing built base SHA%",
+      "#{LandingQueueReentry::START_BLOCKER_PREFIX}%",
+      "#{MergeTrain::STALE_RUNTIME_FAILURE_REASON}%"
+    ]
+
     MergeTrain
       .where(epic_id: @epic.id, state: "failed")
       .where(
-        "failure_reason IS NULL OR (failure_reason NOT LIKE ? AND failure_reason NOT LIKE ? AND failure_reason NOT LIKE ?)",
-        "merge_train: base moved%",
-        "merge_train: missing built base SHA%",
-        "#{LandingQueueReentry::START_BLOCKER_PREFIX}%"
+        "failure_reason IS NULL OR (#{excluded_failure_patterns.map { "failure_reason NOT LIKE ?" }.join(" AND ")})",
+        *excluded_failure_patterns
       )
       .where("finished_at > ?", RETRY_COOLDOWN.ago)
       .order(finished_at: :desc)

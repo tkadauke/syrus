@@ -4,6 +4,7 @@ class MergeTrain < ApplicationRecord
   # docs/plans/landing-merge-train.md.
   STATES = %w[ building grading landing succeeded failed cancelled ].freeze
   TERMINAL_STATES = %w[ succeeded failed cancelled ].freeze
+  STALE_RUNTIME_FAILURE_REASON = "stale active merge train had no active workflow or work unit; failed by work-engine reconciler".freeze
 
   belongs_to :epic, optional: true
   belongs_to :repository

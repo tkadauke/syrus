@@ -238,6 +238,7 @@ module WorkEngine
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_failed_jobs_with_active_repair_work)
       issues.concat(classify_landing_work_job_state_drift)
+      issues.concat(classify_stale_active_merge_trains_without_runtime)
       issues.concat(classify_succeeded_merge_trains_with_failed_members)
       issues.concat(classify_releasable_epic_blocked_jobs)
       issues.concat(classify_jobs_without_active_runtime_work)
@@ -1817,6 +1818,68 @@ module WorkEngine
             explanation: "MergeTrain ##{train.id} succeeded, but #{repairable_members.size} member Job(s) were left failed even though this train recorded their implementation commits."
           )
         end
+    end
+
+    def classify_stale_active_merge_trains_without_runtime
+      job_ids = jobs.map(&:id)
+      return [] if job_ids.empty?
+
+      MergeTrain
+        .active
+        .joins(:members)
+        .where(merge_train_members: { job_id: job_ids })
+        .distinct
+        .includes(:epic, members: :job)
+        .filter_map do |train|
+          next unless stale_active_merge_train_without_runtime?(train)
+
+          member_jobs = train.members.map(&:job).compact
+          issue(
+            kind: :stale_active_merge_train_without_runtime,
+            severity: :critical,
+            affected_ids: { job_ids: member_jobs.map(&:id) },
+            safe_to_auto_repair: true,
+            recommended_repair_action: "fail_stale_active_merge_train",
+            evidence: {
+              merge_train_id: train.id,
+              state: train.state,
+              epic_id: train.epic_id,
+              repository_id: train.repository_id,
+              member_job_ids: member_jobs.map(&:id),
+              active_workflow_ids: active_merge_train_workflow_ids(train),
+              active_work_unit_ids: active_merge_train_work_unit_ids(train)
+            },
+            explanation: "MergeTrain ##{train.id} is still #{train.state}, but no active Workflow or WorkUnit owns it; mark the stale train failed so its approved members can be landed by a fresh train."
+          )
+        end
+    end
+
+    def stale_active_merge_train_without_runtime?(train)
+      return false unless train.updated_at < 2.minutes.ago
+
+      active_merge_train_workflow_ids(train).empty? &&
+        active_merge_train_work_unit_ids(train).empty?
+    end
+
+    def active_merge_train_workflow_ids(train)
+      @active_merge_train_workflow_ids ||= {}
+      @active_merge_train_workflow_ids[train.id] ||= Workflow
+        .where(trigger_kind: "merge_train", state: %w[queued running])
+        .select(:id, :artifacts)
+        .filter_map { |workflow| workflow.id if workflow.artifact("merge_train_id").to_i == train.id }
+    end
+
+    def active_merge_train_work_unit_ids(train)
+      @active_merge_train_work_unit_ids ||= {}
+      @active_merge_train_work_unit_ids[train.id] ||= begin
+        kind = train.epic_id.present? ? "merge_train" : "job_bundle"
+        scope_type = train.epic_id.present? ? "epic" : "repository"
+        scope_id = train.epic_id.presence || train.repository_id
+
+        WorkUnit
+          .where(kind: kind, scope_type: scope_type, scope_id: scope_id, state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
+          .pluck(:id)
+      end
     end
 
     def merge_train_member_repairable?(train, job)

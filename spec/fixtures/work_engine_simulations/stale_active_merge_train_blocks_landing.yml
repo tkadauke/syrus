@@ -1,0 +1,61 @@
+name: stale active merge train blocks landing
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: stale-active-merge-train-blocks-landing
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Feature with a stale active train
+jobs:
+  alpha:
+    title: Alpha approved member
+    epic: feature
+    state: approved
+    branch_name: syrus/direct-alpha
+    pr_number: 4101
+    approved_at: "2026-09-13 10:00:00"
+  beta:
+    title: Beta approved member
+    epic: feature
+    state: approved
+    branch_name: syrus/direct-beta
+    pr_number: 4102
+    approved_at: "2026-09-13 10:01:00"
+merge_trains:
+  stale:
+    epic: feature
+    state: grading
+    base_branch: main
+    integration_branch: syrus/merge-train-epic-feature-stale
+    integration_sha: 1111111111111111111111111111111111111111
+    failure_reason: terminal workflow failed without terminalizing train
+    created_at: "2026-09-13 10:05:00"
+    finished_at:
+    members:
+      - job: alpha
+        state: failed
+        reason: stale failed workflow
+      - job: beta
+        state: failed
+        reason: stale failed workflow
+outcomes:
+  default: success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+  epics:
+    feature:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - stale_active_merge_train_without_runtime
+    - landing_queue dispatched
+    - merge_train_land

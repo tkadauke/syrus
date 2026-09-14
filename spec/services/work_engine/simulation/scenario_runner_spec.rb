@@ -114,6 +114,17 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("succeeded_merge_train_failed_member_reconciliation")
   end
 
+  it "fails stale active merge trains with no runtime owner so landing can rebuild" do
+    result = run_scenario("stale_active_merge_train_blocks_landing")
+
+    expect(result).to be_success
+    alpha, beta = Job.where(id: result.job_ids).order(:id).to_a
+    expect(alpha).to be_closed
+    expect(beta).to be_closed
+    expect(result.events.join("\n")).to include("stale_active_merge_train_without_runtime")
+    expect(result.events.join("\n")).to include("merge_train_land")
+  end
+
   it "does not relaunch a stale initial intent after a later retry implemented the job" do
     result = run_scenario("stale_initial_intent_after_successful_retry")
 

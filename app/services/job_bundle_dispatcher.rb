@@ -229,7 +229,8 @@ class JobBundleDispatcher
 
   def transient_failure?(reason)
     LandingQueueReentry.landing_start_blocker?(reason) ||
-      LandingFailureHandler.merge_train_rebuild_required?(reason)
+      LandingFailureHandler.merge_train_rebuild_required?(reason) ||
+      reason.to_s.start_with?(MergeTrain::STALE_RUNTIME_FAILURE_REASON)
   end
 
   def cooldown_reason(failed_bundle)
