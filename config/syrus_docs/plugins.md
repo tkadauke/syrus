@@ -29,11 +29,15 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_tab`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
-(`/admin/plugins`). The page shows each plugin's name, version, enabled state,
-default enabled state, disableability policy, category, author/source metadata
-when available, and every class registered for an extension point. Disableable
-installed plugins can be enabled or disabled live; new requests and sidecars use
-the latest `PluginRecord` state through `PluginRegistry.providers_for`.
+(`/admin/plugins`). The index page is the scan-and-filter inventory: each card
+shows the plugin's name, version, enabled state, category, short description,
+dependency summary, usage blockers, and a Details link. Disableable installed
+plugins can be enabled or disabled live; successful enablement navigates to the
+canonical detail page (`/admin/plugins/:name`) so the operator lands on the
+surfaces, docs, and metadata for the plugin they just turned on. Disable still
+stays on the inventory flow so cascade confirmation remains clear. New requests
+and sidecars use the latest `PluginRecord` state through
+`PluginRegistry.providers_for`.
 
 The page filters plugins with the same chip-based `FilterBar` query builder
 used on `/admin/queue` and `/admin/users` (no smart-folder saved-filter nav).
@@ -61,6 +65,50 @@ The bearer-token `GET /api/v1/admin/plugins` API is unchanged: it keeps its
 original plain-text `q=<text>` full-text search (via `Admin::PluginsPayload`'s
 legacy `query:` argument), independent of the chip filter framework, so
 existing external tooling built against it keeps working.
+
+`GET /api/v1/app/admin/plugins/:name` returns one canonical plugin detail
+payload by manifest name. It reuses the same manifest serialization as the
+index, then adds heavier detail-only fields:
+
+- `docs`: Markdown files from `plugins/<name>/docs/syrus_docs/*.md`, including
+  path, title, and body. The index never loads doc bodies.
+- `metrics`: metric declarations retained from the plugin manifest DSL, with
+  name, type, tags, comment, and `available` (true when the metric is currently
+  live in `Syrus::Metrics`, false when it is declared but absent because the
+  plugin is disabled or unhealthy).
+- `links`: plugin-provided operator destinations declared by the manifest.
+
+The React detail page renders overview/status/recommendation, a right-rail
+metadata summary, config schema/current values from the existing plugin config
+payload, extension points, declared routes, plugin-owned docs, declared
+metrics, and enabled plugin links. Empty docs/metrics/routes/config sections
+render explicit empty states; docs remain owned by the plugin and are not copied
+into core docs.
+
+Plugins can declare operator links/surfaces with the manifest DSL:
+
+```ruby
+syrus_plugin "terminal" do
+  link "Open Terminal", "/terminal",
+       description: "Open the top-level Terminal workspace browser."
+end
+```
+
+The stored shape is deliberately conservative:
+
+```json
+{
+  "label": "Open Terminal",
+  "href": "/terminal",
+  "description": "Open the top-level Terminal workspace browser.",
+  "kind": "surface",
+  "enabled_only": true
+}
+```
+
+`enabled_only` defaults to true, so links to disabled plugin surfaces are hidden
+until the plugin is enabled. Set `enabled_only: false` only for destinations
+that are meaningful while the plugin is off.
 
 Installation and enablement are deliberately separate. Installed plugin gems are
 loaded at boot, so their Ruby code, controllers, frontend modules, and i18n

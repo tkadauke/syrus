@@ -15,6 +15,7 @@ export type AdminPluginExtensionPoint = {
 export type AdminPlugin = {
   disable_blockers: Array<{ kind: string; label: string; count: number }>
   recommendation?: { reason: string; evidence: string } | null
+  health?: { state: string; reasons: string[] }
   name: string
   display_name: string
   version: string
@@ -29,9 +30,18 @@ export type AdminPlugin = {
   icon_url: string | null
   author: string | null
   source: string | null
+  links?: Array<{ label: string; href: string; description?: string | null; kind?: string; enabled_only?: boolean }>
+  docs?: Array<{ title: string; path: string; body: string }>
+  metrics?: Array<{ name: string; type: string; tags: string[]; comment: string; available: boolean }>
+  frontend?: Record<string, unknown>
+  routes?: Array<Record<string, unknown>>
   extension_points: AdminPluginExtensionPoint[]
   depends_on?: string[]
+  optionally_depends_on?: string[]
+  conflicts_with?: string[]
   dependents?: string[]
+  config_schema?: Array<Record<string, unknown>>
+  config?: Record<string, unknown>
 }
 
 export type AdminPluginsPayload = {
@@ -51,6 +61,10 @@ export type AdminPluginDisableConfirmation = {
 
 export function fetchAdminPlugins(search = "") {
   return getJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins${search}`)
+}
+
+export function fetchAdminPlugin(name: string) {
+  return getJson<{ plugin: AdminPlugin }>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}`)
 }
 
 export function enableAdminPlugin(name: string) {

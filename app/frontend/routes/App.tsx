@@ -21,7 +21,7 @@ import { AdminGithubAppConfirm, AdminGithubAppRegister } from "./AdminGithubApp"
 import { AdminInvitations } from "./AdminInvitations"
 import { AdminInstallations } from "./AdminInstallations"
 import { AdminOverview, AdminResourceAdmission, AdminScopedChatEvents } from "./AdminOverview"
-import { AdminPlugins } from "./AdminPlugins"
+import { AdminPluginDetail, AdminPlugins } from "./AdminPlugins"
 import { AdminQueueRoute } from "./AdminQueue"
 import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
 import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
@@ -100,6 +100,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/browser_errors", element: <AdminBrowserErrors /> },
   { path: "/admin/backend_exceptions", element: <AdminBackendExceptions /> },
   { path: "/admin/plugins", element: <AdminPlugins /> },
+  { path: "/admin/plugins/:name", element: <AdminPluginDetail /> },
   { path: "/admin/processes", element: <AdminProcessesIndex /> },
   { path: "/admin/processes/:id", element: <AdminProcessDetail /> },
   { path: "/admin/mcp_tool_usage", element: <AdminMcpToolUsage /> },
