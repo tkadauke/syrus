@@ -19,6 +19,7 @@ RSpec.describe "build_cache capture during Steps::Prepare" do
   end
 
   before do
+    PluginRecord.find_or_create_by!(name: "build_cache").update!(enabled: true, disableable: true)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
     File.write(@ws_path.join(".syrus.yml"), "prepare:\n  - echo first\n")

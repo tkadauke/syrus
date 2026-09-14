@@ -189,6 +189,7 @@ per-user/private:
   - app/controllers/api/v1/app/smart_folders_controller.rb
   - app/controllers/api/v1/app/speech_to_text_controller.rb
   - app/controllers/api/v1/app/tags_controller.rb
+  - app/controllers/api/v1/app/target_graphs_controller.rb
   - plugins/terminal/app/controllers/api/v1/app/terminal_sessions_controller.rb
   - app/controllers/api/v1/app/theme_controller.rb
   - app/controllers/api/v1/app/themes_controller.rb

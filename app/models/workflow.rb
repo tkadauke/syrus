@@ -482,12 +482,14 @@ class Workflow < ApplicationRecord
   end
 
   # Append-only artifact write. Each producing step calls this
-  # once for its outputs. Concurrency-wise the linear chain
-  # guarantees one writer at a time, so a read-modify-write is
-  # safe without locks.
+  # once for its outputs. Inline domain subscribers can write artifacts while
+  # the step handler still holds an older in-memory Workflow, so merge against
+  # the locked latest row instead of letting a stale instance overwrite them.
   def set_artifact!(key, value)
-    self.artifacts = (artifacts || {}).merge(key.to_s => value)
-    save!
+    with_lock do
+      self.artifacts = (artifacts || {}).merge(key.to_s => value)
+      save!
+    end
   end
 
   # Single call site for mutating chain_template at runtime (e.g. bumping a

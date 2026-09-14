@@ -24,7 +24,7 @@ jobs:
         blocked_details:
           auto_retry_attempt_id: 1
           retry_kind: failed_step
-          failure_classification: worker_died_under_resource_pressure
+          failure_classification: worker_died
       intent:
         state: failed
       steps:
@@ -39,19 +39,19 @@ jobs:
             agent_outcome: worker_died
             diagnostic:
               error_class: Steps::Base::StepFailed
-              error_message: simulated worker death under resource pressure
-              problem_code: worker_died_under_resource_pressure
+              error_message: simulated provider auth expiration
+              problem_code: provider_auth_expired
             classification:
-              classification: worker_died_under_resource_pressure
+              classification: provider_auth_expired
               retryable: false
-              reason: Worker died while the host was under critical resource pressure.
+              reason: The provider authentication token expired and needs operator reauthorization.
 auto_retry_attempts:
   skipped_backoff:
     job: member
     workflow_kind: merge_train
     step_kind: landing_fix
     retry_kind: failed_step
-    failure_classification: worker_died_under_resource_pressure
+    failure_classification: worker_died
     agent_provider: codex
     attempt_number: 1
     scheduled_at: "2026-09-09T13:05:00Z"

@@ -169,14 +169,14 @@ RSpec.describe AutoRetryJob do
     RunDiagnostic.create!(
       run: run,
       error_class: "Steps::Base::StepFailed",
-      error_message: "simulated worker death under pressure",
-      problem_code: "worker_died_under_resource_pressure"
+      error_message: "simulated provider auth expiration",
+      problem_code: "provider_auth_expired"
     )
     allow(WorkEngine::Reconciler).to receive(:request)
 
     described_class.perform_now(attempt.id)
 
-    expect(attempt.reload.skipped_reason).to eq("failure is not retryable: worker_died_under_resource_pressure (was worker_died)")
+    expect(attempt.reload.skipped_reason).to eq("failure is not retryable: provider_auth_expired (was worker_died)")
     expect(unit.reload).to have_attributes(state: "failed", blocked_reason: nil, blocked_until: nil, blocked_details: {})
     expect(unit.work_unit_locks.active).to be_empty
     expect(WorkEngine::Reconciler).not_to have_received(:request)
