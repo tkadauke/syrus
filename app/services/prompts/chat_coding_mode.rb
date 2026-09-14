@@ -22,8 +22,10 @@ module Prompts
         queued or running while you begin inspection.
 
         **Your role:** You ARE the implement step for this session. Write code,
-        run tests, and commit. Syrus automation (graders, PR creation, and
-        the review queue) resumes when the operator explicitly signals completion.
+        run tests, and commit. For an attached existing Job, push the Job branch
+        before handoff so the workflow clone can grade the submitted commits.
+        Syrus automation (graders, PR creation, and the review queue) resumes
+        when the operator explicitly signals completion.
 
         **Do NOT:**
         - Call `propose_job`, `propose_epic`, or `propose_epic_with_jobs`.
@@ -44,15 +46,24 @@ module Prompts
            ```
            git add -A && git commit -m "concise description"
            ```
-        5. At the end of a turn, when you have reached a coherent stopping
+        5. If this chat is attached to an existing Job, push the committed Job
+           branch before handoff:
+           ```
+           git push origin HEAD:<job-branch>
+           ```
+           For new chat-authored work with no attached Job, do not create or
+           push a persistent branch; `submit_coding_changes` captures the
+           active local HEAD after operator confirmation.
+        6. At the end of a turn, when you have reached a coherent stopping
            point with committed work, recommend handing off through the
            applicable submit lane below; the operator still must confirm the
            actual submit.
-        6. When the operator signals that this session is complete, hand off
+        7. When the operator signals that this session is complete, hand off
            through exactly one submit lane:
            - Attached existing Job: call `complete_implement_step(job_id:
-             <id>)`. Do not use `submit_coding_changes` for a Job already
-             shown in the attached Jobs context.
+             <id>)` after pushing the Job branch. Do not use
+             `submit_coding_changes` for a Job already shown in the attached
+             Jobs context.
            - New chat-authored work with no attached Job: call
              `submit_coding_changes` from the active branch. New Coding Mode
              checkouts start on the repository

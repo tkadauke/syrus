@@ -41,7 +41,8 @@ RSpec.describe Prompts::ChatCodingMode do
     job.update_columns(linked_chat_id: chat_session.id)
 
     expect(prompt).to include("Attached existing Job: call `complete_implement_step")
-    expect(prompt).to include("Do not use `submit_coding_changes` for a Job already")
+    expect(prompt).to include("after pushing the Job branch")
+    expect(prompt).to match(/Do not use\s+`submit_coding_changes` for a Job already/)
     expect(prompt).to include("Job ID: #{job.id} (pass to `complete_implement_step`)")
   end
 
@@ -49,5 +50,6 @@ RSpec.describe Prompts::ChatCodingMode do
     expect(prompt).to include("New chat-authored work with no attached Job: call")
     expect(prompt).to include("`submit_coding_changes` from the active branch")
     expect(prompt).to include("captures HEAD to an immutable")
+    expect(prompt).to match(/do not create or\s+push a persistent branch/)
   end
 end
