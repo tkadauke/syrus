@@ -33,4 +33,22 @@ RSpec.describe "Admin plugins", type: :request do
       expect(response.body).to include('id="syrus-spa-root"')
     end
   end
+
+  describe "GET /admin/plugins/:name" do
+    it "routes to the SPA shell" do
+      expect(Rails.application.routes.recognize_path("/admin/plugins/terminal", method: :get)).to include(
+        controller: "spa",
+        action: "show"
+      )
+    end
+
+    it "serves the React plugin detail shell for admins" do
+      sign_in_as(admin)
+
+      get "/admin/plugins/terminal"
+
+      expect(response).to be_successful
+      expect(response.body).to include('id="syrus-spa-root"')
+    end
+  end
 end
