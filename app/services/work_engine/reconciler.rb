@@ -1821,14 +1821,8 @@ module WorkEngine
     end
 
     def classify_stale_active_merge_trains_without_runtime
-      job_ids = jobs.map(&:id)
-      return [] if job_ids.empty?
-
       MergeTrain
         .active
-        .joins(:members)
-        .where(merge_train_members: { job_id: job_ids })
-        .distinct
         .includes(:epic, members: :job)
         .filter_map do |train|
           next unless stale_active_merge_train_without_runtime?(train)
