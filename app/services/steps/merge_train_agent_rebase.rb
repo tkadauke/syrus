@@ -32,6 +32,7 @@ module Steps
       workflow.set_artifact!(MergeTrainLand::BASE_SHA_ARTIFACT, new_base_sha)
       train.update!(integration_sha: new_integration_sha)
       run.update!(head_sha: new_integration_sha)
+      publish_run_checkpoint!
 
       log("merge_train_agent_rebase: rebased #{train.integration_branch} to " \
           "#{new_integration_sha.first(9)} (new base #{new_base_sha.first(9)})")

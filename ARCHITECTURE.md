@@ -1262,7 +1262,7 @@ Core (the agent loop):
 | `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
 | `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, `submit_test_plan`, and `submit_adversarial_review`. See [MCP sidecar](#mcp-sidecar). |
 | `SyrusChatMcp::Sidecar` | MCP server for chat turns. Exposes repository/job/PR inspection, proposal, scheduling, bookmark, note, and whiteboard tools scoped to the active `ChatSession`. See [Chat sidecar and workspaces](#chat-sidecar-and-workspaces). |
-| `Prompts::*` | One class per prompt surface: `Initial`, `AdversarialReview`, `PrFeedback`, `ChatFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `AgentInsight`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `Prompts::*` | One class per prompt surface: `Implement`, `AdversarialReview`, `PrFeedback`, `ChatFeedback`, `CiFailure`, `Rebase`, `StackRebase`, `ScheduledTask`, `DirectJob`, `AgentInsight`, `TestPlan`, plus `SkillLoader` for shared skill-backed prompt text, `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
 | `InsightScheduler` | Creates `agent_insight` Jobs when no active insight Job already exists for the repository. Used by manual repository actions and adaptive scheduling. |
 | `WorkEngine::Reconciler` | Read-only consistency classifier and feature-gated repair planner/executor for stuck Jobs, Workflows, Steps, Runs, queue claims, worker evidence, dependency blocks, rate limits, and workspace risks. |
 | `WorkflowAdmissionBudget` | Resource-aware gate applied at Workflow initialization and at phase boundaries (before grader-fanout and other costly steps). Evaluates worker host pressure, predicted step cost (from `WorkflowStepResourceProfile`), and repository concurrency; can `admit_now`, `admit_low_risk_only`, `delay_until`, or `requires_override` (hard block). Deferred workflows/phases are resumed by `WorkflowPhaseAdmissionJob`. |
@@ -1822,10 +1822,10 @@ server processes only) rather than through `config/recurring.yml`.
 
 Several layers, each catching different failure modes:
 
-1. **Provider timeout** — 30-minute wall-clock cap (and Claude
-   `--max-turns` for users with `agent_max_turns > 0`). The provider
-   adapter kills the subprocess and returns a timed-out result; `RunJob`
-   calls `fail!`.
+1. **Provider timeout** — 90-minute wall-clock cap, a 20-minute
+   no-output timeout, and Claude `--max-turns` for users with
+   `agent_max_turns > 0`. The provider adapter kills the subprocess and
+   returns a timed-out result; `RunJob` calls `fail!`.
 2. **Workflow terminal cleanup** — terminal transitions clean up or retain
    the shared workspace according to state. Cleanup failures are logged but
    don't suppress the original exception.

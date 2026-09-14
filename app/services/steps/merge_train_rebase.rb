@@ -44,6 +44,8 @@ module Steps
       tree_sha = git.run("rev-parse", "HEAD^{tree}", chdir: chdir).to_s.strip.presence
       workflow.set_artifact!(MergeTrainLand::BASE_SHA_ARTIFACT, new_base_sha)
       train.update!(integration_sha: new_integration_sha)
+      run.update!(head_sha: new_integration_sha)
+      publish_run_checkpoint!
       skip_agent_rebase!(reason: "merge_train_rebase already succeeded; agent rebase not needed")
 
       log("merge_train_rebase: rebased #{train.integration_branch} to " \

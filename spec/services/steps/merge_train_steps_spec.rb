@@ -1497,6 +1497,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     before do
       allow(GithubClient).to receive(:for).and_return(client)
       allow(repository).to receive(:authenticated_push_url).and_return("https://push.example/repo.git")
+      allow(RunCheckpointPublisher).to receive(:publish!)
     end
 
     def rebase_step_handler(train)
@@ -1551,6 +1552,12 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(handler.workflow.steps.find_by!(kind: "merge_train_agent_rebase")).to be_skipped
       expect(handler.workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("newbase222")
       expect(train.reload.integration_sha).to eq("newintsha999")
+      expect(handler.run.reload.head_sha).to eq("newintsha999")
+      expect(RunCheckpointPublisher).to have_received(:publish!).with(
+        run: handler.run,
+        workspace: handler.send(:workspace),
+        log: anything
+      )
     end
 
     it "recreates and checks out the integration branch from integration_sha before rebasing" do
@@ -1726,6 +1733,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler = described_class.new(run)
       workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "x")
       git = instance_double(GitRunner)
+      allow(RunCheckpointPublisher).to receive(:publish!)
       allow(handler).to receive(:workspace).and_return(workspace)
       allow(handler).to receive(:streaming_git).and_return(git)
       allow(handler).to receive(:run_agent)
@@ -1746,6 +1754,11 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("newbase222")
       expect(train.reload.integration_sha).to eq("newintsha999")
       expect(run.head_sha).to eq("newintsha999")
+      expect(RunCheckpointPublisher).to have_received(:publish!).with(
+        run: run,
+        workspace: workspace,
+        log: anything
+      )
     end
 
     it "fails before invoking the agent when the integration branch cannot be restored" do

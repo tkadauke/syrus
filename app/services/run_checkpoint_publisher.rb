@@ -6,6 +6,7 @@ class RunCheckpointPublisher
     run_skill
     manual_agentic_run
     merge_train_reconcile
+    merge_train_rebase
     landing_fix
     push_agent_rebase
     agent_rebase

@@ -47,6 +47,17 @@ RSpec.describe RunCheckpointPublisher do
     )
   end
 
+  it "publishes merge-train rebase runs as mutation checkpoints" do
+    step.update!(kind: "merge_train_rebase")
+    allow(git).to receive(:run).with("ls-remote", "https://example.test/repo.git", "refs/syrus/checkpoints/runs/#{run.id}", chdir: "/tmp/workspace", env: { "GIT_TERMINAL_PROMPT" => "0" }).and_return("")
+    allow(git).to receive(:run).with("push", "https://example.test/repo.git", "abc123:refs/syrus/checkpoints/runs/#{run.id}", chdir: "/tmp/workspace", env: { "GIT_TERMINAL_PROMPT" => "0" }).and_return("")
+
+    checkpoint = described_class.publish!(run: run, workspace: workspace, git: git)
+
+    expect(checkpoint).to be_published
+    expect(checkpoint.step_kind).to eq("merge_train_rebase")
+  end
+
   it "does not push again when the immutable ref already points at the same SHA" do
     allow(git).to receive(:run).with("ls-remote", anything, anything, any_args).and_return("abc123\trefs/syrus/checkpoints/runs/#{run.id}\n")
     expect(git).not_to receive(:run).with("push", anything, anything, any_args)
