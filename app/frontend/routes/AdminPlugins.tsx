@@ -343,7 +343,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
                       <SectionHeading className="break-words">{doc.title}</SectionHeading>
                       <span className="max-w-full break-all font-mono text-xs text-gray-500 dark:text-gray-400">{doc.path}</span>
                     </div>
-                    <Markdown className="min-w-0 text-sm text-gray-700 dark:text-gray-200" text={doc.body} />
+                    <Markdown className="plugin-docs-prose min-w-0 text-sm text-gray-700 dark:text-gray-200" text={doc.body} />
                   </article>
                 ))}
               </div>

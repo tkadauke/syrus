@@ -376,6 +376,16 @@
   font-size: inherit;
 }
 
+.plugin-docs-prose {
+  max-width: 100%;
+}
+
+.plugin-docs-prose > div,
+.plugin-docs-prose pre,
+.plugin-docs-prose table {
+  max-width: 100%;
+}
+
 .chat-prose blockquote {
   border-left: 3px solid #cbd5e1;
   padding-left: 0.75rem;
