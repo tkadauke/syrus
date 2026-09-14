@@ -485,9 +485,13 @@ class Workflow < ApplicationRecord
   # artifacts during a step before the step writes its own artifact, so merge
   # against the locked current row rather than a possibly stale instance copy.
   def set_artifact!(key, value)
-    with_lock do
-      self.artifacts = (artifacts || {}).merge(key.to_s => value)
-      save!
+    pending = (artifacts || {}).merge(key.to_s => value)
+
+    self.class.transaction do
+      locked = self.class.lock.find(id)
+      locked.artifacts = (locked.artifacts || {}).merge(pending)
+      locked.save!
+      self.artifacts = locked.artifacts
     end
   end
 
