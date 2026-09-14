@@ -155,3 +155,16 @@ expect:
 Event conditions currently support `job`, `workflow`, `work_unit`, and `queue`,
 plus `all`, `any`, and `not` composition. Job references can use YAML fixture
 keys; the loader translates them to database IDs after seeding.
+
+Run fixtures can include a `solid_queue:` block when the exact queue evidence
+matters to the reconciler. Use this for cases where a running or queued Run has
+a claimed, ready, scheduled, or failed Solid Queue job:
+
+```yaml
+run:
+  state: running
+  started_at: "2000-01-01 00:00:00 UTC"
+  solid_queue:
+    queue_name: runs
+    claimed: true
+```

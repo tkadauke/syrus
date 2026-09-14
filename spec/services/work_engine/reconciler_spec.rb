@@ -2741,7 +2741,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago,
       last_heartbeat_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
     )
-    step.update_columns(state: "running", started_at: run.started_at)
+    step.update_columns(kind: "implement", state: "running", started_at: run.started_at)
     workflow.update_columns(state: "running", started_at: run.started_at)
     allow(File).to receive(:directory?).and_call_original
     allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
@@ -2767,7 +2767,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       started_at: 10.minutes.ago,
       last_heartbeat_at: heartbeat_at
     )
-    step.update_columns(state: "running", started_at: run.started_at)
+    step.update_columns(kind: "implement", state: "running", started_at: run.started_at)
     workflow.update_columns(state: "running", started_at: run.started_at)
     allow(File).to receive(:directory?).and_call_original
     allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
@@ -3057,7 +3057,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       started_at: 10.minutes.ago,
       last_heartbeat_at: heartbeat_at
     )
-    step.update_columns(state: "running", started_at: run.started_at)
+    step.update_columns(kind: "implement", state: "running", started_at: run.started_at)
     workflow.update_columns(state: "running", started_at: run.started_at)
 
     result = reconcile(run_id: run.id)
@@ -3070,6 +3070,40 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
     expect(issue.check_after).to be_within(1.second).of(heartbeat_at + Run::STALE_HEARTBEAT_THRESHOLD)
     expect(issue.evidence).to include("detached_worker_evidence" => false)
+  end
+
+  it "auto-repairs a non-agentic running Run with an active queue claim but no live child process after a short grace" do
+    ensure_solid_queue_test_tables!
+    heartbeat_at = 4.minutes.ago
+    solid_queue_run_job(run, claimed: true, created_at: 30.seconds.ago)
+    step.update_columns(kind: "grader", state: "running", started_at: 10.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    run.update_columns(
+      state: "running",
+      started_at: 10.minutes.ago,
+      last_heartbeat_at: heartbeat_at
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died",
+      check_after: nil
+    )
+    expect(issue.evidence).to include(
+      "detached_worker_evidence" => false,
+      "non_agentic_without_live_process" => true,
+      "non_agentic_no_process_grace_seconds" => 180
+    )
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_id: run.id
+    )
   end
 
   it "cancels a stale running Run left behind under an already-cancelled Workflow" do

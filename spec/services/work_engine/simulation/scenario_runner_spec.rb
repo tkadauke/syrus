@@ -134,6 +134,19 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("merge_train_land")
   end
 
+  it "retries non-agentic runs with live queue claims but no live child process before the agent stale threshold" do
+    result = run_scenario("non_agentic_claim_without_process_retries")
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("running_run_without_live_worker_evidence")
+    grader_runs = Run.joins(:step)
+      .where(job_id: result.job_ids, steps: { kind: "grader" })
+      .order(:id)
+      .to_a
+    expect(grader_runs.map(&:state)).to eq(%w[failed succeeded])
+    expect(grader_runs.first.agent_outcome).to eq(AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
+  end
+
   it "does not relaunch a stale initial intent after a later retry implemented the job" do
     result = run_scenario("stale_initial_intent_after_successful_retry")
 

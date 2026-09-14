@@ -114,10 +114,16 @@ module WorkEngine
       end
 
       def create_repository!(user, attrs)
+        owner = attrs.fetch("owner", "simulation")
+        name = attrs.fetch("name", "repo-#{SecureRandom.hex(4)}")
+        if Rails.env.test? && owner.start_with?("simulation")
+          Repository.where(owner: owner, name: name).find_each(&:destroy!)
+        end
+
         repository = Repository.create!(
           user: user,
-          owner: attrs.fetch("owner", "simulation"),
-          name: attrs.fetch("name", "repo-#{SecureRandom.hex(4)}"),
+          owner: owner,
+          name: name,
           default_branch: attrs.fetch("default_branch", "main")
         )
         updates = attrs.slice(*REPOSITORY_UPDATE_KEYS)
@@ -465,7 +471,144 @@ module WorkEngine
               outcome: process["outcome"]
             )
           end
+          create_solid_queue_state!(run, config["solid_queue"]) if config["solid_queue"].present?
         end
+      end
+
+      def create_solid_queue_state!(run, config)
+        ensure_solid_queue_tables!
+
+        attrs = config.to_h
+        created_at = parse_optional_time(attrs["created_at"]) || Time.current
+        queue_job = SolidQueue::Job.create!(
+          class_name: "RunJob",
+          queue_name: attrs.fetch("queue_name", "runs"),
+          priority: attrs.fetch("priority", 10),
+          arguments: { "arguments" => [ run.id ] },
+          scheduled_at: parse_optional_time(attrs["scheduled_at"]),
+          created_at: created_at,
+          updated_at: created_at
+        )
+
+        if attrs["ready"] == true
+          SolidQueue::ReadyExecution.create!(
+            job: queue_job,
+            priority: queue_job.priority,
+            queue_name: queue_job.queue_name,
+            created_at: created_at
+          )
+        end
+
+        if queue_job.scheduled_at
+          SolidQueue::ScheduledExecution.create!(
+            job: queue_job,
+            priority: queue_job.priority,
+            queue_name: queue_job.queue_name,
+            scheduled_at: queue_job.scheduled_at,
+            created_at: created_at
+          )
+        end
+
+        if attrs["claimed"] == true
+          process = SolidQueue::Process.create!(
+            hostname: attrs.fetch("hostname", "simulation-worker"),
+            kind: "worker",
+            last_heartbeat_at: parse_optional_time(attrs["process_heartbeat_at"]) || Time.current,
+            metadata: {},
+            name: attrs.fetch("process_name", "simulation-worker:1"),
+            pid: attrs.fetch("pid", 12_345),
+            created_at: created_at
+          )
+          SolidQueue::ClaimedExecution.create!(
+            job: queue_job,
+            process_id: process.id,
+            created_at: created_at
+          )
+        end
+
+        if attrs["failed"] == true
+          SolidQueue::FailedExecution.create!(
+            job: queue_job,
+            error: attrs.fetch("error", "simulated queue failure"),
+            created_at: created_at
+          )
+        end
+      end
+
+      def ensure_solid_queue_tables!
+        connection = ActiveRecord::Base.connection
+
+        unless connection.table_exists?(:solid_queue_jobs)
+          connection.create_table :solid_queue_jobs do |t|
+            t.string :active_job_id
+            t.text :arguments
+            t.string :class_name, null: false
+            t.string :concurrency_key
+            t.datetime :created_at, null: false
+            t.datetime :finished_at
+            t.integer :priority, default: 0, null: false
+            t.string :queue_name, null: false
+            t.datetime :scheduled_at
+            t.datetime :updated_at, null: false
+          end
+        end
+
+        unless connection.table_exists?(:solid_queue_ready_executions)
+          connection.create_table :solid_queue_ready_executions do |t|
+            t.datetime :created_at, null: false
+            t.bigint :job_id, null: false
+            t.integer :priority, default: 0, null: false
+            t.string :queue_name, null: false
+          end
+        end
+
+        unless connection.table_exists?(:solid_queue_scheduled_executions)
+          connection.create_table :solid_queue_scheduled_executions do |t|
+            t.datetime :created_at, null: false
+            t.bigint :job_id, null: false
+            t.integer :priority, default: 0, null: false
+            t.string :queue_name, null: false
+            t.datetime :scheduled_at, null: false
+          end
+        end
+
+        unless connection.table_exists?(:solid_queue_processes)
+          connection.create_table :solid_queue_processes do |t|
+            t.datetime :created_at, null: false
+            t.string :hostname
+            t.string :kind, null: false
+            t.datetime :last_heartbeat_at, null: false
+            t.text :metadata
+            t.string :name, null: false
+            t.integer :pid, null: false
+            t.bigint :supervisor_id
+          end
+        end
+
+        unless connection.table_exists?(:solid_queue_claimed_executions)
+          connection.create_table :solid_queue_claimed_executions do |t|
+            t.datetime :created_at, null: false
+            t.bigint :job_id, null: false
+            t.bigint :process_id
+          end
+        end
+
+        unless connection.table_exists?(:solid_queue_failed_executions)
+          connection.create_table :solid_queue_failed_executions do |t|
+            t.datetime :created_at, null: false
+            t.text :error
+            t.bigint :job_id, null: false
+          end
+        end
+
+        [
+          SolidQueue::Job,
+          SolidQueue::ReadyExecution,
+          SolidQueue::ScheduledExecution,
+          SolidQueue::Process,
+          SolidQueue::ClaimedExecution,
+          SolidQueue::FailedExecution
+        ].each(&:reset_column_information)
       end
 
       def create_run_checkpoint!(run, config)

@@ -4,6 +4,7 @@ module WorkEngine
   class Reconciler
     ORPHAN_RUN_GRACE_PERIOD = ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD
     DETACHED_WORKER_EVIDENCE_GRACE = 3.minutes
+    NON_AGENTIC_NO_PROCESS_GRACE = 3.minutes
     QUEUE_STARVATION_AFTER = 10.minutes
     RESOURCE_CONGESTION_CHECK_AFTER = 5.minutes
     RATE_LIMIT_CHECK_AFTER = 10.minutes
@@ -720,8 +721,10 @@ module WorkEngine
         last_activity_at = run.last_heartbeat_at || run.started_at
         detached = detached_running_run?(sq, live_process)
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
-        repair_ready = terminal_orphan_ready || (heartbeat_stale && !live_process) || detached_ready
-        next if !repair_ready && !detached && !terminal_orphan_process && (fresh_activity?(run.last_heartbeat_at) || live_process)
+        non_agentic_no_process = non_agentic_run_without_live_process?(run, live_process)
+        non_agentic_no_process_ready = non_agentic_no_process && older_than?(last_activity_at, NON_AGENTIC_NO_PROCESS_GRACE)
+        repair_ready = terminal_orphan_ready || (heartbeat_stale && !live_process) || detached_ready || non_agentic_no_process_ready
+        next if !repair_ready && !detached && !terminal_orphan_process && !non_agentic_no_process && (fresh_activity?(run.last_heartbeat_at) || live_process)
 
         related_spawned_process_ids = spawned_process_ids_for([ run.id ], [ run.workflow_id ].compact)
 
@@ -735,6 +738,7 @@ module WorkEngine
             heartbeat_stale: heartbeat_stale,
             detached_ready: detached_ready,
             detached: detached,
+            non_agentic_no_process: non_agentic_no_process,
             last_activity_at: last_activity_at,
             terminal_orphan_process: terminal_orphan_process
           ),
@@ -742,6 +746,8 @@ module WorkEngine
             solid_queue: sq,
             detached_worker_evidence: detached,
             detached_worker_evidence_grace_seconds: DETACHED_WORKER_EVIDENCE_GRACE.to_i,
+            non_agentic_without_live_process: non_agentic_no_process,
+            non_agentic_no_process_grace_seconds: NON_AGENTIC_NO_PROCESS_GRACE.to_i,
             last_heartbeat_age_seconds: seconds_since(last_activity_at),
             live_spawned_process: live_process&.id,
             terminal_spawned_process: terminal_process&.id,
@@ -2967,6 +2973,13 @@ module WorkEngine
       run.last_heartbeat_at.present? ? run.last_heartbeat_at < t : run.started_at.present? && run.started_at < t
     end
 
+    def non_agentic_run_without_live_process?(run, live_process)
+      return false if live_process
+      return false if run.step&.agentic?
+
+      true
+    end
+
     def detached_running_run?(solid_queue_job, live_process)
       return false if live_process
       return true if solid_queue_job.nil?
@@ -2978,10 +2991,11 @@ module WorkEngine
       error.to_s.include?("ProcessPrunedError")
     end
 
-    def check_after_for_running_run(heartbeat_stale:, detached_ready:, detached:, last_activity_at:, terminal_orphan_process: nil)
+    def check_after_for_running_run(heartbeat_stale:, detached_ready:, detached:, non_agentic_no_process:, last_activity_at:, terminal_orphan_process: nil)
       return nil if heartbeat_stale || detached_ready
       return terminal_orphan_process.finished_at + ORPHAN_RUN_GRACE_PERIOD if terminal_orphan_process&.finished_at
       return last_activity_at + DETACHED_WORKER_EVIDENCE_GRACE if detached && last_activity_at
+      return last_activity_at + NON_AGENTIC_NO_PROCESS_GRACE if non_agentic_no_process && last_activity_at
       return last_activity_at + Run::STALE_HEARTBEAT_THRESHOLD if last_activity_at
 
       now + RESOURCE_CONGESTION_CHECK_AFTER
