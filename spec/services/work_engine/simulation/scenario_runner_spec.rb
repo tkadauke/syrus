@@ -125,6 +125,15 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("merge_train_land")
   end
 
+  it "rebuilds retryable merge-train build failures without requiring the old workspace" do
+    result = run_scenario("retryable_merge_train_build_rebuilds")
+
+    expect(result).to be_success
+    expect(Job.where(id: result.job_ids).pluck(:state)).to all(eq("closed"))
+    expect(result.events.join("\n")).to include("merge_train_assemble")
+    expect(result.events.join("\n")).to include("merge_train_land")
+  end
+
   it "does not relaunch a stale initial intent after a later retry implemented the job" do
     result = run_scenario("stale_initial_intent_after_successful_retry")
 

@@ -676,6 +676,7 @@ class WorkflowWorkspace
     message = "existing workflow workspace at #{path} has no valid HEAD"
     unless safe_to_reclone_existing_workspace?
       return if restore_invalid_checkout_from_checkpoint!(message)
+      return if restore_invalid_checkout_from_merge_train!(message)
 
       raise GitRunner::GitError.new([ "rev-parse", "--verify", "HEAD" ], 128, message)
     end
@@ -715,6 +716,51 @@ class WorkflowWorkspace
     notify("#{message}; checkpoint restore failed: #{e.message}")
     FileUtils.rm_rf(path)
     false
+  end
+
+  def restore_invalid_checkout_from_merge_train!(message)
+    train = restorable_merge_train
+    return false unless train
+
+    notify("#{message}; restoring merge-train integration branch #{train.integration_branch}")
+    FileUtils.rm_rf(path)
+    clone_for_checkpoint_restore!
+    fetch_merge_train_integration_to_work_branch!(train)
+    true
+  rescue GitRunner::GitError => e
+    notify("#{message}; merge-train restore failed: #{e.message}")
+    FileUtils.rm_rf(path)
+    false
+  end
+
+  def restorable_merge_train
+    return nil unless @workflow.trigger_kind == "merge_train"
+    return nil unless @required_branch.present?
+
+    train_id = @workflow.artifact("merge_train_id")
+    train = MergeTrain.find_by(id: train_id)
+    return nil unless train&.integration_branch.present? && train.integration_sha.present?
+    return nil unless @required_branch == train.integration_branch
+
+    train
+  end
+
+  def fetch_merge_train_integration_to_work_branch!(train)
+    authenticated_git("git_workflow_restore_invalid_checkout_merge_train") do |url|
+      @git.run(
+        "fetch", url, "+refs/heads/#{train.integration_branch}:refs/heads/#{@branch_name}",
+        chdir: path.to_s, env: @env
+      )
+    end
+    @git.run("checkout", @branch_name, chdir: path.to_s)
+    actual = @git.run("rev-parse", "HEAD", chdir: path.to_s).strip
+    return if actual == train.integration_sha
+
+    raise GitRunner::GitError.new(
+      [ "rev-parse", "HEAD" ],
+      128,
+      "merge-train restore checked out #{actual}, expected #{train.integration_sha}"
+    )
   end
 
   def clone_for_checkpoint_restore!

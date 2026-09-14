@@ -33,6 +33,7 @@ module WorkEngine
 
         ActiveRecord::Base.transaction(requires_new: true) do
           user = create_user!(data.fetch("user", {}))
+          reset_global_configuration!
           configure_features!(data.fetch("features", {}))
           configure_app_settings!(data.fetch("app_settings", {}))
           repository = create_repository!(user, data.fetch("repository", {}))
@@ -69,6 +70,20 @@ module WorkEngine
       private
 
       attr_reader :path
+
+      def reset_global_configuration!
+        reset_app_settings!
+        Feature.update_all(enabled: false)
+        Feature.clear_enabled_cache!
+      end
+
+      def reset_app_settings!
+        setting = AppSetting.current.reload
+        defaults = AppSetting.column_defaults.except("id", "created_at", "updated_at")
+        setting.assign_attributes(defaults)
+        setting.polling_paused = AppSetting.boot_polling_paused_default
+        setting.save!(validate: false)
+      end
 
       def create_user!(attrs)
         User.create!(
@@ -291,8 +306,24 @@ module WorkEngine
             finished_at: attrs.key?("finished_at") ? parse_optional_time(attrs["finished_at"]) : (train.terminal? ? 1.minute.ago : nil)
           )
           create_merge_train_members!(train, jobs, attrs.fetch("members", []))
+          attach_merge_train_to_workflow!(train, jobs, attrs)
           create_landed_commits!(epics, jobs, train, attrs.fetch("landed_commits", {}))
         end
+      end
+
+      def attach_merge_train_to_workflow!(train, jobs, attrs)
+        workflow_job_key = attrs["workflow_job"]
+        return if workflow_job_key.blank?
+
+        workflow = jobs
+          .fetch(workflow_job_key.to_s)
+          .workflows
+          .where(trigger_kind: "merge_train")
+          .order(:id)
+          .last
+        raise ArgumentError, "merge train #{train.id} could not find merge_train workflow on #{workflow_job_key}" unless workflow
+
+        workflow.set_artifact!("merge_train_id", train.id)
       end
 
       def create_merge_train_members!(train, jobs, definitions)

@@ -1,0 +1,81 @@
+name: retryable merge train build rebuilds
+app_settings:
+  merge_train_enabled: true
+features:
+  epicless_job_bundling: true
+repository:
+  owner: simulation
+  name: retryable-merge-train-build-rebuilds
+  auto_merge_enabled: true
+jobs:
+  alpha:
+    title: Alpha bundle member
+    state: failed
+    priority: medium
+    branch_name: syrus/direct-alpha
+    pr_number: 6101
+    approved_at: "2026-09-14 10:00:00"
+    workflow:
+      kind: merge_train
+      state: failed
+      work_unit:
+        state: failed
+      steps:
+        - kind: merge_train_assemble
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: merge_train_build
+          state: failed
+          run:
+            state: failed
+            agent_provider: codex
+            agent_outcome: turn_failed
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: agent reported turn_failed after transient provider failure
+            classification:
+              classification: provider_transient
+              retryable: true
+              reason: Provider returned a transient agent failure.
+        - kind: merge_train_land
+          state: cancelled
+  beta:
+    title: Beta bundle member
+    state: failed
+    priority: medium
+    branch_name: syrus/direct-beta
+    pr_number: 6102
+    approved_at: "2026-09-14 10:01:00"
+merge_trains:
+  failed_bundle:
+    priority: medium
+    state: failed
+    base_branch: main
+    integration_branch: syrus/job-bundle-failed-build
+    integration_sha: 1111111111111111111111111111111111111111
+    failure_reason: transient provider failure during train build
+    workflow_job: alpha
+    members:
+      - job: alpha
+        state: failed
+      - job: beta
+        state: failed
+runner:
+  auto_retry_failed_jobs: false
+outcomes:
+  default: success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - retryable_run_failure
+    - merge_train_assemble
+    - merge_train_land

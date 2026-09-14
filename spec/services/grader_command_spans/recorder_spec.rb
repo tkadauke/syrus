@@ -43,4 +43,28 @@ RSpec.describe GraderCommandSpans::Recorder do
       [ "printf ready #1", 2 ]
     ])
   end
+
+  it "keeps command-span telemetry best-effort when the database reports a unique collision" do
+    original_create = CommandSpan.method(:create!)
+    first_attempt = true
+
+    allow(CommandSpan).to receive(:create!) do |attributes|
+      if first_attempt
+        first_attempt = false
+        raise ActiveRecord::RecordNotUnique.new("duplicate command span sequence")
+      end
+
+      original_create.call(attributes)
+    end
+
+    expect {
+      described_class.new(
+        run: run,
+        step: step,
+        workflow: workflow,
+        plan: plan
+      )
+    }.not_to raise_error
+    expect(run.reload.command_spans.ordered.pluck(:sequence)).to eq([ 1 ])
+  end
 end

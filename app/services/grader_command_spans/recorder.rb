@@ -180,7 +180,7 @@ module GraderCommandSpans
           hostname: Socket.gethostname,
           metadata: metadata
         )
-      rescue ActiveRecord::RecordNotUnique
+      rescue ActiveRecord::RecordNotUnique => e
         attempts += 1
         return abandon_span!(error: e, sequence: sequence) if attempts >= MAX_CREATE_ATTEMPTS
 

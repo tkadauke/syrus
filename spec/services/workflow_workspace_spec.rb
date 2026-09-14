@@ -253,6 +253,35 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(restored.path.join("agent-output.tmp")).not_to exist
       end
 
+      it "restores an invalid merge-train workspace from the published integration branch" do
+        merge_train_workflow = Workflow.create!(job: job, trigger_kind: "merge_train")
+        train = MergeTrain.create!(
+          repository: repository,
+          base_branch: "main",
+          priority: "medium",
+          state: "grading"
+        )
+        integration_branch = train.default_integration_branch
+        seed_remote_branch(integration_branch, "integration work")
+        integration_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse refs/heads/#{integration_branch}").strip
+        train.update!(integration_branch: integration_branch, integration_sha: integration_sha)
+        merge_train_workflow.set_artifact!("merge_train_id", train.id)
+        merge_train_workflow.set_artifact!(described_class::REQUIRED_BRANCH_ARTIFACT, integration_branch)
+        merge_train_workflow.steps.create!(kind: "merge_train_reconcile", position: 1, state: "succeeded")
+
+        ws = described_class.new(merge_train_workflow)
+        FileUtils.mkdir_p(ws.path)
+        File.write(ws.path.join("agent-output.tmp"), "broken checkout")
+
+        described_class.new(merge_train_workflow).setup
+
+        restored = described_class.new(merge_train_workflow)
+        expect(sh("git -C #{restored.path} rev-parse HEAD").strip).to eq(integration_sha)
+        expect(sh("git -C #{restored.path} rev-parse --abbrev-ref HEAD").strip).to eq(integration_branch)
+        expect(restored.path.join("integration.txt")).to exist
+        expect(restored.path.join("agent-output.tmp")).not_to exist
+      end
+
       it "creates a fresh branch when the target branch isn't on origin" do
         ws = described_class.new(workflow)
         ws.setup

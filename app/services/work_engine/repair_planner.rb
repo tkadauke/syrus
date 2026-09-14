@@ -246,6 +246,32 @@ module WorkEngine
             !workflow.landing_workflow?
         end
 
+        # Routed through the shared resolver (workflow-engine-v3 primitive B)
+        # instead of asking the work definition's retry policy directly: the
+        # policy is still what answers -- it is tier 3 of that rule -- but
+        # going through Remediation::Resolver is what lets a future step or
+        # template override take precedence here too, the same way
+        # RetryFailedStepEnqueuer#remediation_for already works.
+        def rebuild_unit_retry?
+          return false unless primary_workflow && primary_step
+
+          Remediation::Resolver.call(step: primary_step, workflow: primary_workflow).rebuild_unit?
+        end
+
+        def rebuild_work_unit
+          automatic_plan(
+            "rebuild_merge_train",
+            primary_workflow,
+            "This WorkUnit's retry policy rebuilds the attempt rather than replaying non-idempotent work.",
+            execution_steps: [ "RetryFailedStepEnqueuer.call" ],
+            preconditions: {
+              work_unit_kind: primary_workflow.work_unit&.kind,
+              trigger_kind: primary_workflow.trigger_kind,
+              rebuild_path_available: true
+            }
+          )
+        end
+
         def active_runtime_work_for_job?(job)
           WorkUnits::TerminalWorkflowSync.for_job(job)
           job.reload.active_runtime_work?
@@ -648,6 +674,7 @@ module WorkEngine
             )
           end
 
+          return rebuild_work_unit if rebuild_unit_retry?
           return resume_failed_step if primary_step&.agentic? && primary_run&.provider_session_metadata.present?
           return retry_failed_step if workspace_available? && safe_step_retry?
           return retry_workflow if retry_whole_workflow_safe?
@@ -727,33 +754,6 @@ module WorkEngine
           )
         end
 
-        private
-
-        # Routed through the shared resolver (workflow-engine-v3 primitive B)
-        # instead of asking the work definition's retry policy directly: the
-        # policy is still what answers -- it is tier 3 of that rule -- but
-        # going through Remediation::Resolver is what lets a future step or
-        # template override take precedence here too, the same way
-        # RetryFailedStepEnqueuer#remediation_for already works.
-        def rebuild_unit_retry?
-          return false unless primary_workflow && primary_step
-
-          Remediation::Resolver.call(step: primary_step, workflow: primary_workflow).rebuild_unit?
-        end
-
-        def rebuild_work_unit
-          automatic_plan(
-            "rebuild_merge_train",
-            primary_workflow,
-            "This WorkUnit's retry policy rebuilds the attempt rather than replaying non-idempotent work.",
-            execution_steps: [ "RetryFailedStepEnqueuer.call" ],
-            preconditions: {
-              work_unit_kind: primary_workflow.work_unit&.kind,
-              trigger_kind: primary_workflow.trigger_kind,
-              rebuild_path_available: true
-            }
-          )
-        end
       end
 
       class BranchDivergedPrOpen < Base
