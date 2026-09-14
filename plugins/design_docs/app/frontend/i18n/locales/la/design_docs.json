@@ -8,5 +8,9 @@
   "preview_collaborators": "Collaboratores: {{names}}",
   "preview_comment_count_one": "{{count}} commentarium",
   "preview_comment_count_other": "{{count}} commentaria",
-  "preview_version": "v{{number}}"
+  "preview_version": "v{{number}}",
+  "index_label": "Index documentorum consilii",
+  "columns_label": "Columnae",
+  "visible_columns": "Columnae visibiles",
+  "move_down": "Deorsum"
 }

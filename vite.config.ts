@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react"
 // contains spaces). No node:path import: the root tsconfig typechecks this
 // file without node types.
 const rootDir = decodeURIComponent(new URL(".", import.meta.url).pathname)
-const buildSourcemap = process.env.VITE_BUILD_SOURCEMAP !== "false"
+const buildSourcemap = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.VITE_BUILD_SOURCEMAP !== "false"
 
 export default defineConfig({
   plugins: [react()],

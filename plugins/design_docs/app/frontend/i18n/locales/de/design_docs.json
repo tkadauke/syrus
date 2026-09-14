@@ -8,5 +8,9 @@
   "preview_collaborators": "Mitarbeiter: {{names}}",
   "preview_comment_count_one": "{{count}} Kommentar",
   "preview_comment_count_other": "{{count}} Kommentare",
-  "preview_version": "v{{number}}"
+  "preview_version": "v{{number}}",
+  "index_label": "Design-Docs-Index",
+  "columns_label": "Spalten",
+  "visible_columns": "Sichtbare Spalten",
+  "move_down": "Nach unten"
 }

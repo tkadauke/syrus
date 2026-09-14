@@ -398,8 +398,9 @@ RSpec.describe AgentActivity::SessionsQuery do
         )
       end
 
-      relation = described_class
-        .visible_relation(scope: :mine, user: operator)
+      visible_job_ids = Job.accessible_to(operator).or(Job.effectively_owned_by(operator)).select(:id)
+      relation = Run
+        .where(job_id: visible_job_ids)
         .where(state: "running")
         .order(started_at: :desc, id: :desc)
         .limit(AgentActivity::SessionsQuery::DEFAULT_PER)
