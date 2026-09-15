@@ -428,6 +428,7 @@ module Steps
     def record_branch_divergence!(git, message, remote_sha: nil, local_sha: nil)
       resolved_remote = remote_sha.presence || remote_branch_sha(git)
       resolved_local = local_sha.presence || current_head_sha(git)
+      publish_diverged_head_checkpoint!(resolved_local)
 
       workflow.set_artifact!("branch_divergence", {
         "branch" => workspace.branch_name,
@@ -443,6 +444,15 @@ module Steps
       }.compact)
       artifact = workflow.artifact("branch_divergence")
       log("pr_open: branch diverged for #{workspace.branch_name}; remote=#{artifact['remote_sha']} local=#{artifact['local_sha']}")
+    end
+
+    def publish_diverged_head_checkpoint!(sha)
+      return if sha.blank?
+
+      run.update!(head_sha: sha)
+      publish_run_checkpoint!
+    rescue StandardError => e
+      log("pr_open: could not publish branch divergence checkpoint: #{e.class}: #{e.message}", kind: "system")
     end
 
     # What each side has that the other does not. `discarded` is the answer to

@@ -903,6 +903,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     # own examples below, so keep this one focused on the artifact itself.
     allow(git).to receive(:run).with("log", any_args).and_return("")
     allow(git).to receive(:run).with("diff", any_args).and_return("")
+    allow(RunCheckpointPublisher).to receive(:publish!)
 
     expect {
       handler.send(:push_branch)
@@ -914,6 +915,12 @@ RSpec.describe Steps::PrOpen, :ci_only do
       "remote_sha" => "remote-sha",
       "local_sha" => "local-sha",
       "message" => "remote PR branch moved before push"
+    )
+    expect(pr_open_run.reload.head_sha).to eq("local-sha")
+    expect(RunCheckpointPublisher).to have_received(:publish!).with(
+      run: pr_open_run,
+      workspace: workspace,
+      log: anything
     )
     expect(git).not_to have_received(:run).with("push", anything, anything, chdir: anything)
   end
