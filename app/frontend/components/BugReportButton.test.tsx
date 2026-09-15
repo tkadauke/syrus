@@ -289,19 +289,19 @@ describe("BugReportButton", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Bug report queued.")
   })
 
-  it("shows Chat about this between Cancel and Create Job in direct-job mode", async () => {
+  it("shows Discuss between Cancel and Create Job in direct-job mode", async () => {
     const ref = renderButton({ bugReportMode: "direct_job" })
     await openDialog(ref)
 
     const actions = within(screen.getByRole("dialog")).getAllByRole("button").map((button) => button.textContent)
-    expect(actions.slice(-3)).toEqual(["Cancel", "Chat about this", "Create Job"])
+    expect(actions.slice(-3)).toEqual(["Cancel", "Discuss", "Create Job"])
   })
 
-  it("does not show Chat about this in GitHub issue mode", async () => {
+  it("does not show Discuss in GitHub issue mode", async () => {
     const ref = renderButton({ bugReportMode: "github_issue", reportIssueRepoSlug: "tkadauke/syrus" })
     await openDialog(ref)
 
-    expect(screen.queryByRole("button", { name: "Chat about this" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Discuss" })).not.toBeInTheDocument()
   })
 
   it("starts a chat with the selected screenshot, files, and context", async () => {
@@ -326,7 +326,7 @@ describe("BugReportButton", () => {
     fireEvent.change(screen.getByLabelText(/add files/i), {
       target: { files: [new File(["pdf"], "trace.pdf", { type: "application/pdf" })] }
     })
-    fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
     await waitFor(() => expect(mockStartBugReportChat).toHaveBeenCalledOnce())
     const input = mockStartBugReportChat.mock.calls[0][0]
