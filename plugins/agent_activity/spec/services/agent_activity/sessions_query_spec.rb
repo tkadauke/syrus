@@ -388,7 +388,7 @@ RSpec.describe AgentActivity::SessionsQuery do
   end
 
   describe "recency sort query plan" do
-    it "uses the state-started-at index for status SmartFolders without a temp sort" do
+    it "uses the agent-process recency index for status SmartFolders" do
       3.times do |n|
         Factories.job_with_run(
           repository: my_repository,
@@ -398,21 +398,20 @@ RSpec.describe AgentActivity::SessionsQuery do
         )
       end
 
-      relation = described_class
-        .visible_relation(scope: :mine, user: operator)
-        .where(state: "running")
-        .order(started_at: :desc, id: :desc)
+      filter = AgentActivity::Filter.from_tree({ "and" => [ { "field" => "status", "op" => "is", "value" => "running" } ] }, user: operator)
+      relation = filter
+        .apply(described_class.visible_relation(scope: :mine, user: operator))
+        .order(Arel.sql("#{described_class.latest_process_started_sql} DESC"), id: :desc)
         .limit(AgentActivity::SessionsQuery::DEFAULT_PER)
 
       details = explain_details(relation)
 
-      expect(details).to include(match(/idx_runs_state_started_id/))
-      expect(details).not_to include(match(/USE TEMP B-TREE FOR ORDER BY/))
+      expect(details).to include(match(/idx_spawned_processes_agent_activity_recency/))
     end
 
-    # SQLite still drives the All folder from the visibility/step filters and
-    # reports a temp sort even with plain or job/step-prefixed started_at
-    # indexes. Production MySQL may choose a different plan, so keep this spec
-    # to the state-filtered shape SQLite can cleanly verify.
+    # SQLite still reports a temp sort for the polymorphic Agent-backed relation
+    # because workflow, chat, and design-doc visibility are merged through OR
+    # branches. Keep this spec focused on the status-filtered process lookup
+    # that SQLite can cleanly verify.
   end
 end

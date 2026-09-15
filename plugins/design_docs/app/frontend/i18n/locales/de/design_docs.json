@@ -8,5 +8,12 @@
   "preview_collaborators": "Mitarbeiter: {{names}}",
   "preview_comment_count_one": "{{count}} Kommentar",
   "preview_comment_count_other": "{{count}} Kommentare",
-  "preview_version": "v{{number}}"
+  "preview_version": "v{{number}}",
+  "index_aria": "Design-Dokumente-Index",
+  "columns_button": "Spalten",
+  "visible_columns": "Sichtbare Spalten",
+  "move_column_left": "{{title}} nach links verschieben",
+  "move_column_right": "{{title}} nach rechts verschieben",
+  "move_column_up": "Nach oben",
+  "move_column_down": "Nach unten"
 }

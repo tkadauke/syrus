@@ -1438,10 +1438,17 @@ end
 `bin/rails syrus:prepare_search` creates them alongside the built-ins. A plugin
 may not redefine a built-in table; the collision is logged and ignored.
 
-Optionally, a repopulation hook, used only when a table's column set has drifted
-and it must be dropped and recreated. Without one the table is left alone and
-the drift is logged, because losing rows Syrus cannot rebuild is worse than
-running on a stale schema:
+Optionally, an idempotent backfill hook. Global Search calls it after the host
+plugin is enabled and after a table is created or rebuilt by
+`syrus:prepare_search`, so it must be safe to run repeatedly. Without one, a
+drifted table is left alone and the drift is logged, because losing rows Syrus
+cannot rebuild is worse than running on a stale schema:
+
+```ruby
+def self.backfill_search_table(name) = MyPlugin::Index.rebuild!
+```
+
+The older name remains supported as an alias for the same semantics:
 
 ```ruby
 def self.rebuild_search_table(name) = MyPlugin::Index.rebuild!
@@ -1452,6 +1459,7 @@ To also appear in global search, a provider declares a result type:
 | Method | Purpose |
 |---|---|
 | `.search_type` | The type name, e.g. `"my_thing"` |
+| `.search_type_label` | Optional selectable type label, e.g. `"My Things"`; defaults to a humanized plural of `.search_type` |
 | `.filter_subject` | The `Filters` subject its chips resolve against |
 | `.row_id_key` | Which key in a row holds the record id |
 | `.search_rows(query:, user:, limit:)` | Ranked rows from the FTS table |
@@ -1738,8 +1746,9 @@ end
 
 Core publishes from explicit call sites -- `Syrus::Events.publish(...)` written
 where the decision is made -- rather than from model callbacks, so the catalog
-is greppable rather than emergent. Event names are declared in
-`Syrus::Events::EVENTS`; publishing an undeclared name raises.
+is greppable rather than emergent. Core event names are declared in
+`Syrus::Events::EVENTS`; plugin-specific event names are declared with the
+plugin manifest's `events` DSL. Publishing an undeclared name raises.
 
 | Event | Delivery | Payload highlights |
 |---|---|---|
