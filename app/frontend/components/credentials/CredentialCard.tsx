@@ -797,6 +797,88 @@ function CodexChatGptSection({
 
 // ---------- Gemini ----------
 
+export function MuseCredentialCard({ payload, onNotice }: CardProps) {
+  const { t } = useT("settings")
+  const queryClient = useQueryClient()
+  const set = !!payload.credential_status.muse_api_key
+  const [editing, setEditing] = useState(false)
+  const [apiKey, setApiKey] = useState("")
+  const { headingRef, focusHeading } = useCardFocus()
+  const actions = useCredentialActions(onNotice, focusHeading)
+  const showEditor = editing || !set
+
+  const save = useMutation({
+    mutationFn: () => savePartialCredentials({ muse_api_key: apiKey.trim() }),
+    onMutate: () => actions.setError(null),
+    onSuccess: (updated) => {
+      cacheCredentials(queryClient, updated)
+      setApiKey("")
+      setEditing(false)
+      actions.setTestResult(undefined)
+      onNotice(t('credential_cards.muse_saved_notice'))
+      focusHeading()
+    },
+    onError: (err) => actions.setError(errorMessage(err, t('credential_cards.save_error')))
+  })
+
+  return (
+    <CredentialCard
+      connected={set}
+      description={t('credential_cards.muse_description')}
+      error={actions.error}
+      headingRef={headingRef}
+      testId="credential-card-muse"
+      title={t('credential_cards.muse_title')}
+    >
+      {showEditor ? (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              aria-label={t('credential_cards.muse_api_key_label')}
+              autoComplete="off"
+              autoFocus={editing}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="muse_..."
+              spellCheck={false}
+              type="password"
+              value={apiKey}
+            />
+            <button className={secondaryButtonClass()} disabled={apiKey.trim().length === 0 || save.isPending} onClick={() => save.mutate()} type="button">
+              {save.isPending ? t('credential_cards.saving') : t('credential_cards.save')}
+            </button>
+            {set ? (
+              <button
+                className={secondaryButtonClass()}
+                onClick={() => {
+                  setEditing(false)
+                  focusHeading()
+                }}
+                type="button"
+              >
+                {t('credential_cards.cancel')}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.muse_summary')}</p>
+          <CredentialTestResultLine result={actions.testResult} />
+          <div className="flex flex-wrap gap-2">
+            <TestButton actions={actions} credential="muse_api_key" />
+            <button className={secondaryButtonClass()} onClick={() => setEditing(true)} type="button">
+              {t('credential_cards.replace')}
+            </button>
+            <ClearButton actions={actions} credential="muse_api_key" />
+          </div>
+        </div>
+      )}
+    </CredentialCard>
+  )
+}
+
+// ---------- Gemini ----------
+
 export function GeminiCredentialCard({ payload, onNotice }: CardProps) {
   // settings is the default namespace; the Gemini setup sheet's copy lives in
   // the chat namespace (shared with Chat.tsx and ConfigureAgentModal).

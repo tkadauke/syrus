@@ -297,6 +297,7 @@ function tokenSummary(user: AdminUserRow) {
   if (user.has_github_token) tokens.push("gh")
   if (user.has_claude_token) tokens.push("claude")
   if (user.has_codex_token) tokens.push("codex")
+  if (user.has_muse_token) tokens.push("muse")
   if (user.has_api_token) tokens.push("api")
   return tokens.length > 0 ? tokens.join(", ") : "-"
 }
@@ -312,4 +313,3 @@ function roleLabel(role: string | null | undefined) {
   if (!role) return "Developer"
   return role.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
-

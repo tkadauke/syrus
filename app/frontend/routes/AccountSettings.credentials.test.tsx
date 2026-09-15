@@ -65,6 +65,7 @@ function makePayload(overrides: {
       claude_oauth_token: true,
       codex_api_key: true,
       codex_auth_json: false,
+      muse_api_key: true,
       gemini_api_key: true,
       api_token: null,
       ...overrides.credential_status
@@ -113,6 +114,7 @@ function mockRoutes(
       if (response.ok) state.payload = withoutMessage(JSON.parse(await response.clone().text()) as CredentialsPayload)
       return response
     }
+    if (url.endsWith("/test_credential")) return jsonResponse({ credential_test: { credential: "muse_api_key", ok: true, message: "Muse API key is valid.", details: {} }, message: "Muse API key is valid." })
     if (url.endsWith("/test_claude_cli")) return jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
     if (url.endsWith("/codex_oauth_start")) return jsonResponse({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true })
     if (url.endsWith("/codex_oauth_exchange")) return jsonResponse({ credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} }, message: "Codex ChatGPT auth.json is valid." })
@@ -165,11 +167,12 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(await screen.findByTestId("credential-card-github")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-claude")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-codex")).toBeInTheDocument()
+    expect(screen.getByTestId("credential-card-muse")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-gemini")).toBeInTheDocument()
 
     // Every card shows its connected state — no password field impersonating
     // a saved secret, and no page-wide Save button for the section.
-    expect(screen.getAllByText("Connected")).toHaveLength(4)
+    expect(screen.getAllByText("Connected")).toHaveLength(5)
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
   })
 
@@ -198,6 +201,40 @@ describe("CredentialsRoute (provider cards)", () => {
 
     await waitFor(() => expect(within(screen.getByTestId("credential-card-gemini")).getByText("Not set")).toBeInTheDocument())
     expect(within(screen.getByTestId("credential-card-gemini")).getByRole("button", { name: "Set up key" })).toBeInTheDocument()
+  })
+
+  it("saves and tests the Muse key through card actions", async () => {
+    const unset = makePayload({ credential_status: { muse_api_key: false } })
+    const saved = makePayload({ credential_status: { muse_api_key: true } })
+    const fetchSpy = mockRoutes(unset, { patch: () => jsonResponse({ ...saved, message: "Credentials updated." }) })
+    renderCredentials()
+
+    const museCard = await screen.findByTestId("credential-card-muse")
+    fireEvent.change(within(museCard).getByLabelText("Muse API key"), { target: { value: "muse-secret" } })
+    fireEvent.click(within(museCard).getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(within(screen.getByTestId("credential-card-muse")).getByText("Connected")).toBeInTheDocument())
+    expect(await screen.findByText("Muse API key saved.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/credentials",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ user: { muse_api_key: "muse-secret" } })
+      })
+    )
+
+    fireEvent.click(within(screen.getByTestId("credential-card-muse")).getByRole("button", { name: "Test" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/credentials/test_credential",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ credential: "muse_api_key" })
+        })
+      )
+    })
+    expect(within(screen.getByTestId("credential-card-muse")).getByText("Muse API key is valid.")).toBeInTheDocument()
   })
 
   it("saves the chat provider immediately per-change through a partial PATCH", async () => {

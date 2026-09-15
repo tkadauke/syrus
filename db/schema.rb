@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2929,6 +2929,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
     t.boolean "landing_paused", default: false, null: false
     t.string "last_name"
     t.string "locale", null: false
+    t.text "muse_api_key"
     t.string "name"
     t.json "notification_preferences", null: false
     t.string "password_digest", null: false

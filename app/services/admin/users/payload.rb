@@ -103,6 +103,7 @@ module Admin
           has_codex_token: user.codex_api_key.present? || user.codex_auth_json.present?,
           has_codex_api_key: user.codex_api_key.present?,
           has_codex_auth_json: user.codex_auth_json.present?,
+          has_muse_token: user.muse_api_key.present?,
           has_api_token: user.api_token.present?,
           agent_max_turns: user.agent_max_turns,
           github_api_blocked: user.gh_api_blocked?,

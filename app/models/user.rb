@@ -59,7 +59,8 @@ class User < ApplicationRecord
     "claude_oauth_token" => "Claude OAuth token",
     "codex_api_key" => "Codex API key",
     "codex_auth_json" => "Codex ChatGPT auth.json",
-    "gemini_api_key" => "Gemini API key"
+    "gemini_api_key" => "Gemini API key",
+    "muse_api_key" => "Muse API key"
   }.freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",
@@ -170,6 +171,7 @@ class User < ApplicationRecord
   encrypts :codex_api_key
   encrypts :codex_auth_json
   encrypts :gemini_api_key
+  encrypts :muse_api_key
   encrypts :github_token
   # `deterministic: true` so we can WHERE on the encrypted column
   # for the API auth lookup. Same plaintext always encrypts to the
