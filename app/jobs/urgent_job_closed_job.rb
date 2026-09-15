@@ -31,5 +31,4 @@ class UrgentJobClosedJob < ApplicationJob
       .order(:id)
       .map(&:workflow)
   end
-
 end

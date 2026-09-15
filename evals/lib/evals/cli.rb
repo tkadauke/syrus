@@ -84,7 +84,7 @@ module Evals
     def run_scenario(scenario, user:, provider:)
       puts "==> #{scenario.slug} (#{scenario.target})"
       workspace_path = FixtureWorkspace.build(scenario)
-      log_sink = @options[:verbose] ? ->(chunk, **) { print chunk } : ->(*, **) {}
+      log_sink = @options[:verbose] ? ->(chunk, **) { print chunk } : ->(*, **) { }
 
       run_result = AgentRun.call(scenario: scenario, workspace_path: workspace_path, user: user, provider: provider, log_sink: log_sink)
       agent_error = agent_error_for(run_result)
