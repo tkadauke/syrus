@@ -110,9 +110,9 @@ export function AgentActivityIndicator({ running }: { running: boolean }) {
   )
 }
 
-export function SwitchingProviderIndicator({ provider }: { provider: string }) {
+export function SwitchingProviderIndicator({ provider, providerLabel: labelOverride }: { provider: string; providerLabel?: string }) {
   const { t } = useT("chat")
-  const label = t("switching_to_provider", { provider: providerLabel(provider) })
+  const label = t("switching_to_provider", { provider: labelOverride || providerLabel(provider) })
   return (
     <div aria-label={label} aria-live="polite" className="flex justify-start" role="status">
       <div className="inline-flex items-center gap-2 rounded-full border border-amber-100 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">

@@ -32,8 +32,8 @@ export type BootstrapPayload = {
     role: string
     scheduling_paused: boolean
     landing_paused: boolean
-    agent_provider: "claude" | "codex"
-    chat_provider: "claude" | "codex" | null
+    agent_provider: string
+    chat_provider: string | null
     agent_max_turns: number
     gemini_configured: boolean
     theme: "light" | "dark" | "system"
@@ -87,7 +87,8 @@ export type BootstrapPayload = {
       github_pat: boolean
       github_app: boolean
       agent: boolean
-      active_agent_provider: "claude" | "codex"
+      active_agent_provider: string
+      active_agent_provider_label?: string
     }
     readiness: {
       status: "ok" | "warning" | "error"

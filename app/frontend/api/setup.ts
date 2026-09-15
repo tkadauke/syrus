@@ -18,6 +18,7 @@ export type SetupStatusPayload = {
   credentials: {
     github_token: boolean
     selected_agent_provider: "claude" | "codex" | string
+    selected_agent_provider_label?: string
     selected_agent_provider_configured: boolean
     configured_agent_providers: string[]
     ready: boolean

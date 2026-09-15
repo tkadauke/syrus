@@ -598,7 +598,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{isSupervisorChat(payload) ? t("empty_supervisor") : payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
-          {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+          {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       </div>
@@ -649,7 +649,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
           />
         ))}
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
-        {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+        {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
       </div>
       {newMessageCount > 0 ? (
         <button
@@ -662,6 +662,11 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
       ) : null}
     </div>
   )
+}
+
+function switchingProviderLabel(payload: ChatPayload) {
+  const provider = payload.chat.chat_provider ?? ""
+  return payload.chat.chat_provider_options?.find((option) => option.value === provider)?.label || provider
 }
 
 

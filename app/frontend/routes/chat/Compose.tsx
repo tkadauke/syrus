@@ -64,6 +64,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
+  const providerLabels = useMemo(
+    () => Object.fromEntries((payload.chat.chat_provider_options || []).map((option) => [option.value, option.label])),
+    [payload.chat.chat_provider_options]
+  )
   // The video_walkthroughs plugin is its own feature flag: it contributes the
   // upload path only while enabled, so its absence is what hides every video
   // intake path (drag-in, picker, recorder) without core knowing why.
@@ -1814,7 +1818,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : isSupervisorChat(payload) ? t("ask_supervisor") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
+            placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "", providerLabels) }) : agentActive ? t("queue_followup") : isSupervisorChat(payload) ? t("ask_supervisor") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
             ref={textareaRef}
             required={attachments.length === 0 && walkthrough?.status !== "ready"}
             rows={1}

@@ -316,7 +316,13 @@ module Api
           {
             locales: User::LOCALES,
             agent_providers: User.agent_providers,
+            agent_provider_labels: User.agent_providers.to_h do |provider|
+              [ provider, ::App::Presentation.agent_provider_label(provider) ]
+            end,
             chat_providers: User.chat_providers.select { |provider| user.chat_provider_configured?(provider) },
+            chat_provider_labels: User.chat_providers.to_h do |provider|
+              [ provider, ChatProviders.display_name(provider) ]
+            end,
             roles: User::ROLES,
             codex_auth_modes: User::CODEX_AUTH_MODES,
             agent_provider_failover_causes: User::AGENT_PROVIDER_FAILOVER_CAUSES,
@@ -362,7 +368,7 @@ module Api
                                   :enabled, :override_explicit_pins,
                                   { providers: [], causes: [] }
                                 ] },
-                                { provider_availability_pause_thresholds: [ :claude, :codex ] } ])
+                                { provider_availability_pause_thresholds: User.agent_providers.map(&:to_sym) } ])
         end
 
         def provider_param

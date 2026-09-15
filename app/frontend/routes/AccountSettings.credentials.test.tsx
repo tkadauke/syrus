@@ -25,6 +25,8 @@ function makePayload(overrides: {
   credential_status?: Partial<CredentialsPayload["credential_status"]>
   chat_providers?: string[]
   agent_providers?: string[]
+  agent_provider_labels?: Record<string, string>
+  chat_provider_labels?: Record<string, string>
   admin?: boolean
   codex_auth_mode?: string
 } = {}): CredentialsPayload {
@@ -75,7 +77,9 @@ function makePayload(overrides: {
     options: {
       locales: ["en", "de", "la"],
       agent_providers: overrides.agent_providers ?? ["claude", "codex"],
+      agent_provider_labels: overrides.agent_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
       chat_providers: overrides.chat_providers ?? [],
+      chat_provider_labels: overrides.chat_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
       roles: ["developer", "product_owner"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
       agent_provider_failover_causes: ["usage_exhausted", "usage_low", "rate_limited", "provider_transient", "auth_error"],
@@ -406,7 +410,7 @@ describe("CredentialsRoute (provider cards)", () => {
     })
     renderAgentSettings()
 
-    const claudeInput = await screen.findByLabelText("Claude pause threshold (%)")
+    const claudeInput = await screen.findByLabelText("Claude Code pause threshold (%)")
     const claudePanel = claudeInput.closest(".grid")
     expect(claudePanel).not.toBeNull()
     expect(within(claudePanel as HTMLElement).getByText(/Claude Code usage limit reached/)).toBeInTheDocument()
@@ -425,6 +429,18 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(geminiPanel).not.toBeNull()
     expect(within(geminiPanel as HTMLElement).getByText(/No usage percentage recorded\./)).toBeInTheDocument()
     expect(within(geminiPanel as HTMLElement).getByText("Resets in 1 hour, 45 minutes.")).toHaveAttribute("title", expect.stringContaining("2026"))
+  })
+
+  it("uses plugin display names for Muse failover and availability controls", async () => {
+    mockRoutes(makePayload({
+      agent_providers: ["claude", "codex", "muse"],
+      agent_provider_labels: { claude: "Claude Code", codex: "Codex", muse: "Muse Code" },
+      credential_status: { muse_api_key: true }
+    }))
+    renderAgentSettings()
+
+    expect(await screen.findByLabelText("Muse Code")).toBeInTheDocument()
+    expect(screen.getByLabelText("Muse Code pause threshold (%)")).toBeInTheDocument()
   })
 
   it("serializes the agent-provider failover policy from agent settings", async () => {

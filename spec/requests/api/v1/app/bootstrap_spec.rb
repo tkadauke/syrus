@@ -267,7 +267,8 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "github_pat" => true,
       "github_app" => true,
       "agent" => true,
-      "active_agent_provider" => "claude"
+      "active_agent_provider" => "claude",
+      "active_agent_provider_label" => "Claude Code"
     )
     expect(setup.fetch("readiness")).to include("status")
     expect(setup.dig("readiness", "checks").map { |check| check["key"] }).to include("github", "agent_provider", "storage")
