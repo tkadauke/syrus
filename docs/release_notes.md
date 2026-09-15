@@ -44,7 +44,7 @@
      edges make selection, caching, or operator explanations clearer.
   6. Inspect the target graph UI/API after each stage and fix missing
      `sources`, `when_files_changed`, or `deps:` declarations before removing
-     any root coverage.
+     any root validation.
 - Before/after example:
 
   ```yaml
