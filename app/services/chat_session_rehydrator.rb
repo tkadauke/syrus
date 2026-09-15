@@ -7,7 +7,7 @@ module ChatSessionRehydrator
   # return value uniformly.
   def self.register(provider, klass)
     key = provider.to_s
-    return -> {} if key.blank?
+    return -> { } if key.blank?
 
     @mutex.synchronize do
       previous = @registry[key]

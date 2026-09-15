@@ -230,5 +230,4 @@ RSpec.describe App::JobDetailPayload do
       expect(artifact_workflow_queries.size).to eq(1)
     end
   end
-
 end
