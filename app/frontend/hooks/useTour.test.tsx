@@ -120,7 +120,7 @@ describe("useTour", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const bootstrapWithoutSeenTours = buildBootstrap([])
     // Simulate a bootstrap response that omits the seen_tours field entirely
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const { seen_tours: _omit, ...currentUserWithoutSeenTours } = bootstrapWithoutSeenTours.current_user as NonNullable<typeof bootstrapWithoutSeenTours.current_user> & { seen_tours: string[] }
     queryClient.setQueryData(["bootstrap"], {
       ...bootstrapWithoutSeenTours,
