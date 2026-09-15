@@ -2,43 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
 import { Checkbox } from "@app/components/Checkbox"
 import { useConfirm } from "@app/hooks/useConfirm"
-import { Button, Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
-import { usePageTitle } from "@app/hooks/usePageTitle"
-import { useT } from "@app/hooks/useT"
-import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSnapshot } from "../api/adminMysql"
-
-export function AdminMysql() {
-  const { t } = useT("admin_mysql")
-  usePageTitle(t("page_title"))
-  const [limit, setLimit] = useState(50)
-  const [includeSlowLog, setIncludeSlowLog] = useState(false)
-  const [hideIdle, setHideIdle] = useState(true)
-  const { confirm, dialog } = useConfirm()
-  const queryClient = useQueryClient()
-  const mysql = useQuery({
-    queryKey: ["admin", "mysql", limit, includeSlowLog],
-    queryFn: () => fetchAdminMysql(limit, includeSlowLog),
-    refetchInterval: includeSlowLog ? false : 10_000
-  })
-  const killQuery = useMutation({
-    mutationFn: killMysqlQuery,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "mysql"] })
-    }
-  })
-
-  async function onKill(process: MysqlProcess) {
-    const confirmed = await confirm({
-      message: t("confirm_kill_query", { id: process.id }),
-      destructive: true
-    })
-    if (!confirmed) return
-    killQuery.mutate(process.id)
-  }
-
-  return (
-    <Page aria-label={t("aria_page")} size="wide">
-      {dialog}
       <PageHeader className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
         <div>
           <Text className="font-medium uppercase" size="xs" tone="muted">{t("admin:section_label")}</Text>
