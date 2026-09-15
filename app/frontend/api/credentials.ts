@@ -41,6 +41,7 @@ export type CredentialStatus = {
   claude_oauth_token: boolean
   codex_api_key: boolean
   codex_auth_json: boolean
+  muse_api_key?: boolean
   api_token: boolean | null
 }
 
@@ -135,6 +136,7 @@ export type CredentialsInput = {
   codex_api_key: string
   codex_auth_json: string
   gemini_api_key: string
+  muse_api_key: string
   github_token: string
   agent_max_turns: number
   agent_provider_failover_policy: AgentProviderFailoverPolicy

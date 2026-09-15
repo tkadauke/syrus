@@ -282,6 +282,7 @@ module Api
             codex_api_key: user.codex_api_key.present?,
             codex_auth_json: user.codex_auth_json.present?,
             gemini_api_key: user.gemini_api_key.present?,
+            muse_api_key: user.muse_api_key.present?,
             api_token: user.admin? ? user.api_token.present? : nil
           }
         end
@@ -331,7 +332,9 @@ module Api
         end
 
         def testable_credentials
-          %w[ github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key ]
+          %w[ github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key muse_api_key ].select do |credential|
+            CredentialProbe.probe_handler_for(credential)
+          end
         end
 
         def claude_oauth!
@@ -353,7 +356,7 @@ module Api
           params.expect(user: [ :name, :first_name, :last_name, :github_handle, :profile_bio, :avatar_url,
                                 :profile_company, :profile_website,
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
-                                :codex_api_key, :codex_auth_json, :gemini_api_key, :github_token,
+                                :codex_api_key, :codex_auth_json, :gemini_api_key, :muse_api_key, :github_token,
                                 :agent_max_turns, :scheduling_paused, :auto_approve_mode, :locale,
                                 { agent_provider_failover_policy: [
                                   :enabled, :override_explicit_pins,
