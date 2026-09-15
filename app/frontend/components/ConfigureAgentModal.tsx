@@ -1,18 +1,26 @@
 import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { fetchCredentials, savePartialCredentials } from "../api/credentials"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { useT } from "../hooks/useT"
 import { GeminiSetupSheet } from "./GeminiSetupSheet"
+import { errorMessage } from "../lib/errorMessage"
 import { Modal } from "./Modal"
 import { StatusBox } from "@plugins/claude_agent/app/frontend/components/credentials/ClaudeConnect"
 import { AgentProviderConnectPanel } from "./AgentProviderConnectPanel"
 
-type AgentTab = "claude" | "gemini"
+type AgentTab = "claude" | "gemini" | "agy"
 
 export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
   // settings namespace is the default (bare `configure_agent.*` keys); the
   // Gemini setup sheet's copy lives in the chat namespace (shared with Chat.tsx).
   const { t } = useT(["settings", "chat"])
+  const queryClient = useQueryClient()
+  const credentials = useQuery({
+    queryKey: ["credentials"],
+    queryFn: fetchCredentials
+  })
   const geminiSheetLabels = {
     title: t("chat:gemini_setup_title"),
     intro: t("chat:gemini_setup_intro"),
@@ -29,6 +37,19 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
   const [tab, setTab] = useState<AgentTab>("claude")
   const [geminiSheetOpen, setGeminiSheetOpen] = useState(false)
   const [geminiConfigured, setGeminiConfigured] = useState(false)
+  const agyConfigured = geminiConfigured ||
+    Boolean(credentials.data?.credential_status.gemini_api_key) ||
+    Boolean(credentials.data?.options?.agent_providers?.includes("agy")) ||
+    Boolean(credentials.data?.options?.chat_providers?.includes("agy"))
+  const agySelected = credentials.data?.user.agent_provider === "agy"
+  const useAgy = useMutation({
+    mutationFn: () => savePartialCredentials({ agent_provider: "agy" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["credentials"] })
+      await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      onSaved?.()
+    }
+  })
 
   return (
     // When the nested Gemini sheet is open, closeOnEscape is disabled here so
@@ -62,7 +83,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
           </div>
 
           {/* Provider tabs. Codex lands in a follow-up step. */}
-          <div className="flex border-b border-gray-200 dark:border-gray-700" role="tablist">
+          <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-700" role="tablist">
             <button
               aria-selected={tab === "claude"}
               className={tabClass(tab === "claude")}
@@ -95,7 +116,42 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               {t('configure_agent.tab_gemini')}
               <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
             </button>
+            {agyConfigured ? (
+              <button
+                aria-selected={tab === "agy"}
+                className={tabClass(tab === "agy")}
+                onClick={() => setTab("agy")}
+                role="tab"
+                title={t('configure_agent.agy_title')}
+                type="button"
+              >
+                {t('configure_agent.tab_agy')}
+              </button>
+            ) : null}
           </div>
+
+          {tab === "agy" && agyConfigured ? (
+            <div className="space-y-4">
+              <StatusBox tone="ok">
+                {agySelected ? t('configure_agent.agy_tab_selected') : t('configure_agent.agy_tab_ready')}
+              </StatusBox>
+              {useAgy.isError ? (
+                <StatusBox tone="error">
+                  {errorMessage(useAgy.error, t('configure_agent.agy_tab_save_error'))}
+                </StatusBox>
+              ) : null}
+              <div className="flex items-center justify-end gap-2">
+                <Button onClick={onClose} variant="secondary">
+                  {agySelected ? t('configure_agent.done') : t('configure_agent.skip_for_now')}
+                </Button>
+                {!agySelected ? (
+                  <Button disabled={useAgy.isPending} onClick={() => useAgy.mutate()}>
+                    {useAgy.isPending ? t('configure_agent.agy_tab_saving') : t('configure_agent.agy_tab_use')}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {tab === "gemini" ? (
             <div className="space-y-4">

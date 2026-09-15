@@ -18,14 +18,29 @@ const notReady = { credential: "claude_oauth_token", ok: false, message: "Claude
 const ready = { credential: "claude_oauth_token", ok: true, message: "Claude already works on this machine — no token needed.", details: {} }
 const tokenValid = { credential: "claude_oauth_token", ok: true, message: "Claude OAuth token is valid.", details: {} }
 
-function mockRoutes(routes: { preflight?: () => Response; start?: () => Response; exchange?: () => Response; testGemini?: () => Response }) {
-  return vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+const minimalCredentials = {
+  credential_status: {},
+  options: { agent_providers: [], chat_providers: [] },
+  user: { agent_provider: "claude" }
+}
+
+function mockRoutes(routes: {
+  preflight?: () => Response
+  start?: () => Response
+  exchange?: () => Response
+  testGemini?: () => Response
+  credentials?: unknown
+  patchCredentials?: () => Response
+}) {
+  return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = String(input)
+    const method = init?.method ?? "GET"
     if (url.endsWith("/test_claude_cli")) return routes.preflight?.() ?? jsonResponse({ credential_test: notReady })
     if (url.endsWith("/claude_oauth_start")) return routes.start?.() ?? jsonResponse({ authorize_url: "https://claude.ai/oauth/authorize?state=abc" })
     if (url.endsWith("/claude_oauth_exchange")) return routes.exchange?.() ?? jsonResponse({ credential_test: tokenValid })
     if (url.endsWith("/credentials/test_gemini_key")) return routes.testGemini?.() ?? jsonResponse({ credential_test: geminiValid })
-    if (url.endsWith("/api/v1/app/credentials")) return jsonResponse({ credential_status: {} })
+    if (url.endsWith("/api/v1/app/credentials") && method === "PATCH") return routes.patchCredentials?.() ?? jsonResponse(routes.credentials ?? minimalCredentials)
+    if (url.endsWith("/api/v1/app/credentials")) return jsonResponse(routes.credentials ?? minimalCredentials)
     throw new Error(`unexpected fetch: ${url}`)
   })
 }
@@ -43,6 +58,7 @@ describe("ConfigureAgentModal", () => {
 
     expect(screen.getByRole("tab", { name: "Claude" })).toHaveAttribute("aria-selected", "true")
     expect(screen.getByRole("tab", { name: /Codex/ })).toBeDisabled()
+    expect(screen.queryByRole("tab", { name: "Antigravity" })).not.toBeInTheDocument()
     await waitFor(() => expect(window.fetch).toHaveBeenCalled())
   })
 
@@ -162,6 +178,31 @@ describe("ConfigureAgentModal", () => {
     fireEvent.click(addKey)
     await waitFor(() => expect(screen.getByTestId("gemini-validation-stages")).toBeInTheDocument())
     expect(screen.getByPlaceholderText("Paste your Gemini API key here")).toBeInTheDocument()
+  })
+
+  it("shows configured Antigravity and saves it as the default agent provider", async () => {
+    const fetchSpy = mockRoutes({
+      credentials: {
+        credential_status: { gemini_api_key: true },
+        options: { agent_providers: ["claude", "agy"], chat_providers: ["agy"] },
+        user: { agent_provider: "claude" }
+      }
+    })
+    const onSaved = vi.fn()
+    renderModal({ onSaved })
+
+    const agyTab = await screen.findByRole("tab", { name: "Antigravity" })
+    fireEvent.click(agyTab)
+
+    expect(screen.getByText(/Antigravity is ready for agent and chat runs/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Use Antigravity" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find(([url, init]) => String(url).endsWith("/api/v1/app/credentials") && init?.method === "PATCH")
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(patchCall?.[1]?.body as string)).toEqual({ user: { agent_provider: "agy" } })
+    })
+    expect(onSaved).toHaveBeenCalledTimes(1)
   })
 
   it("keeps the modal open when Escape dismisses the nested Gemini sheet", async () => {

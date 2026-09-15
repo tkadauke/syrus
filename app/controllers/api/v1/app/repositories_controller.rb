@@ -313,7 +313,7 @@ module Api
         def form_payload(repository)
           payload = {
             repository: repository_form_json(repository),
-            configured_agent_providers: User.agent_providers.map { |provider| provider_json(provider) },
+            configured_agent_providers: Current.user.configured_agent_providers.map { |provider| provider_json(provider) },
             user_agent_provider_label: agent_provider_label(Current.user.agent_provider),
             input_source_types: input_source_types_json(repository),
             auto_approve_modes: auto_approve_modes_json,
