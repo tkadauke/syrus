@@ -232,14 +232,16 @@ class MuseInvocation
     case payload_type
     when "mcp.init", "mcp.tools", "tools.available", "tool.inventory"
       process_mcp_inventory(payload, log_sink)
-    when "tool.call", "tool_call", "mcp.tool_call"
+    when "tool.call", "tool_call", "tool.use", "mcp.tool_call", "mcp.tool.call", "msp.tool_call", "msp.tool.call"
       process_tool_call(payload, log_sink)
-    when "tool.result", "tool_result", "mcp.tool_result"
+    when "tool.result", "tool_result", "tool.output", "mcp.tool_result", "mcp.tool.result", "msp.tool_result", "msp.tool.result"
       process_tool_result(payload, log_sink)
     when "session.created", "run.session.created", "run.started"
       session = payload["session_id"].presence || payload["session"].presence
       session ? { session_id: session } : nil
-    when "assistant.message", "assistant.text", "message.assistant"
+    when "turn.input.user"
+      nil
+    when "run.output.delta", "run.output.text", "assistant.message", "assistant.text", "message.assistant"
       text = payload_text(payload)
       log_sink.call(text, kind: "assistant_text") if text.present?
       text.present? ? { final_text: text } : nil
@@ -259,7 +261,7 @@ class MuseInvocation
     when "run.terminal.failed", "run.terminal.error"
       detail = sanitized_event_detail(payload, fallback: "Muse run failed.")
       log_sink.call("[muse error] #{detail}", kind: "system")
-      classified_failure(detail)
+      classified_failure(detail, payload: payload)
     else
       nil
     end
@@ -269,7 +271,9 @@ class MuseInvocation
 
   def process_mcp_inventory(payload, log_sink)
     state = required_mcp_state(@metadata ||= {})
-    tools = Array(payload["tools"] || payload["available_tools"]).map(&:to_s)
+    tools = Array(payload["tools"] || payload["available_tools"] || payload["tool_names"]).filter_map do |tool|
+      tool.is_a?(Hash) ? qualified_tool_name(tool, tool["name"].presence || tool["tool"].presence || tool["tool_name"].presence) : tool.to_s.presence
+    end
     servers = Array(payload["servers"] || payload["mcp_servers"]).filter_map do |server|
       next unless server.is_a?(Hash)
 
@@ -295,11 +299,11 @@ class MuseInvocation
     name = qualified_tool_name(payload, name)
     required_mcp_state(@metadata ||= {})[:called] << name if name.present?
     log_sink.call(
-      AgentEventAbbreviator.tool_use(name, payload["input"] || payload["arguments"] || {}, path_roots: [ @workspace_path ]),
+      AgentEventAbbreviator.tool_use(name, tool_input(payload), path_roots: [ @workspace_path ]),
       kind: "tool_call",
       tool_name: name,
-      tool_input: payload["input"] || payload["arguments"] || {},
-      tool_use_id: payload["id"] || payload["tool_use_id"] || payload["call_id"]
+      tool_input: tool_input(payload),
+      tool_use_id: tool_id(payload)
     ) if name.present?
     required_mcp_tools_update(log_sink)
   end
@@ -308,12 +312,12 @@ class MuseInvocation
     name = payload["name"].presence || payload["tool"].presence || payload["tool_name"].presence
     name = qualified_tool_name(payload, name)
     log_sink.call(
-      AgentEventAbbreviator.tool_result(payload["content"] || payload["result"], error: payload["error"].present? || payload["is_error"] == true),
+      AgentEventAbbreviator.tool_result(tool_result_content(payload), error: payload_error?(payload)),
       kind: "tool_result",
       tool_name: name,
-      tool_result_content: payload["content"] || payload["result"],
-      tool_result_error: payload["error"].present? || payload["is_error"] == true,
-      tool_use_id: payload["id"] || payload["tool_use_id"] || payload["call_id"]
+      tool_result_content: tool_result_content(payload),
+      tool_result_error: payload_error?(payload),
+      tool_use_id: tool_id(payload)
     )
     nil
   end
@@ -402,6 +406,7 @@ class MuseInvocation
   def qualified_tool_name(payload, name)
     server = payload["server"].presence || payload["server_name"].presence
     tool = name.to_s
+    return nil if tool.blank?
     return tool if server.blank? || tool.start_with?("mcp__") || tool.include?(".")
 
     "#{server}.#{tool}"
@@ -414,11 +419,47 @@ class MuseInvocation
   end
 
   def payload_text(payload)
-    payload["final_text"].presence ||
+    value = payload["delta"].presence ||
+      payload["final_text"].presence ||
       payload["result"].presence ||
       payload["text"].presence ||
       payload["message"].presence ||
-      payload["output"].presence
+      payload["output"].presence ||
+      payload["content"].presence
+
+    return value if value.is_a?(String)
+    return value.map { |part| content_text(part) }.compact_blank.join("\n") if value.is_a?(Array)
+
+    value.to_json if value.is_a?(Hash)
+  end
+
+  def content_text(part)
+    return part if part.is_a?(String)
+    return unless part.is_a?(Hash)
+
+    part["text"].presence || part["content"].presence || part["delta"].presence
+  end
+
+  def tool_input(payload)
+    value = payload["input"] || payload["arguments"] || payload["args"]
+    return {} if value.blank?
+    return JSON.parse(value) if value.is_a?(String) && value.strip.start_with?("{")
+
+    value
+  rescue JSON::ParserError
+    value
+  end
+
+  def tool_id(payload)
+    payload["id"] || payload["tool_use_id"] || payload["call_id"] || payload["invocation_id"]
+  end
+
+  def tool_result_content(payload)
+    payload["content"] || payload["result"] || payload["output"] || payload["data"]
+  end
+
+  def payload_error?(payload)
+    payload["error"].present? || payload["is_error"] == true || payload["status"].to_s == "error"
   end
 
   def usage_updates(payload)
@@ -449,14 +490,27 @@ class MuseInvocation
     )
   end
 
-  def classified_failure(detail)
-    if ProviderUsageLimit.detect?(detail)
+  def classified_failure(detail, payload: {})
+    if muse_usage_limit?(detail, payload)
       { is_error: true, outcome: ProviderUsageLimit::OUTCOME, final_text: detail }
-    elsif ProviderAuthFailure.detect?(detail) || detail.match?(/\b(?:invalid|expired|missing)\s+(?:api\s+)?key\b/i)
+    elsif muse_auth_failure?(detail, payload)
       { is_error: true, outcome: ProviderAuthFailure::OUTCOME, final_text: detail }
     else
       { is_error: true, outcome: "run_failed", final_text: detail }
     end
+  end
+
+  def muse_usage_limit?(detail, payload)
+    ProviderUsageLimit.detect?(detail) ||
+      payload["error_type"].to_s.match?(/usage|quota|billing|credit/i) ||
+      payload["code"].to_s.match?(/usage|quota|billing|credit/i)
+  end
+
+  def muse_auth_failure?(detail, payload)
+    ProviderAuthFailure.detect?(detail) ||
+      detail.match?(/\b(?:invalid|expired|missing)\s+(?:api\s+)?key\b/i) ||
+      payload["error_type"].to_s.match?(/auth|unauthori[sz]ed|credential/i) ||
+      payload["code"].to_s.match?(/auth|unauthori[sz]ed|credential|invalid[_-]?api[_-]?key/i)
   end
 
   def apply_missing_terminal_failure!(metadata, runner_result)
