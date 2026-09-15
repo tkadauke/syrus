@@ -22,6 +22,7 @@ const MODE_CLASSES: Record<CodeSurfaceMode, string> = {
 }
 
 export function CodeSurface({
+  children,
   code,
   className = "",
   copyLabel = "Copy code",
@@ -54,15 +55,27 @@ export function CodeSurface({
       {...props}
     >
       <div className="flex items-start gap-2">
-        <CodeBlock
-          code={code}
-          lang={lang}
-          className={classes(
-            "min-w-0 flex-1 p-3 font-mono text-xs leading-5 [color-scheme:dark] [&_span]:contrast-more:!text-text-primary",
-            MODE_CLASSES[mode],
-            maxHeightClassName
-          )}
-        />
+        {children ? (
+          <pre
+            className={classes(
+              "min-w-0 flex-1 p-3 font-mono text-xs leading-5 [color-scheme:dark] [&_span]:contrast-more:!text-text-primary",
+              MODE_CLASSES[mode],
+              maxHeightClassName
+            )}
+          >
+            {children}
+          </pre>
+        ) : (
+          <CodeBlock
+            code={code}
+            lang={lang}
+            className={classes(
+              "min-w-0 flex-1 p-3 font-mono text-xs leading-5 [color-scheme:dark] [&_span]:contrast-more:!text-text-primary",
+              MODE_CLASSES[mode],
+              maxHeightClassName
+            )}
+          />
+        )}
         <div className="sticky right-0 top-0 p-1.5">{copyControl}</div>
       </div>
     </div>

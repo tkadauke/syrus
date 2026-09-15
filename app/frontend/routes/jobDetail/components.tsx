@@ -8,7 +8,7 @@ import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StatusPill } from "../../components/StatusPill"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
-import { Notice, Pill, Section, surfaceClasses, Text } from "../../components/ui"
+import { Notice, Pill, Section, surfaceClasses, Text, Timeline } from "../../components/ui"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
@@ -32,8 +32,8 @@ import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToB
 // the run-transcript log stream. Kept in a leaf module so both the route file and
 // the workflow/step/run render subtree can import them without a circular edge.
 
-export function SmallPill({ children }: { children: ReactNode }) {
-  return <Pill>{children}</Pill>
+export function SmallPill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "info" | "warning" | "danger" | "success" }) {
+  return <Pill tone={tone}>{children}</Pill>
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
@@ -122,7 +122,7 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<
   const displayLogs = coalesceTranscriptLogs(logs)
   const streamClassName = [
     fillHeight ? "min-h-0 flex-1 max-h-none" : "max-h-[32rem] max-md:min-h-0 max-md:flex-1 max-md:max-h-none",
-    "overflow-auto divide-y divide-gray-200 dark:divide-gray-800"
+    "overflow-auto divide-y divide-border"
   ].join(" ")
 
   function handleScroll(event: UIEvent<HTMLOListElement>) {
@@ -136,8 +136,8 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<
   return (
     <ol className={streamClassName} data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
       {displayLogs.map((log) => (
-        <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)] dark:text-gray-200" key={log.id}>
-          <span className="text-gray-400 dark:text-gray-500">{transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`}</span>
+        <li className="grid gap-2 px-3 py-2 font-mono text-xs text-text-primary sm:grid-cols-[5rem_minmax(0,1fr)]" key={log.id}>
+          <span className="text-text-subtle">{transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`}</span>
           <pre className="whitespace-pre-wrap break-words"><AnsiText text={log.chunk} /></pre>
         </li>
       ))}
@@ -165,7 +165,7 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_tags")}</h2>
         {payload.tags.map((tag) => (
-          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200" key={tag.id}>
+          <Pill key={tag.id}>
             {tag.name}
             {canManageTags ? (
               <button
@@ -179,7 +179,7 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
                 <CloseIcon className="h-3 w-3" />
               </button>
             ) : null}
-          </span>
+          </Pill>
         ))}
       </div>
       {canManageTags ? (
@@ -331,29 +331,31 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
           {timeline.isPending ? <Text className="mt-3" muted>{t("timeline_loading")}</Text> : null}
           {timeline.isError ? <Text className="mt-3" tone="danger">{errorMessage(timeline.error || new Error("Timeline failed."), t("timeline_error"))}</Text> : null}
           {timeline.data && timeline.data.events.length > 0 ? (
-            <ol className="mt-3 space-y-3">
+            <Timeline.Root className="mt-3">
               {timeline.data.events.map((event, index) => (
-                <li className="border-l border-border pl-3 text-sm" key={`${event.at}-${event.title}-${index}`}>
-                  <div className="font-medium text-text-primary">
-                    {event.workflow_path ? (
+                <Timeline.ActivityRow
+                  key={`${event.at}-${event.title}-${index}`}
+                  meta={(
+                    <>
+                      {event.source}
+                      {event.ref_label ? (
+                        <>
+                          {" · "}
+                          {event.workflow_path ? (
+                            <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.ref_label}</Link>
+                          ) : event.ref_label}
+                        </>
+                      ) : null}
+                    </>
+                  )}
+                  timestamp={<RelativeTimestamp value={event.at} />}
+                  title={event.workflow_path ? (
                       <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
                     ) : event.title}
-                  </div>
-                  <div className="text-xs text-text-muted">
-                    <RelativeTimestamp value={event.at} /> · {event.source}
-                    {event.ref_label ? (
-                      <>
-                        {" · "}
-                        {event.workflow_path ? (
-                          <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.ref_label}</Link>
-                        ) : event.ref_label}
-                      </>
-                    ) : null}
-                  </div>
-                  {event.detail ? <Text className="mt-1" muted>{event.detail}</Text> : null}
-                </li>
+                  details={event.detail ? <Text muted>{event.detail}</Text> : null}
+                />
               ))}
-            </ol>
+            </Timeline.Root>
           ) : null}
         </div>
       ) : null}
