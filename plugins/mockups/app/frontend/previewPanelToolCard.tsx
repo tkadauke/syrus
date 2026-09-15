@@ -1,6 +1,7 @@
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
-import { Badge, CardShell, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
-import { isPlainObject } from "@app/toolCardParsing"
+import { isPlainObject } from "@app/pluginToolCards"
+import i18n from "i18next"
+import { Badge, CardShell, displayValue, InternalLink, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation for the mockups plugin's preview-panel chat tool cards
 // (the pending-action tool-card work). show_preview and close_preview both return the same
@@ -44,8 +45,12 @@ export function parsePreviewPanel(value: unknown): PreviewPanel | null {
 }
 
 export function previewPanelSummary(panel: PreviewPanel): string {
-  const label = panel.title || `Panel #${panel.panelId}`
+  const label = panel.title || t("tool_panel_number", { id: panel.panelId })
   return panel.state ? `${label} (${panel.state})` : label
+}
+
+function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`mockups:${key}`, options)
 }
 
 export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
@@ -57,7 +62,7 @@ export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">Panel #{panel.panelId}</span>
+        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{t("tool_panel_number", { id: panel.panelId })}</span>
         {panel.state ? <StatePill state={panel.state} /> : null}
         {panel.versionId ? <Badge>v{panel.versionId}</Badge> : null}
       </div>
@@ -82,9 +87,21 @@ export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
       />
       {panel.entryFile || panel.fileCount != null ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {panel.entryFile ? <Row label="Entry file" value={panel.entryFile} /> : null}
-          {panel.fileCount != null ? <Row label="Files" value={String(panel.fileCount)} /> : null}
+          {panel.entryFile ? <Row label={t("tool_entry_file")} value={panel.entryFile} /> : null}
+          {panel.fileCount != null ? <Row label={t("tool_files")} value={String(panel.fileCount)} /> : null}
         </dl>
+      ) : null}
+      {panel.mockupSlug ? (
+        <InternalLink href={`/mockups/${panel.mockupSlug}`}>{t("tool_open_mockup")}</InternalLink>
+      ) : panel.url ? (
+        <a
+          className="block truncate font-mono text-xs text-brand hover:underline dark:text-brand-emphasis"
+          href={panel.url}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {panel.url}
+        </a>
       ) : null}
       {panel.note ? <div className="text-gray-600 dark:text-gray-300">{panel.note}</div> : null}
     </CardShell>
@@ -110,10 +127,10 @@ export function PreviewFileOpCard({ action, op }: { action: string; op: PreviewF
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{action}</Badge>
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">Panel #{op.panelId}</span>
+        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{t("tool_panel_number", { id: op.panelId })}</span>
       </div>
-      <Row label="Path" value={op.path} />
-      {op.replacements != null ? <Row label="Replacements" value={String(op.replacements)} /> : null}
+      <Row label={t("tool_path")} value={op.path} />
+      {op.replacements != null ? <Row label={t("tool_replacements")} value={String(op.replacements)} /> : null}
     </CardShell>
   )
 }

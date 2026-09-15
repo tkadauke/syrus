@@ -73,83 +73,18 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #
       app/frontend/routes/jobDetail/Delivery.tsx|jsx_text|PR #
-      plugins/agent_memory/app/frontend/routes/Memories.tsx|jsx_text|Actions
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0 && highlight.start
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|0) blocks.push(`
       plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx|jsx_text|offset || highlight.end
-      plugins/design_docs/app/frontend/tool_cards/comment_on_design_doc.tsx|jsx_text|Comment
-      plugins/design_docs/app/frontend/tool_cards/propose_design_doc.tsx|jsx_text|Created
-      plugins/design_docs/app/frontend/tool_cards/suggest_design_doc_change.tsx|jsx_text|Conflict
-      plugins/design_docs/app/frontend/tool_cards/suggest_design_doc_change.tsx|jsx_text|Suggestion
       plugins/git_history/app/frontend/repo_tabs/GitHistory.tsx|jsx_text|, not a fresh
       plugins/git_history/app/frontend/repo_tabs/GitHistory.tsx|jsx_text|-- the Epic's
-      plugins/github_source/app/frontend/repo_tabs/RepositoryIssues.tsx|jsx_text|Loading issues...
-      plugins/github_source/app/frontend/repo_tabs/RepositoryIssues.tsx|jsx_text|Select
-      plugins/github_source/app/frontend/repo_tabs/RepositoryIssues.tsx|jsx_text|Unable to load issues.
       plugins/k8s_cluster/app/frontend/components/tabs/EventsTab.tsx|jsx_text|( )
-      plugins/mockups/app/frontend/previewPanelToolCard.tsx|jsx_text|Open mockup
-      plugins/mockups/app/frontend/previewPanelToolCard.tsx|jsx_text|Panel #
       plugins/mockups/app/frontend/routes/MockupPreviewPanel.tsx|jsx_text|postJson
       plugins/mysql_db_browser/app/frontend/mysqlToolCard.tsx|jsx_text|T | null): MysqlSection
-      plugins/rails/app/frontend/components/artifacts/ErdDiagramRenderer.tsx|jsx_attr|foreign key
-      plugins/rails/app/frontend/components/artifacts/ErdDiagramRenderer.tsx|jsx_text|No tables found in schema.
-      plugins/rails/app/frontend/components/artifacts/MigrationDiffRenderer.tsx|jsx_attr|After
-      plugins/rails/app/frontend/components/artifacts/MigrationDiffRenderer.tsx|jsx_attr|Before
-      plugins/rails/app/frontend/components/artifacts/MigrationDiffRenderer.tsx|jsx_text|Changes
       plugins/scheduled_tasks/app/frontend/routes/CronTemplates.tsx|jsx_text|0) return
       plugins/scheduled_tasks/app/frontend/routes/ScheduledTasks.tsx|jsx_text|0) return
-      plugins/scheduled_tasks/app/frontend/tool_cards/fire_scheduled_task_now.tsx|jsx_text|Immediate fire requested
-      plugins/scheduled_tasks/app/frontend/tool_cards/fire_scheduled_task_now.tsx|jsx_text|The task does not fire until the operator confirms.
-      plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx|jsx_text|Cadence
-      plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx|jsx_text|Health
-      plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx|jsx_text|Kind
-      plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx|jsx_text|Next fire
-      plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx|jsx_text|No scheduled tasks for this repository.
-      plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx|jsx_text|State
-      plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx|jsx_text|Task
-      plugins/scheduled_tasks/app/frontend/tool_cards/schedule_recurring.tsx|jsx_text|Not created yet — awaiting operator confirmation.
-      plugins/scheduled_tasks/app/frontend/tool_cards/schedule_recurring.tsx|jsx_text|Recurring task proposed
-      plugins/scheduled_tasks/app/frontend/tool_cards/update_scheduled_task.tsx|jsx_text|Updated scheduled task
-      plugins/team_directory/app/frontend/routes/TeamDirectory.tsx|jsx_text|· updated
       plugins/team_directory/app/frontend/routes/TeamDirectory.tsx|jsx_text|· ·
-      plugins/terminal/app/frontend/routes/Terminal.tsx|jsx_attr|Search workspaces
-      plugins/terminal/app/frontend/routes/Terminal.tsx|jsx_attr|Search workspaces, chats, workers
-      plugins/terminal/app/frontend/routes/Terminal.tsx|jsx_text|No workspace matches
-      plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_attr|Failed / error cases
-      plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_attr|Slow cases
-      plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_text|Duration
-      plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_text|No test results recorded yet.
       plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_text|RUN-
-      plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_text|Status
-      plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_text|Test
-      plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx|jsx_text|Avg delta
-      plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx|jsx_text|Baseline avg / p95
-      plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx|jsx_text|Comparison avg / p95
-      plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx|jsx_text|No matching tests to compare.
-      plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx|jsx_text|Test
-      plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx|jsx_text|Avg / last
-      plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx|jsx_text|Category
-      plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx|jsx_text|Failure rate
-      plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx|jsx_text|No tests match this query.
-      plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx|jsx_text|Status
-      plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx|jsx_text|Suite / file
-      plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx|jsx_text|Test
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_attr|Jobs landed
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_attr|Landing units
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_attr|Output
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_attr|PR creation
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_attr|Repository throughput
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_attr|Throughput window
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_text|Approval funnel
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_text|Bottlenecks
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_text|Latency and capacity
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_text|Loading throughput metrics...
-      plugins/throughput/app/frontend/ui_slots/ThroughputPanel.tsx|jsx_text|Throughput
-      plugins/whiteboard/app/frontend/whiteboardToolCard.tsx|jsx_text|Canvas was already empty.
-      plugins/whiteboard/app/frontend/whiteboardToolCard.tsx|jsx_text|Cleared canvas
-      plugins/whiteboard/app/frontend/whiteboardToolCard.tsx|jsx_text|Loaded snapshot
-      plugins/whiteboard/app/frontend/whiteboardToolCard.tsx|jsx_text|Not saved
-      plugins/whiteboard/app/frontend/whiteboardToolCard.tsx|jsx_text|Saved snapshot
       plugins/worker_timeline/app/frontend/components/TimelineLanes.tsx|jsx_text|lastEnd
     LITERALS
   end

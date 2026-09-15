@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import i18n from "i18next"
 import { isPlainObject } from "@app/pluginToolCards"
 import { displayValue, InternalLink, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
@@ -63,7 +64,7 @@ export function ReasonBadges({ reasons }: { reasons: string[] }) {
     <div className="flex flex-wrap gap-1">
       {reasons.map((reason) => (
         <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${REASON_CLASSES[reason] ?? "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`} key={reason}>
-          {reason}
+          {t(`reason_${reason}`, { defaultValue: reason })}
         </span>
       ))}
     </div>
@@ -74,7 +75,7 @@ export function TestStatusPill({ status }: { status: string | null }) {
   if (!status) return <span className="text-gray-400 dark:text-gray-500">—</span>
 
   const tone = status === "passed" ? "success" : status === "skipped" ? "neutral" : "failure"
-  return <StatePill state={status} tone={tone} />
+  return <StatePill state={t(`status_${status}`, { defaultValue: status })} tone={tone} />
 }
 
 export function formatMs(value: number | null | undefined): string {
@@ -127,7 +128,7 @@ export function FailureSnippet({ failure }: { failure: FailureSnippetData }) {
       {backtrace || output ? (
         <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
           <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-            Backtrace / output
+            {t("tool_backtrace_output")}
           </summary>
           {backtrace ? <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-2xs text-gray-600 dark:text-gray-300">{backtrace}</pre> : null}
           {output ? <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-2xs text-gray-600 dark:text-gray-300">{output}</pre> : null}
@@ -143,11 +144,15 @@ export function Flakiness({ flakiness }: { flakiness: unknown }) {
   const score = numberValue(flakiness.score)
   return (
     <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-2xs font-semibold text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">
-      flaky{score != null ? ` (${Math.round(score * 100)}%)` : ""}
+      {t("tool_flaky")}{score != null ? ` (${Math.round(score * 100)}%)` : ""}
     </span>
   )
 }
 
 export function TableShell({ children }: { children: ReactNode }) {
   return <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">{children}</div>
+}
+
+export function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`test_insights:${key}`, options)
 }

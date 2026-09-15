@@ -65,6 +65,7 @@
   "open": "Oeffnen",
   "owner": "Besitzer: {{name}}",
   "pending_owner_review": "Wartet auf Pruefung durch den Besitzer.",
+  "preview_collaborators": "Mitwirkende: {{names}}",
   "preview_comment_count_one": "{{count}} Kommentar",
   "preview_comment_count_other": "{{count}} Kommentare",
   "preview_not_accessible": "Nicht zugaenglich",
@@ -158,5 +159,21 @@
     "updated_at": "Aktualisiert",
     "visible": "Sichtbare Spalten"
   },
-  "viewing_version_read_only": "Kommentare und Vorschlaege ab v{{number}} werden angezeigt. Schreibgeschuetzt."
+  "viewing_version_read_only": "Kommentare und Vorschlaege ab v{{number}} werden angezeigt. Schreibgeschuetzt.",
+  "tool_word_count_one": "{{count}} Wort",
+  "tool_word_count_other": "{{count}} Woerter",
+  "tool_commented_on": "Kommentiert in {{doc}}",
+  "tool_comment": "Kommentar",
+  "tool_created_summary": "{{doc}} erstellt — {{title}}",
+  "tool_created": "Erstellt",
+  "tool_suggested_change_summary": "Aenderung fuer {{doc}} vorgeschlagen{{state}}",
+  "tool_suggestion": "Vorschlag",
+  "tool_summary": "Zusammenfassung",
+  "tool_conflict": "Konflikt",
+  "tool_pending_suggestions": "Ausstehende Vorschlaege",
+  "tool_open_threads": "Offene Threads",
+  "tool_content": "Inhalt",
+  "tool_design_doc_count_one": "{{count}} Design-Dokument",
+  "tool_design_doc_count_other": "{{count}} Design-Dokumente",
+  "tool_untitled_design_doc": "Unbenanntes Design-Dokument"
 }
