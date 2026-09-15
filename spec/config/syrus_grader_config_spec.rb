@@ -37,6 +37,31 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
+  it "declares the root Rails app project while keeping global policy in the root config" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    graph = TargetGraph::Compiler.compile(Rails.root)
+
+    expect(config.project).to have_attributes(id: "repo", label: "Syrus App", kind: "rails_app")
+    expect(config.prepare).to include(
+      "bundle config set --local path vendor/bundle",
+      "npm ci"
+    )
+    expect(config.deployment_stages.map(&:name)).to eq(%w[staging production public])
+
+    expect(graph.root_project).to have_attributes(
+      id: "repo",
+      label: "Syrus App",
+      kind: "rails_app",
+      path: "",
+      owner_config_path: ".syrus.yml"
+    )
+    expect(graph.root_project.preview).to eq(config.preview)
+    expect(graph.root_project.visual_review).to eq(config.visual_review)
+    expect(graph.root_project.coverage.sources.map(&:artifact)).to eq(config.coverage.sources.map(&:artifact))
+    expect(graph.root_project.coverage.threshold).to eq(config.coverage.threshold)
+    expect(graph.root_project.coverage.project_id).to eq("repo")
+  end
+
   it "declares the CLI project and Go test target in cli/.syrus.yml" do
     config = SyrusYml.new(Rails.root.join("cli/.syrus.yml").read).parse
 
@@ -86,6 +111,21 @@ RSpec.describe "Syrus grader configuration" do
     expect(plugin_cli.affected).to be(true)
   end
 
+  it "selects the union of Rails app and CLI project primitives for mixed app and CLI changes" do
+    graph = TargetGraph::Compiler.compile(Rails.root)
+    changed_files = [ "app/services/target_graph.rb", "cli/cmd/jobs.go" ]
+
+    app_focused_specs = graph.affected("//:grade/rspec-focused", changed_files: changed_files)
+    cli_tests = graph.affected("//cli:grade/go-tests", changed_files: changed_files)
+    root_backstop = graph.affected("//:grade/cli-go-workspace-backstop", changed_files: changed_files)
+
+    expect(app_focused_specs.affected).to be(true)
+    expect(app_focused_specs.target.project_id).to eq("repo")
+    expect(cli_tests.affected).to be(true)
+    expect(cli_tests.target.project_id).to eq("cli")
+    expect(root_backstop.affected).to be(true)
+  end
+
   it "selects desktop targets and preview project for desktop-only changes" do
     graph = TargetGraph::Compiler.compile(Rails.root)
 
@@ -102,6 +142,21 @@ RSpec.describe "Syrus grader configuration" do
     expect(typecheck.affected).to be(true)
     expect(renderer_build.affected).to be(true)
     expect(root_react_focused.affected).to be(true)
+  end
+
+  it "selects the union of Rails app and desktop project primitives for mixed app and desktop changes" do
+    graph = TargetGraph::Compiler.compile(Rails.root)
+    changed_files = [ "app/frontend/routes/Dashboard.tsx", "desktop/src/App.tsx" ]
+
+    app_visual = App::VisualReviewProjects.call(workspace_path: Rails.root, changed_files: changed_files)
+    app_react_focused = graph.affected("//:grade/react-tests-focused", changed_files: changed_files)
+    desktop_typecheck = graph.affected("//desktop:grade/typecheck", changed_files: changed_files)
+    desktop_renderer_build = graph.affected("//desktop:renderer-build", changed_files: changed_files)
+
+    expect(app_visual.choices.map(&:id)).to match_array(%w[repo desktop])
+    expect(app_react_focused.affected).to be(true)
+    expect(desktop_typecheck.affected).to be(true)
+    expect(desktop_renderer_build.affected).to be(true)
   end
 
   # migration-baselines ran `bin/rails db:create` with no bundle installed and
