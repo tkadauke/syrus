@@ -492,6 +492,5 @@ module TestInsights
         nil
       end
     end
-
   end
 end

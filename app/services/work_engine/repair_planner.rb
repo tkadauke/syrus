@@ -780,7 +780,6 @@ module WorkEngine
             preconditions: { classification: classification&.classification, step_repair_semantics: step_kind&.repair_semantics }
           )
         end
-
       end
 
       class BranchDivergedPrOpen < Base
