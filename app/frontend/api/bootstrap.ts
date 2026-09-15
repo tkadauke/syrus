@@ -87,7 +87,7 @@ export type BootstrapPayload = {
       github_pat: boolean
       github_app: boolean
       agent: boolean
-      active_agent_provider: "claude" | "codex"
+      active_agent_provider: string
     }
     readiness: {
       status: "ok" | "warning" | "error"
