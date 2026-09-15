@@ -1,5 +1,6 @@
 {
   "title": "Admin",
+  "loading": "Loading...",
   "page_title_queue": "Queue — Admin",
   "page_title_stuck": "Stuck Jobs — Admin",
   "page_title_resource_admission": "Resource Admission — Admin",
@@ -46,6 +47,10 @@
   "nav_group_system": "System",
   "nav_group_product_data": "Product Data",
   "section_label": "Admin",
+  "plugin_pages": {
+    "unavailable_heading": "Page unavailable",
+    "unavailable_body": "This admin page is not available right now."
+  },
   "overview": {
     "heading": "Overview",
     "loading": "Loading...",

@@ -1,5 +1,6 @@
 {
   "title": "Administration",
+  "loading": "Wird geladen...",
   "page_title_queue": "Warteschlange — Administration",
   "page_title_stuck": "Blockierte Jobs — Administration",
   "page_title_resource_admission": "Ressourcen-Zulassung — Administration",
@@ -42,6 +43,10 @@
   "nav_group_system": "System",
   "nav_group_product_data": "Produktdaten",
   "section_label": "Administration",
+  "plugin_pages": {
+    "unavailable_heading": "Seite nicht verfügbar",
+    "unavailable_body": "Diese Admin-Seite ist derzeit nicht verfügbar."
+  },
   "overview": {
     "heading": "Übersicht",
     "loading": "Wird geladen...",
