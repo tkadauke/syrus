@@ -207,7 +207,7 @@ module MaintenanceTasks
       def plugin_search_sources
         return [] unless defined?(Syrus::PluginRegistry)
 
-        @plugin_search_sources ||= Syrus::PluginRegistry.providers_for("global_search:source")
+        Syrus::PluginRegistry.providers_for("global_search:source")
       rescue StandardError
         []
       end
