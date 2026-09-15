@@ -158,6 +158,24 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     expect(screen.queryByRole("button", { name: "Edit GitHub connection" })).not.toBeInTheDocument()
   })
 
+  it("labels Antigravity readiness with the selected provider instead of Claude", () => {
+    renderOnboarding(bootstrap({
+      setup_status: {
+        ...bootstrap().setup_status!,
+        credential_status: {
+          github: true,
+          github_pat: true,
+          github_app: true,
+          agent: true,
+          active_agent_provider: "agy"
+        }
+      }
+    }))
+
+    expect(screen.getByText("Antigravity is ready for runs.")).toBeInTheDocument()
+    expect(screen.queryByText("Claude is ready for runs.")).not.toBeInTheDocument()
+  })
+
   it("uses semantic brand tokens for the current marker and onboarding actions", () => {
     const { unmount } = renderOnboarding(bootstrap({
       setup_status: {

@@ -1,8 +1,9 @@
 # Chat
 
-Syrus Chat can run turns through Claude or Codex. Each chat stores a concrete
-`chat_provider` when it is created. The seed value comes from the user's chat
-provider setting, then the user's default agent provider, then Claude.
+Syrus Chat can run turns through any enabled chat-provider plugin, including
+Claude, Codex, and Antigravity. Each chat stores a concrete `chat_provider`
+when it is created. The seed value comes from the user's chat provider
+setting, then the user's default agent provider, then Claude.
 
 If a chat is created through an indirect path that somehow leaves the provider
 blank, the first message/admission path pins `chat_sessions.chat_provider`

@@ -815,6 +815,7 @@ function ProviderAvailabilitySettings({
 }
 
 function titleize(value: string) {
+  if (value === "agy") return "Antigravity"
   return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
