@@ -539,7 +539,7 @@ function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<Boot
           ))}
         </div>
       ) : null}
-      {action.isError ? <p className="mt-2 text-xs font-medium">Action failed.</p> : null}
+      {action.isError ? <p className="mt-2 text-xs font-medium">{t("nav:system_alert_action_failed")}</p> : null}
       {reauthorizingProvider ? (
         <ProviderReauthorizationModal
           onClose={() => setReauthorizingProvider(null)}
@@ -661,7 +661,7 @@ function AdminNav({
       <nav
         aria-label={t("nav:admin_nav_aria")}
         className="hidden lg:block sticky top-0 h-screen w-48 shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-2 py-3 dark:border-gray-800 dark:bg-gray-950"
-        title="Curia — The Roman Senate house"
+        title={t("nav:admin_title")}
       >
         {overviewItem && (
           <div className="mb-3">
@@ -1108,6 +1108,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 }
 
 function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedIn: boolean }) {
+  const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [collapsed, setCollapsed] = useState(false)
   const [docsTask, setDocsTask] = useState<MaintenanceTask | null>(null)
@@ -1147,7 +1148,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
   }
 
   return (
-    <section aria-label="Maintenance tasks">
+    <section aria-label={t("maintenance_tasks.sidebar_aria")}>
       <Surface className="space-y-2" padding="sm" variant="subtle">
         <div className="mb-2 flex items-center justify-between gap-2">
           <button
@@ -1157,9 +1158,9 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
             type="button"
           >
             <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "-rotate-90" : ""}`} />
-            <span>Maintenance</span>
+            <span>{t("maintenance_tasks.sidebar_heading")}</span>
           </button>
-          <LinkText className="text-xs" to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>All</LinkText>
+          <LinkText className="text-xs" to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>{t("maintenance_tasks.sidebar_all")}</LinkText>
         </div>
         {collapsed ? (
           <button
@@ -1167,7 +1168,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
             onClick={() => setCollapsed(false)}
             type="button"
           >
-            <span>{visibleTasks.length} maintenance task{visibleTasks.length === 1 ? "" : "s"}</span>
+            <span>{t("maintenance_tasks.sidebar_count", { count: visibleTasks.length })}</span>
             <span className="rounded-full bg-surface-raised px-1.5 py-0.5 text-[10px] font-semibold text-text-muted">{visibleTasks.length}</span>
           </button>
         ) : (
@@ -1273,6 +1274,7 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
 }
 
 function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boolean; item: SidebarNavItem; prefix: string }) {
+  const { t } = useTranslation("nav")
   const location = useLocation()
   const queryClient = useQueryClient()
   const normalizedPath = location.pathname.replace(/^\/app-shell/, "") || "/"
@@ -1298,13 +1300,13 @@ function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boo
         <div className="space-y-3 pl-7 pt-1">
           <AdminSmartFolderNav
             activeFolderId={payload.data.active_smart_folder_id}
-            allLabel={`All ${item.label.toLowerCase()}`}
+            allLabel={t("nav:sidebar_smart_folders_all", { label: item.label.toLowerCase() })}
             allPath={item.rawTo}
             allowSaveWithoutActiveFolder
-            ariaLabel={`${item.label} smart folders`}
+            ariaLabel={t("nav:sidebar_smart_folders_aria", { label: item.label })}
             currentFilter={payload.data.filter}
             folders={payload.data.smart_folders}
-            heading="Folders"
+            heading={t("nav:sidebar_smart_folders_heading")}
             onMutationSuccess={() => {
               void queryClient.invalidateQueries({ queryKey: ["sidebar", "smart_folders", item.id] })
             }}
@@ -1375,7 +1377,7 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:profile")}</Link>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
-          {user.admin ? <Link className="block px-4 py-2 font-medium text-brand hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
+          {user.admin ? <Link className="block px-4 py-2 font-medium text-brand hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onCloseDrawer} title={t("nav:admin_title")} to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <form action="/session" method="post">
             {csrfToken ? <Input name="authenticity_token" type="hidden" value={csrfToken} /> : null}

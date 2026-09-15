@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parseSceneCounts, SceneCountsCard, sceneCountsSummary } from "../whiteboardToolCard"
+import { parseSceneCounts, SceneCountsCard, sceneCountsSummary, t } from "../whiteboardToolCard"
 
 // Plugin-owned tool card for read_scene (the pending-action tool-card work).
 function collapsedSummary(context: ToolCardContext) {
@@ -9,7 +9,7 @@ function collapsedSummary(context: ToolCardContext) {
 
 function renderExpanded(context: ToolCardContext) {
   const counts = parseSceneCounts(context.parsedResult)
-  return counts ? <SceneCountsCard action="Scene" counts={counts} /> : null
+  return counts ? <SceneCountsCard action={t("tool_scene")} counts={counts} /> : null
 }
 
 const readSceneToolCard: ToolCardRenderer = {

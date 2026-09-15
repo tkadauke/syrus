@@ -140,6 +140,7 @@ function WorkUnitsTable({ onNavigate, payload, prefix, search }: { onNavigate: (
 }
 
 function IntentSummary({ intent }: { intent: WorkIntentSummary }) {
+  const { t } = useT("admin")
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -148,7 +149,7 @@ function IntentSummary({ intent }: { intent: WorkIntentSummary }) {
         <span className="font-mono text-xs text-gray-500 dark:text-gray-400">WI-{intent.id}</span>
         {intent.priority ? <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{intent.priority}</span> : null}
       </div>
-      {intent.wait_reason ? <div className="font-mono text-xs text-amber-700 dark:text-amber-300">{intent.wait_reason}{intent.wait_until ? ` until ${intent.wait_until}` : ""}</div> : null}
+      {intent.wait_reason ? <div className="font-mono text-xs text-amber-700 dark:text-amber-300">{intent.wait_reason}{intent.wait_until ? t("work_units.wait_until", { time: intent.wait_until }) : ""}</div> : null}
       {(intent.source_ref || intent.target_ref) ? <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{[intent.source_ref, intent.target_ref].filter(Boolean).join(" -> ")}</div> : null}
     </div>
   )
@@ -165,6 +166,7 @@ function ScopeSummary({ intent, prefix }: { intent: WorkIntentSummary; prefix: s
 }
 
 function UnitList({ units, prefix }: { units: WorkUnitSummary[]; prefix: string }) {
+  const { t } = useT("admin")
   if (units.length === 0) return <span>-</span>
   return (
     <div className="space-y-2">
@@ -178,7 +180,7 @@ function UnitList({ units, prefix }: { units: WorkUnitSummary[]; prefix: string 
           </div>
           {(unit.blocked_reason || unit.preemption_reason || unit.pause_requested) ? (
             <div className="mt-1 font-mono text-xs text-amber-700 dark:text-amber-300">
-              {[unit.blocked_reason && `blocked: ${unit.blocked_reason}`, unit.preemption_reason && `preempted: ${unit.preemption_reason}`, unit.pause_requested && "pause requested"].filter(Boolean).join(" · ")}
+              {[unit.blocked_reason && t("work_units.blocked_reason", { reason: unit.blocked_reason }), unit.preemption_reason && t("work_units.preempted_reason", { reason: unit.preemption_reason }), unit.pause_requested && t("work_units.pause_requested")].filter(Boolean).join(" · ")}
             </div>
           ) : null}
           {unit.members.length > 0 ? <div className="mt-1"><JobLinks jobs={unit.members.map((member) => member.job).filter((job): job is LinkedJob => Boolean(job))} prefix={prefix} /></div> : null}
