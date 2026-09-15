@@ -1,6 +1,6 @@
 # Muse Agent
 
-Muse Agent connects Syrus workflow execution to Muse Code.
+Muse Agent connects Syrus workflow and chat execution to Muse Code.
 
 This plugin owns the credential surface, provider registration, and low-level
 Muse process invocation adapter:
@@ -12,8 +12,13 @@ Muse process invocation adapter:
 - `MuseInvocation`, a fixture-backed wrapper for `muse exec --json`
 - `AgentProviders::Muse`, registered through the `:agent_provider` plugin
   extension point
+- `ChatProviders::Muse`, registered through the `:chat_provider` plugin
+  extension point
+- `ChatSessionRehydrator::Muse`, which rebuilds Muse-shaped JSONL from durable
+  chat messages for provider switching and context compaction
 
-Chat execution is not registered yet.
+Muse appears as a selectable chat provider when the plugin is enabled and the
+user has a saved Muse API key.
 
 The credential probe verifies that `muse` is available and runs:
 
@@ -37,11 +42,11 @@ It appends `--model`, `--reasoning-effort`, and `--max-model-steps` only when
 configured. The prompt is written to a temporary file and the API key is sent
 over stdin so neither secret appears in argv.
 
-Workflow runs set `HOME` to a per-workflow Muse home and write
-`~/.config/muse/settings.json` with the `syrus-mcp-sidecar` stdio server before
-launching `muse exec`. Muse required-tool steps fail fast with
-`mcp_sidecar_failed` when the JSONL stream does not show the required Syrus MCP
-tools as available or called.
+Workflow runs set `HOME` to a per-workflow Muse home. Chat turns set `HOME` to
+a per-chat Muse home. Both paths write `~/.config/muse/settings.json` with the
+appropriate Syrus stdio MCP sidecar before launching `muse exec`. Muse
+required-tool workflow steps fail fast with `mcp_sidecar_failed` when the JSONL
+stream does not show the required Syrus MCP tools as available or called.
 
 The adapter streams Muse JSONL envelopes to the run log and parses terminal
 events such as `run.terminal.completed` and `run.terminal.failed` into
@@ -57,3 +62,9 @@ Transcript capture is explicit:
 
 If export fails, the adapter falls back to the exec JSONL stream and logs a
 diagnostic. Raw capture therefore requires an explicit policy choice.
+
+Chat turns capture the exec JSONL stream for resumable provider sessions.
+If a stale Muse session fails before any turn runs, Syrus retries once as a
+fresh session using the chat-history fallback in the prompt. Disposable scoped
+event evaluator sessions include the rehydrated transcript context in the
+prompt because Muse does not currently expose a separate transcript import flag.
