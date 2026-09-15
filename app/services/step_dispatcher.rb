@@ -1259,10 +1259,19 @@ class StepDispatcher
 
   def self.landing_queue_pause_deferred?(step, workflow)
     return false unless landing_queue_paused?(workflow)
+    return false if landing_workflow_continuation_step?(step, workflow)
 
     record_landing_queue_pause!(workflow, step: step)
     WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
     true
+  end
+
+  def self.landing_workflow_continuation_step?(step, workflow)
+    return false unless workflow.landing_workflow?
+    return false unless workflow.running?
+
+    step.previous_step.present? ||
+      workflow.steps.where("position < ?", step.position).where(state: Step::TERMINAL_STATES).exists?
   end
 
   def paused_before_next_step?(step)

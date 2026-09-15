@@ -1,0 +1,85 @@
+name: paused queue allows active merge train continuation
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: paused-queue-active-merge-train-continuation
+  auto_merge_enabled: true
+  landing_paused: true
+jobs:
+  member:
+    title: Active train should finish while landing queue is paused
+    state: landing
+    branch_name: syrus/direct-member
+    pr_number: 6101
+    approved_at: "2026-09-15 08:00:00"
+    workflow:
+      kind: merge_train
+      state: running
+      work_unit:
+        state: running
+      artifacts:
+        merge_train_base_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      steps:
+        - key: land
+          kind: merge_train_land
+          state: failed
+          details:
+            failure_code: merge_train_base_moved
+          run:
+            state: failed
+            diagnostic:
+              error_class: Steps::MergeTrainLand::BaseMoved
+              error_message: "merge_train: base moved from aaaaaaaa to bbbbbbbb; attempting incremental rebase"
+        - key: rebase
+          kind: merge_train_rebase
+          state: queued
+          depends_on:
+            - land
+          run:
+            state: queued
+        - key: agent_rebase
+          kind: merge_train_agent_rebase
+          state: queued
+          depends_on:
+            - rebase
+        - key: fanout
+          kind: grader_fanout
+          state: queued
+          depends_on:
+            - agent_rebase
+        - key: collect
+          kind: grader_collect
+          state: queued
+          depends_on:
+            - fanout
+        - key: land_after_rebase
+          kind: merge_train_land_after_rebase
+          state: queued
+          depends_on:
+            - collect
+merge_trains:
+  active:
+    state: landing
+    priority: medium
+    base_branch: main
+    integration_branch: syrus/merge-train-paused-continuation
+    workflow_job: member
+    members:
+      - job: member
+        state: included
+outcomes:
+  default: success
+expect:
+  jobs:
+    member:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - merge_train_rebase -> success
+    - merge_train_land_after_rebase -> success
+  absent_events:
+    - landing_paused
