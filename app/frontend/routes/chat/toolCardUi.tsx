@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react"
+import { CodeSurface, Input, Pill, Surface, Text, ToolCard } from "../../components/ui"
+import type { SemanticTone } from "../../components/ui"
 import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 
@@ -35,12 +37,12 @@ export function durationLabel(startedAt: unknown, finishedAt: unknown): string |
 
 type Tone = "success" | "failure" | "warning" | "info" | "neutral"
 
-const TONE_CLASSES: Record<Tone, string> = {
-  success: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200",
-  failure: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200",
-  warning: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
-  info: "bg-info/10 text-info",
-  neutral: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+const TONE_TO_SEMANTIC_TONE: Record<Tone, SemanticTone> = {
+  success: "success",
+  failure: "danger",
+  warning: "warning",
+  info: "info",
+  neutral: "neutral"
 }
 
 export function stateTone(state: string | null | undefined): Tone {
@@ -54,39 +56,35 @@ export function stateTone(state: string | null | undefined): Tone {
 
 export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
   const resolvedTone = tone ?? stateTone(state)
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ${TONE_CLASSES[resolvedTone]}`}>
-      {state.replace(/_/g, " ")}
-    </span>
-  )
+  return <Pill className="text-2xs font-semibold uppercase" tone={TONE_TO_SEMANTIC_TONE[resolvedTone]}>{state.replace(/_/g, " ")}</Pill>
 }
 
 export function Badge({ children }: { children: ReactNode }) {
-  return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-2xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{children}</span>
+  return <Pill className="text-2xs" tone="neutral">{children}</Pill>
 }
 
 export function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="truncate font-mono text-gray-700 dark:text-gray-300" title={value}>{value}</dd>
+      <Text as="div" variant="label" tone="muted">{label}</Text>
+      <Text as="div" className="truncate font-mono text-xs" title={value}>{value}</Text>
     </div>
   )
 }
 
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{children}</div>
+  return <Text as="div" variant="label" tone="muted">{children}</Text>
 }
 
 export function CardShell({ children }: { children: ReactNode }) {
-  return <div className="mt-1 space-y-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-900">{children}</div>
+  return <ToolCard.Root className="mt-1 space-y-2">{children}</ToolCard.Root>
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-      {children}
-    </div>
+    <Surface className="mt-1" padding="sm" variant="inset">
+      <Text as="div" variant="caption" tone="muted">{children}</Text>
+    </Surface>
   )
 }
 
@@ -104,9 +102,9 @@ export function InternalLink({ href, children }: { href: string; children: React
 // payload regardless, so this is purely a friendlier, still-opt-in view.
 export function Disclosure({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
-      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{label}</summary>
-      <div className="mt-1 text-gray-700 dark:text-gray-300">{children}</div>
+    <details className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1">
+      <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted hover:text-text-primary">{label}</summary>
+      <div className="mt-1 text-text-primary">{children}</div>
     </details>
   )
 }
@@ -134,8 +132,8 @@ export function PreviewTextBlock({ emptyLabel = "No text returned.", maxLines = 
 
   return (
     <>
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
-      {truncated ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {maxLines} of {totalLines} lines.</div> : null}
+      <CodeSurface code={preview} maxHeightClassName="max-h-72" />
+      {truncated ? <Text as="div" className="mt-1" variant="caption" tone="muted">Showing first {maxLines} of {totalLines} lines.</Text> : null}
     </>
   )
 }
@@ -151,15 +149,16 @@ export function FilterableList<T,>({ children, emptyLabel = "No matching rows.",
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <input
+        <Input
           aria-label={placeholder}
-          className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 shadow-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+          className="min-w-0 flex-1 px-2 py-1 text-xs dark:bg-gray-950"
+          fullWidth={false}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={placeholder}
           type="search"
           value={query}
         />
-        <span className="text-2xs text-gray-500 dark:text-gray-400">{visibleItems.length} of {items.length}</span>
+        <Text as="span" variant="caption" tone="muted">{visibleItems.length} of {items.length}</Text>
       </div>
       {visibleItems.length > 0 ? children(visibleItems) : <EmptyState>{emptyLabel}</EmptyState>}
     </div>

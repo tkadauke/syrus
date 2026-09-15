@@ -38,6 +38,23 @@ describe("list_design_docs tool card", () => {
     expect(screen.getByText("draft")).toBeInTheDocument()
   })
 
+  it("uses the shared tool-card shell and filterable primitive for plugin-owned rendering", () => {
+    const parsedResult = {
+      design_docs: [
+        { id: 1, doc_ref: "DOC-20", title: "Target Graphs for Project-Aware Workflows", state: "draft" },
+        { id: 2, doc_ref: "DOC-21", title: "K8s cluster viewer", state: "approved" }
+      ]
+    }
+
+    const { container } = render(<>{listDesignDocsToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    const card = container.querySelector(".before\\:bg-neutral-border")
+    expect(card).toHaveClass("relative", "overflow-hidden", "bg-surface")
+    expect(screen.getByRole("searchbox", { name: "Filter design docs" })).toBeInTheDocument()
+    expect(screen.getByText("2 of 2")).toBeInTheDocument()
+    expect(screen.getByText("DOC-21")).toBeInTheDocument()
+  })
+
   it("falls back to null for a malformed payload (missing design_docs array)", () => {
     expect(listDesignDocsToolCard.collapsedSummary?.(context({ parsedResult: { oops: true } }))).toBeNull()
     expect(listDesignDocsToolCard.renderExpanded(context({ parsedResult: { oops: true } }))).toBeNull()

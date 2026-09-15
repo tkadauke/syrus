@@ -11,6 +11,7 @@ import { StatusPill, TonePill } from "../../components/StatusPill"
 import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { Button, buttonClasses } from "../../components/Button"
+import { CodeSurface, DescriptionList, Notice, Section, Surface, surfaceClasses, Text } from "../../components/ui"
 import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
@@ -62,19 +63,19 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
     : humanize(executionStatus)
 
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Current desired work</h3>
+    <Section.Root padding="none">
+      <div className="border-b border-border px-4 py-3">
+        <Text as="h3" variant="heading-sm">Current desired work</Text>
       </div>
       <div className="px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
+              <span className="font-medium text-text-primary">{label}</span>
               <SmallPill>{humanize(intent.state)}</SmallPill>
               {waitLabel ? <SmallPill>{waitLabel}</SmallPill> : null}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
               <span>WI-{intent.id}</span>
               {scopeLabel(intent.scope_type, intent.scope_id) ? <span>{scopeLabel(intent.scope_type, intent.scope_id)}</span> : null}
               {intent.wait_until ? <span>next check <RelativeTimestamp value={intent.wait_until} /></span> : null}
@@ -87,7 +88,7 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
           </div>
         </div>
       </div>
-    </section>
+    </Section.Root>
   )
 }
 
@@ -112,14 +113,14 @@ function WorkUnitsPanel({ units, payload, command, prefix }: { units: JobWorkUni
   if (units.length === 0) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Work attempts</h3>
+    <Section.Root padding="none">
+      <div className="border-b border-border px-4 py-3">
+        <Text as="h3" variant="heading-sm">Work attempts</Text>
       </div>
-      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+      <div className="divide-y divide-border">
         {units.map((unit) => <WorkUnitRow command={command} key={unit.id} payload={payload} prefix={prefix} unit={unit} />)}
       </div>
-    </section>
+    </Section.Root>
   )
 }
 
@@ -135,11 +136,11 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
+            <span className="font-medium text-text-primary">{label}</span>
             <SmallPill>{membership}</SmallPill>
             {blockedLabel ? <SmallPill>{blockedLabel}</SmallPill> : null}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
             <span>WU-{unit.id}</span>
             {unit.parent_work_unit_id ? <span>child of WU-{unit.parent_work_unit_id}</span> : null}
             {workflowPath ? (
@@ -170,15 +171,15 @@ function WorkDiagnosticDetails({ details }: { details: Record<string, unknown> |
 
   const lines = workDiagnosticLines(details)
   return (
-    <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+    <div className="mt-2 space-y-1 text-xs text-text-muted">
       {lines.length > 0 ? (
         <ul className="list-disc space-y-1 pl-4">
           {lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
         </ul>
       ) : null}
-      <details className="text-gray-500 dark:text-gray-400">
-        <summary className="cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200">Diagnostic details</summary>
-        <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-50 p-2 text-2xs leading-4 dark:bg-gray-950">{stringify(details)}</pre>
+      <details>
+        <summary className="cursor-pointer select-none hover:text-text-primary">Diagnostic details</summary>
+        <CodeSurface code={stringify(details)} className="mt-1" maxHeightClassName="max-h-40" mode="multiline" />
       </details>
     </div>
   )
@@ -343,16 +344,16 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
   const detectedPlugins = workflowDetectedPlugins(workflow)
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" id={`workflow-${workflow.id}`}>
+    <Section.Root id={`workflow-${workflow.id}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="text-sm font-semibold text-text-primary">
             <Link className="hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflow.slug || workflowSlug(workflow.id)}</Link>
           </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")} <RelativeTimestamp value={workflow.created_at} /></p>
+          <p className="text-xs text-text-muted">{workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")} <RelativeTimestamp value={workflow.created_at} /></p>
           <ProviderFailoverNotice className="mt-1" failover={workflow.provider_failover} />
           {detectedPlugins.length > 0 ? (
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-text-muted">
               <span>{t("workflow_detected_plugins_label")}</span>
               {detectedPlugins.map((name) => (
                 <span className="inline-flex items-center gap-1" key={name}>
@@ -372,18 +373,18 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
       </div>
       {branchDivergence ? <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={workflow} /> : null}
       {workflow.steps_truncated ? (
-        <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+        <Notice className="mt-4 px-3 py-2 text-xs" tone="warning">
           {t("workflow_steps_truncated", { displayed: workflow.steps_displayed || workflow.steps.length, total: workflow.steps_total || workflow.steps.length })}
-        </div>
+        </Notice>
       ) : null}
-      <div className="mt-4 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
+      <Surface className="mt-4 overflow-hidden" padding="none">
         {stepItems.map((item, index) => item.type === "loop" ? (
           <LoopGroup command={command} item={item} key={item.loopId} numberLabel={index + 1} payload={payload} prefix={prefix} workflowArtifacts={workflow.artifacts} workflowId={workflow.id} />
         ) : (
           <DisplayStepCard command={command} item={item} key={displayStepItemKey(item)} numberLabel={index + 1} payload={payload} prefix={prefix} workflowArtifacts={workflow.artifacts} workflowId={workflow.id} />
         ))}
-      </div>
-    </section>
+      </Surface>
+    </Section.Root>
   )
 }
 
@@ -405,16 +406,16 @@ function BranchDivergencePanel({
   const branch = divergence.branch || t("workflow_pr_branch_fallback")
 
   return (
-    <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+    <Notice className="mt-4" tone="warning">
       <div className="font-semibold">{t("workflow_divergence_title")}</div>
-      <p className="mt-1 text-amber-900 dark:text-amber-200">
+      <p className="mt-1">
         {t("workflow_divergence_review")}
       </p>
-      <dl className="mt-2 grid gap-1 text-xs text-amber-900 dark:text-amber-200 sm:grid-cols-3">
-        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_branch")}</dt><dd className="font-mono">{branch}</dd></div>
-        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_remote")}</dt><dd className="font-mono">{shortSha(divergence.remote_sha)}</dd></div>
-        <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_local")}</dt><dd className="font-mono">{shortSha(divergence.local_sha)}</dd></div>
-      </dl>
+      <DescriptionList.Root className="mt-2 text-warning-text sm:grid-cols-3" density="compact">
+        <DescriptionList.Item descriptionClassName="font-mono text-xs text-warning-text" label={t("workflow_divergence_branch")}>{branch}</DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="font-mono text-xs text-warning-text" label={t("workflow_divergence_remote")}>{shortSha(divergence.remote_sha)}</DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="font-mono text-xs text-warning-text" label={t("workflow_divergence_local")}>{shortSha(divergence.local_sha)}</DescriptionList.Item>
+      </DescriptionList.Root>
       <BranchDivergenceComparisonView
         comparison={divergence.comparison}
         localSha={divergence.local_sha}
@@ -422,10 +423,10 @@ function BranchDivergencePanel({
         sourcePath={sourcePath}
       />
       {divergence.recovery_pending ? (
-        <p className="mt-2 text-xs font-medium text-info">{t("workflow_replace_pending")}</p>
+        <Text className="mt-2 text-xs font-medium" tone="info">{t("workflow_replace_pending")}</Text>
       ) : null}
       {divergence.recovery_error?.message ? (
-        <p className="mt-2 text-xs font-medium text-red-700 dark:text-red-300">{t("workflow_replace_failed", { message: divergence.recovery_error.message })}</p>
+        <Text className="mt-2 text-xs font-medium" tone="danger">{t("workflow_replace_failed", { message: divergence.recovery_error.message })}</Text>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         <Link className={buttonClasses("secondary")} to={sourcePath}>{t("workflow_open_source")}</Link>
@@ -443,7 +444,7 @@ function BranchDivergencePanel({
           {t("workflow_discard_stale")}
         </CommandButton>
       </div>
-    </div>
+    </Notice>
   )
 }
 
@@ -479,36 +480,36 @@ function BranchDivergenceComparisonView({
         {comparison?.discarded ? (
           <BranchDivergenceCommitLines list={comparison.discarded} />
         ) : (
-          <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">{t("workflow_divergence_none")}</p>
+          <p className="mt-1 text-xs">{t("workflow_divergence_none")}</p>
         )}
         {comparison?.discardedFiles ? (
           <details className="mt-1">
-            <summary className="cursor-pointer text-xs text-amber-900 underline dark:text-amber-200">
+            <summary className="cursor-pointer text-xs underline">
               {t("workflow_divergence_files", { count: comparison.discardedFiles.files.length })}
             </summary>
-            <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
+            <ul className="mt-1 space-y-0.5 font-mono text-[11px]">
               {comparison.discardedFiles.files.map((file) => <li key={file}>{file}</li>)}
               {comparison.discardedFiles.truncated ? <li className="italic">{t("workflow_divergence_truncated")}</li> : null}
             </ul>
           </details>
         ) : null}
         {discardsDiff ? (
-          <Link className="mt-1 inline-block text-xs font-medium text-amber-900 underline dark:text-amber-200" to={discardsDiff}>
+          <Link className="mt-1 inline-block text-xs font-medium underline" to={discardsDiff}>
             {t("workflow_divergence_view_discarded")}
           </Link>
         ) : null}
       </section>
       <section>
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200">
+        <h4 className="text-xs font-semibold uppercase tracking-wide">
           {t("workflow_divergence_published", { count: comparison?.published?.commits.length ?? 0 })}
         </h4>
         {comparison?.published ? (
           <BranchDivergenceCommitLines list={comparison.published} />
         ) : (
-          <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">{t("workflow_divergence_none")}</p>
+          <p className="mt-1 text-xs">{t("workflow_divergence_none")}</p>
         )}
         {publishesDiff ? (
-          <Link className="mt-1 inline-block text-xs font-medium text-amber-900 underline dark:text-amber-200" to={publishesDiff}>
+          <Link className="mt-1 inline-block text-xs font-medium underline" to={publishesDiff}>
             {t("workflow_divergence_view_published")}
           </Link>
         ) : null}
@@ -523,13 +524,13 @@ function BranchDivergenceCommitLines({ list }: { list: BranchDivergenceCommitLis
   return (
     <ul className="mt-1 space-y-1">
       {list.commits.map((commit) => (
-        <li className="text-xs text-amber-950 dark:text-amber-100" key={commit.sha}>
-          <span className="font-mono text-amber-700 dark:text-amber-300">{commit.sha}</span>{" "}
+        <li className="text-xs" key={commit.sha}>
+          <span className="font-mono font-semibold">{commit.sha}</span>{" "}
           <span>{commit.subject}</span>
-          {commit.author ? <span className="text-amber-700 dark:text-amber-400"> — {commit.author}</span> : null}
+          {commit.author ? <span className="opacity-80"> - {commit.author}</span> : null}
         </li>
       ))}
-      {list.truncated ? <li className="text-xs italic text-amber-800 dark:text-amber-300">{t("workflow_divergence_truncated")}</li> : null}
+      {list.truncated ? <li className="text-xs italic opacity-80">{t("workflow_divergence_truncated")}</li> : null}
     </ul>
   )
 }
@@ -564,16 +565,16 @@ function LoopGroup({ item, payload, command, numberLabel, prefix, workflowArtifa
             <GradePhasesList command={command} payload={payload} phases={gradePhases(soleGrade, t)} prefix={prefix} workflowArtifacts={workflowArtifacts} workflowId={workflowId} />
           </>
         ) : (
-          <div className="space-y-3 border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
+          <div className="space-y-3 border-t border-border bg-surface-inset p-3">
             {item.iterations.map((iteration) => (
-              <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={iteration.iteration}>
-                <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              <Surface className="overflow-hidden" padding="none" key={iteration.iteration}>
+                <div className="border-b border-border bg-surface-subtle px-3 py-2 text-xs font-semibold uppercase text-text-muted">
                   {t("loop_iteration", { n: iteration.iteration })}
                 </div>
                 {iteration.items.map((stepItem, index) => (
                   <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} prefix={prefix} workflowArtifacts={workflowArtifacts} workflowId={workflowId} />
                 ))}
-              </section>
+              </Surface>
             ))}
           </div>
         )
@@ -627,9 +628,9 @@ function GradeBatchProgressPanel({ progress }: { progress: NonNullable<ReturnTyp
   const failed = Math.max(progress.failed + progress.cancelled, 0)
 
   return (
-    <div className="border-t border-gray-100 bg-gray-50 px-3 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+    <div className="border-t border-border bg-surface-inset px-3 pt-3 text-xs text-text-muted">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-gray-900 dark:text-gray-100">Batch progress</span>
+        <span className="font-medium text-text-primary">Batch progress</span>
         <SmallPill>{progress.completed}/{progress.total} complete</SmallPill>
         {running > 0 ? <SmallPill>{running} running</SmallPill> : null}
         {waiting > 0 ? <SmallPill>{waiting} waiting</SmallPill> : null}
@@ -669,8 +670,8 @@ function isGradeCollectStep(step: JobStep) {
 
 function GradePhasesList({ phases, payload, command, prefix, workflowArtifacts, workflowId }: { phases: ReturnType<typeof gradePhases>; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; workflowArtifacts?: Record<string, unknown> | null; workflowId: number }) {
   return (
-    <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
-      <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <div className="border-t border-border bg-surface-inset p-3">
+      <Surface className="overflow-hidden" padding="none">
         {phases.map((phase, index) => (
           <StepCard
             command={command}
@@ -685,28 +686,28 @@ function GradePhasesList({ phases, payload, command, prefix, workflowArtifacts, 
             workflowId={workflowId}
           />
         ))}
-      </div>
+      </Surface>
     </div>
   )
 }
 
 function WorkflowGroup({ title, numberLabel, pills, status, open, onToggle, children }: { title: string; numberLabel: number | string; pills?: ReactNode; status: string | null; open: boolean; onToggle: () => void; children: ReactNode }) {
   return (
-    <section className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
+    <section className="border-b border-border bg-surface last:border-b-0">
       <button
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 bg-gray-50 px-3 py-2 text-left hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:bg-gray-800/80 dark:hover:bg-gray-800"
+        className="flex w-full items-center justify-between gap-3 bg-surface-subtle px-3 py-2 text-left hover:bg-surface-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         onClick={onToggle}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{numberLabel}.</span>
-          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{title}</span>
+          <span className="w-6 shrink-0 text-right font-mono text-xs text-text-subtle">{numberLabel}.</span>
+          <span className="truncate text-sm font-medium text-text-primary">{title}</span>
           {pills}
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {status ? <StatusPill state={status} /> : null}
-          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
+          <span aria-hidden="true" className="text-text-subtle">{open ? "-" : "+"}</span>
         </span>
       </button>
       {children}
@@ -764,7 +765,7 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
       {command ? (
         <div>
           <div className="mb-1 font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{t("grader_command_label")}</div>
-          <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{command}</pre>
+          <CodeSurface code={command} maxHeightClassName="max-h-32" mode="command" />
         </div>
       ) : null}
     </div>
@@ -789,25 +790,25 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
   const visualReviewArtifact = step.kind === "visual_review" ? stepArtifactVisualReview(artifacts.visual_review_iterations) : null
 
   return (
-    <div className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
+    <div className="border-b border-border bg-surface last:border-b-0">
       <button
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:bg-gray-800"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{numberLabel}.</span>
-          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{displayName || step.display_name}</span>
+          <span className="w-6 shrink-0 text-right font-mono text-xs text-text-subtle">{numberLabel}.</span>
+          <span className="truncate text-sm font-medium text-text-primary">{displayName || step.display_name}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {displayStatus ? <StatusPill state={displayStatus} /> : null}
-          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
+          <span aria-hidden="true" className="text-text-subtle">{open ? "-" : "+"}</span>
         </span>
       </button>
       {open ? (
-        <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="border-t border-border bg-surface-inset p-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
             <span>STEP-{step.id}</span>
             <span>{metadataLabel || step.kind}</span>
             {step.placement?.projected_target_label ? <SmallPill><TargetGraphLink jobId={payload.job.id} prefix={prefix} targetLabel={step.placement.projected_target_label} workflowId={workflowId}>Target {step.placement.projected_target_label}</TargetGraphLink></SmallPill> : null}
@@ -828,12 +829,12 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
           {step.details && !prepareFailure ? (
             (step.kind === "grader" || step.kind === "preflight_grader")
               ? <GraderDetails details={objectDetails(step.details)} />
-              : <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">{stringify(step.details)}</pre>
+              : <CodeSurface code={stringify(step.details)} className="mt-2" maxHeightClassName="max-h-64" />
           ) : null}
           {step.runs_truncated ? (
-            <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+            <Notice className="mt-3 px-2 py-1 text-xs" tone="warning">
               {t("step_runs_truncated", { displayed: step.runs_displayed || runs.length, total: step.runs_total || runs.length })}
-            </p>
+            </Notice>
           ) : null}
           {runs.length > 0 ? (
             <div className="mt-3 space-y-2">
@@ -854,7 +855,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
                 />
               ))}
             </div>
-          ) : <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("section_no_runs")}</p>}
+          ) : <Text className="mt-2 text-xs" muted>{t("section_no_runs")}</Text>}
         </div>
       ) : null}
     </div>
@@ -912,14 +913,15 @@ function StepPlacementPanel({ step, jobId, prefix, workflowId }: { step: JobStep
   if (dependencies?.barrier_progress) rows.push(["Barrier", `${dependencies.barrier_progress.completed}/${dependencies.barrier_progress.total} dependencies complete`])
 
   return (
-    <dl className="mt-2 grid gap-x-4 gap-y-1 rounded border border-gray-200 bg-white p-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:grid-cols-[max-content_1fr]">
-      {rows.map(([label, value]) => (
-        <div className="contents" key={label}>
-          <dt className="font-medium text-gray-500 dark:text-gray-400">{label}</dt>
-          <dd className="min-w-0 break-words">{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <Surface className="mt-2" padding="sm" variant="panel">
+      <DescriptionList.Root density="compact">
+        {rows.map(([label, value]) => (
+          <DescriptionList.Item descriptionClassName="break-words text-xs" key={label} label={label}>
+            {value}
+          </DescriptionList.Item>
+        ))}
+      </DescriptionList.Root>
+    </Surface>
   )
 }
 
@@ -982,15 +984,7 @@ export function StepAdversarialReviewPanel({ iterations, onClose }: { iterations
                 <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
                   {t("adversarial_review_round", { n: iteration.iteration })}
                 </h5>
-                {isFinal ? (
-                  <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${isApproved ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"}`}>
-                    {verdictLabel}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                    {verdictLabel}
-                  </span>
-                )}
+                <SmallPill tone={isFinal ? (isApproved ? "success" : "warning") : "neutral"}>{verdictLabel}</SmallPill>
               </div>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
             </div>
@@ -1017,28 +1011,23 @@ export function StepVisualReviewPanel({ iterations, onClose }: { iterations: Job
             : isSkipped
               ? t("visual_review_verdict_skipped")
               : t("visual_review_verdict_needs_work")
-          const badgeClass = isApproved || isSkipped
-            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
-            : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
           return (
             <div className="p-3" key={iteration.iteration}>
               <div className="flex items-center gap-2">
                 <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
                   {t("visual_review_round", { n: iteration.iteration })}
                 </h5>
-                <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${isFinal ? "font-semibold" : "font-medium"} ${isFinal ? badgeClass : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
-                  {verdictLabel}
-                </span>
+                <SmallPill tone={isFinal ? (isApproved || isSkipped ? "success" : "warning") : "neutral"}>{verdictLabel}</SmallPill>
               </div>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
               {iteration.artifacts.length > 0 ? (
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {iteration.artifacts.map((artifact) => artifact.image_url ? (
-                    <figure className="rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-950" key={artifact.type}>
+                    <figure className={surfaceClasses("panel", "sm")} key={artifact.type}>
                       <a href={artifact.image_url} rel="noreferrer" target="_blank">
                         <img alt={artifact.title || t("visual_review_screenshot_alt")} className="max-h-80 w-full rounded object-contain" src={artifact.image_url} />
                       </a>
-                      {artifact.title ? <figcaption className="mt-2 text-xs text-gray-500 dark:text-gray-400">{artifact.title}</figcaption> : null}
+                      {artifact.title ? <figcaption className="mt-2 text-xs text-text-muted">{artifact.title}</figcaption> : null}
                     </figure>
                   ) : null)}
                 </div>
@@ -1056,7 +1045,7 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
   const status = prepareFailureStatus(failure, t)
 
   return (
-    <section className="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+    <Notice className="mt-2 p-3 text-xs" tone="warning">
       <div className="font-semibold">
         {failure.soft ? t("prepare_failure_soft_title") : t("prepare_failure_hard_title")}
       </div>
@@ -1065,18 +1054,15 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
           {t("prepare_failure_soft_body")} <code className="font-mono">{t("prepare_failure_soft_syrus_yml")}</code> <code className="font-mono">{t("prepare_failure_soft_prepare")}</code> {t("prepare_failure_soft_suffix")}
         </p>
       ) : null}
-      <dl className="mt-2 grid gap-x-4 gap-y-1 md:grid-cols-[max-content_1fr]">
-        <dt className="font-medium">{t("prepare_failure_command")}</dt>
-        <dd className="min-w-0 break-words font-mono">{failure.command || "-"}</dd>
-        <dt className="font-medium">{t("prepare_failure_workdir")}</dt>
-        <dd className="min-w-0 break-words font-mono">{failure.workdir || "-"}</dd>
-        <dt className="font-medium">{t("prepare_failure_status_label")}</dt>
-        <dd>{status}</dd>
-      </dl>
+      <DescriptionList.Root className="mt-2" density="compact">
+        <DescriptionList.Item descriptionClassName="break-words font-mono text-xs text-warning-text" label={t("prepare_failure_command")}>{failure.command || "-"}</DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="break-words font-mono text-xs text-warning-text" label={t("prepare_failure_workdir")}>{failure.workdir || "-"}</DescriptionList.Item>
+        <DescriptionList.Item descriptionClassName="text-xs text-warning-text" label={t("prepare_failure_status_label")}>{status}</DescriptionList.Item>
+      </DescriptionList.Root>
       {failure.output_tail ? (
-        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-2xs text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">{failure.output_tail}</pre>
+        <CodeSurface code={failure.output_tail} className="mt-3" maxHeightClassName="max-h-64" />
       ) : null}
-    </section>
+    </Notice>
   )
 }
 
@@ -1098,15 +1084,13 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
   const dismissPath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/dismiss`
 
   return (
-    <section className={`mt-2 rounded border p-3 text-xs ${severityClass}`}>
+    <section className={`mt-2 rounded-[var(--radius-panel)] border border-[length:var(--border-width)] p-3 text-xs ${severityClass}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="font-semibold">{warning.title}</div>
         <SmallPill>{humanize(warning.kind)}</SmallPill>
       </div>
       {warning.evidence != null ? (
-        <pre className="mt-2 max-h-48 overflow-auto rounded border border-black/10 bg-white/70 p-2 font-mono text-2xs whitespace-pre-wrap dark:border-white/10 dark:bg-gray-950">
-          {stringify(warning.evidence)}
-        </pre>
+        <CodeSurface code={stringify(warning.evidence)} className="mt-2" maxHeightClassName="max-h-48" />
       ) : null}
       {warning.created_job_id ? (
         <p className="mt-2">{t("warning_already_filed")}</p>
@@ -1198,18 +1182,18 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
   }
 
   return (
-    <div className={`rounded border bg-white p-3 text-sm dark:bg-gray-900 ${active ? "border-brand/30 ring-1 ring-brand/20" : "border-gray-200 dark:border-gray-700"}`}>
+    <Surface className={`rounded ${active ? "border-brand/30 ring-1 ring-brand/20" : ""}`} padding="sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-gray-900 dark:text-gray-100">{t("run_number", { id: run.id })}</span>
+            <span className="font-medium text-text-primary">{t("run_number", { id: run.id })}</span>
             <StatusPill state={run.state} />
             {run.rate_limited ? <SmallPill>{t("run_rate_limited")}</SmallPill> : null}
           </div>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-xs text-text-muted">
             {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
           </p>
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-text-muted">
             {run.started_at ? (
               <>
                 <span>{t("run_started_at")}</span>
@@ -1227,16 +1211,16 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
               </>
             ) : null}
           </p>
-          {run.agent_summary ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={run.agent_summary} /> : null}
+          {run.agent_summary ? <Markdown className="chat-prose mt-2 text-sm text-text-muted" text={run.agent_summary} /> : null}
           {run.skill_source ? (
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-xs text-text-muted">
               {t("run_skill_source")} {run.skill_source === "repo_override" ? t("run_skill_source_repo_override") : t("run_skill_source_built_in")}
               {run.skill_resolved_path ? ` (${run.skill_resolved_path})` : ""}
               {run.skill_resolved_class ? ` (${run.skill_resolved_class})` : ""}
             </p>
           ) : null}
-          {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("run_health")} {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
-          {run.failure_classification ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{t("run_failure_label")} {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? t("run_retryable") : t("run_not_retryable")}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
+          {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-text-muted">{t("run_health")} {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
+          {run.failure_classification ? <p className="mt-1 text-xs text-text-muted">{t("run_failure_label")} {humanize(run.failure_classification.classification)} · {run.failure_classification.retryable ? t("run_retryable") : t("run_not_retryable")}{run.failure_classification.reason ? ` - ${run.failure_classification.reason}` : ""}</p> : null}
           {targetLabel && (run.state === "failed" || run.state === "cancelled" || run.state === "skipped" || run.failure_classification) ? (
             <p className="mt-1 text-xs">
               <TargetGraphLink jobId={payload.job.id} prefix={prefix} targetLabel={targetLabel} workflowId={workflowId}>
@@ -1244,9 +1228,9 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
               </TargetGraphLink>
             </p>
           ) : null}
-          {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t("run_diagnostic_captured")} <RelativeTimestamp value={run.run_diagnostic.created_at} />{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
+          {run.run_diagnostic?.present ? <p className="mt-1 text-xs text-warning-text">{t("run_diagnostic_captured")} <RelativeTimestamp value={run.run_diagnostic.created_at} />{run.run_diagnostic.error_message ? `: ${run.run_diagnostic.error_message}` : ""}</p> : null}
           {run.command_spans_truncated ? (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            <p className="mt-1 text-xs text-warning-text">
               {t("run_command_spans_truncated", { displayed: run.command_spans_displayed || run.command_spans?.length || 0, total: run.command_spans_total || run.command_spans?.length || 0 })}
             </p>
           ) : null}
@@ -1297,7 +1281,7 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
           ) : null}
         </div>
       </div>
-      {artifacts.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(artifacts.error, t("run_artifacts_error"))}</p> : null}
+      {artifacts.isError ? <Text className="mt-3 text-xs" tone="danger">{errorMessage(artifacts.error, t("run_artifacts_error"))}</Text> : null}
       {isRunArtifactView && artifacts.data ? <RunArtifactsPanel canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
       {artifactView === "summary" && stepSummaryArtifact ? (
         <StepSummaryPanel onClose={() => setArtifactView(null)} summary={stepSummaryArtifact} />
@@ -1311,11 +1295,11 @@ function RunRow({ run, payload, command, prefix, active = false, stepSummaryArti
       {artifactView === "visual_review" && stepVisualReviewArtifact ? (
         <StepVisualReviewPanel iterations={stepVisualReviewArtifact} onClose={() => setArtifactView(null)} />
       ) : null}
-      {gradeLog.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(gradeLog.error, t("run_grade_log_error"))}</p> : null}
+      {gradeLog.isError ? <Text className="mt-3 text-xs" tone="danger">{errorMessage(gradeLog.error, t("run_grade_log_error"))}</Text> : null}
       {gradeLogOpen && gradeLog.data ? (
         <RunGradeLogPanel onClose={() => setGradeLogOpen(false)} payload={gradeLog.data} />
       ) : null}
-    </div>
+    </Surface>
   )
 }
 
@@ -1414,7 +1398,15 @@ function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<ty
   return (
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{payload.name || t("run_number", { id: payload.run_id })} {t("artifact_grade_log_title")}</ArtifactPanelHeader>
-      <pre className="max-h-96 overflow-auto bg-white p-3 font-mono text-xs text-gray-800 whitespace-pre-wrap max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950 dark:text-gray-200" data-testid="run-grade-log-stream"><AnsiText text={payload.contents} /></pre>
+      <div className="max-md:min-h-0 max-md:flex-1 max-md:max-h-none" data-testid="run-grade-log-stream">
+        <CodeSurface
+          code={payload.contents}
+          copyLabel={t("artifact_grade_log_title")}
+          maxHeightClassName="max-h-96 max-md:min-h-0 max-md:flex-1 max-md:max-h-none"
+        >
+          <AnsiText text={payload.contents} />
+        </CodeSurface>
+      </div>
     </section>
   )
 }

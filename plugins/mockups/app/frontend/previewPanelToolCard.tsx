@@ -1,7 +1,8 @@
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
-import { isPlainObject } from "@app/pluginToolCards"
+import { DescriptionList, Text } from "@app/components/ui"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, InternalLink, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { isPlainObject } from "@app/toolCardParsing"
 
 // Shared presentation for the mockups plugin's preview-panel chat tool cards
 // (the pending-action tool-card work). show_preview and close_preview both return the same
@@ -86,10 +87,10 @@ export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
         modalLabel={panel.title ?? `Panel #${panel.panelId}`}
       />
       {panel.entryFile || panel.fileCount != null ? (
-        <dl className="grid gap-1 sm:grid-cols-2">
-          {panel.entryFile ? <Row label={t("tool_entry_file")} value={panel.entryFile} /> : null}
-          {panel.fileCount != null ? <Row label={t("tool_files")} value={String(panel.fileCount)} /> : null}
-        </dl>
+        <DescriptionList.Root className="sm:grid-cols-2" density="compact">
+          {panel.entryFile ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("tool_entry_file")}>{panel.entryFile}</DescriptionList.Item> : null}
+          {panel.fileCount != null ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("tool_files")}>{panel.fileCount}</DescriptionList.Item> : null}
+        </DescriptionList.Root>
       ) : null}
       {panel.mockupSlug ? (
         <InternalLink href={`/mockups/${panel.mockupSlug}`}>{t("tool_open_mockup")}</InternalLink>
@@ -103,7 +104,7 @@ export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
           {panel.url}
         </a>
       ) : null}
-      {panel.note ? <div className="text-gray-600 dark:text-gray-300">{panel.note}</div> : null}
+      {panel.note ? <Text muted>{panel.note}</Text> : null}
     </CardShell>
   )
 }

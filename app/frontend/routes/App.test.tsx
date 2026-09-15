@@ -9552,7 +9552,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Workflows (1)" }))
     expect(await screen.findByText("WF-5")).toBeInTheDocument()
-    expect(screen.getByText("WF-5").closest("section")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
+    expect(screen.getByText("WF-5").closest("section")).toHaveClass("bg-surface", "border-border")
     fireEvent.click(screen.getByRole("button", { name: /Grade/i }))
     fireEvent.click(screen.getByRole("button", { name: /tests/i }))
     expect(screen.getByText("Run #9")).toBeInTheDocument()
@@ -9567,7 +9567,7 @@ describe("App", () => {
     })
     expect(await screen.findByText("digging trench")).toBeInTheDocument()
     expect(screen.getByText("Agent")).toBeInTheDocument()
-    expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("dark:divide-gray-800")
+    expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("divide-border")
     expect(screen.getByText("Tool")).toBeInTheDocument()
     expect(screen.queryByText("assistant_text")).not.toBeInTheDocument()
     expect(screen.queryByText("tool_call")).not.toBeInTheDocument()
@@ -11012,7 +11012,7 @@ describe("App", () => {
     expect(screen.getByText("Iteration 2")).toBeInTheDocument()
     expect(screen.queryByText("Plan graders")).not.toBeInTheDocument()
     expect(screen.queryByText("Aggregate graders")).not.toBeInTheDocument()
-    const iterationOne = screen.getByText("Iteration 1").closest("section")!
+    const iterationOne = screen.getByText("Iteration 1").parentElement!
     fireEvent.click(within(iterationOne).getByRole("button", { name: /Grade/i }))
     expect(within(iterationOne).getByRole("button", { name: /rspec/i })).toBeInTheDocument()
     expect(within(iterationOne).getByRole("button", { name: /Setup/i })).toBeInTheDocument()
