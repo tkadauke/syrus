@@ -246,9 +246,10 @@ grade:
       Runs the full Go workspace for cross-project CLI integration changes:
       the core CLI module, plugin-owned CLI modules, go.work membership, and
       release/desktop packaging paths that ship the CLI binary. The core CLI
-      module's project metadata lives in cli/.syrus.yml; keep this root check
-      executable until nested grader targets are materialized directly by
-      workflow fanout.
+      module's project metadata lives in cli/.syrus.yml, and desktop app
+      metadata lives in desktop/.syrus.yml; keep this root check executable
+      until nested grader targets are materialized directly by workflow
+      fanout.
     run: mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'
     phases: [review, landing, ci]
     when_files_changed:
@@ -378,7 +379,7 @@ grade:
       the landing/ci `react-tests` grader.
     run: bin/test-react-focused
     phases: [review]
-    when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx", "desktop/src/**/*.ts", "desktop/src/**/*.tsx"]
+    when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx"]
     junit_output: .syrus/grade-output/react-tests-focused-junit.xml
     failures: allow_inherited
     base_retry:

@@ -108,4 +108,38 @@ RSpec.describe App::PreviewProjects do
     expect(result.choices.map(&:id)).to eq([ "repo" ])
     expect(result.choices.first.label).to eq("Repository")
   end
+
+  it "does not include the root preview for files owned by a nested preview project" do
+    write_bare_clone(
+      files: {
+        ".syrus.yml" => "preview:\n  start: bin/dev\n",
+        "desktop/.syrus.yml" => "project:\n  id: desktop\n  label: Desktop App\npreview:\n  start: npm run dev\n",
+        "desktop/src/App.tsx" => "old"
+      },
+      changed_files: { "desktop/src/App.tsx" => "new" }
+    )
+
+    result = described_class.for_job(job)
+
+    expect(result.choices.map(&:id)).to eq([ "desktop" ])
+  end
+
+  it "includes root and nested previews when a diff touches both ownership scopes" do
+    write_bare_clone(
+      files: {
+        ".syrus.yml" => "preview:\n  start: bin/dev\n",
+        "desktop/.syrus.yml" => "project:\n  id: desktop\npreview:\n  start: npm run dev\n",
+        "app/models/job.rb" => "old",
+        "desktop/src/App.tsx" => "old"
+      },
+      changed_files: {
+        "app/models/job.rb" => "new",
+        "desktop/src/App.tsx" => "new"
+      }
+    )
+
+    result = described_class.for_job(job)
+
+    expect(result.choices.map(&:id)).to match_array(%w[repo desktop])
+  end
 end

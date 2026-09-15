@@ -53,6 +53,25 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
+  it "declares the desktop project and scoped desktop validation targets in desktop/.syrus.yml" do
+    config = SyrusYml.new(Rails.root.join("desktop/.syrus.yml").read).parse
+
+    expect(config.project).to have_attributes(id: "desktop", label: "Desktop App", kind: "desktop_app")
+    expect(config.prepare).to eq([ "npm ci" ])
+    expect(config.preview.start).to eq("npm exec vite -- --host 127.0.0.1 --port $PORT")
+    expect(config.visual_review).to have_attributes(enabled: true, rounds: 2)
+    expect(config.coverage.sources.first.artifact).to eq("coverage/lcov.info")
+
+    grader = config.grade.steps.find { |step| step.name == "typecheck" }
+    expect(grader).to have_attributes(
+      run: "npm --prefix desktop run typecheck",
+      phases: %w[review landing ci],
+      required: true,
+      timeout_minutes: 10
+    )
+    expect(grader.when_files_changed).to include("src/**/*.ts", "electron/**/*.ts", "package-lock.json")
+  end
+
   it "selects the CLI target and the executable root backstop for core CLI changes" do
     graph = TargetGraph::Compiler.compile(Rails.root)
 
@@ -65,6 +84,24 @@ RSpec.describe "Syrus grader configuration" do
     expect(cli_tests.affected).to be(true)
     expect(root_backstop.affected).to be(true)
     expect(plugin_cli.affected).to be(true)
+  end
+
+  it "selects desktop targets and preview project for desktop-only changes" do
+    graph = TargetGraph::Compiler.compile(Rails.root)
+
+    typecheck = graph.affected("//desktop:grade/typecheck", changed_files: [ "desktop/src/App.tsx" ])
+    renderer_build = graph.affected("//desktop:renderer-build", changed_files: [ "desktop/src/App.tsx" ])
+    root_react_focused = graph.affected("//:grade/react-tests-focused", changed_files: [ "desktop/src/App.tsx" ])
+
+    expect(graph.project("desktop")).to have_attributes(
+      label: "Desktop App",
+      kind: "desktop_app",
+      path: "desktop",
+      owner_config_path: "desktop/.syrus.yml"
+    )
+    expect(typecheck.affected).to be(true)
+    expect(renderer_build.affected).to be(true)
+    expect(root_react_focused.affected).to be(false)
   end
 
   # migration-baselines ran `bin/rails db:create` with no bundle installed and

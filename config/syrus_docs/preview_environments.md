@@ -86,6 +86,12 @@ affected project has a preview configured instead of starting an unrelated
 project. Repository-scoped "Preview main" is not diff-scoped, so it can offer
 all configured preview projects for the repository.
 
+When a repository has both a root preview and nested project previews, the root
+preview represents files that are not owned by a nested preview project. A diff
+that only touches `desktop/` selects the `desktop` preview without also
+offering the root preview; a mixed diff that touches both `desktop/` and
+root-owned Rails files offers both.
+
 `logs` declares files, relative to the preview workspace, that should be
 available to operators and agents while debugging a running preview. The Job
 detail Preview panel exposes these logs on demand, and workflow agents can read
