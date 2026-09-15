@@ -5,12 +5,12 @@ RSpec.describe SyrusMuseAgent::Engine do
     expect(described_class.superclass).to eq(Rails::Engine)
   end
 
-  it "registers a manifest named 'muse_agent' without provider execution" do
+  it "registers a manifest named 'muse_agent' with workflow provider execution" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "muse_agent" }
 
     expect(manifest).not_to be_nil
     expect(manifest.version).to eq(Syrus::PluginApi.default_version)
-    expect(Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)).not_to include("muse")
+    expect(Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)).to include("muse")
     expect(Syrus::PluginRegistry.providers_for(:chat_provider).map(&:provider_key)).not_to include("muse")
   end
 

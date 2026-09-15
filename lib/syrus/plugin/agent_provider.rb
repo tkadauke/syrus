@@ -71,6 +71,10 @@ module Syrus
             }.compact
           end
         end
+
+        def configured_for_user?(_user)
+          false
+        end
       end
     end
   end
