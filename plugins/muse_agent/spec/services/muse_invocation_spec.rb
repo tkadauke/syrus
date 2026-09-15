@@ -39,6 +39,18 @@ RSpec.describe MuseInvocation do
     File.readlines(FIXTURE_PATH, chomp: true)
   end
 
+  def completed_lines_with(*extra)
+    [
+      { record_type: "event", payload_type: "run.session.created", payload: { session_id: "muse-session" } }.to_json,
+      *extra,
+      {
+        record_type: "event",
+        payload_type: "run.terminal.completed",
+        payload: { outcome: "success", turns: 1, final_text: "done", usage: { input_tokens: 2, output_tokens: 3 } }
+      }.to_json
+    ]
+  end
+
   it "delegates to an injected runner with the generated session and options" do
     received = nil
     runner = ->(**kwargs) {
@@ -329,6 +341,118 @@ RSpec.describe MuseInvocation do
 
     expect(result.outcome).to eq("provider_usage_limit")
     expect(result.final_text).to include("weekly usage limit")
+  end
+
+  it "writes per-home Muse settings with the Syrus MCP sidecar before exec" do
+    captured = []
+    Dir.mktmpdir("muse-home") do |muse_home|
+      stub_process_runners(lines: completed_lines_with, captured: captured)
+
+      result = described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        muse_home: muse_home,
+        mcp_server: {
+          "syrus-mcp-sidecar" => {
+            command: "/app/bin/syrus-mcp-sidecar",
+            args: [ "--run-id", "123" ],
+            env: { "RAILS_ENV" => "test" }
+          }
+        }
+      ).run
+
+      settings = JSON.parse(File.read(File.join(muse_home, ".config", "muse", "settings.json")))
+      expect(result).to be_success
+      expect(settings.dig("mcp_servers", "syrus-mcp-sidecar")).to include(
+        "command" => "/app/bin/syrus-mcp-sidecar",
+        "args" => [ "--run-id", "123" ],
+        "env" => { "RAILS_ENV" => "test" }
+      )
+      expect(captured.first[:env]).to include("HOME" => muse_home, "XDG_CONFIG_HOME" => File.join(muse_home, ".config"))
+    end
+  end
+
+  it "succeeds required MCP checks when Muse reports the required tool as available" do
+    lines = completed_lines_with(
+      {
+        record_type: "event",
+        payload_type: "mcp.tools",
+        payload: {
+          servers: [ { name: "syrus-mcp-sidecar", status: "connected" } ],
+          tools: [ "syrus-mcp-sidecar.submit_summary" ]
+        }
+      }.to_json
+    )
+    stub_process_runners(lines: lines)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      required_mcp_tools: %w[submit_summary]
+    ).run
+
+    expect(result).to be_success
+  end
+
+  it "succeeds required MCP checks when Muse calls the required tool" do
+    lines = completed_lines_with(
+      {
+        record_type: "event",
+        payload_type: "tool.call",
+        payload: {
+          server: "syrus-mcp-sidecar",
+          tool: "submit_test_plan",
+          input: { checks: [] },
+          id: "tool-1"
+        }
+      }.to_json
+    )
+    stub_process_runners(lines: lines)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      required_mcp_tools: %w[submit_test_plan]
+    ).run
+
+    expect(result).to be_success
+  end
+
+  it "fails required MCP checks when Muse never exposes required tools" do
+    events = []
+    lines = completed_lines_with(
+      {
+        record_type: "event",
+        payload_type: "mcp.tools",
+        payload: {
+          servers: [ { name: "syrus-mcp-sidecar", status: "connected" } ],
+          tools: [ "syrus-mcp-sidecar.read_live_state" ]
+        }
+      }.to_json
+    )
+    stub_process_runners(lines: lines)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      required_mcp_tools: %w[submit_summary],
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    expect(result).not_to be_success
+    expect(result.outcome).to eq("mcp_sidecar_failed")
+    expect(events).to include([
+      "[mcp_required] syrus-mcp-sidecar=connected; required tools missing from Muse tool inventory: submit_summary",
+      { kind: "system" }
+    ])
   end
 
   it "does not leak secrets through argv, result text, or logs" do

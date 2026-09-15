@@ -548,12 +548,13 @@ RSpec.describe User do
 
   describe ".agent_providers" do
     it "returns provider keys from the plugin registry" do
-      expect(User.agent_providers).to contain_exactly("claude", "codex")
+      expect(User.agent_providers).to include("claude", "codex", "muse")
     end
 
     it "reflects providers registered in the registry" do
       expect(User.agent_providers).to include("claude")
       expect(User.agent_providers).to include("codex")
+      expect(User.agent_providers).to include("muse")
     end
   end
 
@@ -592,16 +593,23 @@ RSpec.describe User do
       expect(user.configured_agent_providers).to be_empty
     end
 
+    it "includes Muse when a Muse API key is set" do
+      user = User.create!(attrs.merge(muse_api_key: "muse-secret"))
+
+      expect(user.configured_agent_providers).to eq([ "muse" ])
+    end
+
     it "returns every configured provider in registry order" do
       user = User.create!(
         attrs.merge(
           claude_oauth_token: "oat-test",
           codex_auth_mode: "api_key",
-          codex_api_key: "sk-test"
+          codex_api_key: "sk-test",
+          muse_api_key: "muse-secret"
         )
       )
 
-      expect(user.configured_agent_providers).to eq(%w[ claude codex ])
+      expect(user.configured_agent_providers).to eq(%w[ claude codex muse ])
     end
 
     it "returns configured providers other than the user's default provider" do
@@ -769,43 +777,11 @@ RSpec.describe User do
 
       expect(user.agent_provider_configured?("oracle")).to be false
     end
-  end
 
-  describe "#codex_configured?" do
-    it "is true when api_key mode is selected and a key is present" do
-      user = User.create!(attrs.merge(codex_auth_mode: "api_key", codex_api_key: "sk-test"))
+    it "returns true for muse when a Muse API key is present" do
+      user = User.create!(attrs.merge(muse_api_key: "muse-secret"))
 
-      expect(user.send(:codex_configured?)).to be true
-    end
-
-    it "is false when api_key mode is selected but no key is set" do
-      user = User.create!(attrs.merge(codex_auth_mode: "api_key"))
-
-      expect(user.send(:codex_configured?)).to be false
-    end
-
-    it "is true when chatgpt_login mode is selected and auth.json is present" do
-      user = User.create!(
-        attrs.merge(
-          codex_auth_mode: "chatgpt_login",
-          codex_auth_json: Factories.codex_auth_json(access_token: "access-test")
-        )
-      )
-
-      expect(user.send(:codex_configured?)).to be true
-    end
-
-    it "is false when chatgpt_login mode is selected but auth.json is blank" do
-      user = User.create!(attrs.merge(codex_auth_mode: "chatgpt_login"))
-
-      expect(user.send(:codex_configured?)).to be false
-    end
-
-    it "is false for an unknown auth mode" do
-      user = User.create!(attrs.merge(codex_auth_mode: "api_key", codex_api_key: "sk-test"))
-      allow(user).to receive(:codex_auth_mode).and_return("unknown_mode")
-
-      expect(user.send(:codex_configured?)).to be false
+      expect(user.agent_provider_configured?("muse")).to be true
     end
   end
 

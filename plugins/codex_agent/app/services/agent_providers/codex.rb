@@ -8,6 +8,14 @@ module AgentProviders
 
     def self.provider = "codex"
 
+    def self.configured_for_user?(user)
+      attr = {
+        "api_key" => :codex_api_key,
+        "chatgpt_login" => :codex_auth_json
+      }[user.codex_auth_mode]
+      attr ? user.public_send(attr).present? : false
+    end
+
     def self.mcp_tool_name(tool_name, server_name:)
       "#{server_name}.#{tool_name}"
     end
