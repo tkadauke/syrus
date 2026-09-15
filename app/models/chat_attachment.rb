@@ -38,6 +38,7 @@ class ChatAttachment < ApplicationRecord
     if attachable.is_a?(Repository)
       return if attachable.repository_memberships.exists?(user_id: chat_session.user_id)
       return if attachable.user_id == chat_session.user_id
+      return if bug_report_repository?(attachable)
     end
 
     # A Job's "Chat about this" link is available to anyone with at least
@@ -50,5 +51,10 @@ class ChatAttachment < ApplicationRecord
     end
 
     errors.add(:attachable, "must belong to the chat session user") if attachable.user_id != chat_session.user_id
+  end
+
+  def bug_report_repository?(repository)
+    owner, name = AppSetting.report_issue_repo_slug.to_s.split("/", 2)
+    repository.owner == owner && repository.name == name
   end
 end
