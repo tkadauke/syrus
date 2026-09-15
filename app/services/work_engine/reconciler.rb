@@ -2487,6 +2487,7 @@ module WorkEngine
         next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
         next if retry_until_failure_superseded_by_later_success?(run.step)
+        next if try_branch_failure_superseded_by_recovery?(run)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
         definition = work_definition_for(run.workflow)
@@ -2572,6 +2573,7 @@ module WorkEngine
         next unless latest_workflow_run?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
         next if retry_until_failure_superseded_by_later_success?(run.step)
+        next if try_branch_failure_superseded_by_recovery?(run)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
 
@@ -2609,6 +2611,19 @@ module WorkEngine
       return true if workflow.artifact("superseded_publication").present?
 
       workflow.superseded_by_newer_successful_publication?
+    end
+
+    def try_branch_failure_superseded_by_recovery?(run)
+      step = run.step
+      workflow = run.workflow
+      return false unless step&.failed?
+      return false unless workflow&.running?
+      return false unless step.details.to_h["try_branch_expanded"]
+
+      workflow.steps
+        .where("position > ?", step.position)
+        .where.not(state: Step::TERMINAL_STATES)
+        .exists?
     end
 
     def classify_cleanup_blockers

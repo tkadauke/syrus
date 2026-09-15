@@ -1,0 +1,62 @@
+name: merge train recovers from repeated base moves
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: merge-train-recovers-from-repeated-base-moves
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Feature with busy base branch
+jobs:
+  alpha:
+    title: Alpha member on busy base
+    epic: feature
+    state: approved
+    branch_name: syrus/direct-alpha
+    pr_number: 6501
+    approved_at: "2026-09-15 10:00:00"
+  beta:
+    title: Beta member on busy base
+    epic: feature
+    state: approved
+    branch_name: syrus/direct-beta
+    pr_number: 6502
+    approved_at: "2026-09-15 10:01:00"
+outcomes:
+  default: success
+  steps:
+    merge_train_land:
+      - status: failure
+        failure_code: merge_train_base_moved
+        error_class: Steps::MergeTrainLand::BaseMoved
+        error_message: "merge_train: base moved while landing; attempting incremental rebase"
+    merge_train_land_after_rebase:
+      - status: failure
+        failure_code: merge_train_base_moved
+        error_class: Steps::MergeTrainLand::BaseMoved
+        error_message: "merge_train: base moved again after rebase; attempting incremental rebase"
+      - success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - merge_train_land -> {"status" => "failure", "failure_code" => "merge_train_base_moved"
+    - merge_train_rebase -> success
+    - merge_train_land_after_rebase -> {"status" => "failure", "failure_code" => "merge_train_base_moved"
+    - merge_train_land_after_rebase -> success
+  absent_events:
+    - nonretryable_semantic_git_failure
+  events_ordered:
+    - merge_train_land -> {"status" => "failure", "failure_code" => "merge_train_base_moved"
+    - merge_train_rebase -> success
+    - merge_train_land_after_rebase -> {"status" => "failure", "failure_code" => "merge_train_base_moved"
+    - merge_train_rebase -> success
+    - merge_train_land_after_rebase -> success
