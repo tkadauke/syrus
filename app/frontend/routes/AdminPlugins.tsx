@@ -232,31 +232,6 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         </details>
       ) : null}
 
-      <details className="mt-4">
-        <summary className="cursor-pointer select-none text-xs font-medium uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          {t("plugins.extension_points_heading")}
-        </summary>
-        {plugin.extension_points.length > 0 ? (
-          <div className="mt-2 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                <tr>
-                  <th className="py-2 pr-4 font-medium">{t("plugins.col_extension_point")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("plugins.col_class")}</th>
-                  <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {plugin.extension_points.map((extension) => (
-                  <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("plugins.no_extension_points")}</p>
-        )}
-      </details>
     </article>
   )
 }
