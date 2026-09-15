@@ -1,6 +1,93 @@
 # .syrus.yml Reference
 
-The `.syrus.yml` file at the root of a repository configures how Syrus prepares the workspace, runs graders, and handles optional features like adversarial review and coverage reporting.
+The `.syrus.yml` file configures how Syrus prepares the workspace, runs
+graders, starts previews, and handles optional features like adversarial review
+and coverage reporting. Small repositories can keep a single root `.syrus.yml`.
+Monorepos can add nested `.syrus.yml` files in project directories when those
+directories need their own workflow metadata.
+
+## Project-aware configuration model
+
+Syrus always reads the root `.syrus.yml` when one exists. It also automatically
+discovers nested `.syrus.yml` files below the repository root and compiles each
+one into the repository's TargetGraph. Discovery is literal and explicit: a
+directory becomes project-aware only by containing a committed `.syrus.yml`.
+Syrus does not infer projects from `package.json`, `go.mod`, Rails layouts, or
+other repository conventions.
+
+Nested discovery skips `.git/`, `.syrus/`, and directories git reports as
+ignored. Discovered files are processed in deterministic path order after the
+root file. If one nested file has invalid YAML or invalid local config, Syrus
+skips that file's project/targets, records diagnostics, and continues compiling
+the rest. Structural graph errors such as duplicate project ids, duplicate
+target labels, invalid dependency labels, or dependency cycles fail graph
+compilation with an error naming the owning `.syrus.yml` where possible.
+
+### Projects vs. targets
+
+Project-aware `.syrus.yml` uses two related concepts:
+
+- **Project** — an operator-facing boundary: which preview to start, which
+  checkout hooks apply, which visual/adversarial review policy applies, and
+  which coverage policy owns a report. A project is named by the optional
+  `project:` block, or inferred from the file location.
+- **Target** — an execution graph node: a grader, formatter, generator,
+  builder, prepare action, library, application, or repo check. Targets answer
+  what command or dependency node is affected by a change.
+
+Declaring `project:` names the project; it does not run commands. Commands come
+from legacy executable sections (`prepare:`, `formatters:`, `generated:`,
+`grade:`) or from explicit `targets:` entries.
+
+### Legacy sections as graph targets
+
+Root and nested legacy sections compile into canonical target labels:
+
+| Section | Root label shape | Nested label shape | Target kind |
+|---|---|---|---|
+| `prepare:` | `//:prepare` | `//path:prepare` | `prepare` |
+| `formatters:` | `//:format/0` | `//path:format/0` | `formatter` |
+| `generated:` | `//:generate/0` | `//path:generate/0` | `generator` |
+| `grade:` | `//:grade/name` | `//path:grade/name` | `grader` |
+
+Legacy formatter, generator, and grader file selectors are resolved relative to
+the `.syrus.yml` that declared them. In a nested file, an entry with no explicit
+selector defaults to that nested project directory. In the root file, the same
+rules preserve the legacy repository-wide behavior.
+
+Legacy executable targets also gain an implicit dependency on the root
+repository target (`//:repo`) plus any `deps:` they declare. Explicit
+`targets:` entries do not gain that implicit root dependency; they depend only
+on the labels listed in `deps:` or `dependencies:`.
+
+### Compatibility guarantee
+
+Root-only repositories keep their existing behavior. A repository with only a
+root `.syrus.yml` still gets the implicit root project (`repo`) and the same
+root prepare, formatter, generator, grader, preview, review, coverage, deploy,
+and deployment-stage behavior it had before project-aware monorepo support.
+Adding nested `.syrus.yml` files is an opt-in way to add project metadata and
+project-scoped graph targets; it does not make Syrus guess new projects from
+the rest of the tree.
+
+### Section scope at a glance
+
+| Section | Root `.syrus.yml` | Nested `.syrus.yml` |
+|---|---|---|
+| `project:` | Names the implicit root project; `id` must stay `repo` and `path` must stay empty. | Names the nested project; `id`, `label`, `kind`, and `path` can override directory-derived metadata. |
+| `prepare:` | Automatic workflow setup baseline. Also compiles to `//:prepare`. | Compiles to a project prepare target such as `//apps/web:prepare`; runs only through target prepare paths. |
+| `formatters:` | Legacy formatter config and formatter targets. | Project formatter targets with relative file scopes; target-aware runtime is still staged. |
+| `generated:` | Legacy generator config and generator targets. | Project generator targets with relative source/output scopes; target-aware runtime is still staged. |
+| `grade:` | Legacy workflow grader plan plus grader targets. | Project grader targets for graph tooling and dependency analysis; root grader fanout remains the normal workflow validation path. |
+| `targets:` | Explicit repository/package targets. | Explicit project/package targets. |
+| `preview:` | Root preview, preserving legacy behavior. | Project preview; Job previews select affected preview-capable projects. |
+| `visual_review:` | Root visual review settings. | Project visual review settings used with affected project previews. |
+| `adversarial_review:` | Repo-wide criteria. | Criteria added only when the project is affected. |
+| `coverage:` | Repository-wide coverage plan. | Project coverage plan selected when the project is affected. |
+| `hooks.post_checkout:` | Always runs after `syrus checkout`. | Runs when the checked-out diff touches the project, or as a fallback when the CLI cannot compute the diff. |
+| `deployment_stages:` | Repository-scoped stage tracking. | Not supported; nested declarations are rejected. |
+| `deploy:` | Repository deploy command. | Parsed as ordinary config, but deploy workflows are repository-level; keep deploy config in the root file. |
+| `target_graph.imports:` | Explicit build-system graph imports. | Not imported from nested files; declare imports at the root. |
 
 ## prepare
 
@@ -15,6 +102,16 @@ prepare:
 Use `prepare: []` or `prepare: false` to opt out entirely. If `.syrus.yml` is absent, Syrus auto-detects a single setup command from lockfiles in this priority order: `Gemfile` → `yarn.lock` → `pnpm-lock.yaml` → `package-lock.json` → `package.json`. Auto-detected commands soft-fail (warning + agent still runs); explicit `.syrus.yml` commands hard-fail and abort the chain.
 
 Set `Repository#prepare_enabled` to false in the admin UI to disable the prepare step for all workflows on a repo. Add the `syrus-skip-prepare` label to an issue to skip it for that Job only.
+
+In the root `.syrus.yml`, `prepare:` remains the automatic baseline setup for
+the workflow workspace. A nested `.syrus.yml` `prepare:` block compiles into a
+project-scoped prepare target such as `//apps/web:prepare`; it is not an
+unconditional replacement for root prepare. Project-specific prepare targets
+run when a selected grader or builder depends on them, and implementation
+agents may also run one explicitly with `run_target_prepare` when a
+project-specific environment is needed. Nested prepare targets run from their
+own project directory and are expected to be idempotent setup, not commands
+that mutate tracked source.
 
 ## hooks.post_checkout
 
@@ -86,6 +183,24 @@ grade:
   - name: rspec
     run: bin/rspec
 ```
+
+A `grade:` block in a nested `.syrus.yml` declares grader targets for that
+project. Its `when_files_changed` globs are resolved relative to the declaring
+directory when the graph is compiled, so `src/**` in `apps/web/.syrus.yml`
+means `apps/web/src/**` in repository terms. Root graders keep their legacy
+repository-wide command directory and selector behavior.
+
+Each legacy grader compiles into a target named `//package:grade/name`
+(`//:grade/rspec` at the root, `//apps/web:grade/typecheck` in
+`apps/web/.syrus.yml`). The current workflow grader fanout still materializes
+the root grade plan for normal validation, while using TargetGraph metadata to
+explain and optimize affected root graders. Nested grader targets are therefore
+visible to graph tooling and dependency analysis before every workflow path has
+a nested-grader execution policy. `deps:` or `dependencies:` on a grader may
+point at explicit targets in the same package with `:name` or elsewhere with
+an absolute label such as `//shared:api-schema`. Transitive prepare
+dependencies for materialized graders run before the grader and are reused at
+most once per workflow workspace.
 
 ### grade step fields
 
@@ -332,6 +447,14 @@ Set `formatters: false` (or `off`) to disable formatting altogether for this rep
 
 In `initial`/`retry`/`pr_comment`/`chat_feedback` workflows, the `format` step (like `generated` and the `grade`/grader check below) is only shown as a Step at all when it — or one of the other two — is actually configured. None of the three is configured by default, so a freshly onboarded repository's workflow view shows a bare implement/respond step with no grade loop. As soon as any one of `formatters:`, `generated:`, or `grade:` is set, the whole loop (the agent step, whichever of `format`/`generate` apply, and the grader check) appears together.
 
+Nested `formatters:` entries compile into project-scoped formatter targets
+(`//path:format/0`) with `files` globs resolved relative to the nested
+directory. The current runtime `format` step still executes the legacy
+configured formatters through the workflow's formatter path; graph nodes carry
+project/dependency metadata for diagnostics and target-aware selection work.
+Use `deps:` on formatter entries when the formatter's applicability should
+include explicit dependency targets.
+
 ## generated
 
 Configures the `generate` step: a deterministic codegen pass that runs immediately after `format`, using the same diff-scoped, every-iteration shape.
@@ -352,6 +475,13 @@ Each entry's `command` runs only when this iteration's diff touches its `sources
 `codegen_ignore: true` marks an entry whose generator is non-deterministic across environments (e.g. `db:schema:dump`'s SQLite vs. MySQL output). The `generate` step skips these entries entirely — auto-committing their regenerated output would introduce environment-specific noise rather than fix anything; that invariant is meant to be validated by a grader, not by this step.
 
 There is no plugin-provided default for codegen — it's inherently repo-specific (protobuf vs. GraphQL vs. Rails schema dump vary too much to guess) — so omitting `generated:` leaves the `generate` step a no-op. Set `generated: false` (or `off`) to disable it explicitly (equivalent to omitting it).
+
+Nested `generated:` entries compile into project-scoped generator targets
+(`//path:generate/0`). Their `sources` globs and `generates` artifact paths are
+interpreted relative to the declaring directory, and `deps:` can link them to
+explicit project or shared targets. As with formatters, the graph metadata is
+available before every workflow has a fully project-aware generator execution
+policy.
 
 ## adversarial_review
 
@@ -390,6 +520,13 @@ visual_review:
 `when_files_changed` is an optional array of glob patterns; when present, visual review only runs when at least one changed file (relative to the default branch) matches one of the patterns. Uses the same glob semantics as a grader's `when_files_changed`. Omitting it runs visual review regardless of which files changed.
 
 `seed_notes` is optional free text describing how to reach an authenticated or otherwise populated state in the preview app (e.g. demo credentials, a seed record to look for). It is read by the visual_review agent as a hint, not executed.
+
+Nested `.syrus.yml` files may declare `visual_review:` alongside `preview:`.
+For project-aware visual review, Syrus first selects affected preview-capable
+projects, then uses the affected projects' visual-review settings. When
+multiple affected projects are relevant, their filters and seed notes are
+combined for the reviewer. Root-only repositories keep the legacy root visual
+review behavior.
 
 ## review_plan
 
@@ -579,6 +716,13 @@ such as `//api:contract` resolve from the repository root. Missing
 dependencies, duplicate labels, invalid kinds, and cycles fail TargetGraph
 compilation with errors naming the target and owning config where possible.
 
+`kind: builder` is declared through explicit `targets:` rather than a legacy
+top-level `build:` section. Builder targets are selected by source/dependency
+scope and may run project prepare dependencies before their own command. Use
+builder targets for build or bundle work that proves or warms an executable
+artifact; use `grade:` for pass/fail validation and `generated:` for committed
+codegen output.
+
 ## target_graph.imports
 
 Use `target_graph.imports` to explicitly import targets and dependency edges
@@ -657,6 +801,6 @@ project:
 | `id` | no | derived from the file's directory (`repo` at root) | Must match `[A-Za-z0-9_-]+`. Two files that resolve to the same id — by derivation, explicit declaration, or one of each — fail compilation naming both files. |
 | `label` | no | the directory path (nested) or `"Repository"` (root) | Free-form operator-facing display text. |
 | `kind` | no | — | Free-form, e.g. `desktop_app`. |
-| `path` | no | the directory containing this file | Overrides the project's scope metadata. Informational only today — it does not change which files' changes route to this file's targets. |
+| `path` | no | the directory containing this file | Overrides the project's workflow scope metadata. Preview and review project selection use this path; target labels and legacy target file scopes still come from the `.syrus.yml` file's actual directory. |
 
 The root `.syrus.yml` may declare `project:` too, but only to customize `label`/`kind`. The root project's `id` (`repo`) and `path` (empty) are structural — there is exactly one repository root — so an explicit `project.id`/`project.path` in the root file that disagrees with that is a config error, not a silent override.
