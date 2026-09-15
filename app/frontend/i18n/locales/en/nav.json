@@ -74,6 +74,7 @@
     "unable_to_update_landing": "Unable to update landing queue.",
     "resume_landing": "Resume landing",
     "pause_landing": "Pause landing",
+    "pause_landing_confirm": "Pause the landing queue? Approved jobs will stop landing until you resume it.",
     "unable_to_rename": "Unable to rename smart folder.",
     "unable_to_delete": "Unable to delete smart folder.",
     "queued_blocked_count": "{{count}} blocked",

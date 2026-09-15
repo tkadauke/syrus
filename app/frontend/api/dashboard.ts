@@ -693,8 +693,8 @@ export function updateDashboardEpicState(path: string, targetState: string) {
   return patchJson<DashboardEpicStatePayload>(path, { target_state: targetState })
 }
 
-export function toggleDashboardLandingPause(path: string) {
-  return postJson<DashboardLandingPausePayload>(path, {})
+export function toggleDashboardLandingPause(path: string, options: { confirmed?: boolean } = {}) {
+  return postJson<DashboardLandingPausePayload>(path, options.confirmed ? { confirmed: true } : {})
 }
 
 export function requestDashboardMainBranchRepair(path: string) {
