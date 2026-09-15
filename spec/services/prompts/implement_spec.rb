@@ -25,7 +25,10 @@ RSpec.describe Prompts::Implement do
 
   it "includes the git safety block" do
     out = described_class.new(issue: issue).to_s
-    expect(out).to include(Prompts::GitSafety::TEXT)
+    expect(out).to include("Git pipeline contract")
+    expect(out).to include("commit_agent_changes")
+    expect(out).to include("NEVER run any of these mid-run")
+    expect(out).to include("git checkout --orphan")
   end
 
   it "warns that background shell commands do not continue a Step Run later" do
@@ -43,6 +46,17 @@ RSpec.describe Prompts::Implement do
     expect(out).to include("`.syrus.yml`")
     expect(out).to include("prepare:")
     expect(out).to include("auto-detects one setup command")
+  end
+
+  it "teaches implementation agents how to use project-aware target prepare options" do
+    out = described_class.new(issue: issue).to_s
+
+    expect(out).to include("Target prepare options")
+    expect(out).to include("Read that line before assuming the root prepare covered every")
+    expect(out).to include("project dependency")
+    expect(out).to include("run_target_prepare(label:, reason:)")
+    expect(out).to include("Do not invent project labels")
+    expect(out).to include("Syrus to infer a project just because a package file exists")
   end
 
   it "explains when to use the read-only live-state tool" do
@@ -104,7 +118,7 @@ RSpec.describe Prompts::Implement do
       comments_pos = out.index("Subsequent issue comments")
       first_pos = out.index("Comment 1 by @octavia")
       second_pos = out.index("Comment 2 by @lucius")
-      safety_pos = out.index(Prompts::GitSafety::TEXT)
+      safety_pos = out.index("Git pipeline contract")
 
       expect(comments_pos).to be > body_pos
       expect(first_pos).to be > comments_pos
@@ -135,7 +149,7 @@ RSpec.describe Prompts::Implement do
     it "appears before the git safety block" do
       out = described_class.new(issue: issue, injected_context: [ "Plugin hint." ]).to_s
       hint_pos   = out.index("Plugin hint.")
-      safety_pos = out.index(Prompts::GitSafety::TEXT)
+      safety_pos = out.index("Git pipeline contract")
       expect(hint_pos).to be < safety_pos
     end
   end
@@ -155,7 +169,7 @@ RSpec.describe Prompts::Implement do
       out = described_class.new(issue: issue, replay_context: "Please fix the failing tests.").to_s
       issue_pos   = out.index("Add greeting helper")
       context_pos = out.index("Additional context from the operator")
-      safety_pos  = out.index(Prompts::GitSafety::TEXT)
+      safety_pos  = out.index("Git pipeline contract")
       step_pos    = out.index("Phased execution note: you're running the **implement** step")
       expect(context_pos).to be > issue_pos
       expect(safety_pos).to be > context_pos
@@ -191,7 +205,7 @@ RSpec.describe Prompts::Implement do
       ).to_s
       replay_pos  = out.index("Some operator context.")
       changes_pos = out.index("Recent changes to main since this Job was filed")
-      safety_pos  = out.index(Prompts::GitSafety::TEXT)
+      safety_pos  = out.index("Git pipeline contract")
       expect(changes_pos).to be > replay_pos
       expect(safety_pos).to be > changes_pos
     end
@@ -240,7 +254,7 @@ RSpec.describe Prompts::Implement do
     it "appears before the skill file content (git safety block)" do
       out = described_class.new(issue: issue, injected_context: ["plugin-injected hint"]).to_s
       injected_pos = out.index("plugin-injected hint")
-      skill_pos    = out.index(Prompts::GitSafety::TEXT)
+      skill_pos    = out.index("Git pipeline contract")
       expect(injected_pos).to be < skill_pos
     end
   end
