@@ -1,5 +1,6 @@
 class PollPullRequestJob < ApplicationJob
   include SkipIfPending
+  include GithubPollingRateLimitGuard
   include GithubPrPollHelpers
 
   queue_as :polling
@@ -38,31 +39,36 @@ class PollPullRequestJob < ApplicationJob
     @job = Job.find_by(id: job_id)
     return unless @job&.open? && @job.pr_number.present?
     return if @job.repository.archived?
-    return if @job.effective_pr_repository.github_api_rate_limited_for?(user: @job.user)
 
     pr_repo = @job.effective_pr_repository
-    @client = GithubClient.for(repository: pr_repo, user: @job.user)
-    @slug = pr_repo.slug
-    @pr = @client.pull_request(@slug, @job.pr_number)
+    retry_kwargs = { manual: manual }
+    retry_kwargs[:agent_provider] = @agent_provider if @agent_provider
+    return if github_polling_rate_limited?(pr_repo, user: @job.user, manual: manual, retry_args: [ job_id ], retry_kwargs: retry_kwargs)
 
-    # Reaching this point means the user's GH token is at least
-    # readable for pull_request — clear any stale "API blocked"
-    # banner. Per-branch errors below mark it again if needed.
-    @client.clear_api_blocked!
+    with_github_polling_rate_limit_backoff(pr_repo, user: @job.user, manual: manual, retry_args: [ job_id ], retry_kwargs: retry_kwargs) do
+      @client = GithubClient.for(repository: pr_repo, user: @job.user)
+      @slug = pr_repo.slug
+      @pr = @client.pull_request(@slug, @job.pr_number)
 
-    return close_with("pr_merged") if @pr.merged
-    return handle_upstream_pr_reopened if upstream_pr_was_reopened?
+      # Reaching this point means the user's GH token is at least
+      # readable for pull_request — clear any stale "API blocked"
+      # banner. Per-branch errors below mark it again if needed.
+      @client.clear_api_blocked!
 
-    if @pr.state == "closed"
-      handle_upstream_pr_closed
-      return
+      return close_with("pr_merged") if @pr.merged
+      return handle_upstream_pr_reopened if upstream_pr_was_reopened?
+
+      if @pr.state == "closed"
+        handle_upstream_pr_closed
+        return
+      end
+
+      return close_with("syrus_stop") if has_label?(@pr, "syrus-stop")
+
+      react_to_pr_reviews
+      react_to_pr_comments
+      react_to_ci_failures
     end
-
-    return close_with("syrus_stop") if has_label?(@pr, "syrus-stop")
-
-    react_to_pr_reviews
-    react_to_pr_comments
-    react_to_ci_failures
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
     # The pull_request fetch itself failed on permissions — record
     # for the banner, then re-raise so SolidQueue's failed_executions

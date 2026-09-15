@@ -15,7 +15,11 @@ module GlobalSearch
     disableable true
     hosts [ :source ]
     provides domain_subscriber: "GlobalSearch::Subscribers",
-             sidebar_page: "GlobalSearch::SidebarPages"
+             sidebar_page: "GlobalSearch::SidebarPages",
+             "global_search:source" => [
+               "GlobalSearch::JobRebuildSource",
+               "GlobalSearch::EpicRebuildSource"
+             ]
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" }
   end

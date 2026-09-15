@@ -234,7 +234,7 @@ module Api
             return
           end
 
-          PollMainBranchHealthJob.perform_later(repository.id)
+          PollMainBranchHealthJob.perform_later(repository.id, manual: true)
           message = I18n.t("api.repositories.check_ci_now_enqueued", slug: repository.slug)
           render json: repository_command_payload(repository, message: message)
         end

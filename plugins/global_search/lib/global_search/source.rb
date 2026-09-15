@@ -22,6 +22,13 @@ module GlobalSearch
   #
   #   def self.search_type = "my_thing"
   #   def self.search(query:, user:, limit:) = [ { id:, title:, path: } ]
+  #
+  # A provider may also expose records that the core search-database rebuild
+  # maintenance task can backfill:
+  #
+  #   def self.search_rebuild_key = "my_things"
+  #   def self.search_rebuild_scope = MyThing.order(:id)
+  #   def self.index_search_record(record) = MyThingIndex.upsert(record)
   # The contract for a search result type contributed through this plugin's
   # "global_search:source" point.
   #
