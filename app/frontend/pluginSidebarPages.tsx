@@ -84,9 +84,12 @@ export function usePluginSidebarPage() {
 export function PluginSidebarPageRoute() {
   const { t } = useT("nav")
   const { isPending, page, Component } = usePluginSidebarPage()
+  const loadingText = t("sidebar_pages.loading", { defaultValue: "Loading..." })
+  const unavailableTitle = t("sidebar_pages.unavailable_heading", { defaultValue: "Page unavailable" })
+  const unavailableBody = t("sidebar_pages.unavailable_body", { defaultValue: "This page is not available right now." })
   const loading = (
-    <Page.Root aria-label={t("sidebar_pages.loading")} size="wide">
-      <Text muted>{t("sidebar_pages.loading")}</Text>
+    <Page.Root aria-label={loadingText} size="wide">
+      <Text muted>{loadingText}</Text>
     </Page.Root>
   )
 
@@ -97,7 +100,7 @@ export function PluginSidebarPageRoute() {
   if (!page || !Component) {
     return (
       <Page.Root size="narrow">
-        <Notice title={t("sidebar_pages.unavailable_heading")}>{t("sidebar_pages.unavailable_body")}</Notice>
+        <Notice title={unavailableTitle}>{unavailableBody}</Notice>
       </Page.Root>
     )
   }

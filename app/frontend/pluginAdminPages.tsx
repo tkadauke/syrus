@@ -69,9 +69,11 @@ export function usePluginAdminPage() {
 export function PluginAdminPageRoute() {
   const { t } = useT("admin")
   const { isPending, page, Component } = usePluginAdminPage()
+  const unavailableTitle = t("plugin_pages.unavailable_heading", { defaultValue: "Page unavailable" })
+  const unavailableBody = t("plugin_pages.unavailable_body", { defaultValue: "This admin page is not available right now." })
   const loading = (
-    <Page.Root aria-label={t("loading")} size="wide">
-      <Text muted>{t("loading")}</Text>
+    <Page.Root aria-label={t("loading", { defaultValue: "Loading..." })} size="wide">
+      <Text muted>{t("loading", { defaultValue: "Loading..." })}</Text>
     </Page.Root>
   )
 
@@ -82,7 +84,7 @@ export function PluginAdminPageRoute() {
   if (!page || !Component) {
     return (
       <Page.Root size="narrow">
-        <Notice title={t("plugin_pages.unavailable_heading")}>{t("plugin_pages.unavailable_body")}</Notice>
+        <Notice title={unavailableTitle}>{unavailableBody}</Notice>
       </Page.Root>
     )
   }
