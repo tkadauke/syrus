@@ -352,8 +352,8 @@ describe("Runtime tool cards", () => {
     render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("delivered")).toBeInTheDocument()
     expect(screen.getAllByText("terminal").length).toBeGreaterThan(0)
-    const valueRow = screen.getByText("Value").closest("div")
-    const valueSummary = valueRow?.querySelector("dd")?.getAttribute("title")
+    const valueRow = screen.getByText("Value").parentElement
+    const valueSummary = valueRow?.querySelector("[title]")?.getAttribute("title")
     expect(valueSummary?.startsWith("whoami\n")).toBe(true)
     expect(valueSummary?.endsWith("...")).toBe(true)
     expect(valueSummary?.length).toBeLessThan(longText.length)
