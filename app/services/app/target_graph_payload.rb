@@ -4,6 +4,8 @@ module App
   class TargetGraphPayload
     DEFAULT_LIMIT = 500
     MAX_LIMIT = 2_000
+    GraphResult = Struct.new(:graph, :diagnostics, :source, keyword_init: true)
+    GraphRevision = Struct.new(:ref, :label, keyword_init: true)
 
     def self.for_repository(repository:, user:, params:)
       App::TargetGraphCheckout.with_default_branch(repository: repository, user: user) do |path|
@@ -19,11 +21,12 @@ module App
     end
 
     def self.for_workflow(workflow:, params:)
-      graph, diagnostics = graph_for_workflow(workflow)
+      result = graph_for_workflow(workflow)
       new(
         repository: workflow.job.repository,
-        graph: graph,
-        diagnostics: diagnostics,
+        graph: result.graph,
+        diagnostics: result.diagnostics,
+        source: result.source,
         workflow: workflow,
         params: params
       ).as_json
@@ -34,13 +37,85 @@ module App
     def self.graph_for_workflow(workflow)
       path = WorkflowWorkspace.path_for(workflow)
       if path.join(".git").directory?
-        [ TargetGraph::Compiler.compile(path), TargetGraph::Compiler.diagnose(path) ]
-      else
-        App::TargetGraphCheckout.with_default_branch(repository: workflow.job.repository, user: workflow.user) do |checkout|
-          [ TargetGraph::Compiler.compile(checkout), TargetGraph::Compiler.diagnose(checkout) ]
+        return GraphResult.new(
+          graph: TargetGraph::Compiler.compile(path),
+          diagnostics: TargetGraph::Compiler.diagnose(path),
+          source: workflow_source_json(workflow).merge(ref: "workflow workspace #{workflow.slug}")
+        )
+      end
+
+      graph_revision_candidates(workflow).each do |revision|
+        begin
+          return App::TargetGraphCheckout.with_ref(
+            repository: workflow.job.repository,
+            user: workflow.user,
+            ref: revision.ref
+          ) do |checkout|
+            GraphResult.new(
+              graph: TargetGraph::Compiler.compile(checkout),
+              diagnostics: TargetGraph::Compiler.diagnose(checkout),
+              source: workflow_source_json(workflow).merge(ref: revision.label)
+            )
+          end
+        rescue GitRunner::GitError
+          next
         end
       end
+
+      App::TargetGraphCheckout.with_default_branch(repository: workflow.job.repository, user: workflow.user) do |checkout|
+        GraphResult.new(
+          graph: TargetGraph::Compiler.compile(checkout),
+          diagnostics: TargetGraph::Compiler.diagnose(checkout),
+          source: workflow_source_json(workflow).merge(ref: workflow.job.repository.default_branch)
+        )
+      end
     end
+
+    def self.graph_revision_candidates(workflow)
+      [
+        checkpoint_revision(workflow_checkpoints(workflow).first),
+        checkpoint_revision(job_checkpoints(workflow).first),
+        branch_revision(workflow_publication_branch_name(workflow)),
+        landed_revision(workflow.job.landed_sha)
+      ].compact
+    end
+
+    def self.workflow_checkpoints(workflow)
+      RunCheckpoint.published.where(workflow: workflow).recent
+    end
+
+    def self.job_checkpoints(workflow)
+      RunCheckpoint.published.where(job: workflow.job).where.not(workflow: workflow).recent
+    end
+
+    def self.workflow_publication_branch_name(workflow)
+      workflow.artifact("publication_branch").presence || workflow.job.branch_name.presence
+    end
+
+    def self.checkpoint_revision(checkpoint)
+      return nil unless checkpoint
+
+      GraphRevision.new(
+        ref: checkpoint.remote_ref,
+        label: "#{checkpoint.remote_ref} (#{checkpoint.commit_sha.to_s.first(12)})"
+      )
+    end
+
+    def self.branch_revision(branch_name)
+      return nil if branch_name.blank?
+
+      GraphRevision.new(ref: branch_name, label: branch_name)
+    end
+
+    def self.landed_revision(landed_sha)
+      return nil if landed_sha.blank?
+
+      GraphRevision.new(ref: landed_sha, label: landed_sha)
+    end
+
+    private_class_method :graph_revision_candidates, :workflow_checkpoints, :job_checkpoints,
+      :workflow_publication_branch_name,
+      :checkpoint_revision, :branch_revision, :landed_revision
 
     def self.error_payload(repository:, params:, source:, error:, workflow: nil)
       {
@@ -112,12 +187,13 @@ module App
       default
     end
 
-    def initialize(repository:, graph:, diagnostics:, params:, workflow: nil)
+    def initialize(repository:, graph:, diagnostics:, params:, workflow: nil, source: nil)
       @repository = repository
       @graph = graph
       @diagnostics = diagnostics
       @params = params
       @workflow = workflow
+      @source = source
     end
 
     attr_reader :graph, :workflow
@@ -200,9 +276,11 @@ module App
 
     private
 
-    attr_reader :repository, :diagnostics, :params
+    attr_reader :repository, :diagnostics, :params, :source
 
     def source_json
+      return source if source
+
       workflow ? self.class.workflow_source_json(workflow) : { scope: "repository", ref: repository.default_branch }
     end
 
