@@ -22,7 +22,9 @@ boundaries:
   Electron main/preload code, renderer, packaging scripts, and backend/CLI
   staging scripts. It depends on root assets and the Go CLI for release builds.
 - **Public website**: `website/`, a separate Next.js/static-export app with its
-  own lockfile and deploy workflow.
+  own lockfile and deploy workflow. Its root grader is now scoped to website
+  files and the website deploy workflow until a nested website project owns the
+  executable target directly.
 - **Plugins**: `plugins/*`, each with a gemspec and optional Rails app code,
   migrations, frontend, docs, e2e specs, and sometimes a Go CLI module. Most
   plugin changes still boot inside the core Rails host, so plugins are a
@@ -99,18 +101,22 @@ invariants or cross-boundary release safety:
 
 These are good candidates for nested project declarations:
 
-- `website-build`: belongs in `website/.syrus.yml`.
+- `website-build`: belongs in `website/.syrus.yml`; until then, the root
+  landing/CI grader is file-scoped to `website/**/*` and the Pages deploy
+  workflow instead of running for every repo change.
 - Desktop typecheck, renderer build, main-process build, and staging smoke
   checks: belong in `desktop/.syrus.yml`. The current root config only covers
-  desktop indirectly through `react-tests-focused` and the Go workspace
-  backstop for CLI packaging paths.
+  desktop release coupling indirectly through the Go workspace backstop for CLI
+  packaging paths; desktop-owned renderer and Electron checks live in
+  `desktop/.syrus.yml`.
 - Plugin CLI Go tests should move into `plugins/.syrus.yml` or plugin-specific
   configs. Core CLI target metadata already lives in `cli/.syrus.yml`; the
   repo-level Go workspace check still matches core CLI paths as the executable
   runtime backstop until nested graders run directly.
 - `react-tests-focused`: should become project-aware across core frontend,
-  plugin frontend, and desktop renderer paths instead of one broad root
-  selector.
+  plugin frontend, and desktop renderer paths. Keep the desktop renderer
+  patterns in the root review-phase grader until nested grader targets
+  materialize as real workflow Steps.
 - `rspec-focused`: can stay root-owned for core Rails paths while plugin Ruby
   specs gain plugin-scoped targets.
 - `plugin-model-namespaces`: belongs to the plugin project boundary, but still
@@ -280,13 +286,40 @@ Do not create separate `app/.syrus.yml`, `app/frontend/.syrus.yml`, or
 database are one product boundary today. Use root target scopes instead:
 
 - root `rspec-focused`: `app/**/*.rb`, `lib/**/*.rb`, `spec/**/*.rb`;
-- root `react-tests-focused`: `app/frontend/**/*.ts(x)`;
+- root `react-tests-focused`: `app/frontend/**/*.ts(x)`,
+  `plugins/**/app/frontend/**/*.ts(x)`, and desktop renderer paths until
+  nested grader Steps execute directly;
 - root migration checks: `db/migrate/**`, `plugins/*/db/migrate/**`;
 - root preview and visual review: continue to cover core and plugin UI.
 
 Expected behavior: app/backend and app/frontend diffs continue to behave
-mostly like today, but website/desktop/CLI-only diffs stop paying for unrelated
-project checks once their nested configs are active.
+mostly like today. Website-unrelated landing and CI workflows stop paying for
+the website build once main target health has a reusable record. Desktop and
+CLI root review backstops remain until nested grader materialization is wired
+into workflow fanout. Full landing/CI backstops remain root-owned until
+target-health history and missed-edge warnings prove a narrower split is safe.
+
+## Main Grader Policy After Target Health
+
+Main-branch graders should run in three cases:
+
+- **Baseline sweep**: when a repository has no previous checked main SHA, run
+  every configured root grader and bypass target-health reuse so underdeclared
+  target edges have a chance to fail loudly.
+- **Affected target**: when the changed-file set since the previous main SHA
+  matches a grader's own source scope or a dependency target's source scope,
+  run the grader unless reusable target health proves the same inputs, command,
+  environment, and executable dependencies already passed.
+- **Unproven skipped target**: when a required target is unaffected but has no
+  reusable healthy record, keep the repository-level grader health unknown,
+  inconclusive, or broken according to the latest target health instead of
+  silently treating the skipped target as green.
+
+Failures that GitHub CI later maps to a previously skipped target should file
+the existing `ci_failed_skipped_target` WorkflowWarning. That warning is the
+follow-up loop for missed edges: it asks the operator/agent to add the missing
+`deps:` edge, widen `sources:`/`when_files_changed`, move the check into the
+right nested `.syrus.yml`, or declare an explicit `ci_checks:` mapping.
 
 ### 7. Add Future Mobile As A New Project
 

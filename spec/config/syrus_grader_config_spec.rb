@@ -126,7 +126,7 @@ RSpec.describe "Syrus grader configuration" do
     expect(root_backstop.affected).to be(true)
   end
 
-  it "selects desktop targets and preview project for desktop-only changes" do
+  it "selects desktop targets and keeps the root React focused backstop for desktop-only changes" do
     graph = TargetGraph::Compiler.compile(Rails.root)
 
     typecheck = graph.affected("//desktop:grade/typecheck", changed_files: [ "desktop/src/App.tsx" ])
@@ -155,8 +155,37 @@ RSpec.describe "Syrus grader configuration" do
 
     expect(app_visual.choices.map(&:id)).to match_array(%w[repo desktop])
     expect(app_react_focused.affected).to be(true)
+    expect(app_react_focused.reason).to eq("own source scope matched a changed file")
     expect(desktop_typecheck.affected).to be(true)
     expect(desktop_renderer_build.affected).to be(true)
+  end
+
+  it "keeps root React focused checks as a desktop review backstop until nested graders materialize" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    grader = config.grade.steps.find { |step| step.name == "react-tests-focused" }
+
+    expect(grader.when_files_changed).to include(
+      "app/frontend/**/*.ts",
+      "app/frontend/**/*.tsx",
+      "plugins/**/app/frontend/**/*.ts",
+      "plugins/**/app/frontend/**/*.tsx",
+      "desktop/src/**/*.ts",
+      "desktop/src/**/*.tsx"
+    )
+  end
+
+  it "scopes the website build grader to website and website deploy changes" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    graph = TargetGraph::Compiler.compile(Rails.root)
+    grader = config.grade.steps.find { |step| step.name == "website-build" }
+
+    expect(grader.when_files_changed).to contain_exactly(
+      "website/**/*",
+      ".github/workflows/deploy-website.yml"
+    )
+    expect(graph.affected("//:grade/website-build", changed_files: [ "website/src/app/page.tsx" ]).affected).to be(true)
+    expect(graph.affected("//:grade/website-build", changed_files: [ ".github/workflows/deploy-website.yml" ]).affected).to be(true)
+    expect(graph.affected("//:grade/website-build", changed_files: [ "app/models/job.rb" ]).affected).to be(false)
   end
 
   # migration-baselines ran `bin/rails db:create` with no bundle installed and

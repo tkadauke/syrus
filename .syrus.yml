@@ -381,9 +381,9 @@ grade:
       `related` resolution) to the diff so far, on every review-phase
       grade iteration. Fast feedback loop for small diffs; broad frontend
       diffs can approach full-suite runtime, so it uses the same timeout as
-      the landing/ci `react-tests` grader. Desktop project metadata lives in
-      desktop/.syrus.yml, but keep desktop/src here as an executable
-      review-phase backstop until nested grader targets are materialized
+      the landing/ci `react-tests` grader. Desktop renderer checks live in
+      desktop/.syrus.yml, but this root review-phase backstop keeps desktop
+      renderer paths executable until nested grader targets are materialized
       directly by workflow fanout.
     run: bin/test-react-focused
     phases: [review]
@@ -408,6 +408,9 @@ grade:
     base_retry:
       strategy: full_command
     required: true
+    when_files_changed:
+      - "website/**/*"
+      - ".github/workflows/deploy-website.yml"
     timeout_minutes: 10
 
 coverage:
