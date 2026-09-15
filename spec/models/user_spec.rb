@@ -240,6 +240,16 @@ RSpec.describe User do
       expect(user).not_to be_valid
       expect(user.errors[:chat_provider]).to be_present
     end
+
+    it "treats a Gemini API key as the Antigravity chat credential" do
+      user = User.create!(attrs.merge(chat_provider: "agy", gemini_api_key: "AIza-test"))
+
+      expect(user.chat_provider_configured?("agy")).to eq(true)
+
+      user.update!(gemini_api_key: nil)
+
+      expect(user.chat_provider_configured?("agy")).to eq(false)
+    end
   end
 
   describe "theme" do
