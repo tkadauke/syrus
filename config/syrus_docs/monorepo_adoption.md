@@ -541,4 +541,6 @@ clearer.
 At every level, verify the compiled graph in the target graph UI or API. The
 useful question is not "does every folder have a target?" It is "can an
 operator see why Syrus selected, skipped, cached, previewed, or graded this
-work?"
+work?" When the answer is unclear, use the troubleshooting guide in
+`target_graph.md` for target selection, target-health reuse, preview ambiguity,
+missed-edge events, and common configuration fixes.
