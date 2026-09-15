@@ -27,6 +27,7 @@ module Admin
       "get_spending" => "deferred",
       "get_walkthrough_analysis" => "deferred",
       "manual_agentic_run" => "generic",
+      "open_in_coding_mode" => "generic",
       "read_walkthrough_frame" => "deferred",
       "refresh_pr_checks" => "generic",
       "reset_workspace" => "hidden",
