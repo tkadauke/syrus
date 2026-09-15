@@ -61,10 +61,8 @@ export function truncateSnapshotName(name: string) {
   return name.length > 40 ? `${name.slice(0, 39)}...` : name
 }
 
-export function providerLabel(provider: string) {
-  if (provider === "claude") return "Claude"
-  if (provider === "codex") return "Codex"
-  return provider
+export function providerLabel(provider: string, labels: Record<string, string | undefined> = {}) {
+  return labels[provider] || provider
 }
 
 export function isSupervisorChat(payload: ChatPayload) {

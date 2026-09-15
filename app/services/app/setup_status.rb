@@ -82,6 +82,7 @@ module App
         github_token: user.github_token.present?,
         github_app: AppSetting.github_app_registered?,
         selected_agent_provider: user.agent_provider,
+        selected_agent_provider_label: App::Presentation.agent_provider_label(user.agent_provider),
         selected_agent_provider_configured: user.agent_provider_configured?(user.agent_provider),
         configured_agent_providers: user.configured_agent_providers,
         ready: credentials_ready?

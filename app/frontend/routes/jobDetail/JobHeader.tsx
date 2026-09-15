@@ -288,7 +288,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   if (actions.retry_implementation_action) available.push({ key: "retry_feedback", label: t("retry_with_feedback"), input: { method: "post", path: actions.retry_implementation_action.path }, tone: "secondary" })
   if (actions.retry_implementation_action) {
     actions.retry_agent_options.forEach((provider) => {
-      const providerName = agentProviderLabel(provider)
+      const providerName = agentProviderLabel(payload, provider)
       available.push({
         key: `retry_implementation_${provider}`,
         label: t("retry_with_agent", { provider: providerName }),
@@ -523,8 +523,6 @@ function RetryFeedbackDialog({ command, input, onClose }: { command: ReturnType<
   )
 }
 
-function agentProviderLabel(provider: string) {
-  if (provider === "claude") return "Claude Code"
-  if (provider === "codex") return "Codex"
-  return provider
+function agentProviderLabel(payload: JobDetailPayload, provider: string) {
+  return payload.job.job_provider_setting_options?.find((option) => option.value === provider)?.label || provider
 }
