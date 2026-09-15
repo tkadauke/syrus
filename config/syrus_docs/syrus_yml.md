@@ -4,7 +4,8 @@ The `.syrus.yml` file configures how Syrus prepares the workspace, runs
 graders, starts previews, and handles optional features like adversarial review
 and coverage reporting. Small repositories can keep a single root `.syrus.yml`.
 Monorepos can add nested `.syrus.yml` files in project directories when those
-directories need their own workflow metadata.
+directories need their own workflow metadata. For a staged adoption guide with
+examples, see `monorepo_adoption.md`.
 
 ## Project-aware configuration model
 

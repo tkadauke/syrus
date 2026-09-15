@@ -57,7 +57,9 @@ names/labels the project that owns a config file's targets.
 
 DOC-20's target-graph model is intentionally staged. Repositories do not need
 to jump from a root-only `.syrus.yml` to a fully explicit build graph in one
-change:
+change. For a practical operator guide with concrete app, CLI, desktop,
+mobile, shared-code, and mixed-product examples, see
+`monorepo_adoption.md`.
 
 1. **Root legacy config**: keep one root `.syrus.yml` with `prepare:`,
    `formatters:`, `generated:`, and `grade:`. Syrus compiles these existing
