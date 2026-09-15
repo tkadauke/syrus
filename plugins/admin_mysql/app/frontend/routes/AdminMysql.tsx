@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
 import { Checkbox } from "@app/components/Checkbox"
-import { PageHeading } from "@app/components/Heading"
+import { Button, Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSnapshot } from "../api/adminMysql"
@@ -31,40 +31,36 @@ export function AdminMysql() {
   }
 
   return (
-    <main aria-label="MySQL admin" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-4 dark:border-gray-700">
+    <Page aria-label="MySQL admin" size="wide">
+      <PageHeader className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin:section_label")}</p>
-          <PageHeading className="mt-1">{t("heading")}</PageHeading>
-          <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
+          <Text className="font-medium uppercase" size="xs" tone="muted">{t("admin:section_label")}</Text>
+          <PageHeading>{t("heading")}</PageHeading>
+          <PageDescription className="max-w-3xl">
             Live MySQL state from SHOW commands, information_schema, and Performance Schema. This page does not read Syrus performance logs.
-          </p>
+          </PageDescription>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="mysql-limit">Rows</label>
+        <Toolbar>
+          <label className="text-sm font-medium text-text-primary" htmlFor="mysql-limit">Rows</label>
           <select
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            className="rounded border border-border bg-surface px-2 py-1 text-sm text-text-primary"
             id="mysql-limit"
             onChange={(event) => setLimit(Number(event.target.value))}
             value={limit}
           >
             {[25, 50, 100, 200].map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
-          <button
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-            onClick={() => void mysql.refetch()}
-            type="button"
-          >
+          <Button onClick={() => void mysql.refetch()} size="sm" variant="secondary">
             Refresh
-          </button>
-        </div>
-      </header>
+          </Button>
+        </Toolbar>
+      </PageHeader>
 
-      {mysql.isPending ? <Panel>Loading MySQL state...</Panel> : null}
-      {mysql.isError ? <Panel tone="error">{mysql.error instanceof Error ? mysql.error.message : "Failed to load MySQL state"}</Panel> : null}
-      {killQuery.isError ? <Panel tone="error">{killQuery.error instanceof Error ? killQuery.error.message : "Failed to kill query"}</Panel> : null}
-      {killQuery.data && !killQuery.data.killed ? <Panel tone="error">{killQuery.data.error?.message || "MySQL refused the kill request"}</Panel> : null}
-      {killQuery.data?.killed ? <Panel tone="success">Killed query for thread {killQuery.data.thread_id}.</Panel> : null}
+      {mysql.isPending ? <Notice>Loading MySQL state...</Notice> : null}
+      {mysql.isError ? <Notice tone="error">{mysql.error instanceof Error ? mysql.error.message : "Failed to load MySQL state"}</Notice> : null}
+      {killQuery.isError ? <Notice tone="error">{killQuery.error instanceof Error ? killQuery.error.message : "Failed to kill query"}</Notice> : null}
+      {killQuery.data && !killQuery.data.killed ? <Notice tone="error">{killQuery.data.error?.message || "MySQL refused the kill request"}</Notice> : null}
+      {killQuery.data?.killed ? <Notice tone="success">Killed query for thread {killQuery.data.thread_id}.</Notice> : null}
 
       {mysql.data ? (
         <MysqlDashboard
@@ -77,7 +73,7 @@ export function AdminMysql() {
           onToggleSlowLog={() => setIncludeSlowLog((value) => !value)}
         />
       ) : null}
-    </main>
+    </Page>
   )
 }
 
@@ -145,9 +141,9 @@ function MysqlDashboard({
         />
       </section>
 
-      <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Process list</h2>
+      <Section className="overflow-hidden p-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <SectionHeading>Process list</SectionHeading>
           <div className="flex flex-wrap items-center gap-3">
             <Checkbox
               checked={hideIdle}
@@ -203,7 +199,7 @@ function MysqlDashboard({
             </tbody>
           </table>
         </div>
-      </section>
+      </Section>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <StatementDigestPanel payload={payload} />
@@ -215,10 +211,10 @@ function MysqlDashboard({
 
 function StatementDigestPanel({ payload }: { payload: MysqlSnapshot }) {
   return (
-    <section className="min-w-0 rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Statement digests</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Performance Schema summary ordered by total time.</p>
+    <Section className="min-w-0 overflow-hidden p-0">
+      <div className="border-b border-border px-4 py-3">
+        <SectionHeading>Statement digests</SectionHeading>
+        <Text size="xs" tone="muted">Performance Schema summary ordered by total time.</Text>
       </div>
       {!payload.statement_digests.available ? (
         <UnavailablePanel
@@ -249,19 +245,19 @@ function StatementDigestPanel({ payload }: { payload: MysqlSnapshot }) {
           </table>
         </div>
       )}
-    </section>
+    </Section>
   )
 }
 
 function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload }: { includeSlowLog: boolean; onToggleSlowLog: () => void; payload: MysqlSnapshot }) {
   return (
-    <section className="min-w-0 rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+    <Section className="min-w-0 overflow-hidden p-0">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Slow log</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <SectionHeading>Slow log</SectionHeading>
+          <Text size="xs" tone="muted">
             slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")} · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
-          </p>
+          </Text>
         </div>
         <button
           className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
@@ -297,7 +293,7 @@ function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload }: { includeSlo
           </table>
         </div>
       )}
-    </section>
+    </Section>
   )
 }
 
@@ -321,8 +317,8 @@ function UnavailablePanel({ error, fallback }: { error?: { message: string; hint
 
 function KeyValuePanel({ title, values }: { title: string; values: Record<string, unknown> }) {
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <h2 className="border-b border-gray-200 px-4 py-3 text-lg font-semibold text-gray-900 dark:border-gray-800 dark:text-gray-100">{title}</h2>
+    <Section className="overflow-hidden p-0">
+      <SectionHeading className="border-b border-border px-4 py-3">{title}</SectionHeading>
       <dl className="grid grid-cols-1 gap-px bg-gray-100 text-sm dark:bg-gray-800 sm:grid-cols-2">
         {Object.entries(values).map(([key, value]) => (
           <div className="bg-white px-4 py-3 dark:bg-gray-950" key={key}>
@@ -331,27 +327,22 @@ function KeyValuePanel({ title, values }: { title: string; values: Record<string
           </div>
         ))}
       </dl>
-    </section>
+    </Section>
   )
 }
 
 function MetricCard({ detail, label, value }: { detail: string; label: string; value: string }) {
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
-      <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{detail}</p>
-    </section>
+    <Section>
+      <Text className="font-semibold uppercase" size="xs" tone="muted">{label}</Text>
+      <Text className="mt-2 text-2xl font-semibold" size="base" tone="primary">{value}</Text>
+      <Text className="mt-1" size="xs" tone="muted">{detail}</Text>
+    </Section>
   )
 }
 
-function Panel({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "error" | "success" }) {
-  const classes = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
-    : tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-      : "border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
-  return <div className={`rounded border px-4 py-3 text-sm ${classes}`}>{children}</div>
+function Panel({ children }: { children: ReactNode }) {
+  return <Notice>{children}</Notice>
 }
 
 function connectionPercent(summary: MysqlSnapshot["connection_summary"]) {

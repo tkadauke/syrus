@@ -1,6 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react"
-import { Input } from "@app/components/Input"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { Button, Input, Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "@app/api/client"
 import {
@@ -17,7 +16,6 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { formatBytes } from "@app/lib/format"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { Button } from "@app/components/Button"
 
 const QUERY_KEY = ["admin", "build_cache"]
 
@@ -27,17 +25,17 @@ export function AdminBuildCache() {
   const query = useQuery({ queryKey: QUERY_KEY, queryFn: fetchAdminBuildCache })
 
   return (
-    <main aria-label={t("build_cache.aria_main")} className="mx-auto max-w-4xl space-y-6 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin:section_label")}</p>
-        <PageHeading className="mt-1">{t("build_cache.heading")}</PageHeading>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t("build_cache.description")}</p>
-      </header>
+    <Page aria-label={t("build_cache.aria_main")}>
+      <PageHeader className="border-b border-border pb-4">
+        <Text className="font-medium uppercase" size="xs" tone="muted">{t("admin:section_label")}</Text>
+        <PageHeading>{t("build_cache.heading")}</PageHeading>
+        <PageDescription>{t("build_cache.description")}</PageDescription>
+      </PageHeader>
 
-      {query.isPending ? <PanelMessage>{t("build_cache.loading")}</PanelMessage> : null}
-      {query.isError ? <PanelMessage tone="error">{query.error instanceof ApiError ? query.error.message : t("build_cache.error_load")}</PanelMessage> : null}
+      {query.isPending ? <Notice>{t("build_cache.loading")}</Notice> : null}
+      {query.isError ? <Notice tone="error">{query.error instanceof ApiError ? query.error.message : t("build_cache.error_load")}</Notice> : null}
       {query.isSuccess ? <BuildCacheContent payload={query.data} /> : null}
-    </main>
+    </Page>
   )
 }
 
@@ -45,11 +43,7 @@ function BuildCacheContent({ payload }: { payload: AdminBuildCachePayload }) {
   const { t } = useT("build_cache")
 
   if (!payload.configured) {
-    return (
-      <section className="rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200">
-        {t("build_cache.not_configured")}
-      </section>
-    )
+    return <Notice tone="warning">{t("build_cache.not_configured")}</Notice>
   }
 
   return (
@@ -70,11 +64,11 @@ function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
   const stats = payload.stats
 
   return (
-    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" data-testid="build-cache-stats">
+    <Section data-testid="build-cache-stats">
       <SectionHeading>{t("build_cache.stats_heading")}</SectionHeading>
 
       {payload.stats_error ? (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-300">{payload.stats_error}</p>
+        <Text className="mt-2" tone="danger">{payload.stats_error}</Text>
       ) : stats ? (
         <>
           <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
@@ -90,13 +84,13 @@ function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
             />
           </dl>
           {stats.truncated ? (
-            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{t("build_cache.stats_truncated")}</p>
+            <Text className="mt-3" size="xs" tone="warning">{t("build_cache.stats_truncated")}</Text>
           ) : null}
         </>
       ) : (
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("build_cache.stats_unavailable")}</p>
+        <Text className="mt-2" tone="muted">{t("build_cache.stats_unavailable")}</Text>
       )}
-    </section>
+    </Section>
   )
 }
 
@@ -135,7 +129,7 @@ function ClearRequestForm() {
   }
 
   return (
-    <form className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submit} data-testid="build-cache-clear-form">
+    <Section as="form" className="space-y-4" onSubmit={submit} data-testid="build-cache-clear-form">
       <SectionHeading>{t("build_cache.request_heading")}</SectionHeading>
 
       <fieldset className="space-y-2">
@@ -172,13 +166,13 @@ function ClearRequestForm() {
       </label>
 
       {create.isError ? (
-        <p className="text-sm text-red-600 dark:text-red-300">{create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}</p>
+        <Text tone="danger">{create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}</Text>
       ) : null}
 
       <Button disabled={create.isPending || !reason.trim()} type="submit" variant="primary">
         {create.isPending ? t("build_cache.requesting") : t("build_cache.request_button")}
       </Button>
-    </form>
+    </Section>
   )
 }
 
@@ -206,7 +200,7 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
   }
 
   return (
-    <section className="rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-4" data-testid="build-cache-pending-request">
+    <Section className="border-warning/30 bg-warning/10 text-warning" data-testid="build-cache-pending-request">
       {dialog}
       <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">{t("build_cache.pending_heading")}</h2>
       <dl className="mt-2 grid grid-cols-1 gap-y-1 text-sm text-amber-900 dark:text-amber-100 sm:grid-cols-[8rem_1fr]">
@@ -219,7 +213,7 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
       </dl>
 
       {confirmMutation.isError ? (
-        <p className="mt-2 text-sm text-red-700 dark:text-red-300">{confirmMutation.error instanceof ApiError ? confirmMutation.error.message : t("build_cache.error_generic")}</p>
+        <Text className="mt-2" tone="danger">{confirmMutation.error instanceof ApiError ? confirmMutation.error.message : t("build_cache.error_generic")}</Text>
       ) : null}
 
       <div className="mt-3 flex gap-2">
@@ -230,7 +224,7 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
           {t("build_cache.cancel_button")}
         </Button>
       </div>
-    </section>
+    </Section>
   )
 }
 
@@ -239,8 +233,8 @@ function RecentRequestsCard({ requests }: { requests: BuildCacheClearRequest[] }
   if (requests.length === 0) return null
 
   return (
-    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" data-testid="build-cache-recent-requests">
-      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
+    <Section className="overflow-hidden p-0" data-testid="build-cache-recent-requests">
+      <div className="border-b border-border px-4 py-3 text-sm font-semibold text-text-primary">
         {t("build_cache.recent_heading")}
       </div>
       <ul className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -264,7 +258,7 @@ function RecentRequestsCard({ requests }: { requests: BuildCacheClearRequest[] }
           </li>
         ))}
       </ul>
-    </section>
+    </Section>
   )
 }
 
@@ -279,10 +273,6 @@ function RequestStateBadge({ state }: { state: BuildCacheClearRequest["state"] }
       {t(`build_cache.state_${state}`)}
     </span>
   )
-}
-
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
 
 // Default export is what the plugin component loaders require

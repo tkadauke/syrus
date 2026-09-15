@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { matchPath, useLocation } from "react-router-dom"
 import { fetchSidebarPluginPages } from "./api/sidebarPages"
+import { Notice, Page, PageHeader, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {
@@ -87,20 +88,26 @@ export function PluginSidebarPageRoute() {
   const { isPending, page, Component } = usePluginSidebarPage()
 
   if (isPending) {
-    return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("sidebar_pages.loading")}</main>
+    return (
+      <Page size="narrow">
+        <Notice>{t("sidebar_pages.loading")}</Notice>
+      </Page>
+    )
   }
 
   if (!page || !Component) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t("sidebar_pages.unavailable_heading")}</h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("sidebar_pages.unavailable_body")}</p>
-      </main>
+      <Page size="narrow">
+        <PageHeader>
+          <PageHeading>{t("sidebar_pages.unavailable_heading")}</PageHeading>
+          <Text>{t("sidebar_pages.unavailable_body")}</Text>
+        </PageHeader>
+      </Page>
     )
   }
 
   return (
-    <Suspense fallback={<main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("sidebar_pages.loading")}</main>}>
+    <Suspense fallback={<Page size="narrow"><Notice>{t("sidebar_pages.loading")}</Notice></Page>}>
       <Component />
     </Suspense>
   )

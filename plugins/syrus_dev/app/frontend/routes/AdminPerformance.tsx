@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
+import { Button, Notice, Page, PageHeader, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
 import { explainSql, fetchAdminPerformance, type AdminPerformancePayload, type BrowserTraceSummary, type PerformanceComparison, type PerformanceEvent, type SlowJobSummary, type SlowPhaseSummary, type SlowRequestSummary, type SqlExplainResult, type SqlFingerprintSummary } from "../api/adminPerformance"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -24,32 +25,27 @@ export function AdminPerformance() {
   })
 
   return (
-    <main aria-label={t("performance.aria")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex items-end justify-between gap-4 border-b border-gray-200 pb-4 dark:border-gray-700">
+    <Page aria-label={t("performance.aria")} size="wide">
+      <PageHeader className="flex items-end justify-between gap-4 border-b border-border pb-4">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("performance.heading")}</h1>
+          <Text className="font-medium uppercase" size="xs" tone="muted">{t("section_label")}</Text>
+          <PageHeading>{t("performance.heading")}</PageHeading>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <Toolbar className="shrink-0">
           <div className="inline-flex rounded border border-gray-300 bg-white p-0.5 text-sm dark:border-gray-600 dark:bg-gray-900" role="group" aria-label={t("performance.revision_filter")}>
             <button className={scopeButtonClass(revisionScope === "current")} onClick={() => setRevisionScope("current")} type="button">{t("performance.current_revision")}</button>
             <button className={scopeButtonClass(revisionScope === "all")} onClick={() => setRevisionScope("all")} type="button">{t("performance.all_revisions")}</button>
           </div>
-          <button
-            className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
-            disabled={performance.isFetching}
-            onClick={() => void performance.refetch()}
-            type="button"
-          >
+          <Button disabled={performance.isFetching} onClick={() => void performance.refetch()} variant="secondary">
             {performance.isFetching ? t("performance.refreshing") : t("performance.refresh")}
-          </button>
-        </div>
-      </header>
+          </Button>
+        </Toolbar>
+      </PageHeader>
 
       {performance.isPending ? <PanelMessage>{t("performance.loading")}</PanelMessage> : null}
       {performance.isError ? <PanelMessage tone="error">{errorMessage(performance.error, t("performance.error_load"))}</PanelMessage> : null}
       {performance.isSuccess ? <PerformanceView payload={performance.data} /> : null}
-    </main>
+    </Page>
   )
 }
 
@@ -78,7 +74,7 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
         <Metric title={t("performance.thresholds")} value={formatMs(payload.thresholds.slow_request_ms)} context={t("performance.threshold_context", { job: formatMs(payload.thresholds.slow_job_ms), phase: formatMs(payload.thresholds.slow_phase_ms), sql: formatMs(payload.thresholds.slow_sql_ms), request_sql: formatMs(payload.thresholds.request_sql_duration_ms), request_sql_count: payload.thresholds.request_sql_count_threshold })} />
       </section>
 
-      <nav aria-label={t("performance.tabs_aria")} className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700">
+      <Toolbar aria-label={t("performance.tabs_aria")} className="border-b border-border">
         {PERFORMANCE_TABS.map((tab) => (
           <button
             className={tabButtonClass(activeTab === tab)}
@@ -89,7 +85,7 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
             {t(`performance.tab_${tab}`)}
           </button>
         ))}
-      </nav>
+      </Toolbar>
 
       {activeTab === "overview" ? (
         <>
@@ -955,10 +951,13 @@ function tabButtonClass(active: boolean) {
 
 function TableSection({ children, empty, rowCount, title }: { children: ReactNode; empty: string; rowCount: number; title: string }) {
   return (
-    <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">{title}</div>
+    <Section className="overflow-hidden p-0">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <SectionHeading>{title}</SectionHeading>
+        <Text as="span" size="xs" tone="muted">{rowCount}</Text>
+      </div>
       {rowCount > 0 ? <div className="overflow-x-auto">{children}</div> : <PanelMessage>{empty}</PanelMessage>}
-    </section>
+    </Section>
   )
 }
 
@@ -986,17 +985,18 @@ function SimpleRowsTable({ empty, rows }: { empty: string; rows: Array<Record<st
 
 function Metric({ context, title, tone = "idle", value }: { context?: string; title: string; tone?: "idle" | "ok" | "warn"; value: ReactNode }) {
   const toneClass = tone === "ok"
-    ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+    ? "border-success/30 bg-success/10"
     : tone === "warn"
-      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+      ? "border-warning/30 bg-warning/10"
+      : ""
+  const valueTone = tone === "ok" ? "success" : tone === "warn" ? "warning" : "primary"
 
   return (
-    <article className={`rounded border px-4 py-3 ${toneClass}`}>
-      <h2 className="text-xs font-medium uppercase opacity-75">{title}</h2>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
-      {context ? <p className="mt-1 text-xs opacity-80">{context}</p> : null}
-    </article>
+    <Section as="article" className={toneClass}>
+      <Text className="font-medium uppercase" size="xs" tone="muted">{title}</Text>
+      <Text className="mt-2 text-2xl font-semibold" size="base" tone={valueTone}>{value}</Text>
+      {context ? <Text className="mt-1" size="xs" tone="muted">{context}</Text> : null}
+    </Section>
   )
 }
 
@@ -1005,7 +1005,7 @@ function NumberCell({ value }: { value: ReactNode }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`rounded border p-4 text-sm ${tone === "error" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>{children}</div>
+  return <Notice tone={tone === "error" ? "error" : "muted"}>{children}</Notice>
 }
 
 function formatMs(value: number | null | undefined) {
