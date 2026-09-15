@@ -39,6 +39,15 @@ which project to start and remembers the selection for that Job. If the Job
 only touches projects without previews, the panel says that no affected project
 has a preview configured.
 
+Browser-based visual review uses the same affected-project preview selection.
+The reviewer prompt lists affected preview projects with `project_id`, label,
+path, and owning `.syrus.yml`. With one affected preview, the reviewer can call
+`start_preview` without a `project_id` or pass that id explicitly. With several
+affected previews, the reviewer must pass the relevant `project_id` and may
+start more than one project preview when the diff crosses products. A bare
+`start_preview` is ambiguous in that case; reviewers should not test an
+unrelated root app just because it can boot.
+
 ## Preview Logs
 
 Preview processes run as tracked spawned processes. Their stdout, stderr,
@@ -70,6 +79,12 @@ Use `when_files_changed` to avoid launching a browser for backend-only work.
 The visual reviewer should inspect the running app and screenshots, not run
 builds or full test suites. Deterministic build and test checks belong in
 graders.
+
+Nested `visual_review` blocks are scoped to their project. Their
+`when_files_changed` patterns are resolved relative to the nested
+`.syrus.yml`, and their seed notes are shown when that project preview is one
+of the affected choices. Use root settings for repository-wide policy and
+nested settings for product-specific review scope, seed guidance, or opt-outs.
 
 ## Making Previews Reliable
 
