@@ -29,7 +29,7 @@ RSpec.describe AgentProviders::Agy do
     end
   end
 
-  let(:user) { Factories.user }
+  let(:user) { Factories.user(gemini_api_key: "AIza-test") }
   let(:job) { Factories.job(user: user) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
   let(:step) { Step.create!(workflow: workflow, kind: "implement", position: 0) }
@@ -70,6 +70,7 @@ RSpec.describe AgentProviders::Agy do
     expect(received).to include(
       workspace_path: "/tmp/worktree",
       prompt: "do it",
+      api_key: "AIza-test",
       mcp_server: hash_including(
         command: a_string_ending_with("/bin/syrus-mcp-sidecar"),
         args: [ "--run-id", run.id.to_s ]
@@ -78,5 +79,132 @@ RSpec.describe AgentProviders::Agy do
       resume_session_id: "parent-1"
     )
     expect(received[:agy_home]).to eq(WorkflowWorkspace.agent_home_for(workflow, "agy").to_s)
+  end
+
+  it "raises a configuration error when the Gemini API key is missing" do
+    user.update!(gemini_api_key: nil)
+
+    expect {
+      described_class.new(run: run, workspace: workspace, parent_session_id: nil)
+                     .run(prompt: "do it", log_sink: ->(*, **) { })
+    }.to raise_error(AgentProviders::ConfigurationError, /Gemini API key/)
+  end
+
+  it "passes captured parent transcript JSONL for workflow resume" do
+    source_run = Run.create!(job: job, step: step, trigger_kind: "initial",
+                             state: "failed",
+                             started_at: 1.minute.ago,
+                             finished_at: Time.current)
+    ProviderSession.create!(resumable: source_run,
+                            provider: "agy",
+                            session_id: "parent-1",
+                            transcript_jsonl: "{\"event\":\"init\"}\n")
+    received = nil
+    RunJob.agent_runner = ->(**kwargs) {
+      received = kwargs
+      AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "agy-session"
+      )
+    }
+
+    result = described_class.new(run: run, workspace: workspace, parent_session_id: "parent-1")
+                            .run(prompt: "resume", log_sink: ->(*, **) { })
+
+    expect(result).to be_success
+    expect(received[:resume_session_id]).to eq("parent-1")
+    expect(received[:resume_transcript_jsonl]).to include("\"event\":\"init\"")
+  end
+
+  it "launches the sidecar for non-implement steps too" do
+    review_step = Step.create!(workflow: workflow, kind: "adversarial_review", position: 99)
+    review_run = review_step.runs.create!(job: job, trigger_kind: run.trigger_kind, agent_provider: "agy")
+    received = nil
+    RunJob.agent_runner = ->(**kwargs) {
+      received = kwargs
+      AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "agy-session"
+      )
+    }
+
+    result = described_class.new(run: review_run, workspace: workspace, parent_session_id: nil)
+                            .run(prompt: "review", log_sink: ->(*, **) { })
+
+    expect(result).to be_success
+    expect(received[:mcp_server]).to include(
+      command: a_string_ending_with("/bin/syrus-mcp-sidecar"),
+      args: [ "--run-id", review_run.id.to_s ]
+    )
+  end
+
+  it "persists live_session_id on the Run when the init callback fires" do
+    RunJob.agent_runner = ->(**kwargs) {
+      kwargs[:on_session_id].call("agy-live-1")
+      AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "agy-live-1"
+      )
+    }
+
+    described_class.new(run: run, workspace: workspace, parent_session_id: nil)
+                   .run(prompt: "do it", log_sink: ->(*, **) { })
+
+    expect(run.reload.live_session_id).to eq("agy-live-1")
+  end
+
+  describe "#session_capture" do
+    it "reads Antigravity's canonical JSONL path when the invocation result omitted transcript data" do
+      Dir.mktmpdir do |home|
+        allow(WorkflowWorkspace).to receive(:agent_home_for).with(workflow, "agy").and_return(home)
+        path = AgyAgent::SessionPaths.canonical_path_for(
+          home: home,
+          cwd: workspace.path,
+          session_id: "S-captured"
+        )
+        FileUtils.mkdir_p(File.dirname(path))
+        File.write(path, "{\"event\":\"init\"}\n")
+        result = AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                             is_error: false, outcome: "success",
+                                             final_text: nil, session_id: "S-captured")
+
+        capture = described_class.new(run: run, workspace: workspace, parent_session_id: nil)
+                              .session_capture(result)
+
+        expect(capture.provider).to eq("agy")
+        expect(capture.session_id).to eq("S-captured")
+        expect(capture.transcript_jsonl).to include("init")
+        expect(capture.missing_message).to be_nil
+      end
+    end
+
+    it "returns clear diagnostics when the captured session id is unsafe" do
+      result = AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                           is_error: false, outcome: "success",
+                                           final_text: nil, session_id: "../outside")
+
+      capture = described_class.new(run: run, workspace: workspace, parent_session_id: nil)
+                            .session_capture(result)
+
+      expect(capture.provider).to eq("agy")
+      expect(capture.session_id).to eq("../outside")
+      expect(capture.transcript_jsonl).to be_nil
+      expect(capture.missing_message).to include("invalid Antigravity session id")
+    end
   end
 end
