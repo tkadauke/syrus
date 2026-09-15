@@ -159,6 +159,35 @@ RSpec.describe "maintenance task definitions" do
       expect(result.processed).to eq(1)
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
+
+    it "indexes jobs through the registered search source provider" do
+      job = Factories.job_record
+      provider = Class.new do
+        class_attribute :indexed_jobs, default: []
+
+        def self.index_job(job) = self.indexed_jobs += [ job ]
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
+      task = maintenance_task_for(definition)
+      task.checkpoint["schema_prepared"] = true
+
+      result = definition.perform_batch(task)
+
+      expect(provider.indexed_jobs).to eq([ job ])
+      expect(result.message).to include("Indexed 1 job")
+      expect(task.checkpoint["last_job_id"]).to eq(job.id)
+    end
+
+    it "marks the jobs step done when no search source provider is installed" do
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([])
+      task = maintenance_task_for(definition)
+
+      result = definition.send(:index_jobs, task)
+
+      expect(result.processed).to eq(0)
+      expect(result.message).to include("Jobs index is not available")
+      expect(task.checkpoint["jobs_done"]).to be(true)
+    end
   end
 
   def maintenance_task_for(definition)

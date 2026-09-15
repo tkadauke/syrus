@@ -22,6 +22,12 @@ module GlobalSearch
   #
   #   def self.search_type = "my_thing"
   #   def self.search(query:, user:, limit:) = [ { id:, title:, path: } ]
+  #
+  # The host plugin also uses this point to expose maintenance backfill hooks
+  # for built-in Job/Epic search tables without core naming plugin constants:
+  #
+  #   def self.index_job(job) = MyPlugin::JobIndex.upsert(job)
+  #   def self.index_epic(epic) = MyPlugin::EpicIndex.upsert(epic)
   # The contract for a search result type contributed through this plugin's
   # "global_search:source" point.
   #

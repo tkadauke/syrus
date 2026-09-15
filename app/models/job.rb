@@ -1646,6 +1646,10 @@ class Job < ApplicationRecord
     return if WorkUnits::Ownership.active_for_job_kind?(self, initial_work_kind)
 
     create_initial_run
+  rescue WorkUnits::Launcher::LockConflict => e
+    return if e.lock_key == "job:#{id}:#{initial_work_kind}"
+
+    raise
   end
 
   def initial_work_kind
