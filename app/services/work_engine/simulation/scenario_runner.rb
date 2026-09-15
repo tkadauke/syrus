@@ -21,9 +21,11 @@ module WorkEngine
           outcomes: outcomes,
           scenario_events: translate_events(world),
           expectations: translate_expectations(world),
+          runtime: world.runtime,
           success_states: success_states,
           wait_states: wait_states,
           auto_retry_failed_jobs: world.runner.fetch("auto_retry_failed_jobs", true),
+          global_reconcile: world.runner.fetch("global_reconcile", false),
           max_ticks: max_ticks
         }
         if world.reconciler.key?("ignored_issue_kinds")

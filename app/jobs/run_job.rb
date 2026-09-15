@@ -98,7 +98,10 @@ class RunJob < ApplicationJob
 
     # Record the worker pod for diagnostics and the durable storage key for
     # later resume routing to a worker that can see the on-disk workspace.
-    @workflow&.record_worker_identity!
+    # Distributed immutable-source runs use throwaway per-step checkouts on
+    # arbitrary workers; they must not steal ownership of the mutable workflow
+    # workspace from the prepare/agent/landing chain.
+    @workflow&.record_worker_identity! unless @run.distributed_parallel_run?
 
     @shutdown_requested = false
     prior_trap = Signal.trap("TERM") do

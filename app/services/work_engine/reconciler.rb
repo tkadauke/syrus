@@ -2409,6 +2409,7 @@ module WorkEngine
         next unless latest_workflow_run?(run)
         next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
+        next if retry_until_failure_superseded_by_later_success?(run.step)
         definition = work_definition_for(run.workflow)
         next if definition&.child? && definition.manages_own_job_lifecycle?
 
@@ -2446,6 +2447,7 @@ module WorkEngine
         next unless latest_workflow_run?(run) || repair_failure_still_needs_validation?(run)
         next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
+        next if retry_until_failure_superseded_by_later_success?(run.step)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
         definition = work_definition_for(run.workflow)
@@ -2481,6 +2483,7 @@ module WorkEngine
       runs.select(&:failed?).filter_map do |run|
         next if run.job&.closed?
         next if step_needs_terminal_run_reconciliation?(run.step)
+        next if retry_until_failure_superseded_by_later_success?(run.step)
         next unless branch_diverged_pr_open_run?(run)
 
         workflow = run.workflow
@@ -2529,6 +2532,7 @@ module WorkEngine
         next if run.job&.closed?
         next unless latest_workflow_run?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
+        next if retry_until_failure_superseded_by_later_success?(run.step)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
 
@@ -3361,6 +3365,24 @@ module WorkEngine
       return false unless step&.failed?
 
       latest_run_for_step(step) == run
+    end
+
+    def retry_until_failure_superseded_by_later_success?(step)
+      return false unless step&.failed?
+      return false if step.loop_id.blank?
+
+      steps_for_workflow(step.workflow).any? do |candidate|
+        candidate.loop_id == step.loop_id &&
+          candidate.position.to_i > step.position.to_i &&
+          retry_until_barrier_step_for_reconciliation?(candidate) &&
+          candidate.succeeded?
+      end
+    end
+
+    def retry_until_barrier_step_for_reconciliation?(step)
+      step.loop_id.present? && Step::Kind.fetch(step.kind).fail_policy == :loop_iteration
+    rescue ArgumentError
+      false
     end
 
     def divergence_current_pr_head?(job, divergence)

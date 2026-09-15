@@ -277,7 +277,15 @@ class RunHostAdmission
       .where(state: "running")
       .where.not(id: run.id)
       .joins(step: :workflow)
-      .where(workflows: { worker_hostname: hostname })
+      .left_outer_joins(:spawned_processes)
+      .where(
+        [
+          "workflows.worker_hostname = :hostname",
+          "(spawned_processes.hostname = :hostname AND spawned_processes.finished_at IS NULL)"
+        ].join(" OR "),
+        hostname: hostname
+      )
+      .distinct
   end
 
   def hostname

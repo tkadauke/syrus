@@ -117,6 +117,53 @@ regressions, set both `features.distributed_workflow_dag: true` and
 receive the same `placement_policy` their `Step::Kind` would receive in a real
 workflow unless the fixture overrides it.
 
+Scenarios normally run the reconciler scoped to the seeded Jobs so stale local
+test data cannot perturb a fixture. Epic-wide or ownership-crossing scenarios
+that need a full-instance reconciler view can opt in explicitly:
+
+```yaml
+runner:
+  global_reconcile: true
+```
+
+Distributed runtime can be modeled with a top-level `runtime:` block. `workers`
+round-robins active Runs across simulated hosts; `step_workers` pins a specific
+step kind or named grader (`grader:rspec`) to a host; and
+`worker_storage_keys` gives those hosts stable workflow-storage identities.
+
+```yaml
+runtime:
+  workers:
+    - worker-a
+    - worker-b
+  step_workers:
+    grader:lint: worker-a
+    grader:rspec: worker-b
+  worker_storage_keys:
+    worker-a: storage-a
+    worker-b: storage-b
+```
+
+Use `lose_worker` to model a host disappearing while a Run is active. The event
+stales the worker heartbeat, Solid Queue process heartbeat, spawned-process
+heartbeat, and Run heartbeat; the simulator then leaves that Run alone so the
+real reconciler can detect `running_run_without_live_worker_evidence` and drive
+the worker-died recovery path:
+
+```yaml
+events:
+  - name: lose lint worker
+    when:
+      run:
+        job: feature
+        step: grader
+        name: lint
+        state: running
+    do:
+      lose_worker:
+        hostname: worker-a
+```
+
 Manual workflows can use stable per-step keys for graph edges:
 
 ```yaml

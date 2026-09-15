@@ -34,11 +34,24 @@ class ImmutableSourceCheckout
 
     snapshot = source_snapshot
     log("[immutable_source_checkout] verifying source snapshot ##{snapshot.id} #{snapshot.source_ref}@#{snapshot.source_sha.first(7)}")
-    materialize!(snapshot) unless valid_checkout?(snapshot)
+    restored_from_prepare_cache = false
+    restored_from_archive = false
+    unless valid_checkout?(snapshot)
+      restored_from_prepare_cache = restore_prepare_cache_checkout!(snapshot)
+      restored_from_archive = restore_prepared_archive_checkout!(snapshot) unless restored_from_prepare_cache
+      materialize!(snapshot) unless restored_from_prepare_cache || restored_from_archive || valid_checkout?(snapshot)
+    end
     verify_head!(snapshot)
     ensure_exclude_entry
     prepare_cache = build_prepare_cache(snapshot)
-    prepare_with_cache!(snapshot, prepare_cache)
+    if restored_from_prepare_cache && prepare_cache.hit?
+      record_prepare_cache!(prepare_cache, "hit")
+      log("[immutable_source_checkout] prepare cache hit: #{prepare_cache.short_cache_key}")
+    elsif restored_from_archive && prepared_archive_matches_prepare_cache?(snapshot, prepare_cache)
+      finalize_restored_prepared_archive!(snapshot, prepare_cache)
+    else
+      prepare_with_cache!(snapshot, prepare_cache)
+    end
     record_checkout_details!(snapshot)
     record_run_source_snapshot!(snapshot)
   end
@@ -318,6 +331,71 @@ class ImmutableSourceCheckout
     FileUtils.rm_f(archive_path.to_s) if archive_path
   end
 
+  def restore_prepare_cache_checkout!(snapshot)
+    cache_parent = WorkflowWorkspace.path_for(@workflow).join(
+      PREPARE_CACHE_ROOT,
+      sanitized_worker_storage_key,
+      @workflow.id.to_s,
+      snapshot.source_sha
+    )
+    return false unless cache_parent.directory?
+
+    marker_path = Dir
+      .glob(cache_parent.join("*", PREPARED_MARKER).to_s, File::FNM_DOTMATCH)
+      .lazy
+      .map { |candidate| Pathname.new(candidate) }
+      .find { |marker| prepared_marker_snapshot_metadata_matches?(marker, snapshot) }
+    return false unless marker_path
+
+    FileUtils.rm_rf(path.to_s)
+    FileUtils.mkdir_p(path)
+    copy_tree!(marker_path.dirname.dirname, path)
+    verify_head!(snapshot)
+    ensure_exclude_entry
+    log("[immutable_source_checkout] restored checkout from local prepare cache before fetching source snapshot")
+    true
+  rescue StandardError => e
+    log("[immutable_source_checkout] local prepare cache restore failed; falling back to prepared archive/source fetch: #{e.class}: #{e.message}")
+    FileUtils.rm_rf(path.to_s)
+    false
+  end
+
+  def restore_prepared_archive_checkout!(snapshot)
+    attachment = snapshot.prepared_workspace_archive
+    return false unless attachment.attached?
+    return false unless prepared_archive_snapshot_metadata_matches?(attachment.blob.metadata, snapshot)
+
+    archive_path = temporary_archive_path("checkout-restore")
+    File.open(archive_path, "wb") do |file|
+      attachment.download { |chunk| file.write(chunk) }
+    end
+
+    FileUtils.rm_rf(path.to_s)
+    FileUtils.mkdir_p(path)
+    run_tar!("tar", "-xzf", archive_path.to_s, "-C", path.to_s)
+    verify_head!(snapshot)
+    ensure_exclude_entry
+    log("[immutable_source_checkout] restored checkout from prepared archive before fetching source snapshot")
+    true
+  rescue StandardError => e
+    log("[immutable_source_checkout] prepared archive checkout restore failed; falling back to source fetch: #{e.class}: #{e.message}")
+    FileUtils.rm_rf(path.to_s)
+    false
+  ensure
+    FileUtils.rm_f(archive_path.to_s) if archive_path
+  end
+
+  def finalize_restored_prepared_archive!(snapshot, prepare_cache)
+    record_prepared!(snapshot, prepare_cache.plan, prepare_cache)
+    prepare_cache.store_from!(path)
+    record_prepare_cache!(prepare_cache, "archive_hit")
+    log("[immutable_source_checkout] prepare archive hit: #{prepare_cache.short_cache_key}")
+  end
+
+  def prepared_archive_matches_prepare_cache?(snapshot, prepare_cache)
+    prepared_archive_metadata_matches?(snapshot.prepared_workspace_archive.blob.metadata, snapshot, prepare_cache)
+  end
+
   def publish_prepared_archive!(snapshot, prepare_cache)
     PreparedWorkspaceArchive.publish!(
       workflow: @workflow,
@@ -341,6 +419,36 @@ class ImmutableSourceCheckout
       "source_sha",
       "prepare_fingerprint"
     )
+  end
+
+  def prepared_archive_snapshot_metadata_matches?(metadata, snapshot)
+    metadata.to_h.slice(
+      "workflow_id",
+      "source_snapshot_id",
+      "source_sha"
+    ) == {
+      "workflow_id" => @workflow.id,
+      "source_snapshot_id" => snapshot.id,
+      "source_sha" => snapshot.source_sha
+    }
+  end
+
+  def prepared_marker_snapshot_metadata_matches?(marker_path, snapshot)
+    JSON.parse(marker_path.read).slice(
+      "worker_storage_key",
+      "workflow_id",
+      "source_sha"
+    ) == {
+      "worker_storage_key" => WorkerStorageIdentity.queue_key,
+      "workflow_id" => @workflow.id,
+      "source_sha" => snapshot.source_sha
+    }
+  rescue Errno::ENOENT, JSON::ParserError
+    false
+  end
+
+  def sanitized_worker_storage_key
+    WorkerStorageIdentity.sanitize(WorkerStorageIdentity.queue_key) || "unknown-worker"
   end
 
   def prepared_archive_metadata(snapshot, prepare_cache)

@@ -17,9 +17,11 @@ module WorkEngine
         outcomes: {},
         scenario_events: [],
         expectations: {},
+        runtime: {},
         success_states: {},
         wait_states: {},
         auto_retry_failed_jobs: true,
+        global_reconcile: false,
         max_ticks: DEFAULT_MAX_TICKS,
         ignored_reconciler_issue_kinds: DEFAULT_IGNORED_RECONCILER_ISSUE_KINDS
       )
@@ -29,13 +31,16 @@ module WorkEngine
         @outcomes = outcomes.to_h
         @scenario_events = Array(scenario_events).map.with_index { |event, index| event.to_h.merge("__index" => index, "__fired" => false) }
         @expectations = expectations.to_h
+        @runtime = runtime.to_h
         @success_states = success_states.to_h
         @wait_states = wait_states.to_h
         @auto_retry_failed_jobs = auto_retry_failed_jobs
+        @global_reconcile = global_reconcile
         @max_ticks = max_ticks.to_i.positive? ? max_ticks.to_i : DEFAULT_MAX_TICKS
         @ignored_reconciler_issue_kinds = Array(ignored_reconciler_issue_kinds).map(&:to_s)
         @events = []
         @run_attempts = Hash.new(0)
+        @worker_index = 0
       end
 
       def call
@@ -65,7 +70,7 @@ module WorkEngine
 
       private
 
-      attr_reader :job_ids, :work_intent_ids, :scenario, :outcomes, :scenario_events, :expectations, :success_states, :wait_states, :max_ticks, :ignored_reconciler_issue_kinds, :events, :run_attempts
+      attr_reader :job_ids, :work_intent_ids, :scenario, :outcomes, :scenario_events, :expectations, :runtime, :success_states, :wait_states, :max_ticks, :ignored_reconciler_issue_kinds, :events, :run_attempts
 
       def apply_scenario_events!(tick)
         scenario_events.each do |event|
@@ -89,6 +94,7 @@ module WorkEngine
           case key.to_s
           when "job" then job_condition_matches?(value)
           when "epic" then epic_condition_matches?(value)
+          when "run" then run_condition_matches?(value)
           when "workflow" then workflow_condition_matches?(value)
           when "work_unit" then work_unit_condition_matches?(value)
           when "queue" then queue_condition_matches?(value)
@@ -130,6 +136,17 @@ module WorkEngine
         scope.exists?
       end
 
+      def run_condition_matches?(condition)
+        condition = condition.to_h
+        scope = Run.joins(:step)
+        scope = scope.where(job_id: condition["job"]) if condition["job"].present?
+        scope = scope.where(state: Array(condition["state"] || condition["states"])) if condition["state"].present? || condition["states"].present?
+        scope = scope.where(steps: { kind: condition["step"] || condition["kind"] }) if condition["step"].present? || condition["kind"].present?
+        return scope.exists? if condition["name"].blank?
+
+        scope.includes(:step).any? { |run| run.step&.details.to_h["name"].to_s == condition["name"].to_s }
+      end
+
       def queue_condition_matches?(condition)
         condition.to_h.all? do |key, value|
           case key.to_s
@@ -166,6 +183,7 @@ module WorkEngine
           when "heal_main_branch" then heal_main_branch!(value)
           when "wake_provider_admission" then wake_provider_admission!(value)
           when "resume_deferred_phase" then resume_deferred_phase!(value)
+          when "lose_worker" then lose_worker!(value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
         end
@@ -407,6 +425,34 @@ module WorkEngine
         events << "healed main branch health, #{resumed} deferred phases resumed"
       end
 
+      def lose_worker!(value)
+        attrs = value.is_a?(Hash) ? value : { "hostname" => value }
+        hostname = attrs.fetch("hostname").to_s
+        stale_at = attrs["stale_at"].present? ? Time.zone.parse(attrs.fetch("stale_at")) : 15.minutes.ago
+        InstanceVersion.where(hostname: hostname, role: "worker").update_all(
+          last_heartbeat_at: stale_at,
+          finished_at: stale_at,
+          outcome: "lost",
+          updated_at: Time.current
+        )
+        SpawnedProcess.running.where(hostname: hostname).find_each do |process|
+          process.update_columns(
+            last_chunk_at: stale_at,
+            started_at: [ process.started_at || stale_at, stale_at ].min,
+            updated_at: Time.current
+          )
+          Run.where(id: process.run_id).update_all(
+            last_heartbeat_at: stale_at,
+            started_at: stale_at,
+            updated_at: Time.current
+          )
+        end
+        if defined?(SolidQueue::Process)
+          SolidQueue::Process.where(hostname: hostname).update_all(last_heartbeat_at: stale_at)
+        end
+        events << "lost worker #{hostname}"
+      end
+
       def simulation_repository
         jobs.first&.repository
       end
@@ -445,8 +491,21 @@ module WorkEngine
       end
 
       def reconcile!(tick)
-        reconcile_result!(tick, WorkEngine::Reconciler.call(source: "simulation:#{scenario}:tick#{tick}", execute_repairs: true))
-        work_intent_ids.each do |intent_id|
+        if global_reconcile?
+          reconcile_result!(tick, WorkEngine::Reconciler.call(source: "simulation:#{scenario}:tick#{tick}", execute_repairs: true))
+        else
+          job_ids.each do |job_id|
+            reconcile_result!(
+              tick,
+              WorkEngine::Reconciler.call(
+                source: "simulation:#{scenario}:tick#{tick}:job#{job_id}",
+                job_id: job_id,
+                execute_repairs: true
+              )
+            )
+          end
+        end
+        scenario_work_intent_ids.each do |intent_id|
           reconcile_result!(
             tick,
             WorkEngine::Reconciler.call(
@@ -458,11 +517,20 @@ module WorkEngine
         end
       end
 
+      def global_reconcile?
+        @global_reconcile == true
+      end
+
       def reconcile_result!(tick, result)
         result.issues.each do |issue|
           next if ignored_reconciler_issue_kinds.include?(issue.kind)
 
           events << "tick #{tick}: reconciler #{issue.kind}"
+        end
+        result.repair_executions.each do |execution|
+          next if execution.status == "success"
+
+          events << "tick #{tick}: repair #{execution.action} -> #{execution.status} #{execution.message}"
         end
       end
 
@@ -538,18 +606,21 @@ module WorkEngine
         outcome = outcome_for(run)
         events << "tick #{tick}: #{run.slug} #{run.step&.kind} -> #{outcome_label(outcome)}"
 
-        start_run!(run)
+        start_run!(run, outcome)
         case outcome_status(outcome)
         when "success"
           simulate_side_effects!(run, outcome)
+          finish_simulated_processes!(run, "succeeded")
           succeed_run_and_step!(run)
         when "pending"
           # Leave the run active for another tick. This lets scenarios model
           # parallel fanout where one grader is still running while another
           # sibling has already failed.
         when "worker_died"
+          finish_simulated_processes!(run, "orphaned")
           fail_run!(run, agent_outcome: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
         when "failure"
+          finish_simulated_processes!(run, "failed")
           fail_run!(run, agent_outcome: "error",
                          failure_code: simulated_failure_code(outcome),
                          error_message: simulated_outcome_field(outcome, "error_message"),
@@ -559,12 +630,13 @@ module WorkEngine
         end
       end
 
-      def start_run!(run)
+      def start_run!(run, outcome)
         workflow = run.workflow
         workflow.start! && workflow.save! if workflow&.may_start?
         step = run.step
         step.start! && step.save! if step&.may_start?
         run.start! && run.save! if run.may_start?
+        record_simulated_runtime!(run.reload, outcome)
       end
 
       def succeed_run_and_step!(run)
@@ -648,7 +720,18 @@ module WorkEngine
           step.fail!
           step.save!
         end
-        StepDispatcher.fail_from(step) if step.reload.failed? && step.workflow.reload.may_fail?
+        step.reload
+        if step_fail_policy(step) == :advance
+          StepDispatcher.advance_from(step)
+        elsif step.workflow.reload.may_fail?
+          StepDispatcher.fail_from(step)
+        end
+      end
+
+      def step_fail_policy(step)
+        Step::Kind.fetch(step.kind).fail_policy
+      rescue ArgumentError
+        :fail_workflow
       end
 
       def simulate_side_effects!(run, outcome = nil)
@@ -760,7 +843,100 @@ module WorkEngine
       end
 
       def run_signature(run)
-        "#{run.job_id}:#{run.step&.kind}"
+        [ run.job_id, run.step&.kind, run.step&.details.to_h["name"] ].compact.join(":")
+      end
+
+      def record_simulated_runtime!(run, outcome)
+        hostname = worker_hostname_for(run, outcome)
+        storage_key = worker_storage_key_for(hostname, outcome)
+        ensure_worker_live!(hostname, storage_key)
+        unless run.distributed_parallel_run?
+          run.workflow.update_columns(worker_hostname: hostname, worker_storage_key: storage_key, updated_at: Time.current)
+        end
+        run.update_columns(last_heartbeat_at: Time.current, updated_at: Time.current) if run.running?
+        return if run.spawned_processes.running.exists?
+
+        run.spawned_processes.create!(
+          workflow: run.workflow,
+          kind: simulated_process_kind_for(run),
+          command: simulated_process_command_for(run),
+          hostname: hostname,
+          pid: simulated_pid_for(run),
+          started_at: run.started_at || Time.current,
+          last_chunk_at: Time.current
+        )
+      end
+
+      def finish_simulated_processes!(run, outcome)
+        run.spawned_processes.running.update_all(
+          finished_at: Time.current,
+          outcome: outcome,
+          updated_at: Time.current
+        )
+      end
+
+      def worker_hostname_for(run, outcome)
+        simulated_outcome_field(outcome, "worker").presence ||
+          simulated_outcome_field(outcome, "hostname").presence ||
+          runtime.fetch("step_workers", {})[run_worker_key(run)].presence ||
+          next_worker_hostname
+      end
+
+      def worker_storage_key_for(hostname, outcome)
+        simulated_outcome_field(outcome, "worker_storage_key").presence ||
+          runtime.fetch("worker_storage_keys", {})[hostname].presence ||
+          "storage-#{hostname}"
+      end
+
+      def run_worker_key(run)
+        [ run.step&.kind, run.step&.details.to_h["name"] ].compact.join(":")
+      end
+
+      def next_worker_hostname
+        workers = Array(runtime["workers"]).presence || [ "simulation-worker" ]
+        worker = workers[@worker_index % workers.length]
+        @worker_index += 1
+        worker.to_s
+      end
+
+      def ensure_worker_live!(hostname, storage_key)
+        InstanceVersion.find_or_initialize_by(hostname: hostname, role: "worker").tap do |instance|
+          instance.version = "simulation"
+          instance.started_at ||= Time.current
+          instance.last_heartbeat_at = Time.current
+          instance.finished_at = nil
+          instance.outcome = nil
+          instance.save!
+        end
+        return unless defined?(SolidQueue::Process)
+
+        SolidQueue::Process.find_or_initialize_by(name: "#{hostname}:simulation").tap do |process|
+          process.hostname = hostname
+          process.kind = "worker"
+          process.pid ||= simulated_pid_for_hostname(hostname)
+          process.metadata = { "queues" => [ "runs", "merges", Workflow.resume_queue_name(storage_key) ] }
+          process.last_heartbeat_at = Time.current
+          process.save!
+        end
+      end
+
+      def simulated_process_kind_for(run)
+        return "grader" if run.step&.kind.in?(%w[grader preflight_grader])
+        return "agent" if run.step&.agentic?
+
+        "git"
+      end
+
+      def simulated_process_command_for(run)
+        run.step&.details.to_h["command"].presence || "#{run.step&.kind} simulation"
+      end
+
+      def simulated_pid_for(run)
+        10_000 + run.id.to_i
+      end
+
+      def simulated_pid_for_hostname(hostname)
+        20_000 + hostname.hash.abs % 10_000
       end
 
       def simulated_sha(run)
@@ -906,6 +1082,7 @@ module WorkEngine
           .to_a
           .reject { |run| queued_run_blocked_by_explicit_solid_queue_state?(run) }
           .reject { |run| run.running? && terminal_spawned_process_for?(run) }
+          .reject { |run| run.running? && stale_simulated_worker_evidence?(run) }
       end
 
       def queued_run_blocked_by_explicit_solid_queue_state?(run)
@@ -958,6 +1135,16 @@ module WorkEngine
         queue_name.start_with?("resume-") && !InstanceVersion.worker_queue_live?(queue_name)
       end
 
+      def stale_simulated_worker_evidence?(run)
+        processes = run.spawned_processes.running.to_a
+        return false if processes.empty?
+
+        processes.none? do |process|
+          timestamp = process.last_chunk_at || process.started_at
+          timestamp.present? && timestamp >= SpawnedProcess::STALE_THRESHOLD.ago
+        end
+      end
+
       def active_work_units
         WorkUnit
           .joins(:work_unit_members)
@@ -965,6 +1152,19 @@ module WorkEngine
           .where(state: WorkUnits::Ownership::ACTIVE_STATES)
           .distinct
           .to_a
+      end
+
+      def scenario_work_intent_ids
+        (
+          work_intent_ids +
+          WorkUnit.joins(:work_unit_members)
+            .where(work_unit_members: { job_id: job_ids })
+            .where.not(work_intent_id: nil)
+            .pluck(:work_intent_id) +
+          WorkUnit.where(workflow_id: Workflow.where(job_id: job_ids).select(:id))
+            .where.not(work_intent_id: nil)
+            .pluck(:work_intent_id)
+        ).compact.uniq
       end
 
       def pending_auto_retry_attempts

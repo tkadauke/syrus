@@ -1,6 +1,7 @@
 name: already-landed stack rebase
 runner:
   auto_retry_failed_jobs: false
+  global_reconcile: true
 repository:
   owner: simulation
   name: already-landed-stack-rebase

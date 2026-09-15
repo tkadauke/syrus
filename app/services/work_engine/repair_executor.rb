@@ -422,11 +422,20 @@ module WorkEngine
             run.fail!
             run.save!
           end
+          orphan_running_spawned_processes_for!(run)
           if (replacement_run = worker_died_replacement_run(run, existing_run_ids: existing_run_ids))
             return success("marked #{run_label(run)} worker_died; queued replacement #{run_label(replacement_run)} on #{step_label(run.step)}")
           end
 
           success("marked #{run_label(run)} worker_died; no automatic retry was scheduled, leaving follow-up to terminal-state reconciliation or operator review")
+        end
+
+        def orphan_running_spawned_processes_for!(run)
+          SpawnedProcess.running.where(run_id: run.id).update_all(
+            finished_at: Time.current,
+            outcome: "orphaned",
+            updated_at: Time.current
+          )
         end
 
         def worker_died_replacement_run(run, existing_run_ids:)
@@ -847,8 +856,16 @@ module WorkEngine
           end
           return skipped(@sync_result.reason) unless @sync_result.synchronized?
 
-          StepDispatcher.advance_from(step.reload) if @sync_result.state == "succeeded" && step.workflow.reload.running?
+          if step.workflow.reload.running? && (@sync_result.state == "succeeded" || advance_after_reconciled_failure?(step))
+            StepDispatcher.advance_from(step.reload)
+          end
           success(@sync_result.reason)
+        end
+
+        def advance_after_reconciled_failure?(step)
+          @sync_result.state == "failed" && Step::Kind.fetch(step.kind).fail_policy == :advance
+        rescue ArgumentError
+          false
         end
       end
 

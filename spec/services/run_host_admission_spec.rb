@@ -340,6 +340,26 @@ RSpec.describe RunHostAdmission do
       )
     end
 
+    it "counts live distributed grader processes on this host even when their workflow owner is elsewhere" do
+      worker_sample(cpu_pressure_some: 25.0)
+      high_cost_grader_profile(grader_name: "rspec")
+      active_run = running_grader_run(name: "rspec")
+      active_run.workflow.update!(worker_hostname: "worker-b")
+      active_run.spawned_processes.create!(
+        workflow: active_run.workflow,
+        kind: "grader",
+        command: "bin/rspec",
+        hostname: "worker-a",
+        started_at: 1.minute.ago
+      )
+
+      decision = described_class.call(run: grader_run(name: "rspec"))
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect(decision.details).to include("active_high_cost_grader_run_count" => 1)
+    end
+
     # The landing step that deferred 73 times in 36 minutes on an idle fleet.
     it "admits mergeability_preflight on a healthy host" do
       worker_sample(cpu_pressure_some: 1.0)

@@ -143,6 +143,16 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("merge_train_land")
   end
 
+  it "retries a parallel grader when its worker disappears mid-run" do
+    result = run_scenario("parallel_grader_worker_loss_retries")
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("lost worker worker-lost")
+    expect(result.events.join("\n")).to include("running_run_without_live_worker_evidence")
+    job = Job.find(result.job_ids.first)
+    expect(job).to be_implemented
+  end
+
   it "retries non-agentic runs with live queue claims but no live child process before the agent stale threshold" do
     result = run_scenario("non_agentic_claim_without_process_retries")
 

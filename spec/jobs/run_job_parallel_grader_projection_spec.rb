@@ -84,6 +84,8 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
     expect(grader_steps.map { |step| step.reload.state }).to eq(%w[succeeded succeeded])
     expect(collect.reload).to be_succeeded
     expect(workflow.reload).to be_succeeded
+    expect(workflow.worker_hostname).to eq("worker-main")
+    expect(workflow.worker_storage_key).to eq("storage-main")
     expect(GraderConclusion.where(workflow: workflow).where.not(grader_name: GraderConclusion::AGGREGATE_NAME).pluck(:grader_name, :status)).to contain_exactly(
       [ "alpha", "passed" ],
       [ "beta", "passed" ]

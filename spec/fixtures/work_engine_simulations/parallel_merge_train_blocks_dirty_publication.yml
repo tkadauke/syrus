@@ -106,9 +106,10 @@ events:
 expect:
   jobs:
     member:
-      - landing
+      - approved
   queues:
     active_runs: empty
+    active_work_units: empty
   events:
     - "deferred phase resume for JOB-"
     - "not_ready"

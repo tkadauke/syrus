@@ -171,6 +171,25 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  it "restores the source checkout from the prepared archive before fetching on a fresh worker" do
+    described_class.new(step).setup
+    expect(snapshot.reload.prepared_workspace_archive).to be_attached
+
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
+    allow(GithubAuthenticatedGit).to receive(:run).and_raise("unexpected remote fetch")
+
+    second_checkout = described_class.new(second_step)
+    second_checkout.setup
+
+    expect(sh("git -C #{second_checkout.path} rev-parse HEAD").strip).to eq(main_sha)
+    expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(second_step.reload.details.fetch("prepare_cache")).to include(
+      "status" => "archive_hit",
+      "worker_storage_key" => "storage-b",
+      "source_snapshot_sha" => main_sha
+    )
+  end
+
   it "skips prepared archive upload when the archive exceeds the size cap" do
     stub_const("PreparedWorkspaceArchive::MAX_BYTES", 1)
     stub_const("ImmutableSourceCheckout::PREPARED_ARCHIVE_MAX_BYTES", 1)

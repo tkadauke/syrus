@@ -1,0 +1,116 @@
+name: parallel grader worker loss retries
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: parallel-grader-worker-loss-retries
+  distributed_workflow_dag_enabled: true
+jobs:
+  job:
+    title: Parallel grader worker loss retries
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_hostname: worker-main
+      worker_storage_key: storage-main
+      chain_template:
+        - type: retry_until
+          repair_first: false
+          repair:
+            - implement
+          check:
+            - grader_fanout
+            - grader_collect
+        - type: step
+          kind: summarize
+        - type: step
+          kind: pr_open
+      work_unit:
+        state: running
+      steps:
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: lint
+          kind: grader
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          next_step: collect
+          details:
+            name: lint
+          run:
+            state: queued
+        - key: rspec
+          kind: grader
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          next_step: collect
+          details:
+            name: rspec
+          run:
+            state: queued
+        - key: collect
+          kind: grader_collect
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - lint
+            - rspec
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on:
+            - collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+runtime:
+  step_workers:
+    grader:lint: worker-lost
+    grader:rspec: worker-ok
+outcomes:
+  default: success
+  steps:
+    grader:lint:
+      - status: pending
+      - status: success
+    grader_collect:
+      - status: failure
+        error_message: "required graders failed: lint"
+      - status: success
+events:
+  - name: lose lint worker
+    when:
+      run:
+        job: job
+        step: grader
+        name: lint
+        state: running
+    do:
+      lose_worker:
+        hostname: worker-lost
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - "lost worker worker-lost"
+    - "reconciler running_run_without_live_worker_evidence"
+    - "grader_collect -> {\"status\" => \"failure\""
+    - "implement -> success"
+    - "summarize -> success"
+    - "pr_open -> success"
+  absent_events:
+    - "grader:rspec -> pending"
