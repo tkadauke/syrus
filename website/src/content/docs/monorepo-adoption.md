@@ -124,6 +124,13 @@ the project is affected. Nested `prepare`, `formatters`, `generated`, and
 `grade` compile into project targets for graph diagnostics and target-aware
 selection.
 
+Important runtime caveat: normal workflow validation still materializes the
+root `grade:` plan today. Nested `grade:` entries are useful target graph
+declarations and dependency-analysis hints, but they are not a replacement for
+root validation until nested-grader execution policy is wired. Keep the root
+graders that actually protect review, landing, and CI, and use nested grader
+entries to document the project checks Syrus should understand.
+
 Web app:
 
 ```yaml
@@ -141,6 +148,8 @@ visual_review:
     - "src/**/*.css"
 
 grade:
+  # Graph declaration for this project. Keep an executable root grader such as
+  # `npm --prefix apps/web run typecheck` until nested grader execution lands.
   - name: typecheck
     run: npm run typecheck
     when_files_changed:
@@ -160,6 +169,8 @@ formatters:
     files: ["**/*.go"]
 
 grade:
+  # Graph declaration for this project. Keep `go test ./cli/...` or an
+  # equivalent wrapper in root validation until nested grader execution lands.
   - name: tests
     run: go test ./...
 ```
@@ -175,6 +186,8 @@ preview:
   health_check: /
 
 grade:
+  # Graph declarations for this project. Keep executable desktop validation in
+  # the root `grade:` plan until nested grader execution lands.
   - name: desktop-typecheck
     run: npm run typecheck
   - name: package-smoke
@@ -187,6 +200,8 @@ iOS:
 ```yaml
 # apps/ios/.syrus.yml
 grade:
+  # Graph declaration for this project. Keep the executable xcodebuild wrapper
+  # in root validation until nested grader execution lands.
   - name: swift-tests
     run: xcodebuild test -scheme MobileApp -destination 'platform=iOS Simulator,name=iPhone 15'
     phases: [landing, ci]
@@ -205,6 +220,8 @@ Android:
 ```yaml
 # apps/android/.syrus.yml
 grade:
+  # Graph declarations for this project. Keep executable Gradle wrappers in
+  # root validation until nested grader execution lands.
   - name: unit-tests
     run: ./gradlew testDebugUnitTest
     phases: [review, landing]
@@ -213,8 +230,25 @@ grade:
     phases: [landing, ci]
 ```
 
+Keep actual validation in the root file while adopting Level 1:
+
+```yaml
+# /.syrus.yml
+grade:
+  - name: web-typecheck
+    run: npm --prefix apps/web run typecheck
+    when_files_changed: ["apps/web/**"]
+  - name: cli-tests
+    run: go test ./cli/...
+    when_files_changed: ["cli/**"]
+  - name: android-unit-tests
+    run: ./gradlew :apps:android:testDebugUnitTest
+    when_files_changed: ["apps/android/**"]
+```
+
 Stay at Level 1 when directory scoping and legacy commands are clear enough.
-Many medium monorepos never need explicit targets.
+Many medium monorepos never need explicit targets, and they should not move
+validation out of the root plan until Syrus executes nested graders directly.
 
 ## Level 2: Explicit Projects And Executable Targets
 
@@ -225,6 +259,12 @@ Use `project:` to name the operator-facing boundary. Use `targets:` to name
 execution graph nodes, source scopes, and dependencies. A project answers what
 an operator should recognize or preview. A target answers what files and
 commands affect what.
+
+The same runtime caveat applies here: explicit targets and nested legacy
+graders can describe executable project checks before every workflow path knows
+how to materialize them. Until that execution policy exists, wire critical
+review/landing/CI validation through root `grade:` entries that depend on the
+explicit targets.
 
 ```yaml
 # desktop/.syrus.yml
@@ -351,10 +391,21 @@ In a layout like this, keep the root file small:
 prepare:
   - mise install
 
+targets:
+  - name: api-contract
+    kind: library
+    sources: ["packages/api-contract/**"]
+
 grade:
   - name: repo-shape
     run: bin/check-repo-shape
     phases: [review, landing, ci]
+  - name: web-contract-tests
+    run: npm --prefix apps/web run test:contracts
+    when_files_changed:
+      - "apps/web/**"
+      - "packages/api-contract/**"
+    deps: [":api-contract"]
 ```
 
 Root graders are repository-wide because they are declared at the repository
@@ -412,12 +463,14 @@ Explicit targets are most useful when they name relationships that affect
 selection, caching, or operator explanations. Avoid them when they only add
 ceremony.
 
-Do not add an explicit target when a legacy `grade:` entry with
-`when_files_changed` is enough, the command has no meaningful dependency
-relationship, the target would have the same source glob as the grader and no
-dependents, names are too unstable, the build system should be imported
-instead, or a broad landing check is intentionally supposed to run for every
-change.
+Do not add an explicit target when a root legacy `grade:` entry with
+`when_files_changed` is enough for actual validation, or when a nested legacy
+`grade:` entry already documents the intended project target and no other
+target needs to depend on a named source node yet. Also avoid explicit targets
+when the command has no meaningful dependency relationship, the target would
+have the same source glob as the grader and no dependents, names are too
+unstable, the build system should be imported instead, or a broad landing check
+is intentionally supposed to run for every change.
 
 Prefer this for a simple web package:
 
@@ -455,8 +508,10 @@ clearer.
    boundaries.
 3. Move project previews, visual review, coverage, and checkout hooks into
    those nested files.
-4. Leave root graders in place until the nested project checks are proven.
-5. Remove or narrow root graders that only duplicated project checks.
+4. Add nested grader entries as graph declarations, while keeping executable
+   validation in the root `grade:` plan.
+5. Remove or narrow root graders only after nested grader execution is
+   supported and the project checks are proven.
 6. Add Level 2 targets for shared libraries, generated clients, and prepare
    actions that more than one executable target depends on.
 7. Adopt Level 3 imports only when a real build graph exists and is trusted.
