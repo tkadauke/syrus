@@ -184,6 +184,23 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(job.diff_review_versions.count).to eq(1)
   end
 
+  it "reuses the same explicit SHA pair across repeated source diff payload fetches" do
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "old-base", "old-head")
+      .and_return(files: [
+        { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+new" }
+      ], truncated: false)
+
+    first_payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+    second_payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+
+    expect(second_payload.dig(:version, :id)).to eq(first_payload.dig(:version, :id))
+    expect(job.diff_review_versions.pluck(:base_sha, :head_sha)).to eq([ [ "old-base", "old-head" ] ])
+  end
+
   it "defaults to the full branch range when the latest implement repair step changed fewer files" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
     step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
