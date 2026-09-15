@@ -8,5 +8,12 @@
   "preview_collaborators": "Collaborators: {{names}}",
   "preview_comment_count_one": "{{count}} comment",
   "preview_comment_count_other": "{{count}} comments",
-  "preview_version": "v{{number}}"
+  "preview_version": "v{{number}}",
+  "index_aria": "Design Docs index",
+  "columns_button": "Columns",
+  "visible_columns": "Visible columns",
+  "move_column_left": "Move {{title}} left",
+  "move_column_right": "Move {{title}} right",
+  "move_column_up": "Up",
+  "move_column_down": "Down"
 }

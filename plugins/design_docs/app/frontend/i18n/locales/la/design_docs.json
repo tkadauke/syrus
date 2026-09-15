@@ -8,5 +8,12 @@
   "preview_collaborators": "Collaboratores: {{names}}",
   "preview_comment_count_one": "{{count}} commentarium",
   "preview_comment_count_other": "{{count}} commentaria",
-  "preview_version": "v{{number}}"
+  "preview_version": "v{{number}}",
+  "index_aria": "Index documentorum consilii",
+  "columns_button": "Columnae",
+  "visible_columns": "Columnae visibiles",
+  "move_column_left": "Move {{title}} left",
+  "move_column_right": "Move {{title}} right",
+  "move_column_up": "Up",
+  "move_column_down": "Down"
 }
