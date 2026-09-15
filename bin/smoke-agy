@@ -1,0 +1,83 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+require "tmpdir"
+
+def fail_smoke(message)
+  warn "[smoke-agy] #{message}"
+  exit 1
+end
+
+def run_capture(env, command, stdin_data: nil, chdir: Dir.pwd, timeout: 120)
+  output = +""
+  status = nil
+  Open3.popen2e(env, *command, chdir: chdir) do |stdin, stdout, wait_thr|
+    stdin.write(stdin_data) if stdin_data
+    stdin.close
+
+    reader = Thread.new { stdout.each { |line| output << line } }
+    deadline = Time.now + timeout
+    until wait_thr.join(0.1)
+      if Time.now > deadline
+        Process.kill("TERM", wait_thr.pid)
+        sleep 1
+        Process.kill("KILL", wait_thr.pid) if wait_thr.alive?
+        fail_smoke("#{command.first} timed out after #{timeout}s")
+      end
+    end
+    reader.join
+    status = wait_thr.value
+  end
+  [ output, status ]
+rescue Errno::ENOENT
+  fail_smoke("agy is not installed or not on PATH")
+end
+
+version_output, version_status = run_capture({}, [ "agy", "--version" ], timeout: 30)
+fail_smoke("agy --version failed: #{version_output.strip}") unless version_status&.success?
+puts "[smoke-agy] #{version_output.lines.first.to_s.strip}"
+
+api_key = ENV["GEMINI_API_KEY"].to_s.strip
+api_key = ENV["GOOGLE_API_KEY"].to_s.strip if api_key.empty?
+if api_key.empty?
+  puts "[smoke-agy] GEMINI_API_KEY/GOOGLE_API_KEY not set; skipping authenticated --print probe"
+  exit 0
+end
+
+Dir.mktmpdir("syrus-agy-smoke-") do |workspace|
+  agy_home = File.join(workspace, ".agy")
+  Dir.mkdir(agy_home)
+  env = {
+    "HOME" => agy_home,
+    "AGY_HOME" => agy_home,
+    "ANTIGRAVITY_HOME" => agy_home,
+    "GEMINI_API_KEY" => api_key,
+    "GOOGLE_API_KEY" => api_key
+  }
+  stdin_data = { event: "user", message: { content: "Reply with OK." } }.to_json + "\n"
+  command = [
+    "agy",
+    "--input-format", "stream-json",
+    "--output-format", "stream-json",
+    "--print=",
+    "--dangerously-skip-permissions",
+    "--disable-slash-commands",
+    "--print-timeout", "60s"
+  ]
+
+  output, status = run_capture(env, command, stdin_data: stdin_data, chdir: workspace, timeout: 90)
+  fail_smoke("agy print probe exited #{status&.exitstatus || "without status"}: #{output.lines.last.to_s.strip}") unless status&.success?
+
+  events = output.lines.filter_map do |line|
+    JSON.parse(line)
+  rescue JSON::ParserError
+    nil
+  end
+  result = events.find { |event| event["event"] == "result" || event["type"] == "result" }
+  fail_smoke("agy print probe produced no result event") unless result
+
+  conversation_id = events.find { |event| event["event"] == "init" || event["type"] == "init" }&.fetch("conversation_id", nil)
+  puts "[smoke-agy] authenticated print probe ok#{conversation_id ? " conversation_id=#{conversation_id}" : ""}"
+end

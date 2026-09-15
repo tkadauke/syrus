@@ -97,7 +97,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                   <span className={statusMarkerClass(step.complete, current)}>{step.complete ? "OK" : current ? ">" : ""}</span>
                   <div className={current ? "min-w-0 text-center" : "min-w-0"}>
                     <h2 className="text-sm font-medium text-gray-900 dark:text-gray-100">{step.title}</h2>
-                    {current ? <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">{step.detail}</p> : null}
+                    <p className={current ? "mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400" : "mt-1 text-xs text-gray-500 dark:text-gray-400"}>{step.detail}</p>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
@@ -261,7 +261,11 @@ function githubStepDetail(setup: SetupStatus) {
 }
 
 function providerLabel(provider: SetupStatus["credential_status"]["active_agent_provider"]) {
-  return provider === "codex" ? "Codex" : "Claude"
+  if (provider === "agy") return "Antigravity"
+  if (provider === "codex") return "Codex"
+  if (provider === "claude") return "Claude"
+
+  return provider.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
 function statusMarkerClass(complete: boolean, current: boolean) {
