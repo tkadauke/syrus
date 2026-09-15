@@ -526,11 +526,11 @@ function MetadataRows({ values }: { values: Record<string, unknown> }) {
   return (
     <div>
       <SectionLabel>Metadata</SectionLabel>
-      <dl className="mt-1 grid gap-1 sm:grid-cols-2">
+      <div className="mt-1 grid gap-1 sm:grid-cols-2">
         {entries.map(([key, value]) => (
           <Row key={key} label={key} value={displayValue(value) ?? String(value)} />
         ))}
-      </dl>
+      </div>
     </div>
   )
 }
@@ -587,13 +587,13 @@ function LeaseDetails({ lease, title = "Control" }: { lease: RuntimeLease | null
         {lease.owner ? <Badge>{lease.owner}</Badge> : null}
         {lease.mode ? <Badge>{lease.mode}</Badge> : null}
       </div>
-      <dl className="mt-2 grid gap-1 sm:grid-cols-2">
+      <div className="mt-2 grid gap-1 sm:grid-cols-2">
         {lease.ownerRef ? <Row label="Owner ref" value={lease.ownerRef} /> : null}
         {lease.reason ? <Row label="Reason" value={lease.reason} /> : null}
         {lease.acquiredAt ? <Row label="Acquired" value={lease.acquiredAt} /> : null}
         {lease.expiresAt ? <Row label="Expires" value={lease.expiresAt} /> : null}
         {lease.cancellable != null ? <Row label="Cancellable" value={lease.cancellable ? "yes" : "no"} /> : null}
-      </dl>
+      </div>
     </div>
   )
 }
@@ -607,11 +607,11 @@ function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
         {session.primary ? <Badge>primary</Badge> : null}
         {session.displayName ? <span className="text-gray-600 dark:text-gray-300">{session.displayName}</span> : null}
       </div>
-      <dl className="mt-2 grid gap-1 sm:grid-cols-3">
+      <div className="mt-2 grid gap-1 sm:grid-cols-3">
         {session.providerKey ? <Row label="Provider" value={session.providerKey} /> : null}
         {session.workspaceRef ? <Row label="Workspace" value={session.workspaceRef} /> : null}
         {session.latestFrameAt ? <Row label="Latest frame at" value={session.latestFrameAt} /> : null}
-      </dl>
+      </div>
       <div className="mt-2 space-y-2">
         <SafeLinks session={session} />
         {session.lastError ? (
@@ -639,9 +639,9 @@ function FieldRows({ rows }: { rows: Array<[string, string | null]> }) {
   if (visibleRows.length === 0) return null
 
   return (
-    <dl className="grid gap-1 sm:grid-cols-3">
+    <div className="grid gap-1 sm:grid-cols-3">
       {visibleRows.map(([label, value]) => <Row key={label} label={label} value={value} />)}
-    </dl>
+    </div>
   )
 }
 
