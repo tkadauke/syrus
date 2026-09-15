@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { Button } from "@app/components/Button"
@@ -24,19 +24,19 @@ export function AdminInsightsRoute() {
 
   if (query.isPending) {
     return (
-      <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+      <Page aria-label={t("aria_admin_insights")} size="wide">
         <AdminInsightsHeader />
-        <p className="text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p>
-      </main>
+        <Notice>{t("loading")}</Notice>
+      </Page>
     )
   }
 
   if (query.isError) {
     return (
-      <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+      <Page aria-label={t("aria_admin_insights")} size="wide">
         <AdminInsightsHeader />
-        <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(query.error, t("load_error"))}</p>
-      </main>
+        <Notice tone="error">{errorMessage(query.error, t("load_error"))}</Notice>
+      </Page>
     )
   }
 
@@ -55,11 +55,11 @@ export function AdminInsightsRoute() {
 function AdminInsightsHeader() {
   const { t } = useT("agent_insights")
   return (
-    <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-      <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin_eyebrow")}</p>
-      <PageHeading className="mt-1">{t("admin_title")}</PageHeading>
-      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("admin_subtitle")}</p>
-    </header>
+    <PageHeader className="border-b border-border pb-4">
+      <Text className="font-medium uppercase" size="xs" tone="muted">{t("admin_eyebrow")}</Text>
+      <PageHeading>{t("admin_title")}</PageHeading>
+      <PageDescription>{t("admin_subtitle")}</PageDescription>
+    </PageHeader>
   )
 }
 
@@ -98,10 +98,10 @@ function AdminInsightsList({
   const lastItem = Math.min(page * meta.per_page, meta.total)
 
   return (
-    <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page aria-label={t("aria_admin_insights")} size="wide">
       <AdminInsightsHeader />
 
-      <div className="flex items-center justify-between gap-4">
+      <Toolbar className="justify-between gap-4">
         <SectionHeading>
           {t("suggestions_heading")}
         </SectionHeading>
@@ -120,14 +120,14 @@ function AdminInsightsList({
             </Button>
           ))}
         </nav>
-      </div>
+      </Toolbar>
 
       {suggestions.length === 0 ? (
-        <div className="rounded border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+        <Notice className="p-8 text-center">
           {t("empty")}
-        </div>
+        </Notice>
       ) : (
-        <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700">
+        <Section className="overflow-hidden p-0">
           <table className="w-full text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
               <tr>
@@ -146,7 +146,7 @@ function AdminInsightsList({
               ))}
             </tbody>
           </table>
-        </div>
+        </Section>
       )}
 
       {meta.total_pages > 1 && (
@@ -182,7 +182,7 @@ function AdminInsightsList({
           </div>
         </div>
       )}
-    </main>
+    </Page>
   )
 }
 
