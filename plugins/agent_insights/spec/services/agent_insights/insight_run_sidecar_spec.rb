@@ -42,7 +42,7 @@ RSpec.describe Mcp::Sidecar, "agent insight runs" do
   end
 
   # syrus_dev grants the insight role its log search; this plugin declares no
-# dependency on it, so the requirement sits on the example.
+  # dependency on it, so the requirement sits on the example.
   it "advertises only Syrus log search for Syrus insight runs when enabled", requires_plugin: "syrus_dev" do
     syrus_repository = Factories.repository(user: run.job.user, owner: "tkadauke", name: "syrus")
     insight_job = Job.create!(user: run.job.user, repository: syrus_repository, kind: "agent_insight", priority: "low")

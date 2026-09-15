@@ -255,6 +255,5 @@ module AgentActivity
 
       ActiveRecord::Associations::Preloader.new(records: records, associations: associations).call
     end
-
   end
 end
