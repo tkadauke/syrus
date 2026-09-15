@@ -57,7 +57,9 @@ names/labels the project that owns a config file's targets.
 
 DOC-20's target-graph model is intentionally staged. Repositories do not need
 to jump from a root-only `.syrus.yml` to a fully explicit build graph in one
-change:
+change. For a practical operator guide with concrete app, CLI, desktop,
+mobile, shared-code, and mixed-product examples, see
+`monorepo_adoption.md`.
 
 1. **Root legacy config**: keep one root `.syrus.yml` with `prepare:`,
    `formatters:`, `generated:`, and `grade:`. Syrus compiles these existing
@@ -280,9 +282,10 @@ for affected-file selection and execute transitive `kind: prepare` dependencies
 before the grader command. Legacy `formatters:` and `generated:` entries compile
 their `deps:` into the graph for diagnostics and future target-aware execution,
 but `Steps::Format` and `Steps::Generate` still choose commands from the legacy
-sections directly. Explicit `kind: builder` nodes are metadata unless a legacy
-grader (or another currently wired executable path) depends on them; no separate
-builder Step materializes yet.
+sections directly. Explicit `kind: builder` nodes can affect dependent grader
+selection, but a grader dependency on a builder target does not automatically
+run that builder during ordinary grader fanout. Builder command execution is
+wired through `Steps::BuilderFanout` for opportunistic main-branch warming.
 
 ### Dependency-only edges
 
@@ -521,21 +524,22 @@ compiled from `generated:` as `//:generate/<index>`. Plugin-default
 formatters from `formatters: []` do not currently have stable target labels,
 so they are not target-health skipped. `grader_fanout` checks each selected
 required `grader` target before materializing its `grader` Step; optional
-graders run when active even if a reusable health record exists. The `builder`
-kind is reserved in the graph model, but no `.syrus.yml` primitive
-materializes a builder target yet.
+graders run when active even if a reusable health record exists. Builder
+targets are declared through explicit `targets:` entries rather than a legacy
+top-level `.syrus.yml` section.
 
-A target is skipped only when its latest matching health record is healthy
-(`passed` or `skipped`) and every executable dependency in its dependency
-closure is also healthy for its own current fingerprints. Unknown, stale,
-failed, timed-out, cancelled, or inconclusive target health is treated as a
-miss, so required targets still run. Skip and forced-rerun decisions are recorded in workflow
-logs and artifacts: `format_target_health_skips`,
+A selected executable target is target-health skipped only when its latest
+matching health record is healthy (`passed` or `skipped`) and every executable
+dependency in its dependency closure is also healthy for its own current
+fingerprints. Unknown, stale, failed, timed-out, cancelled, or inconclusive
+target health is treated as a miss, so required targets still run. Health-skip
+and forced-rerun decisions are recorded in workflow logs and artifacts:
+`format_target_health_skips`,
 `generate_target_health_skips`, `target_health_skipped_targets`, and
 `target_health_forced_targets` for grader fanout. Each entry includes the
 target label, reason, current fingerprints, and any target-health record
-references. Skipped entries also include the producing commit SHA and checked
-timestamp for the reused proof.
+references. Health-skip entries also include the producing commit SHA and
+checked timestamp for the reused proof.
 
 ### Agent-requested prepare targets
 
@@ -638,6 +642,179 @@ in the current target window, and `health.summary` counts statuses only across
 that same window. Clients that need more target health should request the next
 target page instead of expecting an unbounded repository-wide health map in one
 response.
+
+## Troubleshooting Selection, Skips, And Target Health
+
+Start from the UI before opening raw artifacts:
+
+- Repository Target Graph: use the repository's Target Graph tab to inspect the
+  default-branch graph, compiler diagnostics, project labels, source scopes,
+  dependencies, and latest page-scoped target health.
+- Job Target Graph: open the Job's Target Graph tab to inspect workflow-specific
+  selection overlays. Use the Workflow filter when a Job has multiple attempts.
+- Workflow graph: target pills on projected or materialized steps link directly
+  to the Job Target Graph with the target label and workflow already selected.
+
+When a target decision looks wrong, check the Job Target Graph explanations
+first. They are the operator-facing summary of the same facts stored in
+workflow artifacts: affected projects, selected targets, skipped targets,
+cached targets, and preview/project ambiguity. The raw artifacts are useful
+when debugging services, but the UI explanation is the intended first stop.
+
+### Why did a target run?
+
+A selected target usually means one of these conditions matched:
+
+- The target has no source scope. Root legacy graders without
+  `when_files_changed` are repo-wide by design and run for every diff.
+- A changed file matched the target's own `source_scope`.
+- A changed file matched a dependency target in the selected target's
+  transitive `deps:` closure.
+- The target was selected, but reusable health was missing or unusable.
+  `unknown`, `stale`, `failed`, `timed_out`, `cancelled`, and `inconclusive`
+  records are all cache misses.
+- The workflow deliberately bypassed reuse, such as broad main sweeps or other
+  paths that need a fresh proof instead of a cached one.
+
+Fixes:
+
+- Add or narrow `when_files_changed` for broad root graders that are not true
+  repository-wide invariants.
+- Move project-local checks into a nested `.syrus.yml` for graph diagnostics,
+  while keeping required root execution wrappers until nested grader execution
+  is supported.
+- Add explicit dependency targets when a shared package should select an app's
+  check, instead of widening every app grader's file globs.
+- If a reusable health record exists but was not used, compare the target's
+  input, command, and environment fingerprints in the cached/forced-rerun
+  explanation. A changed lockfile, `.syrus.yml`, prepare target, command,
+  source glob, timeout, requiredness, phase, or dependency edge intentionally
+  invalidates reuse.
+
+### Why was a target skipped or cached?
+
+Skipped and cached are different decisions:
+
+- `skipped` means the target was considered during selection but was not
+  affected by the current change. The reason is usually `no matching files
+  changed`, meaning neither the target's own source scope nor any dependency in
+  its transitive `deps:` closure matched the diff. A plain skipped target does
+  not need, and usually will not have, a target-health proof.
+- `cached` means the target was selected as affected, but Syrus found a healthy
+  reusable target-health proof for the current target, command, and environment
+  fingerprints, and every executable dependency in its closure also had healthy
+  current health.
+
+The Job Target Graph cached-target explanation includes the reused health
+record id, producing commit SHA, checked timestamp, and any referenced
+dependency health records. The skipped-target explanation instead focuses on
+selection evidence: target label, project, grader name, requiredness, and the
+reason it did not match the diff.
+
+Fixes:
+
+- If an ordinary skip is wrong, add or correct `sources`, `when_files_changed`,
+  or `deps:` so the changed file reaches the intended executable target.
+- If the skip is correct but surprising, rename the project or target so the UI
+  makes the selection result easier to recognize.
+- If a target should not be reusable, make its command or environment inputs
+  explicit in `.syrus.yml` so the fingerprint changes when the relevant input
+  changes. Avoid hidden dependencies on undeclared files or global machine
+  state.
+- If an external CI check marked the wrong target healthy, remove the ambiguous
+  check-name match and declare explicit `ci_checks` on the intended target.
+
+### Why is target health stale or unknown?
+
+`unknown` means Syrus has no usable proof for the target/fingerprint tuple.
+`stale` means Syrus found health evidence that is no longer current enough for
+selection. Both statuses are misses: required targets run instead of being
+skipped.
+
+Common causes:
+
+- A source file, dependency source, lockfile, tool-version file, prepare target,
+  command, timeout, phase, requiredness, or `.syrus.yml` changed and produced a
+  new fingerprint.
+- The target has never run on the current graph shape.
+- The health record came from old compatibility data without stable target
+  fingerprints.
+- An external CI check completed, but the check name did not map to the target.
+
+Fixes:
+
+- Rerun the workflow or allow a main-branch health sweep to refresh the record.
+- Add `ci_checks`/`ci_check_names`/`github_checks` to executable targets whose
+  health is proven by external CI.
+- Keep target labels stable. Renaming a target is a new target from the
+  health-cache perspective.
+- Commit generated or lockfile changes that intentionally alter the runtime
+  environment, then expect one fresh run before reuse resumes.
+
+### Preview ambiguity and project selection
+
+Project-aware previews use affected projects. If exactly one affected project
+has preview configuration, Syrus can start that preview directly. If several
+affected previewable projects exist, the Job Target Graph explanation reports
+the preview/project choice as `ambiguous`; the Job preview panel asks the
+operator to choose a project. If no affected project has preview configuration,
+the explanation reports `unavailable` with a reason.
+
+Fixes:
+
+- Add `project:` labels so the preview selector shows recognizable names.
+- Move each product's `preview:` block into the nested `.syrus.yml` that owns
+  that product.
+- Narrow source scopes or dependencies if unrelated projects are being marked
+  affected.
+- For shared-library changes that legitimately affect several products, choose
+  the project whose UI is most relevant to the review, or start separate
+  project previews as needed.
+
+### Missed-edge events from CI and broad sweeps
+
+A missed edge means Syrus later learned that a target should have been treated
+as affected even though the original graph selection did not capture that
+relationship. Evidence can arrive from CI check outcomes or from broad
+main-branch sweeps that run wider validation than ordinary review fanout.
+
+Use this as a graph-quality signal, not just a flaky-cache event. The usual
+fix is to encode the missing relationship:
+
+- Add a `deps:` edge from the selected executable target to the shared library,
+  generated source, schema, build node, or prepare target that actually affects
+  it.
+- Add `sources` to pure dependency targets so a changed file can select their
+  dependents.
+- Add explicit `ci_checks` metadata when an external check is the proof for a
+  particular target.
+- Keep intentionally broad root graders broad only when they are real
+  repository invariants. Otherwise split them into project-scoped checks or
+  narrower root wrappers.
+
+### Common fixes
+
+- Missing dependency: add a named `targets:` node with `sources`, then list it
+  in the executable target's `deps:`. Prefer a dependency edge over broadening
+  every consumer's file globs.
+- Overly broad root grader: add `when_files_changed`, split the command into
+  project-specific root graders, or declare nested project targets for
+  diagnostics while preserving required root execution.
+- Duplicate labels: make target names unique within a package, use explicit
+  `project.id` when directory-derived ids collide, and avoid colliding with
+  imported build-system labels unless you are adding an allowed overlay.
+- Bad project scope: move the `.syrus.yml` to the actual project root, or use
+  `project.label`/`kind` for display-only fixes. `project.path` is metadata and
+  does not change how targets compile or where nested commands run.
+- Stale fingerprints: inspect the cached/forced-rerun explanation, then decide
+  whether the changed file should be part of the fingerprint. If yes, accept the
+  fresh run. If no, remove the accidental dependency, overbroad source glob, or
+  environment input.
+- Build-system provider failure: check Target Graph compiler diagnostics. With
+  `target_graph.imports[].failures: strict`, provider errors fail graph
+  compilation; with `warn`, Syrus records diagnostics and continues with the
+  rest of the graph. Fix the provider configuration, credentials, or query
+  before relying on imported edges for selection.
 
 ### Explicit `builder` targets
 

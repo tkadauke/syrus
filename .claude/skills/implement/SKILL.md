@@ -25,6 +25,17 @@ such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
 `package-lock.json`, or `package.json`. Do not edit `.syrus.yml`
 unless the task asks you to fix setup itself.
 
+In project-aware monorepos, the environment snapshot may also list
+`Target prepare options` compiled from root or nested `.syrus.yml`
+files. Read that line before assuming the root prepare covered every
+project dependency. If code exploration shows you need a project-specific
+environment, call the audited workflow MCP tool
+`run_target_prepare(label:, reason:)` with one of the listed labels, such
+as `//apps/web:prepare`. Do not invent project labels, and do not expect
+Syrus to infer a project just because a package file exists; projects and
+targets come from explicit `.syrus.yml` declarations or build-system
+providers.
+
 Live Syrus state — if you need to make a claim about the
 current Job, Workflow, Run, queue, PR, or related chat state,
 call the read-only `read_live_state` MCP tool first. Prompt text

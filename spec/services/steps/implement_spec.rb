@@ -413,7 +413,7 @@ RSpec.describe Steps::Implement do
         prompt = run.reload.prompt
         issue_pos   = prompt.index("Add greeting helper")
         context_pos = prompt.index("Additional context from the operator")
-        safety_pos  = prompt.index(Prompts::GitSafety::TEXT)
+        safety_pos  = prompt.index("Git pipeline contract")
         expect(context_pos).to be > issue_pos
         expect(safety_pos).to be > context_pos
       end
