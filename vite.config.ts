@@ -1,3 +1,4 @@
+import { loadEnv } from "vite"
 import { defineConfig } from "vitest/config"
 import react from "@vitejs/plugin-react"
 
@@ -5,56 +6,60 @@ import react from "@vitejs/plugin-react"
 // contains spaces). No node:path import: the root tsconfig typechecks this
 // file without node types.
 const rootDir = decodeURIComponent(new URL(".", import.meta.url).pathname)
-const buildSourcemap = process.env.VITE_BUILD_SOURCEMAP !== "false"
 
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      "@app": `${rootDir}app/frontend`,
-      "@plugins": `${rootDir}plugins`
-    }
-  },
-  build: {
-    outDir: "app/assets/builds",
-    emptyOutDir: false,
-    sourcemap: buildSourcemap,
-    rollupOptions: {
-      input: "app/frontend/main.tsx",
-      output: {
-        entryFileNames: "spa.js",
-        chunkFileNames: "spa-[name].js",
-        assetFileNames: "spa-[name][extname]",
-        codeSplitting: false
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, rootDir, "")
+  const buildSourcemap = env.VITE_BUILD_SOURCEMAP !== "false"
+
+  return {
+    plugins: [react()],
+    resolve: {
+      alias: {
+        "@app": `${rootDir}app/frontend`,
+        "@plugins": `${rootDir}plugins`
       }
-    }
-  },
-  test: {
-    environment: "jsdom",
-    testTimeout: 15000,
-    maxWorkers: 4,
-    setupFiles: ["app/frontend/test/setup.ts"],
-    include: ["app/frontend/**/*.test.{ts,tsx}", "plugins/*/app/frontend/**/*.test.{ts,tsx}", "desktop/src/**/*.test.{ts,tsx}"],
-    // Desktop component tests would otherwise resolve react from
-    // desktop/node_modules while @testing-library/react uses the root copy —
-    // two React instances crash every hook. Pin all test imports to one React.
-    // @tanstack/react-query and @tanstack/query-core get the same treatment:
-    // desktop/node_modules carries a slightly different version that imports
-    // its own local react, triggering the same duplicate-React crash.
-    alias: {
-      react: `${rootDir}node_modules/react`,
-      "react-dom": `${rootDir}node_modules/react-dom`,
-      "@app": `${rootDir}app/frontend`,
-      "@plugins": `${rootDir}plugins`,
-      "@tanstack/react-query": `${rootDir}node_modules/@tanstack/react-query`,
-      "@tanstack/query-core": `${rootDir}node_modules/@tanstack/query-core`
     },
-    coverage: {
-      provider: "v8",
-      reporter: ["lcov"],
-      reportsDirectory: "coverage/js",
-      include: ["app/frontend/**/*.{ts,tsx}"],
-      exclude: ["app/frontend/**/*.test.*", "app/frontend/**/*.spec.*"]
+    build: {
+      outDir: "app/assets/builds",
+      emptyOutDir: false,
+      sourcemap: buildSourcemap,
+      rollupOptions: {
+        input: "app/frontend/main.tsx",
+        output: {
+          entryFileNames: "spa.js",
+          chunkFileNames: "spa-[name].js",
+          assetFileNames: "spa-[name][extname]",
+          codeSplitting: false
+        }
+      }
+    },
+    test: {
+      environment: "jsdom",
+      testTimeout: 15000,
+      maxWorkers: 4,
+      setupFiles: ["app/frontend/test/setup.ts"],
+      include: ["app/frontend/**/*.test.{ts,tsx}", "plugins/*/app/frontend/**/*.test.{ts,tsx}", "desktop/src/**/*.test.{ts,tsx}"],
+      // Desktop component tests would otherwise resolve react from
+      // desktop/node_modules while @testing-library/react uses the root copy —
+      // two React instances crash every hook. Pin all test imports to one React.
+      // @tanstack/react-query and @tanstack/query-core get the same treatment:
+      // desktop/node_modules carries a slightly different version that imports
+      // its own local react, triggering the same duplicate-React crash.
+      alias: {
+        react: `${rootDir}node_modules/react`,
+        "react-dom": `${rootDir}node_modules/react-dom`,
+        "@app": `${rootDir}app/frontend`,
+        "@plugins": `${rootDir}plugins`,
+        "@tanstack/react-query": `${rootDir}node_modules/@tanstack/react-query`,
+        "@tanstack/query-core": `${rootDir}node_modules/@tanstack/query-core`
+      },
+      coverage: {
+        provider: "v8",
+        reporter: ["lcov"],
+        reportsDirectory: "coverage/js",
+        include: ["app/frontend/**/*.{ts,tsx}"],
+        exclude: ["app/frontend/**/*.test.*", "app/frontend/**/*.spec.*"]
+      }
     }
   }
 })

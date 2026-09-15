@@ -94,6 +94,17 @@ RSpec.describe WorkUnit do
     expect(unit.definition).to be_a(WorkDefinitions::Initial)
   end
 
+  it "truncates long preemption reasons to the persisted column length" do
+    unit = described_class.create!(work_intent: intent, kind: "initial", state: "running", scope_type: "job", scope_id: 123)
+    unit.work_unit_locks.create!(lock_key: "job:123")
+
+    unit.preempt!(reason: "x" * 200)
+
+    expect(unit.reload).to be_cancelled
+    expect(unit.preemption_reason.length).to eq(described_class::PREEMPTION_REASON_MAX_LENGTH)
+    expect(unit.work_unit_locks.active).to be_empty
+  end
+
   it "sets active_dedup_key for an active, lock-conflicts-enforced kind" do
     unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
 

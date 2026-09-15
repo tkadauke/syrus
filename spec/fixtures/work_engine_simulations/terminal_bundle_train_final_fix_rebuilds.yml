@@ -1,0 +1,134 @@
+name: terminal bundle train final fix rebuilds
+app_settings:
+  merge_train_enabled: true
+features:
+  epicless_job_bundling: true
+repository:
+  owner: simulation
+  name: terminal-bundle-train-final-fix-rebuilds
+  auto_merge_enabled: true
+jobs:
+  alpha:
+    title: Alpha bundle member
+    state: implemented
+    priority: medium
+    branch_name: syrus/direct-alpha
+    pr_number: 6201
+    approved_at: "2026-09-14 10:00:00"
+    landing_failure_reason: stale active merge train had no active workflow or work unit; failed by work-engine reconciler
+  beta:
+    title: Beta bundle member
+    state: landing
+    priority: medium
+    branch_name: syrus/direct-beta
+    pr_number: 6202
+    approved_at: "2026-09-14 10:01:00"
+    landing_failure_reason: stale active merge train had no active workflow or work unit; failed by work-engine reconciler
+    workflow:
+      kind: merge_train
+      state: failed
+      work_unit:
+        kind: job_bundle
+        state: running
+      steps:
+        - kind: merge_train_assemble
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: merge_train_build
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: merge_train_reconcile
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - kind: grader
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          details:
+            name: rspec
+            required: true
+          run:
+            state: failed
+            agent_outcome: worker_died
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: immutable source prepare command failed after worker data loss
+            classification:
+              classification: worker_died
+              retryable: true
+              reason: Worker disappeared during grader preparation.
+        - kind: grader_collect
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          run:
+            state: failed
+        - kind: landing_fix
+          state: failed
+          iteration: 2
+          loop_id: grade-loop
+          run:
+            state: failed
+            agent_provider: codex
+            agent_outcome: turn_failed
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: "merge_train: MergeTrain is failed; rebuild required"
+              problem_code: merge_train_rebuild_required
+            classification:
+              classification: grader_failure
+              retryable: true
+              reason: Final fix attempted against a terminal train.
+        - kind: grader_fanout
+          state: cancelled
+          iteration: 2
+          loop_id: grade-loop
+        - kind: grader_collect
+          state: cancelled
+          iteration: 2
+          loop_id: grade-loop
+        - kind: merge_train_land
+          state: cancelled
+runner:
+  auto_retry_failed_jobs: false
+merge_trains:
+  failed_bundle:
+    priority: medium
+    state: failed
+    base_branch: main
+    integration_branch: syrus/job-bundle-failed-final-fix
+    integration_sha: 1111111111111111111111111111111111111111
+    failure_reason: stale active merge train had no active workflow or work unit; failed by work-engine reconciler
+    workflow_job: beta
+    members:
+      - job: alpha
+        state: failed
+      - job: beta
+        state: failed
+outcomes:
+  default: success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - retryable_run_failure
+    - merge_train_assemble
+    - merge_train_land

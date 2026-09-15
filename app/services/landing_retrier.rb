@@ -87,6 +87,13 @@ class LandingRetrier
   def recover_failed_train_members
     @scope.recoverable_members.filter_map do |job|
       job.lock!
+      if job.landing?
+        job.defer_landing! if job.may_defer_landing?
+        job.assign_attributes(landing_failure_reason: nil)
+        job.save! if job.changed?
+        next job
+      end
+
       next unless job.failed?
       next unless job.pr_number.present?
 

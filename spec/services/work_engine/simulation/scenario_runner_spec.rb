@@ -134,6 +134,15 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("merge_train_land")
   end
 
+  it "rebuilds a terminal bundle train even when the poisoned workflow still owns runtime" do
+    result = run_scenario("terminal_bundle_train_final_fix_rebuilds")
+
+    expect(result).to be_success
+    expect(Job.where(id: result.job_ids).pluck(:state)).to all(eq("closed"))
+    expect(result.events.join("\n")).to include("merge_train_assemble")
+    expect(result.events.join("\n")).to include("merge_train_land")
+  end
+
   it "retries non-agentic runs with live queue claims but no live child process before the agent stale threshold" do
     result = run_scenario("non_agentic_claim_without_process_retries")
 

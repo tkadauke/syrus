@@ -92,6 +92,8 @@ class RetryFailedStepEnqueuer
 
     failed_step = self.class.failed_step_for(workflow)
     return failure("No failed step to retry.") unless failed_step
+    return rebuild_merge_train if terminal_merge_train_rebuild_required?
+
     remediation = remediation_for(failed_step)
     return rebuild_merge_train if remediation.rebuild_unit?
     return failure("Failed step requires a new workflow attempt.") unless remediation.resume_step?
@@ -237,6 +239,8 @@ class RetryFailedStepEnqueuer
     train = MergeTrain.find_by(id: train_id)
     return failure("Merge train record not found - contact an admin or operator to rebuild the merge train.") unless train
 
+    WorkUnits::TerminalWorkflowSync.call(workflow)
+
     rebuild = rebuild_train(train)
     rebuilt_workflow = rebuild.workflow
     unless rebuilt_workflow
@@ -269,6 +273,16 @@ class RetryFailedStepEnqueuer
 
   def train_rebuild_label(train)
     train.bundle_backed? ? "Job bundle" : "Epic"
+  end
+
+  def terminal_merge_train_rebuild_required?
+    return false unless workflow.trigger_kind == "merge_train"
+
+    train_id = workflow.artifact("merge_train_id")
+    return false if train_id.blank?
+
+    train = MergeTrain.find_by(id: train_id)
+    train&.state.in?(%w[failed cancelled])
   end
 
   def failure(message)

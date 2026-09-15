@@ -253,6 +253,34 @@ RSpec.describe Run, :ci_only do
     end
   end
 
+  describe "failure propagation" do
+    it "persists the failure classification before dispatching the failed step" do
+      workflow = Workflow.create!(job: job, trigger_kind: "initial")
+      step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 0,
+        state: "running",
+        loop_id: "grade-loop",
+        iteration: 1
+      )
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+      RunDiagnostic.create!(
+        run: run,
+        error_class: "Steps::Base::StepFailed",
+        error_message: "grader rspec failed (exit 1)"
+      )
+
+      expect(StepDispatcher).to receive(:fail_from) do |failed_step|
+        expect(failed_step).to eq(step)
+        expect(run.reload.run_failure_classification&.classification).to eq("grader_failure")
+      end
+
+      run.fail!
+      run.save!
+    end
+  end
+
   # Materialized on purpose: fed into IN / NOT IN against `jobs`, where the
   # subquery form makes MySQL scan all of `runs`. See Run.active_job_ids.
   describe ".active_job_ids" do

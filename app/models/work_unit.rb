@@ -1,5 +1,6 @@
 class WorkUnit < ApplicationRecord
   STATES = %w[queued blocked running succeeded failed cancelled].freeze
+  PREEMPTION_REASON_MAX_LENGTH = 64
 
   # Reasons that mean "this Job is simply waiting in line on an
   # unfinished dependency" — the "Blocked" smart folder's territory,
@@ -153,7 +154,7 @@ class WorkUnit < ApplicationRecord
         blocked_until: nil,
         blocked_details: {},
         blocked_by_user: nil,
-        preemption_reason: reason,
+        preemption_reason: reason.to_s.truncate(PREEMPTION_REASON_MAX_LENGTH),
         preempted_by_work_unit: by_work_unit
       )
       work_unit_locks.active.find_each(&:release!)

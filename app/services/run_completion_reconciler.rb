@@ -35,6 +35,7 @@ class RunCompletionReconciler
     return unreconciled unless recoverable_state?(workflow, :workflow)
 
     strategy = Step::Kind.fetch(step.kind).reconcile_strategy
+    return reconcile_successful_handler_return if strategy.blank? && successful_handler_terminal_recovery?
     return unreconciled unless strategy
 
     send(:"reconcile_#{strategy}")
@@ -49,9 +50,29 @@ class RunCompletionReconciler
   def terminal_recovery_allowed?
     return true unless allow_terminal_recovery
     return true if TERMINAL_RECOVERY_STEP_KINDS.include?(step.kind)
+    return true if successful_handler_terminal_recovery_step?
 
     @unreconciled_reason = "#{step.kind} is not eligible for terminal recovery"
     false
+  end
+
+  def successful_handler_terminal_recovery?
+    allow_terminal_recovery && successful_handler_terminal_recovery_step?
+  end
+
+  def successful_handler_terminal_recovery_step?
+    Step::Kind.fetch(step.kind).deterministic_idempotent_repair?
+  rescue ArgumentError
+    false
+  end
+
+  def reconcile_successful_handler_return
+    return unreconciled unless workflow.running?
+
+    reason = "#{step.kind}: handler returned successfully after terminal race"
+    force_step_success_after_terminal_race!(reason)
+
+    Result.new(reconciled: true, reason: reason)
   end
 
   def recoverable_state?(record, label)
@@ -227,6 +248,19 @@ class RunCompletionReconciler
 
   def terminal_recovery_required?
     allow_terminal_recovery && [ run, step, workflow ].any? { |record| record&.terminal? && !record.succeeded? }
+  end
+
+  def force_step_success_after_terminal_race!(reason)
+    now = Time.current
+    StateTransition.with_source("reconciler", reason: "post_handler_terminal_success_race", metadata: { reason: reason }) do
+      force_state!(run, "succeeded", now)
+      force_state!(step, "succeeded", now)
+    end
+    Runs::LifecyclePropagation.succeeded!(run.reload)
+    Runs::LifecyclePropagation.terminal!(run)
+
+    StepDispatcher.advance_from(step.reload) if workflow.reload.running?
+    finish_workflow_if_terminal!
   end
 
   def force_success_after_terminal_race!(reason)

@@ -712,7 +712,7 @@ module WorkEngine
 
       def attach_work_unit!(job, workflow, config)
         intent = WorkIntent.create!(
-          kind: workflow.trigger_kind,
+          kind: config.dig("work_unit", "kind") || workflow.trigger_kind,
           state: config.dig("intent", "state") || "requested",
           repository: job.repository,
           scope_type: config.dig("scope", "type") || "job",
@@ -723,7 +723,7 @@ module WorkEngine
         unit = WorkUnit.create!(
           work_intent: intent,
           workflow: workflow,
-          kind: workflow.trigger_kind,
+          kind: config.dig("work_unit", "kind") || workflow.trigger_kind,
           state: config.dig("work_unit", "state") || workflow.state,
           blocked_reason: config.dig("work_unit", "blocked_reason"),
           blocked_details: config.dig("work_unit", "blocked_details") || {},

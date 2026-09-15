@@ -35,6 +35,42 @@ RSpec.describe RunCompletionReconciler do
       expect(result).not_to be_reconciled
     end
 
+    it "recovers a deterministic step that returned successfully after a terminal race" do
+      workflow.steps.destroy_all
+      step = Step.create!(workflow: workflow, kind: "grader", position: 1)
+      run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
+      workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+      step.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      run.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+
+      allow(StepDispatcher).to receive(:advance_from)
+
+      result = described_class.call(run, allow_terminal_recovery: true)
+
+      expect(result).to be_reconciled
+      expect(result.reason).to eq("grader: handler returned successfully after terminal race")
+      expect(run.reload).to be_succeeded
+      expect(step.reload).to be_succeeded
+      expect(workflow.reload).to be_succeeded
+      expect(StepDispatcher).to have_received(:advance_from).with(step)
+    end
+
+    it "does not recover deterministic terminal races after the workflow has already failed" do
+      workflow.steps.destroy_all
+      step = Step.create!(workflow: workflow, kind: "grader", position: 1)
+      run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
+      workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+      step.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      run.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+
+      result = described_class.call(run, allow_terminal_recovery: true)
+
+      expect(result).not_to be_reconciled
+      expect(run.reload).to be_failed
+      expect(step.reload).to be_failed
+      expect(workflow.reload).to be_failed
+    end
+
     context "with a running pr_open step" do
       it "returns unreconciled when no matching log entries exist" do
         run = make_pr_open_run

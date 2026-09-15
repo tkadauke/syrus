@@ -34,8 +34,8 @@ module Runs
 
     def failed!
       refresh_resource_summary_after_completion!
-      cascade_failure_to_step!
       classify_failure!
+      cascade_failure_to_step!
       record_provider_failure_evidence!
       broadcast_provider_availability_after_failure!
     end
