@@ -167,10 +167,15 @@ Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `au
 
 Each Workflow stores a concrete `agent_provider` when Syrus creates it, and
 retrying a failed Step inside that Workflow keeps using the pinned provider.
-Each Job also has a future-workflow provider setting: `default`, `claude`, or
-`codex`. `default` resolves the current repository/user default at workflow
+Each Job also has a future-workflow provider setting: `default`, `claude`,
+`codex`, or `agy`. `default` resolves the current repository/user default at workflow
 creation time; explicit values pin newly-created workflows for that Job to the
 selected provider.
+
+`agy` is the Antigravity workflow provider. `SYRUS_AGY_MODEL` and
+`SYRUS_AGY_EFFORT` are forwarded into the isolated Antigravity provider home as
+Syrus-owned configuration hints, and Agy loads Syrus workflow tools from the
+provider home's `~/.gemini/config/mcp_config.json` sidecar entry.
 
 Operator-triggered retry-with-provider actions are one-shot overrides. They
 create that retry or follow-up Workflow with the requested provider, but they do

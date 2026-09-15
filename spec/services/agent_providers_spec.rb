@@ -12,8 +12,14 @@ RSpec.describe AgentProviders do
 
   describe ".for" do
     it "returns the registered provider adapter class" do
+      expect(described_class.for("agy")).to eq(AgentProviders::Agy)
       expect(described_class.for("claude")).to eq(AgentProviders::Claude)
       expect(described_class.for("codex")).to eq(AgentProviders::Codex)
+    end
+
+    it "returns the Agy MCP tool label" do
+      expect(Prompts::WorkflowMcpToolInstructions.tool_name_for("agy", "submit_summary"))
+        .to eq("mcp(syrus-mcp-sidecar/submit_summary)")
     end
 
     it "raises a configuration error for unknown providers" do
@@ -52,6 +58,23 @@ RSpec.describe AgentProviders do
 
       described_class.run_one_shot(
         provider: "codex",
+        user: user,
+        runner: nil,
+        scope: "test-scope",
+        prompt: "hello",
+        log_sink: ->(*) { },
+        timeout: 30,
+        max_turns: 1
+      )
+    end
+
+    it "delegates to the Agy provider class method for agy provider" do
+      expect(AgentProviders::Agy).to receive(:invoke_one_shot).with(
+        hash_including(user: user, scope: "test-scope")
+      ).and_return(fake_result)
+
+      described_class.run_one_shot(
+        provider: "agy",
         user: user,
         runner: nil,
         scope: "test-scope",
