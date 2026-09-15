@@ -15,7 +15,11 @@ RSpec.describe SyrusMuseAgent::Engine do
   end
 
   it "registers Muse credential probe effects only while enabled" do
-    record = PluginRecord.find_by!(name: "muse_agent")
+    record = PluginRecord.find_or_create_by!(name: "muse_agent") do |plugin|
+      plugin.enabled = true
+      plugin.default_enabled = true
+      plugin.disableable = true
+    end
     record.update!(enabled: true)
     expect(CredentialProbe.probe_handler_for("muse_api_key")).to eq(MuseCredentialProbe)
 
