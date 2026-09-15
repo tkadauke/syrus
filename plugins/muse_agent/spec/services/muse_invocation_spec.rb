@@ -193,6 +193,62 @@ RSpec.describe MuseInvocation do
     expect(events).to include([ "[muse transcript] export failed (process_failed); falling back to exec JSONL", { kind: "system" } ])
   end
 
+  it "falls back to exec JSONL when muse export is unavailable" do
+    events = []
+    captured = []
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      captured << kwargs
+      instance_double(ProcessRunner).tap do |runner|
+        allow(runner).to receive(:run) do
+          if kwargs[:command][0, 2] == %w[muse exec]
+            fixture_lines.each { |line| kwargs[:on_output_line].call(line) }
+            process_result
+          else
+            raise Errno::ENOENT, "No such file or directory - muse"
+          end
+        end
+      end
+    end
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      session_id: "11111111-2222-4333-8444-555555555555",
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    expect(captured.second[:command][0, 2]).to eq(%w[muse export])
+    expect(result).to be_success
+    expect(result.transcript_path).to be_nil
+    expect(result.transcript_jsonl).to include('"payload_type":"run.terminal.completed"')
+    expect(events).to include([
+      "[muse transcript] export command unavailable; falling back to exec JSONL",
+      { kind: "system" }
+    ])
+  end
+
+  it "maps a missing muse executable to a process failure result" do
+    runner = instance_double(ProcessRunner)
+    allow(runner).to receive(:run)
+      .and_raise(Errno::ENOENT, "No such file or directory - muse")
+    allow(ProcessRunner).to receive(:new).and_return(runner)
+
+    result = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      session_id: "11111111-2222-4333-8444-555555555555",
+      transcript_policy: :exec_jsonl
+    ).run
+
+    expect(result).not_to be_success
+    expect(result.outcome).to eq("process_failed")
+    expect(result.process_outcome).to eq("process_failed")
+    expect(result.session_id).to eq("11111111-2222-4333-8444-555555555555")
+    expect(result.final_text).to include("Muse process failed to start")
+  end
+
   it "maps terminal failure events" do
     lines = [
       { record_type: "event", payload_type: "run.terminal.failed", sequence: 1, stream: "stdout", payload: { message: "tool crashed" } }.to_json
