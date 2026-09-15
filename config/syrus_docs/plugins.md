@@ -2644,19 +2644,23 @@ no teardown, which is exactly why it is not an effect.
 
 Bundled plugins:
 
-- `agy_agent` — default-enabled Antigravity workflow provider. It writes the
-  Syrus sidecar into Antigravity's isolated `~/.gemini/config/mcp_config.json`
-  and reads `SYRUS_AGY_MODEL` / `SYRUS_AGY_EFFORT` as provider configuration.
-  Workflow invocations require the operator's saved Gemini API key
-  (`User#gemini_api_key`); Syrus passes that key through the Antigravity
-  process environment (`GEMINI_API_KEY` / `GOOGLE_API_KEY`), not argv or MCP
-  sidecar args. Runs use the workflow-scoped `WorkflowWorkspace.agent_home_for`
-  home, restore captured Antigravity JSONL before `--conversation` resume, and
-  persist the conversation JSONL through `ProviderSession` for later workflow
-  resumes. Antigravity conversation ids are accepted only when they are
-  path-safe; invalid ids start a fresh session and log a diagnostic instead of
-  being used in a path or command argument.
-- `claude_agent` / `codex_agent` — default-enabled workflow and chat providers.
+- `agy_agent` — default-enabled Antigravity workflow and chat provider. It writes
+  the Syrus sidecar into Antigravity's isolated
+  `~/.gemini/config/mcp_config.json` and reads `SYRUS_AGY_MODEL` /
+  `SYRUS_AGY_EFFORT` as provider configuration. Workflow and chat invocations
+  require the operator's saved Gemini API key (`User#gemini_api_key`); Syrus
+  passes that key through the Antigravity process environment (`GEMINI_API_KEY`
+  / `GOOGLE_API_KEY`), not argv or MCP sidecar args. Workflow runs use the
+  workflow-scoped `WorkflowWorkspace.agent_home_for` home, while chat turns use
+  `ChatWorkspace.agent_home_for`. Both restore captured Antigravity JSONL before
+  `--conversation` resume and persist conversation JSONL through
+  `ProviderSession` for later resumes. Chat turns read the normal
+  `syrus-chat-sidecar` / `syrus-chat-deferred-sidecar` MCP config, preserving
+  essential and deferred tool tiers. Antigravity conversation ids are accepted
+  only when they are path-safe; invalid ids start a fresh session and log a
+  diagnostic instead of being used in a path or command argument.
+- `claude_agent` / `codex_agent` / `agy_agent` — default-enabled workflow and
+  chat providers.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.
