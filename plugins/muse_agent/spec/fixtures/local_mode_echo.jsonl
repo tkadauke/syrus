@@ -1,0 +1,4 @@
+{"record_type":"event","payload_type":"run.started","sequence":1,"stream":"stdout","payload":{"session_id":"11111111-2222-4333-8444-555555555555"}}
+{"record_type":"event","payload_type":"assistant.message","sequence":2,"stream":"stdout","payload":{"text":"Echo: hello from Syrus"}}
+{"record_type":"event","payload_type":"task.lifecycle.failed","sequence":3,"stream":"stdout","payload":{"message":"internal echo probe task failed after the assistant response"}}
+{"record_type":"event","payload_type":"run.terminal.completed","sequence":4,"stream":"stdout","payload":{"session_id":"11111111-2222-4333-8444-555555555555","outcome":"success","turns":1,"final_text":"Echo: hello from Syrus","usage":{"input_tokens":12,"output_tokens":5,"cache_read_input_tokens":3}}}
