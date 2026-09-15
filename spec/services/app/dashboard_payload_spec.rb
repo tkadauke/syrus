@@ -208,6 +208,18 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item).to include(can_approve: false)
       expect(item.fetch(:bulk_actions)).to include(approve: false)
     end
+
+    it "keeps can_approve false for a queued approval-blocking Run without WorkUnit ownership" do
+      repo.update!(auto_merge_enabled: true)
+      job = Factories.job_record(user: user, owner_user: user, repository: repo, state: "implemented")
+      Run.create!(job: job, trigger_kind: "retry", state: "queued", agent_provider: job.agent_provider)
+
+      result = call(subject: "job", section: "rows", state: "implemented")
+      item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
+
+      expect(item).to include(can_approve: false)
+      expect(item.fetch(:bulk_actions)).to include(approve: false)
+    end
   end
 
   describe "delivery status" do
