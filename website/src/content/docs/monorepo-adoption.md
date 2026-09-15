@@ -19,6 +19,13 @@ Do not model the whole repository on day one. Add the smallest amount of
 configuration that makes Syrus's behavior easier to understand, faster to run,
 or less ambiguous for operators.
 
+Syrus never creates a project boundary from directory layout alone. A nested
+project exists because a nested `.syrus.yml` declares it, or because an
+explicit build-system graph provider imports it. Package manifests, Rails
+layouts, Go modules, Gradle projects, and workspace files can help humans
+choose where to declare projects, but they do not make Syrus select project
+previews, coverage, hooks, or target health by themselves.
+
 Move up a level when a change in one directory should not boot or grade an
 unrelated product, operators need to choose between multiple previewable apps,
 shared code affects several products, or an existing build system already owns
@@ -249,6 +256,46 @@ grade:
 Stay at Level 1 when directory scoping and legacy commands are clear enough.
 Many medium monorepos never need explicit targets, and they should not move
 validation out of the root plan until Syrus executes nested graders directly.
+
+## Operator Checklist
+
+Use this checklist when reviewing a repository that has moved beyond a single
+root `.syrus.yml`:
+
+- **Project boundaries**: each operator-facing app or product that needs its
+  own preview, coverage policy, checkout hook, or review criteria has a nested
+  `.syrus.yml` with a recognizable `project.label`. Shared libraries can be
+  targets without becoming projects when they do not need their own operator
+  surface.
+- **Implementation setup**: root `prepare:` remains the automatic baseline.
+  Nested `prepare:` entries become explicit prepare targets. Implementation
+  agents see them as `Target prepare options` and must request one with
+  `run_target_prepare(label:, reason:)` when they need that project-specific
+  environment.
+- **Checkout hooks**: root `hooks.post_checkout` always runs after `syrus
+  checkout`; nested hooks run only for affected projects, with an all-project
+  fallback when the CLI cannot compute the diff. Keep local-machine setup here,
+  not agent sandbox setup.
+- **Visual review and previews**: put each product's `preview:` and
+  `visual_review:` next to the project that owns it. Operators and visual
+  review agents should choose among affected preview-capable projects rather
+  than starting an unrelated root preview.
+- **Adversarial review**: root criteria are repo-wide. Nested criteria are
+  unioned only for affected projects. Use nested criteria for project-specific
+  contracts, not for generic repository rules that every review should see.
+- **Coverage**: root coverage is repository-wide. Nested coverage is scoped to
+  affected projects, with artifact paths resolved relative to the declaring
+  `.syrus.yml`. Make sure the grader that runs for that project actually
+  produces the configured artifact.
+- **Target health**: a target-health skip means Syrus found a healthy proof for
+  the target's current input, command, and environment fingerprints. If a skip
+  looks wrong, inspect the Job Target Graph explanation before changing code;
+  the usual fix is a missing or too-narrow `sources`, `when_files_changed`, or
+  `deps:` declaration.
+
+None of these surfaces performs magical project inference. If a project, target,
+dependency edge, preview, coverage source, CI mapping, or hook matters, declare
+it in `.syrus.yml` or import it through a trusted build-system provider.
 
 ## Level 2: Explicit Projects And Executable Targets
 
