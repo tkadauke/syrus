@@ -288,7 +288,8 @@ module Steps
           next
         end
 
-        log("[grader_fanout] target health miss for #{grader.name}: #{result.reason} [#{target_label_for(grader)}]")
+        forced_entry = forced_target_health_entry(grader, result)
+        record_target_health_forced!([ forced_entry ])
         grader
       end
 
