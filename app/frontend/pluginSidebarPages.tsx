@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { matchPath, useLocation } from "react-router-dom"
 import { fetchSidebarPluginPages } from "./api/sidebarPages"
+import { Notice, Page, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {
@@ -11,12 +12,14 @@ type PluginModule = {
 const routeModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/routes/*.tsx")
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(routeModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType>()
@@ -58,9 +61,7 @@ export function usePluginSidebarPaths({ enabled }: { enabled: boolean }) {
     enabled
   })
 
-  return (pages.data?.pages ?? []).flatMap((page) =>
-    Array.from(page.paths ?? []).map((path) => ({ path, section: page.section }))
-  )
+  return (pages.data?.pages ?? []).flatMap((page) => Array.from(page.paths ?? []).map((path) => ({ path, section: page.section })))
 }
 
 export function usePluginSidebarPage() {
@@ -75,9 +76,7 @@ export function usePluginSidebarPage() {
   // `pages?.` and not just `data?.`: a response without the key at all must
   // read as "no plugin claims this URL", not throw inside the catch-all and
   // take the whole shell down with it.
-  const page = pages.data?.pages?.find((candidate) =>
-    candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null)
-  )
+  const page = pages.data?.pages?.find((candidate) => candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null))
 
   return { isPending: pages.isPending, page, Component: pluginSidebarComponentFor(page?.component) }
 }
@@ -85,22 +84,26 @@ export function usePluginSidebarPage() {
 export function PluginSidebarPageRoute() {
   const { t } = useT("nav")
   const { isPending, page, Component } = usePluginSidebarPage()
+  const loading = (
+    <Page.Root aria-label={t("sidebar_pages.loading")} size="wide">
+      <Text muted>{t("sidebar_pages.loading")}</Text>
+    </Page.Root>
+  )
 
   if (isPending) {
-    return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("sidebar_pages.loading")}</main>
+    return loading
   }
 
   if (!page || !Component) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t("sidebar_pages.unavailable_heading")}</h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("sidebar_pages.unavailable_body")}</p>
-      </main>
+      <Page.Root size="narrow">
+        <Notice title={t("sidebar_pages.unavailable_heading")}>{t("sidebar_pages.unavailable_body")}</Notice>
+      </Page.Root>
     )
   }
 
   return (
-    <Suspense fallback={<main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("sidebar_pages.loading")}</main>}>
+    <Suspense fallback={loading}>
       <Component />
     </Suspense>
   )

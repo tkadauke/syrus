@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { useState } from "react"
-import { Link, useLocation } from "react-router-dom"
-import { Button } from "@app/components/Button"
+import { useLocation } from "react-router-dom"
+import { Badge, Button, CodeSurface, DataTable, LinkText, Notice, Page, Pill, Section, Text, Toolbar } from "@app/components/ui"
 import { withRoutePrefix } from "@app/lib/routing"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
@@ -24,19 +23,19 @@ export function AdminInsightsRoute() {
 
   if (query.isPending) {
     return (
-      <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
         <AdminInsightsHeader />
-        <p className="text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p>
-      </main>
+        <Notice>{t("loading")}</Notice>
+      </Page.Root>
     )
   }
 
   if (query.isError) {
     return (
-      <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
         <AdminInsightsHeader />
-        <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(query.error, t("load_error"))}</p>
-      </main>
+        <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice>
+      </Page.Root>
     )
   }
 
@@ -55,11 +54,15 @@ export function AdminInsightsRoute() {
 function AdminInsightsHeader() {
   const { t } = useT("agent_insights")
   return (
-    <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-      <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin_eyebrow")}</p>
-      <PageHeading className="mt-1">{t("admin_title")}</PageHeading>
-      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("admin_subtitle")}</p>
-    </header>
+    <Page.Header>
+      <Page.HeadingGroup>
+        <Text variant="label" muted>
+          {t("admin_eyebrow")}
+        </Text>
+        <Page.Title>{t("admin_title")}</Page.Title>
+        <Page.Description>{t("admin_subtitle")}</Page.Description>
+      </Page.HeadingGroup>
+    </Page.Header>
   )
 }
 
@@ -98,91 +101,70 @@ function AdminInsightsList({
   const lastItem = Math.min(page * meta.per_page, meta.total)
 
   return (
-    <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page.Root aria-label={t("aria_admin_insights")} size="wide">
       <AdminInsightsHeader />
 
-      <div className="flex items-center justify-between gap-4">
-        <SectionHeading>
-          {t("suggestions_heading")}
-        </SectionHeading>
-        <nav aria-label={t("filter_aria")} className="flex gap-1">
+      <Toolbar aria-label={t("filter_aria")} align="center" gap="md">
+        <Section.Title>{t("suggestions_heading")}</Section.Title>
+        <nav className="flex flex-wrap gap-1">
           {filterTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              onClick={() => handleFilterChange(tab.key)}
-              size="sm"
-              variant={stateFilter === tab.key ? "primary" : "secondary"}
-            >
+            <Button key={tab.key} onClick={() => handleFilterChange(tab.key)} size="sm" variant={stateFilter === tab.key ? "primary" : "secondary"}>
               {tab.label}
-              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                {tab.count}
-              </span>
+              <Badge>{tab.count}</Badge>
             </Button>
           ))}
         </nav>
-      </div>
+      </Toolbar>
 
       {suggestions.length === 0 ? (
-        <div className="rounded border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-          {t("empty")}
-        </div>
+        <Section.Root>
+          <Text className="text-center" muted>
+            {t("empty")}
+          </Text>
+        </Section.Root>
       ) : (
-        <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_title")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_repository")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_user")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_severity")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_confidence")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_state")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_actions")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
-              {suggestions.map((suggestion) => (
-                <AdminSuggestionRow key={suggestion.id} prefix={prefix} suggestion={suggestion} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable.Root>
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("col_title")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_repository")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_user")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_severity")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_confidence")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_state")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_actions")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {suggestions.map((suggestion) => (
+              <AdminSuggestionRow key={suggestion.id} prefix={prefix} suggestion={suggestion} />
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
       )}
 
       {meta.total_pages > 1 && (
-        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+        <Toolbar className="text-sm text-text-muted">
           <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: meta.total })}</span>
           <div className="flex gap-2">
             {page > 1 ? (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page - 1)}
-                type="button"
-              >
+              <Button onClick={() => onPageChange(page - 1)} size="sm" variant="secondary">
                 {t("pagination_previous")}
-              </button>
+              </Button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
-                {t("pagination_previous")}
-              </span>
+              <span className="rounded border border-border px-3 py-1 text-text-subtle">{t("pagination_previous")}</span>
             )}
             {page < meta.total_pages ? (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page + 1)}
-                type="button"
-              >
+              <Button onClick={() => onPageChange(page + 1)} size="sm" variant="secondary">
                 {t("pagination_next")}
-              </button>
+              </Button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
-                {t("pagination_next")}
-              </span>
+              <span className="rounded border border-border px-3 py-1 text-text-subtle">{t("pagination_next")}</span>
             )}
           </div>
-        </div>
+        </Toolbar>
       )}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -215,127 +197,108 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
 
   return (
     <>
-      <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-        <td className="px-4 py-3">
+      <DataTable.Row interactive>
+        <DataTable.Cell>
           <div className="max-w-sm">
-            <button
-              className="text-left text-sm font-medium text-gray-900 underline-offset-2 hover:underline dark:text-gray-100"
-              onClick={() => setExpanded((v) => !v)}
-              type="button"
-            >
+            <button className="text-left text-sm font-medium text-link underline-offset-2 hover:underline" onClick={() => setExpanded((v) => !v)} type="button">
               {suggestion.title}
             </button>
-            <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-              {suggestion.category}
-            </span>
-            <span className={`ml-2 rounded px-1.5 py-0.5 text-xs ${suggestion.proposal_type === "remove_memory" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
+            <Badge className="ml-2">{suggestion.category}</Badge>
+            <Badge className="ml-2" tone={suggestion.proposal_type === "remove_memory" ? "danger" : "neutral"}>
               {t(`proposal_${suggestion.proposal_type}`)}
-            </span>
+            </Badge>
           </div>
-        </td>
-        <td className="px-4 py-3">
-          <Link
-            className="text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
-            to={withRoutePrefix(suggestion.repository.insights_path, prefix)}
-          >
-            {suggestion.repository.slug}
-          </Link>
-        </td>
-        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
-          {suggestion.user.display_name}
-        </td>
-        <td className="px-4 py-3">
+        </DataTable.Cell>
+        <DataTable.Cell>
+          <LinkText to={withRoutePrefix(suggestion.repository.insights_path, prefix)}>{suggestion.repository.slug}</LinkText>
+        </DataTable.Cell>
+        <DataTable.Cell className="text-xs text-text-muted">{suggestion.user.display_name}</DataTable.Cell>
+        <DataTable.Cell>
           <SeverityPill severity={suggestion.severity} />
-        </td>
-        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
-          {Math.round(suggestion.confidence * 100)}%
-        </td>
-        <td className="px-4 py-3">
+        </DataTable.Cell>
+        <DataTable.Cell className="text-xs text-text-muted">{Math.round(suggestion.confidence * 100)}%</DataTable.Cell>
+        <DataTable.Cell>
           <StatePill state={suggestion.state} />
-        </td>
-        <td className="px-4 py-3">
+        </DataTable.Cell>
+        <DataTable.Cell>
           <div className="flex items-center gap-2">
-            <Link
-              className="text-xs text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
-              to={withRoutePrefix(suggestion.job_path, prefix)}
-            >
+            <LinkText className="text-xs" to={withRoutePrefix(suggestion.job_path, prefix)}>
               {t("view_job")}
-            </Link>
+            </LinkText>
             {suggestion.has_memory_suggestion && (
-              <Button
-                disabled={promoteMutation.isPending}
-                onClick={() => promoteMutation.mutate()}
-                size="sm"
-                variant="secondary"
-              >
+              <Button disabled={promoteMutation.isPending} onClick={() => promoteMutation.mutate()} size="sm" variant="secondary">
                 {promoteMutation.isPending ? t("promoting") : t("promote_to_instance")}
               </Button>
             )}
             {suggestion.state === "pending" && suggestion.proposal_type === "remove_memory" && (
-              <button
-                className="rounded border border-red-300 px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
-                disabled={acceptRemoveMemoryMutation.isPending}
-                onClick={() => acceptRemoveMemoryMutation.mutate()}
-                type="button"
-              >
+              <Button disabled={acceptRemoveMemoryMutation.isPending} onClick={() => acceptRemoveMemoryMutation.mutate()} size="sm" variant="danger">
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
-              </button>
+              </Button>
             )}
           </div>
-        </td>
-      </tr>
+        </DataTable.Cell>
+      </DataTable.Row>
       {expanded && (
-        <tr className="bg-gray-50 dark:bg-gray-800/50">
-          <td className="px-4 pb-4 pt-0" colSpan={7}>
-            {notice && <p className="mb-2 text-xs text-green-700 dark:text-green-400">{notice}</p>}
-            {error && <p className="mb-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
+        <DataTable.Row groupHeader>
+          <DataTable.Cell className="pb-4 pt-0" colSpan={7}>
+            {notice && (
+              <Text className="mb-2" tone="success" variant="caption">
+                {notice}
+              </Text>
+            )}
+            {error && (
+              <Text className="mb-2" tone="danger" variant="caption">
+                {error}
+              </Text>
+            )}
             {suggestion.suggested_prompt && (
               <div className="mt-2">
-                <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("suggested_prompt_label")}</p>
-                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-white p-3 text-xs text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
+                <Text variant="label" muted>
+                  {t("suggested_prompt_label")}
+                </Text>
+                <CodeSurface className="mt-1" code={suggestion.suggested_prompt} maxHeightClassName="max-h-40" mode="multiline">
                   {suggestion.suggested_prompt}
-                </pre>
+                </CodeSurface>
               </div>
             )}
             {suggestion.memory_suggestion && (
               <div className="mt-2">
-                <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("memory_suggestion_label")}</p>
-                <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
+                <Text variant="label" muted>
+                  {t("memory_suggestion_label")}
+                </Text>
+                <CodeSurface className="mt-1" code={suggestion.memory_suggestion} mode="multiline">
                   {suggestion.memory_suggestion}
-                </pre>
+                </CodeSurface>
               </div>
             )}
             {suggestion.proposal_type === "remove_memory" && (
-              <div className="mt-2 rounded border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
-                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">
+              <Notice className="mt-2" tone="danger">
+                <Text tone="danger" variant="label">
                   {t("remove_memory_label", { id: suggestion.target_memory_id })}
-                </p>
+                </Text>
                 {suggestion.stale_memory_text && (
-                  <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
+                  <CodeSurface className="mt-1" code={suggestion.stale_memory_text} mode="multiline">
                     {suggestion.stale_memory_text}
-                  </pre>
+                  </CodeSurface>
                 )}
                 {suggestion.stale_memory_evidence && (
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">
+                  <Text className="mt-2 whitespace-pre-wrap" tone="danger" variant="caption">
                     {suggestion.stale_memory_evidence}
-                  </p>
+                  </Text>
                 )}
-              </div>
+              </Notice>
             )}
             {suggestion.state === "retired" && (
-              <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                <p className="font-medium text-gray-700 dark:text-gray-200">{t("retired_heading")}</p>
-                {suggestion.retired_reason && <p className="mt-1 whitespace-pre-wrap">{suggestion.retired_reason}</p>}
+              <Notice className="mt-2" title={t("retired_heading")}>
+                {suggestion.retired_reason && <Text className="mt-1 whitespace-pre-wrap">{suggestion.retired_reason}</Text>}
                 {suggestion.superseded_by_insight_id && (
-                  <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>
+                  <Text className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</Text>
                 )}
-                {suggestion.superseded_by_job_slug && (
-                  <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>
-                )}
-              </div>
+                {suggestion.superseded_by_job_slug && <Text className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</Text>}
+              </Notice>
             )}
-          </td>
-        </tr>
+          </DataTable.Cell>
+        </DataTable.Row>
       )}
     </>
   )
@@ -343,34 +306,12 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
 
 function SeverityPill({ severity }: { severity: string }) {
   const { t } = useT("agent_insights")
-  const classes =
-    severity === "high"
-      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-      : severity === "medium"
-        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`severity_${severity}`)}
-    </span>
-  )
+  return <Pill tone={severity === "high" ? "danger" : severity === "medium" ? "warning" : "neutral"}>{t(`severity_${severity}`)}</Pill>
 }
 
 function StatePill({ state }: { state: string }) {
   const { t } = useT("agent_insights")
-  const classes =
-    state === "accepted"
-      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-      : state === "dismissed"
-        ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-        : state === "retired"
-          ? "bg-gray-200 text-gray-500 dark:bg-gray-800/60 dark:text-gray-500"
-          : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`state_${state}`)}
-    </span>
-  )
+  return <Pill tone={state === "accepted" ? "success" : state === "pending" ? "warning" : "neutral"}>{t(`state_${state}`)}</Pill>
 }
 
 // Default export is what the plugin component loaders require

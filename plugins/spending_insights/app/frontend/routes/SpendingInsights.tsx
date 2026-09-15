@@ -1,6 +1,7 @@
 import { withRoutePrefix } from "@app/lib/routing"
 import { formatCurrency } from "@app/lib/format"
 import { FilterBar } from "@app/components/FilterBar"
+import { DataTable, LinkText, Metric as MetricUi, Notice, Page, Section, Text } from "@app/components/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
@@ -21,12 +22,18 @@ export function SpendingInsightsRoute() {
     queryFn: () => fetchSpending(location.search)
   })
 
-  if (spending.isPending) return <main aria-label={t("aria_insights")} className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("common:loading")}</main>
+  if (spending.isPending) {
+    return (
+      <Page.Root aria-label={t("aria_insights")} size="wide">
+        <Text muted>{t("common:loading")}</Text>
+      </Page.Root>
+    )
+  }
   if (spending.isError) {
     return (
-      <main aria-label={t("aria_insights")} className="p-6">
-        <p className="text-sm text-red-700 dark:text-red-300">{t("unable_to_load")}</p>
-      </main>
+      <Page.Root aria-label={t("aria_insights")} size="wide">
+        <Notice tone="danger">{t("unable_to_load")}</Notice>
+      </Page.Root>
     )
   }
 
@@ -38,14 +45,22 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
   const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
 
   return (
-    <main aria-label={t("aria_insights")} className="mx-auto max-w-[96rem] space-y-5 p-6">
-      <header className="flex flex-col gap-4 border-b border-gray-200 dark:border-gray-700 pb-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("eyebrow")}</p>
-          <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{t("title")}</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("scope_range", { scope: payload.scope.admin ? t("scope_all_users") : payload.scope.label, start: payload.filters.start_date, end: payload.filters.end_date })}</p>
-        </div>
-      </header>
+    <Page.Root aria-label={t("aria_insights")} size="wide">
+      <Page.Header>
+        <Page.HeadingGroup>
+          <Text variant="label" muted>
+            {t("eyebrow")}
+          </Text>
+          <Page.Title>{t("title")}</Page.Title>
+          <Page.Description>
+            {t("scope_range", {
+              scope: payload.scope.admin ? t("scope_all_users") : payload.scope.label,
+              start: payload.filters.start_date,
+              end: payload.filters.end_date
+            })}
+          </Page.Description>
+        </Page.HeadingGroup>
+      </Page.Header>
 
       <FilterBar
         filter={payload.filter}
@@ -55,44 +70,72 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
         search={search}
       />
 
-      <section aria-label={t("totals_aria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric title={t("metric_week")} value={formatSpendingCurrency(payload.totals.week_usd)} context={t("context_workflow_runs")} />
-        <Metric title={t("metric_month")} value={formatSpendingCurrency(payload.totals.month_usd)} context={t("context_workflow_runs")} />
-        <Metric title={t("metric_lifetime")} value={formatSpendingCurrency(payload.totals.lifetime_usd)} context={t("context_runs_chats", { runs: formatSpendingCurrency(payload.totals.workflow_lifetime_usd), chats: formatSpendingCurrency(payload.totals.chat_lifetime_usd) })} />
-        <Metric title={t("metric_avg_job")} value={formatSpendingCurrency(payload.totals.average_job_30d_usd)} context={t("context_last_30_days")} />
-        <Metric title={t("metric_avg_merged_pr")} value={formatSpendingCurrency(payload.totals.average_merged_pr_30d_usd)} context={t("context_last_30_days")} />
-      </section>
+      <MetricUi.Group aria-label={t("totals_aria")} className="sm:grid-cols-2 xl:grid-cols-5">
+        <SpendingMetric title={t("metric_week")} value={formatSpendingCurrency(payload.totals.week_usd)} context={t("context_workflow_runs")} />
+        <SpendingMetric title={t("metric_month")} value={formatSpendingCurrency(payload.totals.month_usd)} context={t("context_workflow_runs")} />
+        <SpendingMetric
+          title={t("metric_lifetime")}
+          value={formatSpendingCurrency(payload.totals.lifetime_usd)}
+          context={t("context_runs_chats", {
+            runs: formatSpendingCurrency(payload.totals.workflow_lifetime_usd),
+            chats: formatSpendingCurrency(payload.totals.chat_lifetime_usd)
+          })}
+        />
+        <SpendingMetric title={t("metric_avg_job")} value={formatSpendingCurrency(payload.totals.average_job_30d_usd)} context={t("context_last_30_days")} />
+        <SpendingMetric
+          title={t("metric_avg_merged_pr")}
+          value={formatSpendingCurrency(payload.totals.average_merged_pr_30d_usd)}
+          context={t("context_last_30_days")}
+        />
+      </MetricUi.Group>
 
-      <section aria-label={t("trend_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("trend")}</h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{t("trend_days", { count: payload.trend.length })}</span>
-        </div>
+      <Section.Root aria-label={t("trend_aria")}>
+        <Section.Header className="mb-3">
+          <Section.Title>{t("trend")}</Section.Title>
+          <Text as="span" variant="caption" muted>
+            {t("trend_days", { count: payload.trend.length })}
+          </Text>
+        </Section.Header>
         <TrendChart points={payload.trend} />
-      </section>
+      </Section.Root>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <BreakdownTable title={t("by_epic")} entityLabel={t("entity_epic")} rows={payload.breakdowns.epics} prefix={prefix} columns="standard" emptyLabel={t("empty_epic")} />
-        <BreakdownTable title={t("by_user")} entityLabel={t("entity_user")} rows={payload.breakdowns.users} prefix={prefix} columns="users" emptyLabel={t("empty_user")} />
-        <BreakdownTable title={t("by_repository")} entityLabel={t("entity_repository")} rows={payload.breakdowns.repositories} prefix={prefix} columns="standard" emptyLabel={t("empty_repository")} />
+        <BreakdownTable
+          title={t("by_epic")}
+          entityLabel={t("entity_epic")}
+          rows={payload.breakdowns.epics}
+          prefix={prefix}
+          columns="standard"
+          emptyLabel={t("empty_epic")}
+        />
+        <BreakdownTable
+          title={t("by_user")}
+          entityLabel={t("entity_user")}
+          rows={payload.breakdowns.users}
+          prefix={prefix}
+          columns="users"
+          emptyLabel={t("empty_user")}
+        />
+        <BreakdownTable
+          title={t("by_repository")}
+          entityLabel={t("entity_repository")}
+          rows={payload.breakdowns.repositories}
+          prefix={prefix}
+          columns="standard"
+          emptyLabel={t("empty_repository")}
+        />
         <TriggerTable rows={payload.breakdowns.trigger_kinds} />
       </div>
 
       <TopRunsTable payload={payload} prefix={prefix} />
-    </main>
+    </Page.Root>
   )
 }
 
 const legacyFilterKeys = ["start_date", "end_date", "repository_id", "epic_id", "user_id", "agent_provider", "trigger_kind"]
 
-function Metric({ title, value, context }: { title: string; value: string; context: string }) {
-  return (
-    <article className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</h2>
-      <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
-      <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{context}</p>
-    </article>
-  )
+function SpendingMetric({ title, value, context }: { title: string; value: string; context: string }) {
+  return <MetricUi.Card description={context} label={title} value={value} />
 }
 
 function TrendChart({ points }: { points: SpendingPayload["trend"] }) {
@@ -101,7 +144,11 @@ function TrendChart({ points }: { points: SpendingPayload["trend"] }) {
   const width = Math.max(points.length * 7, 320)
 
   if (points.length === 0) {
-    return <div className="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400">{t("no_spending")}</div>
+    return (
+      <Text className="flex h-48 items-center justify-center" muted>
+        {t("no_spending")}
+      </Text>
+    )
   }
 
   return (
@@ -111,16 +158,10 @@ function TrendChart({ points }: { points: SpendingPayload["trend"] }) {
         {points.map((point, index) => {
           const barHeight = max > 0 ? Math.max(2, (point.total_usd / max) * 145) : 0
           return (
-            <rect
-              fill="#b6492e"
-              height={barHeight}
-              key={point.date}
-              rx="1"
-              width="4"
-              x={index * 7 + 1}
-              y={160 - barHeight}
-            >
-              <title>{point.date}: {formatSpendingCurrency(point.total_usd)}</title>
+            <rect fill="#b6492e" height={barHeight} key={point.date} rx="1" width="4" x={index * 7 + 1} y={160 - barHeight}>
+              <title>
+                {point.date}: {formatSpendingCurrency(point.total_usd)}
+              </title>
             </rect>
           )
         })}
@@ -129,49 +170,75 @@ function TrendChart({ points }: { points: SpendingPayload["trend"] }) {
   )
 }
 
-function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel }: { title: string; entityLabel: string; rows: SpendingBreakdownRow[]; prefix: string; columns: "standard" | "users"; emptyLabel: string }) {
+function BreakdownTable({
+  title,
+  entityLabel,
+  rows,
+  prefix,
+  columns,
+  emptyLabel
+}: {
+  title: string
+  entityLabel: string
+  rows: SpendingBreakdownRow[]
+  prefix: string
+  columns: "standard" | "users"
+  emptyLabel: string
+}) {
   const { t } = useT("spending")
   const [sort, setSort] = useState<SortState>({ key: "total_usd", direction: "desc" })
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
 
   return (
-    <section aria-label={title} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+    <Section.Root aria-label={title} padding="none">
       <TableHeader title={title} />
-      {rows.length === 0 ? <EmptyTable label={emptyLabel} /> : (
-        <div className="overflow-x-auto">
-          <table className="min-w-[40rem] table-fixed w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-            <colgroup>
-              <col />
-              <col className="w-20" />
-              <col className="w-32" />
-              <col className="w-32" />
-            </colgroup>
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <SortableHeader label={entityLabel} sortKey="label" sort={sort} setSort={setSort} />
-                <SortableHeader label={t("col_jobs")} sortKey="jobs_count" sort={sort} setSort={setSort} align="right" />
-                <SortableHeader label={t("col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
-                <SortableHeader label={columns === "users" ? t("col_last_30") : t("col_avg_job")} sortKey={columns === "users" ? "last_30_days_usd" : "average_job_usd"} sort={sort} setSort={setSort} align="right" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-              {sorted.map((row) => (
-                <tr key={row.id}>
-                  <td className="max-w-0 px-4 py-3">
-                    <Link className="block truncate font-medium text-brand dark:text-brand-emphasis underline hover:no-underline" title={breakdownLabel(row)} to={withRoutePrefix(row.path, prefix)}>
-                      {breakdownLabel(row)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.jobs_count}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(row.total_usd)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatSpendingCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {rows.length === 0 ? (
+        <EmptyTable label={emptyLabel} />
+      ) : (
+        <DataTable.Root className="min-w-[40rem] table-fixed w-full" wrapperClassName="rounded-none border-0">
+          <colgroup>
+            <col />
+            <col className="w-20" />
+            <col className="w-32" />
+            <col className="w-32" />
+          </colgroup>
+          <DataTable.Header>
+            <DataTable.Row>
+              <SortableHeader label={entityLabel} sortKey="label" sort={sort} setSort={setSort} />
+              <SortableHeader label={t("col_jobs")} sortKey="jobs_count" sort={sort} setSort={setSort} align="right" />
+              <SortableHeader label={t("col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
+              <SortableHeader
+                label={columns === "users" ? t("col_last_30") : t("col_avg_job")}
+                sortKey={columns === "users" ? "last_30_days_usd" : "average_job_usd"}
+                sort={sort}
+                setSort={setSort}
+                align="right"
+              />
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {sorted.map((row) => (
+              <DataTable.Row key={row.id}>
+                <DataTable.Cell className="max-w-0">
+                  <LinkText className="block truncate" title={breakdownLabel(row)} to={withRoutePrefix(row.path, prefix)}>
+                    {breakdownLabel(row)}
+                  </LinkText>
+                </DataTable.Cell>
+                <DataTable.Cell align="right" className="tabular-nums text-text-muted">
+                  {row.jobs_count}
+                </DataTable.Cell>
+                <DataTable.Cell align="right" className="tabular-nums font-medium">
+                  {formatSpendingCurrency(row.total_usd)}
+                </DataTable.Cell>
+                <DataTable.Cell align="right" className="tabular-nums text-text-muted">
+                  {formatSpendingCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd)}
+                </DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
       )}
-    </section>
+    </Section.Root>
   )
 }
 
@@ -181,100 +248,142 @@ function TriggerTable({ rows }: { rows: SpendingTriggerRow[] }) {
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
 
   return (
-    <section aria-label={t("trigger_aria")} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+    <Section.Root aria-label={t("trigger_aria")} padding="none">
       <TableHeader title={t("by_trigger_kind")} />
-      {rows.length === 0 ? <EmptyTable label={t("empty_trigger")} /> : (
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            <tr>
+      {rows.length === 0 ? (
+        <EmptyTable label={t("empty_trigger")} />
+      ) : (
+        <DataTable.Root wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTable.Row>
               <SortableHeader label={t("col_trigger")} sortKey="label" sort={sort} setSort={setSort} />
               <SortableHeader label={t("col_runs")} sortKey="runs_count" sort={sort} setSort={setSort} align="right" />
               <SortableHeader label={t("col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
               <SortableHeader label={t("col_avg_run")} sortKey="average_usd" sort={sort} setSort={setSort} align="right" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {sorted.map((row) => (
-              <tr key={row.trigger_kind}>
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{humanize(row.trigger_kind)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.runs_count}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(row.total_usd)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatSpendingCurrency(row.average_usd)}</td>
-              </tr>
+              <DataTable.Row key={row.trigger_kind}>
+                <DataTable.Cell className="font-medium">{humanize(row.trigger_kind)}</DataTable.Cell>
+                <DataTable.Cell align="right" className="tabular-nums text-text-muted">
+                  {row.runs_count}
+                </DataTable.Cell>
+                <DataTable.Cell align="right" className="tabular-nums font-medium">
+                  {formatSpendingCurrency(row.total_usd)}
+                </DataTable.Cell>
+                <DataTable.Cell align="right" className="tabular-nums text-text-muted">
+                  {formatSpendingCurrency(row.average_usd)}
+                </DataTable.Cell>
+              </DataTable.Row>
             ))}
-          </tbody>
-        </table>
+          </DataTable.Body>
+        </DataTable.Root>
       )}
-    </section>
+    </Section.Root>
   )
 }
 
 function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: string }) {
   const { t } = useT("spending")
   return (
-    <section aria-label={t("top_runs_aria")} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+    <Section.Root aria-label={t("top_runs_aria")} padding="none">
       <TableHeader title={t("top_runs")} />
-      {payload.top_runs.length === 0 ? <EmptyTable label={t("empty_top_runs")} /> : (
-        <div className="overflow-x-auto">
-          <table className="min-w-[56rem] table-fixed divide-y divide-gray-200 dark:divide-gray-700 text-sm w-full">
-            <colgroup>
-              <col className="w-1/4" />
-              <col className="w-1/2" />
-              <col className="w-40" />
-              <col className="w-28" />
-            </colgroup>
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2 font-medium">{t("col_run")}</th>
-                <th className="px-4 py-2 font-medium">{t("col_job")}</th>
-                <th className="px-4 py-2 font-medium">{t("col_repository")}</th>
-                <th className="px-4 py-2 text-right font-medium">{t("col_cost")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-              {payload.top_runs.map((run) => (
-                <tr key={run.id}>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">{t("run_number", { id: run.id })}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{humanize(run.trigger_kind)} / {run.agent_provider}</div>
-                  </td>
-                  <td className="max-w-0 px-4 py-3">
-                    <Link className="block truncate text-brand dark:text-brand-emphasis underline hover:no-underline" title={run.job.title || `JOB-${run.job.id}`} to={withRoutePrefix(run.job.path, prefix)}>{run.job.title || `JOB-${run.job.id}`}</Link>
-                    {run.epic ? <div className="truncate text-xs text-gray-500 dark:text-gray-400" title={`${run.epic.display_number} / ${run.epic.title}`}>{run.epic.display_number} / {run.epic.title}</div> : null}
-                  </td>
-                  <td className="max-w-0 px-4 py-3">
-                    <Link className="block truncate font-mono text-xs text-brand dark:text-brand-emphasis underline hover:no-underline" title={run.repository.slug} to={withRoutePrefix(run.repository.path, prefix)}>{run.repository.slug}</Link>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(run.cost_usd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {payload.top_runs.length === 0 ? (
+        <EmptyTable label={t("empty_top_runs")} />
+      ) : (
+        <DataTable.Root className="min-w-[56rem] table-fixed w-full" wrapperClassName="rounded-none border-0">
+          <colgroup>
+            <col className="w-1/4" />
+            <col className="w-1/2" />
+            <col className="w-40" />
+            <col className="w-28" />
+          </colgroup>
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("col_run")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_job")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("col_repository")}</DataTable.HeadCell>
+              <DataTable.HeadCell align="right">{t("col_cost")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {payload.top_runs.map((run) => (
+              <DataTable.Row key={run.id}>
+                <DataTable.Cell>
+                  <Text as="div" className="font-medium">
+                    {t("run_number", { id: run.id })}
+                  </Text>
+                  <Text as="div" variant="caption" muted>
+                    {humanize(run.trigger_kind)} / {run.agent_provider}
+                  </Text>
+                </DataTable.Cell>
+                <DataTable.Cell className="max-w-0">
+                  <LinkText className="block truncate" title={run.job.title || `JOB-${run.job.id}`} to={withRoutePrefix(run.job.path, prefix)}>
+                    {run.job.title || `JOB-${run.job.id}`}
+                  </LinkText>
+                  {run.epic ? (
+                    <Text as="div" className="truncate" title={`${run.epic.display_number} / ${run.epic.title}`} variant="caption" muted>
+                      {run.epic.display_number} / {run.epic.title}
+                    </Text>
+                  ) : null}
+                </DataTable.Cell>
+                <DataTable.Cell className="max-w-0">
+                  <LinkText className="block truncate font-mono text-xs" title={run.repository.slug} to={withRoutePrefix(run.repository.path, prefix)}>
+                    {run.repository.slug}
+                  </LinkText>
+                </DataTable.Cell>
+                <DataTable.Cell align="right" className="tabular-nums font-medium">
+                  {formatSpendingCurrency(run.cost_usd)}
+                </DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
       )}
-    </section>
+    </Section.Root>
   )
 }
 
 function TableHeader({ title }: { title: string }) {
-  return <h2 className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+  return (
+    <Section.Header className="border-b border-border px-4 py-3">
+      <Section.Title>{title}</Section.Title>
+    </Section.Header>
+  )
 }
 
 function EmptyTable({ label }: { label: string }) {
-  return <div className="px-4 py-8 text-sm text-gray-500 dark:text-gray-400">{label}</div>
+  return (
+    <Text className="px-4 py-8" muted>
+      {label}
+    </Text>
+  )
 }
 
-function SortableHeader({ label, sortKey, sort, setSort, align = "left" }: { label: string; sortKey: SortKey; sort: SortState; setSort: (sort: SortState) => void; align?: "left" | "right" }) {
-  const { t } = useT("spending")
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  setSort,
+  align = "left"
+}: {
+  label: string
+  sortKey: SortKey
+  sort: SortState
+  setSort: (sort: SortState) => void
+  align?: "left" | "right"
+}) {
   const active = sort.key === sortKey
   const nextDirection = active && sort.direction === "desc" ? "asc" : "desc"
   return (
-    <th className={`px-4 py-2 font-medium ${align === "right" ? "text-right" : "text-left"}`}>
-      <button className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100" type="button" onClick={() => setSort({ key: sortKey, direction: nextDirection })}>
-        {label}
-        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{active ? (sort.direction === "desc" ? t("sort_desc") : t("sort_asc")) : t("sort_none")}</span>
-      </button>
-    </th>
+    <DataTable.HeadCell
+      align={align}
+      onSort={() => setSort({ key: sortKey, direction: nextDirection })}
+      sortDirection={active ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}
+    >
+      {label}
+    </DataTable.HeadCell>
   )
 }
 
@@ -282,9 +391,7 @@ function sortRows<T extends SpendingBreakdownRow | SpendingTriggerRow>(rows: T[]
   return [...rows].sort((a, b) => {
     const aValue = sortValue(a, sort.key)
     const bValue = sortValue(b, sort.key)
-    const comparison = typeof aValue === "string" || typeof bValue === "string"
-      ? String(aValue).localeCompare(String(bValue))
-      : Number(aValue) - Number(bValue)
+    const comparison = typeof aValue === "string" || typeof bValue === "string" ? String(aValue).localeCompare(String(bValue)) : Number(aValue) - Number(bValue)
 
     return sort.direction === "asc" ? comparison : -comparison
   })

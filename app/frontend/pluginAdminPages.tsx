@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { matchPath, useLocation } from "react-router-dom"
 import { fetchAdminPluginPages } from "./api/adminPluginPages"
+import { Notice, Page, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {
@@ -11,12 +12,14 @@ type PluginModule = {
 const routeModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/routes/*.tsx")
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(routeModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType>()
@@ -58,9 +61,7 @@ export function usePluginAdminPage() {
     staleTime: 30_000
   })
 
-  const page = pages.data?.pages.find((candidate) =>
-    candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null)
-  )
+  const page = pages.data?.pages.find((candidate) => candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null))
 
   return { isPending: pages.isPending, page, Component: pluginAdminComponentFor(page?.component) }
 }
@@ -68,22 +69,26 @@ export function usePluginAdminPage() {
 export function PluginAdminPageRoute() {
   const { t } = useT("admin")
   const { isPending, page, Component } = usePluginAdminPage()
+  const loading = (
+    <Page.Root aria-label={t("loading")} size="wide">
+      <Text muted>{t("loading")}</Text>
+    </Page.Root>
+  )
 
   if (isPending) {
-    return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
+    return loading
   }
 
   if (!page || !Component) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t("plugin_pages.unavailable_heading")}</h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("plugin_pages.unavailable_body")}</p>
-      </main>
+      <Page.Root size="narrow">
+        <Notice title={t("plugin_pages.unavailable_heading")}>{t("plugin_pages.unavailable_body")}</Notice>
+      </Page.Root>
     )
   }
 
   return (
-    <Suspense fallback={<main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>}>
+    <Suspense fallback={loading}>
       <Component />
     </Suspense>
   )

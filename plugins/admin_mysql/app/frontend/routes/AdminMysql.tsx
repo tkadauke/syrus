@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
-import { Checkbox } from "@app/components/Checkbox"
-import { PageHeading } from "@app/components/Heading"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
+import { Button, Checkbox, CodeSurface, DescriptionList, Metric, Notice, Page, Section, Select, Text, Toolbar } from "@app/components/ui"
 import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSnapshot } from "../api/adminMysql"
 
 export function AdminMysql() {
@@ -37,35 +36,32 @@ export function AdminMysql() {
   }
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page.Root aria-label={t("aria_page")} size="wide">
       {dialog}
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-4 dark:border-gray-700">
-        <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin:section_label")}</p>
-          <PageHeading className="mt-1">{t("heading")}</PageHeading>
-          <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-            {t("description")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="mysql-limit">{t("rows")}</label>
-          <select
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-            id="mysql-limit"
-            onChange={(event) => setLimit(Number(event.target.value))}
-            value={limit}
-          >
-            {[25, 50, 100, 200].map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-          <button
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-            onClick={() => void mysql.refetch()}
-            type="button"
-          >
+      <Page.Header>
+        <Page.HeadingGroup>
+          <Text variant="label" muted>
+            {t("admin:section_label")}
+          </Text>
+          <Page.Title>{t("heading")}</Page.Title>
+          <Page.Description className="max-w-3xl">{t("description")}</Page.Description>
+        </Page.HeadingGroup>
+        <Page.Actions>
+          <Text as="label" className="normal-case tracking-normal" htmlFor="mysql-limit" variant="label">
+            {t("rows")}
+          </Text>
+          <Select fullWidth={false} id="mysql-limit" onChange={(event) => setLimit(Number(event.target.value))} value={limit}>
+            {[25, 50, 100, 200].map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </Select>
+          <Button onClick={() => void mysql.refetch()} variant="secondary">
             {t("refresh")}
-          </button>
-        </div>
-      </header>
+          </Button>
+        </Page.Actions>
+      </Page.Header>
 
       {mysql.isPending ? <Panel>{t("loading")}</Panel> : null}
       {mysql.isError ? <Panel tone="error">{mysql.error instanceof Error ? mysql.error.message : t("error_load")}</Panel> : null}
@@ -85,7 +81,7 @@ export function AdminMysql() {
           t={t}
         />
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -114,12 +110,28 @@ function MysqlDashboard({
   const visibleProcesses = hideIdle ? activeProcesses : payload.process_list
   return (
     <div className="space-y-6">
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label={t("metric_threads_running")} value={formatValue(summary.threads_running)} detail={t("metric_threads_connected", { count: formatValue(summary.threads_connected) })} />
-        <MetricCard label={t("metric_connections_used")} value={connectionPercent(summary)} detail={t("metric_connections_limit", { max: formatValue(summary.max_used_connections), limit: formatValue(summary.max_connections) })} />
-        <MetricCard label={t("metric_sleeping_connections")} value={formatValue(summary.sleeping_connections)} detail={t("metric_wait_timeout", { seconds: formatValue(summary.wait_timeout) })} />
-        <MetricCard label={t("metric_buffer_pool")} value={formatBytes(Number(payload.variables.innodb_buffer_pool_size))} detail={t("metric_database", { database: payload.database })} />
-      </section>
+      <Metric.Group className="md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label={t("metric_threads_running")}
+          value={formatValue(summary.threads_running)}
+          detail={t("metric_threads_connected", { count: formatValue(summary.threads_connected) })}
+        />
+        <MetricCard
+          label={t("metric_connections_used")}
+          value={connectionPercent(summary)}
+          detail={t("metric_connections_limit", { max: formatValue(summary.max_used_connections), limit: formatValue(summary.max_connections) })}
+        />
+        <MetricCard
+          label={t("metric_sleeping_connections")}
+          value={formatValue(summary.sleeping_connections)}
+          detail={t("metric_wait_timeout", { seconds: formatValue(summary.wait_timeout) })}
+        />
+        <MetricCard
+          label={t("metric_buffer_pool")}
+          value={formatBytes(Number(payload.variables.innodb_buffer_pool_size))}
+          detail={t("metric_database", { database: payload.database })}
+        />
+      </Metric.Group>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <KeyValuePanel
@@ -155,18 +167,16 @@ function MysqlDashboard({
         />
       </section>
 
-      <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("process_list")}</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <Checkbox
-              checked={hideIdle}
-              label={t("hide_idle_threads", { count: idleCount })}
-              onChange={onToggleHideIdle}
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t("generated", { time: new Date(payload.generated_at).toLocaleString() })}</p>
-          </div>
-        </div>
+      <Section.Root divided padding="none">
+        <Section.Header className="px-4 py-3">
+          <Section.Title>{t("process_list")}</Section.Title>
+          <Toolbar className="text-xs" gap="md" justify="end">
+            <Checkbox checked={hideIdle} label={t("hide_idle_threads", { count: idleCount })} onChange={onToggleHideIdle} />
+            <Text variant="caption" muted>
+              {t("generated", { time: new Date(payload.generated_at).toLocaleString() })}
+            </Text>
+          </Toolbar>
+        </Section.Header>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
             <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
@@ -195,7 +205,9 @@ function MysqlDashboard({
                   <td className="px-4 py-2">{process.time_seconds}s</td>
                   <td className="px-4 py-2">{process.state || "-"}</td>
                   <td className="px-4 py-2 font-mono text-xs">{process.host}</td>
-                  <td className="max-w-2xl truncate px-4 py-2 font-mono text-xs" title={process.info || ""}>{process.info || "-"}</td>
+                  <td className="max-w-2xl truncate px-4 py-2 font-mono text-xs" title={process.info || ""}>
+                    {process.info || "-"}
+                  </td>
                   <td className="px-4 py-2">
                     {process.command && process.command !== "Sleep" ? (
                       <button
@@ -213,7 +225,7 @@ function MysqlDashboard({
             </tbody>
           </table>
         </div>
-      </section>
+      </Section.Root>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <StatementDigestPanel payload={payload} t={t} />
@@ -225,16 +237,15 @@ function MysqlDashboard({
 
 function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: ReturnType<typeof useT>["t"] }) {
   return (
-    <section className="min-w-0 rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("statement_digests")}</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t("statement_digests_description")}</p>
-      </div>
+    <Section.Root className="min-w-0" divided padding="none">
+      <Section.Header className="px-4 py-3">
+        <div>
+          <Section.Title>{t("statement_digests")}</Section.Title>
+          <Section.Description>{t("statement_digests_description")}</Section.Description>
+        </div>
+      </Section.Header>
       {!payload.statement_digests.available ? (
-        <UnavailablePanel
-          fallback={t("statement_digests_unavailable")}
-          error={payload.statement_digests.error}
-        />
+        <UnavailablePanel fallback={t("statement_digests_unavailable")} error={payload.statement_digests.error} />
       ) : (
         <div className="max-h-[32rem] overflow-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
@@ -252,35 +263,44 @@ function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: Retur
                   <td className="px-4 py-2">{formatSeconds(row.total_seconds)}</td>
                   <td className="px-4 py-2">{formatSeconds(row.max_seconds)}</td>
                   <td className="px-4 py-2">{row.count}</td>
-                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.digest_text || ""}>{row.digest_text || "-"}</td>
+                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.digest_text || ""}>
+                    {row.digest_text || "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-    </section>
+    </Section.Root>
   )
 }
 
-function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload, t }: { includeSlowLog: boolean; onToggleSlowLog: () => void; payload: MysqlSnapshot; t: ReturnType<typeof useT>["t"] }) {
+function SlowLogPanel({
+  includeSlowLog,
+  onToggleSlowLog,
+  payload,
+  t
+}: {
+  includeSlowLog: boolean
+  onToggleSlowLog: () => void
+  payload: MysqlSnapshot
+  t: ReturnType<typeof useT>["t"]
+}) {
   return (
-    <section className="min-w-0 rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+    <Section.Root className="min-w-0" divided padding="none">
+      <Section.Header className="px-4 py-3">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("slow_log")}</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")} · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
-          </p>
+          <Section.Title>{t("slow_log")}</Section.Title>
+          <Section.Description>
+            slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")}{" "}
+            · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
+          </Section.Description>
         </div>
-        <button
-          className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-          onClick={onToggleSlowLog}
-          type="button"
-        >
+        <Button onClick={onToggleSlowLog} size="sm" variant="secondary">
           {includeSlowLog ? t("hide_slow_log") : t("load_slow_log")}
-        </button>
-      </div>
+        </Button>
+      </Section.Header>
       {!payload.slow_log.available ? (
         <UnavailablePanel fallback={t("slow_log_unavailable")} error={payload.slow_log.error} />
       ) : (
@@ -300,14 +320,16 @@ function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload, t }: { include
                   <td className="px-4 py-2">{row.start_time ? new Date(row.start_time).toLocaleString() : "-"}</td>
                   <td className="px-4 py-2">{row.query_time}</td>
                   <td className="px-4 py-2">{row.rows_examined}</td>
-                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.sql_text || ""}>{row.sql_text || "-"}</td>
+                  <td className="max-w-xl truncate px-4 py-2 font-mono text-xs" title={row.sql_text || ""}>
+                    {row.sql_text || "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-    </section>
+    </Section.Root>
   )
 }
 
@@ -316,13 +338,9 @@ function UnavailablePanel({ error, fallback }: { error?: { message: string; hint
     <div className="space-y-3 p-4">
       <Panel>
         <div className="space-y-2">
-          <p className="font-medium text-gray-900 dark:text-gray-100">{error?.message || fallback}</p>
-          {error?.hint ? <p>{error.hint}</p> : null}
-          {error?.setup_sql?.length ? (
-            <pre className="overflow-x-auto rounded bg-gray-100 p-3 font-mono text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-100">
-              {error.setup_sql.join("\n")}
-            </pre>
-          ) : null}
+          <Text className="font-medium">{error?.message || fallback}</Text>
+          {error?.hint ? <Text>{error.hint}</Text> : null}
+          {error?.setup_sql?.length ? <CodeSurface code={error.setup_sql.join("\n")} /> : null}
         </div>
       </Panel>
     </div>
@@ -331,37 +349,27 @@ function UnavailablePanel({ error, fallback }: { error?: { message: string; hint
 
 function KeyValuePanel({ title, values }: { title: string; values: Record<string, unknown> }) {
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <h2 className="border-b border-gray-200 px-4 py-3 text-lg font-semibold text-gray-900 dark:border-gray-800 dark:text-gray-100">{title}</h2>
-      <dl className="grid grid-cols-1 gap-px bg-gray-100 text-sm dark:bg-gray-800 sm:grid-cols-2">
+    <Section.Root divided padding="none">
+      <Section.Header className="px-4 py-3">
+        <Section.Title>{title}</Section.Title>
+      </Section.Header>
+      <DescriptionList.Root className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2">
         {Object.entries(values).map(([key, value]) => (
-          <div className="bg-white px-4 py-3 dark:bg-gray-950" key={key}>
-            <dt className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{key}</dt>
-            <dd className="mt-1 break-all font-mono text-gray-900 dark:text-gray-100">{formatValue(value)}</dd>
-          </div>
+          <DescriptionList.Item className="bg-surface px-4 py-3" descriptionClassName="break-all font-mono text-sm" key={key} label={key}>
+            {formatValue(value)}
+          </DescriptionList.Item>
         ))}
-      </dl>
-    </section>
+      </DescriptionList.Root>
+    </Section.Root>
   )
 }
 
 function MetricCard({ detail, label, value }: { detail: string; label: string; value: string }) {
-  return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
-      <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{detail}</p>
-    </section>
-  )
+  return <Metric.Card description={detail} label={label} value={value} />
 }
 
 function Panel({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "error" | "success" }) {
-  const classes = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
-    : tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
-      : "border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
-  return <div className={`rounded border px-4 py-3 text-sm ${classes}`}>{children}</div>
+  return <Notice tone={tone === "error" ? "danger" : tone}>{children}</Notice>
 }
 
 function connectionPercent(summary: MysqlSnapshot["connection_summary"]) {
