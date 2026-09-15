@@ -48,6 +48,8 @@ RSpec.describe SolidQueueCleanupJob do
     stub_const("SolidQueue::Job", cleanup_class)
     allow_any_instance_of(described_class).to receive(:sleep)
     allow_any_instance_of(described_class).to receive(:prune_obsolete_ready_jobs)
+    allow_any_instance_of(described_class).to receive(:prune_dead_resume_ready_executions)
+    allow_any_instance_of(described_class).to receive(:prune_orphaned_jobs)
     allow_any_instance_of(described_class).to receive(:prune_duplicate_workflow_phase_admission_jobs)
     allow_any_instance_of(described_class).to receive(:prune_duplicate_polling_jobs)
 
@@ -116,6 +118,8 @@ RSpec.describe SolidQueueCleanupJob do
 
     job = described_class.new
     allow(job).to receive(:prune_finished_jobs)
+    allow(job).to receive(:prune_dead_resume_ready_executions)
+    allow(job).to receive(:prune_orphaned_jobs)
     allow(job).to receive(:prune_duplicate_workflow_phase_admission_jobs)
     allow(job).to receive(:prune_duplicate_polling_jobs)
     allow(job).to receive(:obsolete_ready_job_scope).and_return(relation)
@@ -206,6 +210,139 @@ RSpec.describe SolidQueueCleanupJob do
     clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
   end
 
+  describe "orphaned job rows" do
+    # A job row with no execution row of any kind is reachable by nothing: no
+    # worker claims it, and the finished-job pruner skips it because it never
+    # finished. 553,671 of these accumulated in production -- 83% of a table
+    # every dispatcher scan reads.
+    it "deletes unfinished job rows that have no execution row" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+
+      orphan = solid_queue_job_without_execution(created_at: 2.days.ago)
+      backed = solid_queue_job(
+        class_name: "PollPullRequestJob", queue_name: "polling",
+        arguments: { "arguments" => [ 1 ] }, created_at: 2.days.ago
+      )
+
+      run_only_orphan_sweep
+
+      expect(SolidQueue::Job.where(id: orphan.id)).to be_empty
+      expect(SolidQueue::Job.where(id: backed.id)).to be_present,
+        "a row with a ready execution is live work, not an orphan"
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
+    # Enqueue is not always one transaction, so a job row can briefly exist
+    # with no execution row yet. Deleting those would drop work that was about
+    # to run.
+    it "leaves a recently created row alone, in case its execution is still on its way" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+
+      fresh = solid_queue_job_without_execution(created_at: 5.minutes.ago)
+
+      run_only_orphan_sweep
+
+      expect(SolidQueue::Job.where(id: fresh.id)).to be_present
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
+    # Walking by id cursor rather than re-filtering from the start each batch
+    # is what keeps a run of live rows from stalling the sweep on them.
+    it "gets past live rows to reach orphans behind them" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+
+      live = Array.new(3) do |i|
+        solid_queue_job(
+          class_name: "PollPullRequestJob", queue_name: "polling",
+          arguments: { "arguments" => [ i ] }, created_at: 2.days.ago
+        )
+      end
+      orphan = solid_queue_job_without_execution(created_at: 2.days.ago)
+
+      stub_const("#{described_class}::ORPHAN_BATCH_SIZE", 2)
+      run_only_orphan_sweep
+
+      expect(SolidQueue::Job.where(id: orphan.id)).to be_empty
+      expect(SolidQueue::Job.where(id: live.map(&:id)).count).to eq(3)
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+  end
+
+  describe "ready executions stranded on a dead resume queue" do
+    # The queue names a worker's storage key. Once that storage is gone nothing
+    # advertises the queue, so the row can never be claimed -- and while it sits
+    # there it pins syrus_global_queue_oldest_age_seconds, the headline "is
+    # Syrus keeping up" number, at an age that only grows. One dead row had the
+    # dashboard reporting a 31-hour backlog that did not exist.
+    it "deletes a terminal Run's row when no live worker serves its queue" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      dead = "resume-58e4be51-b732-47b8-801b-d5260ae10d6e"
+      allow(InstanceVersion).to receive(:worker_queue_live?).with(dead).and_return(false)
+
+      failed_run = run
+      failed_run.update!(state: "failed")
+      stranded = solid_queue_job(
+        class_name: "RunJob", queue_name: dead,
+        arguments: { "arguments" => [ failed_run.id ] }, created_at: 2.hours.ago
+      )
+
+      run_only_dead_resume_sweep
+
+      expect(SolidQueue::Job.where(id: stranded.id)).to be_empty
+      expect(SolidQueue::ReadyExecution.where(job_id: stranded.id)).to be_empty
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
+    # WorkEngine::Reconciler owns the queued case -- it re-enqueues the Run onto
+    # a live queue. Deleting the row here would race it and strand real work.
+    it "leaves a still-queued Run's row for the reconciler to re-enqueue" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      dead = "resume-58e4be51-b732-47b8-801b-d5260ae10d6e"
+      allow(InstanceVersion).to receive(:worker_queue_live?).with(dead).and_return(false)
+
+      queued_run = run
+      stranded = solid_queue_job(
+        class_name: "RunJob", queue_name: dead,
+        arguments: { "arguments" => [ queued_run.id ] }, created_at: 2.hours.ago
+      )
+
+      run_only_dead_resume_sweep
+
+      expect(SolidQueue::Job.where(id: stranded.id)).to be_present
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
+    it "leaves rows alone while a live worker still serves the queue" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      live = "resume-1b51ff34-d5d2-43ef-94d4-aa4b2440b9c5"
+      allow(InstanceVersion).to receive(:worker_queue_live?).with(live).and_return(true)
+
+      failed_run = run
+      failed_run.update!(state: "failed")
+      kept = solid_queue_job(
+        class_name: "RunJob", queue_name: live,
+        arguments: { "arguments" => [ failed_run.id ] }, created_at: 2.hours.ago
+      )
+
+      run_only_dead_resume_sweep
+
+      expect(SolidQueue::Job.where(id: kept.id)).to be_present
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+  end
+
   it "runs frequently enough to spread cleanup work" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
 
@@ -214,6 +351,46 @@ RSpec.describe SolidQueueCleanupJob do
       "queue" => "cleanup",
       "schedule" => "every 5 minutes"
     )
+  end
+
+  def run_only_orphan_sweep
+    job = described_class.new
+    %i[prune_finished_jobs prune_obsolete_ready_jobs prune_dead_resume_ready_executions
+       prune_duplicate_workflow_phase_admission_jobs prune_duplicate_polling_jobs].each do |method|
+      allow(job).to receive(method)
+    end
+    allow(job).to receive(:sleep)
+    job.perform
+  end
+
+  def run_only_dead_resume_sweep
+    job = described_class.new
+    %i[prune_finished_jobs prune_obsolete_ready_jobs prune_orphaned_jobs
+       prune_duplicate_workflow_phase_admission_jobs prune_duplicate_polling_jobs].each do |method|
+      allow(job).to receive(method)
+    end
+    allow(job).to receive(:sleep)
+    job.perform
+  end
+
+  # The absence of an execution row is what makes a job row an orphan, and
+  # Solid Queue will not let you create one directly -- SolidQueue::Job creates
+  # its ready execution on create. Which is the point: orphans do not come from
+  # enqueueing, they come from an execution row being deleted out from under a
+  # job row, so the fixture reproduces that rather than a state the writer path
+  # can reach.
+  def solid_queue_job_without_execution(created_at:, class_name: "IndexTestCaseSearchJob", queue_name: "indexing")
+    job = SolidQueue::Job.create!(
+      class_name: class_name,
+      queue_name: queue_name,
+      priority: 0,
+      arguments: { "arguments" => [ 1 ] },
+      created_at: created_at,
+      updated_at: created_at
+    )
+    SolidQueue::ReadyExecution.where(job_id: job.id).delete_all
+    SolidQueue::ScheduledExecution.where(job_id: job.id).delete_all
+    job
   end
 
   def solid_queue_job(arguments:, created_at:, class_name: "WorkflowPhaseAdmissionJob", queue_name: "control_plane")

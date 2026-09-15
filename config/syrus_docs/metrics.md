@@ -67,9 +67,26 @@ tells them apart.
 
 `syrus_global_queue_orphaned_rows` counts job rows that are unfinished *and*
 have no execution row of any kind. Nothing can reach them: no worker will claim
-them, and `clear_solid_queue_finished_jobs` skips them because they never
-finished. There were 553,671 in production when this was written, 84% of the
-queue table.
+them, and the finished-job pruner skips them because they never finished. There
+were 553,671 in production when this was written, 84% of the queue table.
+
+`SolidQueueCleanupJob` now sweeps them, in its own larger batches because the
+ordinary per-run budget would have taken two days to work through that backlog.
+Only rows older than `ORPHAN_MIN_AGE` are eligible: Solid Queue creates a job
+row and its execution row together, so a row without one is either an orphan or
+an enqueue caught mid-flight, and the age guard is what tells those apart.
+
+The same job sweeps **ready executions stranded on a dead `resume-` queue**. A
+`resume-<storage-key>` queue is served only by the worker holding that storage;
+once that worker is gone nothing advertises the queue, and a row on it can never
+be claimed. `WorkEngine::Reconciler` already handles this for a *queued* Run
+(`queued_run_on_dead_resume_queue`, which re-enqueues it onto a live queue) and
+keeps that job — but it scans Runs, so a **terminal** Run's leftover row is
+invisible to it and simply sits. That row is inert (RunJob returns early on a
+terminal Run) but not harmless: while it sits it pins
+`syrus_global_queue_oldest_age_seconds`, the headline number above, at an age
+that only grows. A single such row had the dashboard reporting a 31-hour
+backlog that did not exist.
 
 ### Product-usage metrics
 
