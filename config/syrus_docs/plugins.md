@@ -2716,8 +2716,7 @@ Bundled plugins:
   essential and deferred tool tiers. Antigravity conversation ids are accepted
   only when they are path-safe; invalid ids start a fresh session and log a
   diagnostic instead of being used in a path or command argument.
-- `claude_agent` / `codex_agent` / `agy_agent` — default-enabled workflow and
-  chat providers.
+- `claude_agent` / `codex_agent` — default-enabled workflow and chat providers.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.
