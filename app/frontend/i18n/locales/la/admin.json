@@ -47,6 +47,10 @@
     "filing": "Creatur...",
     "issue_filed": "Quaestio creata"
   },
+  "plugin_pages": {
+    "unavailable_heading": "Pagina non praesto",
+    "unavailable_body": "Haec pagina administrationis nunc non praesto est."
+  },
   "overview": {
     "heading": "Conspectus",
     "loading": "Onerans...",

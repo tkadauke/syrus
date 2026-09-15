@@ -106,6 +106,10 @@
     "filing": "Filing...",
     "issue_filed": "Issue filed"
   },
+  "plugin_pages": {
+    "unavailable_heading": "Page unavailable",
+    "unavailable_body": "This admin page is not available right now."
+  },
   "overview": {
     "heading": "Overview",
     "loading": "Loading...",

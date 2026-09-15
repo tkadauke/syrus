@@ -47,6 +47,10 @@
     "filing": "Wird angelegt...",
     "issue_filed": "Issue angelegt"
   },
+  "plugin_pages": {
+    "unavailable_heading": "Seite nicht verfügbar",
+    "unavailable_body": "Diese Admin-Seite ist derzeit nicht verfügbar."
+  },
   "overview": {
     "heading": "Übersicht",
     "loading": "Wird geladen...",

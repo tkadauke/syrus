@@ -100,6 +100,14 @@ describe("PluginAdminPageRoute", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
   })
 
+  it("renders localized fallback copy when no plugin admin page owns the route", async () => {
+    renderRoute("/admin/mysql", [])
+
+    expect(await screen.findByText("Page unavailable")).toBeInTheDocument()
+    expect(screen.getByText("This admin page is not available right now.")).toBeInTheDocument()
+    expect(screen.queryByText("plugin_pages.unavailable_heading")).not.toBeInTheDocument()
+  })
+
   it("renders the syrus_dev design system gallery through the plugin admin route", async () => {
     renderRoute("/admin/design_system", [{ id: "syrus_dev.design_system", paths: ["/admin/design_system"], component: "syrus_dev/AdminDesignSystem" }])
 
