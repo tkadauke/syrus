@@ -96,10 +96,9 @@ function buildPayload(items: DashboardJobItem[], overrides: Partial<DashboardPay
         required: [
           { key: "checkbox", title: "Checkbox" },
           { key: "landing_queue_position", title: "Queue" },
-          { key: "landing_queue_wait_reason", title: "Queue status" },
           { key: "issue", title: "Issue" }
         ],
-        optional: []
+        optional: [{ key: "commits_behind_base", title: "Behind" }]
       },
       kanban_lanes: [],
       filter_schema: [],
@@ -138,7 +137,7 @@ function renderTable(items: DashboardJobItem[], payloadOverrides: Partial<Dashbo
 }
 
 describe("landing queue status column", () => {
-  it("renders ordinary queue waits with neutral styling under Queue status", () => {
+  it("renders ordinary queue waits with neutral styling under Queue", () => {
     renderTable([
       jobItem({
         id: 1,
@@ -147,7 +146,8 @@ describe("landing queue status column", () => {
       })
     ])
 
-    expect(screen.getByText("Queue status")).toBeInTheDocument()
+    expect(screen.getByText("Queue")).toBeInTheDocument()
+    expect(screen.queryByText("Queue status")).not.toBeInTheDocument()
     const status = screen.getByText("Waiting for Epic merge-train").closest("[data-status-pill]")
     expect(status?.className).toContain("bg-neutral-surface")
     expect(status?.className).not.toContain("bg-danger-surface")
@@ -164,6 +164,18 @@ describe("landing queue status column", () => {
 
     const status = screen.getByText("Landing paused").closest("[data-status-pill]")
     expect(status?.className).toContain("bg-danger-surface")
+  })
+
+  it("does not render commits-behind state inside Queue", () => {
+    renderTable([
+      jobItem({
+        id: 6,
+        commits_behind_base: 12,
+        landing_queue_position: 1
+      })
+    ])
+
+    expect(screen.queryByText("12 behind")).not.toBeInTheDocument()
   })
 
   it("shows a pending override badge when an override was granted but not yet used", () => {
