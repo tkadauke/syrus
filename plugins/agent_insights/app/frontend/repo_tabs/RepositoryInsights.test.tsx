@@ -72,20 +72,113 @@ function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ 
     filter: { and: [] },
     filter_schema: [
       { field: "created_at", label: "Created", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago"] },
-      { field: "state", label: "State", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: ["pending", "accepted", "dismissed", "retired"] },
+      {
+        field: "state",
+        label: "State",
+        bucket: "enum",
+        operators: ["is", "is_not", "is_one_of", "is_none_of"],
+        values: ["pending", "accepted", "dismissed", "retired"]
+      },
       { field: "severity", label: "Severity", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: ["high", "medium", "low"] },
-      { field: "proposal_type", label: "Proposal type", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: ["create_job", "save_memory", "remove_memory", "informational"] },
-      { field: "category", label: "Category", bucket: "string", operators: ["contains", "does_not_contain", "starts_with", "does_not_start_with", "ends_with", "does_not_end_with", "equals", "not_equals", "is_set", "is_unset"] },
-      { field: "confidence", label: "Confidence", bucket: "number", operators: ["equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset"] },
+      {
+        field: "proposal_type",
+        label: "Proposal type",
+        bucket: "enum",
+        operators: ["is", "is_not", "is_one_of", "is_none_of"],
+        values: ["create_job", "save_memory", "remove_memory", "informational"]
+      },
+      {
+        field: "category",
+        label: "Category",
+        bucket: "string",
+        operators: [
+          "contains",
+          "does_not_contain",
+          "starts_with",
+          "does_not_start_with",
+          "ends_with",
+          "does_not_end_with",
+          "equals",
+          "not_equals",
+          "is_set",
+          "is_unset"
+        ]
+      },
+      {
+        field: "confidence",
+        label: "Confidence",
+        bucket: "number",
+        operators: ["equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset"]
+      },
       { field: "created_job_present", label: "Created job", bucket: "boolean", operators: ["is_true", "is_false"] }
     ],
     active_smart_folder_id: 1,
     smart_folders: [
-      { id: 1, name: "Pending", i18n_key: "agent_insights_pending", position: 0, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.pending, active: true, filter: { and: [{ field: "state", op: "is", value: "pending" }] }, path: "/agent_insights?smart_folder_id=1" },
-      { id: 2, name: "Accepted", i18n_key: "agent_insights_accepted", position: 1, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.accepted, active: false, filter: { and: [{ field: "state", op: "is", value: "accepted" }] }, path: "/agent_insights?smart_folder_id=2" },
-      { id: 3, name: "Dismissed", i18n_key: "agent_insights_dismissed", position: 2, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.dismissed, active: false, filter: { and: [{ field: "state", op: "is", value: "dismissed" }] }, path: "/agent_insights?smart_folder_id=3" },
-      { id: 4, name: "Retired", i18n_key: "agent_insights_retired", position: 3, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.retired, active: false, filter: { and: [{ field: "state", op: "is", value: "retired" }] }, path: "/agent_insights?smart_folder_id=4" },
-      { id: 5, name: "All", i18n_key: "agent_insights_all", position: 4, kind: "builtin", subject_type: "agent_insight", visibility: "always", count: counts.all, active: false, filter: { and: [] }, path: "/agent_insights?smart_folder_id=5" }
+      {
+        id: 1,
+        name: "Pending",
+        i18n_key: "agent_insights_pending",
+        position: 0,
+        kind: "builtin",
+        subject_type: "agent_insight",
+        visibility: "always",
+        count: counts.pending,
+        active: true,
+        filter: { and: [{ field: "state", op: "is", value: "pending" }] },
+        path: "/agent_insights?smart_folder_id=1"
+      },
+      {
+        id: 2,
+        name: "Accepted",
+        i18n_key: "agent_insights_accepted",
+        position: 1,
+        kind: "builtin",
+        subject_type: "agent_insight",
+        visibility: "always",
+        count: counts.accepted,
+        active: false,
+        filter: { and: [{ field: "state", op: "is", value: "accepted" }] },
+        path: "/agent_insights?smart_folder_id=2"
+      },
+      {
+        id: 3,
+        name: "Dismissed",
+        i18n_key: "agent_insights_dismissed",
+        position: 2,
+        kind: "builtin",
+        subject_type: "agent_insight",
+        visibility: "always",
+        count: counts.dismissed,
+        active: false,
+        filter: { and: [{ field: "state", op: "is", value: "dismissed" }] },
+        path: "/agent_insights?smart_folder_id=3"
+      },
+      {
+        id: 4,
+        name: "Retired",
+        i18n_key: "agent_insights_retired",
+        position: 3,
+        kind: "builtin",
+        subject_type: "agent_insight",
+        visibility: "always",
+        count: counts.retired,
+        active: false,
+        filter: { and: [{ field: "state", op: "is", value: "retired" }] },
+        path: "/agent_insights?smart_folder_id=4"
+      },
+      {
+        id: 5,
+        name: "All",
+        i18n_key: "agent_insights_all",
+        position: 4,
+        kind: "builtin",
+        subject_type: "agent_insight",
+        visibility: "always",
+        count: counts.all,
+        active: false,
+        filter: { and: [] },
+        path: "/agent_insights?smart_folder_id=5"
+      }
     ]
   }
 }
@@ -97,17 +190,23 @@ function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
   renderRepositoryInsightsRoute()
 }
 
-function renderRouteByState(responses: Partial<Record<StateFilter, { suggestions: unknown[]; meta?: Record<string, unknown>; counts?: Record<StateFilter, number> }>>) {
+function renderRouteByState(
+  responses: Partial<Record<StateFilter, { suggestions: unknown[]; meta?: Record<string, unknown>; counts?: Record<StateFilter, number> }>>
+) {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = new URL(String(input), "http://example.test")
     const folderState: Record<string, StateFilter> = { "1": "pending", "2": "accepted", "3": "dismissed", "4": "retired", "5": "all" }
     const state = (folderState[url.searchParams.get("smart_folder_id") || "1"] || "pending") as StateFilter
     const response = responses[state] || responses.all || responses.pending || { suggestions: [] }
-    return Promise.resolve(jsonResponse(payload(
-      response.suggestions,
-      response.meta ? makeMeta(response.meta) : makeMeta({ total: response.suggestions.length }),
-      response.counts || makeCounts(response.suggestions)
-    )))
+    return Promise.resolve(
+      jsonResponse(
+        payload(
+          response.suggestions,
+          response.meta ? makeMeta(response.meta) : makeMeta({ total: response.suggestions.length }),
+          response.counts || makeCounts(response.suggestions)
+        )
+      )
+    )
   })
   renderRepositoryInsightsRoute()
 }
@@ -174,9 +273,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(dismissBtn)
 
       await waitFor(() => {
-        expect(mockConfirm).toHaveBeenCalledWith(
-          expect.objectContaining({ destructive: true })
-        )
+        expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
       })
     })
 
@@ -194,10 +291,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(dismissBtn)
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
     })
 
@@ -207,13 +301,14 @@ describe("RepositoryInsightsRoute", () => {
 
       renderRoute()
       const dismissBtn = await screen.findByRole("button", { name: "Dismiss" })
-      await act(async () => { fireEvent.click(dismissBtn) })
+      await act(async () => {
+        fireEvent.click(dismissBtn)
+      })
 
-      await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-      expect(fetchSpy).not.toHaveBeenCalledWith(
-        "/api/v1/app/insight_suggestions/1",
-        expect.objectContaining({ method: "PATCH" })
-      )
+      await waitFor(() => {
+        expect(mockConfirm).toHaveBeenCalled()
+      })
+      expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
     })
   })
 
@@ -294,10 +389,7 @@ describe("RepositoryInsightsRoute", () => {
 
       await screen.findByText("Frequent prepare failures")
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("smart_folder_id=3"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("smart_folder_id=3"), expect.anything())
       })
     })
 
@@ -344,20 +436,33 @@ describe("RepositoryInsightsRoute", () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
         const url = String(input)
         if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
-          return Promise.resolve(jsonResponse({
-            message: "Memory saved.",
-            suggestion: makeSuggestion({ ...pendingMemory, state: "accepted" }),
-            memory_id: 10
-          }))
+          return Promise.resolve(
+            jsonResponse({
+              message: "Memory saved.",
+              suggestion: makeSuggestion({ ...pendingMemory, state: "accepted" }),
+              memory_id: 10
+            })
+          )
         }
-        if (url.includes("state=pending")) {
+        const requestUrl = new URL(url, "http://example.test")
+        const pendingListRequest =
+          requestUrl.pathname.includes("/repositories/1/insight_suggestions") &&
+          (requestUrl.searchParams.get("state") === "pending" || !requestUrl.searchParams.has("state"))
+        if (pendingListRequest) {
           pendingListRequests += 1
         }
-        if (url.includes("state=pending") && pendingListRequests > 1) {
-          return Promise.resolve(jsonResponse(payload([], makeMeta({
-            total: 0,
-            counts: { pending: 0, accepted: 1, dismissed: 0, retired: 0, all: 1 }
-          }))))
+        if (pendingListRequest && pendingListRequests > 1) {
+          return Promise.resolve(
+            jsonResponse(
+              payload(
+                [],
+                makeMeta({
+                  total: 0,
+                  counts: { pending: 0, accepted: 1, dismissed: 0, retired: 0, all: 1 }
+                })
+              )
+            )
+          )
         }
         return Promise.resolve(jsonResponse(payload([pendingMemory])))
       })
@@ -366,10 +471,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Save as memory" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
       await waitFor(() => {
         expect(screen.queryByText("Frequent prepare failures")).not.toBeInTheDocument()
@@ -427,7 +529,13 @@ describe("RepositoryInsightsRoute", () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
         const url = String(input)
         if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
-          return Promise.resolve(jsonResponse({ message: "Memory removed and suggestion accepted.", suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }), memory_id: 44 }))
+          return Promise.resolve(
+            jsonResponse({
+              message: "Memory removed and suggestion accepted.",
+              suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }),
+              memory_id: 44
+            })
+          )
         }
         return Promise.resolve(jsonResponse(payload([removeMemory])))
       })
@@ -440,10 +548,7 @@ describe("RepositoryInsightsRoute", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Remove memory" }))
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
     })
   })
@@ -480,10 +585,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Discuss in new chat" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1/discuss",
-          expect.objectContaining({ method: "POST" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1/discuss", expect.objectContaining({ method: "POST" }))
       })
       expect(openSpy).toHaveBeenCalledWith("/chats/42", "_blank")
     })
@@ -526,9 +628,7 @@ describe("RepositoryInsightsRoute", () => {
     it("does not render evidence links in the card header", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
-          ]
+          evidence: [{ job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }]
         })
       ])
 
@@ -540,9 +640,7 @@ describe("RepositoryInsightsRoute", () => {
     it("shows an Evidence toggle inside the expanded card but not the table yet", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
-          ]
+          evidence: [{ job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }]
         })
       ])
 
@@ -558,9 +656,7 @@ describe("RepositoryInsightsRoute", () => {
     it("reveals the evidence table with job, finding, and transcript columns on second expand", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
-          ]
+          evidence: [{ job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }]
         })
       ])
 
@@ -583,9 +679,7 @@ describe("RepositoryInsightsRoute", () => {
     it("collapses the evidence table when the card is collapsed", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
-          ]
+          evidence: [{ job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }]
         })
       ])
 
@@ -603,9 +697,7 @@ describe("RepositoryInsightsRoute", () => {
     it("handles evidence items without a job or transcript gracefully", async () => {
       renderRoute([
         makeSuggestion({
-          evidence: [
-            { job_id: null, run_id: null, kind: "anomaly detected", job_path: null, run_transcript_path: null }
-          ]
+          evidence: [{ job_id: null, run_id: null, kind: "anomaly detected", job_path: null, run_transcript_path: null }]
         })
       ])
 
@@ -662,10 +754,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(screen.getByRole("button", { name: "Save as memory" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
       expect(screen.getByText("Suggested prompt")).toBeInTheDocument()
     })
@@ -705,10 +794,7 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(undismissBtn)
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/insight_suggestions/1",
-          expect.objectContaining({ method: "PATCH" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.objectContaining({ method: "PATCH" }))
       })
     })
   })
@@ -731,10 +817,7 @@ describe("RepositoryInsightsRoute", () => {
 
       await screen.findByText("Frequent prepare failures")
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("smart_folder_id=4"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("smart_folder_id=4"), expect.anything())
       })
     })
 
@@ -771,9 +854,7 @@ describe("RepositoryInsightsRoute", () => {
     })
 
     it("renders pagination controls when total_pages > 1", async () => {
-      const suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
-      )
+      const suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` }))
       renderRoute(suggestions, makeMeta({ total: 25, page: 1, per_page: 20, total_pages: 2 }))
 
       await screen.findByText("Showing 1–20 of 25")
@@ -782,9 +863,7 @@ describe("RepositoryInsightsRoute", () => {
     })
 
     it("Previous is disabled (not a button) on page 1", async () => {
-      const suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
-      )
+      const suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` }))
       renderRoute(suggestions, makeMeta({ total: 25, page: 1, per_page: 20, total_pages: 2 }))
 
       await screen.findByText("Showing 1–20 of 25")
@@ -794,9 +873,7 @@ describe("RepositoryInsightsRoute", () => {
     })
 
     it("clicking Next re-fetches with page=2", async () => {
-      const page1Suggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
-      )
+      const page1Suggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` }))
       const page2Suggestions = [makeSuggestion({ id: 21, title: "Suggestion 21" })]
 
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -825,20 +902,13 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(screen.getByRole("link", { name: "Next" }))
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining("page=2"),
-          expect.anything()
-        )
+        expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("page=2"), expect.anything())
       })
     })
 
     it("fetches and paginates the selected state tab", async () => {
-      const pendingSuggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 1, title: `Pending ${i + 1}`, state: "pending" })
-      )
-      const acceptedSuggestions = Array.from({ length: 20 }, (_, i) =>
-        makeSuggestion({ id: i + 101, title: `Accepted ${i + 1}`, state: "accepted" })
-      )
+      const pendingSuggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 1, title: `Pending ${i + 1}`, state: "pending" }))
+      const acceptedSuggestions = Array.from({ length: 20 }, (_, i) => makeSuggestion({ id: i + 101, title: `Accepted ${i + 1}`, state: "accepted" }))
       const counts = { pending: 20, accepted: 25, dismissed: 2, retired: 0, all: 47 }
 
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -870,10 +940,7 @@ describe("RepositoryInsightsRoute", () => {
       await screen.findByText("Accepted 1")
       expect(screen.getByText("Showing 1–20 of 25")).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Next" })).toBeInTheDocument()
-      expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining("smart_folder_id=2"),
-        expect.anything()
-      )
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("smart_folder_id=2"), expect.anything())
     })
   })
 })
