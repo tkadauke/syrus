@@ -447,7 +447,7 @@ module WorkEngine
             updated_at: Time.current
           )
         end
-        if defined?(SolidQueue::Process)
+        if solid_queue_process_table_available?
           SolidQueue::Process.where(hostname: hostname).update_all(last_heartbeat_at: stale_at)
         end
         events << "lost worker #{hostname}"
@@ -908,7 +908,7 @@ module WorkEngine
           instance.outcome = nil
           instance.save!
         end
-        return unless defined?(SolidQueue::Process)
+        return unless solid_queue_process_table_available?
 
         SolidQueue::Process.find_or_initialize_by(name: "#{hostname}:simulation").tap do |process|
           process.hostname = hostname
@@ -918,6 +918,10 @@ module WorkEngine
           process.last_heartbeat_at = Time.current
           process.save!
         end
+      end
+
+      def solid_queue_process_table_available?
+        defined?(SolidQueue::Process) && ActiveRecord::Base.connection.table_exists?(:solid_queue_processes)
       end
 
       def simulated_process_kind_for(run)
