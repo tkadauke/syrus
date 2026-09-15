@@ -13,7 +13,7 @@ import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { BANNER_TONE_CLASSES } from "../../components/StatusPill"
 import { Markdown, PlainText } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
-import { CodeBlock } from "../../components/CodeBlock"
+import { CodeSurface, Pill, Text } from "../../components/ui"
 import { detectHighlighterLanguage } from "../../lib/highlighter"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
@@ -531,9 +531,9 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
       <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
         <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Failed" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : outcome === "Running" ? "bg-info/10 text-info" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>{outcome}</span>
+        <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>{outcome}</Pill>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
-        {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
+        {item.calls.length > 1 ? <Pill className="ml-auto text-xs" tone="neutral">{item.calls.length}</Pill> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
@@ -623,7 +623,6 @@ function TypedToolResultBody({ result }: { result: TypedToolResult }) {
 
 function RawToolDetails({ payload }: { payload: unknown }) {
   const [open, setOpen] = useState(false)
-  const { copied, copy } = useCopyToClipboard()
   const redactedPayload = redactToolCardValue(payload)
   const rawText = JSON.stringify(redactedPayload, null, 2)
   const sizeLabel = toolCardPayloadSizeLabel(rawText)
@@ -634,14 +633,9 @@ function RawToolDetails({ payload }: { payload: unknown }) {
         Raw details <span className="font-mono text-2xs">({sizeLabel}, redacted)</span>
       </summary>
       {open ? (
-        <div className="mt-1 rounded bg-gray-50 p-2 dark:bg-gray-900">
-          <div className="mb-2 flex items-center justify-between gap-2 text-2xs text-gray-500 dark:text-gray-400">
-            <span>Secret-like values are redacted before display and copy.</span>
-            <button className="rounded border border-gray-200 bg-white px-2 py-0.5 font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => copy(rawText)} type="button">
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-          <pre className="whitespace-pre-wrap break-words font-mono text-gray-600 dark:text-gray-400">{rawText}</pre>
+        <div className="mt-1 space-y-2">
+          <Text as="div" variant="caption" tone="muted">Secret-like values are redacted before display and copy.</Text>
+          <CodeSurface code={rawText} copyLabel="Copy" lang="json" />
         </div>
       ) : null}
     </details>
@@ -650,11 +644,9 @@ function RawToolDetails({ payload }: { payload: unknown }) {
 
 function HighlightedToolResult({ code, detail, error }: { code: string; detail: string; error: boolean }) {
   const language = toolResultLanguage(detail)
-  const className = `mt-1 whitespace-pre-wrap break-words font-mono text-gray-600 dark:text-gray-400 ${error ? "text-red-600 dark:text-red-300" : ""}`
-
-  if (!language || error || hasLongLine(code)) return <pre className={className}>{code}</pre>
-
-  return <CodeBlock className={className} code={code} lang={language} />
+  const lang = language && !error && !hasLongLine(code) ? language : null
+  if (!lang) return <CodeSurface className={`mt-1 ${error ? "border-danger-border" : ""}`} code={code} maxHeightClassName="max-h-72">{code}</CodeSurface>
+  return <CodeSurface className={`mt-1 ${error ? "border-danger-border" : ""}`} code={code} lang={lang} maxHeightClassName="max-h-72" />
 }
 
 function toolResultLanguage(detail: string) {
@@ -677,7 +669,7 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
       <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
         <span className="text-gray-400 dark:text-gray-500">▸</span>
         <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
-        {outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Failed" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>{outcome}</span> : null}
+        {outcome ? <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : "neutral"}>{outcome}</Pill> : null}
         {argumentSummary ? <span className="min-w-0 truncate font-mono text-gray-600 dark:text-gray-400">{argumentSummary}</span> : null}
         {resultSummary ? <span className="shrink-0 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</span> : null}
         {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}

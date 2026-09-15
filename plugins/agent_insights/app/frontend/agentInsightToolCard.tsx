@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { DataTable, DescriptionList, Pill, Surface, Text } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import {
   Badge,
@@ -8,7 +9,6 @@ import {
   EmptyState,
   InternalLink,
   numberValue,
-  Row,
   SectionLabel,
   StatePill,
   truncateLines
@@ -149,13 +149,8 @@ export function insightListSummary(context: ToolCardContext): string | null {
 
 function SeverityBadge({ severity }: { severity: string | null }) {
   if (!severity) return null
-  const classes = severity === "high"
-    ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200"
-    : severity === "medium"
-      ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
-
-  return <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ${classes}`}>{severity}</span>
+  const tone = severity === "high" ? "danger" : severity === "medium" ? "warning" : "neutral"
+  return <Pill className="text-2xs font-semibold uppercase" tone={tone}>{severity}</Pill>
 }
 
 function ConfidenceBadge({ confidence }: { confidence: number | null }) {
@@ -174,7 +169,7 @@ function TextPreview({ text, maxLines = 4 }: { text: string; maxLines?: number }
   const { preview, truncated, totalLines } = truncateLines(text, maxLines)
   return (
     <div className="space-y-1">
-      <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{preview}</div>
+      <Text as="div" className="whitespace-pre-wrap break-words">{preview}</Text>
       {truncated ? (
         <Disclosure label={`Show full text (${totalLines} lines)`}>
           <div className="whitespace-pre-wrap break-words">{text}</div>
@@ -195,12 +190,12 @@ function EvidenceRow({ entry }: { entry: EvidenceItem }) {
 }
 
 function EvidenceList({ evidence }: { evidence: EvidenceItem[] }) {
-  if (evidence.length === 0) return <div className="text-gray-500 dark:text-gray-400">No evidence attached.</div>
+  if (evidence.length === 0) return <Text muted>No evidence attached.</Text>
 
   const visible = evidence.slice(0, 5)
   const hidden = evidence.slice(5)
   return (
-    <div className="mt-1 space-y-1 rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950">
+    <Surface className="mt-1 space-y-1" padding="sm" variant="inset">
       <ul className="space-y-1">
         {visible.map((entry) => <EvidenceRow entry={entry} key={entry.key} />)}
       </ul>
@@ -211,7 +206,7 @@ function EvidenceList({ evidence }: { evidence: EvidenceItem[] }) {
           </ul>
         </Disclosure>
       ) : null}
-    </div>
+    </Surface>
   )
 }
 
@@ -251,20 +246,20 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-gray-800 dark:text-gray-100">{insight.title}</span>
+        <Text as="span" variant="heading-sm">{insight.title}</Text>
         {insight.state ? <StatePill state={insight.state} /> : null}
         <SeverityBadge severity={insight.severity} />
         {insight.category ? <Badge>{insight.category.replace(/_/g, " ")}</Badge> : null}
         <ConfidenceBadge confidence={insight.confidence} />
       </div>
-      <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Insight ID" value={insight.id} />
-        {insight.proposalType ? <Row label="Proposal" value={insight.proposalType.replace(/_/g, " ")} /> : null}
-        {insight.repository?.slug ? <Row label="Repository" value={insight.repository.slug} /> : null}
-        {insight.createdAt ? <Row label="Created" value={insight.createdAt} /> : null}
-        {insight.updatedAt ? <Row label="Updated" value={insight.updatedAt} /> : null}
-        {insight.retiredAt ? <Row label="Retired" value={insight.retiredAt} /> : null}
-      </dl>
+      <DescriptionList.Root className="sm:grid-cols-2" density="compact">
+        <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Insight ID">{insight.id}</DescriptionList.Item>
+        {insight.proposalType ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Proposal">{insight.proposalType.replace(/_/g, " ")}</DescriptionList.Item> : null}
+        {insight.repository?.slug ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Repository">{insight.repository.slug}</DescriptionList.Item> : null}
+        {insight.createdAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Created">{insight.createdAt}</DescriptionList.Item> : null}
+        {insight.updatedAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Updated">{insight.updatedAt}</DescriptionList.Item> : null}
+        {insight.retiredAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Retired">{insight.retiredAt}</DescriptionList.Item> : null}
+      </DescriptionList.Root>
       <div className="flex flex-wrap gap-2">
         <RefLink target={insight.job} />
         <RefLink target={insight.sourceWorkflow} />
@@ -293,46 +288,44 @@ export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
   if (rows.length === 0) return <EmptyState>No insights match this query.</EmptyState>
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Insight</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Severity</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Source</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Repository</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Updated</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="max-w-[24rem] px-2 py-1">
-                <div className="font-medium text-gray-800 dark:text-gray-100">{row.title}</div>
-                {row.summary ? <div className="mt-0.5 line-clamp-2 text-gray-500 dark:text-gray-400">{row.summary}</div> : null}
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
-                  {row.proposalType ? <Badge>{row.proposalType.replace(/_/g, " ")}</Badge> : null}
-                  <ConfidenceBadge confidence={row.confidence} />
-                </div>
-              </td>
-              <td className="whitespace-nowrap px-2 py-1">{row.state ? <StatePill state={row.state} /> : "-"}</td>
-              <td className="whitespace-nowrap px-2 py-1"><SeverityBadge severity={row.severity} /></td>
-              <td className="whitespace-nowrap px-2 py-1">
-                <div className="flex flex-col gap-1">
-                  <RefLink target={row.sourceWorkflow} />
-                  <RefLink target={row.sourceRun} />
-                  {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
-                </div>
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{row.repository?.slug ?? "-"}</td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-500 dark:text-gray-400">{row.updatedAt ?? row.createdAt ?? "-"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-1">
+      <DataTable.Header>
+        <DataTable.Row>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Insight</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">State</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Severity</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Source</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Repository</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Updated</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {rows.map((row) => (
+          <DataTable.Row key={row.id}>
+            <DataTable.Cell className="max-w-[24rem] px-2 py-1">
+              <Text as="div" variant="heading-sm">{row.title}</Text>
+              {row.summary ? <Text as="div" className="mt-0.5 line-clamp-2" variant="caption" tone="muted">{row.summary}</Text> : null}
+              <div className="flex flex-wrap gap-1 pt-1">
+                {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
+                {row.proposalType ? <Badge>{row.proposalType.replace(/_/g, " ")}</Badge> : null}
+                <ConfidenceBadge confidence={row.confidence} />
+              </div>
+            </DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1">{row.state ? <StatePill state={row.state} /> : "-"}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1"><SeverityBadge severity={row.severity} /></DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1">
+              <div className="flex flex-col gap-1">
+                <RefLink target={row.sourceWorkflow} />
+                <RefLink target={row.sourceRun} />
+                {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
+              </div>
+            </DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 font-mono text-xs">{row.repository?.slug ?? "-"}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 font-mono text-xs text-text-muted">{row.updatedAt ?? row.createdAt ?? "-"}</DataTable.Cell>
+          </DataTable.Row>
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 
@@ -355,12 +348,12 @@ export function OutcomeBody({ outcome, label }: { outcome: NonNullable<ReturnTyp
   return (
     <CardShell>
       <SectionLabel>{label}</SectionLabel>
-      <div className="text-gray-700 dark:text-gray-300">{outcome.message}</div>
-      <dl className="grid gap-1 sm:grid-cols-2">
-        {outcome.targetInsightId ? <Row label="Insight" value={`#${outcome.targetInsightId}`} /> : null}
-        {outcome.supersededByInsightId ? <Row label="Superseding insight" value={`#${outcome.supersededByInsightId}`} /> : null}
-        {outcome.supersededByJobId ? <Row label="Superseding job" value={`JOB-${outcome.supersededByJobId}`} /> : null}
-      </dl>
+      <Text>{outcome.message}</Text>
+      <DescriptionList.Root className="sm:grid-cols-2" density="compact">
+        {outcome.targetInsightId ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Insight">#{outcome.targetInsightId}</DescriptionList.Item> : null}
+        {outcome.supersededByInsightId ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Superseding insight">#{outcome.supersededByInsightId}</DescriptionList.Item> : null}
+        {outcome.supersededByJobId ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Superseding job">JOB-{outcome.supersededByJobId}</DescriptionList.Item> : null}
+      </DescriptionList.Root>
       {outcome.reason ? (
         <div>
           <SectionLabel>Reason</SectionLabel>

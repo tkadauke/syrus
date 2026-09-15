@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import i18n from "i18next"
+import { CodeSurface, Pill, Text } from "@app/components/ui"
 import { isPlainObject } from "@app/pluginToolCards"
 import { displayValue, InternalLink, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
@@ -51,21 +52,21 @@ export function parseReasons(value: unknown, key: string): string[] {
   return value[key].filter((reason): reason is string => typeof reason === "string")
 }
 
-const REASON_CLASSES: Record<string, string> = {
-  failing: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300",
-  flaky: "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300",
-  slow: "border-info/30 bg-info/10 text-info"
+const REASON_TONES: Record<string, "danger" | "warning" | "info" | "neutral"> = {
+  failing: "danger",
+  flaky: "warning",
+  slow: "info"
 }
 
 export function ReasonBadges({ reasons }: { reasons: string[] }) {
   if (reasons.length === 0) return null
 
   return (
-    <div className="flex flex-wrap gap-1">
-      {reasons.map((reason) => (
-        <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${REASON_CLASSES[reason] ?? "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`} key={reason}>
+      <div className="flex flex-wrap gap-1">
+        {reasons.map((reason) => (
+        <Pill className="text-2xs" key={reason} tone={REASON_TONES[reason] ?? "neutral"}>
           {t(`reason_${reason}`, { defaultValue: reason })}
-        </span>
+        </Pill>
       ))}
     </div>
   )
@@ -124,14 +125,14 @@ export function FailureSnippet({ failure }: { failure: FailureSnippetData }) {
 
   return (
     <div className="space-y-1">
-      {message ? <div className="whitespace-pre-wrap break-words text-red-700 dark:text-red-300">{message}</div> : null}
+      {message ? <Text as="div" className="whitespace-pre-wrap break-words" tone="danger">{message}</Text> : null}
       {backtrace || output ? (
-        <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
-          <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <details className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1">
+          <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted hover:text-text-primary">
             {t("tool_backtrace_output")}
           </summary>
-          {backtrace ? <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-2xs text-gray-600 dark:text-gray-300">{backtrace}</pre> : null}
-          {output ? <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-2xs text-gray-600 dark:text-gray-300">{output}</pre> : null}
+          {backtrace ? <CodeSurface className="mt-1" code={backtrace} copyLabel="Copy backtrace" maxHeightClassName="max-h-72" /> : null}
+          {output ? <CodeSurface className="mt-1" code={output} copyLabel="Copy output" maxHeightClassName="max-h-72" /> : null}
         </details>
       ) : null}
     </div>
@@ -143,9 +144,9 @@ export function Flakiness({ flakiness }: { flakiness: unknown }) {
 
   const score = numberValue(flakiness.score)
   return (
-    <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-2xs font-semibold text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">
+    <Pill className="text-2xs font-semibold" tone="warning">
       {t("tool_flaky")}{score != null ? ` (${Math.round(score * 100)}%)` : ""}
-    </span>
+    </Pill>
   )
 }
 

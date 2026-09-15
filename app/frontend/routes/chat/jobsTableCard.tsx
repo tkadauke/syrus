@@ -1,4 +1,6 @@
 import { isPlainObject } from "@app/pluginToolCards"
+import { DataTable } from "../../components/ui"
+import { EmptyState, StatePill } from "./toolCardUi"
 
 // Shared dense-table rendering for the list_jobs and search_jobs tool cards
 // (the Tier 1 tool-card work) — both tools return arrays of similarly-shaped Job
@@ -42,39 +44,33 @@ export function parseJobRow(value: unknown): JobRow | null {
 
 export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage: string }) {
   if (rows.length === 0) {
-    return (
-      <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-        {emptyMessage}
-      </div>
-    )
+    return <EmptyState>{emptyMessage}</EmptyState>
   }
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Job</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Title</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Repository</th>
-            <th className="px-2 py-1 font-semibold" scope="col">PR</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Priority</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <td className="whitespace-nowrap px-2 py-1 font-mono font-medium text-gray-900 dark:text-gray-100">{row.jobId}</td>
-              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={row.title}>{row.title}</td>
-              <td className="whitespace-nowrap px-2 py-1 capitalize text-gray-600 dark:text-gray-300">{row.state.replace(/_/g, " ")}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.repositorySlug || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.prNumber ? `#${row.prNumber}` : "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 capitalize text-gray-600 dark:text-gray-300">{row.priority || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-1">
+      <DataTable.Header>
+        <DataTable.Row>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Job</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Title</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">State</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Repository</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">PR</DataTable.HeadCell>
+          <DataTable.HeadCell className="px-2 py-1 text-2xs">Priority</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {rows.map((row) => (
+          <DataTable.Row key={row.key}>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 font-mono font-medium text-xs">{row.jobId}</DataTable.Cell>
+            <DataTable.Cell className="max-w-[16rem] truncate px-2 py-1 text-xs" title={row.title}>{row.title}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs"><StatePill state={row.state} /></DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">{row.repositorySlug || "—"}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">{row.prNumber ? `#${row.prNumber}` : "—"}</DataTable.Cell>
+            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs capitalize">{row.priority || "—"}</DataTable.Cell>
+          </DataTable.Row>
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
