@@ -14,33 +14,60 @@ module Admin
     PLUGIN_CARD_GLOB = "plugins/*/app/frontend/tool_cards/*.tsx"
     TEST_CARD_PATTERN = /\.test\.tsx\z/
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
+    TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["']\)/
+    EXPLICIT_CARD_STATUSES = {
+      "admin_maintenance_tasks" => "generic",
+      "analyze_walkthrough_segment" => "deferred",
+      "assign_job_to_epic" => "generic",
+      "complete_implement_step" => "hidden",
+      "delete_design_doc" => "generic",
+      "force_fail_job" => "generic",
+      "force_rebase" => "generic",
+      "force_state_transition" => "generic",
+      "get_spending" => "deferred",
+      "get_walkthrough_analysis" => "deferred",
+      "manual_agentic_run" => "generic",
+      "open_in_coding_mode" => "generic",
+      "read_walkthrough_frame" => "deferred",
+      "refresh_pr_checks" => "generic",
+      "reset_workspace" => "hidden",
+      "restack_epic" => "generic",
+      "set_bookmark" => "hidden",
+      "submit_chat_feedback" => "hidden",
+      "submit_coding_changes" => "hidden"
+    }.freeze
 
     class << self
-      def call(usages:, advertised_tools:, single_tool_name: nil)
-        new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name).as_json
+      def call(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
+        new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name, chat_session: chat_session).as_json
       end
     end
 
-    def initialize(usages:, advertised_tools:, single_tool_name: nil)
+    def initialize(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
       @usages = usages
       @advertised_tools = advertised_tools.map(&:to_s).uniq.sort
       @single_tool_name = single_tool_name.to_s.presence
+      @chat_session = chat_session
     end
 
     def as_json
       {
+        ranked_gaps: ranked_gap_rows,
         high_volume_without_custom_card: missing_card_rows(used_tool_rows),
         high_error_with_weak_or_no_custom_card: weak_or_missing_card_rows(error_tool_rows),
-        unused_advertised_tools: unused_advertised_tool_rows
+        unused_advertised_tools: unused_advertised_tool_rows,
+        unclassified_advertised_tools: unclassified_advertised_tool_rows
       }
     end
 
     private
 
-    attr_reader :usages, :advertised_tools, :single_tool_name
+    attr_reader :usages, :advertised_tools, :single_tool_name, :chat_session
 
     def used_tool_rows
-      @used_tool_rows ||= aggregate_rows(usages, order_by: :calls)
+      @used_tool_rows ||= used_rank_rows.map do |row|
+        row.slice(:tool_name, :calls, :errors, :error_rate)
+      end
     end
 
     def error_tool_rows
@@ -71,6 +98,72 @@ module Admin
       end
     end
 
+    def ranked_gap_rows
+      rows = used_rank_rows.filter_map do |row|
+        card = cards[row[:tool_name]]
+        next if card&.strong?
+
+        ranked_row_payload(row, card: card)
+      end
+
+      used = rows.map { |row| row[:tool_name] }.to_set
+      unused_advertised_tool_rows.each do |row|
+        next if row[:card_status] == "registered"
+        next if used.include?(row[:tool_name])
+
+        rows << row.merge(
+          calls: 0,
+          errors: 0,
+          error_rate: 0.0,
+          result_bytes: 0,
+          last_used_at: nil,
+          server_names: [],
+          recommendation: "ignore_for_now"
+        )
+      end
+
+      rows
+        .sort_by { |row| ranked_sort_key(row) }
+        .first(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
+    end
+
+    def used_rank_rows
+      @used_rank_rows ||= begin
+        grouped = gap_candidate_usages
+          .group(:normalized_tool_name)
+          .order(Arel.sql("#{count_expression} DESC, #{error_count_expression} DESC, #{result_bytes_expression} DESC, #{last_used_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC"))
+          .limit(Admin::McpToolUsagePayload::DEFAULT_CARD_GAP_LIMIT)
+          .pluck(
+            :normalized_tool_name,
+            Arel.sql(count_expression),
+            Arel.sql(error_count_expression),
+            Arel.sql(result_bytes_expression),
+            Arel.sql(last_used_expression),
+            Arel.sql(server_names_expression)
+          )
+
+        grouped.map do |tool_name, count, errors, result_bytes, last_used_at, server_names|
+          count = count.to_i
+          errors = errors.to_i
+          {
+            tool_name: tool_name.to_s,
+            calls: count,
+            errors: errors,
+            error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0,
+            result_bytes: result_bytes.to_i,
+            last_used_at: last_used_at,
+            server_names: server_names.to_s.split(",").reject(&:blank?).sort
+          }
+        end
+      end
+    end
+
+    def gap_candidate_usages
+      return usages if strong_card_tool_names.empty?
+
+      usages.where.not(normalized_tool_name: strong_card_tool_names)
+    end
+
     def aggregate_order(order_by)
       if order_by == :error_rate
         Arel.sql("#{error_rate_expression} DESC, #{error_count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
@@ -91,34 +184,63 @@ module Admin
       "(#{error_count_expression} * 1.0 / NULLIF(#{count_expression}, 0))"
     end
 
+    def result_bytes_expression
+      "COALESCE(SUM(#{McpToolUsage.quoted_table_name}.result_bytes), 0)"
+    end
+
+    def last_used_expression
+      "MAX(COALESCE(#{McpToolUsage.quoted_table_name}.completed_at, #{McpToolUsage.quoted_table_name}.started_at, #{McpToolUsage.quoted_table_name}.created_at))"
+    end
+
+    def server_names_expression
+      "GROUP_CONCAT(DISTINCT #{McpToolUsage.quoted_table_name}.server_name)"
+    end
+
     def missing_card_rows(rows)
       rows.filter_map do |row|
-        next if cards.key?(row[:tool_name])
+        next if cards.key?(row[:tool_name]) || explicit_card_status(row[:tool_name])
 
-        row_payload(row).merge(card_status: "missing")
+        row_payload(row).merge(card_status: card_status_for(row[:tool_name]))
       end
     end
 
     def weak_or_missing_card_rows(rows)
       rows.filter_map do |row|
         card = cards[row[:tool_name]]
-        next if card&.strong?
+        next if card&.strong? || explicit_card_status(row[:tool_name]) == "hidden"
 
-        row_payload(row).merge(card_status: card ? "weak" : "missing")
+        row_payload(row).merge(card_status: card_status_for(row[:tool_name], card: card))
       end
     end
 
     def unused_advertised_tool_rows
-      used = usages.distinct.pluck(:normalized_tool_name).map(&:to_s).to_set
-      (advertised_tools - used.to_a).map do |tool_name|
+      @unused_advertised_tool_rows ||= begin
+        used = usages.distinct.pluck(:normalized_tool_name).map(&:to_s).to_set
+        (advertised_tools - used.to_a).map do |tool_name|
+          owner = owners[tool_name] || Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
+          card = cards[tool_name]
+          {
+            tool_name: tool_name,
+            owner_type: owner.owner_type,
+            owner_name: owner.owner_name,
+            recommendation_target: owner.recommendation_target,
+            card_status: card_status_for(tool_name, card: card)
+          }
+        end
+      end
+    end
+
+    def unclassified_advertised_tool_rows
+      @unclassified_advertised_tool_rows ||= advertised_tools.filter_map do |tool_name|
+        next if cards.key?(tool_name) || explicit_card_status(tool_name)
+
         owner = owners[tool_name] || Owner.new(tool_name: tool_name, owner_type: "core", owner_name: "core")
-        card = cards[tool_name]
         {
           tool_name: tool_name,
           owner_type: owner.owner_type,
           owner_name: owner.owner_name,
           recommendation_target: owner.recommendation_target,
-          card_status: card ? (card.strong? ? "registered" : "weak") : "missing"
+          card_status: "missing"
         }
       end
     end
@@ -136,8 +258,59 @@ module Admin
       }
     end
 
+    def ranked_row_payload(row, card:)
+      row_payload(row).merge(
+        card_status: card_status_for(row[:tool_name], card: card),
+        result_bytes: row[:result_bytes],
+        last_used_at: iso8601_time(row[:last_used_at]),
+        server_names: row[:server_names],
+        recommendation: recommendation_for(row)
+      )
+    end
+
+    def recommendation_for(row)
+      return "custom_card_next" if row[:calls] >= 10 || row[:errors].positive? || row[:result_bytes] >= 64.kilobytes
+      return "watch" if row[:calls].positive?
+
+      "ignore_for_now"
+    end
+
+    def ranked_sort_key(row)
+      [
+        -row[:calls].to_i,
+        -row[:errors].to_i,
+        -row[:result_bytes].to_i,
+        row[:last_used_at].present? ? -Time.zone.parse(row[:last_used_at].to_s).to_i : 0,
+        row[:tool_name].to_s
+      ]
+    end
+
+    def iso8601_time(value)
+      return if value.blank?
+      return value.iso8601 if value.respond_to?(:iso8601)
+
+      Time.zone.parse(value.to_s)&.iso8601
+    rescue ArgumentError, TypeError
+      nil
+    end
+
     def owners
       @owners ||= core_tool_owners.merge(plugin_tool_owners)
+    end
+
+    def strong_card_tool_names
+      @strong_card_tool_names ||= cards.values.select(&:strong?).map(&:tool_name)
+    end
+
+    def explicit_card_status(tool_name)
+      EXPLICIT_CARD_STATUSES[tool_name.to_s]
+    end
+
+    def card_status_for(tool_name, card: cards[tool_name])
+      return "registered" if card&.strong?
+      return "weak" if card
+
+      explicit_card_status(tool_name) || "missing"
     end
 
     def core_tool_owners
@@ -148,24 +321,38 @@ module Admin
     end
 
     def plugin_tool_owners
+      enabled_tool_sets = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).to_set
       Syrus::PluginRegistry.all_plugins.each_with_object({}) do |manifest, index|
-        plugin_tool_names(manifest).each do |tool_name|
-          index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "plugin", owner_name: manifest.name)
+        Array(manifest.provides[:chat_mcp_tool_set]).select { |tool_set| enabled_tool_sets.include?(tool_set) }.each do |tool_set|
+          plugin_tool_names(tool_set).each do |tool_name|
+            index[tool_name] = Owner.new(tool_name: tool_name, owner_type: "plugin", owner_name: manifest.name)
+          end
         end
       end
     end
 
-    def plugin_tool_names(manifest)
-      (Array(manifest.provides[:chat_mcp_tool_set]) + Array(manifest.provides[:mcp_tool_set]))
-        .flat_map { |tool_set| tool_definitions(tool_set) }
-        .filter_map { |definition| definition[:name].presence&.to_s }
-        .uniq
+    def plugin_tool_names(tool_set)
+      McpToolUsageRecorder::CHAT_TOOL_TIERS.flat_map do |tier|
+        next [] unless plugin_chat_tool_set_available?(tool_set, tier: tier)
+
+        tool_definitions(tool_set, tier: tier)
+      end.filter_map { |definition| definition[:name].presence&.to_s }.uniq
     end
 
-    def tool_definitions(tool_set)
+    def plugin_chat_tool_set_available?(tool_set, tier:)
+      tool_set.available_for?(chat_session, tier: tier)
+    rescue StandardError, NoMethodError
+      false
+    end
+
+    def tool_definitions(tool_set, tier:)
       method = tool_set.method(:tool_definitions)
       keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
-      return Array(tool_set.tool_definitions(tier: nil)) if keywords.include?(:tier)
+      if keywords.include?(:tier)
+        args = { tier: tier }
+        args[:chat_session] = chat_session if keywords.include?(:chat_session)
+        return Array(tool_set.tool_definitions(**args))
+      end
       return Array(tool_set.tool_definitions(context: nil)) if keywords.include?(:context)
 
       Array(tool_set.tool_definitions)
@@ -187,7 +374,7 @@ module Admin
 
     def card_from_path(path)
       source = File.read(path)
-      tool_name = source[TOOL_NAME_PATTERN, 1]
+      tool_name = source[TOOL_NAME_PATTERN, 1] || source[TOOL_CARD_FACTORY_PATTERN, 1]
       return if tool_name.blank?
 
       owner_type, owner_name = card_owner(path)
@@ -195,7 +382,7 @@ module Admin
         tool_name: tool_name,
         owner_type: owner_type,
         owner_name: owner_name,
-        has_collapsed_summary: source.include?("collapsedSummary"),
+        has_collapsed_summary: source.include?("collapsedSummary") || source.match?(TOOL_CARD_FACTORY_PATTERN),
         path: relative_path(path)
       )
     rescue Errno::ENOENT

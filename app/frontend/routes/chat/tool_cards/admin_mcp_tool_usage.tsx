@@ -12,10 +12,14 @@ type CardGapRow = {
   calls: number | null
   errors: number | null
   errorRate: number | null
+  resultBytes: number | null
+  lastUsedAt: string | null
+  serverNames: string[]
   ownerType: string
   ownerName: string
   recommendationTarget: string
   cardStatus: string
+  recommendation: string | null
 }
 type RecentCall = {
   key: string
@@ -45,15 +49,24 @@ type UsageCard = {
   sidecarModeBreakdown: BreakdownRow[]
   unusedAdvertisedTools: string[]
   customCardGaps: {
+    rankedGaps: CardGapRow[]
     highVolumeWithoutCustomCard: CardGapRow[]
     highErrorWithWeakOrNoCustomCard: CardGapRow[]
     unusedAdvertisedTools: CardGapRow[]
+    unclassifiedAdvertisedTools: CardGapRow[]
   }
   recentCalls: RecentCall[]
 }
 
 function percent(value: number) {
   return `${(Math.round(value * 1000) / 10).toFixed(1)}%`
+}
+
+function formatBytes(value: number | null) {
+  if (value == null) return "-"
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${value} B`
 }
 
 function parseToolRow(value: unknown, index: number): ToolRow | null {
@@ -94,10 +107,17 @@ function parseCardGapRow(value: unknown, index: number): CardGapRow | null {
     calls: numberValue(value.calls),
     errors: numberValue(value.errors),
     errorRate: numberValue(value.error_rate),
+    resultBytes: numberValue(value.result_bytes),
+    lastUsedAt: displayValue(value.last_used_at),
+    serverNames: Array.isArray(value.server_names) ? value.server_names.flatMap((name) => {
+      const serverName = displayValue(name)
+      return serverName ? [serverName] : []
+    }) : [],
     ownerType,
     ownerName,
     recommendationTarget,
-    cardStatus
+    cardStatus,
+    recommendation: displayValue(value.recommendation)
   }
 }
 
@@ -151,9 +171,11 @@ function parseFilters(value: unknown) {
 function parseCustomCardGaps(value: unknown) {
   const gaps = isPlainObject(value) ? value : {}
   return {
+    rankedGaps: parseCardGapRows(gaps.ranked_gaps),
     highVolumeWithoutCustomCard: parseCardGapRows(gaps.high_volume_without_custom_card),
     highErrorWithWeakOrNoCustomCard: parseCardGapRows(gaps.high_error_with_weak_or_no_custom_card),
-    unusedAdvertisedTools: parseCardGapRows(gaps.unused_advertised_tools)
+    unusedAdvertisedTools: parseCardGapRows(gaps.unused_advertised_tools),
+    unclassifiedAdvertisedTools: parseCardGapRows(gaps.unclassified_advertised_tools)
   }
 }
 
@@ -295,6 +317,46 @@ function CardGapRows({ heading, rows, showVolume = true }: { heading: string; ro
   )
 }
 
+function RankedCardGaps({ rows }: { rows: CardGapRow[] }) {
+  return (
+    <div className="min-w-0 rounded border border-info/20">
+      <div className="border-l-4 border-info px-2 py-1">
+        <SectionLabel>Custom card gap ranking</SectionLabel>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState>No missing or weak card gaps in this window.</EmptyState>
+      ) : (
+        <Table>
+          <THead columns={["Tool", "Usage", "Owner", "Last used"]} />
+          <TBody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <Td maxWidth title={row.toolName}>
+                  <div className="break-words font-medium text-gray-900 dark:text-gray-100">{row.toolName}</div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <StatePill state={row.cardStatus} tone="warning" />
+                    {row.recommendation ? <Badge>{row.recommendation.replaceAll("_", " ")}</Badge> : null}
+                  </div>
+                </Td>
+                <Td>
+                  <div className="font-mono text-2xs text-gray-700 dark:text-gray-200">{row.calls ?? 0} calls</div>
+                  <div className="font-mono text-2xs text-gray-700 dark:text-gray-200">{row.errors ?? 0} errors</div>
+                  <div className="font-mono text-2xs text-gray-700 dark:text-gray-200">{formatBytes(row.resultBytes)}</div>
+                </Td>
+                <Td maxWidth title={row.recommendationTarget}>
+                  <div className="break-words text-2xs text-gray-700 dark:text-gray-200">{row.ownerType === "plugin" ? row.ownerName : "core"}</div>
+                  <div className="break-words font-mono text-2xs text-gray-500 dark:text-gray-400">{row.serverNames.length > 0 ? row.serverNames.join(", ") : row.recommendationTarget}</div>
+                </Td>
+                <Td mono>{row.lastUsedAt || "unused"}</Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
+    </div>
+  )
+}
+
 function RecentCalls({ calls }: { calls: RecentCall[] }) {
   if (calls.length === 0) return <EmptyState>No recent calls found.</EmptyState>
 
@@ -353,10 +415,12 @@ function renderExpanded(context: ToolCardContext) {
         <ToolRows heading="Volume priorities" intent="volume" rows={card.topTools} />
         <ToolRows heading="Error priorities" intent="error" rows={card.errorRates} />
       </div>
-      <div className="grid min-w-0 gap-2 lg:grid-cols-3">
+      <RankedCardGaps rows={card.customCardGaps.rankedGaps} />
+      <div className="grid min-w-0 gap-2 lg:grid-cols-4">
         <CardGapRows heading="Missing high-volume cards" rows={card.customCardGaps.highVolumeWithoutCustomCard} />
         <CardGapRows heading="Weak or missing error cards" rows={card.customCardGaps.highErrorWithWeakOrNoCustomCard} />
         <CardGapRows heading="Unused advertised tools" rows={card.customCardGaps.unusedAdvertisedTools} showVolume={false} />
+        <CardGapRows heading="Unclassified advertised tools" rows={card.customCardGaps.unclassifiedAdvertisedTools} showVolume={false} />
       </div>
       <div className="grid gap-2 lg:grid-cols-2">
         <BreakdownRows label="Surface" rows={card.surfaceBreakdown} />

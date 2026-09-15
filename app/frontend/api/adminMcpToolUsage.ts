@@ -47,16 +47,22 @@ export type McpToolCardGapRow = {
   calls?: number
   errors?: number
   error_rate?: number
+  result_bytes?: number
+  last_used_at?: string | null
+  server_names?: string[]
   owner_type: "core" | "plugin"
   owner_name: string
   recommendation_target: string
-  card_status: "missing" | "weak" | "registered"
+  card_status: "missing" | "weak" | "registered" | "generic" | "deferred" | "hidden"
+  recommendation?: "custom_card_next" | "watch" | "ignore_for_now"
 }
 
 export type McpToolCardGaps = {
+  ranked_gaps: McpToolCardGapRow[]
   high_volume_without_custom_card: McpToolCardGapRow[]
   high_error_with_weak_or_no_custom_card: McpToolCardGapRow[]
   unused_advertised_tools: McpToolCardGapRow[]
+  unclassified_advertised_tools: McpToolCardGapRow[]
 }
 
 export type McpToolUsagePayload = {

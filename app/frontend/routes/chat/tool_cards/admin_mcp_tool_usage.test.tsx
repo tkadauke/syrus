@@ -44,6 +44,36 @@ const POPULATED_PAYLOAD = {
   ],
   unused_advertised_tools: ["admin_clear_github_cache"],
   custom_card_gaps: {
+    ranked_gaps: [
+      {
+        tool_name: "bulk_read_jobs",
+        calls: 19,
+        errors: 0,
+        error_rate: 0,
+        result_bytes: 131072,
+        last_used_at: "2026-09-08T11:59:00Z",
+        server_names: ["syrus-chat-sidecar"],
+        owner_type: "core",
+        owner_name: "core",
+        recommendation_target: "core",
+        card_status: "missing",
+        recommendation: "custom_card_next"
+      },
+      {
+        tool_name: "unused_plugin_tool",
+        calls: 0,
+        errors: 0,
+        error_rate: 0,
+        result_bytes: 0,
+        last_used_at: null,
+        server_names: [],
+        owner_type: "plugin",
+        owner_name: "example_plugin",
+        recommendation_target: "plugin:example_plugin",
+        card_status: "missing",
+        recommendation: "ignore_for_now"
+      }
+    ],
     high_volume_without_custom_card: [
       {
         tool_name: "bulk_read_jobs",
@@ -71,6 +101,15 @@ const POPULATED_PAYLOAD = {
     unused_advertised_tools: [
       {
         tool_name: "unused_plugin_tool",
+        owner_type: "plugin",
+        owner_name: "example_plugin",
+        recommendation_target: "plugin:example_plugin",
+        card_status: "missing"
+      }
+    ],
+    unclassified_advertised_tools: [
+      {
+        tool_name: "new_plugin_tool",
         owner_type: "plugin",
         owner_name: "example_plugin",
         recommendation_target: "plugin:example_plugin",
@@ -150,9 +189,15 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("Missing high-volume cards")).toBeInTheDocument()
     expect(screen.getByText("Weak or missing error cards")).toBeInTheDocument()
     expect(screen.getAllByText("Unused advertised tools").length).toBeGreaterThan(0)
+    expect(screen.getByText("Unclassified advertised tools")).toBeInTheDocument()
     expect(screen.getAllByText("plugin:example_plugin").length).toBeGreaterThan(0)
+    expect(screen.getByText("new_plugin_tool")).toBeInTheDocument()
     expect(screen.getAllByText("admin_mcp_tool_usage").length).toBeGreaterThan(0)
     expect(screen.getAllByText("11.8%").length).toBeGreaterThan(0)
+    expect(screen.getByText("Custom card gap ranking")).toBeInTheDocument()
+    expect(screen.getByText("128.0 KB")).toBeInTheDocument()
+    expect(screen.getByText("custom card next")).toBeInTheDocument()
+    expect(screen.getByText("ignore for now")).toBeInTheDocument()
   })
 
   it("renders empty windows without pretending the payload is malformed", () => {
@@ -167,9 +212,11 @@ describe("admin_mcp_tool_usage tool card", () => {
       sidecar_mode_breakdown: [],
       unused_advertised_tools: [],
       custom_card_gaps: {
+        ranked_gaps: [],
         high_volume_without_custom_card: [],
         high_error_with_weak_or_no_custom_card: [],
-        unused_advertised_tools: []
+        unused_advertised_tools: [],
+        unclassified_advertised_tools: []
       },
       recent_calls: []
     }
@@ -179,7 +226,8 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("No MCP tool calls found for this window.")).toBeInTheDocument()
     expect(screen.getByText("No tool volume in this window.")).toBeInTheDocument()
     expect(screen.getByText("No high-error tools in this window.")).toBeInTheDocument()
-    expect(screen.getAllByText("No card coverage gaps in this bucket.").length).toBe(3)
+    expect(screen.getByText("No missing or weak card gaps in this window.")).toBeInTheDocument()
+    expect(screen.getAllByText("No card coverage gaps in this bucket.").length).toBe(4)
     expect(screen.getByText("No recent calls found.")).toBeInTheDocument()
   })
 

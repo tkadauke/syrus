@@ -48,7 +48,22 @@ plugin/core state. The payload compares chat-surface usage and currently
 advertised chat tools against registered frontend custom tool-card renderers
 where that renderer metadata can be discovered from core
 `app/frontend/routes/chat/tool_cards/*.tsx` files and plugin
-`plugins/*/app/frontend/tool_cards/*.tsx` files. The section has three buckets:
+`plugins/*/app/frontend/tool_cards/*.tsx` files. The section includes a
+usage-ranked dashboard plus four compatibility buckets. A tool is classified
+as `registered` when it has a custom card with collapsed-summary metadata,
+`weak` when it has only an expanded custom renderer, `generic` when raw/generic
+rendering is an explicit product decision, `deferred` when a custom card is
+intentionally postponed, and `hidden` when the result is an implementation
+acknowledgement that should not drive card work. An advertised tool with no
+card and no explicit decision is reported as `missing` and appears in
+`unclassified_advertised_tools`; that bucket is the regression guard for newly
+advertised chat tools.
+
+- `ranked_gaps` — missing or weak/generic chat cards ordered by observed impact
+  in the selected window. Each row carries call count, error count/rate, summed
+  result byte volume, MCP server names, `last_used_at`, owner metadata, and a
+  recommendation (`custom_card_next`, `watch`, or `ignore_for_now`) so operators
+  can separate obvious next-card candidates from obscure unused tools.
 
 - `high_volume_without_custom_card` — the highest-volume chat tools in the
   selected window that have no registered custom card.
@@ -57,6 +72,11 @@ where that renderer metadata can be discovered from core
   collapsed summary metadata.
 - `unused_advertised_tools` — chat tools advertised for the current chat
   availability context but not used in the selected window.
+- `unclassified_advertised_tools` — currently advertised chat tools with no
+  custom card registration and no explicit `generic`, `deferred`, or `hidden`
+  coverage decision. A non-empty list means the implementation should add a
+  card file or record an explicit non-card decision instead of silently relying
+  on raw JSON rendering.
 
 Each row carries `owner_type`, `owner_name`, and `recommendation_target`.
 Plugin-defined tools point at `plugin:<plugin_name>` so follow-up card work can
