@@ -22,10 +22,37 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
   end
 
   def finish_work_units_for(job_record)
+    job_record.runs.where(state: Run::ACTIVE_STATES).update_all(state: "succeeded", finished_at: Time.current)
     WorkUnit
       .joins(:work_unit_members)
       .where(work_unit_members: { job_id: job_record.id })
       .find_each { |unit| unit.mark_terminal!("succeeded") }
+  end
+
+  def attach_work_unit(workflow, member_jobs: [ workflow.job ], kind: workflow.trigger_kind, state: "running")
+    primary = member_jobs.first
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: primary.repository,
+      scope_type: "job",
+      scope_id: primary.id,
+      actor: primary.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: primary.repository,
+      scope_type: "job",
+      scope_id: primary.id,
+      workflow: workflow
+    )
+    member_jobs.each_with_index do |job_record, index|
+      unit.work_unit_members.create!(job: job_record, role: index.zero? ? "primary" : "member")
+    end
+    unit
   end
 
   it "starts an unstarted direct job" do
@@ -557,9 +584,47 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("actions", "can_unapprove")).to be(false)
   end
 
+  it "approves an implemented job while automatic visual diff work is active and cancels the obsolete visual diff" do
+    job.update!(state: "implemented")
+    job.initial_run.update_columns(state: "succeeded")
+    finish_work_units_for(job)
+    visual_diff = Workflow.create!(
+      job: job,
+      trigger_kind: "visual_diff",
+      state: "queued",
+      artifacts: { "visual_diff_source" => VisualDiffSubmission::AUTOMATIC_SOURCE }
+    )
+    visual_unit = attach_work_unit(visual_diff, kind: "visual_diff", state: "queued")
+
+    post app_job_path(job, "approve"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_approved
+    expect(visual_diff.reload).to be_cancelled
+    expect(visual_diff.artifact("cancelled_reason")).to eq("visual_diff_obsolete")
+    expect(visual_unit.reload).to be_cancelled
+    expect(visual_unit.preemption_reason).to eq("visual_diff_obsolete")
+    expect(parse_body.dig("actions", "can_approve")).to be(false)
+  end
+
+  it "rejects approval while normal runtime work is active" do
+    job.update!(state: "implemented")
+    job.initial_run.update_columns(state: "succeeded")
+    finish_work_units_for(job)
+    retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+    attach_work_unit(retry_workflow, kind: "retry", state: "queued")
+
+    post app_job_path(job, "approve"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(job.reload).to be_implemented
+    expect(job.job_approvals).to be_empty
+  end
+
   it "records an approval vote without transitioning when policy is not yet satisfied (two_person)" do
     repo.update!(review_policy: "two_person")
     job.update!(state: "implemented", owner_user_id: user.id)
+    finish_work_units_for(job)
 
     post app_job_path(job, "approve"), as: :json
 
@@ -572,6 +637,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
   it "approves an implemented job with bearer token auth", :skip_sign_in do
     token = user.generate_api_token!
     job.update!(state: "implemented")
+    finish_work_units_for(job)
 
     post app_job_path(job, "approve"), headers: { "Authorization" => "Bearer #{token}" }, as: :json
 
@@ -786,6 +852,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
 
     it "allows approve for a write-tier member (recorded as a vote, self policy still needs the owner)" do
       job.update!(state: "implemented")
+      finish_work_units_for(job)
       sign_in_as(write_member)
 
       post app_job_path(job, "approve"), as: :json

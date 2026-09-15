@@ -261,6 +261,13 @@ class Job < ApplicationRecord
 
     any_active_run? || WorkUnits::Ownership.active_for_job?(self)
   end
+
+  def approval_blocking_runtime_work?
+    WorkUnits::TerminalWorkflowSync.for_job(self)
+
+    approval_blocking_active_run? || approval_blocking_active_work_unit?
+  end
+
   # Materialized rather than a correlated NOT EXISTS — see
   # WorkUnits::Ownership.all_active_job_ids. The subquery form survives on its
   # own, but the Inbox smart folder ORs it together with four more subqueries
@@ -1021,6 +1028,19 @@ class Job < ApplicationRecord
   # for that same feedback is actively in flight.
   def active_feedback_workflow?
     WorkUnits::Ownership.active_for_job_kind?(self, Workflow::TriggerKind.feedback_values)
+  end
+
+  def approval_blocking_active_run?
+    runs
+      .active
+      .where.not(trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES)
+      .exists?
+  end
+
+  def approval_blocking_active_work_unit?
+    WorkUnits::Ownership.active_units_for_job(self).any? do |unit|
+      !Workflow::TriggerKind.non_approval_blocking?(unit.workflow&.trigger_kind || unit.kind)
+    end
   end
 
   def record_github_review_approval!(review_url:, approved_at: Time.current, reviewer_user: nil)
