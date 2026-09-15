@@ -1,8 +1,9 @@
 # Syrus Plugins
 
 This directory hosts bundled plugin gems. Each subdirectory is a self-contained
-Rails Engine that registers one or more extension points with `Syrus::PluginRegistry`
-at boot.
+plugin that declares one or more extension points through `Syrus::PluginApi`.
+The API builds the plugin's Rails Engine and registers the manifest with
+`Syrus::PluginRegistry` on each Rails reload.
 
 External (third-party) plugins are installed the same way as any gem: add them to
 `Gemfile`, run `bundle install`, then restart the server.
@@ -23,9 +24,15 @@ Scaffold a new bundled plugin:
 rails generate syrus:plugin my_plugin
 ```
 
-This creates `plugins/my_plugin/` with a gemspec, version file, and a Rails Engine
-that calls `Syrus::PluginRegistry.register` in its initializer. Then add a path
-reference to `Gemfile`:
+This creates `plugins/my_plugin/` with a gemspec and a one-file
+`Syrus::PluginApi` manifest. Add `--frontend` when the plugin owns an admin-page
+route and should start with a semantic UI example:
+
+```
+rails generate syrus:plugin my_plugin --frontend
+```
+
+Then add a path reference to `Gemfile`:
 
 ```ruby
 gem "my_plugin", path: "plugins/my_plugin"
@@ -71,35 +78,36 @@ and `component` must match an installed frontend route module key.
 A plugin can register any combination of extension points in a single call:
 
 ```ruby
-Syrus::PluginRegistry.register(
-  name:        "my_plugin",
-  version:     MyPlugin::VERSION,
-  description: "One-or-two sentence summary shown in the settings UI.",
-  homepage:    "https://github.com/example/my_plugin",
-  frontend:    {
-    routes: {
-      "my_plugin/AdminPerformance" => "app/frontend/routes/AdminPerformance.tsx"
-    },
-    i18n: [ "app/frontend/i18n/locales/*/my_plugin.json" ]
-  },
-  routes:      [
-    { verb: "GET", path: "/admin/my_plugin/performance", controller: "spa#show" },
-    { verb: "GET", path: "/api/v1/app/admin/my_plugin/performance", controller: "api/v1/app/admin/performance#show" }
-  ],
-  provides:    {
-    agent_provider: MyPlugin::AgentProvider,
-    chat_provider:  MyPlugin::ChatProvider,
-    mcp_tool_set:   MyPlugin::McpToolSet,
-    admin_page:     MyPlugin::AdminPages,
-    source_control_provider: MyPlugin::SourceControl,
-  }
-)
+module MyPlugin
+  extend Syrus::PluginApi
+
+  syrus_plugin "my_plugin" do
+    display_name "My Plugin"
+    category     "tooling"
+    author       "Your Name"
+    description  "One-or-two sentence summary shown in the settings UI."
+    homepage     "https://github.com/example/my_plugin"
+
+    frontend routes: { "my_plugin/AdminPerformance" => "app/frontend/routes/AdminPerformance.tsx" },
+             i18n: [ "app/frontend/i18n/locales/*/my_plugin.json" ]
+
+    route :get, "/api/v1/app/admin/my_plugin/performance",
+          to: "api/v1/app/admin/performance#show"
+
+    provides agent_provider:           "MyPlugin::AgentProvider",
+             chat_provider:            "MyPlugin::ChatProvider",
+             mcp_tool_set:             "MyPlugin::McpToolSet",
+             admin_page:               "MyPlugin::AdminPages",
+             source_control_provider:  "MyPlugin::SourceControl"
+  end
+end
 ```
 
-`PluginRegistry.register` validates that each provided class includes the
-corresponding interface module and raises `Syrus::PluginRegistry::RegistrationError`
-if not. It also upserts a `PluginRecord` row so the operator can enable/disable
-the plugin without touching the Gemfile (see below).
+`syrus_plugin` resolves contribution class names on registration, validates that
+each provided class includes the corresponding interface module, and raises
+`Syrus::PluginRegistry::RegistrationError` if not. It also upserts a
+`PluginRecord` row so the operator can enable/disable the plugin without
+touching the Gemfile (see below).
 
 ## Frontend and i18n
 
@@ -109,7 +117,17 @@ build includes these files and discovers admin route components from
 React component and is addressed as `<plugin>/<ComponentName>`.
 
 Plugin frontend code should import host frontend APIs through `@app/*`, e.g.
-`@app/hooks/useT`, instead of long relative paths.
+`@app/hooks/useT`, instead of long relative paths. For UI, start from
+`@app/components/ui`:
+
+```tsx
+import { Button, Card, FormField, Input, Page, PageHeading, PanelMessage } from "@app/components/ui"
+```
+
+Use shared primitives for page shells, surfaces, text, tables, forms, notices,
+tool cards, and code/log surfaces. Plugin-specific icons, logos, charts,
+preview canvases, and domain rendering stay plugin-owned; the shared layout,
+surface, form, and table semantics come from core.
 
 Plugin locale files live under
 `plugins/<name>/app/frontend/i18n/locales/<locale>/<namespace>.json` and are
