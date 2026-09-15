@@ -11,6 +11,10 @@ module SyrusAgyAgent
     category "agent_provider"
     default_enabled true
     disableable true
-    provides agent_provider: "AgentProviders::Agy"
+    provides agent_provider: "AgentProviders::Agy",
+             chat_provider: "ChatProviders::Agy"
+    while_enabled do |scope|
+      scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("agy", ChatSessionRehydrator::Agy) }
+    end
   end
 end
