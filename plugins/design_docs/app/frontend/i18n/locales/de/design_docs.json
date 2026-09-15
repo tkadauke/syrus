@@ -1,5 +1,9 @@
 {
   "tab_design_docs": "Design Docs",
+  "index_aria": "Design Docs index",
+  "columns_menu": "Spalten",
+  "visible_columns": "Sichtbare Spalten",
+  "move_column_down": "Nach unten",
   "list_tool_filter_placeholder": "Design-Dokumente filtern",
   "preview_see_more": "Mehr anzeigen",
   "preview_not_accessible": "Nicht zugänglich",

@@ -279,6 +279,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
   onSelect: (id: number) => void
   preferences: RepositoryDesignDocsPayload["preferences"] | null
 }) {
+  const { t } = useT("design_docs")
   const queryClient = useQueryClient()
   const isDesktop = useMediaQuery("(min-width: 768px)", true)
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -318,12 +319,12 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
   if (docs.length === 0) return <Panel>No visible design docs match these filters.</Panel>
 
   return (
-    <section className="min-w-0 space-y-3" aria-label="Design Docs index">
+    <section className="min-w-0 space-y-3" aria-label={t("index_aria")}>
       {isDesktop ? (
         <div className="flex justify-end">
           <div className="relative" ref={columnsMenuRef}>
             <Button
-              aria-label="Columns"
+              aria-label={t("columns_menu")}
               aria-controls="design-docs-columns-menu"
               aria-expanded={columnsOpen}
               aria-haspopup="menu"
@@ -337,7 +338,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
             {columnsOpen ? (
               <div className="absolute right-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="design-docs-columns-menu" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Visible columns</legend>
+                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("visible_columns")}</legend>
                   {menuColumns.map((column) => {
                     const checked = columns.includes(column.key)
                     return (
@@ -351,7 +352,7 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
                           <span className="truncate">{column.title}</span>
                         </label>
                         <button aria-label={`Move ${column.title} left`} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">Up</button>
-                        <button aria-label={`Move ${column.title} right`} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">Down</button>
+                        <button aria-label={`Move ${column.title} right`} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">{t("move_column_down")}</button>
                       </div>
                     )
                   })}

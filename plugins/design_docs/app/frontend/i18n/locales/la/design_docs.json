@@ -1,5 +1,9 @@
 {
   "tab_design_docs": "Documenta consilii",
+  "index_aria": "Index documentorum consilii",
+  "columns_menu": "Columnae",
+  "visible_columns": "Columnae visibiles",
+  "move_column_down": "Deorsum",
   "list_tool_filter_placeholder": "Filtra documenta consilii",
   "preview_see_more": "Vide amplius",
   "preview_not_accessible": "Non accessibile",
