@@ -62,6 +62,8 @@ class RunFailureClassifier
       result("workspace_clone_timeout", 0.95, true, "The workflow workspace clone timed out before producing a usable checkout.")
     when workspace_checkout_refused_reclone?
       result("git_state_corrupt", 0.95, false, "The workflow workspace has no valid git HEAD and may contain unpushed agent work; operator review is required before discarding it.")
+    when merge_train_workspace_checkout_invalid?
+      result("merge_train_rebuild_required", 0.95, false, "The merge-train workspace exists but has no valid git HEAD; rebuild the train from durable member branches.")
     when workspace_checkout_invalid?
       result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
     when source_snapshot_metadata_invalid?
@@ -195,6 +197,10 @@ class RunFailureClassifier
 
   def workspace_checkout_refused_reclone?
     workspace_checkout_invalid? && text_match?(/refusing to discard possible agent work/i)
+  end
+
+  def merge_train_workspace_checkout_invalid?
+    run.workflow&.trigger_kind == "merge_train" && workspace_checkout_invalid?
   end
 
   def source_snapshot_metadata_invalid?

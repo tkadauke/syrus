@@ -1,0 +1,104 @@
+name: merge train invalid workspace rebuilds
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: merge-train-invalid-workspace-rebuilds
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Feature after invalid train workspace
+jobs:
+  alpha:
+    title: Alpha member after invalid workspace
+    epic: feature
+    state: approved
+    branch_name: syrus/direct-alpha
+    pr_number: 6301
+    approved_at: "2026-09-15 08:00:00"
+  beta:
+    title: Beta member after invalid workspace
+    epic: feature
+    state: approved
+    branch_name: syrus/direct-beta
+    pr_number: 6302
+    approved_at: "2026-09-15 08:01:00"
+  owner:
+    title: Failed stale train owner
+    epic: feature
+    state: failed
+    branch_name: syrus/direct-owner
+    pr_number: 6303
+    workflow:
+      kind: merge_train
+      state: failed
+      work_unit:
+        state: failed
+      steps:
+        - kind: merge_train_assemble
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: merge_train_build
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: grader_collect
+          state: failed
+          run:
+            state: failed
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: required graders failed
+        - kind: landing_fix
+          state: failed
+          run:
+            state: failed
+            diagnostic:
+              error_class: GitRunner::GitError
+              error_message: "git rev-parse --verify HEAD exited 128\nexisting workflow workspace at /tmp/workflows/123 has no valid HEAD"
+            classification:
+              classification: merge_train_rebuild_required
+              retryable: false
+              reason: The merge-train workspace exists but has no valid git HEAD; rebuild the train.
+        - kind: merge_train_land
+          state: cancelled
+merge_trains:
+  broken:
+    epic: feature
+    state: failed
+    base_branch: main
+    integration_branch: syrus/merge-train-invalid-workspace
+    integration_sha: 1111111111111111111111111111111111111111
+    failure_reason: "The merge-train workspace exists but has no valid git HEAD; rebuild the train."
+    workflow_job: owner
+    members:
+      - job: alpha
+        state: failed
+        reason: invalid workspace
+      - job: beta
+        state: failed
+        reason: invalid workspace
+      - job: owner
+        state: failed
+        reason: invalid workspace
+outcomes:
+  default: success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+    owner:
+      - closed
+  epics:
+    feature:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - merge_train_assemble
+    - merge_train_land

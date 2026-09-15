@@ -781,6 +781,20 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "classifies merge-train workspace damage as rebuild-required" do
+    run.workflow.update!(trigger_kind: "merge_train")
+    run.update!(state: "failed")
+    diagnostic(
+      "GitRunner::GitError",
+      "git rev-parse --verify HEAD exited 128\nexisting workflow workspace at /tmp/workflows/123 has no valid HEAD"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("merge_train_rebuild_required")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies a refused no-HEAD workspace reclone as non-retryable git state corruption" do
     run.update!(state: "failed")
     diagnostic(
