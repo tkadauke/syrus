@@ -1,20 +1,19 @@
 # Muse Agent
 
-Muse Agent is the initial Syrus plugin shell for Muse Code.
+Muse Agent connects Syrus workflow execution to Muse Code.
 
-This plugin currently owns the credential surface and the low-level Muse
-process invocation adapter:
+This plugin owns the credential surface, provider registration, and low-level
+Muse process invocation adapter:
 
 - `User#muse_api_key` encrypted storage
 - `/credentials` save, clear, and test support
 - a `CredentialProbe` registration while the plugin is enabled
 - secret extraction so probe output and logs redact the saved key
 - `MuseInvocation`, a fixture-backed wrapper for `muse exec --json`
+- `AgentProviders::Muse`, registered through the `:agent_provider` plugin
+  extension point
 
-It intentionally does not register `AgentProviders::Muse` or
-`ChatProviders::Muse` yet. Workflow execution stays unavailable until Muse
-invocation, transcript normalization, and required MCP tool support are wired
-and tested.
+Chat execution is not registered yet.
 
 The credential probe verifies that `muse` is available and runs:
 
@@ -37,6 +36,12 @@ muse exec --json --provider meta --workspace <path> \
 It appends `--model`, `--reasoning-effort`, and `--max-model-steps` only when
 configured. The prompt is written to a temporary file and the API key is sent
 over stdin so neither secret appears in argv.
+
+Workflow runs set `HOME` to a per-workflow Muse home and write
+`~/.config/muse/settings.json` with the `syrus-mcp-sidecar` stdio server before
+launching `muse exec`. Muse required-tool steps fail fast with
+`mcp_sidecar_failed` when the JSONL stream does not show the required Syrus MCP
+tools as available or called.
 
 The adapter streams Muse JSONL envelopes to the run log and parses terminal
 events such as `run.terminal.completed` and `run.terminal.failed` into

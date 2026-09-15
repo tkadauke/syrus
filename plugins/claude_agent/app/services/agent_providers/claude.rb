@@ -12,6 +12,10 @@ module AgentProviders
 
     def self.provider = "claude"
 
+    def self.configured_for_user?(user)
+      user.claude_oauth_token.present?
+    end
+
     def self.mcp_tool_name(tool_name, server_name:)
       "mcp__#{server_name}__#{tool_name}"
     end
