@@ -1398,15 +1398,16 @@ function RunGradeLogPanel({ payload, onClose }: { payload: Awaited<ReturnType<ty
   return (
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{payload.name || t("run_number", { id: payload.run_id })} {t("artifact_grade_log_title")}</ArtifactPanelHeader>
-      <CodeSurface
-        code={payload.contents}
-        className="max-md:min-h-0 max-md:flex-1 max-md:max-h-none"
-        copyLabel={t("artifact_grade_log_title")}
-        data-testid="run-grade-log-stream"
-        maxHeightClassName="max-h-96 max-md:min-h-0 max-md:flex-1 max-md:max-h-none"
-      >
-        <AnsiText text={payload.contents} />
-      </CodeSurface>
+      <div data-testid="run-grade-log-stream">
+        <CodeSurface
+          code={payload.contents}
+          className="max-md:min-h-0 max-md:flex-1 max-md:max-h-none"
+          copyLabel={t("artifact_grade_log_title")}
+          maxHeightClassName="max-h-96 max-md:min-h-0 max-md:flex-1 max-md:max-h-none"
+        >
+          <AnsiText text={payload.contents} />
+        </CodeSurface>
+      </div>
     </section>
   )
 }
