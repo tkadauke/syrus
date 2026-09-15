@@ -37,7 +37,12 @@ end
 RSpec.describe "primary-agent prompts include GitSafety::TEXT" do
   it "Implement" do
     issue = Struct.new(:title, :body).new("t", "b")
-    expect(Prompts::Implement.new(issue: issue).to_s).to include(Prompts::GitSafety::TEXT)
+    out = Prompts::Implement.new(issue: issue).to_s
+
+    expect(out).to include("Syrus context")
+    expect(out).to include("Git pipeline contract")
+    expect(out).to include("git diff origin/<default_branch>...HEAD")
+    expect(out).to include("git checkout --orphan")
   end
 
   it "PrFeedback" do
