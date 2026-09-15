@@ -275,7 +275,7 @@ the current checkout repository, and accepts `--repo owner/name` and
 `--yes`. Optional flags set fields the API already accepts but that the
 interactive prompt does not ask for: `--priority` (`urgent`, `high`,
 `medium`, or `low`; omitted defaults to `medium` server-side), `--agent`
-(an agent provider slug, e.g. `claude` or `codex`), `--epic` (an Epic to
+(an agent provider slug, e.g. `claude`, `codex`, or `muse`), `--epic` (an Epic to
 attach the job to, as `EPIC-<id>` or a slug — resolved to its numeric ID
 before the job is created), and `--owner` (the numeric user ID of a
 repository member to assign as owner). All four are optional and omitted
