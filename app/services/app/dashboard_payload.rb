@@ -624,12 +624,12 @@ module App
       direct_running_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.direct_running_jobs", count: job_ids.size) do
         job_ids.empty? ? [] : Run.where(job_id: job_ids, state: "running").distinct.pluck(:job_id)
       end
-      approval_blocking_direct_running_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.approval_blocking_direct_running_jobs", count: job_ids.size) do
+      approval_blocking_direct_active_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.approval_blocking_direct_active_runs", count: job_ids.size) do
         if job_ids.empty?
           []
         else
           Run
-            .where(job_id: job_ids, state: "running")
+            .where(job_id: job_ids, state: Run::ACTIVE_STATES)
             .where.not(trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES)
             .distinct
             .pluck(:job_id)
@@ -642,7 +642,7 @@ module App
         (direct_running_job_ids | work_unit_snapshot.runnable_job_ids.to_a).index_with(true)
       end
       @job_runtime_approval_blocking_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.approval_blocking_jobs", count: job_ids.size) do
-        (approval_blocking_direct_running_job_ids | work_unit_snapshot.approval_blocking_job_ids.to_a).index_with(true)
+        (approval_blocking_direct_active_job_ids | work_unit_snapshot.approval_blocking_job_ids.to_a).index_with(true)
       end
       @job_runtime_running_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.running_jobs", count: job_ids.size) do
         (direct_running_job_ids | work_unit_snapshot.running_job_ids.to_a).index_with(true)
