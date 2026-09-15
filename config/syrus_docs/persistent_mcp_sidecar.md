@@ -130,11 +130,12 @@ transport before invoking. The decision is a `transport` (`:persistent` or
   `capabilities` array doesn't include `PersistentMcpDaemon::WORKFLOW_TOOLS_CAPABILITY`
   (`"workflow_tools"`). This is the outcome in production today, since
   `PersistentMcpDaemon::CAPABILITIES` is still empty (see above).
-- `provider_unsupported: ...` — Codex-only. Codex's MCP config
+- `provider_unsupported: ...` — provider-specific. Codex's MCP config
   (`config.toml`) has no verified remote/HTTP transport wiring in this
-  codebase, so `AgentProviders::Codex` downgrades any `:persistent` decision
-  to `:stdio` with this reason before it ever builds a config, regardless of
-  daemon health/compatibility.
+  codebase, and Muse reads MCP servers from `~/.config/muse/settings.json`
+  without persistent HTTP wiring, so those providers downgrade any
+  `:persistent` decision to `:stdio` with this reason before they build
+  config, regardless of daemon health/compatibility.
 - `nil` (persistent, no fallback) — feature on, daemon healthy, compatible,
   and (Claude only) transport wiring exists. `AgentProviders::Claude` then
   builds an `http`-type `mcpServers` entry pointing at
@@ -171,11 +172,11 @@ safe, or vice versa — `PersistentMcpDaemon::CAPABILITIES` currently advertises
 (`feature_disabled`, `daemon_unreachable: ...`, `daemon_unhealthy: ...`,
 `daemon_incompatible: ...`), plus:
 
-- `provider_unsupported: ...` — Codex-only, same rationale as workflow's:
-  `ChatProviders::Codex#mcp_servers_for` reads every configured entry as a
-  stdio server (`.fetch("command")`), so an `http`-type entry would crash it.
-  `ChatTurnJob` downgrades any `:persistent` decision to `:stdio` with this
-  reason before building config when the turn's chat provider isn't Claude.
+- `provider_unsupported: ...` — same rationale as workflow's: providers other
+  than Claude read every configured entry as a stdio server, so an `http`-type
+  entry would crash them or be ignored. `ChatTurnJob` downgrades any
+  `:persistent` decision to `:stdio` with this reason before building config
+  when the turn's chat provider isn't Claude.
 - `nil` (persistent, no fallback) — `ChatTurnJob` builds `http`-type
   `mcpServers` entries for BOTH the essential and deferred config keys
   (`"syrus-chat-sidecar"` / `"syrus-chat-deferred-sidecar"`, same names as
@@ -250,7 +251,7 @@ at all, so it isn't part of the daemon's registered chat tool surface either.
   tool set (`Mcp::Tools`) onto this daemon is a later EPIC-20 milestone, so
   workflow tool usage is still exclusively transcript-derived
   (`sidecar_mode: "stdio"`) until then.
-- Codex has no persistent transport wiring for either surface (see
+- Codex and Muse have no persistent transport wiring for either surface (see
   `provider_unsupported` above) — only `AgentProviders::Claude` and
   `ChatProviders::Claude` build `http`-type MCP config when their respective
   selector picks `:persistent`.

@@ -2,6 +2,13 @@
 
 Muse Agent connects Syrus workflow and chat execution to Muse Code.
 
+Muse is intentionally shipped as an installed but disabled plugin until an
+operator enables it for an instance. Turn it on from **Admin -> Plugins ->
+Muse Agent** after the worker/backend image has the `muse` CLI on `PATH` and
+the pilot users have saved Muse API keys. Turning the plugin off removes Muse
+from agent/chat provider selection and disables its credential probe for new
+requests without deleting saved encrypted keys.
+
 This plugin owns the credential surface, provider registration, and low-level
 Muse process invocation adapter:
 
@@ -17,16 +24,28 @@ Muse process invocation adapter:
 - `ChatSessionRehydrator::Muse`, which rebuilds Muse-shaped JSONL from durable
   chat messages for provider switching and context compaction
 
-Muse appears as a selectable chat provider when the plugin is enabled and the
-user has a saved Muse API key.
+Muse appears as a selectable workflow or chat provider when the plugin is
+enabled and the user has a saved Muse API key.
 
 The credential probe verifies that `muse` is available and runs:
 
 ```sh
-muse exec --api-key-stdin "Reply with OK."
+muse exec --json --provider meta --api-key-stdin "Reply with OK."
 ```
 
 The API key is passed on stdin, never in argv.
+
+For a no-credential CLI smoke test, run:
+
+```sh
+muse exec --json --provider echo "Reply with OK."
+```
+
+For a credentialed provider smoke test, run:
+
+```sh
+printf '%s' "$MUSE_API_KEY" | muse exec --json --provider meta --api-key-stdin "Reply with OK."
+```
 
 ## Invocation contract
 
@@ -68,3 +87,25 @@ If a stale Muse session fails before any turn runs, Syrus retries once as a
 fresh session using the chat-history fallback in the prompt. Disposable scoped
 event evaluator sessions include the rehydrated transcript context in the
 prompt because Muse does not currently expose a separate transcript import flag.
+
+## Rollout notes
+
+Muse differs from Claude and Codex in three operator-visible ways:
+
+- Muse API credentials are pay-as-you-go API keys saved per Syrus user; CLI
+  availability and API credentials are separate requirements.
+- Muse reads MCP servers from `~/.config/muse/settings.json`, so Syrus writes a
+  per-workflow or per-chat Muse home and currently uses stdio sidecars rather
+  than the persistent MCP HTTP transport.
+- Muse JSONL uses a `payload_type` envelope that Syrus normalizes through
+  `MuseAgent::TranscriptEvents`; transcript exports default to Muse's redacted
+  export path and raw transcript capture is opt-in.
+
+Known limitations:
+
+- No structured Muse usage probe exists yet; provider usage, billing, and quota
+  failures are classified reactively from invocation errors.
+- Required workflow MCP tools fail fast only after Muse reports tool inventory
+  or exits without using the required tools.
+- Disposable chat evaluator sessions receive rehydrated transcript context in
+  the prompt because Muse does not expose a separate transcript import flag.

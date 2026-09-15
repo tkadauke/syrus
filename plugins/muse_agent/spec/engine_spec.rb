@@ -10,17 +10,32 @@ RSpec.describe SyrusMuseAgent::Engine do
 
     expect(manifest).not_to be_nil
     expect(manifest.version).to eq(Syrus::PluginApi.default_version)
+    expect(manifest.default_enabled?).to be false
+    expect(manifest.disableable?).to be true
+  end
+
+  it "withholds Muse providers until the rollout plugin is enabled" do
+    record = PluginRecord.find_or_create_by!(name: "muse_agent")
+    record.update!(enabled: false, default_enabled: false, disableable: true)
+
+    expect(Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)).not_to include("muse")
+    expect(Syrus::PluginRegistry.providers_for(:chat_provider).map(&:provider_key)).not_to include("muse")
+
+    record.update!(enabled: true)
+
     expect(Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)).to include("muse")
     expect(Syrus::PluginRegistry.providers_for(:chat_provider).map(&:provider_key)).to include("muse")
+  ensure
+    record&.update!(enabled: false, default_enabled: false, disableable: true)
   end
 
   it "registers Muse credential probe effects only while enabled" do
     record = PluginRecord.find_or_create_by!(name: "muse_agent") do |plugin|
       plugin.enabled = true
-      plugin.default_enabled = true
+      plugin.default_enabled = false
       plugin.disableable = true
     end
-    record.update!(enabled: true)
+    record.update!(enabled: true, default_enabled: false)
     expect(CredentialProbe.probe_handler_for("muse_api_key")).to eq(MuseCredentialProbe)
     expect(ChatSessionRehydrator.for("muse")).to eq(ChatSessionRehydrator::Muse)
 
@@ -28,6 +43,6 @@ RSpec.describe SyrusMuseAgent::Engine do
     expect(CredentialProbe.probe_handler_for("muse_api_key")).to be_nil
     expect(ChatSessionRehydrator.for("muse")).to be_nil
   ensure
-    record&.update!(enabled: true)
+    record&.update!(enabled: false, default_enabled: false, disableable: true)
   end
 end

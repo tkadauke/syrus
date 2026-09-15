@@ -232,8 +232,11 @@ arrives.
 
 **Muse workflow provider:** `muse_agent` registers `AgentProviders::Muse`
 through the same `:agent_provider` plugin extension point as Claude and Codex.
-A Muse-backed workflow uses the saved `User#muse_api_key`, stores provider
-state under a per-workflow Muse home, and writes
+Muse is installed but disabled by default; enable the `muse_agent` plugin from
+Admin -> Plugins after the worker/backend image has the `muse` CLI on `PATH`
+and pilot users have saved Muse API keys. A Muse-backed workflow uses the
+saved `User#muse_api_key`, stores provider state under a per-workflow Muse
+home, and writes
 `~/.config/muse/settings.json` in that home with a stdio
 `syrus-mcp-sidecar` server for the current Run. Muse uses dotted MCP tool names
 (`syrus-mcp-sidecar.submit_summary`) and normalizes its `payload_type` JSONL

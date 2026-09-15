@@ -2,6 +2,10 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe AgentProviders::Muse do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   describe "plugin interface" do
     it "includes Syrus::Plugin::AgentProvider" do
       expect(described_class).to include(Syrus::Plugin::AgentProvider)
