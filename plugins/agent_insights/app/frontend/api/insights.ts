@@ -122,15 +122,10 @@ export function fetchInsightSuggestions(repositoryId: string | number, search = 
   const params = new URLSearchParams(search)
   params.set("page", String(page))
   params.set("per_page", String(perPage))
-  return getJson<InsightSuggestionsPayload>(
-    `/api/v1/app/repositories/${repositoryId}/insight_suggestions?${params.toString()}`
-  )
+  return getJson<InsightSuggestionsPayload>(`/api/v1/app/repositories/${repositoryId}/insight_suggestions?${params.toString()}`)
 }
 
-export function acceptInsightSuggestion(
-  id: number,
-  opts: { createJob?: boolean; prompt?: string; agentProvider?: string } = {}
-) {
+export function acceptInsightSuggestion(id: number, opts: { createJob?: boolean; prompt?: string; agentProvider?: string } = {}) {
   return patchJson<InsightSuggestionUpdatePayload>(`/api/v1/app/insight_suggestions/${id}`, {
     action_type: "accept",
     create_job: opts.createJob ?? false,

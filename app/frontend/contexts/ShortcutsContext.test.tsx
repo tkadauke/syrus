@@ -3,7 +3,19 @@ import { Component, useState, type ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ShortcutsProvider, useActiveShortcuts, useShortcut } from "./ShortcutsContext"
 
-function Registrant({ allowWhileTyping = false, keys, label, onFire, group = "Test" }: { allowWhileTyping?: boolean; keys: string; label: string; onFire: () => void; group?: string }) {
+function Registrant({
+  allowWhileTyping = false,
+  keys,
+  label,
+  onFire,
+  group = "Test"
+}: {
+  allowWhileTyping?: boolean
+  keys: string
+  label: string
+  onFire: () => void
+  group?: string
+}) {
   useShortcut(keys, onFire, { allowWhileTyping, description: `${label} description`, group })
   return <div>{label} mounted</div>
 }
@@ -12,7 +24,9 @@ function Toggleable({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(true)
   return (
     <div>
-      <button onClick={() => setMounted(false)} type="button">unmount</button>
+      <button onClick={() => setMounted(false)} type="button">
+        unmount
+      </button>
       {mounted ? children : null}
     </div>
   )
@@ -23,7 +37,9 @@ function ActiveShortcutsProbe() {
   return (
     <ul>
       {shortcuts.map((shortcut) => (
-        <li key={shortcut.keys}>{shortcut.group}: {shortcut.description} ({shortcut.keys})</li>
+        <li key={shortcut.keys}>
+          {shortcut.group}: {shortcut.description} ({shortcut.keys})
+        </li>
       ))}
     </ul>
   )
@@ -84,8 +100,12 @@ describe("useShortcut / ShortcutsProvider", () => {
       const [modalMounted, setModalMounted] = useState(false)
       return (
         <div>
-          <button onClick={() => setModalMounted(true)} type="button">open modal</button>
-          <button onClick={() => setModalMounted(false)} type="button">close modal</button>
+          <button onClick={() => setModalMounted(true)} type="button">
+            open modal
+          </button>
+          <button onClick={() => setModalMounted(false)} type="button">
+            close modal
+          </button>
           <Registrant keys="mod+k" label="Page" onFire={pageHandler} />
           {modalMounted ? <Registrant keys="mod+k" label="Modal" onFire={modalHandler} /> : null}
         </div>
@@ -203,7 +223,9 @@ describe("useShortcut / ShortcutsProvider", () => {
       const [modalMounted, setModalMounted] = useState(false)
       return (
         <div>
-          <button onClick={() => setModalMounted(true)} type="button">open modal</button>
+          <button onClick={() => setModalMounted(true)} type="button">
+            open modal
+          </button>
           <Registrant group="Global" keys="?" label="Help" onFire={() => {}} />
           <Registrant group="Page" keys="mod+k" label="Page action" onFire={() => {}} />
           {modalMounted ? <Registrant group="Modal" keys="mod+k" label="Modal action" onFire={() => {}} /> : null}
@@ -245,9 +267,11 @@ describe("useShortcut / ShortcutsProvider", () => {
         </ErrorProbe>
       )
 
-      expect(onError).toHaveBeenCalledWith(expect.objectContaining({
-        message: "useShortcut must be used within a ShortcutsProvider"
-      }))
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "useShortcut must be used within a ShortcutsProvider"
+        })
+      )
     } finally {
       window.removeEventListener("error", preventExpectedError)
       consoleError.mockRestore()
