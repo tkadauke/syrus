@@ -1,4 +1,4 @@
-import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLink, ExternalPrBadge, MetadataLine, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges } from "./components"
+import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLink, ExternalPrBadge, MetadataLine, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, WorkflowTriggerPill } from "./components"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { translateBlockedReason } from "../../lib/translateBlockedReason"
@@ -1025,8 +1025,8 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
   return (
     <DataTable.Cell aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind} ${job.latest_workflow_state}`}>
       <div className="flex flex-col items-start gap-1.5">
-        <WorkflowBadges state={job.latest_workflow_state} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
-        <RetryStateInline job={job} />
+        <WorkflowTriggerPill ariaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
+        <StatusPill state={job.latest_workflow_state} />
       </div>
     </DataTable.Cell>
   )
