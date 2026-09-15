@@ -16,7 +16,6 @@ module Filters
           else unsupported_op!
           end
         end
-
       end
     end
   end

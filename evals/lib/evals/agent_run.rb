@@ -14,7 +14,7 @@ module Evals
       keyword_init: true
     )
 
-    def self.call(scenario:, workspace_path:, user:, provider:, runner: RunJob.agent_runner, log_sink: ->(*, **) {})
+    def self.call(scenario:, workspace_path:, user:, provider:, runner: RunJob.agent_runner, log_sink: ->(*, **) { })
       base_ref = scenario.history_ancestor_ref.presence || FixtureWorkspace.head_sha(workspace_path)
 
       klass = AgentProviders.for(provider)
