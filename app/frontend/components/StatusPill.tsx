@@ -77,7 +77,7 @@ export function TonePill({ children, tone, active = false, title, ariaLabel, wra
   const childClasses = wrap ? "min-w-0 whitespace-normal break-words" : undefined
 
   return (
-    <Pill active={active} aria-label={ariaLabel} className={`capitalize ${wrappingClasses}`} data-status-pill="true" title={title} tone={semanticTone}>
+    <Pill active={active} aria-label={ariaLabel} className={`capitalize ${wrappingClasses}`} data-status-pill="true" title={title} tone={semanticTone} wrap={wrap}>
       <span className={childClasses}>{children}</span>
     </Pill>
   )
