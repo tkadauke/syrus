@@ -120,6 +120,19 @@ syrus_docker_tags_match_label() {
   done
 }
 
+syrus_worker_native_build_smoke() {
+  local image="${1:?usage: syrus_worker_native_build_smoke IMAGE}"
+
+  echo "→ ${image}: native build toolchain smoke check"
+  docker run --rm --entrypoint bash "$image" -c \
+    'set -euo pipefail
+     test "$(id -u)" = "1000"
+     command -v gcc >/dev/null
+     command -v make >/dev/null
+     cd "$(mktemp -d)"
+     ruby -rmkmf -e '\''abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'\'''
+}
+
 # Optional metadata flags immediately after GIT_SHA, in any order:
 #   --version=X.Y.Z   feeds the SYRUS_VERSION build-arg (release version)
 #   --built-at=TS     feeds the SYRUS_BUILT_AT build-arg (UTC ISO-8601)

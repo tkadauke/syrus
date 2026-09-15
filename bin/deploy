@@ -43,6 +43,7 @@ NAMESPACE_PRODUCTION="syrus-production"
 # its resource type so `kubectl rollout restart/status` works for Deployments
 # and the DaemonSet alike.
 DEPLOYMENTS=(deployment/syrus-web deployment/syrus-worker-home daemonset/syrus-worker-compute deployment/syrus-preview)
+WORKER_WORKLOADS=(deployment/syrus-worker-home daemonset/syrus-worker-compute)
 
 # --- argv parsing ----------------------------------------------------
 DEPLOY_STAGING=true
@@ -135,6 +136,7 @@ if [ "$SKIP_BUILD" = false ]; then
     -t "${WORKER_DEV_REGISTRY}:${SHA}" \
     -t "${WORKER_DEV_REGISTRY}:latest" \
     .
+  syrus_worker_native_build_smoke "${WORKER_DEV_REGISTRY}:${SHA}"
   echo "→ ${WORKER_DEV_REGISTRY}:${SHA} push"
   docker push "${WORKER_DEV_REGISTRY}:${SHA}"
   docker push "${WORKER_DEV_REGISTRY}:latest"
@@ -220,6 +222,7 @@ rollout() {
     wait_for_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"
   done
   verify_sha "$label" "$kubeconfig" "$namespace"
+  verify_worker_native_toolchain "$label" "$kubeconfig" "$namespace"
   resume_mysql_backup "$kubeconfig" "$namespace" "$label"
   flux_resume_now "$kubeconfig" "$label"
   verify_flux_desired_images "$kubeconfig" "$label"
@@ -744,6 +747,36 @@ workload:
 MSG
     exit 1
   fi
+}
+
+verify_worker_native_toolchain() {
+  local label="$1" kubeconfig="$2" namespace="$3"
+  local workload
+
+  for workload in "${WORKER_WORKLOADS[@]}"; do
+    if ! KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$workload" >/dev/null 2>&1; then
+      continue
+    fi
+
+    echo "→ ${label}/${workload}: native build toolchain smoke check"
+    KUBECONFIG="$kubeconfig" kubectl exec -n "$namespace" "$workload" -- bash -c \
+      'set -euo pipefail
+       test "$(id -u)" = "1000"
+       command -v gcc >/dev/null
+       command -v make >/dev/null
+       cd "$(mktemp -d)"
+       ruby -rmkmf -e '\''abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'\''' ||
+      {
+        cat >&2 <<MSG
+✗ ${label}/${workload}: worker pod cannot compile a tiny native extension as uid 1000.
+
+This usually means the workload is not running the worker-dev image, the
+toolchain layer was dropped from the image, or gcc/make are hidden from the
+RunJob user's PATH.
+MSG
+        exit 1
+      }
+  done
 }
 
 # --- restart -----------------------------------------------------------
