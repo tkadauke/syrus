@@ -13,7 +13,8 @@ RSpec.describe Prompts::VisualReview do
       feedback_context: feedback_context,
       test_plan_recommended: test_plan_recommended,
       test_plan_reason: test_plan_reason,
-      seed_notes: seed_notes
+      seed_notes: seed_notes,
+      preview_projects: preview_projects
     ).to_s
   end
 
@@ -23,6 +24,7 @@ RSpec.describe Prompts::VisualReview do
   let(:test_plan_recommended) { nil }
   let(:test_plan_reason) { nil }
   let(:seed_notes) { nil }
+  let(:preview_projects) { [] }
 
   it "includes independence instruction" do
     expect(prompt).to include("independent visual QA reviewer")
@@ -78,6 +80,42 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("start_preview")
     expect(prompt).to include("stop_preview")
     expect(prompt).to include("verdict \"skipped\"")
+  end
+
+  context "with one affected preview project" do
+    let(:preview_projects) do
+      [
+        {
+          "id" => "web",
+          "label" => "Web app",
+          "path" => "apps/web",
+          "owner_config_path" => "apps/web/.syrus.yml"
+        }
+      ]
+    end
+
+    it "lists the project and permits a bare start_preview call" do
+      expect(prompt).to include("Affected preview projects available to this visual review")
+      expect(prompt).to include("project_id: web; label: Web app; path: apps/web; config: apps/web/.syrus.yml")
+      expect(prompt).to include("Call `start_preview` without project_id to use this single affected project")
+    end
+  end
+
+  context "with multiple affected preview projects" do
+    let(:preview_projects) do
+      [
+        { id: "web", label: "Web app", path: "apps/web", owner_config_path: "apps/web/.syrus.yml" },
+        { id: "admin", label: "Admin app", path: "apps/admin", owner_config_path: "apps/admin/.syrus.yml" }
+      ]
+    end
+
+    it "tells the reviewer to pass a project_id instead of using an ambiguous bare start_preview" do
+      expect(prompt).to include("project_id: web; label: Web app; path: apps/web; config: apps/web/.syrus.yml")
+      expect(prompt).to include("project_id: admin; label: Admin app; path: apps/admin; config: apps/admin/.syrus.yml")
+      expect(prompt).to include("Call `start_preview` once per project you need to inspect")
+      expect(prompt).to include("A bare `start_preview` is ambiguous for this change")
+      expect(prompt).to include("choose the relevant project_id")
+    end
   end
 
   it "tells the reviewer to use exact browser_snapshot refs for browser interactions" do
