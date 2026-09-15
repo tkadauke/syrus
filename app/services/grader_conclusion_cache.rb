@@ -136,7 +136,11 @@ class GraderConclusionCache
           checked_at: checked_at,
           metadata: metadata_for(workflow: workflow, step: step).merge(
             "carried_forward" => true,
-            "source_iteration" => entry["source_iteration"]
+            "source_iteration" => entry["source_iteration"],
+            "target_label" => entry["target_label"],
+            "target_health_record_refs" => entry["target_health_record_refs"],
+            "target_fingerprints" => entry["target_fingerprints"],
+            "carry_forward_reason" => entry["reason"]
           ).compact
         )
       end
@@ -339,6 +343,7 @@ class GraderConclusionCache
 
   def self.metadata_for(workflow:, step:)
     {
+      "health_source" => "syrus_target_run",
       "trigger_kind" => workflow.trigger_kind,
       "iteration" => step.iteration,
       "loop_id" => step.loop_id

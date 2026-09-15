@@ -302,7 +302,9 @@ grade:
 
 Opt-in boolean, defaults to `false`. Only available in the mapping form of `grade:` (the bare array shorthand always behaves as if this is `false`).
 
-When `true`, the **first** grading iteration always runs every active grader (the same as today), but from the **second** iteration onward a repair loop only re-runs graders that failed or timed out on the *immediately preceding* iteration — graders that already passed are skipped, and their prior pass carries forward into this iteration's result. A grader whose `when_files_changed` glob starts matching only on a later iteration is still run then, regardless of this setting — `rerun_only_failed` only narrows within graders that were already active, it never overrides file-glob activation.
+When `true`, the **first** grading iteration always runs every active grader (the same as today), but from the **second** iteration onward a repair loop can carry forward a grader that passed on the *immediately preceding* iteration. Carry-forward is allowed only for required graders whose current target-health fingerprints still match known-passing health for the grader target and its executable dependencies. If the current inputs, dependency closure, command, environment, or policy no longer prove that pass, Syrus forces a fresh rerun and records the reason in `target_health_forced_targets`.
+
+Optional graders are never carried forward by this setting; they run again when active. A grader whose `when_files_changed` glob starts matching only on a later iteration is also still run then, regardless of this setting — `rerun_only_failed` only narrows within graders that were already active, it never overrides file-glob activation.
 
 The lookback is exactly one iteration: a grader that is itself carried forward (skipped, no Step of its own) on iteration N gets treated as needing a fresh run again on iteration N+1 rather than staying carried forward indefinitely. This is a self-correcting fallback, not a bug — it just means a long grade loop occasionally reruns a still-green grader instead of skipping it every single time.
 
@@ -621,6 +623,16 @@ nodes, and point them at imported labels through `deps:`.
 | `phases` | no | `[]` | Optional phase metadata using the grader phase vocabulary: `review`, `landing`, `ci`, `promotion`. |
 | `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
 | `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
+| `ci_checks` | no | `[]` | String or array of external CI check-run names that prove this target's health when the check completes. Syrus records target health only for mapped checks; an unmapped passing check is not treated as proof for this or any other target. |
+| `ci_check_names` | no | `[]` | Alias for `ci_checks`. |
+| `github_checks` | no | `[]` | Alias for `ci_checks`, useful when the mapping is specifically to GitHub check-run names. |
+
+When an explicit executable target omits `ci_checks`, Syrus can still map an
+external CI check to that target only when the check-run name exactly matches
+the target's canonical label (`//package:name`) or target name (`name`; for
+legacy grader-style labels, the `grade/` prefix may also be omitted). This
+fallback is intentionally exact and narrow so a passing broad CI suite does not
+silently mark unrelated targets healthy.
 
 ## project
 

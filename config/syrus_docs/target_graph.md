@@ -160,10 +160,21 @@ Explicit target fields:
 | `phases` | no | `[]` | Optional phase metadata for executable validation targets. Values use the grader phase vocabulary: `review`, `landing`, `ci`, `promotion`. |
 | `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
 | `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
+| `ci_checks` | no | `[]` | String or array of external CI check-run names that prove this target's health when the check completes. |
+| `ci_check_names` | no | `[]` | Alias for `ci_checks`. |
+| `github_checks` | no | `[]` | Alias for `ci_checks`. |
 
 Unlike legacy executable declarations, explicit `targets:` do **not** gain an
 implicit dependency on `//:repo`; the only edges they declare initially are the
 labels listed in `deps`.
+
+External CI mapping is opt-in by check name. During PR check polling, Syrus
+records target health for a completed CI check when its name is listed in an
+executable target's `ci_checks`/`ci_check_names`/`github_checks` metadata. If a
+target omits those fields, Syrus only falls back to exact matches against the
+target's canonical label (`//package:name`) or target name (`name`; legacy
+grader-style `grade/name` labels may also match `name`). Unmapped CI successes
+remain ordinary PR check evidence and never mark unrelated targets healthy.
 
 ### Explicit target examples
 
@@ -447,12 +458,15 @@ the grader Step — see `workflow_warnings.md`.
 ### Target health records
 
 Executable target status is persisted in `TargetHealthRecord`, not only in a
-workflow artifact. The initial producer is `grader_collect`: every real
-materialized `grader` Step with a target label writes or updates one record for
-the tuple of repository, target label, commit SHA, input fingerprint, command
-fingerprint, and environment fingerprint. That lookup key is intentionally
-workflow-independent so main-branch scheduling and later target selection can
-reuse status across workflow attempts.
+workflow artifact. Grader collection is the primary Syrus-produced source:
+every real materialized `grader` Step with a target label writes or updates one
+record for the tuple of repository, target label, commit SHA, input fingerprint,
+command fingerprint, and environment fingerprint. PR check polling can also
+write target health for completed external CI checks when the check name maps
+to a target through explicit `ci_checks` metadata or the narrow exact-name
+fallback described above. That lookup key is intentionally workflow-independent
+so main-branch scheduling and later target selection can reuse status across
+workflow attempts.
 
 Target health statuses include `passed`, `failed`, `stale`, `unknown`,
 `timed_out`, `cancelled`, `skipped`, and `inconclusive`. The model exposes
@@ -462,6 +476,14 @@ other artifact references live on the target health row. Workflow artifacts
 store only `target_health_record_refs` with record ids plus target label,
 project id, commit SHA, and status; they are navigation breadcrumbs, not the
 source of truth.
+
+Each target-health row carries provenance in metadata. Syrus grader records use
+`health_source: syrus_target_run` plus the workflow trigger kind, so a reviewer
+can tell broad main sweeps (`main_grader`) from landing validation
+(`auto_merge`, `merge_train`, or validation trigger kinds) and normal review
+runs. External CI records use `health_source: ci_check` with the check name,
+conclusion, URL, app slug when available, and the target kind. Unmapped CI
+checks are intentionally not persisted as target health.
 
 For distributed grader Steps, the input fingerprint is stable across workflows:
 `grader_fanout` and `preflight_grader_fanout` stamp materialized grader Step
@@ -498,19 +520,22 @@ changed on a newer branch.
 compiled from `generated:` as `//:generate/<index>`. Plugin-default
 formatters from `formatters: []` do not currently have stable target labels,
 so they are not target-health skipped. `grader_fanout` checks each selected
-`grader` target before materializing its `grader` Step. The `builder` kind is
-reserved in the graph model, but no `.syrus.yml` primitive materializes a
-builder target yet.
+required `grader` target before materializing its `grader` Step; optional
+graders run when active even if a reusable health record exists. The `builder`
+kind is reserved in the graph model, but no `.syrus.yml` primitive
+materializes a builder target yet.
 
 A target is skipped only when its latest matching health record is healthy
 (`passed` or `skipped`) and every executable dependency in its dependency
 closure is also healthy for its own current fingerprints. Unknown, stale,
 failed, timed-out, cancelled, or inconclusive target health is treated as a
-miss, so required targets still run. Skip decisions are recorded in workflow
+miss, so required targets still run. Skip and forced-rerun decisions are recorded in workflow
 logs and artifacts: `format_target_health_skips`,
-`generate_target_health_skips`, and `target_health_skipped_targets` for
-grader fanout. Each entry includes the skipped target label, reason, producing
-commit SHA, checked timestamp, and target-health record references.
+`generate_target_health_skips`, `target_health_skipped_targets`, and
+`target_health_forced_targets` for grader fanout. Each entry includes the
+target label, reason, current fingerprints, and any target-health record
+references. Skipped entries also include the producing commit SHA and checked
+timestamp for the reused proof.
 
 ### Agent-requested prepare targets
 

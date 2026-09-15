@@ -439,6 +439,7 @@ class PollPullRequestJob < ApplicationJob
     # (pr_checks_state) AND collects failure details for ci_failure workflows.
     detail = @client.check_runs_detail_for(@slug, head_sha)
     cache_pr_checks_state(head_sha, detail)
+    record_target_health_from_ci_checks(head_sha, detail)
     return if ci_infrastructure_failure_only?(head_sha, detail)
     return if main_health_broken?
 
@@ -493,6 +494,14 @@ class PollPullRequestJob < ApplicationJob
       attrs[:landing_failure_reason] = nil
     end
     @job.update_columns(attrs)
+  end
+
+  def record_target_health_from_ci_checks(head_sha, detail)
+    TargetHealthCiCheckRecorder.record!(
+      job: @job,
+      head_sha: head_sha,
+      detail: detail
+    )
   end
 
   def pr_checks_cache_fresh?(head_sha, state)
@@ -733,6 +742,8 @@ class PollPullRequestJob < ApplicationJob
 
   def enqueue_ci_failure_run(head_sha, failed_checks)
     failed_checks = failed_checks.map { |check| enrich_failed_check(check) }
+    target_context = CiRepair::TargetContext.call(job: @job, head_sha: head_sha, failed_checks: failed_checks)
+    failed_checks = target_context.failed_checks
     if ci_failure_diagnostics_missing?(failed_checks)
       record_missing_ci_failure_diagnostics!(head_sha, failed_checks)
       return
@@ -754,10 +765,45 @@ class PollPullRequestJob < ApplicationJob
       return
     end
 
+    record_missed_target_edge_warnings!(result.workflow, target_context.missed_edges)
     @job.update!(last_ci_handled_sha: head_sha)
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: enqueued CiFailure workflow ##{result.workflow.id} for #{head_sha[0..6]} (#{failed_checks.size} failing)")
   rescue WorkUnits::Launcher::LockConflict => e
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure already locked by WorkUnit ##{e.work_unit.id}")
+  end
+
+  def record_missed_target_edge_warnings!(workflow, missed_edges)
+    Array(missed_edges).each do |edge|
+      dedupe_key = edge["dedupe_key"].to_s
+      next if dedupe_key.present? && ci_failed_skipped_target_warning_exists?(dedupe_key)
+
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        kind: "ci_failed_skipped_target",
+        severity: "high",
+        title: "CI failed for #{edge['target_label']} after target selection skipped it",
+        evidence: edge,
+        suggested_prompt: missed_target_edge_prompt(edge)
+      )
+    end
+  end
+
+  def ci_failed_skipped_target_warning_exists?(dedupe_key)
+    WorkflowWarning
+      .where(job: @job, kind: "ci_failed_skipped_target")
+      .any? { |warning| warning.evidence.to_h["dedupe_key"].to_s == dedupe_key }
+  end
+
+  def missed_target_edge_prompt(edge)
+    fixes = Array(edge["suggested_fixes"]).map { |fix| "- #{fix}" }.join("\n")
+    <<~PROMPT.strip
+      Investigate why CI check `#{edge['check_name']}` failed for target `#{edge['target_label']}` even though target selection skipped it as `#{edge['selection_reason']}`.
+
+      Use the target context to add the missing dependency edge, move the grader into the correct nested `.syrus.yml`, widen the source scope, or declare an explicit CI target mapping.
+
+      Suggested fixes:
+      #{fixes}
+    PROMPT
   end
 
   def no_effective_ci_repair?(head_sha, detail)

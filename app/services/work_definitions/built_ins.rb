@@ -31,6 +31,26 @@ module WorkDefinitions
 
   module LandingValidationChild
     def landing_validation_child? = true
+    def enforce_required_target_health_for_unaffected_graders?(_workflow) = true
+  end
+
+  module RecordsGraderTargetSelectionInputs
+    def record_grader_target_selection_inputs? = true
+  end
+
+  module CurrentLandingBaseTargetSelection
+    def enforce_required_target_health_for_unaffected_graders?(_workflow) = true
+
+    def grader_fanout_changed_files_base_ref(workflow:, default_base_ref:)
+      current_landing_base_ref(workflow).presence || default_base_ref
+    end
+
+    def grader_fanout_changed_files_log(workflow)
+      base_ref = current_landing_base_ref(workflow).presence
+      return unless base_ref
+
+      "[grader_fanout] computing affected landing targets from current base #{base_ref.first(7)}"
+    end
   end
 
   module AgentConcurrencyExempt
@@ -83,6 +103,7 @@ module WorkDefinitions
 
   class Initial < Base
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -95,6 +116,7 @@ module WorkDefinitions
 
   class PrComment < Base
     include ActiveRepairWork
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -108,6 +130,7 @@ module WorkDefinitions
 
   class ChatFeedback < Base
     include ActiveRepairWork
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -121,6 +144,7 @@ module WorkDefinitions
 
   class CiFailure < Base
     include ActiveRepairWork
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -200,7 +224,9 @@ module WorkDefinitions
 
   class AutoMerge < Base
     include BlocksCiFailure
+    include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include ResumesFailedSteps
     include RebuildOnPreempt
@@ -209,11 +235,16 @@ module WorkDefinitions
     self.workflow_trigger_kind = "auto_merge"
     self.runtime_role = "first_class"
     self.scope = "job"
+
+    def current_landing_base_ref(workflow)
+      workflow.job&.mergeability_base_sha
+    end
   end
 
   class LandingValidation < Base
     include BlocksCiFailure
     include LandingValidationChild
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include ManagesOwnJobLifecycle
     include CancelPreemptable
@@ -227,6 +258,8 @@ module WorkDefinitions
 
   class ExternalPrMerge < Base
     include BlocksCiFailure
+    include CurrentLandingBaseTargetSelection
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include ResumesFailedSteps
     include RebuildOnPreempt
@@ -235,11 +268,17 @@ module WorkDefinitions
     self.workflow_trigger_kind = "external_pr_merge"
     self.runtime_role = "first_class"
     self.scope = "job"
+
+    def current_landing_base_ref(workflow)
+      workflow.job&.mergeability_base_sha
+    end
   end
 
   class MergeTrain < Base
     include BlocksCiFailure
+    include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include RequiresEpicReadiness
     include RebuildOnPreempt
@@ -250,6 +289,10 @@ module WorkDefinitions
     self.scope = "epic"
 
     def retry_policy = WorkUnits::RetryPolicies::MergeTrain.new
+
+    def current_landing_base_ref(workflow)
+      workflow.artifact("merge_train_base_sha")
+    end
 
     def members_for(job:, artifacts: {}, **)
       train_id = artifacts.to_h["merge_train_id"]
@@ -264,7 +307,9 @@ module WorkDefinitions
 
   class JobBundle < Base
     include BlocksCiFailure
+    include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include RebuildOnPreempt
 
@@ -275,6 +320,10 @@ module WorkDefinitions
     self.display_label = "Job bundle"
 
     def retry_policy = WorkUnits::RetryPolicies::MergeTrain.new
+
+    def current_landing_base_ref(workflow)
+      workflow.artifact("merge_train_base_sha")
+    end
 
     def members_for(job:, artifacts: {}, **)
       train_id = artifacts.to_h["merge_train_id"]
@@ -290,6 +339,7 @@ module WorkDefinitions
   class MergeTrainValidation < Base
     include BlocksCiFailure
     include LandingValidationChild
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include RequiresEpicReadiness
     include ManagesOwnJobLifecycle
@@ -313,6 +363,7 @@ module WorkDefinitions
   class JobBundleValidation < Base
     include BlocksCiFailure
     include LandingValidationChild
+    include RecordsGraderTargetSelectionInputs
     include RequiresApproval
     include ManagesOwnJobLifecycle
     include CancelPreemptable
@@ -337,6 +388,7 @@ module WorkDefinitions
     include ActiveRepairWork
     include RetryWorkflowAttempt
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -351,6 +403,7 @@ module WorkDefinitions
     include ActiveRepairWork
     include RetryWorkflowAttempt
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -418,6 +471,7 @@ module WorkDefinitions
 
   class CodingHandoff < Base
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -430,6 +484,7 @@ module WorkDefinitions
 
   class LocalModeHandoff < Base
     include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
@@ -442,6 +497,7 @@ module WorkDefinitions
 
   class MainGrader < Base
     include AgentConcurrencyExempt
+    include RecordsGraderTargetSelectionInputs
 
     self.kind = "main_grader"
     self.workflow_trigger_kind = "main_grader"
@@ -470,8 +526,6 @@ module WorkDefinitions
     def grader_fanout_reuse_enabled?(workflow)
       grader_fanout_baseline_selection_reason(workflow).blank?
     end
-
-    def record_grader_target_selection_inputs? = true
   end
 
   class MainBranchRepair < Base
