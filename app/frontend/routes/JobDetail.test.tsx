@@ -67,6 +67,41 @@ describe("JobDetailView", () => {
     vi.restoreAllMocks()
   })
 
+  it("renders summary route panels with shared section surfaces and dense readable content", () => {
+    const { container } = renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        branch_name: "syrus/direct-1-with-a-long-branch-name-that-should-not-break-layout",
+        total_cost_usd: 0.1234,
+        billed_runs_count: 2
+      },
+      summary: {
+        run_id: 1,
+        text: "Implemented operational surfaces with readable logs.",
+        finished_at: "2026-08-01T12:00:00Z"
+      },
+      test_plan: {
+        workflow_id: 1,
+        steps: [
+          "Open the workflow tab and inspect long log output.",
+          "Open the chat tool card and copy raw details."
+        ],
+        notes: "Use light and dark themes."
+      }
+    }))
+
+    const summarySection = screen.getByRole("heading", { name: "Agent summary" }).closest("section")
+    expect(summarySection).toHaveClass("rounded-[var(--radius-panel)]", "border-border", "bg-surface")
+
+    const detailsSection = screen.getByRole("heading", { name: "Details" }).closest("section")
+    expect(detailsSection).toHaveClass("rounded-[var(--radius-panel)]", "border-border", "bg-surface")
+
+    expect(screen.getByText("Implemented operational surfaces with readable logs.")).toBeInTheDocument()
+    expect(screen.getByText("Open the workflow tab and inspect long log output.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Priority")).toHaveClass("bg-surface", "text-text-primary")
+    expect(container.querySelectorAll("section.bg-surface").length).toBeGreaterThanOrEqual(2)
+  })
+
   it("shows a red usage-limit warning in the job detail header", () => {
     renderJobDetail(jobPayload({
       job: {
