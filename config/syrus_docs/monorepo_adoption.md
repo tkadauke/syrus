@@ -309,6 +309,146 @@ None of these surfaces performs magical project inference. If a project, target,
 dependency edge, preview, coverage source, CI mapping, or hook matters, declare
 it in `.syrus.yml` or import it through a trusted build-system provider.
 
+## Root-Only To Nested Config Checklist
+
+Use this checklist when converting a repository from root-only graders to
+project-aware configuration. The compatibility goal is to keep the existing
+validation surface intact while adding project metadata in small, reversible
+steps.
+
+1. **Freeze the current root contract.** Keep the root `.syrus.yml` and confirm
+   which root `prepare:`, `grade:`, `coverage:`, `preview:`, `deploy:`, and
+   `deployment_stages:` entries are protecting review, landing, CI, and release
+   tracking today.
+2. **Choose only real project boundaries.** Add nested `.syrus.yml` files for
+   apps, CLIs, mobile packages, desktop clients, or other products an operator
+   would naturally preview or reason about separately. Do not add a file just
+   because a directory contains a package manifest.
+3. **Move operator-facing metadata first.** Put project-specific `project:`,
+   `preview:`, `visual_review:`, `adversarial_review.criteria`, `coverage:`,
+   and `hooks.post_checkout` next to the project that owns them.
+4. **Keep executable validation at the root.** Add nested `grade:` entries as
+   graph declarations and dependency-analysis hints, but leave critical review,
+   landing, and CI commands in the root `grade:` plan until nested-grader
+   execution policy lands.
+5. **Use root wrapper commands during the transition.** Scope root graders with
+   `when_files_changed` and call project commands through package-aware
+   wrappers such as `npm --prefix apps/web run typecheck`, `go test ./cli/...`,
+   or `./gradlew :apps:android:testDebugUnitTest`.
+6. **Add explicit targets only when they explain something.** Use `targets:`
+   for shared libraries, generated contracts, prepare actions, or dependency
+   edges that affect selection, target-health reuse, or graph debugging.
+7. **Verify the compiled graph.** Inspect the target graph UI/API after each
+   stage. If a target ran, skipped, or reused health unexpectedly, look for
+   missing or too-narrow `sources`, `when_files_changed`, `deps:`, or
+   `ci_checks` declarations.
+8. **Leave deployment scoped to the repository.** Keep `deploy:` and
+   `deployment_stages:` in the root file. Nested deployment stages are rejected
+   in this release, and project-scoped deployment workflows remain an open
+   design area.
+
+Before:
+
+```yaml
+# /.syrus.yml
+prepare:
+  - npm ci
+
+preview:
+  start: npm --prefix apps/web run dev -- --host 0.0.0.0 --port $PORT
+  health_check: /
+
+coverage:
+  sources:
+    - artifact: apps/web/coverage/lcov.info
+      format: lcov
+
+grade:
+  - name: web-typecheck
+    run: npm --prefix apps/web run typecheck
+    when_files_changed: ["apps/web/**"]
+  - name: cli-tests
+    run: go test ./cli/...
+    when_files_changed: ["cli/**"]
+```
+
+After, keep the root validation commands that still guard workflows:
+
+```yaml
+# /.syrus.yml
+prepare:
+  - npm ci
+
+grade:
+  - name: web-typecheck
+    run: npm --prefix apps/web run typecheck
+    when_files_changed: ["apps/web/**"]
+  - name: cli-tests
+    run: go test ./cli/...
+    when_files_changed: ["cli/**"]
+```
+
+Then add project metadata and graph declarations next to the project:
+
+```yaml
+# apps/web/.syrus.yml
+project:
+  id: web
+  label: Web App
+  kind: web_app
+
+preview:
+  setup:
+    - npm ci
+  start: npm run dev -- --host 0.0.0.0 --port $PORT
+  health_check: /
+
+visual_review:
+  enabled: true
+  when_files_changed:
+    - "src/**/*.tsx"
+    - "src/**/*.css"
+
+coverage:
+  sources:
+    - artifact: coverage/lcov.info
+      format: lcov
+  threshold:
+    lines: 75
+
+grade:
+  # Graph declaration for this project. Keep executable protection in the
+  # root `grade:` plan until nested grader execution lands.
+  - name: typecheck
+    run: npm run typecheck
+    when_files_changed:
+      - "src/**/*.ts"
+      - "src/**/*.tsx"
+```
+
+And declare a non-previewable project only when its target relationships are
+useful:
+
+```yaml
+# cli/.syrus.yml
+project:
+  id: cli
+  label: CLI
+  kind: cli
+
+targets:
+  - name: sources
+    kind: binary
+    sources: ["**/*.go"]
+
+grade:
+  # Graph declaration. The root `cli-tests` grader remains the executable
+  # workflow check during staged adoption.
+  - name: tests
+    run: go test ./...
+    deps: [":sources"]
+```
+
 ## Level 2: Explicit Projects And Executable Targets
 
 Move to Level 2 when implicit directory-derived projects or legacy sections no
