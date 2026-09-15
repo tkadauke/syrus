@@ -68,6 +68,27 @@ RSpec.describe SwitchChatProviderJob do
     end
   end
 
+  describe "switching from claude to muse" do
+    before do
+      chat.messages.create!(role: "user", content: { "text" => "hello" })
+      chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "world" } ])
+      chat.create_provider_session!(provider: "claude", session_id: "old-session-id", transcript_jsonl: "old-jsonl")
+    end
+
+    it "rehydrates a Muse provider session from durable chat messages" do
+      allow(AppEvents).to receive(:broadcast)
+
+      described_class.new.perform(chat.id, "muse")
+
+      expect(chat.reload.chat_provider).to eq("muse")
+      expect(chat.provider_session.provider).to eq("muse")
+      expect(chat.provider_session.session_id).to be_present
+      expect(chat.provider_session.transcript_jsonl).to include('"payload_type":"run.session.created"')
+      expect(chat.provider_session.transcript_jsonl).to include("hello", "world")
+      expect(chat.provider_session.transcript_jsonl).not_to eq("old-jsonl")
+    end
+  end
+
   describe "switching from codex to claude" do
     let(:tmpdir) { Dir.mktmpdir("switch-provider-test") }
     let(:workspace_path) { Pathname.new(tmpdir).join("workspace") }
