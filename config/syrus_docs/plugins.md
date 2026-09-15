@@ -209,7 +209,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | Key | Label | Bundled plugins |
 |---|---|---|
 | `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
-| `agent_provider` | Agent provider | `claude_agent`, `codex_agent` |
+| `agent_provider` | Agent provider | `claude_agent`, `codex_agent`, `muse_agent` |
 | `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory` |
 | `input_source` | Input source | `github_source`, `linear_source` |
 | `platform_delivery` | Platform delivery | `discord` |
@@ -278,8 +278,9 @@ already vector) for `ruby`, `syrus-rails`, `javascript`, `python`, `django`,
 `go`, `github_source`, `discord`, and `linear_source`, and each provider's own
 official mark where one is reasonably available under a CC0/Simple-Icons-style
 license for `claude_agent`. Plugins without a suitable sourced mark (including
-`codex_agent`, since no OpenAI/Codex mark is currently published through
-Simple Icons) fall back to the SPQR eagle like any other unset `icon_url`.
+`codex_agent` and `muse_agent`, since no suitable mark is currently published
+through Simple Icons) fall back to the SPQR eagle like any other unset
+`icon_url`.
 
 `bin/process-plugin-icon SOURCE OUTPUT [--padding=FRACTION]` is an author-time
 tool (uses the already-present `image_processing`/`ruby-vips` gems) that

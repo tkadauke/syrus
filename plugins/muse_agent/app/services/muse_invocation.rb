@@ -1,6 +1,7 @@
 require "fileutils"
 require "json"
 require "securerandom"
+require "set"
 
 class MuseInvocation
   DEFAULT_TIMEOUT_SECONDS = AgentInvocation::DEFAULT_TIMEOUT_SECONDS
@@ -18,6 +19,9 @@ class MuseInvocation
                  max_model_steps: nil,
                  transcript_policy: DEFAULT_TRANSCRIPT_POLICY,
                  transcript_dir: nil,
+                 muse_home: nil,
+                 mcp_server: nil,
+                 required_mcp_tools: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { })
     @workspace_path = workspace_path.to_s
@@ -32,6 +36,9 @@ class MuseInvocation
     @max_model_steps = max_model_steps
     @transcript_policy = normalize_transcript_policy(transcript_policy)
     @transcript_dir = transcript_dir&.to_s
+    @muse_home = muse_home&.to_s
+    @mcp_server = mcp_server
+    @required_mcp_tools = Array(required_mcp_tools).compact_blank.map(&:to_s)
     @stop_requested = stop_requested
     @process_started = process_started
   end
@@ -64,13 +71,17 @@ class MuseInvocation
                      stop_requested: -> { false }, process_started: ->(_process) { })
     exec_jsonl = +""
     metadata = default_metadata(session_id)
+    @metadata = metadata
+    @required_mcp_failed = false
+    @required_mcp_failure_logged = false
 
     Dir.mktmpdir("syrus-muse-invocation-") do |tmpdir|
       prompt_path = File.join(tmpdir, "prompt.txt")
       File.write(prompt_path, prompt)
+      write_muse_settings!(muse_home: @muse_home, mcp_server: @mcp_server, log_sink: log_sink)
 
       runner_result = ProcessRunner.new(
-        env: muse_env(workspace_path),
+        env: muse_env(workspace_path, muse_home: @muse_home),
         command: muse_exec_command(
           workspace_path: workspace_path,
           prompt_path: prompt_path,
@@ -88,7 +99,7 @@ class MuseInvocation
         workflow: current_run&.workflow,
         chat_session: current_chat_session,
         agent: current_agent,
-        stop_requested: stop_requested,
+        stop_requested: -> { stop_requested.call || @required_mcp_failed },
         on_spawned_process: process_started,
         on_output_line: ->(line) do
           exec_jsonl << line
@@ -99,6 +110,7 @@ class MuseInvocation
       ).run
 
       apply_missing_terminal_failure!(metadata, runner_result) if metadata[:outcome].blank?
+      apply_required_mcp_failure!(metadata, log_sink)
       cleanup_timeout = cleanup_timeout?(metadata, runner_result)
       transcript = capture_transcript(
         workspace_path: workspace_path,
@@ -107,7 +119,7 @@ class MuseInvocation
         transcript_dir: transcript_dir || tmpdir,
         exec_jsonl: exec_jsonl,
         log_sink: log_sink,
-        stop_requested: stop_requested
+        stop_requested: -> { stop_requested.call || @required_mcp_failed }
       )
 
       AgentInvocation::Result.new(
@@ -151,11 +163,40 @@ class MuseInvocation
     }
   end
 
-  def muse_env(workspace_path)
-    ProcessRunner.forwarded_env(
+  def muse_env(workspace_path, muse_home: nil)
+    env = ProcessRunner.forwarded_env(
       AgentInvocation::ENV_FORWARD,
       extra: WorkspaceDependencyEnv.for(workspace_path)
     )
+    if muse_home.present?
+      env["HOME"] = muse_home
+      env["XDG_CONFIG_HOME"] = File.join(muse_home, ".config")
+    end
+    env
+  end
+
+  def write_muse_settings!(muse_home:, mcp_server:, log_sink:)
+    return if muse_home.blank? || mcp_server.blank?
+
+    config_dir = File.join(muse_home, ".config", "muse")
+    FileUtils.mkdir_p(config_dir)
+    settings_path = File.join(config_dir, "settings.json")
+    settings = if File.exist?(settings_path)
+      JSON.parse(File.read(settings_path))
+    else
+      {}
+    end
+    settings = {} unless settings.is_a?(Hash)
+    settings["mcp_servers"] = settings.fetch("mcp_servers", {}).merge(mcp_server)
+    File.write(settings_path, JSON.pretty_generate(settings))
+    log_sink.call(
+      "[mcp_config] server=syrus-mcp-sidecar config=#{settings_path}",
+      kind: "system"
+    )
+  end
+
+  def required_mcp_state(metadata)
+    metadata[:required_mcp_state] ||= { servers: [], tools: Set.new, called: Set.new, saw_inventory: false }
   end
 
   def muse_exec_command(workspace_path:, prompt_path:, session_id:, model:, reasoning_effort:, max_model_steps:)
@@ -189,6 +230,12 @@ class MuseInvocation
     payload = event["payload"].is_a?(Hash) ? event["payload"] : {}
 
     case payload_type
+    when "mcp.init", "mcp.tools", "tools.available", "tool.inventory"
+      process_mcp_inventory(payload, log_sink)
+    when "tool.call", "tool_call", "mcp.tool_call"
+      process_tool_call(payload, log_sink)
+    when "tool.result", "tool_result", "mcp.tool_result"
+      process_tool_result(payload, log_sink)
     when "session.created", "run.session.created", "run.started"
       session = payload["session_id"].presence || payload["session"].presence
       session ? { session_id: session } : nil
@@ -218,6 +265,146 @@ class MuseInvocation
     end
   rescue JSON::ParserError
     malformed_startup_output(line, log_sink)
+  end
+
+  def process_mcp_inventory(payload, log_sink)
+    state = required_mcp_state(@metadata ||= {})
+    tools = Array(payload["tools"] || payload["available_tools"]).map(&:to_s)
+    servers = Array(payload["servers"] || payload["mcp_servers"]).filter_map do |server|
+      next unless server.is_a?(Hash)
+
+      { "name" => server["name"].to_s, "status" => server["status"].to_s.presence || "unknown" }
+    end
+    state[:saw_inventory] = true
+    state[:tools].merge(tools)
+    state[:servers] = servers if servers.present?
+    log_sink.call(
+      "[mcp_tools_init] count=#{tools.count { |tool| mcp_tool_name?(tool) }} required=#{@required_mcp_tools.join(',')} tools=#{tools.select { |tool| mcp_tool_name?(tool) }.join(',')}",
+      kind: "system"
+    )
+    log_sink.call(
+      "[mcp_servers] #{servers.map { |s| "#{s['name']}=#{s['status']}" }.join(', ')}",
+      kind: "system",
+      mcp_servers: servers
+    ) if servers.present?
+    required_mcp_tools_update(log_sink)
+  end
+
+  def process_tool_call(payload, log_sink)
+    name = payload["name"].presence || payload["tool"].presence || payload["tool_name"].presence
+    name = qualified_tool_name(payload, name)
+    required_mcp_state(@metadata ||= {})[:called] << name if name.present?
+    log_sink.call(
+      AgentEventAbbreviator.tool_use(name, payload["input"] || payload["arguments"] || {}, path_roots: [ @workspace_path ]),
+      kind: "tool_call",
+      tool_name: name,
+      tool_input: payload["input"] || payload["arguments"] || {},
+      tool_use_id: payload["id"] || payload["tool_use_id"] || payload["call_id"]
+    ) if name.present?
+    required_mcp_tools_update(log_sink)
+  end
+
+  def process_tool_result(payload, log_sink)
+    name = payload["name"].presence || payload["tool"].presence || payload["tool_name"].presence
+    name = qualified_tool_name(payload, name)
+    log_sink.call(
+      AgentEventAbbreviator.tool_result(payload["content"] || payload["result"], error: payload["error"].present? || payload["is_error"] == true),
+      kind: "tool_result",
+      tool_name: name,
+      tool_result_content: payload["content"] || payload["result"],
+      tool_result_error: payload["error"].present? || payload["is_error"] == true,
+      tool_use_id: payload["id"] || payload["tool_use_id"] || payload["call_id"]
+    )
+    nil
+  end
+
+  def required_mcp_tools_update(log_sink)
+    return if @required_mcp_tools.empty?
+
+    state = required_mcp_state(@metadata ||= {})
+    return if required_tools_satisfied?(state[:tools]) || required_tools_satisfied?(state[:called])
+
+    missing_tools = @required_mcp_tools.reject { |tool| mcp_tool_matches?(state[:tools], tool) || mcp_tool_matches?(state[:called], tool) }
+    sidecar = state[:servers].find { |server| server["name"] == "syrus-mcp-sidecar" }
+    status = sidecar&.fetch("status", nil).presence || (state[:saw_inventory] ? "missing" : nil)
+    if state[:saw_inventory] && missing_tools.present?
+      log_required_mcp_failure!(
+        "[mcp_required] syrus-mcp-sidecar=#{status || 'missing'}; required tools missing from Muse tool inventory: #{missing_tools.join(', ')}",
+        log_sink
+      )
+      return required_mcp_failure_update
+    end
+
+    return if status.nil? || status == "connected" || status == "pending"
+
+    log_required_mcp_failure!(
+      "[mcp_required] syrus-mcp-sidecar=#{status}; required tools unavailable: #{@required_mcp_tools.join(', ')}",
+      log_sink
+    )
+    required_mcp_failure_update
+  end
+
+  def apply_required_mcp_failure!(metadata, log_sink)
+    return if @required_mcp_tools.empty?
+    state = required_mcp_state(metadata)
+    return if required_tools_satisfied?(state[:tools]) || required_tools_satisfied?(state[:called])
+
+    if metadata[:required_mcp_failed]
+      metadata.merge!(required_mcp_failure_update)
+      return
+    end
+
+    missing = @required_mcp_tools.reject { |tool| mcp_tool_matches?(state[:tools], tool) || mcp_tool_matches?(state[:called], tool) }
+    status = state[:servers].find { |server| server["name"] == "syrus-mcp-sidecar" }&.fetch("status", nil).presence || "missing"
+    detail = if state[:saw_inventory]
+      "required tools missing from Muse tool inventory: #{missing.join(', ')}"
+    else
+      "required tools unavailable: #{missing.join(', ')}"
+    end
+    log_required_mcp_failure!("[mcp_required] syrus-mcp-sidecar=#{status}; #{detail}", log_sink)
+    metadata.merge!(required_mcp_failure_update)
+  end
+
+  def log_required_mcp_failure!(message, log_sink)
+    @required_mcp_failed = true
+    return if @required_mcp_failure_logged
+
+    log_sink.call(message, kind: "system")
+    @required_mcp_failure_logged = true
+  end
+
+  def required_mcp_failure_update
+    {
+      required_mcp_failed: true,
+      is_error: true,
+      outcome: "mcp_sidecar_failed",
+      final_text: nil
+    }
+  end
+
+  def required_tools_satisfied?(tools)
+    @required_mcp_tools.all? { |tool| mcp_tool_matches?(tools, tool) }
+  end
+
+  def mcp_tool_matches?(available_tools, required_tool)
+    Array(available_tools).any? do |name|
+      name.to_s == required_tool ||
+        name.to_s.end_with?("__#{required_tool}") ||
+        name.to_s.end_with?(".#{required_tool}")
+    end
+  end
+
+  def mcp_tool_name?(tool_name)
+    name = tool_name.to_s
+    name.start_with?("mcp__") || name.include?(".")
+  end
+
+  def qualified_tool_name(payload, name)
+    server = payload["server"].presence || payload["server_name"].presence
+    tool = name.to_s
+    return tool if server.blank? || tool.start_with?("mcp__") || tool.include?(".")
+
+    "#{server}.#{tool}"
   end
 
   def malformed_startup_output(line, log_sink)
@@ -294,7 +481,7 @@ class MuseInvocation
     FileUtils.mkdir_p(transcript_dir)
     path = File.join(transcript_dir, "muse-#{session_id}-#{policy}.jsonl")
     result = ProcessRunner.new(
-      env: muse_env(workspace_path),
+      env: muse_env(workspace_path, muse_home: @muse_home),
       command: muse_export_command(session_id: session_id, path: path, redacted: policy == :redacted_export),
       chdir: workspace_path,
       timeout: 60,

@@ -160,10 +160,11 @@ Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `au
 
 Each Workflow stores a concrete `agent_provider` when Syrus creates it, and
 retrying a failed Step inside that Workflow keeps using the pinned provider.
-Each Job also has a future-workflow provider setting: `default`, `claude`, or
-`codex`. `default` resolves the current repository/user default at workflow
-creation time; explicit values pin newly-created workflows for that Job to the
-selected provider.
+Each Job also has a future-workflow provider setting: `default` or any enabled
+plugin-registered agent provider such as `claude`, `codex`, or `muse`.
+`default` resolves the current repository/user default at workflow creation
+time; explicit values pin newly-created workflows for that Job to the selected
+provider.
 
 Operator-triggered retry-with-provider actions are one-shot overrides. They
 create that retry or follow-up Workflow with the requested provider, but they do
@@ -222,10 +223,28 @@ usage is below the threshold, or any provider has an active usage-exhausted
 signal, Syrus records `pause_reason: provider_availability` and schedules a
 recheck instead of creating the next Run. Running steps finish first. Codex and
 Claude rechecks refresh the usage snapshot when stale so Workflows resume
-automatically once usage is above threshold. Operators can force a recheck or
+automatically once usage is above threshold; providers without a usage probe,
+including Muse, still participate in credential/configuration checks and in
+circuits opened by invocation failures. Operators can force a recheck or
 "Resume anyway" from Agent Settings or the usage banner; the override is
 per-user/per-provider and only suppresses pauses until newer provider evidence
 arrives.
+
+**Muse workflow provider:** `muse_agent` registers `AgentProviders::Muse`
+through the same `:agent_provider` plugin extension point as Claude and Codex.
+A Muse-backed workflow uses the saved `User#muse_api_key`, stores provider
+state under a per-workflow Muse home, and writes
+`~/.config/muse/settings.json` in that home with a stdio
+`syrus-mcp-sidecar` server for the current Run. Muse uses dotted MCP tool names
+(`syrus-mcp-sidecar.submit_summary`) and normalizes its `payload_type` JSONL
+envelope into `ClaudeTranscript`, so
+`Steps::Base#log_mcp_required_tool_health` sees available/called tools the same
+way it does for Claude and Codex. If a required workflow tool such as
+`submit_summary`, `submit_test_plan`, `submit_review_plan`,
+`submit_adversarial_review`, or `submit_visual_review` is absent from Muse's
+reported MCP inventory, the invocation sets `agent_outcome=mcp_sidecar_failed`
+and asks the running process to stop instead of waiting for the normal agent
+timeout.
 
 **Provider failover policy:** Agent Settings persists a disabled-by-default
 agent-provider failover policy for admission/retry selection before a Workflow
