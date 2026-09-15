@@ -47,6 +47,7 @@ Rails.application.routes.draw do
         end
         resources :passkeys, only: %i[index destroy]
         post "bug_reports", to: "bug_reports#create"
+        post "bug_reports/chat", to: "bug_reports#chat"
         post "browser_errors", to: "browser_errors#create"
         post "event_actions/file_job", to: "event_actions#file_job"
         post "performance_events", to: "performance_events#create"
