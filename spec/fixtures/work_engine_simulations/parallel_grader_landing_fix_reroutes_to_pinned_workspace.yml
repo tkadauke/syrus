@@ -1,0 +1,98 @@
+name: parallel grader landing fix reroutes to pinned workspace
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: parallel-grader-landing-fix-reroutes
+  distributed_workflow_dag_enabled: true
+  auto_merge_enabled: true
+jobs:
+  job:
+    title: Parallel grader landing fix reroutes to pinned workspace
+    state: landing
+    branch_name: syrus/direct-parallel-landing-fix
+    pr_number: 6101
+    approved_at: "2026-09-15 08:00:00"
+    workflow:
+      kind: merge_train
+      state: running
+      worker_hostname: worker-main
+      worker_storage_key: storage-main
+      artifacts:
+        merge_train_id: 9001
+        merge_train_base_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        workspace_required_branch: syrus/merge-train-epic-sim-9001
+      work_unit:
+        state: running
+      chain_template:
+        - type: retry_until
+          repair_first: false
+          repair:
+            - landing_fix
+          check:
+            - grader_fanout
+            - grader_collect
+        - type: step
+          kind: merge_train_land
+      steps:
+        - key: failed_fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: failed_grader
+          kind: grader
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - failed_fanout
+          next_step: failed_collect
+          details:
+            name: rspec
+            required: true
+          run:
+            state: failed
+            agent_outcome: error
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: "grader rspec failed (exit 1)"
+        - key: failed_collect
+          kind: grader_collect
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - failed_grader
+          run:
+            state: queued
+        - key: land
+          kind: merge_train_land
+          state: queued
+          depends_on:
+            - failed_collect
+runtime:
+  workers:
+    - worker-main
+    - worker-grader
+  step_workers:
+    landing_fix: worker-grader
+  worker_storage_keys:
+    worker-main: storage-main
+    worker-grader: storage-grader
+outcomes:
+  default: success
+  steps:
+    grader_collect:
+      - failure
+      - success
+expect:
+  jobs:
+    job:
+      - closed
+  queues:
+    active_runs: empty
+  events:
+    - placement rerouted RUN-
+    - landing_fix -> success
+    - merge_train_land -> success

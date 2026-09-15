@@ -130,6 +130,11 @@ Distributed runtime can be modeled with a top-level `runtime:` block. `workers`
 round-robins active Runs across simulated hosts; `step_workers` pins a specific
 step kind or named grader (`grader:rspec`) to a host; and
 `worker_storage_keys` gives those hosts stable workflow-storage identities.
+Mutable workflow steps that already have a `workflow.worker_storage_key`
+are routed back to the host owning that storage key; immutable-source grader
+steps may still run on any configured worker. This models the production
+contract that post-grader repair/publication steps must not accidentally run
+inside a distributed grader worker that lacks the mutable workflow workspace.
 
 ```yaml
 runtime:

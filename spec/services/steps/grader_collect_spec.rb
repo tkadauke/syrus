@@ -346,6 +346,71 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "uses base-revision retry for a landing base with no exact main-health row" do
+    workflow.update!(trigger_kind: "merge_train")
+    workflow.set_artifact!("merge_train_base_sha", "trainbase123")
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "oldermain123")
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    candidate_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_step.update!(
+      state: "failed",
+      details: {
+        "name" => "rspec",
+        "required" => true,
+        "failures" => "allow_inherited",
+        "exit_code" => 1,
+        "base_retry" => { "strategy" => "files_as_args" }
+      }
+    )
+    provider = Class.new do
+      def self.test_case_count(run:, grader_name:) = 1
+      def self.failed_test_identities(run:, grader_name:) = [ "spec/services/query_spec.rb\0uses index" ]
+      def self.failed_test_cases(run:, grader_name:)
+        [
+          {
+            "suite_name" => "spec/services/query_spec.rb",
+            "name" => "uses index",
+            "file_path" => "spec/services/query_spec.rb",
+            "identity" => "spec/services/query_spec.rb\0uses index"
+          }
+        ]
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+    allow(BaseRevisionRetry).to receive(:call).and_return(
+      BaseRevisionRetry::Result.new(
+        ran: true,
+        inherited: true,
+        reason: "base_retry_failed_cases_match",
+        command: "bin/rspec-fast spec/services/query_spec.rb",
+        base_failed_identities: [ "spec/services/query_spec.rb\0uses index" ],
+        introduced_failed_identities: [],
+        output: "1 example, 1 failure"
+      )
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    expect(BaseRevisionRetry).to have_received(:call).with(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "trainbase123",
+      failed_cases: [ include("identity" => "spec/services/query_spec.rb\0uses index") ],
+      log: anything
+    )
+    artifact = workflow.reload.artifact("inherited_main_branch_grader_failure")
+    expect(artifact["evidence"]).to include(
+      "source" => "base_retry",
+      "sha" => "trainbase123",
+      "failed_names" => [ "rspec" ]
+    )
+    expect(artifact["classifications"].first).to include(
+      "reason" => "base_retry_failed_cases_match",
+      "base_retry_command" => "bin/rspec-fast spec/services/query_spec.rb"
+    )
+  end
+
   it "uses cached main-health workflow test cases before base-revision retry" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")

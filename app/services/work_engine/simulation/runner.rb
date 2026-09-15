@@ -849,6 +849,7 @@ module WorkEngine
       def record_simulated_runtime!(run, outcome)
         hostname = worker_hostname_for(run, outcome)
         storage_key = worker_storage_key_for(hostname, outcome)
+        hostname, storage_key = route_pinned_workflow_run!(run, hostname, storage_key)
         ensure_worker_live!(hostname, storage_key)
         unless run.distributed_parallel_run?
           run.workflow.update_columns(worker_hostname: hostname, worker_storage_key: storage_key, updated_at: Time.current)
@@ -865,6 +866,23 @@ module WorkEngine
           started_at: run.started_at || Time.current,
           last_chunk_at: Time.current
         )
+      end
+
+      def route_pinned_workflow_run!(run, hostname, storage_key)
+        required_storage_key = run.workflow&.worker_storage_key.presence
+        return [ hostname, storage_key ] if required_storage_key.blank?
+        return [ hostname, storage_key ] if run.distributed_parallel_run?
+        return [ hostname, storage_key ] if storage_key == required_storage_key
+
+        required_hostname = worker_hostname_for_storage_key(required_storage_key)
+        return [ hostname, storage_key ] if required_hostname.blank?
+
+        events << "placement rerouted #{run.slug} #{run.step&.kind} from #{hostname}/#{storage_key} to #{required_hostname}/#{required_storage_key}"
+        [ required_hostname, required_storage_key ]
+      end
+
+      def worker_hostname_for_storage_key(storage_key)
+        runtime.fetch("worker_storage_keys", {}).find { |_hostname, candidate| candidate.to_s == storage_key.to_s }&.first
       end
 
       def finish_simulated_processes!(run, outcome)

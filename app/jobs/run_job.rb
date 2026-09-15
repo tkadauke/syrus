@@ -637,10 +637,31 @@ class RunJob < ApplicationJob
     cursor = @step.next_step
     while cursor
       queued = cursor.runs.where(state: "queued").order(:created_at).last
-      return queued if queued && !self.class.distributed_parallel_run?(queued)
+      if queued && !self.class.distributed_parallel_run?(queued)
+        return queued if inline_successor_executable_here?(queued)
+
+        queued.reenqueue!
+        log(
+          "successor Run ##{queued.id} for #{cursor.kind} requires workflow storage " \
+            "#{queued.workflow&.worker_storage_key}; re-enqueued instead of running inline on #{WorkerStorageIdentity.queue_key}",
+          kind: "system"
+        )
+        return nil
+      end
       cursor = cursor.next_step
     end
     nil
+  end
+
+  def inline_successor_executable_here?(queued)
+    required_storage_key = queued.workflow&.worker_storage_key.presence
+    return true if required_storage_key.blank?
+
+    current_storage_key = WorkerStorageIdentity.queue_key
+    return true if current_storage_key.present? && current_storage_key == required_storage_key
+
+    required_queue = queued.resume_worker_queue
+    required_queue.blank? || required_queue.to_s == queue_name.to_s
   end
 
   def workflow_starting?

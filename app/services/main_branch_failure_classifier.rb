@@ -27,7 +27,7 @@ class MainBranchFailureClassifier
     base_sha = landing_unit_base_sha
     return no_match if base_sha.blank?
 
-    evidence = broken_grader_evidence(base_sha)
+    evidence = broken_grader_evidence(base_sha) || base_retry_evidence(base_sha)
     return no_match unless evidence
 
     classifications = @failed_grader_steps.map { |grader_step| classify_step(grader_step, evidence) }
@@ -70,6 +70,23 @@ class MainBranchFailureClassifier
       "checked_at" => check.checked_at&.iso8601,
       "source" => check.source,
       "workflow_id" => check.workflow_id,
+      "failed_names" => names
+    }
+  end
+
+  def base_retry_evidence(base_sha)
+    names = @failed_grader_steps.filter_map do |grader_step|
+      details = grader_step.details.to_h
+      next unless failure_policy(details) == ALLOW_INHERITED
+      next if details["base_retry"].blank?
+
+      details["name"].to_s.presence
+    end.uniq
+    return nil if names.empty?
+
+    {
+      "sha" => base_sha,
+      "source" => "base_retry",
       "failed_names" => names
     }
   end

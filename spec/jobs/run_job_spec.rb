@@ -864,10 +864,11 @@ RSpec.describe RunJob, :ci_only do
       checkpoint = workflow.steps.find_by!(kind: "implement").runs.first.run_checkpoint
       snapshot = WorkflowSourceSnapshot.find(grader_step.details.fetch("source_snapshot_id"))
       expect(checkpoint).to be_published
-      expect(snapshot.source_ref).to eq(checkpoint.remote_ref)
+      expect(snapshot.source_ref).to start_with("refs/syrus/source-snapshots/runs/")
+      expect(snapshot.source_sha).to eq(checkpoint.commit_sha)
       expect(grader_step.details.fetch("source_snapshot")).to include(
         "source_sha" => checkpoint.commit_sha,
-        "source_ref" => checkpoint.remote_ref
+        "source_ref" => snapshot.source_ref
       )
       expect(grader_run.reload).to be_succeeded
       expect(grader_run.job_logs.where(kind: "grade_log").pluck(:chunk).join).to include("saw checkpointed feature")
@@ -1592,6 +1593,95 @@ RSpec.describe RunJob, :ci_only do
       expect(kinds).to include("initial", "pr_comment", "retry", "ci_failure", "main_grader", "main_branch_repair")
       expect(kinds).not_to include("auto_merge", "merge_train", "rebase", "stack_rebase")
       expect(queued_run.agent_queue?).to be(true)
+    end
+  end
+
+  describe "inline successor routing" do
+    include ActiveJob::TestHelper
+
+    it "does not inline a mutable successor on a worker that lacks the workflow workspace" do
+      repository.update!(distributed_workflow_dag_enabled: true)
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      workflow = Workflow.create!(
+        job: job,
+        user: user,
+        trigger_kind: "merge_train",
+        agent_provider: job.agent_provider,
+        state: "running",
+        worker_storage_key: "storage-main"
+      )
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 1,
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
+      grader = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 0,
+        next_step_id: collect.id,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        state: "failed",
+        details: { "name" => "rspec", "required" => true }
+      )
+      current_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+      collect_run = collect.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "queued")
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@workflow, workflow)
+      run_job.instance_variable_set(:@step, grader)
+      run_job.instance_variable_set(:@run, current_run)
+      allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-grader")
+      allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-main").and_return(true)
+
+      clear_enqueued_jobs
+      result = nil
+      expect {
+        result = run_job.send(:next_inline_run)
+      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("resume-storage-main")
+
+      expect(result).to be_nil
+      expect(collect_run.reload).to be_queued
+    end
+
+    it "inlines a mutable successor when the current worker owns the workflow workspace" do
+      workflow = Workflow.create!(
+        job: job,
+        user: user,
+        trigger_kind: "merge_train",
+        agent_provider: job.agent_provider,
+        state: "running",
+        worker_storage_key: "storage-main"
+      )
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 1,
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
+      build = Step.create!(
+        workflow: workflow,
+        kind: "merge_train_build",
+        position: 0,
+        next_step_id: collect.id,
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE,
+        state: "succeeded"
+      )
+      current_run = build.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded")
+      collect_run = collect.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "queued")
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@workflow, workflow)
+      run_job.instance_variable_set(:@step, build)
+      run_job.instance_variable_set(:@run, current_run)
+      allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-main")
+
+      clear_enqueued_jobs
+
+      expect(run_job.send(:next_inline_run)).to eq(collect_run)
+      expect(enqueued_jobs.select { |entry| entry[:job] == RunJob }).to be_empty
     end
   end
 end
