@@ -491,7 +491,6 @@ module WorkEngine
       end
 
       def create_solid_queue_state!(run, config)
-        ensure_solid_queue_tables!
         clear_solid_queue_tables_once!
 
         attrs = config.to_h
@@ -506,23 +505,26 @@ module WorkEngine
           updated_at: created_at
         )
 
+        SolidQueue::ReadyExecution.where(job: queue_job).delete_all unless attrs["ready"] == true
+        SolidQueue::ScheduledExecution.where(job: queue_job).delete_all unless queue_job.scheduled_at
+        SolidQueue::ClaimedExecution.where(job: queue_job).delete_all unless attrs["claimed"] == true
+        SolidQueue::FailedExecution.where(job: queue_job).delete_all unless attrs["failed"] == true
+
         if attrs["ready"] == true
-          SolidQueue::ReadyExecution.create!(
-            job: queue_job,
-            priority: queue_job.priority,
-            queue_name: queue_job.queue_name,
-            created_at: created_at
-          )
+          SolidQueue::ReadyExecution.find_or_create_by!(job: queue_job) do |execution|
+            execution.priority = queue_job.priority
+            execution.queue_name = queue_job.queue_name
+            execution.created_at = created_at
+          end
         end
 
         if queue_job.scheduled_at
-          SolidQueue::ScheduledExecution.create!(
-            job: queue_job,
-            priority: queue_job.priority,
-            queue_name: queue_job.queue_name,
-            scheduled_at: queue_job.scheduled_at,
-            created_at: created_at
-          )
+          SolidQueue::ScheduledExecution.find_or_create_by!(job: queue_job) do |execution|
+            execution.priority = queue_job.priority
+            execution.queue_name = queue_job.queue_name
+            execution.scheduled_at = queue_job.scheduled_at
+            execution.created_at = created_at
+          end
         end
 
         if attrs["claimed"] == true
@@ -535,118 +537,24 @@ module WorkEngine
             pid: attrs.fetch("pid", 12_345),
             created_at: created_at
           )
-          SolidQueue::ClaimedExecution.create!(
-            job: queue_job,
-            process_id: process.id,
-            created_at: created_at
-          )
+          SolidQueue::ClaimedExecution.find_or_create_by!(job: queue_job) do |execution|
+            execution.process_id = process.id
+            execution.created_at = created_at
+          end
         end
 
         if attrs["failed"] == true
-          SolidQueue::FailedExecution.create!(
-            job: queue_job,
-            error: attrs.fetch("error", "simulated queue failure"),
-            created_at: created_at
-          )
-        end
-      end
-
-      def ensure_solid_queue_tables!
-        connection = ActiveRecord::Base.connection
-
-        unless connection.table_exists?(:solid_queue_jobs)
-          connection.create_table :solid_queue_jobs do |t|
-            t.string :active_job_id
-            t.text :arguments
-            t.string :class_name, null: false
-            t.string :concurrency_key
-            t.datetime :created_at, null: false
-            t.datetime :finished_at
-            t.integer :priority, default: 0, null: false
-            t.string :queue_name, null: false
-            t.datetime :scheduled_at
-            t.datetime :updated_at, null: false
+          SolidQueue::FailedExecution.find_or_create_by!(job: queue_job) do |execution|
+            execution.error = attrs.fetch("error", "simulated queue failure")
+            execution.created_at = created_at
           end
         end
-
-        unless connection.table_exists?(:solid_queue_ready_executions)
-          connection.create_table :solid_queue_ready_executions do |t|
-            t.datetime :created_at, null: false
-            t.bigint :job_id, null: false
-            t.integer :priority, default: 0, null: false
-            t.string :queue_name, null: false
-          end
-        end
-
-        unless connection.table_exists?(:solid_queue_scheduled_executions)
-          connection.create_table :solid_queue_scheduled_executions do |t|
-            t.datetime :created_at, null: false
-            t.bigint :job_id, null: false
-            t.integer :priority, default: 0, null: false
-            t.string :queue_name, null: false
-            t.datetime :scheduled_at, null: false
-          end
-        end
-
-        unless connection.table_exists?(:solid_queue_processes)
-          connection.create_table :solid_queue_processes do |t|
-            t.datetime :created_at, null: false
-            t.string :hostname
-            t.string :kind, null: false
-            t.datetime :last_heartbeat_at, null: false
-            t.text :metadata
-            t.string :name, null: false
-            t.integer :pid, null: false
-            t.bigint :supervisor_id
-          end
-        end
-
-        unless connection.table_exists?(:solid_queue_claimed_executions)
-          connection.create_table :solid_queue_claimed_executions do |t|
-            t.datetime :created_at, null: false
-            t.bigint :job_id, null: false
-            t.bigint :process_id
-          end
-        end
-
-        unless connection.table_exists?(:solid_queue_failed_executions)
-          connection.create_table :solid_queue_failed_executions do |t|
-            t.datetime :created_at, null: false
-            t.text :error
-            t.bigint :job_id, null: false
-          end
-        end
-
-        unless connection.table_exists?(:solid_queue_pauses)
-          connection.create_table :solid_queue_pauses do |t|
-            t.datetime :created_at, null: false
-            t.string :queue_name, null: false
-          end
-        end
-
-        [
-          SolidQueue::Job,
-          SolidQueue::ReadyExecution,
-          SolidQueue::ScheduledExecution,
-          SolidQueue::Process,
-          SolidQueue::ClaimedExecution,
-          SolidQueue::FailedExecution,
-          SolidQueue::Pause
-        ].each(&:reset_column_information)
       end
 
       def clear_solid_queue_tables_once!
         return if @solid_queue_tables_cleared
 
-        [
-          SolidQueue::ReadyExecution,
-          SolidQueue::ScheduledExecution,
-          SolidQueue::ClaimedExecution,
-          SolidQueue::FailedExecution,
-          SolidQueue::Pause,
-          SolidQueue::Job,
-          SolidQueue::Process
-        ].each(&:delete_all)
+        WorkEngine::Simulation::SolidQueueBootstrap.clear!
         @solid_queue_tables_cleared = true
       end
 

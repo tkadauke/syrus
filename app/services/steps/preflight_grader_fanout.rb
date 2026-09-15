@@ -194,7 +194,7 @@ module Steps
       plan = RepoPrepPlan.for(workspace.path)
       unless prepared_workspace_matches_current_plan?(plan)
         log("[preflight_grader_fanout] prepared workspace archive skipped; prepare output does not match current plan")
-        return
+        return false
       end
 
       PreparedWorkspaceArchive.publish!(

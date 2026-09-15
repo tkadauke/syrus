@@ -33,11 +33,12 @@ RSpec.describe "bin/simulator", :ci_only do
     db_paths.each { |path| FileUtils.rm_f(path) }
 
     stdout, stderr, status = run_simulator(
-      "spec/fixtures/work_engine_simulations/single_initial_success.yml",
+      "spec/fixtures/work_engine_simulations/parallel_grader_worker_loss_retries.yml",
       env: { "TEST_ENV_NUMBER" => suffix }
     )
 
     expect(status).to be_success, stderr
+    expect(stdout).to include("parallel grader worker loss retries: success")
     expect(stdout).to include("work-engine simulations passed (1 scenarios)")
   ensure
     db_paths&.each { |path| FileUtils.rm_f(path) }

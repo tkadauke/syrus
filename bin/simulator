@@ -6,5 +6,6 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 
 ActiveRecord::Migration.maintain_test_schema! if Rails.env.test?
+WorkEngine::Simulation::SolidQueueBootstrap.clear! if Rails.env.test?
 
 exit WorkEngine::Simulation::Cli.call(argv: ARGV)
