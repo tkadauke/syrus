@@ -89,6 +89,22 @@ RSpec.describe App::VisualReviewProjects do
     expect(result.when_files_changed).to match_array([ "apps/web/src/**/*", "apps/admin/app/**/*" ])
   end
 
+  it "lists configured visual review filters before affected-project selection" do
+    write("apps/web/.syrus.yml", <<~YAML)
+      project:
+        id: web
+      preview:
+        start: npm run dev
+      visual_review:
+        when_files_changed:
+          - src/**/*
+    YAML
+
+    result = described_class.configured_when_files_changed(workspace_path: workspace)
+
+    expect(result).to eq([ "apps/web/src/**/*" ])
+  end
+
   it "reports when no affected project has a preview" do
     allow(Feature).to receive(:visual_review_enabled?).and_return(true)
     write("apps/web/.syrus.yml", <<~YAML)

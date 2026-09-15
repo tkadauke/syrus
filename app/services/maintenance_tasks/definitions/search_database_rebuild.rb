@@ -5,7 +5,7 @@ module MaintenanceTasks
     class SearchDatabaseRebuild < Base
       key "search_database_rebuild"
       title "Rebuild search database"
-      summary "Creates missing core search tables and backfills searchable chats and operational logs."
+      summary "Creates missing search tables and backfills searchable chats, jobs, epics, logs, and plugin-provided search sources."
       category "index"
       recurrence "repeatable"
       required_role "admin"
@@ -16,14 +16,16 @@ module MaintenanceTasks
 
       step "schema", "Prepare search schema", "Creates or repairs the local SQLite FTS tables used by global search."
       step "chats", "Index chat messages", "Indexes searchable user and assistant chat messages."
+      step "jobs", "Index jobs", "Indexes job titles, descriptions, and summaries when Global Search is installed."
+      step "epics", "Index epics", "Indexes epic titles and descriptions when Global Search is installed."
       step "logs", "Index operational logs", "Indexes operational logs when instance logging is configured."
 
       def estimate_total_units
-        1 + chat_messages_count + operational_logs_count
+        1 + chat_messages_count + jobs_count + epics_count + operational_logs_count
       end
 
       def pending?
-        search_database_needs_prepare? || missing_chat_messages_count.positive? || operational_logs_need_rebuild?
+        search_database_needs_prepare? || missing_chat_messages_count.positive? || jobs_need_rebuild? || epics_need_rebuild? || operational_logs_need_rebuild?
       end
 
       def pending_reason
@@ -37,6 +39,14 @@ module MaintenanceTasks
 
         if missing_chat_messages_count.positive?
           return index_chat_messages(task)
+        end
+
+        if jobs_need_rebuild?
+          return index_jobs(task)
+        end
+
+        if epics_need_rebuild?
+          return index_epics(task)
         end
 
         if operational_logs_need_rebuild?
@@ -77,6 +87,14 @@ module MaintenanceTasks
         Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} chat message(s).", level: "progress")
       end
 
+      def index_jobs(task)
+        index_plugin_search_source(task, "jobs")
+      end
+
+      def index_epics(task)
+        index_plugin_search_source(task, "epics")
+      end
+
       def index_operational_logs(task)
         task.current_step_key = "logs"
         task.current_step_title = "Index operational logs"
@@ -95,6 +113,15 @@ module MaintenanceTasks
         task.checkpoint_will_change!
         task.checkpoint["#{step}_done"] = true
         Result.new(done: false, processed: 0, failed: 0, message: "#{step.humanize} index is not available in this installation.", level: "info")
+      end
+
+      def index_plugin_search_source(task, key)
+        source = plugin_search_source(key)
+        return mark_plugin_step_done(task, key) unless source&.respond_to?(:search_database_rebuild_batch)
+
+        PerformanceLogging.plugin_call(extension_point: "global_search:source", provider: source, operation: :search_database_rebuild_batch) do
+          source.search_database_rebuild_batch(task: task)
+        end
       end
 
       def search_database_needs_prepare?
@@ -129,6 +156,18 @@ module MaintenanceTasks
         )
       end
 
+      def jobs_need_rebuild?
+        plugin_search_source_pending?("jobs")
+      rescue StandardError
+        false
+      end
+
+      def epics_need_rebuild?
+        plugin_search_source_pending?("epics")
+      rescue StandardError
+        false
+      end
+
       def operational_logs_need_rebuild?
         OperationalLogging.configured_for_instance? && indexed_count("operational_log_fts", "operational_log_event_id") < OperationalLogEvent.count
       rescue StandardError
@@ -142,7 +181,36 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
+      def jobs_count = plugin_search_source_units("jobs")
+      def epics_count = plugin_search_source_units("epics")
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
+
+      def plugin_search_source_pending?(key)
+        source = plugin_search_source(key)
+        source&.respond_to?(:search_database_rebuild_pending?) && source.search_database_rebuild_pending?
+      end
+
+      def plugin_search_source_units(key)
+        source = plugin_search_source(key)
+        return 0 unless source&.respond_to?(:search_database_rebuild_units)
+
+        source.search_database_rebuild_units.to_i
+      end
+
+      def plugin_search_source(key)
+        plugin_search_sources.find do |source|
+          source.respond_to?(:search_database_rebuild_key) &&
+            source.search_database_rebuild_key.to_s == key.to_s
+        end
+      end
+
+      def plugin_search_sources
+        return [] unless defined?(Syrus::PluginRegistry)
+
+        @plugin_search_sources ||= Syrus::PluginRegistry.providers_for("global_search:source")
+      rescue StandardError
+        []
+      end
 
       def bind(value)
         ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)

@@ -3,17 +3,17 @@ module Steps
     def call
       workspace.setup
 
+      if configured_when_files_changed.any? && !configured_changed_files_match?
+        skip_via_pre_filter!
+        return
+      end
+
       if !visual_review_projects.available?
         skip_unavailable_preview_project!
         return
       end
 
       workflow.set_artifact!("visual_review_preview_projects", visual_review_projects.to_a)
-
-      if when_files_changed_configured? && !changed_files_match?
-        skip_via_pre_filter!
-        return
-      end
 
       run.update!(prompt: reviewer_prompt) if run.prompt.blank?
 
@@ -87,21 +87,20 @@ module Steps
       [ visual_review_config&.seed_notes, visual_review_projects.seed_notes ].compact_blank.uniq.join("\n\n")
     end
 
-    def when_files_changed_configured?
-      effective_when_files_changed.any?
+    def configured_changed_files_match?
+      changed_files_match?(configured_when_files_changed)
     end
 
-    def changed_files_match?
-      patterns = effective_when_files_changed
+    def changed_files_match?(patterns)
       changed_files.any? do |file|
         patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
       end
     end
 
-    def effective_when_files_changed
-      @effective_when_files_changed ||= [
+    def configured_when_files_changed
+      @configured_when_files_changed ||= [
         *Array(visual_review_config&.when_files_changed),
-        *visual_review_projects.when_files_changed
+        *App::VisualReviewProjects.configured_when_files_changed(workspace_path: workspace.path)
       ].compact_blank.uniq
     end
 

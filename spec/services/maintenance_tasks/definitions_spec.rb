@@ -159,6 +159,31 @@ RSpec.describe "maintenance task definitions" do
       expect(result.processed).to eq(1)
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
+
+    it "delegates plugin-owned search backfills through the global search source extension point" do
+      provider = Class.new do
+        class << self
+          attr_reader :received_task
+
+          def search_database_rebuild_key = "jobs"
+          def search_database_rebuild_units = 2
+          def search_database_rebuild_pending? = true
+
+          def search_database_rebuild_batch(task:)
+            @received_task = task
+            MaintenanceTasks::Definitions::Base::Result.new(done: false, processed: 2, failed: 0, message: "Indexed 2 job(s).", level: "progress")
+          end
+        end
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
+      task = maintenance_task_for(definition)
+      task.checkpoint["schema_prepared"] = true
+
+      result = definition.perform_batch(task)
+
+      expect(result.processed).to eq(2)
+      expect(provider.received_task).to eq(task)
+    end
   end
 
   def maintenance_task_for(definition)
