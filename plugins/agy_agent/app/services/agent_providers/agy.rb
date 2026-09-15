@@ -12,6 +12,14 @@ module AgentProviders
       user.gemini_api_key.present?
     end
 
+    def self.refresh_usage!(user:, force: false)
+      AgyCredentialProbe.refresh_for(user: user, force: force)
+    end
+
+    def self.ignore_model_for_positive_evidence?(_model)
+      true
+    end
+
     def self.mcp_tool_name(tool_name, server_name:)
       "mcp(#{server_name}/#{tool_name})"
     end

@@ -879,6 +879,36 @@ export function MuseCredentialCard({ payload, onNotice }: CardProps) {
 
 // ---------- Gemini ----------
 
+export function AgyCredentialCard({ payload, onNotice }: CardProps) {
+  const { t } = useT("settings")
+  const set = payload.credential_status.gemini_api_key
+  const { headingRef, focusHeading } = useCardFocus()
+  const actions = useCredentialActions(onNotice, focusHeading)
+
+  return (
+    <CredentialCard
+      connected={set}
+      description={t('credential_cards.agy_description')}
+      error={actions.error}
+      headingRef={headingRef}
+      testId="credential-card-agy"
+      title={t('credential_cards.agy_title')}
+    >
+      {set ? (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.agy_summary')}</p>
+          <CredentialTestResultLine result={actions.testResult} />
+          <div className="flex flex-wrap gap-2">
+            <TestButton actions={actions} credential="agy" />
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-700 dark:text-gray-300">{t('credential_cards.agy_missing_summary')}</p>
+      )}
+    </CredentialCard>
+  )
+}
+
 export function GeminiCredentialCard({ payload, onNotice }: CardProps) {
   // settings is the default namespace; the Gemini setup sheet's copy lives in
   // the chat namespace (shared with Chat.tsx and ConfigureAgentModal).

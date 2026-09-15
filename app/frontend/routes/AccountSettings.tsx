@@ -15,6 +15,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
+  AgyCredentialCard,
   cacheCredentials,
   ClaudeCredentialCard,
   CodexCredentialCard,
@@ -126,6 +127,7 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
         <CodexCredentialCard onNotice={onNotice} payload={payload} />
         <MuseCredentialCard onNotice={onNotice} payload={payload} />
         <GeminiCredentialCard onNotice={onNotice} payload={payload} />
+        <AgyCredentialCard onNotice={onNotice} payload={payload} />
         <PasskeysPanel />
         {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} /> : null}
         {payload.user.admin ? <ApiTokenPanel onNotice={onNotice} payload={payload} /> : null}

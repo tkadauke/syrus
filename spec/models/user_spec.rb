@@ -207,6 +207,16 @@ RSpec.describe User do
       expect(user.agent_provider).to eq("codex")
     end
 
+    it "treats a Gemini API key as the Antigravity agent credential" do
+      user = User.create!(attrs.merge(agent_provider: "agy", gemini_api_key: "AIza-test"))
+
+      expect(user.agent_provider_configured?("agy")).to eq(true)
+
+      user.update!(gemini_api_key: nil)
+
+      expect(user.agent_provider_configured?("agy")).to eq(false)
+    end
+
     it "rejects unknown providers" do
       user = User.new(attrs.merge(agent_provider: "oracle"))
       expect(user).not_to be_valid
@@ -624,11 +634,12 @@ RSpec.describe User do
           claude_oauth_token: "oat-test",
           codex_auth_mode: "api_key",
           codex_api_key: "sk-test",
-          muse_api_key: "muse-secret"
+          muse_api_key: "muse-secret",
+          gemini_api_key: "AIza-test"
         )
       )
 
-      expect(user.configured_agent_providers).to eq(%w[ claude codex muse ])
+      expect(user.configured_agent_providers).to eq(%w[ agy claude codex muse ])
     end
 
     it "returns configured providers other than the user's default provider" do
