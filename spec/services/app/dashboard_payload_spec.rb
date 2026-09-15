@@ -1386,7 +1386,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
           "start_blocked_reason" => "workflow_admission_budget"
         }
       )
-      workflow = WorkUnits::Launcher.instantiate(kind: "merge_train", job: owner)
+      workflow = WorkUnits::Launcher.instantiate(kind: "manual", job: owner)
       workflow.update!(state: "running")
       workflow.work_unit.work_unit_members.create!(job: job, role: "member")
 
@@ -1395,6 +1395,43 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(item[:summary_state]).to eq("running")
       expect(item[:start_blocked_reason]).to be_nil
+    end
+
+    it "presents active landing bundle members as landing rows" do
+      owner = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 101)
+      member = Factories.job_record(user: user, repository: repo, state: "approved", pr_number: 102)
+      stale_member_workflow = Workflow.create!(
+        job: member,
+        trigger_kind: "visual_diff",
+        state: "cancelled",
+        finished_at: 2.hours.ago
+      )
+      workflow = Workflow.create!(
+        job: owner,
+        trigger_kind: "merge_train",
+        state: "running",
+        started_at: 5.minutes.ago
+      )
+      attach_work_unit(workflow, state: "running", kind: "job_bundle", member_jobs: [ owner, member ])
+
+      rows = call(subject: "job", section: "rows")
+      items = rows[:items].index_by { |item| item[:id] }
+
+      expect(items.fetch(owner.id)).to include(
+        state: "landing",
+        summary_state: "landing",
+        latest_workflow_id: workflow.id,
+        latest_workflow_trigger_kind: "merge_train",
+        latest_workflow_state: "running"
+      )
+      expect(items.fetch(member.id)).to include(
+        state: "approved",
+        summary_state: "landing",
+        latest_workflow_id: workflow.id,
+        latest_workflow_trigger_kind: "merge_train",
+        latest_workflow_state: "running"
+      )
+      expect(items.fetch(member.id)[:latest_workflow_id]).not_to eq(stale_member_workflow.id)
     end
 
     it "shows failed jobs with active repair WorkUnits as repairing" do

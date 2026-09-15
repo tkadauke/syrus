@@ -192,6 +192,9 @@ RSpec.describe WorkUnits::Ownership do
     expect(active_repair.workflow).to eq(running_workflow)
     expect(active_repair.work_unit).to eq(running_unit)
     expect(snapshot.active_repair_work_by_job_id).not_to have_key(blocked.id)
+    active_landing = snapshot.active_landing_work_by_job_id.fetch(landing.id)
+    expect(active_landing.kind).to eq("auto_merge")
+    expect(active_landing.workflow).to eq(landing_workflow)
     expect(blocked_unit.blocked_reason).to eq("admission_control")
   end
 

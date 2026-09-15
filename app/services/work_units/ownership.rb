@@ -41,6 +41,13 @@ module WorkUnits
         end
       end
 
+      def active_landing_work_by_job_id
+        landing_kinds = WorkDefinitions.landing_lock_kinds.map(&:to_s).to_set
+        first_unit_by_job_id(kinds: landing_kinds).transform_values do |unit|
+          ActiveWork.new(kind: unit.kind, workflow: unit.workflow, work_unit: unit)
+        end
+      end
+
       private
 
       attr_reader :members
@@ -136,6 +143,22 @@ module WorkUnits
       return nil unless job
 
       active_repair_work_by_job_id([ job.id ])[job.id]
+    end
+
+    def self.active_landing_work_by_job_id(job_ids)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return {} if ids.empty?
+
+      landing_kinds = WorkDefinitions.landing_lock_kinds
+      active_units_by_job_id(ids, kinds: landing_kinds).transform_values do |unit|
+        ActiveWork.new(kind: unit.kind, workflow: unit.workflow, work_unit: unit)
+      end
+    end
+
+    def self.active_landing_work_for_job(job)
+      return nil unless job
+
+      active_landing_work_by_job_id([ job.id ])[job.id]
     end
 
     def self.active_unit_for_lock_key(lock_key, kinds: nil)

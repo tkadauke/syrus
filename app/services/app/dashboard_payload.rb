@@ -640,6 +640,9 @@ module App
       @job_runtime_active_repair_work_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_repair_work", count: job_ids.size) do
         work_unit_snapshot.active_repair_work_by_job_id
       end
+      @job_runtime_active_landing_work_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_landing_work", count: job_ids.size) do
+        work_unit_snapshot.active_landing_work_by_job_id
+      end
       @job_runtime_repository_memberships_by_repo_and_user = PerformanceLogging.phase("dashboard_jobs.preload.repository_memberships", count: job_ids.size) do
         repository_memberships_by_repo_and_user_for(jobs)
       end
@@ -802,7 +805,7 @@ module App
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
       return job.state if job.closed?
       return "repairing" if job.failed? && active_repair_work_for(job)
-      return job.state if job.landing?
+      return "landing" if job.landing? || active_landing_work_for(job)
       return "running" if job_running_runtime_work?(job)
       return "paused" if job_apparently_paused?(job)
 
@@ -810,7 +813,10 @@ module App
     end
 
     def active_workflow_trigger_kind(job)
-      return nil unless summary_state(job).in?(%w[running repairing])
+      state = summary_state(job)
+      return nil unless state.in?(%w[running repairing landing])
+      return active_landing_work_for(job)&.kind if state == "landing"
+
       if defined?(@job_runtime_active_workflow_trigger_kinds_by_job_id)
         return active_repair_work_for(job)&.kind || @job_runtime_active_workflow_trigger_kinds_by_job_id[job.id]
       end
@@ -831,7 +837,18 @@ module App
       WorkUnits::Ownership.active_repair_work_for_job(job)
     end
 
+    def active_landing_work_for(job)
+      if defined?(@job_runtime_active_landing_work_by_job_id)
+        return @job_runtime_active_landing_work_by_job_id[job.id]
+      end
+
+      WorkUnits::Ownership.active_landing_work_for_job(job)
+    end
+
     def latest_workflow_for(job)
+      active_landing_work = active_landing_work_for(job)
+      return active_landing_work.workflow if active_landing_work&.workflow
+
       return @job_runtime_latest_workflows_by_job_id[job.id] if defined?(@job_runtime_latest_workflows_by_job_id)
 
       job.latest_workflow
