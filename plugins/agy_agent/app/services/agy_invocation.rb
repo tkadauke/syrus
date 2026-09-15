@@ -14,58 +14,77 @@ class AgyInvocation
   end
 
   def initialize(workspace_path, prompt:,
+                 api_key: nil,
                  log_sink: ->(*, **) { },
                  runner: nil,
                  timeout: DEFAULT_TIMEOUT_SECONDS,
                  agy_home: nil,
                  resume_session_id: nil,
+                 resume_transcript_jsonl: nil,
                  mcp_server: nil,
                  model: nil,
                  effort_level: nil,
                  required_mcp_tools: nil,
                  stop_requested: -> { false },
-                 process_started: ->(_process) { })
+                 process_started: ->(_process) { },
+                 on_session_id: ->(_session_id) { })
     @workspace_path = workspace_path.to_s
     @prompt = prompt
+    @api_key = api_key
     @log_sink = log_sink
     @runner = runner || method(:default_runner)
     @timeout = timeout
     @agy_home = agy_home&.to_s
     @resume_session_id = resume_session_id
+    @resume_transcript_jsonl = resume_transcript_jsonl
     @mcp_server = mcp_server
     @model = model.to_s.strip.presence || self.class.configured_model
     @effort_level = effort_level.to_s.strip.presence || self.class.configured_effort
     @required_mcp_tools = Array(required_mcp_tools).compact_blank.map(&:to_s)
     @stop_requested = stop_requested
     @process_started = process_started
+    @on_session_id = on_session_id
   end
 
   def run
     @runner.call(
       workspace_path: @workspace_path,
       prompt: @prompt,
+      api_key: @api_key,
       log_sink: @log_sink,
       timeout: @timeout,
       agy_home: @agy_home,
       resume_session_id: @resume_session_id,
+      resume_transcript_jsonl: @resume_transcript_jsonl,
       mcp_server: @mcp_server,
       model: @model,
       effort_level: @effort_level,
       required_mcp_tools: @required_mcp_tools,
       stop_requested: @stop_requested,
-      process_started: @process_started
+      process_started: @process_started,
+      on_session_id: @on_session_id
     )
   end
 
   private
 
-  def default_runner(workspace_path:, prompt:, log_sink:, timeout:, agy_home: nil,
-                     resume_session_id: nil, mcp_server: nil, model: nil, effort_level: nil,
+  def default_runner(workspace_path:, prompt:, api_key: nil, log_sink:, timeout:, agy_home: nil,
+                     resume_session_id: nil, resume_transcript_jsonl: nil,
+                     mcp_server: nil, model: nil, effort_level: nil,
                      required_mcp_tools: nil,
-                     stop_requested: -> { false }, process_started: ->(_process) { })
+                     stop_requested: -> { false }, process_started: ->(_process) { },
+                     on_session_id: ->(_session_id) { })
     agy_home = agy_home.presence || File.join(Dir.home, ".agy")
     FileUtils.mkdir_p(agy_home)
     write_mcp_config(agy_home, mcp_server, log_sink) if mcp_server
+    restored_resume = restore_resume_transcript(
+      agy_home: agy_home,
+      workspace_path: workspace_path,
+      session_id: resume_session_id,
+      jsonl: resume_transcript_jsonl,
+      log_sink: log_sink
+    )
+    effective_resume_session_id = restored_resume == :resume_unavailable ? nil : resume_session_id
 
     metadata = {
       turns: nil,
@@ -88,8 +107,8 @@ class AgyInvocation
       (Agent.find_or_create_for!(current_run || current_chat_session) if current_run || current_chat_session)
 
     runner_result = ProcessRunner.new(
-      env: agy_env(workspace_path: workspace_path, agy_home: agy_home, model: model, effort_level: effort_level),
-      command: agy_command(resume_session_id: resume_session_id),
+      env: agy_env(workspace_path: workspace_path, agy_home: agy_home, api_key: api_key, model: model, effort_level: effort_level),
+      command: agy_command(resume_session_id: effective_resume_session_id),
       stdin_data: stdin_event(prompt),
       chdir: workspace_path,
       timeout: timeout,
@@ -104,11 +123,13 @@ class AgyInvocation
       on_output_line: ->(line) do
         update = process_event(line, log_sink, required_mcp_tools: required_mcp_tools)
         if update
+          on_session_id.call(update[:session_id]) if update[:session_id].present?
           mcp_server_failed = true if update.delete(:mcp_server_failed)
           metadata.merge!(update.compact)
         end
       end
     ).run
+    log_resume_failure(effective_resume_session_id, runner_result, metadata, log_sink)
 
     if mcp_server_failed
       metadata[:is_error] = true
@@ -126,6 +147,11 @@ class AgyInvocation
 
     provider_succeeded = metadata[:outcome].present? && !metadata[:is_error]
     cleanup_timeout = provider_succeeded && (runner_result.timed_out || runner_result.silent_timed_out)
+    transcript_path = AgyAgent::SessionPaths.transcript_path_for(
+      home: agy_home,
+      cwd: workspace_path,
+      session_id: metadata[:session_id]
+    )
 
     AgentInvocation::Result.new(
       turns: metadata[:turns],
@@ -135,6 +161,8 @@ class AgyInvocation
       outcome: metadata[:outcome],
       final_text: metadata[:final_text],
       session_id: metadata[:session_id],
+      transcript_path: transcript_path,
+      transcript_jsonl: read_transcript(transcript_path),
       input_tokens: metadata[:input_tokens],
       output_tokens: metadata[:output_tokens],
       cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
@@ -166,13 +194,15 @@ class AgyInvocation
     { event: "user", message: { content: prompt.to_s } }.to_json + "\n"
   end
 
-  def agy_env(workspace_path:, agy_home:, model:, effort_level:)
+  def agy_env(workspace_path:, agy_home:, api_key:, model:, effort_level:)
     ProcessRunner.forwarded_env(
       AgentInvocation::ENV_FORWARD,
       extra: WorkspaceDependencyEnv.for(workspace_path).merge(
         "HOME" => agy_home,
         "AGY_HOME" => agy_home,
         "ANTIGRAVITY_HOME" => agy_home,
+        "GEMINI_API_KEY" => api_key.presence,
+        "GOOGLE_API_KEY" => api_key.presence,
         "SYRUS_AGY_MODEL" => model.presence,
         "SYRUS_AGY_EFFORT" => effort_level.presence,
         "AGY_MODEL" => model.presence,
@@ -199,6 +229,35 @@ class AgyInvocation
       kind: "system"
     )
     path
+  end
+
+  def restore_resume_transcript(agy_home:, workspace_path:, session_id:, jsonl:, log_sink:)
+    return if session_id.blank?
+
+    unless AgyAgent::SessionPaths.valid_session_id?(session_id)
+      log_sink.call(
+        "[agy resume] invalid conversation id #{session_id}; starting a fresh Antigravity session",
+        kind: "system"
+      )
+      return :resume_unavailable
+    end
+
+    return if AgyAgent::SessionPaths.transcript_path_for(home: agy_home, cwd: workspace_path, session_id: session_id).present?
+
+    if jsonl.blank?
+      log_sink.call(
+        "[agy resume] no stored JSONL for conversation #{session_id}; provider resume may be rejected or incomplete",
+        kind: "system"
+      )
+      return
+    end
+
+    AgyAgent::SessionPaths.restore!(
+      home: agy_home,
+      cwd: workspace_path,
+      session_id: session_id,
+      transcript_jsonl: jsonl
+    )
   end
 
   def process_event(line, log_sink, required_mcp_tools: [])
@@ -321,6 +380,23 @@ class AgyInvocation
     detail = line.to_s.chomp.safe_byteslice(0, STARTUP_ERROR_MAX_BYTES)
     log_sink.call(detail)
     detail.present? ? { startup_output: detail } : nil
+  end
+
+  def read_transcript(path)
+    return nil if path.blank? || !File.exist?(path)
+
+    File.read(path)
+  end
+
+  def log_resume_failure(session_id, runner_result, metadata, log_sink)
+    return if session_id.blank?
+    return if runner_result.success? && metadata[:outcome] == "success"
+
+    reason = metadata[:final_text].presence || metadata[:outcome].presence || "agy exited with status #{runner_result.exit_status || 'unknown'}"
+    log_sink.call(
+      "[agy resume] resume for conversation #{session_id} did not complete successfully: #{reason}",
+      kind: "system"
+    )
   end
 
   def process_outcome(result)
