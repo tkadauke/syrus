@@ -12,7 +12,7 @@ module Api
         # ?visibility=private|public
         # ?user=substring         — match owner User#email_address
         def index
-          scope = ::DesignDocs::DesignDoc.includes(:owner_user, :current_version, :repositories).newest_first
+          scope = ::DesignDocs::DesignDoc.includes(*::DesignDocs::DesignDoc.summary_associations).newest_first
           scope = scope.where(state: params[:state]) if params[:state].present?
           scope = scope.where(visibility: params[:visibility]) if params[:visibility].present?
           if params[:user].present?
@@ -54,7 +54,7 @@ module Api
         end
 
         def versions
-          design_doc = find_design_doc
+          design_doc = find_design_doc_with_summary_associations
           render json: {
             design_doc: serialize_summary(design_doc),
             versions: design_doc.versions.includes(:actor_user).order(version_number: :desc).map { |version| serialize_version(version) }
@@ -71,6 +71,10 @@ module Api
 
         def find_design_doc
           ::DesignDocs::DesignDoc.find(params[:id])
+        end
+
+        def find_design_doc_with_summary_associations
+          ::DesignDocs::DesignDoc.includes(*::DesignDocs::DesignDoc.summary_associations).find(params[:id])
         end
 
         # Every operator PATCH is a deliberate, one-shot change (there is no

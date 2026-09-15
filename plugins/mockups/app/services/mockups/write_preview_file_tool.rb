@@ -7,9 +7,15 @@ module Mockups
     tool_name "write_preview_file"
 
     description "Write (create or overwrite) a file inside a preview panel's private scratch " \
-                "directory. Scoped to that panel only -- it cannot touch the attached " \
-                "repository checkout or any other panel's files. panel_id must be an open " \
-                "panel id returned by show_preview."
+                "directory for UI mockups, HTML mockups, HTML previews, prototypes, open-preview " \
+                "requests, and screenshot-driven interface redesigns. Canonical sequence: call " \
+                "show_preview without panel_id to open a panel, write index.html and assets with " \
+                "write_preview_file, then call show_preview again with the same panel_id to publish. " \
+                "Scoped to that panel only -- it cannot touch the attached repository checkout or " \
+                "any other panel's files. Do not use local HTTP servers, local file paths, or " \
+                "workspace-only HTML files as the primary deliverable when preview-panel tools are " \
+                "available. Do not use imagegen for HTML/UI mockups unless the user explicitly asks " \
+                "for a bitmap/raster image. panel_id must be an open panel id returned by show_preview."
 
     input_schema(
       type: "object",

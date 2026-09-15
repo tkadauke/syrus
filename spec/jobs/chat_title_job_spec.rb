@@ -52,6 +52,19 @@ RSpec.describe ChatTitleJob do
     expect(seen[:prompt]).to include("Build a habit tracker")
   end
 
+  it "can generate a title from an explicit message text seed" do
+    seen = {}
+    ChatTitleJob.agent_runner = ->(**kwargs) {
+      seen.merge!(kwargs)
+      result('{"title":"Launch Planning"}')
+    }
+
+    described_class.perform_now(chat.id, nil, message_text: "plan launch")
+
+    expect(chat.reload.title).to eq("Launch Planning")
+    expect(seen[:prompt]).to include("plan launch")
+  end
+
   it "does not overwrite an existing title" do
     chat.update!(title: "Existing title")
     called = false

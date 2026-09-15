@@ -510,25 +510,73 @@ describe("ReviewWorkspace", () => {
     vi.restoreAllMocks()
   })
 
-  it("renders a version selector with labels, metadata, and per-version comment counts", async () => {
+  it("renders a structured version range picker with aligned endpoint buttons and compact row metadata", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
       versions: [
         version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1, created_at: "2026-05-01T12:00:00Z" }),
-        version({ id: 200, version_index: 2, label: "Chat feedback #1", reason: "chat_feedback", trigger_kind: "chat_feedback", workflow_id: 12, run_id: 34, comments_count: 2, created_at: "2026-05-02T12:00:00Z" })
+        version({
+          id: 200,
+          version_index: 2,
+          label: "v2 repair range",
+          reason: "chat_feedback",
+          trigger_kind: "chat_feedback",
+          workflow_id: 12,
+          run_id: 34,
+          comments_count: 2,
+          created_at: "2026-05-02T12:00:00Z",
+          base_ref: "refs/heads/main-with-a-very-long-name",
+          base_sha: "base-sha-1234567890",
+          head_ref: "syrus/direct-42-with-a-very-long-branch-name",
+          head_sha: "head-sha-1234567890"
+        })
       ],
-      version: version({ id: 200, version_index: 2, label: "Chat feedback #1", reason: "chat_feedback", trigger_kind: "chat_feedback", workflow_id: 12, run_id: 34, comments_count: 2, created_at: "2026-05-02T12:00:00Z" })
+      version: version({
+        id: 200,
+        version_index: 2,
+        label: "v2 repair range",
+        reason: "chat_feedback",
+        trigger_kind: "chat_feedback",
+        workflow_id: 12,
+        run_id: 34,
+        comments_count: 2,
+        created_at: "2026-05-02T12:00:00Z",
+        base_ref: "refs/heads/main-with-a-very-long-name",
+        base_sha: "base-sha-1234567890",
+        head_ref: "syrus/direct-42-with-a-very-long-branch-name",
+        head_sha: "head-sha-1234567890"
+      })
     }))
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     renderWorkspace()
 
     const selector = await screen.findByLabelText("Version")
-    expect(selector).toHaveValue("200")
-    expect(selector).toHaveClass("max-w-full", "truncate")
+    expect(selector).toHaveRole("button")
+    expect(selector).toHaveTextContent("v2 repair range")
+    expect(selector).toHaveAttribute("aria-haspopup", "listbox")
+    expect(selector).toHaveAttribute("aria-expanded", "false")
     expect(selector.closest("div")).toHaveClass("w-full", "min-w-0", "max-w-full")
-    expect(screen.getByRole("option", { name: /v2 latest - Chat feedback #1 - WF-12 - RUN-34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/ })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: /v1 - Initial implementation - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 1 comment/ })).toBeInTheDocument()
-    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/)).toBeInTheDocument()
+
+    fireEvent.click(selector)
+
+    expect(selector).toHaveAttribute("aria-expanded", "true")
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+    expect(listbox).toHaveClass("max-h-[min(22rem,70vh)]", "w-[min(100%,calc(100vw-2rem))]", "overflow-y-auto")
+    const selectedRange = within(listbox).getByRole("option", { name: /v2 repair range - From refs\/heads\/main-with-a-very-long-name \(base-sh\) to syrus\/direct-42-with-a-very-long-branch-name \(head-sh\)/ })
+    expect(selectedRange).toHaveAttribute("aria-selected", "true")
+    const endpointButtons = within(selectedRange).getAllByRole("button")
+    expect(endpointButtons[0]).toHaveAccessibleName("From v2 RUN-34")
+    expect(endpointButtons[0]).toHaveClass("w-16", "border-brand")
+    expect(endpointButtons[1]).toHaveAccessibleName("To v2 RUN-34")
+    expect(endpointButtons[1]).toHaveClass("w-16", "border-brand")
+    expect(within(selectedRange).getByRole("button", { name: "v2 RUN-34" })).toHaveAttribute(
+      "title",
+      expect.stringMatching(/v2 - WF-12 - RUN-34 - .* - 2 files - 2 comments - From refs\/heads\/main-with-a-very-long-name/)
+    )
+    expect(within(selectedRange).queryByText("refs/hea...ong-name")).not.toBeInTheDocument()
+    expect(screen.getByTitle("refs/heads/main-with-a-very-long-name @ base-sha-1234567890")).toHaveTextContent("From")
+    expect(screen.getByTitle("syrus/direct-42-with-a-very-long-branch-name @ head-sha-1234567890")).toHaveTextContent("To")
+    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From refs\/heads\/main-with-a-very-long-name \(base-sh\) to syrus\/direct-42-with-a-very-long-branch-name \(head-sh\) - 2 files - 2 comments/)).toBeInTheDocument()
   })
 
   it("defaults to All changes while keeping a smaller repair-step range selectable", async () => {
@@ -565,15 +613,166 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     const selector = await screen.findByLabelText("Version")
-    expect(selector).toHaveValue("200")
-    expect(screen.getByRole("option", { name: /All changes - From main \(branch-\) to syrus\/issue-42 \(branch-\) - no comments/ })).toBeInTheDocument()
+    expect(selector).toHaveRole("button")
+    expect(selector).toHaveTextContent("All changes")
     expect(screen.getByTitle("app/models/all_changes.rb")).toBeInTheDocument()
 
-    fireEvent.change(selector, { target: { value: "100" } })
+    fireEvent.click(selector)
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+    expect(within(listbox).getAllByRole("option")[0]).toHaveTextContent("All changes")
+    const allChanges = within(listbox).getByRole("option", { name: /All changes - From main \(branch-\) to syrus\/issue-42 \(branch-\)/ })
+    expect(allChanges).toHaveAttribute("aria-selected", "true")
+    expect(within(allChanges).queryByText("From")).not.toBeInTheDocument()
+    expect(within(allChanges).queryByText("To")).not.toBeInTheDocument()
+
+    const initialRange = within(listbox).getByRole("option", { name: /Initial implementation - From main \(initial\) to syrus\/issue-42 \(branch-\)/ })
+    fireEvent.click(within(initialRange).getByRole("button", { name: "v1 RUN-34" }))
 
     expect(await screen.findByTitle("db/migrate/repair.rb")).toBeInTheDocument()
     expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 100)
     expect(screen.queryByText("all-changes")).not.toBeInTheDocument()
+  })
+
+  it("selects independent From and To endpoints as an explicit review range", async () => {
+    const initial = sourceDiffPayload({
+      version: version({ id: 300, version_index: 3, base_sha: "branch-base", head_sha: "third-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
+      versions: [
+        version({ id: 100, version_index: 1, base_sha: "branch-base", head_sha: "first-head", label: "Initial implementation", run_id: 11 }),
+        version({ id: 200, version_index: 2, base_sha: "first-head", head_sha: "second-head", label: "Repair", run_id: 22 }),
+        version({ id: 300, version_index: 3, base_sha: "branch-base", head_sha: "third-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } })
+      ],
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/all_changes.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+all-changes"
+      }]
+    })
+    const explicit = sourceDiffPayload({
+      version: version({ id: 400, version_index: 4, base_sha: "first-head", head_sha: "third-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions: initial.versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/custom_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+custom-range"
+      }]
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(explicit)
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 300))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    fireEvent.click(selector)
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+    const repairRange = within(listbox).getByRole("option", { name: /Repair - From main \(first-h\) to syrus\/issue-42 \(second-\)/ })
+    fireEvent.click(within(repairRange).getByRole("button", { name: "From v2 RUN-22" }))
+
+    expect(await screen.findByTitle("app/models/custom_range.rb")).toBeInTheDocument()
+    expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=first-head&head=third-head")
+  })
+
+  it("does not keep the previous explicit range visible while a new range loads", async () => {
+    const initial = sourceDiffPayload({
+      version: version({ id: 500, version_index: 5, base_sha: "branch-base", head_sha: "fourth-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
+      versions: [
+        version({ id: 100, version_index: 1, base_sha: "branch-base", head_sha: "first-head", label: "Initial implementation", run_id: 11 }),
+        version({ id: 200, version_index: 2, base_sha: "first-head", head_sha: "second-head", label: "Repair", run_id: 22 }),
+        version({ id: 300, version_index: 3, base_sha: "second-head", head_sha: "third-head", label: "Follow-up", run_id: 33 }),
+        version({ id: 400, version_index: 4, base_sha: "third-head", head_sha: "fourth-head", label: "Final", run_id: 44 }),
+        version({ id: 500, version_index: 5, base_sha: "branch-base", head_sha: "fourth-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } })
+      ]
+    })
+    const firstExplicit = sourceDiffPayload({
+      version: version({ id: 600, version_index: 6, base_sha: "first-head", head_sha: "fourth-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions: initial.versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/first_custom_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+first-custom-range"
+      }]
+    })
+    let resolveSecondExplicit: (payload: JobSourceDiffPayload) => void = () => {}
+    const secondExplicit = new Promise<JobSourceDiffPayload>((resolve) => {
+      resolveSecondExplicit = resolve
+    })
+    vi.mocked(fetchJobSourceDiff)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(firstExplicit)
+      .mockReturnValueOnce(secondExplicit)
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 500))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    fireEvent.click(selector)
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "From v2 RUN-22" }))
+    expect(await screen.findByTitle("app/models/first_custom_range.rb")).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "To v3 RUN-33" }))
+
+    expect(screen.getByText("Loading diff...")).toBeInTheDocument()
+    expect(screen.queryByTitle("app/models/first_custom_range.rb")).not.toBeInTheDocument()
+    resolveSecondExplicit(sourceDiffPayload({
+      version: version({ id: 700, version_index: 7, base_sha: "first-head", head_sha: "third-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions: initial.versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/second_custom_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+second-custom-range"
+      }]
+    }))
+    expect(await screen.findByTitle("app/models/second_custom_range.rb")).toBeInTheDocument()
+  })
+
+  it("prefers the All changes full range even when the embedded payload version is a narrower range", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 100, version_index: 1, label: "Preview fixture", base_sha: "preview-base", head_sha: "preview-head" }),
+      versions: [
+        version({ id: 100, version_index: 1, label: "Preview fixture", base_sha: "preview-base", head_sha: "preview-head", files_count: 1 }),
+        version({ id: 200, version_index: 2, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" }, files_count: 2 })
+      ],
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/preview_fixture.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+preview-fixture"
+      }]
+    }))
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({ id: 200, version_index: 2, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" }, files_count: 2 }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/all_changes.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+all-changes"
+      }]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 200))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    expect(selector).toHaveTextContent("All changes")
+    expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 200)
+    expect(screen.getByTitle("app/models/all_changes.rb")).toBeInTheDocument()
+    expect(screen.queryByTitle("app/models/preview_fixture.rb")).not.toBeInTheDocument()
+
+    fireEvent.click(selector)
+    expect(within(screen.getByRole("listbox", { name: "Version" })).getByRole("option", { name: /All changes - From main \(branch-\) to syrus\/issue-42 \(branch-\)/ })).toHaveAttribute("aria-selected", "true")
   })
 
   it("keeps latest-version review behavior working while comment history is enabled", async () => {
@@ -632,7 +831,7 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("v1 historical")
     fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
 
-    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveValue("100"))
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveTextContent("Initial implementation"))
     expect(document.querySelector('[data-diff-anchor="right::1"]')).toBeInTheDocument()
     await waitFor(() => expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled())
   })
@@ -695,7 +894,7 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("Old whole-review note.")
     fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
 
-    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveValue("100"))
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveTextContent("Version 1"))
     const record = document.querySelector('[data-diff-review-comment-id="11"]') as HTMLElement
     expect(record).toBeInTheDocument()
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()

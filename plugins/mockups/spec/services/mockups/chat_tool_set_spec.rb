@@ -52,10 +52,37 @@ RSpec.describe Mockups::ChatToolSet do
       show_preview = described_class.tool_definitions(tier: :essential).find { |tool| tool.fetch(:name) == "show_preview" }
 
       description = show_preview.fetch(:description)
-      expect(description).to include("Primary tool for operator-facing UI mockups, HTML prototypes, and preview submissions in Syrus Chat")
-      expect(description).to include("If the user asks to create or submit a preview mockup")
-      expect(description).to include("write index.html with write_preview_file")
+      expect(description).to include("Primary tool for operator-facing UI mockups, HTML mockups, HTML previews")
+      expect(description).to include("HTML prototypes", "screenshot-driven redesigns", "open-preview requests")
+      expect(description).to include("Canonical sequence")
+      expect(description).to include("write index.html and any assets with write_preview_file or edit_preview_file")
       expect(description).to include("call show_preview again with the same panel_id to publish")
+      expect(description).to include("Do not use local HTTP servers, local file paths, or workspace-only HTML")
+      expect(description).to include("Do not use imagegen for HTML/UI mockups")
+      expect(description).to include("Do not tell the user the preview is visible until the publish call")
+      expect(description).to include("panel_id, version_id, and mockup_slug")
+    end
+
+    it "keeps preview tools discoverable for deferred mockup and prototype searches" do
+      search_terms = %w[mockup HTML preview prototype open-preview]
+
+      matching_names = described_class.tool_definitions(tier: :deferred).filter_map do |tool|
+        haystack = "#{tool.fetch(:name)} #{tool.fetch(:description)}"
+        tool.fetch(:name) if search_terms.all? { |term| haystack.match?(/#{Regexp.escape(term)}/i) }
+      end
+
+      expect(matching_names).to include("show_preview", "write_preview_file", "edit_preview_file")
+    end
+
+    it "describes write_preview_file with the canonical sequence and anti-patterns" do
+      write_preview = described_class.tool_definitions(tier: :essential).find { |tool| tool.fetch(:name) == "write_preview_file" }
+
+      description = write_preview.fetch(:description)
+      expect(description).to include("UI mockups", "HTML mockups", "HTML previews", "prototypes")
+      expect(description).to include("Canonical sequence")
+      expect(description).to include("call show_preview again with the same panel_id to publish")
+      expect(description).to include("Do not use local HTTP servers, local file paths, or workspace-only HTML")
+      expect(description).to include("Do not use imagegen for HTML/UI mockups")
     end
   end
 
@@ -84,6 +111,8 @@ RSpec.describe Mockups::ChatToolSet do
         expect(payload["state"]).to eq("open")
         expect(payload["file_count"]).to eq(0)
         expect(payload["note"]).to match(/write_preview_file/)
+        expect(payload["note"]).to include("Do not tell the operator the preview is visible until")
+        expect(payload).not_to have_key("mockup_slug")
 
         panel = chat_session.preview_panels.find(payload["panel_id"])
         expect(panel.title).to eq("Widget preview")
@@ -168,6 +197,7 @@ RSpec.describe Mockups::ChatToolSet do
         payload = json(response)
         expect(payload["file_count"]).to eq(2)
         expect(payload["version_id"]).to eq(panel.reload.current_version.id)
+        expect(payload["mockup_slug"]).to match(/\AMOCKUP-\d+\z/)
         expect(panel.reload.file_for("index.html").download).to eq("<h1>hi</h1>")
         expect(panel.reload.file_for("css/app.css").download).to eq("body {}")
       end

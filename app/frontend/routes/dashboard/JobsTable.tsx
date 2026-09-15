@@ -2,6 +2,7 @@ import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLin
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { translateBlockedReason } from "../../lib/translateBlockedReason"
+import { linkifySlugs } from "../../lib/linkifySlugs"
 import { bulkButtonClass, columnAriaSort, formatCurrency, humanizeOption, jobDateValue, withRoutePrefix } from "./helpers"
 import type { DashboardSortState } from "./helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -61,7 +62,7 @@ export function JobsDashboardTable({ items, columns, controls, landingQueueEntri
 
   return (
     <div className="space-y-3">
-      <BulkJobActions controls={controls} selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
+      <BulkJobActions controls={controls} items={items} selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
       {landingQueueStatus ? <LandingQueueSummary status={landingQueueStatus} prefix={prefix} /> : null}
       <JobsTable
         allSelected={allSelected}
@@ -260,7 +261,7 @@ function SimplePreviewControls({ env, isPending, onStart, onStop, t }: { env: Pr
   )
 }
 
-function BulkJobActions({ controls, selectedIds, onClear }: { controls: DashboardPayload["controls"]; selectedIds: number[]; onClear: () => void }) {
+function BulkJobActions({ controls, items, selectedIds, onClear }: { controls: DashboardPayload["controls"]; items: DashboardJobItem[]; selectedIds: number[]; onClear: () => void }) {
   const { t } = useT("dashboard")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
@@ -281,6 +282,28 @@ function BulkJobActions({ controls, selectedIds, onClear }: { controls: Dashboar
     }
   })
   const disabled = selectedIds.length === 0 || action.isPending
+  const selectedJobs = useMemo(() => {
+    const ids = new Set(selectedIds)
+    return items.filter((item) => ids.has(item.id))
+  }, [items, selectedIds])
+  const canRun = useMemo(() => {
+    const selected = selectedJobs.length > 0 ? selectedJobs : []
+    const allSelectedCan = (bulkAction: DashboardBulkJobAction) => selected.length > 0 && selected.every((job) => dashboardJobBulkActionApplies(job, bulkAction))
+
+    return {
+      retry: allSelectedCan("retry"),
+      release_from_backlog: allSelectedCan("release_from_backlog"),
+      move_to_backlog: allSelectedCan("move_to_backlog"),
+      pause: allSelectedCan("pause"),
+      unpause: allSelectedCan("unpause"),
+      claim: allSelectedCan("claim"),
+      release_claim: allSelectedCan("release_claim"),
+      assign_owner: allSelectedCan("assign_owner"),
+      set_priority: allSelectedCan("set_priority"),
+      approve: allSelectedCan("approve"),
+      close: allSelectedCan("close")
+    }
+  }, [selectedJobs])
 
   async function run(bulkAction: DashboardBulkJobAction) {
     setNotice(null)
@@ -301,28 +324,57 @@ function BulkJobActions({ controls, selectedIds, onClear }: { controls: Dashboar
         {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, t("bulk_action_error"))}</span> : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("retry")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_from_backlog")} type="button">{t("release_from_backlog")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("move_to_backlog")} type="button">{t("move_to_backlog")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("pause")} type="button">{t("pause")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("unpause")} type="button">{t("unpause")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("claim")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("release")}</button>
-        <Select aria-label={t("assign_owner")} className="px-2 py-1 text-xs" disabled={disabled} fullWidth={false} onChange={(event) => setOwnerUserId(event.target.value)} value={ownerUserId}>
-          <option value="">{t("assign_owner")}</option>
-          {controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
-        </Select>
-        <button className={bulkButtonClass(disabled || !ownerUserId)} disabled={disabled || !ownerUserId} onClick={() => run("assign_owner")} type="button">{t("assign")}</button>
-        <Select aria-label={t("priority")} className="px-2 py-1 text-xs" disabled={disabled} fullWidth={false} onChange={(event) => setPriority(event.target.value)} value={priority}>
-          {(controls.priorities ?? [{ value: "urgent", label: "Urgent" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </Select>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("set_priority")} type="button">{t("set_priority")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button>
-        <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button>
+        {canRun.retry ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("retry")}</button> : null}
+        {canRun.release_from_backlog ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_from_backlog")} type="button">{t("release_from_backlog")}</button> : null}
+        {canRun.move_to_backlog ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("move_to_backlog")} type="button">{t("move_to_backlog")}</button> : null}
+        {canRun.pause ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("pause")} type="button">{t("pause")}</button> : null}
+        {canRun.unpause ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("unpause")} type="button">{t("unpause")}</button> : null}
+        {canRun.claim ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("claim")}</button> : null}
+        {canRun.release_claim ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("release")}</button> : null}
+        {canRun.assign_owner ? (
+          <>
+            <Select aria-label={t("assign_owner")} className="px-2 py-1 text-xs" disabled={disabled} fullWidth={false} onChange={(event) => setOwnerUserId(event.target.value)} value={ownerUserId}>
+              <option value="">{t("assign_owner")}</option>
+              {controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
+            </Select>
+            <button className={bulkButtonClass(disabled || !ownerUserId)} disabled={disabled || !ownerUserId} onClick={() => run("assign_owner")} type="button">{t("assign")}</button>
+          </>
+        ) : null}
+        {canRun.set_priority ? (
+          <>
+            <Select aria-label={t("priority")} className="px-2 py-1 text-xs" disabled={disabled} fullWidth={false} onChange={(event) => setPriority(event.target.value)} value={priority}>
+              {(controls.priorities ?? [{ value: "urgent", label: "Urgent" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
+            <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("set_priority")} type="button">{t("set_priority")}</button>
+          </>
+        ) : null}
+        {canRun.approve ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button> : null}
+        {canRun.close ? <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button> : null}
       </div>
       {dialog}
     </div>
   )
+}
+
+function dashboardJobBulkActionApplies(job: DashboardJobItem, bulkAction: DashboardBulkJobAction) {
+  if (job.bulk_actions) {
+    return Boolean(job.bulk_actions[bulkAction])
+  }
+
+  const open = job.state !== "closed" && job.state !== "no_change_needed"
+  if (bulkAction === "retry") return open && (job.state === "failed" || job.state === "implemented" || Boolean(job.retry_state?.retryable))
+  if (bulkAction === "release_from_backlog") return Boolean(job.can_release_from_backlog)
+  if (bulkAction === "move_to_backlog") return Boolean(job.can_move_to_backlog)
+  if (bulkAction === "pause") return open && !job.manual_paused
+  if (bulkAction === "unpause") return open && Boolean(job.manual_paused)
+  if (bulkAction === "claim") return !job.claimed_by_user || job.claimed_by_current_user
+  if (bulkAction === "release_claim") return Boolean(job.claimed_by_current_user)
+  if (bulkAction === "assign_owner") return open
+  if (bulkAction === "set_priority") return open
+  if (bulkAction === "approve") return Boolean(job.can_approve)
+  if (bulkAction === "close") return job.state !== "closed"
+
+  return false
 }
 
 // Group key for the landing-queue delineation: one key per *landing unit*.
@@ -831,6 +883,8 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           {job.state === "queued" && job.start_blocked_reason ? (
             <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
           ) : null}
+          <MobileJobQueueStatus job={job} />
+          {job.blocked_reason ? <span><CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /></span> : null}
         </MetadataLine>
         {job.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
@@ -902,7 +956,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     return <LandingQueueStatusCell job={job} />
   }
   if (column === "blocked_reason") {
-    return <DataTable.Cell className="text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? translateBlockedReason(job.blocked_reason, t) : "-"}</DataTable.Cell>
+    return <DataTable.Cell className="text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? <CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /> : "-"}</DataTable.Cell>
   }
   if (column === "repository") {
     return <DataTable.Cell><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></DataTable.Cell>
@@ -918,38 +972,52 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
 }
 
 function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
+  return (
+    <DataTable.Cell>
+      <LandingQueueStatusContent job={job} showEmpty />
+    </DataTable.Cell>
+  )
+}
+
+function MobileJobQueueStatus({ job }: { job: DashboardJobItem }) {
+  if (!job.landing_queue_blocked_reason && !job.landing_queue_wait_reason && !job.landing_blocker_override_requested_at) return null
+
+  return <LandingQueueStatusContent job={job} wrapPill />
+}
+
+function LandingQueueStatusContent({ job, showEmpty = false, wrapPill = false }: { job: DashboardJobItem; showEmpty?: boolean; wrapPill?: boolean }) {
   const { t } = useT("dashboard")
 
   if (job.landing_queue_blocked_reason) {
     return (
-      <DataTable.Cell>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <TonePill tone="red">{translateBlockedReason(job.landing_queue_blocked_reason, t)}</TonePill>
-          <LandingBlockerOverrideBadge job={job} />
-        </div>
-      </DataTable.Cell>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <TonePill tone="red" wrap={wrapPill}><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
+        <LandingBlockerOverrideBadge job={job} />
+      </div>
     )
   }
 
   if (job.landing_queue_wait_reason) {
     return (
-      <DataTable.Cell>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <TonePill tone="gray">{translateBlockedReason(job.landing_queue_wait_reason, t)}</TonePill>
-          <LandingBlockerOverrideBadge job={job} />
-        </div>
-      </DataTable.Cell>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <TonePill tone="gray" wrap={wrapPill}><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_wait_reason, t)} /></TonePill>
+        <LandingBlockerOverrideBadge job={job} />
+      </div>
     )
   }
 
+  if (!showEmpty) return <LandingBlockerOverrideBadge job={job} />
+
   return (
-    <DataTable.Cell>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
-        <LandingBlockerOverrideBadge job={job} />
-      </div>
-    </DataTable.Cell>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+      <LandingBlockerOverrideBadge job={job} />
+    </div>
   )
+}
+
+function CopyableBlockedReason({ reason }: { reason: string }) {
+  return <>{linkifySlugs(reason, { hoverCards: false, slugStyle: "copyable" })}</>
 }
 
 function LandingBlockerOverrideBadge({ job }: { job: DashboardJobItem }) {

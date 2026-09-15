@@ -116,7 +116,10 @@ surface, sharing the same query services and payload shape:
   the Step/Run waterfall for one Workflow (wraps
   `Timeline::WorkflowWaterfallQuery`). The workflow and each Step payload
   include the resolved `worker_storage_key`, `queue_role`, `hostname`, and
-  `pid`.
+  `pid`. The workflow payload also includes the canonical `WF-<id>` slug plus
+  `job_slug`, `job_path`, and `workflow_path`; `WorkflowWaterfall.tsx` renders
+  those as links and applies the active SPA route prefix (for example
+  `/app-shell`) at the edge.
 
 `worker_timeline` is a `Filters::Registry` subject so shared FilterBar
 schema serialization, top-level suggestion search, and filter-usage
