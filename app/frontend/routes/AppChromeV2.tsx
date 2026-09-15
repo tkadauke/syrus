@@ -355,7 +355,18 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
-      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatId} context={bugReportContext(location.pathname)} featureFlags={data?.feature_flags} pageAttachments={bugReportAttachments} ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
+      {user ? (
+        <BugReportButton
+          bugReportMode={data?.app?.bug_report_mode ?? null}
+          chatId={activeChatId}
+          context={bugReportContext(location.pathname)}
+          featureFlags={data?.feature_flags}
+          onChatStarted={(redirectTo) => navigate(withRoutePrefix(redirectTo, prefix))}
+          pageAttachments={bugReportAttachments}
+          ref={bugReportRef}
+          reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null}
+        />
+      ) : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
       {groupChatPickerOpen ? (
         <ParticipantPickerModal

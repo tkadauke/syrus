@@ -148,6 +148,91 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
       expect(response).to have_http_status(:created)
       expect(Job.last).to have_attributes(user: non_owner, kind: "direct", issue_title: "Bug from non-owner")
     end
+
+    it "starts a new chat against the configured bug-report repository with the selected screenshot and context" do
+      repository = Factories.repository(user: Factories.user, owner: "operator", name: "syrus")
+      sign_in_as(user)
+      log_file = Rack::Test::UploadedFile.new(StringIO.new("log content"), "text/plain", original_filename: "log.txt")
+      pdf_file = Rack::Test::UploadedFile.new(StringIO.new("%PDF-1.4 dummy"), "application/pdf", original_filename: "report.pdf")
+      context_json = {
+        url: "https://example.com/jobs",
+        user_agent: "Mozilla/5.0",
+        viewport: { width: 1440, height: 900 },
+        device_pixel_ratio: 2,
+        recent_errors: [
+          { message: "TypeError: x is null", source: "app.js", at: "2026-09-15T00:00:00.000Z" }
+        ]
+      }.to_json
+
+      expect {
+        post "/api/v1/app/bug_reports/chat", params: {
+          title: "Dashboard bug",
+          description: "Cards overlap.",
+          screenshot: upload_png,
+          attachments: [ log_file, pdf_file ],
+          context: context_json
+        }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTitleJob)
+        .and have_enqueued_job(ChatTurnJob)
+
+      chat = ChatSession.last
+      message = chat.messages.last
+      expect(response).to have_http_status(:created)
+      expect(parse_body).to include("message" => "Chat started.", "redirect_to" => chat_path(chat), "chat_id" => chat.id)
+      expect(chat.attached_repositories).to contain_exactly(repository)
+      expect(message.content["text"]).to include("Chat about this bug report: Dashboard bug")
+      expect(message.content["text"]).to include("Cards overlap.")
+      expect(message.content["text"]).to include("URL: https://example.com/jobs")
+      expect(message.content["text"]).to include("`TypeError: x is null` (app.js)")
+      expect(message.content["text"]).to include("## log.txt")
+      expect(message.content["text"]).to include("log content")
+      expect(message.content["attachments"]).to contain_exactly(
+        hash_including("name" => "capture.png", "mime_type" => "image/png", "data" => Base64.strict_encode64("\x89PNG\r\n\x1A\nscreenshot".b)),
+        hash_including("name" => "report.pdf", "mime_type" => "application/pdf", "data" => Base64.strict_encode64("%PDF-1.4 dummy"))
+      )
+    end
+
+    it "allows a user who does not own the bug-report repository to start a bug-report chat" do
+      owner_user = Factories.user
+      repository = Factories.repository(user: owner_user, owner: "operator", name: "syrus")
+      non_owner = Factories.user
+      sign_in_as(non_owner)
+
+      expect {
+        post "/api/v1/app/bug_reports/chat", params: {
+          title: "Bug from non-owner",
+          description: "Start a chat instead."
+        }
+      }.to change(ChatSession, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      expect(ChatSession.last.user).to eq(non_owner)
+      expect(ChatSession.last.attached_repositories).to contain_exactly(repository)
+    end
+
+    it "returns a validation error when too many files are sent to a bug-report chat" do
+      Factories.repository(user: user, owner: "operator", name: "syrus")
+      sign_in_as(user)
+
+      extra_files = (1..Document::MAX_ATTACHMENTS_PER_JOB).map do |i|
+        Rack::Test::UploadedFile.new(StringIO.new("content#{i}"), "text/plain", original_filename: "file#{i}.txt")
+      end
+
+      expect {
+        post "/api/v1/app/bug_reports/chat", params: {
+          title: "Too many files",
+          description: "Exceeds the limit.",
+          screenshot: upload_png,
+          attachments: extra_files
+        }
+      }.not_to change(ChatSession, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+      expect(parse_body.dig("error", "message")).to include("at most #{Document::MAX_ATTACHMENTS_PER_JOB} files")
+    end
   end
 
   context "when the user has a fork of the upstream repo (condition B)" do
@@ -177,6 +262,17 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
   end
 
   context "when neither condition is met (GitHub issue path)" do
+    it "rejects bug-report chat creation" do
+      sign_in_as(user)
+
+      expect {
+        post "/api/v1/app/bug_reports/chat", params: { title: "Missing repo" }
+      }.not_to change(ChatSession, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
     it "returns github_token_required when the user has no GitHub token" do
       sign_in_as(user)
 
