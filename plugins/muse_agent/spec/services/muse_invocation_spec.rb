@@ -343,6 +343,28 @@ RSpec.describe MuseInvocation do
     expect(result.final_text).to include("weekly usage limit")
   end
 
+  it "maps structured Muse usage-limit fields to the shared provider usage outcome" do
+    lines = [
+      {
+        record_type: "event",
+        payload_type: "run.terminal.failed",
+        sequence: 1,
+        stream: "stdout",
+        payload: {
+          error_type: "quota_exhausted",
+          code: "model_quota_exhausted",
+          message: "Muse request failed for model muse-spark-test"
+        }
+      }.to_json
+    ]
+    stub_process_runners(lines: lines)
+
+    result = described_class.new("/tmp/wkt", prompt: "P", api_key: "muse-secret", transcript_policy: :exec_jsonl).run
+
+    expect(result.outcome).to eq("provider_usage_limit")
+    expect(result.final_text).to include("Muse request failed")
+  end
+
   it "writes per-home Muse settings with the Syrus MCP sidecar before exec" do
     captured = []
     Dir.mktmpdir("muse-home") do |muse_home|

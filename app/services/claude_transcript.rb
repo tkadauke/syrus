@@ -119,6 +119,9 @@ class ClaudeTranscript
         turns = ev.data[:turns]
         cost_usd = ev.data[:cost_usd]
         exit_reason = ev.data[:subtype]
+        session_id ||= ev.data[:session_id]
+        model      ||= ev.data[:model]
+        cwd        ||= ev.data[:cwd]
       end
     end
     result_only_tool_calls.each do |tool_use_id, tool_name|
