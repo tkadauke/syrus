@@ -76,7 +76,7 @@ RSpec.describe ChatAttachment do
 
     it "rejects a user with no access to the job's repository" do
       job # ensure the job's owner is created before the unrelated outsider,
-          # since the first User created in a test example is auto-admin
+      # since the first User created in a test example is auto-admin
       outsider_chat = ChatSession.create!(user: Factories.user)
 
       attachment = described_class.new(chat_session: outsider_chat, attachable: job)
