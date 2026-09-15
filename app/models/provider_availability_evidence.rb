@@ -110,17 +110,30 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   end
 
   def self.record_codex_invocation_failure!(run:, status: "exhausted", model: nil, message: nil, observed_at: Time.current)
-    return unless run&.user
-    status = "probe_inconclusive" if false_positive_codex_usage_limit?(message, model: model)
+    record_invocation_usage_limit!(
+      run: run,
+      status: status,
+      model: model,
+      message: message,
+      observed_at: observed_at
+    )
+  end
 
-    create!(
+  def self.record_invocation_usage_limit!(run:, status: "exhausted", model: nil, message: nil, observed_at: Time.current)
+    return unless run&.user
+
+    provider = run.agent_provider.to_s
+    normalized_model = model.presence || ProviderUsageLimit.extract_model(message)
+    status = "probe_inconclusive" if provider == "codex" && false_positive_codex_usage_limit?(message, model: normalized_model)
+
+    evidence = create!(
       user: run.user,
       run: run,
-      provider: "codex",
-      account_id: CodexAccountScope.for_user(run.user),
-      model: model.presence || ProviderUsageLimit.extract_model(message),
+      provider: provider,
+      account_id: invocation_account_id(run),
+      model: normalized_model,
       status: status,
-      source: "codex_invocation_failure",
+      source: "#{provider}_invocation_failure",
       observed_at: observed_at,
       details: sanitized_details(
         run_id: run.id,
@@ -129,6 +142,8 @@ class ProviderAvailabilityEvidence < ApplicationRecord
         message: message
       )
     )
+    App::ProviderAvailability.clear_cache!(user: run.user, provider: provider)
+    evidence
   end
 
   def self.record_invocation_auth_error!(run:, message: nil, http_status: nil, observed_at: Time.current)
@@ -158,6 +173,10 @@ class ProviderAvailabilityEvidence < ApplicationRecord
 
   def self.false_positive_codex_usage_limit?(message, model: nil)
     ProviderUsageLimit.inconclusive?(message) || (model.present? && ProviderUsageLimit.suspicious_model?(model))
+  end
+
+  def self.invocation_account_id(run)
+    run.agent_provider.to_s == "codex" ? CodexAccountScope.for_user(run.user) : nil
   end
 
   def self.latest_for_scope(user:, provider:, account_id: nil, model: nil)
