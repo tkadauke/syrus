@@ -11,7 +11,6 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 describe("relativeTime", () => {
   afterEach(() => {
-     
     ;(i18n as any).language = "en"
   })
 
@@ -21,19 +20,16 @@ describe("relativeTime", () => {
     })
 
     it("passes 'de' through unchanged", () => {
-       
       ;(i18n as any).language = "de"
       expect(intlLocale()).toBe("de")
     })
 
     it("maps 'la' to 'en' since Latin is not represented in browser Intl ICU data", () => {
-       
       ;(i18n as any).language = "la"
       expect(intlLocale()).toBe("en")
     })
 
     it("defaults to 'en' when language is not yet set", () => {
-       
       ;(i18n as any).language = ""
       expect(intlLocale()).toBe("en")
     })
@@ -46,21 +42,18 @@ describe("relativeTime", () => {
     })
 
     it("formats in the user's Syrus locale — German 'gestern' for yesterday", () => {
-       
       ;(i18n as any).language = "de"
       const yesterday = new Date(Date.now() - ONE_DAY_MS)
       expect(formatRelativeDate(yesterday)).toBe("gestern")
     })
 
     it("formats in English for Latin locale (Intl has no Latin data)", () => {
-       
       ;(i18n as any).language = "la"
       const yesterday = new Date(Date.now() - ONE_DAY_MS)
       expect(formatRelativeDate(yesterday)).toBe("yesterday")
     })
 
     it("formats hours with the active locale", () => {
-       
       ;(i18n as any).language = "de"
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
       expect(formatRelativeDate(twoHoursAgo)).toBe("vor 2 Stunden")
