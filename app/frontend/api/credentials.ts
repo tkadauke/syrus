@@ -104,6 +104,8 @@ export type CredentialTestResult = {
     scopes?: string[]
     accepted_scopes?: string[]
     missing_scopes?: string[]
+    model?: string
+    shared_credential?: string
   }
 }
 
