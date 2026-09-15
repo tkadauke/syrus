@@ -1,5 +1,6 @@
 {
   "title": "Administratio",
+  "loading": "Oneratur...",
   "page_title_queue": "Ordo — Administratio",
   "page_title_stuck": "Opera Impedita — Administratio",
   "page_title_resource_admission": "Admissio Opum — Administratio",
@@ -42,6 +43,10 @@
   "nav_group_system": "Systema",
   "nav_group_product_data": "Data Producti",
   "section_label": "Administratio",
+  "plugin_pages": {
+    "unavailable_heading": "Pagina non praesto",
+    "unavailable_body": "Haec pagina administrationis nunc non praesto est."
+  },
   "overview": {
     "heading": "Conspectus",
     "loading": "Onerans...",

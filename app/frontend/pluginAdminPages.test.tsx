@@ -94,4 +94,12 @@ describe("PluginAdminPageRoute", () => {
 
     expect(await screen.findByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
   })
+
+  it("renders localized unavailable copy when no plugin admin page matches", async () => {
+    renderRoute("/admin/mysql", [])
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Page unavailable" })).toBeInTheDocument()
+    expect(screen.getByText("This admin page is not available right now.")).toBeInTheDocument()
+    expect(screen.queryByText("plugin_pages.unavailable_heading")).not.toBeInTheDocument()
+  })
 })
