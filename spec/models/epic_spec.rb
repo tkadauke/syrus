@@ -609,6 +609,61 @@ RSpec.describe Epic, :ci_only do
     expect(job.workflows.first.trigger_kind).to eq("initial")
   end
 
+  it "treats an already-started child initial WorkUnit as benign when a Job dependency release races" do
+    prerequisite = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 42,
+      state: "approved"
+    )
+    epic = described_class.create!(user: user, repository: repository, title: "Dependent", state: "in_progress")
+    EpicDependency.create!(epic: epic, depends_on_job: prerequisite, derived: false)
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Downstream work",
+      issue_body: "Do the downstream work",
+      state: "blocked_by_epic"
+    )
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      priority: job.priority,
+      actor: user,
+      source_type: "workflow_launch"
+    )
+    owner = WorkUnit.create!(
+      work_intent: intent,
+      kind: "initial",
+      state: "queued",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id
+    )
+
+    allow(WorkUnits::Ownership).to receive(:active_for_job_kind?).and_call_original
+    allow(WorkUnits::Ownership).to receive(:active_for_job_kind?).with(job, "initial").and_return(false)
+    allow(WorkUnits::Ownership).to receive(:active_unit_for_dedup_key).and_call_original
+    allow(WorkUnits::Ownership).to receive(:active_unit_for_dedup_key).with("job:#{job.id}:initial").and_return(nil, owner)
+    stub_const("WorkUnits::Launcher::ACTIVE_DEDUP_OWNER_LOOKUP_DELAY", 0)
+    workflow_count = job.workflows.count
+
+    expect {
+      prerequisite.update!(closure_reason: "pr_merged")
+      prerequisite.close!
+    }.to change { job.reload.state }.from("blocked_by_epic").to("queued")
+
+    expect(job.workflows.count).to eq(workflow_count)
+    expect(epic.reload).to be_in_progress
+    expect(WorkUnit.where(kind: "initial", scope_type: "job", scope_id: job.id)).to contain_exactly(owner)
+  end
+
   it "does not release child Jobs when starting an Epic with unsatisfied EpicDependency records" do
     blocker = described_class.create!(user: user, repository: repository, title: "Blocker", state: "in_progress")
     epic = described_class.create!(user: user, repository: repository, title: "Gated", state: "in_progress")

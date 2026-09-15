@@ -489,6 +489,7 @@ describe("applyAppEvent", () => {
           title: "Updated chat",
           title_pending: false,
           pinned_context: "Keep the rollout plan in scope.",
+          chat_model: "claude-sonnet-4-6",
           repository: { id: 3, slug: "acme/widgets" },
           cumulative_input_tokens: 1500,
           cumulative_output_tokens: 250,
@@ -502,6 +503,7 @@ describe("applyAppEvent", () => {
     expect(updated?.chat.title).toBe("Updated chat")
     expect(updated?.chat.title_pending).toBe(false)
     expect(updated?.chat.pinned_context).toBe("Keep the rollout plan in scope.")
+    expect(updated?.chat.chat_model).toBe("claude-sonnet-4-6")
     expect(updated?.chat.repository).toEqual({ id: 3, slug: "acme/widgets" })
     expect(updated?.chat.cumulative_input_tokens).toBe(1500)
     expect(updated?.chat.cumulative_output_tokens).toBe(250)
@@ -996,6 +998,7 @@ function chatPayload(messages: Array<ReturnType<typeof message>>) {
       title_pending: true,
       pinned: false,
       pinned_context: null,
+      chat_model: null,
       chat_path: "/chats/9",
       repository: null,
       stop_requested_at: null,

@@ -352,6 +352,7 @@ RSpec.describe Steps::VisualReview do
     end
 
     it "skips the agent turn and records a skipped verdict" do
+      expect(App::VisualReviewProjects).not_to receive(:call)
       expect(handler).not_to receive(:run_agent)
 
       handler.call

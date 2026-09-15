@@ -112,14 +112,14 @@ module MetricsDashboard
     def last_recorded_at
       return @last_recorded_at if defined?(@last_recorded_at)
 
-      @last_recorded_at = Sample.maximum(:recorded_at)
+      @last_recorded_at = MetricsDashboard::Sample.maximum(:recorded_at)
     end
 
     def panel_for(panel)
       # One sample before the window too: a rate needs a predecessor to
       # difference the first bucket against, or the chart always opens with a
       # misleading zero.
-      rows = Sample
+      rows = MetricsDashboard::Sample
         .for_metric(panel[:metric])
         .where(recorded_at: (grid_start - bucket)..)
         .order(:recorded_at)

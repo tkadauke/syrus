@@ -15,8 +15,9 @@ module TestInsights
   #
   #   can_parse?(output_path:, format_hint: nil) -> Boolean
   #     Return true if this parser can handle the file at output_path.
-  #     Called before JUnit XML fallback; returning false passes control
-  #     to the next registered parser.
+  #     Called after JUnit-looking XML files have been given to the core
+  #     JunitXmlParser; returning false passes control to the next registered
+  #     parser.
   #
   #   call(output_path:, format_hint: nil) -> parsed_run
   #     Parse the file and return an object duck-typed to

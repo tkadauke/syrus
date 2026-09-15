@@ -160,38 +160,29 @@ RSpec.describe "maintenance task definitions" do
       expect(task.checkpoint["schema_prepared"]).to be(true)
     end
 
-    it "indexes jobs through an enabled search source provider" do
+    it "delegates plugin-owned search backfills through the global search source extension point" do
+      provider = Class.new do
+        class << self
+          attr_reader :received_task
+
+          def search_database_rebuild_key = "jobs"
+          def search_database_rebuild_units = 2
+          def search_database_rebuild_pending? = true
+
+          def search_database_rebuild_batch(task:)
+            @received_task = task
+            MaintenanceTasks::Definitions::Base::Result.new(done: false, processed: 2, failed: 0, message: "Indexed 2 job(s).", level: "progress")
+          end
+        end
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
       task = maintenance_task_for(definition)
       task.checkpoint["schema_prepared"] = true
-      job = Factories.job_record
-      provider = Class.new do
-        class_attribute :indexed_jobs, default: []
-
-        def self.indexes_jobs? = true
-        def self.index_job(job) = self.indexed_jobs += [ job.id ]
-      end
-
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([ provider ])
-      allow(definition).to receive(:missing_chat_messages_count).and_return(0)
-      allow(definition).to receive(:indexed_count).with("job_fts", "job_id").and_return(0)
-      allow(definition).to receive(:epics_need_rebuild?).and_return(false)
-      allow(definition).to receive(:operational_logs_need_rebuild?).and_return(false)
 
       result = definition.perform_batch(task)
 
-      expect(provider.indexed_jobs).to eq([ job.id ])
-      expect(result.message).to include("Indexed 1 job")
-    end
-
-    it "marks the jobs step done when no enabled provider indexes jobs" do
-      task = maintenance_task_for(definition)
-
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with("global_search:source").and_return([])
-
-      result = definition.send(:index_jobs, task)
-
-      expect(task.checkpoint["jobs_done"]).to be(true)
-      expect(result.message).to include("Jobs index is not available")
+      expect(result.processed).to eq(2)
+      expect(provider.received_task).to eq(task)
     end
   end
 

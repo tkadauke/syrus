@@ -64,6 +64,28 @@ RSpec.describe PollMergeStateJob, :ci_only do
     described_class.perform_now(job.id)
   end
 
+  it "delays autonomous polling while the persisted rate limit is exhausted" do
+    user.update!(
+      gh_rate_limit_remaining: 0,
+      gh_rate_limit_reset_at: 30.minutes.from_now,
+      gh_rate_limit_observed_at: Time.current
+    )
+
+    expect_any_instance_of(GithubClient).not_to receive(:pull_request)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to have_enqueued_job(described_class).with(job.id)
+  end
+
+  it "treats TooManyRequests as coordinated autonomous poll backoff" do
+    allow_any_instance_of(GithubClient).to receive(:pull_request).and_raise(Octokit::TooManyRequests.new)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to have_enqueued_job(described_class).with(job.id)
+  end
+
   it "fetches the PR from effective_pr_repository when it differs from repository" do
     upstream = Factories.repository(user: user, owner: "upstream-org", name: "widgets", auto_merge_enabled: true)
     fork_job = Factories.job(user: user, repository: repository, pr_number: 8, pr_repository: upstream,

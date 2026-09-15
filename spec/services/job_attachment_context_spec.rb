@@ -57,4 +57,20 @@ RSpec.describe JobAttachmentContext do
       expect(prompt).not_to include("Treat them as reference")
     end
   end
+
+  it "raises a retryable storage failure when uploaded files cannot be downloaded" do
+    upload = job.job_attachments.build(attachment_type: "uploaded_file")
+    upload.file.attach(io: StringIO.new("mockup notes"), filename: "notes.md", content_type: "text/markdown")
+    upload.save!
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_raise(Errno::ECONNREFUSED.new("minio:9000"))
+
+    Dir.mktmpdir do |dir|
+      expect {
+        described_class.new(job: job, workspace_path: dir).apply_to("Original prompt")
+      }.to raise_error(JobAttachmentContext::StorageUnavailable) do |error|
+        expect(error.problem.code).to eq("storage_unavailable")
+        expect(error.problem.retryable?).to be(true)
+      end
+    end
+  end
 end

@@ -6448,6 +6448,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "updates chat_model to a valid Claude model and returns it in the payload" do
     sign_in_as(user)
+    allow(AppEvents).to receive(:broadcast)
     chat = ChatSession.create!(user: user, repository: repository)
     chat.messages.create!(role: "user", content: { "text" => "Do not reload me." })
 
@@ -6461,6 +6462,17 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["message"]).to eq("Chat model updated.")
     expect(parse_body).not_to have_key("messages")
     expect(queries.grep(/FROM ["`]?chat_messages["`]?/i)).to be_empty
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat.id,
+      changed: [ "header" ],
+      payload: hash_including(
+        action: "update_header",
+        chat: hash_including(chat_model: "claude-sonnet-4-6")
+      )
+    )
 
     patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_model: "" } }
 

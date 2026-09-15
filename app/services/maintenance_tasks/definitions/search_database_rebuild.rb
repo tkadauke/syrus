@@ -88,41 +88,11 @@ module MaintenanceTasks
       end
 
       def index_jobs(task)
-        provider = job_search_source
-        return mark_plugin_step_done(task, "jobs") unless provider
-
-        task.current_step_key = "jobs"
-        task.current_step_title = "Index jobs"
-        processed = 0
-        Job.order(:id).where("id > ?", task.checkpoint["last_job_id"].to_i).limit(task.batch_size).find_each do |job|
-          provider.index_job(job)
-          task.checkpoint_will_change!
-          task.checkpoint["last_job_id"] = job.id
-          processed += 1
-        end
-        task.checkpoint_will_change!
-        task.checkpoint["jobs_done"] = true if processed.zero? || task.checkpoint["last_job_id"].to_i >= Job.maximum(:id).to_i
-
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} job(s).", level: "progress")
+        index_plugin_search_source(task, "jobs")
       end
 
       def index_epics(task)
-        provider = epic_search_source
-        return mark_plugin_step_done(task, "epics") unless provider
-
-        task.current_step_key = "epics"
-        task.current_step_title = "Index epics"
-        processed = 0
-        Epic.order(:id).where("id > ?", task.checkpoint["last_epic_id"].to_i).limit(task.batch_size).find_each do |epic|
-          provider.index_epic(epic)
-          task.checkpoint_will_change!
-          task.checkpoint["last_epic_id"] = epic.id
-          processed += 1
-        end
-        task.checkpoint_will_change!
-        task.checkpoint["epics_done"] = true if processed.zero? || task.checkpoint["last_epic_id"].to_i >= Epic.maximum(:id).to_i
-
-        Result.new(done: false, processed: processed, failed: 0, message: "Indexed #{processed} epic(s).", level: "progress")
+        index_plugin_search_source(task, "epics")
       end
 
       def index_operational_logs(task)
@@ -143,6 +113,15 @@ module MaintenanceTasks
         task.checkpoint_will_change!
         task.checkpoint["#{step}_done"] = true
         Result.new(done: false, processed: 0, failed: 0, message: "#{step.humanize} index is not available in this installation.", level: "info")
+      end
+
+      def index_plugin_search_source(task, key)
+        source = plugin_search_source(key)
+        return mark_plugin_step_done(task, key) unless source&.respond_to?(:search_database_rebuild_batch)
+
+        PerformanceLogging.plugin_call(extension_point: "global_search:source", provider: source, operation: :search_database_rebuild_batch) do
+          source.search_database_rebuild_batch(task: task)
+        end
       end
 
       def search_database_needs_prepare?
@@ -178,15 +157,15 @@ module MaintenanceTasks
       end
 
       def jobs_need_rebuild?
-        job_search_source && indexed_count("job_fts", "job_id") < Job.count
+        plugin_search_source_pending?("jobs")
       rescue StandardError
-        job_search_source && Job.exists?
+        false
       end
 
       def epics_need_rebuild?
-        epic_search_source && indexed_count("epic_fts", "epic_id") < Epic.count
+        plugin_search_source_pending?("epics")
       rescue StandardError
-        epic_search_source && Epic.exists?
+        false
       end
 
       def operational_logs_need_rebuild?
@@ -202,22 +181,33 @@ module MaintenanceTasks
       end
 
       def chat_messages_count = chat_message_scope.count
-      def jobs_count = job_search_source ? Job.count : 0
-      def epics_count = epic_search_source ? Epic.count : 0
+      def jobs_count = plugin_search_source_units("jobs")
+      def epics_count = plugin_search_source_units("epics")
       def operational_logs_count = OperationalLogging.configured_for_instance? ? OperationalLogEvent.count : 0
 
-      def job_search_source
-        search_sources.find { |provider| provider.respond_to?(:indexes_jobs?) && provider.indexes_jobs? && provider.respond_to?(:index_job) }
+      def plugin_search_source_pending?(key)
+        source = plugin_search_source(key)
+        source&.respond_to?(:search_database_rebuild_pending?) && source.search_database_rebuild_pending?
       end
 
-      def epic_search_source
-        search_sources.find { |provider| provider.respond_to?(:indexes_epics?) && provider.indexes_epics? && provider.respond_to?(:index_epic) }
+      def plugin_search_source_units(key)
+        source = plugin_search_source(key)
+        return 0 unless source&.respond_to?(:search_database_rebuild_units)
+
+        source.search_database_rebuild_units.to_i
       end
 
-      def search_sources
+      def plugin_search_source(key)
+        plugin_search_sources.find do |source|
+          source.respond_to?(:search_database_rebuild_key) &&
+            source.search_database_rebuild_key.to_s == key.to_s
+        end
+      end
+
+      def plugin_search_sources
         return [] unless defined?(Syrus::PluginRegistry)
 
-        Syrus::PluginRegistry.providers_for("global_search:source")
+        @plugin_search_sources ||= Syrus::PluginRegistry.providers_for("global_search:source")
       rescue StandardError
         []
       end

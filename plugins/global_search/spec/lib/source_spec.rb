@@ -123,10 +123,23 @@ RSpec.describe "search_source plugin tables", :reset_plugin_registry do
     expect(calls).to eq([ :prepare, :backfill ])
   end
 
-  it "contributes job and epic indexers for maintenance rebuilds" do
-    expect(GlobalSearch::SearchSource).to be_indexes_jobs
-    expect(GlobalSearch::SearchSource).to be_indexes_epics
-    expect(GlobalSearch::SearchSource).to respond_to(:index_job)
-    expect(GlobalSearch::SearchSource).to respond_to(:index_epic)
+  it "exposes job and epic search sources through the search source host" do
+    providers = Syrus::PluginRegistry.providers_for("global_search:source")
+
+    expect(providers).to include(GlobalSearch::JobSource)
+    expect(providers).to include(GlobalSearch::EpicSource)
+    expect(GlobalSearch::JobSource.search_table_name).to eq("job_fts")
+    expect(GlobalSearch::JobSource.search_id_column).to eq("job_id")
+    expect(GlobalSearch::JobSource).to respond_to(:upsert)
+    expect(GlobalSearch::EpicSource.search_table_name).to eq("epic_fts")
+    expect(GlobalSearch::EpicSource.search_id_column).to eq("epic_id")
+    expect(GlobalSearch::EpicSource).to respond_to(:upsert)
+    expect(providers).to include(GlobalSearch::SourceProvider)
+  end
+
+  it "contributes backfill sources for its built-in job and epic indexes" do
+    source_tables = SyrusSearchDatabaseTasks.search_backfill_sources.map(&:search_backfill_table_name)
+
+    expect(source_tables).to include("job_fts", "epic_fts")
   end
 end

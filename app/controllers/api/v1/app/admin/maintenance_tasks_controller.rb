@@ -8,7 +8,7 @@ module Api
           end
 
           def show
-            render json: ::App::MaintenanceTasksPayload.show(task)
+            render json: ::App::MaintenanceTasksPayload.show(task, params: params)
           end
 
           def start

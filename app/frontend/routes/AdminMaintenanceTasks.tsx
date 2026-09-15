@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { discoverMaintenanceTasks, fetchAdminMaintenanceTask, fetchAdminMaintenanceTasks, runMaintenanceTaskAction } from "../api/maintenanceTasks"
-import type { AdminMaintenanceTasksPayload, MaintenanceTask, MaintenanceTaskEvent } from "../api/maintenanceTasks"
-import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass } from "../components/AdminEventLogPanel"
+import type { AdminMaintenanceTaskDetailPayload, AdminMaintenanceTasksPayload, MaintenanceTask } from "../api/maintenanceTasks"
+import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, disabledPaginationClass, paginationLinkClass } from "../components/AdminEventLogPanel"
 import type { AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
@@ -75,8 +75,8 @@ export function AdminMaintenanceTaskDetail() {
   const queryClient = useQueryClient()
   const [documentationOpen, setDocumentationOpen] = useState(false)
   const detail = useQuery({
-    queryKey: ["admin", "maintenance_tasks", id],
-    queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", signal),
+    queryKey: ["admin", "maintenance_tasks", id, location.search],
+    queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", location.search, signal),
     enabled: Boolean(id),
     refetchInterval: POLL_INTERVAL_MS
   })
@@ -108,7 +108,7 @@ export function AdminMaintenanceTaskDetail() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-text-primary">{t("maintenance_tasks.task_log")}</h2>
-        <TaskEventLog events={task.events} />
+        <TaskEventLog task={task} />
       </section>
 
       {documentationOpen ? <TaskDocumentationModal task={task} onClose={() => setDocumentationOpen(false)} /> : null}
@@ -300,32 +300,82 @@ export function TaskProgress({ task, large = false, showMeta = true }: { task: M
   )
 }
 
-function TaskEventLog({ events }: { events: MaintenanceTaskEvent[] }) {
+function TaskEventLog({ task }: { task: AdminMaintenanceTaskDetailPayload }) {
   const { t } = useT("admin")
+  const events = task.events
   if (events.length === 0) return <AdminEventPanelMessage>{t("maintenance_tasks.no_events")}</AdminEventPanelMessage>
 
   return (
-    <DataTable.Root density="compact">
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell>{t("maintenance_tasks.col_time")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("maintenance_tasks.col_level")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("maintenance_tasks.col_step")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
-        {events.map((event) => (
-          <DataTable.Row key={event.id}>
-            <DataTable.Cell className="whitespace-nowrap text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap"><TonePill tone={event.level === "error" ? "red" : event.level === "warn" ? "amber" : "blue"}>{event.level}</TonePill></DataTable.Cell>
-            <DataTable.Cell className="text-text-muted">{event.step_title || "-"}</DataTable.Cell>
-            <DataTable.Cell>{event.message}</DataTable.Cell>
-          </DataTable.Row>
-        ))}
-      </DataTable.Body>
-    </DataTable.Root>
+    <div>
+      <div className="hidden sm:block">
+        <DataTable.Root density="compact">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("maintenance_tasks.col_time")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("maintenance_tasks.col_level")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("maintenance_tasks.col_step")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("maintenance_tasks.col_message")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {events.map((event) => (
+              <DataTable.Row key={event.id}>
+                <DataTable.Cell className="whitespace-nowrap text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap"><TonePill tone={event.level === "error" ? "red" : event.level === "warning" ? "amber" : "blue"}>{event.level}</TonePill></DataTable.Cell>
+                <DataTable.Cell className="text-text-muted">{event.step_title || "-"}</DataTable.Cell>
+                <DataTable.Cell>{event.message}</DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      </div>
+      <div className="divide-y divide-border rounded-[var(--radius-panel)] border border-border bg-surface sm:hidden" data-testid="maintenance-task-log-mobile">
+        <ul className="divide-y divide-border">
+          {events.map((event) => (
+            <li className="space-y-2 px-3 py-3" key={event.id}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-text-muted">{event.created_at ? <RelativeTimestamp value={event.created_at} /> : "-"}</span>
+                <TonePill tone={event.level === "error" ? "red" : event.level === "warning" ? "amber" : "blue"}>{event.level}</TonePill>
+              </div>
+              {event.step_title ? <p className="text-xs font-medium text-text-muted">{event.step_title}</p> : null}
+              <p className="break-words text-sm text-text-primary">{event.message}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <TaskEventPagination task={task} />
+    </div>
   )
+}
+
+function TaskEventPagination({ task }: { task: AdminMaintenanceTaskDetailPayload }) {
+  const { t } = useT("admin")
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
+  const pagination = task.events_pagination
+  if (pagination.total_pages <= 1) return null
+
+  return (
+    <nav aria-label={t("maintenance_tasks.aria_log_pagination")} className="flex flex-col gap-3 border-t border-gray-200 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+      <span className="whitespace-nowrap">{t("maintenance_tasks.log_showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total_events })}</span>
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
+        {pagination.previous_page ? <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.previous_page), prefix)}>{t("maintenance_tasks.previous")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.previous")}</span>}
+        <span className="whitespace-nowrap px-1 text-xs text-gray-500 dark:text-gray-400">{t("maintenance_tasks.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
+        {pagination.next_page ? <Link className={paginationLinkClass()} to={withRoutePrefix(logPagePath(location.pathname, location.search, pagination.next_page), prefix)}>{t("maintenance_tasks.next")}</Link> : <span className={disabledPaginationClass()}>{t("maintenance_tasks.next")}</span>}
+      </div>
+    </nav>
+  )
+}
+
+function logPagePath(pathname: string, search: string, page: number) {
+  const params = new URLSearchParams(search)
+  if (page <= 1) {
+    params.delete("log_page")
+  } else {
+    params.set("log_page", String(page))
+  }
+  const query = params.toString()
+  return `${pathname}${query ? `?${query}` : ""}`
 }
 
 export function TaskDocumentationModal({ task, onClose }: { task: MaintenanceTask; onClose: () => void }) {

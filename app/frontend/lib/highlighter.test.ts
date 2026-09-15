@@ -96,6 +96,35 @@ describe("tokenizeLines", () => {
     expect(colorOf(closeLine)).toBe(templateColor)
     expect(colorOf(afterLine)).not.toBe(templateColor)
   })
+
+  it("carries a multi-line python string scope across every line it spans", async () => {
+    const code = [
+      "message = \"\"\"Hello",
+      "  multi",
+      "  line\"\"\"",
+      "other = 1"
+    ].join("\n")
+
+    const lines = await tokenizeLines(code, "python")
+
+    expect(lines).toHaveLength(4)
+    lines.forEach((line, index) => expect(textOf(line)).toBe(code.split("\n")[index]))
+
+    const openLine = lines[0]
+    const middleLine = lines[1]
+    const closeLine = lines[2]
+    const afterLine = lines[3]
+
+    const stringColor = openLine.find((token) => token.content.includes("\"\"\"Hello"))?.color
+    expect(stringColor).toBeTruthy()
+
+    const colorOf = (line: { content: string; color?: string }[]) =>
+      line.find((token) => token.content.trim().length > 0)?.color
+
+    expect(colorOf(middleLine)).toBe(stringColor)
+    expect(colorOf(closeLine)).toBe(stringColor)
+    expect(colorOf(afterLine)).not.toBe(stringColor)
+  })
 })
 
 describe("detectHighlighterLanguage", () => {
@@ -118,6 +147,36 @@ describe("detectHighlighterLanguage", () => {
     expect(detectHighlighterLanguage("app.css")).toBe("css")
     expect(detectHighlighterLanguage("README.md")).toBe("markdown")
     expect(detectHighlighterLanguage("Dockerfile")).toBe("dockerfile")
+    expect(detectHighlighterLanguage("cli/main.go")).toBe("go")
+    expect(detectHighlighterLanguage("src/lib.rs")).toBe("rust")
+    expect(detectHighlighterLanguage("src/main.py")).toBe("python")
+    expect(detectHighlighterLanguage("src/App.kt")).toBe("kotlin")
+    expect(detectHighlighterLanguage("Sources/App.swift")).toBe("swift")
+    expect(detectHighlighterLanguage("src/main.m")).toBe("objective-c")
+    expect(detectHighlighterLanguage("src/main.mm")).toBe("objective-cpp")
+    expect(detectHighlighterLanguage("src/main.cpp")).toBe("cpp")
+    expect(detectHighlighterLanguage("src/main.cs")).toBe("csharp")
+    expect(detectHighlighterLanguage("src/main.clj")).toBe("clojure")
+    expect(detectHighlighterLanguage("src/main.hs")).toBe("haskell")
+    expect(detectHighlighterLanguage("src/main.ps1")).toBe("powershell")
+    expect(detectHighlighterLanguage("src/main.wgsl")).toBe("wgsl")
+    expect(detectHighlighterLanguage("src/template.haml")).toBe("haml")
+    expect(detectHighlighterLanguage("src/main.scss")).toBe("scss")
+    expect(detectHighlighterLanguage("Cargo.toml")).toBe("toml")
+    expect(detectHighlighterLanguage(".env")).toBe("dotenv")
+    expect(detectHighlighterLanguage("main.tf")).toBe("terraform")
+    expect(detectHighlighterLanguage("variables.tfvars")).toBe("terraform")
+    expect(detectHighlighterLanguage("CMakeLists.txt")).toBe("cmake")
+    expect(detectHighlighterLanguage("Makefile")).toBe("makefile")
+    expect(detectHighlighterLanguage("schema.graphql")).toBe("graphql")
+    expect(detectHighlighterLanguage("schema.proto")).toBe("protobuf")
+    expect(detectHighlighterLanguage("app.desktop")).toBe("desktop")
+    expect(detectHighlighterLanguage("changes.patch")).toBe("diff")
+  })
+
+  it("does not auto-detect Angular's enhanced grammars from plain HTML or TypeScript extensions", () => {
+    expect(detectHighlighterLanguage("app.component.html")).toBe("html")
+    expect(detectHighlighterLanguage("app.component.ts")).toBe("typescript")
   })
 
   it("returns null for unrecognized paths", () => {
@@ -132,6 +191,9 @@ describe("detectFenceLanguage", () => {
     expect(detectFenceLanguage("ruby")).toBe("ruby")
     expect(detectFenceLanguage("typescript")).toBe("typescript")
     expect(detectFenceLanguage("TSX")).toBe("tsx")
+    expect(detectFenceLanguage("python")).toBe("python")
+    expect(detectFenceLanguage("angular-html")).toBe("angular-html")
+    expect(detectFenceLanguage("angular-ts")).toBe("angular-ts")
   })
 
   it("accepts the same extension aliases detectHighlighterLanguage understands", () => {
@@ -139,10 +201,12 @@ describe("detectFenceLanguage", () => {
     expect(detectFenceLanguage("js")).toBe("javascript")
     expect(detectFenceLanguage("yml")).toBe("yaml")
     expect(detectFenceLanguage("sh")).toBe("shellscript")
+    expect(detectFenceLanguage("py")).toBe("python")
+    expect(detectFenceLanguage("gql")).toBe("graphql")
   })
 
   it("returns null for an empty or unrecognized hint", () => {
     expect(detectFenceLanguage("")).toBeNull()
-    expect(detectFenceLanguage("python")).toBeNull()
+    expect(detectFenceLanguage("not-a-real-language")).toBeNull()
   })
 })

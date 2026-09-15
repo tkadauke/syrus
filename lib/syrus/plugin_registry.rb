@@ -109,7 +109,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -122,6 +122,7 @@ module Syrus
         validate_core_event_name_uniqueness!(events)
         validate_author!(metadata[:author])
         validate_category!(category)
+        links = normalize_links!(links)
 
         @mutex.synchronize do
           # Registration runs on every `to_prepare`, so re-registering a name
@@ -153,6 +154,8 @@ module Syrus
             depends_on:      Array(depends_on).map(&:to_s),
             optionally_depends_on: Array(optionally_depends_on).map(&:to_s),
             conflicts_with:  Array(conflicts_with).map(&:to_s),
+            links:           links,
+            metrics:         Array(metrics).map { |metric| metric.to_h.stringify_keys },
             prepare_priority: prepare_priority,
             hosts:           Array(hosts),
             events:          events
@@ -659,6 +662,23 @@ module Syrus
         end
         raise RegistrationError,
           "Plugin #{plugin_name.inspect} declares duplicate event name(s): #{details.join(', ')}"
+      end
+
+      def normalize_links!(links)
+        Array(links).map do |link|
+          attrs = link.to_h.stringify_keys
+          if attrs["label"].blank? || attrs["href"].blank?
+            raise RegistrationError, "Plugin links require label and href"
+          end
+
+          {
+            "label" => attrs.fetch("label").to_s,
+            "href" => attrs.fetch("href").to_s,
+            "description" => attrs["description"].presence,
+            "kind" => attrs.fetch("kind", "surface").to_s,
+            "enabled_only" => attrs.fetch("enabled_only", true) != false
+          }.compact
+        end
       end
 
       def validate_provides!(provides)

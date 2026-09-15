@@ -51,14 +51,32 @@ module Steps
       workspace.setup
       local_head = GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
       return local_head if local_head == original_head_sha
+      if base_move_rebase_already_published?(local_head: local_head, expected_head_sha: original_head_sha)
+        log("external_pr_merge: clean base-move rebase already published #{head_ref} at #{original_head_sha}; skipping stale workspace push", kind: "system")
+        return original_head_sha
+      end
 
       log("external_pr_merge: pushing repair commit(s) to #{repository.slug}:#{head_ref}", kind: "system")
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
-      git.run("push", push_url, "HEAD:refs/heads/#{head_ref}", chdir: workspace.path.to_s)
+      git.run(
+        "push",
+        "--force-with-lease=refs/heads/#{head_ref}:#{original_head_sha}",
+        push_url,
+        "HEAD:refs/heads/#{head_ref}",
+        chdir: workspace.path.to_s
+      )
       local_head
     rescue GitRunner::GitError => e
       raise StepFailed, "external_pr_merge: failed to push repair commits to #{head_ref}: #{e.message}"
+    end
+
+    def base_move_rebase_already_published?(local_head:, expected_head_sha:)
+      rebase = workflow.artifact("landing_base_moved_rebase")
+      return false unless rebase.is_a?(Hash)
+      return false unless rebase["succeeded"] == true && rebase["reason"] == "rebased"
+
+      rebase["pre_sha"].to_s == local_head && rebase["post_sha"].to_s == expected_head_sha
     end
 
     def expected_head_sha(pushed_head_sha)

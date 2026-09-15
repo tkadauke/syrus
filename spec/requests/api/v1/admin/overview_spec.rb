@@ -32,6 +32,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).to have_key("provider_circuits")
       expect(body).to have_key("agent_session_capture_rate")
       expect(body).to have_key("data_root_disk_usage")
+      expect(body).to have_key("active_storage")
       expect(body).to have_key("worker_health")
       expect(body).not_to have_key("resource_admission")
       expect(body).not_to have_key("chat_scoped_events")
@@ -43,6 +44,25 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).not_to have_key("stuck")
       expect(body).not_to have_key("stuck_pagination")
       expect(body).not_to have_key("stuck_snapshot")
+    end
+
+    it "surfaces transient Active Storage outages" do
+      allow(StorageConnectivity).to receive(:check).and_return(
+        StorageConnectivity::Result.new(
+          available: false,
+          service: "minio",
+          error_class: "Errno::ECONNREFUSED",
+          message: "Connection refused - minio:9000"
+        )
+      )
+
+      get "/api/v1/admin/overview", headers: auth
+
+      expect(parse_body["active_storage"]).to include(
+        "available" => false,
+        "service" => "minio",
+        "error_class" => "Errno::ECONNREFUSED"
+      )
     end
 
     it "reports Codex-backed captured sessions under the agent-neutral key" do

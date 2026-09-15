@@ -800,7 +800,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(wait_reasons).to include(eligible.id => nil, blocked.id => nil)
     end
 
-    it "includes landing_queue_wait_reason in landing queue required columns" do
+    it "merges landing queue status into the Queue column" do
       repo.update!(auto_merge_enabled: true)
       folder = SmartFolder.create!(
         user: user,
@@ -813,9 +813,9 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.dig("controls", "columns", "required")).to include(
-        { "key" => "landing_queue_wait_reason", "title" => "Queue status" }
-      )
+      required = parse_body.dig("controls", "columns", "required")
+      expect(required).to include({ "key" => "landing_queue_position", "title" => "Queue" })
+      expect(required.map { |column| column.fetch("key") }).not_to include("landing_queue_wait_reason")
     end
 
     it "includes transitive landing queue blockers and dependency edges by group" do

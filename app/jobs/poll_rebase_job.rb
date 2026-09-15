@@ -1,5 +1,6 @@
 class PollRebaseJob < ApplicationJob
   include SkipIfPending
+  include GithubPollingRateLimitGuard
   include GithubPrPollHelpers
 
   queue_as :polling
@@ -49,35 +50,41 @@ class PollRebaseJob < ApplicationJob
     return unless pr_number
 
     pr_repo = @job.effective_pr_repository
-    @client = GithubClient.for(repository: pr_repo, user: @job.user)
-    pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: bypass_cache)
+    manual = bypass_cache
+    retry_kwargs = { bypass_cache: bypass_cache }
+    return if github_polling_rate_limited?(pr_repo, user: @job.user, manual: manual, retry_args: [ job_id ], retry_kwargs: retry_kwargs)
 
-    # Cache what GitHub told us so the show page doesn't have to call
-    # back here on every render. Persist BEFORE any early returns so
-    # closed/merged/draft PRs also show their last-known status.
-    persist_mergeability(pr)
+    with_github_polling_rate_limit_backoff(pr_repo, user: @job.user, manual: manual, retry_args: [ job_id ], retry_kwargs: retry_kwargs) do
+      @client = GithubClient.for(repository: pr_repo, user: @job.user)
+      pr = @client.pull_request(pr_repo.slug, pr_number, bypass_cache: bypass_cache)
 
-    return if pr.merged
-    return if pr.state == "closed"
+      # Cache what GitHub told us so the show page doesn't have to call
+      # back here on every render. Persist BEFORE any early returns so
+      # closed/merged/draft PRs also show their last-known status.
+      persist_mergeability(pr)
 
-    # mergeable is true/false/null. Null = GitHub is still computing
-    # mergeability after a recent push; try again next cycle. Only act
-    # on a definitive false.
-    return if pr.mergeable.nil?
-    return if pr.mergeable                # mergeable; nothing to do
+      return if pr.merged
+      return if pr.state == "closed"
 
-    return unless we_control_head?(pr)    # head from a fork → can't push
-    return if start_blocked?
-    return if noop_rebase_already_covers?(pr)
-    return if pending_rebase?
-    return if attempt_cap_reached?(pr)
-    return if rebase_failure_cooling_down?(pr)
-    return if repo_rebase_concurrency_reached?
-    return if automatic_stack_rebase_deferred_until_epic_materialized?
+      # mergeable is true/false/null. Null = GitHub is still computing
+      # mergeability after a recent push; try again next cycle. Only act
+      # on a definitive false.
+      return if pr.mergeable.nil?
+      return if pr.mergeable                # mergeable; nothing to do
 
-    Rails.logger.info("[PollRebaseJob] #{@job.slug} PR ##{pr_number} unmergeable; instantiating rebase workflow")
-    workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: pr)
-    WorkUnits::Launcher.start!(workflow)
+      return unless we_control_head?(pr)    # head from a fork → can't push
+      return if start_blocked?
+      return if noop_rebase_already_covers?(pr)
+      return if pending_rebase?
+      return if attempt_cap_reached?(pr)
+      return if rebase_failure_cooling_down?(pr)
+      return if repo_rebase_concurrency_reached?
+      return if automatic_stack_rebase_deferred_until_epic_materialized?
+
+      Rails.logger.info("[PollRebaseJob] #{@job.slug} PR ##{pr_number} unmergeable; instantiating rebase workflow")
+      workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: pr)
+      WorkUnits::Launcher.start!(workflow)
+    end
   end
 
   def persist_mergeability(pr)

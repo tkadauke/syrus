@@ -1,5 +1,4 @@
 require "global_search/source"
-require "global_search/search_source"
 
 module GlobalSearch
   extend Syrus::PluginApi
@@ -17,8 +16,14 @@ module GlobalSearch
     hosts [ :source ]
     provides callbacks: "GlobalSearch::Callbacks",
              domain_subscriber: "GlobalSearch::Subscribers",
-             "global_search:source" => "GlobalSearch::SearchSource",
-             sidebar_page: "GlobalSearch::SidebarPages"
+             sidebar_page: "GlobalSearch::SidebarPages",
+             "global_search:source" => [
+               "GlobalSearch::JobSource",
+               "GlobalSearch::EpicSource",
+               "GlobalSearch::JobSearchSource",
+               "GlobalSearch::EpicSearchSource",
+               "GlobalSearch::SourceProvider"
+             ]
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" }
   end

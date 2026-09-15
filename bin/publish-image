@@ -129,6 +129,7 @@ else
   syrus_docker_build_image worker-dev "$GIT_SHA" --version="$VERSION" --built-at="$BUILT_AT" \
     --provenance=false "${tags[@]}" .
 fi
+syrus_worker_native_build_smoke "$TEST_TAG"
 
 # Gate: integration tests against the freshly built image. set -e aborts the
 # whole script (before any push) if bin/test-docker exits non-zero.

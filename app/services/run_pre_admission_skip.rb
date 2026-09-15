@@ -96,8 +96,7 @@ class RunPreAdmissionSkip
 
   class VisualReview < Base
     def call
-      config = root_visual_review_config
-      patterns = Array(config&.when_files_changed).compact_blank.uniq
+      patterns = configured_when_files_changed
       return pass if patterns.empty?
       return pass if changed_files.any? { |file| patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) } }
 
@@ -119,8 +118,15 @@ class RunPreAdmissionSkip
 
     private
 
+    def configured_when_files_changed
+      [
+        *Array(root_visual_review_config&.when_files_changed),
+        *App::VisualReviewProjects.configured_when_files_changed(workspace_path: workspace_path)
+      ].compact_blank.uniq
+    end
+
     def root_visual_review_config
-      SyrusYml.load_repo(workspace_path).visual_review
+      @root_visual_review_config ||= SyrusYml.load_repo(workspace_path).visual_review
     rescue SyrusYml::ParseError, Errno::ENOENT
       nil
     end

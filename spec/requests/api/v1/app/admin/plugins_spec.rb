@@ -435,6 +435,124 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(body.fetch("plugins").sole).to include("name" => "no-dependents-plugin", "enabled" => false)
   end
 
+  describe "GET /api/v1/app/admin/plugins/:name" do
+    it "returns one plugin with docs, links, metrics, routes, config, and enabled state" do
+      sign_in_as(admin)
+      Syrus::PluginRegistry.reset!
+      Syrus::Metrics.reset!
+      Syrus::PluginRegistry.register(
+        name: "detail_plugin",
+        version: "1.0.0",
+        display_name: "Detail Plugin",
+        description: "Short detail.",
+        long_description: "Long detail.",
+        author: "Ada",
+        homepage: "https://example.test/detail",
+        category: "tooling",
+        links: [
+          { label: "Open Detail", href: "/detail", description: "Primary surface", kind: "surface", enabled_only: true }
+        ],
+        metrics: [
+          { "name" => "syrus_detail_plugin_runs_total", "type" => "counter", "tags" => [ "state" ], "comment" => "Runs", "owner" => "detail_plugin" }
+        ],
+        routes: [
+          { verb: "GET", path: "/api/v1/app/detail", controller: "detail#index" }
+        ],
+        config_schema: [
+          { key: "hostname", label: "Hostname", type: :string }
+        ],
+        provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
+      )
+      Syrus::Metrics.declare_plugin("detail_plugin") { counter :runs_total, tags: %i[state], comment: "Runs" }
+
+      get "/api/v1/app/admin/plugins/detail_plugin"
+
+      expect(response).to have_http_status(:ok)
+      plugin = parse_body.fetch("plugin")
+      expect(plugin).to include(
+        "name" => "detail_plugin",
+        "display_name" => "Detail Plugin",
+        "enabled" => true,
+        "long_description" => "Long detail.",
+        "links" => [
+          { "label" => "Open Detail", "href" => "/detail", "description" => "Primary surface", "kind" => "surface", "enabled_only" => true }
+        ],
+        "routes" => [
+          { "verb" => "GET", "path" => "/api/v1/app/detail", "controller" => "detail#index" }
+        ]
+      )
+      expect(plugin.fetch("config_schema")).to include("key" => "hostname", "label" => "Hostname", "type" => "string")
+      expect(plugin.fetch("metrics")).to contain_exactly(
+        include(
+          "name" => "syrus_detail_plugin_runs_total",
+          "type" => "counter",
+          "tags" => [ "state" ],
+          "comment" => "Runs",
+          "available" => true
+        )
+      )
+      expect(plugin.fetch("docs")).to eq([])
+    ensure
+      Syrus::Metrics.reset!
+    end
+
+    it "returns plugin-owned docs for bundled plugins without moving them into core docs" do
+      sign_in_as(admin)
+      Syrus::PluginRegistry.reset!
+      require Rails.root.join("plugins/terminal/lib/terminal")
+      Terminal.register!
+
+      get "/api/v1/app/admin/plugins/terminal"
+
+      expect(response).to have_http_status(:ok)
+      plugin = parse_body.fetch("plugin")
+      expect(plugin.fetch("docs")).to include(
+        include(
+          "title" => "Terminal",
+          "path" => "plugins/terminal/docs/syrus_docs/terminal.md",
+          "body" => include("## Enabling")
+        )
+      )
+      expect(plugin.fetch("links")).to include(
+        "label" => "Open Terminal",
+        "href" => "/terminal",
+        "description" => "Open the top-level Terminal workspace browser.",
+        "kind" => "surface",
+        "enabled_only" => true
+      )
+    end
+
+    it "returns disabled state and unavailable declared metrics for disabled plugins" do
+      sign_in_as(admin)
+      Syrus::PluginRegistry.reset!
+      Syrus::PluginRegistry.register(
+        name: "disabled-detail-plugin",
+        version: "1.0.0",
+        metrics: [
+          { "name" => "syrus_disabled_detail_plugin_runs_total", "type" => "counter", "tags" => [], "comment" => "Runs", "owner" => "disabled-detail-plugin" }
+        ]
+      )
+      PluginRecord.find_by!(name: "disabled-detail-plugin").update!(enabled: false)
+
+      get "/api/v1/app/admin/plugins/disabled-detail-plugin"
+
+      expect(response).to have_http_status(:ok)
+      plugin = parse_body.fetch("plugin")
+      expect(plugin).to include("enabled" => false)
+      expect(plugin.fetch("metrics")).to contain_exactly(include("available" => false))
+    end
+
+    it "404s for a missing plugin" do
+      sign_in_as(admin)
+      Syrus::PluginRegistry.reset!
+
+      get "/api/v1/app/admin/plugins/missing-plugin"
+
+      expect(response).to have_http_status(:not_found)
+      expect(parse_body.dig("error", "code")).to eq("not_found")
+    end
+  end
+
   it "rejects disabling a non-disableable plugin" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!

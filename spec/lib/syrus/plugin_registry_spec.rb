@@ -600,6 +600,51 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.icon_url).to eq("https://example.com/icon.png")
     end
 
+    it "stores plugin-provided links on the manifest" do
+      described_class.register(
+        name: "linked_plugin",
+        version: "1.0.0",
+        links: [
+          { label: "Open Linked Plugin", href: "/linked", description: "Primary surface", kind: "surface", enabled_only: true }
+        ]
+      )
+
+      expect(described_class.all_plugins.first.links).to eq([
+        {
+          "label" => "Open Linked Plugin",
+          "href" => "/linked",
+          "description" => "Primary surface",
+          "kind" => "surface",
+          "enabled_only" => true
+        }
+      ])
+    end
+
+    it "rejects plugin-provided links without a label or href" do
+      expect {
+        described_class.register(name: "bad_link_plugin", version: "1.0.0", links: [ { label: "Broken" } ])
+      }.to raise_error(described_class::RegistrationError, /links require label and href/)
+    end
+
+    it "accepts plugin-provided links from the manifest DSL" do
+      definition = Syrus::PluginApi::Definition.new(
+        name: "linked_plugin",
+        namespace: Module.new,
+        lib_dir: Rails.root.to_s
+      )
+      definition.link "Open Linked Plugin", "/linked", description: "Primary surface"
+
+      expect(definition.manifest_arguments.fetch(:links)).to eq([
+        {
+          label: "Open Linked Plugin",
+          href: "/linked",
+          description: "Primary surface",
+          kind: "surface",
+          enabled_only: true
+        }
+      ])
+    end
+
     it "accepts an empty provides hash" do
       expect {
         described_class.register(name: "empty_plugin", version: "0.1.0", provides: {})
