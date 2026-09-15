@@ -547,6 +547,10 @@ RSpec.describe User do
   end
 
   describe ".agent_providers" do
+    before do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+    end
+
     it "returns provider keys from the plugin registry" do
       expect(User.agent_providers).to include("claude", "codex", "muse")
     end
@@ -559,6 +563,10 @@ RSpec.describe User do
   end
 
   describe "#configured_agent_providers" do
+    before do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+    end
+
     it "includes Claude when a Claude token is set" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-test"))
 
@@ -754,6 +762,10 @@ RSpec.describe User do
   end
 
   describe "#agent_provider_configured?" do
+    before do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+    end
+
     it "returns true for claude when a Claude token is present" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-test"))
 

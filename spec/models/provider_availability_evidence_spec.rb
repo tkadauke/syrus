@@ -43,6 +43,10 @@ RSpec.describe ProviderAvailabilityEvidence do
   end
 
   describe ".record_invocation_usage_limit!" do
+    before do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+    end
+
     let(:user) { Factories.user(muse_api_key: "muse-secret") }
     let(:job) { Factories.job(user: user, repository: Factories.repository(user: user), agent_provider: "muse") }
     let(:run) { job.initial_run }
