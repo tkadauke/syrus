@@ -562,10 +562,11 @@ RSpec.describe User do
     end
 
     it "returns provider keys from the plugin registry" do
-      expect(User.agent_providers).to include("claude", "codex", "muse")
+      expect(User.agent_providers).to include("agy", "claude", "codex", "muse")
     end
 
     it "reflects providers registered in the registry" do
+      expect(User.agent_providers).to include("agy")
       expect(User.agent_providers).to include("claude")
       expect(User.agent_providers).to include("codex")
       expect(User.agent_providers).to include("muse")
