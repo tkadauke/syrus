@@ -67,7 +67,9 @@ export type PersonalDocument = {
 export type CredentialsOptions = {
   locales: string[]
   agent_providers: string[]
+  agent_provider_labels?: Record<string, string>
   chat_providers: string[]
+  chat_provider_labels?: Record<string, string>
   roles: string[]
   codex_auth_modes: string[]
   agent_provider_failover_causes: string[]

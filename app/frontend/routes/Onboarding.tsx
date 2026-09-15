@@ -202,7 +202,7 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
     {
       key: "agent",
       title: "Agent credentials and provider",
-      detail: setup.credential_status.agent ? `${providerLabel(setup.credential_status.active_agent_provider)} is ready for runs.` : "Choose a provider and add its credentials.",
+      detail: setup.credential_status.agent ? `${setup.credential_status.active_agent_provider_label || providerLabel(setup.credential_status.active_agent_provider)} is ready for runs.` : "Choose a provider and add its credentials.",
       complete: setup.credential_status.agent,
       ctaLabel: "Configure agent",
       ctaPath: "/credentials",
@@ -261,7 +261,7 @@ function githubStepDetail(setup: SetupStatus) {
 }
 
 function providerLabel(provider: SetupStatus["credential_status"]["active_agent_provider"]) {
-  return provider === "codex" ? "Codex" : "Claude"
+  return provider.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
 function statusMarkerClass(complete: boolean, current: boolean) {

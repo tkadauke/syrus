@@ -41,6 +41,15 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(body.dig("user", "email_address")).to eq(user.email_address)
     expect(body.dig("user", "chat_provider")).to be_nil
     expect(body.dig("options", "chat_providers")).to eq(%w[claude codex])
+    expect(body.dig("options", "agent_provider_labels")).to include(
+      "claude" => "Claude Code",
+      "codex" => "Codex",
+      "muse" => "Muse Code"
+    )
+    expect(body.dig("options", "chat_provider_labels")).to include(
+      "claude" => "Claude",
+      "codex" => "Codex"
+    )
     expect(body.dig("user", "role")).to eq("developer")
     expect(body.dig("options", "roles")).to eq(%w[ developer product_owner ])
     expect(body.dig("user", "agent_provider_failover_policy")).to eq(
@@ -134,14 +143,16 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("user", "provider_availability_pause_thresholds")).to include(
       "claude" => 10,
-      "codex" => 10
+      "codex" => 10,
+      "muse" => 10
     )
 
     patch "/api/v1/app/credentials", params: {
       user: {
         provider_availability_pause_thresholds: {
           claude: 0,
-          codex: 15
+          codex: 15,
+          muse: 20
         }
       }
     }
@@ -149,6 +160,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(user.reload.provider_availability_pause_threshold_for("claude")).to eq(0)
     expect(user.provider_availability_pause_threshold_for("codex")).to eq(15)
+    expect(user.provider_availability_pause_threshold_for("muse")).to eq(20)
   end
 
   it "shows and updates the agent-provider failover policy" do
@@ -158,7 +170,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       user: {
         agent_provider_failover_policy: {
           enabled: true,
-          providers: %w[codex claude],
+          providers: %w[codex claude muse],
           causes: %w[usage_low rate_limited],
           override_explicit_pins: true
         }
@@ -168,7 +180,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(user.reload.agent_provider_failover_policy).to eq(
       "enabled" => true,
-      "providers" => %w[codex claude],
+      "providers" => %w[codex claude muse],
       "causes" => %w[usage_low rate_limited],
       "override_explicit_pins" => true
     )
