@@ -4,6 +4,7 @@ import type { FormEvent } from "react"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { useConfirm } from "../hooks/useConfirm"
 import { createDashboardSmartFolder, toggleDashboardLandingPause, updateDashboardPreferences, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject } from "../api/dashboard"
 import { updateSmartFolder } from "../api/smartFolders"
 import { Button } from "./Button"
@@ -19,6 +20,7 @@ type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_i
 
 export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: DashboardSmartFolderPayload; prefix: string; search: string }) {
   const { t } = useT("nav")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [folderName, setFolderName] = useState("")
@@ -40,7 +42,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const canUpdateFilter = activeFolder != null && filterChangedFromSelectedFolder
   const canSaveFilter = hasAppliedFilter && (selectedFolder == null || filterChangedFromSelectedFolder)
   const landingPause = useMutation({
-    mutationFn: () => toggleDashboardLandingPause(payload.landing_queue.toggle_path),
+    mutationFn: (options: { confirmed?: boolean } = {}) => toggleDashboardLandingPause(payload.landing_queue.toggle_path, options),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
@@ -78,8 +80,24 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
     createFolder.mutate()
   }
 
+  async function toggleLandingPause() {
+    if (!payload.landing_queue.paused) {
+      const confirmed = await confirm({
+        message: t("smart_folder.pause_landing_confirm"),
+        confirmLabel: t("smart_folder.pause_landing"),
+        destructive: true
+      })
+      if (!confirmed) return
+      landingPause.mutate({ confirmed: true })
+      return
+    }
+
+    landingPause.mutate({})
+  }
+
   return (
     <aside aria-label={t("smart_folders_panel_aria")} className="space-y-2">
+      {dialog}
       <SmartFolderNavigation
         actionLabel={(folder) => `Actions for ${folder.name}`}
         allLink={allSubjectLinkVisible(payload) ? {
@@ -140,7 +158,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       ) : null}
       {payload.landing_queue.visible ? (
         <div className="space-y-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
-          <Button className="w-full" disabled={landingPause.isPending} onClick={() => landingPause.mutate()} size="sm" variant="secondary">
+          <Button className="w-full" disabled={landingPause.isPending} onClick={toggleLandingPause} size="sm" variant="secondary">
             {payload.landing_queue.paused ? t("smart_folder.resume_landing") : t("smart_folder.pause_landing")}
           </Button>
           {payload.landing_queue.paused && (payload.health_blocked_repositories ?? payload.broken_repositories)?.some((repo) => repo.main_branch_repair_blocks_work) ? (

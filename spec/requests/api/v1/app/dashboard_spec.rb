@@ -1958,9 +1958,19 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
   end
 
   describe "POST /api/v1/app/dashboard/landing_pause" do
-    it "pauses landing" do
+    it "requires confirmation before pausing landing" do
       expect {
         post "/api/v1/app/dashboard/landing_pause", as: :json
+      }.not_to have_enqueued_job(LandingQueueProcessorJob)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(user.reload.landing_paused).to eq(false)
+      expect(parse_body.fetch("error")).to include("code" => "confirmation_required", "message" => "Confirm pausing the landing queue.")
+    end
+
+    it "pauses landing when confirmed" do
+      expect {
+        post "/api/v1/app/dashboard/landing_pause", params: { confirmed: true }, as: :json
       }.not_to have_enqueued_job(LandingQueueProcessorJob)
 
       expect(response).to have_http_status(:ok)
