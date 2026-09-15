@@ -8,6 +8,10 @@ module AgentProviders
 
     def self.provider = "agy"
 
+    def self.configured_for_user?(user)
+      user.gemini_api_key.present?
+    end
+
     def self.mcp_tool_name(tool_name, server_name:)
       "mcp(#{server_name}/#{tool_name})"
     end
