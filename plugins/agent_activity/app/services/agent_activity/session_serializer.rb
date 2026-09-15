@@ -75,5 +75,4 @@ module AgentActivity
       (finish - latest_process.started_at).round
     end
   end
-
 end

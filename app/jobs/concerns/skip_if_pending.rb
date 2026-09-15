@@ -31,9 +31,9 @@ module SkipIfPending
                   scope
                     .where("JSON_UNQUOTE(JSON_EXTRACT(arguments, '$.arguments')) = ?", JSON.generate(args))
                     .exists?
-                else
+      else
                   scope.limit(1_000).any? { |job| active_job_arguments(job.arguments) == args }
-                end
+      end
 
       pending ? "arguments" : false
     rescue ActiveRecord::StatementInvalid, ActiveRecord::NoDatabaseError

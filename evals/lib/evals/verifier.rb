@@ -11,7 +11,7 @@ module Evals
       def error? = error.present?
     end
 
-    def self.call(scenario:, run_result:, user:, provider:, runner: RunJob.agent_runner, log_sink: ->(*, **) {})
+    def self.call(scenario:, run_result:, user:, provider:, runner: RunJob.agent_runner, log_sink: ->(*, **) { })
       klass = AgentProviders.for(provider)
 
       Dir.mktmpdir("syrus-eval-verify-#{scenario.slug}-") do |scratch|
