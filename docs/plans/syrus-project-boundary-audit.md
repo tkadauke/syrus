@@ -1,0 +1,365 @@
+# Syrus Project Boundary Audit
+
+This is the operator-facing migration record for splitting this repository's
+workflow configuration into project-aware `.syrus.yml` declarations. The first
+production shape is now in place: the root Rails app remains the repository
+project, the core CLI owns `cli/.syrus.yml`, and the desktop app owns
+`desktop/.syrus.yml`.
+
+## Current Boundaries
+
+The repository is already a medium monorepo with these practical project
+boundaries:
+
+- **Core Rails app and SPA**: root Rails app, `app/`, `config/`, `db/`, `lib/`,
+  root `package.json`, `vite.config.ts`, `tsconfig.json`, `spec/`, and shared
+  scripts in `bin/`. This owns the production web app, worker process,
+  workflow engine, MCP sidecar, shared React shell, design tokens, Rails
+  migrations, and most operational checks.
+- **Go CLI**: `cli/`, now with its own `cli/.syrus.yml` project. The root
+  `go.work` still spans bundled plugin CLI modules under `plugins/*/cli`, so
+  Go workspace checks remain a repository-level executable backstop until
+  nested grader targets are materialized directly by workflow fanout.
+- **Desktop app**: `desktop/`, now with its own `desktop/.syrus.yml` project,
+  `package.json`, Vite config, Electron main/preload code, renderer, packaging
+  scripts, and backend/CLI staging scripts. It depends on root assets and the
+  Go CLI for release builds.
+- **Public website**: `website/`, a separate Next.js/static-export app with its
+  own lockfile and deploy workflow. Its root grader is now scoped to website
+  files and the website deploy workflow until a nested website project owns the
+  executable target directly.
+- **Plugins**: `plugins/*`, each with a gemspec and optional Rails app code,
+  migrations, frontend, docs, e2e specs, and sometimes a Go CLI module. Most
+  plugin changes still boot inside the core Rails host, so plugins are a
+  workflow boundary before they are an independently previewable app boundary.
+- **Release and infrastructure tooling**: `.github/workflows/`, `Dockerfile`,
+  `docker-compose*.yml`, `install.sh`, `install.ps1`, `bin/release-*`,
+  `bin/test-docker`, `e2e/`, and deployment docs. These cross product
+  boundaries and should remain repo-level unless a later target graph models
+  release artifacts explicitly.
+- **Future mobile**: no mobile project exists today. The target-graph docs
+  already describe iOS and Android as separate future projects. A future mobile
+  shell should be introduced as its own nested project, most likely
+  `mobile/.syrus.yml` for a shared cross-platform app or separate
+  `ios/.syrus.yml` and `android/.syrus.yml` if native platforms diverge.
+
+## Existing Workflow Primitives
+
+The live Syrus workflow configuration currently declares:
+
+- `/.syrus.yml` project: `repo` / "Syrus App" / `rails_app`.
+- Root `prepare`: `bundle config set --local path vendor/bundle`,
+  `bundle install`, and root `npm ci`.
+- Root `preview`: Rails/Vite/Tailwind preview through `bin/syrus-preview-dev`,
+  with `bin/rails db:prepare db:seed`, `/up`, development logs, preview search
+  database env, and DB env cleanup.
+- Root `visual_review`: enabled, two rounds, scoped to `app/frontend`,
+  `app/views`, `plugins/**/app/frontend`, and `plugins/**/app/views`, with seed
+  notes for the demo preview state.
+- Root `hooks.post_checkout`: bundle check/install, `rails db:migrate`, then
+  discard local schema/structure churn.
+- Root `adversarial_review`: one round with repo-wide criteria around docs,
+  specs, duplication, type-switch avoidance, user attribution, feature flags,
+  and frontend locale parity.
+- Root `grade`: repository-wide and transitional backstop graders:
+  `migration-collisions`, `migration-lint`, `migration-baselines`,
+  `thread-budget`, `feature-slugs`, `plugin-model-namespaces`,
+  `plugin-boundaries`, `eager-load`, `work-engine-simulations`,
+  `production-build-boot`, `cli-go-workspace-backstop`, `rspec`,
+  `rspec-focused`, `rspec-ci`, `react-tests`, `react-tests-focused`, and
+  `website-build`.
+- `cli/.syrus.yml`: a `cli` project with Go module download prepare and
+  `go-tests` for core CLI changes under `cli/`.
+- `desktop/.syrus.yml`: a `desktop` project with `npm ci` prepare, Vite
+  preview, desktop visual-review notes, renderer/main/packaging targets,
+  desktop typecheck and Vitest graders, renderer/main build graders, and
+  desktop-scoped LCOV coverage.
+- Root `coverage`: LCOV sources at `coverage/lcov.info` and
+  `coverage/js/lcov.info`, line threshold 70, `on_miss: warn`, PR comments
+  enabled, seven-day hitmap TTL.
+- Root `deployment_stages`: staging, production, and public tag tracking.
+
+Root `.syrus.yml` does **not** currently declare `formatters:`, `generated:`,
+`deploy:`, `review_plan:`, `delivery:`, `approval:`, `external_prs:`,
+`agent_insight:`, explicit `targets:`, or `target_graph.imports`.
+
+## Validation Matrix
+
+The migration is covered by `spec/config/syrus_grader_config_spec.rb` plus the
+target graph, preview, visual-review, grader-fanout, CI-repair, and landing
+selection specs that landed with the project-aware work. The validation pass
+checks these operator scenarios:
+
+| Scenario | Expected behavior |
+| --- | --- |
+| App-only Rails/backend change | Root app project stays selected. Focused RSpec review checks run for app/lib/spec Ruby paths; repo-wide policy checks still run in configured phases. |
+| App-only frontend change | Root visual review and root React focused review checks stay selected for `app/frontend`/`app/views` paths. |
+| CLI-only change | `//cli:prepare` and `//cli:grade/go-tests` are selected by the compiled graph, and the executable root `cli-go-workspace-backstop` remains selected until nested grader targets materialize directly as workflow Steps. |
+| Desktop-only renderer/main change | `//desktop:*` targets and `//desktop:grade/*` checks are selected, desktop preview/visual-review metadata comes from `desktop/.syrus.yml`, and the root React focused backstop still covers desktop renderer paths during review. |
+| Shared/root config change | Root repo-wide policy checks remain rooted. Deployment stages, root coverage, root checkout hooks, and root preview stay repository-owned. |
+| Mixed app + CLI change | The graph reports the union of root app checks, CLI project checks, and the Go workspace backstop. |
+| Mixed app + desktop change | Visual review resolves both root and desktop preview projects, and the graph reports root React plus desktop validation targets. |
+| Website change | The root `website-build` backstop is selected only for `website/**/*` and the website deploy workflow. |
+| Target health reuse | Runtime fanout records target labels and selection reasons, then uses target health to skip only equivalent executable targets with matching inputs, command, environment, dependencies, and phase. |
+| CI repair and landing | CI repair prompts receive target context, landing validation applies the same target-aware selection, and broad root landing backstops remain where coverage history is not yet narrow enough. |
+
+## Repo-Wide Checks
+
+These should remain rooted at `/.syrus.yml` because they validate repository
+invariants or cross-boundary release safety:
+
+- `migration-collisions`: scans all migration namespaces, including plugin
+  migrations.
+- `migration-baselines`: verifies primary database history against deployment
+  baselines; this is a release safety check, not a single project check.
+- `thread-budget`: protects the production worker/database connection budget.
+- `feature-slugs`: shared feature declarations are consumed by Rails and the
+  SPA across projects.
+- `plugin-boundaries`: checks core-to-plugin and plugin-to-plugin dependency
+  policy across the whole plugin ecosystem.
+- `eager-load`: Rails production boot/constant loading spans core and enabled
+  plugin code.
+- `work-engine-simulations`: validates central workflow scheduling behavior.
+- `production-build-boot`: validates Rails production boot during image build.
+- `rspec` and `rspec-ci`: keep as landing/CI backstops until narrower
+  project-specific Ruby graders have enough coverage history.
+- `deployment_stages`: stage tracking is currently repository-wide by design.
+
+## Project-Owned Checks And Follow-Ups
+
+These checks are already project-owned or should move into nested project
+declarations in a later pass:
+
+- `website-build`: belongs in `website/.syrus.yml`; until then, the root
+  landing/CI grader is file-scoped to `website/**/*` and the Pages deploy
+  workflow instead of running for every repo change.
+- Desktop typecheck, renderer build, and main-process build now live in
+  `desktop/.syrus.yml`. The root config only covers desktop release coupling
+  indirectly through the Go workspace backstop for CLI packaging paths.
+- Plugin CLI Go tests should move into `plugins/.syrus.yml` or plugin-specific
+  configs. Core CLI target metadata already lives in `cli/.syrus.yml`; the
+  repo-level Go workspace check still matches core CLI paths as the executable
+  runtime backstop until nested graders run directly.
+- `react-tests-focused`: should become project-aware across core frontend,
+  plugin frontend, and desktop renderer paths. Keep the desktop renderer
+  patterns in the root review-phase grader until nested grader targets
+  materialize as real workflow Steps.
+- `rspec-focused`: can stay root-owned for core Rails paths while plugin Ruby
+  specs gain plugin-scoped targets.
+- `plugin-model-namespaces`: belongs to the plugin project boundary, but still
+  needs visibility into host/plugin model loading. Treat it as a plugin-owned
+  Rails-host check, not an isolated gem check.
+- `migration-lint`: can be file-scoped to root and plugin migration paths; the
+  command itself remains root-relative because migration policy is shared.
+
+## Migration Shape
+
+### 1. Root Metadata And Root-Owned Checks
+
+`/.syrus.yml` is the root repository project:
+
+```yaml
+project:
+  id: repo
+  label: Syrus App
+  kind: rails_app
+```
+
+All root-owned checks still compile under `//:repo` or `//:grade/<name>`.
+Repository policy, Rails boot, plugin boundaries, release safety, root preview,
+root visual review, root coverage, checkout hooks, and deployment-stage tag
+tracking stay here.
+
+### 2. Website Workflow Stays As A Scoped Root Backstop
+
+`website-build` still lives in `/.syrus.yml`, but is now file-scoped to the
+website project and website deploy workflow:
+
+```yaml
+grade:
+  - name: website-build
+    run: npm --prefix website ci && npm --prefix website run sync-release:check && npm --prefix website run build
+    phases: [landing, ci]
+    when_files_changed:
+      - "website/**/*"
+      - ".github/workflows/deploy-website.yml"
+    timeout_minutes: 10
+```
+
+Follow-up proposal: move this into `website/.syrus.yml` once nested grader
+targets materialize directly as workflow Steps. Until then, keeping the
+executable root grader avoids hiding the website build inside a graph-only
+target.
+
+### 3. Desktop Project Config
+
+`desktop/.syrus.yml` now owns desktop prepare, preview, visual review, target
+metadata, and scoped validation:
+
+```yaml
+project:
+  id: desktop
+  label: Desktop App
+  kind: desktop_app
+
+prepare:
+  - npm ci
+
+grade:
+  - name: typecheck
+    run: npm --prefix desktop run typecheck
+    phases: [review, landing, ci]
+    when_files_changed: ["src/**", "electron/**", "package*.json", "tsconfig*.json"]
+  - name: renderer-build
+    run: npm --prefix desktop run build:renderer
+    phases: [landing, ci]
+    when_files_changed: ["src/**", "vite.config.ts", "package*.json"]
+  - name: main-build
+    run: npm --prefix desktop run build:main
+    phases: [landing, ci]
+    when_files_changed: ["electron/**", "tsconfig.electron.json", "package*.json"]
+```
+
+Desktop diffs select desktop targets and root shared checks. CLI packaging
+paths such as `desktop/scripts/stage-cli.mjs` keep selecting the root Go
+workspace backstop until explicit target dependencies model the staged CLI
+artifact.
+
+### 4. CLI Project Config
+
+`cli/.syrus.yml` declares:
+
+```yaml
+project:
+  id: cli
+  label: CLI
+  kind: cli
+
+prepare:
+  - mise exec go@1.26.5 -- go mod download
+
+grade:
+  - name: go-tests
+    run: mise exec go@1.26.5 -- go test ./...
+    phases: [review, landing, ci]
+    when_files_changed: ["**/*.go", "go.mod", "go.sum", "Makefile"]
+```
+
+Follow-up proposal: create `plugins/.syrus.yml` with a plugin ecosystem
+project:
+
+```yaml
+project:
+  id: plugins
+  label: Plugins
+  kind: plugin_collection
+
+grade:
+  - name: cli-go-tests
+    run: cd .. && mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/..." | grep "/plugins/")'
+    phases: [review, landing, ci]
+    when_files_changed: ["*/cli/**/*.go", "*/cli/go.mod"]
+```
+
+Core CLI diffs select `//cli:grade/go-tests` and continue selecting the root
+executable backstop until nested graders materialize directly. Plugin CLI,
+release workflow, and desktop packaging diffs keep selecting a repo-level
+backstop until explicit deps wire those paths to CLI targets.
+
+### 5. Future Plugin Project Config
+
+Follow-up proposal: start with one `plugins/.syrus.yml`, not one file per
+plugin. Most plugins are not independently previewable; they run inside the
+Rails host and share the same boot, schema, and frontend build surfaces.
+
+Candidate plugin-owned targets:
+
+```yaml
+grade:
+  - name: rspec-focused
+    run: cd .. && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rspec-focused
+    phases: [review]
+    when_files_changed: ["**/*.rb"]
+  - name: react-tests-focused
+    run: cd .. && bin/test-react-focused
+    phases: [review]
+    when_files_changed: ["*/app/frontend/**/*.ts", "*/app/frontend/**/*.tsx"]
+  - name: model-namespaces
+    run: cd .. && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-model-namespaces
+    phases: [review, landing, ci]
+    when_files_changed: ["*/app/models/**/*.rb", "*/db/migrate/**/*.rb"]
+```
+
+Expected behavior after this follow-up: plugin diffs select plugin-focused
+review checks plus the repo-wide Rails boot and boundary checks. A plugin that
+later gets its own preview, coverage policy, or substantially independent app
+surface can graduate to `plugins/<name>/.syrus.yml`.
+
+### 6. Keep Core Rails/SPA Root-Owned Initially
+
+Do not create separate `app/.syrus.yml`, `app/frontend/.syrus.yml`, or
+`db/.syrus.yml` in the first split. The Rails app, worker, core frontend, and
+database are one product boundary today. Use root target scopes instead:
+
+- root `rspec-focused`: `app/**/*.rb`, `lib/**/*.rb`, `spec/**/*.rb`;
+- root `react-tests-focused`: `app/frontend/**/*.ts(x)`,
+  `plugins/**/app/frontend/**/*.ts(x)`, and desktop renderer paths until
+  nested grader Steps execute directly;
+- root migration checks: `db/migrate/**`, `plugins/*/db/migrate/**`;
+- root preview and visual review: continue to cover core and plugin UI.
+
+Expected behavior: app/backend and app/frontend diffs continue to behave
+mostly like today. Website-unrelated landing and CI workflows stop paying for
+the website build once main target health has a reusable record. Desktop and
+CLI root review backstops remain until nested grader materialization is wired
+into workflow fanout. Full landing/CI backstops remain root-owned until
+target-health history and missed-edge warnings prove a narrower split is safe.
+
+## Main Grader Policy After Target Health
+
+Main-branch graders should run in three cases:
+
+- **Baseline sweep**: when a repository has no previous checked main SHA, run
+  every configured root grader and bypass target-health reuse so underdeclared
+  target edges have a chance to fail loudly.
+- **Affected target**: when the changed-file set since the previous main SHA
+  matches a grader's own source scope or a dependency target's source scope,
+  run the grader unless reusable target health proves the same inputs, command,
+  environment, and executable dependencies already passed.
+- **Unproven skipped target**: when a required target is unaffected but has no
+  reusable healthy record, keep the repository-level grader health unknown,
+  inconclusive, or broken according to the latest target health instead of
+  silently treating the skipped target as green.
+
+Failures that GitHub CI later maps to a previously skipped target should file
+the existing `ci_failed_skipped_target` WorkflowWarning. That warning is the
+follow-up loop for missed edges: it asks the operator/agent to add the missing
+`deps:` edge, widen `sources:`/`when_files_changed`, move the check into the
+right nested `.syrus.yml`, or declare an explicit `ci_checks:` mapping.
+
+### 7. Future Mobile Project
+
+When mobile code lands, create either:
+
+- `mobile/.syrus.yml` for one cross-platform project, or
+- `ios/.syrus.yml` and `android/.syrus.yml` for native platform projects.
+
+Expected behavior: mobile-only diffs select only mobile prepare/grade targets
+plus repo-wide safety checks. API contract dependencies should be modeled with
+explicit `targets:` labels, for example a root API-contract target depended on
+by mobile test targets.
+
+## Remaining Follow-Up Proposals
+
+- Should root preview remain the fallback for plugin UI changes after a
+  `plugins/.syrus.yml` project exists, or should plugin UI changes explicitly
+  depend on a root preview target once preview selection supports that shape?
+- Should the Go workspace check remain one repo-level target permanently
+  because `go.work` intentionally models CLI plus plugin CLI modules together,
+  or should nested CLI checks become authoritative after a trial period?
+- Should full `rspec` and `react-tests` stay root landing backstops even after
+  focused review checks become project-scoped? For now, yes; removing them is a
+  later coverage-confidence decision, not part of the first config move.
+- Should release/test-build workflow paths select desktop, CLI, backend image,
+  and website targets explicitly through `targets:` dependencies rather than
+  broad `when_files_changed` globs? That is likely the right second pass.

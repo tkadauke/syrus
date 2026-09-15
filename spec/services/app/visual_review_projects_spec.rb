@@ -120,4 +120,57 @@ RSpec.describe App::VisualReviewProjects do
     expect(result.choices).to eq([])
     expect(result.unavailable_reason).to eq("no_affected_visual_review_project")
   end
+
+  it "does not include the root visual review project for files owned by a nested preview project" do
+    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
+    write(".syrus.yml", <<~YAML)
+      preview:
+        start: bin/dev
+      visual_review:
+        seed_notes: Open /dashboard.
+    YAML
+    write("desktop/.syrus.yml", <<~YAML)
+      project:
+        id: desktop
+        label: Desktop App
+      preview:
+        start: npm run dev
+      visual_review:
+        enabled: true
+        seed_notes: Open the desktop renderer.
+    YAML
+
+    result = described_class.call(workspace_path: workspace, changed_files: [ "desktop/src/App.tsx" ])
+
+    expect(result.choices.map(&:id)).to eq([ "desktop" ])
+    expect(result.seed_notes).to eq("Open the desktop renderer.")
+  end
+
+  it "includes root and nested visual review projects when both scopes changed" do
+    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
+    write(".syrus.yml", <<~YAML)
+      preview:
+        start: bin/dev
+      visual_review:
+        seed_notes: Open /dashboard.
+    YAML
+    write("desktop/.syrus.yml", <<~YAML)
+      project:
+        id: desktop
+      preview:
+        start: npm run dev
+      visual_review:
+        enabled: true
+        seed_notes: Open the desktop renderer.
+    YAML
+
+    result = described_class.call(
+      workspace_path: workspace,
+      changed_files: [ "app/frontend/routes/Dashboard.tsx", "desktop/src/App.tsx" ]
+    )
+
+    expect(result.choices.map(&:id)).to match_array(%w[repo desktop])
+    expect(result.seed_notes).to include("Open /dashboard.")
+    expect(result.seed_notes).to include("Open the desktop renderer.")
+  end
 end

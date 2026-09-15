@@ -89,6 +89,18 @@ permanently. A monorepo with a handful of independent apps often stops at
 stages 2-4. A repository whose build system already knows every dependency edge
 should prefer stage 5 over copying that graph by hand into `.syrus.yml`.
 
+The Syrus repository itself currently uses this staged model. The root
+`.syrus.yml` declares the Rails app as the root `repo` project, while keeping
+repository-global prepare, deployment stages, and broad policy checks in the
+root config. The CLI has `cli/.syrus.yml` for core Go prepare and tests, and
+the desktop app has `desktop/.syrus.yml` for desktop prepare, preview, visual
+review, coverage, builder, and grader target metadata. Two boundaries remain
+intentionally cross-project until nested grader execution is fully materialized:
+desktop review-phase tests still run through the root `react-tests-focused`
+grader, desktop unit tests still use the root Vitest dependency set, and the
+root Go-workspace backstop still covers release/desktop packaging paths that
+bundle the CLI.
+
 ## Projects vs. targets
 
 DOC-20 draws a hard line between the two graph concepts, and it matters when

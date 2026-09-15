@@ -6,6 +6,11 @@
 # Ruby and Node deps explicit here because the presence of this file
 # disables RepoPrepPlan's lockfile auto-detection.
 
+project:
+  id: repo
+  label: Syrus App
+  kind: rails_app
+
 prepare: &syrus_prepare
   # Syrus scrubs worker/container Bundler env before running prepare
   # and preview setup. Pin Bundler's install location to the workspace
@@ -269,14 +274,15 @@ grade:
     phases: [review, landing, ci]
     timeout_minutes: 3
 
-  - name: cli-go-tests
+  - name: cli-go-workspace-backstop
     description: |
-      Runs the Syrus CLI Go test suite for changes to the CLI module or
-      release/desktop packaging paths that ship the CLI binary. This
-      catches CLI regressions before release builds invoke
-      `bin/release-cli`.
-    # Every module in go.work, so a plugin that contributes CLI commands is
-    # covered without editing this grader.
+      Runs the full Go workspace for cross-project CLI integration changes:
+      the core CLI module, plugin-owned CLI modules, go.work membership, and
+      release/desktop packaging paths that ship the CLI binary. The core CLI
+      module's project metadata lives in cli/.syrus.yml, and desktop app
+      metadata lives in desktop/.syrus.yml; keep this root check executable
+      until nested grader targets are materialized directly by workflow
+      fanout.
     run: mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'
     phases: [review, landing, ci]
     when_files_changed:
@@ -403,10 +409,13 @@ grade:
       `related` resolution) to the diff so far, on every review-phase
       grade iteration. Fast feedback loop for small diffs; broad frontend
       diffs can approach full-suite runtime, so it uses the same timeout as
-      the landing/ci `react-tests` grader.
+      the landing/ci `react-tests` grader. Desktop renderer checks live in
+      desktop/.syrus.yml, but this root review-phase backstop keeps desktop
+      renderer paths executable until nested grader targets are materialized
+      directly by workflow fanout.
     run: bin/test-react-focused
     phases: [review]
-    when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx", "desktop/src/**/*.ts", "desktop/src/**/*.tsx"]
+    when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx", "desktop/src/*.ts", "desktop/src/*.tsx", "desktop/src/**/*.ts", "desktop/src/**/*.tsx"]
     junit_output: .syrus/grade-output/react-tests-focused-junit.xml
     failures: allow_inherited
     base_retry:
@@ -427,6 +436,9 @@ grade:
     base_retry:
       strategy: full_command
     required: true
+    when_files_changed:
+      - "website/**/*"
+      - ".github/workflows/deploy-website.yml"
     timeout_minutes: 10
 
 coverage:

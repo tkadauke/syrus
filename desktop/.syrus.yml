@@ -1,0 +1,177 @@
+project:
+  id: desktop
+  label: Desktop App
+  kind: desktop_app
+
+prepare:
+  - npm ci
+
+preview:
+  setup:
+    - npm ci
+  start: npm exec vite -- --host 127.0.0.1 --port $PORT
+  health_check: /
+
+visual_review:
+  enabled: true
+  rounds: 2
+  when_files_changed:
+    - "src/*"
+    - "src/**/*"
+    - "electron/*"
+    - "electron/**/*"
+    - "assets/*"
+    - "assets/**/*"
+    - "index.html"
+  seed_notes: |
+    Exercise the desktop renderer through the Vite preview. OS-level Electron
+    shell behavior, native menu-bar integration, global shortcuts, and installer
+    flows are not visible in this browser preview; verify those through the
+    desktop graders or targeted local/manual testing instead.
+
+hooks:
+  post_checkout:
+    - npm ci
+
+targets:
+  - name: renderer
+    kind: library
+    sources:
+      - "src/*"
+      - "src/**/*"
+      - "index.html"
+
+  - name: electron-main
+    kind: library
+    sources:
+      - "electron/*"
+      - "electron/**/*"
+      - "tsconfig.electron.json"
+
+  - name: packaging
+    kind: application
+    sources:
+      - "assets/*"
+      - "assets/**/*"
+      - "build/*"
+      - "build/**/*"
+      - "electron-builder.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/**/*"
+    deps:
+      - ":renderer"
+      - ":electron-main"
+
+  - name: renderer-build
+    kind: builder
+    run: npm run build:renderer
+    sources:
+      - "src/*"
+      - "src/**/*"
+      - "index.html"
+      - "vite.config.ts"
+    deps:
+      - ":renderer"
+    phases: [review, landing, ci]
+    required: true
+    timeout_minutes: 5
+
+  - name: main-build
+    kind: builder
+    run: npm run build:main
+    sources:
+      - "electron/*"
+      - "electron/**/*"
+      - "tsconfig.electron.json"
+    deps:
+      - ":electron-main"
+    phases: [review, landing, ci]
+    required: true
+    timeout_minutes: 5
+
+grade:
+  - name: typecheck
+    description: |
+      Runs the desktop renderer and Electron main-process TypeScript checks.
+      This is scoped to desktop-owned source, package, and build config files.
+    run: npm --prefix desktop run typecheck
+    phases: [review, landing, ci]
+    when_files_changed:
+      - "src/*.ts"
+      - "src/*.tsx"
+      - "src/**/*.ts"
+      - "src/**/*.tsx"
+      - "electron/*.ts"
+      - "electron/*.cts"
+      - "electron/**/*.ts"
+      - "electron/**/*.cts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.electron.json"
+      - "vite.config.ts"
+    deps:
+      - ":renderer"
+      - ":electron-main"
+    timeout_minutes: 10
+
+  - name: vitest
+    description: |
+      Runs the desktop unit tests through the root Vitest dependency set.
+      The desktop package does not own Vitest yet, so this remains a
+      cross-boundary command even though the target is desktop-scoped.
+    run: npx vitest run desktop/src
+    phases: [review, landing, ci]
+    when_files_changed:
+      - "src/*.ts"
+      - "src/*.tsx"
+      - "src/**/*.ts"
+      - "src/**/*.tsx"
+    deps:
+      - ":renderer"
+    junit_output: .syrus/grade-output/desktop-vitest-junit.xml
+    timeout_minutes: 10
+
+  - name: renderer-build
+    description: |
+      Builds the desktop renderer bundle without invoking full installer
+      packaging.
+    run: npm --prefix desktop run build:renderer
+    phases: [landing, ci]
+    when_files_changed:
+      - "src/*"
+      - "src/**/*"
+      - "index.html"
+      - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
+    deps:
+      - ":renderer-build"
+    timeout_minutes: 5
+
+  - name: main-build
+    description: |
+      Builds the Electron main-process bundle without invoking full installer
+      packaging.
+    run: npm --prefix desktop run build:main
+    phases: [landing, ci]
+    when_files_changed:
+      - "electron/*"
+      - "electron/**/*"
+      - "tsconfig.electron.json"
+      - "package.json"
+      - "package-lock.json"
+    deps:
+      - ":main-build"
+    timeout_minutes: 5
+
+coverage:
+  sources:
+    - artifact: coverage/lcov.info
+      format: lcov
+  threshold:
+    lines: 70
+  on_miss: warn
+  pr_comment: true
+  hitmap_ttl_days: 7
