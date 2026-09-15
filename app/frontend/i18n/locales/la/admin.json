@@ -1010,6 +1010,11 @@
     "no_events": "Nulli eventus adhuc.",
     "documentation_label": "Documenta {{title}}",
     "close_documentation": "Documenta claude",
+    "sidebar_aria": "Munera sustentationis",
+    "sidebar_heading": "Sustentatio",
+    "sidebar_all": "Omnia",
+    "sidebar_count_one": "{{count}} munus sustentationis",
+    "sidebar_count_other": "{{count}} munera sustentationis",
     "eta_seconds": "{{seconds}}s restant",
     "eta_minutes": "{{minutes}}m restant",
     "eta_hours": "{{hours}}h restant"

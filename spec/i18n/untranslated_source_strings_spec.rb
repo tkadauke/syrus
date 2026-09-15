@@ -72,6 +72,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/EpicDetail.tsx|jsx_text|· Goal #
       app/frontend/routes/JobDetail.tsx|jsx_text|( )
       app/frontend/routes/JobDetail.tsx|jsx_text|· Goal #
+      app/frontend/routes/RepositoryTargetGraph.tsx|jsx_text|THR-
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #
       app/frontend/routes/jobDetail/Delivery.tsx|jsx_text|PR #

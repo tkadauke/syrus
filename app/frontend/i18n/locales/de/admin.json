@@ -1010,6 +1010,11 @@
     "no_events": "Noch keine Ereignisse.",
     "documentation_label": "Dokumentation für {{title}}",
     "close_documentation": "Dokumentation schließen",
+    "sidebar_aria": "Wartungsaufgaben",
+    "sidebar_heading": "Wartung",
+    "sidebar_all": "Alle",
+    "sidebar_count_one": "{{count}} Wartungsaufgabe",
+    "sidebar_count_other": "{{count}} Wartungsaufgaben",
     "eta_seconds": "{{seconds}}s verbleibend",
     "eta_minutes": "{{minutes}}m verbleibend",
     "eta_hours": "{{hours}}h verbleibend"

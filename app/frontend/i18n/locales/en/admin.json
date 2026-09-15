@@ -68,6 +68,11 @@
     "no_events": "No events yet.",
     "documentation_label": "{{title}} documentation",
     "close_documentation": "Close documentation",
+    "sidebar_aria": "Maintenance tasks",
+    "sidebar_heading": "Maintenance",
+    "sidebar_all": "All",
+    "sidebar_count_one": "{{count}} maintenance task",
+    "sidebar_count_other": "{{count}} maintenance tasks",
     "eta_seconds": "{{seconds}}s left",
     "eta_minutes": "{{minutes}}m left",
     "eta_hours": "{{hours}}h left"
