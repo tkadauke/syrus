@@ -282,9 +282,10 @@ for affected-file selection and execute transitive `kind: prepare` dependencies
 before the grader command. Legacy `formatters:` and `generated:` entries compile
 their `deps:` into the graph for diagnostics and future target-aware execution,
 but `Steps::Format` and `Steps::Generate` still choose commands from the legacy
-sections directly. Explicit `kind: builder` nodes are metadata unless a legacy
-grader (or another currently wired executable path) depends on them; no separate
-builder Step materializes yet.
+sections directly. Explicit `kind: builder` nodes can affect dependent grader
+selection, but a grader dependency on a builder target does not automatically
+run that builder during ordinary grader fanout. Builder command execution is
+wired through `Steps::BuilderFanout` for opportunistic main-branch warming.
 
 ### Dependency-only edges
 
@@ -523,9 +524,9 @@ compiled from `generated:` as `//:generate/<index>`. Plugin-default
 formatters from `formatters: []` do not currently have stable target labels,
 so they are not target-health skipped. `grader_fanout` checks each selected
 required `grader` target before materializing its `grader` Step; optional
-graders run when active even if a reusable health record exists. The `builder`
-kind is reserved in the graph model, but no `.syrus.yml` primitive
-materializes a builder target yet.
+graders run when active even if a reusable health record exists. Builder
+targets are declared through explicit `targets:` entries rather than a legacy
+top-level `.syrus.yml` section.
 
 A selected executable target is target-health skipped only when its latest
 matching health record is healthy (`passed` or `skipped`) and every executable
