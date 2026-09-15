@@ -210,6 +210,7 @@ class LandingQueueProcessor
   def landing_units(scope = Job.all)
     chronological = queue_candidates(scope)
     preload_active_trigger_kinds(chronological)
+    preload_active_unit_kinds(chronological)
     next_position = 1
     ordered_landing_units(landing_units_for(chronological), chronological).map do |unit|
       ordered_jobs = dependency_order(unit.jobs)
@@ -792,6 +793,7 @@ class LandingQueueProcessor
     if active_trigger_kinds.include?("ci_failure")
       return override_or_block(job, { key: "ci_failure_in_progress", params: { slug: job.slug } }, consume: consume_override)
     end
+    return override_or_block(job, { key: "queued_in_bundle" }, consume: consume_override) if active_unit_kinds_for(job).include?("job_bundle")
     return override_or_block(job, { key: "active_workflow" }, consume: consume_override) if active_trigger_kinds.any?
     # Block on failing or pending PR check-run state cached by PollPullRequestJob.
     # nil / "unknown" / "passing" allow landing; only "failing" and "pending" hold.
@@ -1077,12 +1079,29 @@ class LandingQueueProcessor
     end
   end
 
+  def preload_active_unit_kinds(jobs)
+    job_ids = jobs.map(&:id)
+    @active_unit_kinds_by_job_id = if job_ids.empty?
+      {}
+    else
+      WorkUnits::Ownership.active_unit_kind_lists_by_job_id(job_ids)
+    end
+  end
+
   def active_trigger_kinds_for(job)
     if defined?(@active_trigger_kinds_by_job_id) && @active_trigger_kinds_by_job_id
       return Array(@active_trigger_kinds_by_job_id[job.id])
     end
 
     WorkUnits::Ownership.active_trigger_kind_lists_by_job_id([ job.id ]).fetch(job.id, [])
+  end
+
+  def active_unit_kinds_for(job)
+    if defined?(@active_unit_kinds_by_job_id) && @active_unit_kinds_by_job_id
+      return Array(@active_unit_kinds_by_job_id[job.id])
+    end
+
+    WorkUnits::Ownership.active_unit_kind_lists_by_job_id([ job.id ]).fetch(job.id, [])
   end
 
   def merged?(job)

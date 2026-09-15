@@ -15,6 +15,8 @@ RSpec.describe BranchDivergenceRecovery do
   end
 
   it "records discarded output and restores the job to implemented" do
+    allow(VisualDiffSubmission).to receive(:enqueue_deferred_for_job)
+
     result = described_class.discard!(workflow: workflow, user: user)
 
     expect(result).to be_success
@@ -23,6 +25,7 @@ RSpec.describe BranchDivergenceRecovery do
       "user_id" => user.id
     )
     expect(job.reload).to be_implemented
+    expect(VisualDiffSubmission).not_to have_received(:enqueue_deferred_for_job)
   end
 
   it "auto-discards superseded output only when the current PR head matches the recorded remote SHA" do

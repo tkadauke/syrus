@@ -250,6 +250,20 @@ describe("landing queue status column", () => {
     expect(status?.className).toContain("bg-danger-surface")
   })
 
+  it("renders queued bundle membership with non-danger styling", () => {
+    renderTable([
+      jobItem({
+        id: 3,
+        landing_queue_blocked_reason: { key: "queued_in_bundle" },
+        landing_queue_wait_reason: null
+      })
+    ])
+
+    const status = screen.getByText("Queued in bundle").closest("[data-status-pill]")
+    expect(status?.className).toContain("bg-info-surface")
+    expect(status?.className).not.toContain("bg-danger-surface")
+  })
+
   it("renders blocked-folder reasons with copyable slug buttons", () => {
     renderTable(
       [

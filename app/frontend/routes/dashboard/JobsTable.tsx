@@ -1023,7 +1023,7 @@ function LandingQueueStatusBadges({ job, showEmpty = true, wrapPill = false }: {
   if (job.landing_queue_blocked_reason) {
     return (
       <>
-        <TonePill tone="red" wrap={wrapPill}><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
+        <TonePill tone={landingQueueBlockedReasonTone(job.landing_queue_blocked_reason)} wrap={wrapPill}><CopyableBlockedReason reason={translateBlockedReason(job.landing_queue_blocked_reason, t)} /></TonePill>
         <LandingBlockerOverrideBadge job={job} />
       </>
     )
@@ -1043,6 +1043,11 @@ function LandingQueueStatusBadges({ job, showEmpty = true, wrapPill = false }: {
   if (!showEmpty) return null
 
   return <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+}
+
+function landingQueueBlockedReasonTone(reason: DashboardJobItem["landing_queue_blocked_reason"]) {
+  if (typeof reason === "object" && reason?.key === "queued_in_bundle") return "blue"
+  return "red"
 }
 
 function CopyableBlockedReason({ reason }: { reason: string }) {

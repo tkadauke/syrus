@@ -300,6 +300,7 @@
     "review_requested_changes": "Recensio mutationes postulavit",
     "missing_pull_request": "Petitio extrahendi deest",
     "active_workflow": "Cursus activus",
+    "queued_in_bundle": "In fasciculo exspectat",
     "waiting_epic_release": "Exspectatur Epicum dimitti",
     "waiting_epic_siblings": "Exspectantur fratres Epici probari",
     "waiting_github_mergeability": "Exspectatur coniungibilitas GitHub",

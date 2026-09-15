@@ -1369,6 +1369,8 @@ class Job < ApplicationRecord
   end
 
   def enqueue_deferred_visual_diff_work_after_implementation
+    return if StateTransition.current_reason_key == "branch_divergence_recovery"
+
     VisualDiffSubmission.enqueue_deferred_for_job(self)
   end
 

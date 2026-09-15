@@ -251,6 +251,22 @@ module WorkUnits
       result.transform_values { |trigger_kinds| trigger_kinds.compact.map(&:to_s).uniq }
     end
 
+    def self.active_unit_kind_lists_by_job_id(job_ids)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return {} if ids.empty?
+
+      result = Hash.new { |hash, key| hash[key] = [] }
+      WorkUnitMember
+        .joins(:work_unit)
+        .where(job_id: ids, work_units: { state: ACTIVE_STATES })
+        .pluck("work_unit_members.job_id", "work_units.kind")
+        .each do |job_id, unit_kind|
+          result[job_id] << unit_kind
+        end
+
+      result.transform_values { |unit_kinds| unit_kinds.compact.map(&:to_s).uniq }
+    end
+
     def self.active_units_by_job_id(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?

@@ -1025,6 +1025,17 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(entry.blocked_reason).to eq({ key: "active_workflow" })
     end
 
+    it "reports active job bundle ownership as queued in bundle" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      workflow = Workflow.create!(job: job, trigger_kind: "merge_train", state: "queued")
+      active_work_unit_for(job, kind: "job_bundle", state: "blocked", workflow: workflow)
+
+      expect(described_class.call).to be_nil
+      expect(job.reload).to be_approved
+      entry = described_class.entries(Job.where(id: job.id)).first
+      expect(entry.blocked_reason).to eq({ key: "queued_in_bundle" })
+    end
+
     it "preloads active workflow triggers for landing queue entries" do
       jobs = 4.times.map do |index|
         queue_job(issue_number: index + 1, approved_at: (index + 1).minutes.ago).tap do |job|

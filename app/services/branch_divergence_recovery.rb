@@ -204,7 +204,7 @@ class BranchDivergenceRecovery
   def restore_job_to_implemented_if_possible!
     return unless job.failed? && job.pr_number.present?
 
-    StateTransition.with_source("operator") do
+    StateTransition.with_source("operator", user: user, reason_key: "branch_divergence_recovery") do
       job.retry_after_failure! if job.may_retry_after_failure?
       job.mark_implemented! if job.may_mark_implemented?
       job.save!

@@ -300,6 +300,7 @@
     "review_requested_changes": "Review requested changes",
     "missing_pull_request": "Missing pull request",
     "active_workflow": "Active workflow",
+    "queued_in_bundle": "Queued in bundle",
     "waiting_epic_release": "Waiting for Epic to release",
     "waiting_epic_siblings": "Waiting for Epic siblings to be approved",
     "waiting_github_mergeability": "Waiting for GitHub mergeability",
