@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe ChatProviders do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   describe ChatProviders::Base do
     it "does not crash when an anonymous provider class uses the fallback key" do
       provider_class = Class.new(described_class)

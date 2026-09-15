@@ -70,6 +70,7 @@ RSpec.describe SwitchChatProviderJob do
 
   describe "switching from claude to muse" do
     before do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
       chat.messages.create!(role: "user", content: { "text" => "hello" })
       chat.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "world" } ])
       chat.create_provider_session!(provider: "claude", session_id: "old-session-id", transcript_jsonl: "old-jsonl")
