@@ -241,21 +241,17 @@ grade:
     phases: [review, landing, ci]
     timeout_minutes: 3
 
-  - name: cli-go-tests
+  - name: cli-go-workspace-backstop
     description: |
-      Runs the Syrus CLI Go test suite for changes to the CLI module or
-      release/desktop packaging paths that ship the CLI binary. This
-      catches CLI regressions before release builds invoke
-      `bin/release-cli`.
-    # Every module in go.work, so a plugin that contributes CLI commands is
-    # covered without editing this grader.
+      Runs the full Go workspace for cross-project CLI integration changes:
+      plugin-owned CLI modules, go.work membership, and release/desktop
+      packaging paths that ship the CLI binary. The core CLI module's own
+      prepare/test target lives in cli/.syrus.yml; keep this root check as a
+      repository-level backstop until plugin CLI modules and release artifacts
+      have their own project-scoped target dependencies.
     run: mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'
     phases: [review, landing, ci]
     when_files_changed:
-      - "cli/**/*.go"
-      - "cli/go.mod"
-      - "cli/go.sum"
-      - "cli/Makefile"
       - "go.work"
       - "plugins/*/cli/**/*.go"
       - "plugins/*/cli/go.mod"

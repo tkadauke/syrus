@@ -10,14 +10,13 @@ RSpec.describe "Syrus grader configuration" do
     expect(grader.timeout_minutes).to eq(3)
   end
 
-  it "runs Go CLI tests when CLI or CLI packaging paths change" do
+  it "keeps only cross-project CLI workspace checks in the root config" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 
-    grader = config.grade.steps.find { |step| step.name == "cli-go-tests" }
+    grader = config.grade.steps.find { |step| step.name == "cli-go-workspace-backstop" }
 
-    # Enumerating go.work rather than testing `./...` inside cli/: a plugin
-    # contributes its CLI commands from its own module, and those tests have to
-    # run without anyone remembering to extend this command.
+    # The core CLI module is owned by cli/.syrus.yml. This root grader remains
+    # only for Go workspace changes that cross project boundaries.
     expect(grader).to have_attributes(
       run: %(mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'),
       phases: %w[review landing ci],
@@ -25,16 +24,48 @@ RSpec.describe "Syrus grader configuration" do
       timeout_minutes: 5
     )
     expect(grader.when_files_changed).to include(
-      "cli/**/*.go",
-      "cli/go.mod",
-      "cli/go.sum",
-      "cli/Makefile",
       "go.work",
       "plugins/*/cli/**/*.go",
       "plugins/*/cli/go.mod",
       "bin/release-cli",
       "desktop/scripts/stage-cli.mjs"
     )
+    expect(grader.when_files_changed).not_to include(
+      "cli/**/*.go",
+      "cli/go.mod",
+      "cli/go.sum",
+      "cli/Makefile"
+    )
+  end
+
+  it "declares the CLI project and Go test target in cli/.syrus.yml" do
+    config = SyrusYml.new(Rails.root.join("cli/.syrus.yml").read).parse
+
+    expect(config.project).to have_attributes(id: "cli", label: "CLI", kind: "cli")
+    expect(config.prepare).to eq([ "mise exec go@1.26.5 -- go mod download" ])
+
+    grader = config.grade.steps.find { |step| step.name == "go-tests" }
+    expect(grader).to have_attributes(
+      run: "mise exec go@1.26.5 -- go test ./...",
+      phases: %w[review landing ci],
+      required: true,
+      timeout_minutes: 5,
+      when_files_changed: [ "**/*.go", "go.mod", "go.sum", "Makefile" ]
+    )
+  end
+
+  it "selects the CLI target, not the root workspace backstop, for core CLI changes" do
+    graph = TargetGraph::Compiler.compile(Rails.root)
+
+    cli_prepare = graph.target("//cli:prepare")
+    cli_tests = graph.affected("//cli:grade/go-tests", changed_files: [ "cli/cmd/jobs.go" ])
+    root_backstop = graph.affected("//:grade/cli-go-workspace-backstop", changed_files: [ "cli/cmd/jobs.go" ])
+    plugin_cli = graph.affected("//:grade/cli-go-workspace-backstop", changed_files: [ "plugins/example/cli/cmd/example.go" ])
+
+    expect(cli_prepare.command).to eq("mise exec go@1.26.5 -- go mod download")
+    expect(cli_tests.affected).to be(true)
+    expect(root_backstop.affected).to be(false)
+    expect(plugin_cli.affected).to be(true)
   end
 
   # migration-baselines ran `bin/rails db:create` with no bundle installed and

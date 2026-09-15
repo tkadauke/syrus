@@ -945,7 +945,11 @@ the live hook and retries a dead hook instead of parroting a stale mode.
 - **Go CLI** lives under `cli/` and talks to the app-scoped JSON API
   (`/api/v1/app/*`). Keep CLI commands, API serializers/controllers, and
   `website/src/content/docs/api.md` aligned when changing terminal-visible
-  behavior; test CLI changes with `go test $(go list -m -f '{{.Dir}}/...')` from the repo root, which covers the CLI module and every plugin-owned CLI module in `go.work`. The CLI covers
+  behavior; `cli/.syrus.yml` owns the core CLI prepare/test target, while the
+  root `.syrus.yml` keeps a Go-workspace backstop for plugin-owned CLI modules
+  and release/desktop packaging paths that span projects. For local broad
+  validation, run `go test $(go list -m -f '{{.Dir}}/...')` from the repo root,
+  which covers the CLI module and every plugin-owned CLI module in `go.work`. The CLI covers
   chat plus Job, Epic, repository, schedule, checkout, inbox, test-plan,
   approval, and identity workflows; repo-aware commands should detect `origin`,
   scope to that repo by default, and refuse checkout changes when the local repo

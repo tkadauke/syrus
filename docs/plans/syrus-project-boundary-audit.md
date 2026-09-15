@@ -1,8 +1,8 @@
 # Syrus Project Boundary Audit
 
 This is a planning audit for splitting this repository's workflow configuration
-into project-aware `.syrus.yml` declarations. It intentionally does not move any
-configuration.
+into project-aware `.syrus.yml` declarations. The core CLI split has now been
+applied; the remaining sections describe follow-up project moves.
 
 ## Current Boundaries
 
@@ -14,9 +14,9 @@ boundaries:
   scripts in `bin/`. This owns the production web app, worker process,
   workflow engine, MCP sidecar, shared React shell, design tokens, Rails
   migrations, and most operational checks.
-- **Go CLI**: `cli/`, plus the root `go.work`. Several bundled plugins also
-  contribute CLI modules through `plugins/*/cli`, so the CLI boundary is a Go
-  workspace, not only the `cli/` directory.
+- **Go CLI**: `cli/`, now with its own `cli/.syrus.yml` project. The root
+  `go.work` still spans bundled plugin CLI modules under `plugins/*/cli`, so
+  cross-project Go workspace checks remain a repository-level backstop.
 - **Desktop app**: `desktop/`, with its own `package.json`, Vite config,
   Electron main/preload code, renderer, packaging scripts, and backend/CLI
   staging scripts. It depends on root assets and the Go CLI for release builds.
@@ -58,8 +58,11 @@ Root `.syrus.yml` currently declares:
   `migration-collisions`, `migration-lint`, `migration-baselines`,
   `thread-budget`, `feature-slugs`, `plugin-model-namespaces`,
   `plugin-boundaries`, `eager-load`, `work-engine-simulations`,
-  `production-build-boot`, `cli-go-tests`, `rspec`, `rspec-focused`,
-  `rspec-ci`, `react-tests`, `react-tests-focused`, and `website-build`.
+  `production-build-boot`, `cli-go-workspace-backstop`, `rspec`,
+  `rspec-focused`, `rspec-ci`, `react-tests`, `react-tests-focused`, and
+  `website-build`.
+- `cli/.syrus.yml`: a `cli` project with Go module download prepare and
+  `go-tests` for core CLI changes under `cli/`.
 - `coverage`: LCOV sources at `coverage/lcov.info` and `coverage/js/lcov.info`,
   line threshold 70, `on_miss: warn`, PR comments enabled, seven-day hitmap TTL.
 - `deployment_stages`: staging, production, and public tag tracking.
@@ -98,11 +101,12 @@ These are good candidates for nested project declarations:
 - `website-build`: belongs in `website/.syrus.yml`.
 - Desktop typecheck, renderer build, main-process build, and staging smoke
   checks: belong in `desktop/.syrus.yml`. The current root config only covers
-  desktop indirectly through `react-tests-focused` and `cli-go-tests`.
-- CLI Go tests: should be split between `cli/.syrus.yml` for the core CLI and
-  `plugins/.syrus.yml` or plugin-specific configs for plugin CLI modules.
-  A repo-level Go workspace check can remain as a landing backstop while that
-  split proves out.
+  desktop indirectly through `react-tests-focused` and the Go workspace
+  backstop for CLI packaging paths.
+- Plugin CLI Go tests should move into `plugins/.syrus.yml` or plugin-specific
+  configs. Core CLI tests already live in `cli/.syrus.yml`; the repo-level Go
+  workspace check remains as a cross-project backstop while plugin and release
+  artifact targets are still broad.
 - `react-tests-focused`: should become project-aware across core frontend,
   plugin frontend, and desktop renderer paths instead of one broad root
   selector.
@@ -199,7 +203,7 @@ model the staged CLI artifact.
 
 ### 4. Split CLI And Plugin CLI Checks
 
-Create `cli/.syrus.yml`:
+Completed for the core CLI. `cli/.syrus.yml` declares:
 
 ```yaml
 project:
@@ -214,9 +218,10 @@ grade:
   - name: go-tests
     run: mise exec go@1.26.5 -- go test ./...
     phases: [review, landing, ci]
+    when_files_changed: ["**/*.go", "go.mod", "go.sum", "Makefile"]
 ```
 
-Create `plugins/.syrus.yml` with a plugin ecosystem project:
+Still to do: create `plugins/.syrus.yml` with a plugin ecosystem project:
 
 ```yaml
 project:
@@ -231,10 +236,11 @@ grade:
     when_files_changed: ["*/cli/**/*.go", "*/cli/go.mod"]
 ```
 
-Expected behavior: core CLI diffs select `//cli:grade/go-tests`; plugin CLI
-diffs select `//plugins:grade/cli-go-tests`; release workflow and desktop
-packaging diffs keep selecting a repo-level backstop until explicit deps wire
-those paths to CLI targets.
+Expected behavior after the plugin split: core CLI diffs select
+`//cli:grade/go-tests`; plugin CLI diffs select
+`//plugins:grade/cli-go-tests`; release workflow and desktop packaging diffs
+keep selecting a repo-level backstop until explicit deps wire those paths to
+CLI targets.
 
 ### 5. Split Plugin Rails/Frontend Checks Carefully
 
