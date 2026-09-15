@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe MuseCredentialProbe do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   let(:user) { Factories.user(muse_api_key: "muse-secret") }
 
   def runner_result(exit_status: 0, timed_out: false, silent_timed_out: false)
@@ -41,7 +45,7 @@ RSpec.describe MuseCredentialProbe do
 
     expect(result.ok).to be true
     expect(result.message).to eq("Muse API key is valid.")
-    expect(captured[:command]).to eq([ "muse", "exec", "--api-key-stdin", "Reply with OK." ])
+    expect(captured[:command]).to eq([ "muse", "exec", "--json", "--provider", "meta", "--api-key-stdin", "Reply with OK." ])
     expect(captured[:stdin_data]).to eq("muse-secret")
     expect(captured[:command].join(" ")).not_to include("muse-secret")
     expect(captured[:timeout]).to eq(30)

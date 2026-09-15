@@ -2,6 +2,10 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe ChatProviders::Muse do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   let(:user) { Factories.user(muse_api_key: "muse-secret", github_token: "ghp-test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
   let(:chat) { ChatSession.create!(repository: repository, user: user, chat_provider: "muse") }

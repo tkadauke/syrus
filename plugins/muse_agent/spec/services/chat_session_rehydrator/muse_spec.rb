@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe ChatSessionRehydrator::Muse do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   let(:user) { Factories.user }
   let(:chat) { ChatSession.create!(user: user, chat_provider: "muse") }
 

@@ -18,6 +18,8 @@ class MuseCredentialProbe
         env: ProcessRunner.forwarded_env(AgentInvocation::ENV_FORWARD),
         command: [
           "muse", "exec",
+          "--json",
+          "--provider", "meta",
           "--api-key-stdin",
           "Reply with OK."
         ],

@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe Filters::Chips::AdminUsers::HasMuseToken do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   let!(:without_token) { Factories.user(email_address: "plain@example.com", muse_api_key: nil) }
   let!(:with_token) { Factories.user(email_address: "muse@example.com", muse_api_key: "muse_x") }
 
