@@ -134,6 +134,10 @@ RSpec.describe "Syrus grader configuration" do
     expect(config.visual_review).to have_attributes(enabled: true, rounds: 2)
     expect(config.coverage.sources.first.artifact).to eq("coverage/lcov.info")
 
+    graph = TargetGraph::Compiler.compile(Rails.root)
+    expect(graph.target("//desktop:renderer-build").command).to eq("npm run build:renderer")
+    expect(graph.target("//desktop:main-build").command).to eq("npm run build:main")
+
     grader = config.grade.steps.find { |step| step.name == "typecheck" }
     expect(grader).to have_attributes(
       run: "npm --prefix desktop run typecheck",

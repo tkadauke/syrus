@@ -65,7 +65,7 @@ targets:
 
   - name: renderer-build
     kind: builder
-    run: npm --prefix desktop run build:renderer
+    run: npm run build:renderer
     sources:
       - "src/*"
       - "src/**/*"
@@ -79,7 +79,7 @@ targets:
 
   - name: main-build
     kind: builder
-    run: npm --prefix desktop run build:main
+    run: npm run build:main
     sources:
       - "electron/*"
       - "electron/**/*"
