@@ -16,7 +16,7 @@ RSpec.describe "website release metadata sync" do
       committed = {
         version: "0.1.0",
         mac: { size: 111 },
-        windows: { size: 222 },
+        windows: { size: 222 }
       }
       File.write(release_path, JSON.pretty_generate(committed) + "\n")
 

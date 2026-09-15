@@ -86,7 +86,7 @@ RSpec.describe Syrus::EffectScope do
   it "refuses new effects once disposed" do
     scope.dispose
 
-    expect { scope.effect("late") { -> {} } }.to raise_error(described_class::DisposedScope)
+    expect { scope.effect("late") { -> { } } }.to raise_error(described_class::DisposedScope)
     expect { scope.child(label: "late") }.to raise_error(described_class::DisposedScope)
   end
 end

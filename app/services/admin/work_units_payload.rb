@@ -271,6 +271,5 @@ module Admin
         scope
       end
     end
-
   end
 end
