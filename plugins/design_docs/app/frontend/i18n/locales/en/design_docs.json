@@ -1,5 +1,13 @@
 {
   "tab_design_docs": "Design Docs",
+  "index_table_label": "Design Docs index",
+  "columns_button": "Columns",
+  "columns_visible": "Visible columns",
+  "columns_move_left": "Move {{title}} left",
+  "columns_move_right": "Move {{title}} right",
+  "columns_move_earlier": "Up",
+  "columns_move_later": "Down",
+  "columns_update_error": "Unable to update columns.",
   "list_tool_filter_placeholder": "Filter design docs",
   "preview_see_more": "See more",
   "preview_not_accessible": "Not accessible",

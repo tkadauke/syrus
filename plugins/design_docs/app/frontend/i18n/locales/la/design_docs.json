@@ -1,5 +1,13 @@
 {
   "tab_design_docs": "Documenta consilii",
+  "index_table_label": "Index documentorum consilii",
+  "columns_button": "Columnae",
+  "columns_visible": "Columnae visibiles",
+  "columns_move_left": "Muta {{title}} sinistrorsum",
+  "columns_move_right": "Muta {{title}} dextrorsum",
+  "columns_move_earlier": "Sursum",
+  "columns_move_later": "Deorsum",
+  "columns_update_error": "Columnas renovare non potuit.",
   "list_tool_filter_placeholder": "Filtra documenta consilii",
   "preview_see_more": "Vide amplius",
   "preview_not_accessible": "Non accessibile",

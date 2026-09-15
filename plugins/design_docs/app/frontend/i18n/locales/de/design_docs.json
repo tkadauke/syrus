@@ -1,5 +1,13 @@
 {
   "tab_design_docs": "Design Docs",
+  "index_table_label": "Design-Docs-Index",
+  "columns_button": "Spalten",
+  "columns_visible": "Sichtbare Spalten",
+  "columns_move_left": "{{title}} nach links verschieben",
+  "columns_move_right": "{{title}} nach rechts verschieben",
+  "columns_move_earlier": "Hoch",
+  "columns_move_later": "Runter",
+  "columns_update_error": "Spalten konnten nicht aktualisiert werden.",
   "list_tool_filter_placeholder": "Design-Dokumente filtern",
   "preview_see_more": "Mehr anzeigen",
   "preview_not_accessible": "Nicht zugänglich",
