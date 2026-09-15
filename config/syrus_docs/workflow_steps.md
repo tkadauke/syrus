@@ -601,6 +601,9 @@ current target fingerprints must have a latest healthy record, and every
 executable dependency target must also be healthy for its current fingerprints.
 A cache hit skips Step materialization, logs the reason, and records an entry
 in `target_health_skipped_targets` on the workflow and fanout Step details.
+Review-phase focused graders should stay scoped to the project surfaces they
+own; broad release confidence belongs in landing/CI graders and main-branch
+target-health sweeps, not in every review loop.
 Baseline `main_grader` sweeps with no previous main SHA are the exception:
 they select every configured grader target and bypass both target-health reuse
 and successful full-plan `GraderConclusion` reuse so the broad sweep can catch

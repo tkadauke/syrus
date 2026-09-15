@@ -381,13 +381,13 @@ grade:
       `related` resolution) to the diff so far, on every review-phase
       grade iteration. Fast feedback loop for small diffs; broad frontend
       diffs can approach full-suite runtime, so it uses the same timeout as
-      the landing/ci `react-tests` grader. Desktop project metadata lives in
-      desktop/.syrus.yml, but keep desktop/src here as an executable
-      review-phase backstop until nested grader targets are materialized
-      directly by workflow fanout.
+      the landing/ci `react-tests` grader. Desktop renderer checks now live in
+      desktop/.syrus.yml; keep this root focused grader scoped to the Rails
+      app and plugin SPA surfaces, with the full landing/CI `react-tests`
+      grader as the broad backstop.
     run: bin/test-react-focused
     phases: [review]
-    when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx", "desktop/src/*.ts", "desktop/src/*.tsx", "desktop/src/**/*.ts", "desktop/src/**/*.tsx"]
+    when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx"]
     junit_output: .syrus/grade-output/react-tests-focused-junit.xml
     failures: allow_inherited
     base_retry:

@@ -126,7 +126,7 @@ RSpec.describe "Syrus grader configuration" do
     expect(root_backstop.affected).to be(true)
   end
 
-  it "selects desktop targets and preview project for desktop-only changes" do
+  it "selects desktop targets and preview project for desktop-only changes without the root React focused grader" do
     graph = TargetGraph::Compiler.compile(Rails.root)
 
     typecheck = graph.affected("//desktop:grade/typecheck", changed_files: [ "desktop/src/App.tsx" ])
@@ -141,7 +141,7 @@ RSpec.describe "Syrus grader configuration" do
     )
     expect(typecheck.affected).to be(true)
     expect(renderer_build.affected).to be(true)
-    expect(root_react_focused.affected).to be(true)
+    expect(root_react_focused.affected).to be(false)
   end
 
   it "selects the union of Rails app and desktop project primitives for mixed app and desktop changes" do
@@ -155,8 +155,21 @@ RSpec.describe "Syrus grader configuration" do
 
     expect(app_visual.choices.map(&:id)).to match_array(%w[repo desktop])
     expect(app_react_focused.affected).to be(true)
+    expect(app_react_focused.reason).to eq("own source scope matched a changed file")
     expect(desktop_typecheck.affected).to be(true)
     expect(desktop_renderer_build.affected).to be(true)
+  end
+
+  it "keeps root React focused checks scoped to app and plugin frontend paths" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    grader = config.grade.steps.find { |step| step.name == "react-tests-focused" }
+
+    expect(grader.when_files_changed).to contain_exactly(
+      "app/frontend/**/*.ts",
+      "app/frontend/**/*.tsx",
+      "plugins/**/app/frontend/**/*.ts",
+      "plugins/**/app/frontend/**/*.tsx"
+    )
   end
 
   # migration-baselines ran `bin/rails db:create` with no bundle installed and
