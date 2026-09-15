@@ -55,7 +55,7 @@ RSpec.describe BaseRevisionRetry do
       grader_step: grader_step,
       base_sha: "main123",
       failed_cases: failed_cases,
-      log: ->(_message) {}
+      log: ->(_message) { }
     )
     allow(retry_check).to receive(:run_command) do |_command, chdir, output|
       path = chdir.join(".syrus/grade-output/rspec-junit.xml")
@@ -93,7 +93,7 @@ RSpec.describe BaseRevisionRetry do
       grader_step: grader_step,
       base_sha: "main123",
       failed_cases: failed_cases,
-      log: ->(_message) {}
+      log: ->(_message) { }
     )
     allow(retry_check).to receive(:run_command) do |_command, chdir, output|
       path = chdir.join(".syrus/grade-output/rspec-junit.xml")
@@ -123,7 +123,7 @@ RSpec.describe BaseRevisionRetry do
       grader_step: grader_step,
       base_sha: "main123",
       failed_cases: failed_cases,
-      log: ->(_message) {}
+      log: ->(_message) { }
     )
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([])
     allow(retry_check).to receive(:run_command) do |_command, chdir, _output|
@@ -155,7 +155,7 @@ RSpec.describe BaseRevisionRetry do
       grader_step: grader_step,
       base_sha: "main123",
       failed_cases: [],
-      log: ->(_message) {}
+      log: ->(_message) { }
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Vitest failed before structured cases were stored\n"
@@ -179,7 +179,7 @@ RSpec.describe BaseRevisionRetry do
       grader_step: grader_step,
       base_sha: "main123",
       failed_cases: failed_cases.map { |test_case| test_case.except("file_path") },
-      log: ->(_message) {}
+      log: ->(_message) { }
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Base passed\n"
@@ -209,7 +209,7 @@ RSpec.describe BaseRevisionRetry do
       workflow: workflow,
       grader_step: grader_step,
       base_sha: "main123",
-      log: ->(_message) {}
+      log: ->(_message) { }
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Build failed: missing generated plugin data\n"
@@ -239,7 +239,7 @@ RSpec.describe BaseRevisionRetry do
       workflow: workflow,
       grader_step: grader_step,
       base_sha: "main123",
-      log: ->(_message) {}
+      log: ->(_message) { }
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Build succeeded\n"
