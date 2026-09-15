@@ -74,6 +74,7 @@
     "unable_to_update_landing": "Ordinem expectantium mutare non potuit.",
     "resume_landing": "Descensum resume",
     "pause_landing": "Descensum pausa",
+    "pause_landing_confirm": "Ordinem descensus pausare? Opera approbata non descendent donec resumantur.",
     "unable_to_rename": "Scrinium renominare non potuit.",
     "unable_to_delete": "Scrinium delere non potuit.",
     "queued_blocked_count": "{{count}} impedita",

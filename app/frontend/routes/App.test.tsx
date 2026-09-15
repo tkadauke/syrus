@@ -4380,6 +4380,8 @@ describe("App", () => {
       )
 
       fireEvent.click(await screen.findByRole("button", { name: "Pause landing" }))
+      const confirmDialog = await screen.findByRole("dialog", { name: "Pause the landing queue? Approved jobs will stop landing until you resume it." })
+      fireEvent.click(within(confirmDialog).getByRole("button", { name: "Pause landing" }))
       expect(screen.getByRole("columnheader", { name: "Queue" })).toBeInTheDocument()
       expect(screen.getByRole("cell", { name: "#3" })).toBeInTheDocument()
 
@@ -4393,7 +4395,7 @@ describe("App", () => {
               Accept: "application/json",
               "Content-Type": "application/json"
             }),
-            body: JSON.stringify({})
+            body: JSON.stringify({ confirmed: true })
           })
         )
       })

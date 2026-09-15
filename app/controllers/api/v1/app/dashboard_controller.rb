@@ -73,7 +73,13 @@ module Api
         end
 
         def landing_pause
-          Current.user.update!(landing_paused: !Current.user.landing_paused?)
+          pausing = !Current.user.landing_paused?
+          if pausing && !ActiveModel::Type::Boolean.new.cast(params[:confirmed])
+            render_error("confirmation_required", "Confirm pausing the landing queue.", status: :unprocessable_content)
+            return
+          end
+
+          Current.user.update!(landing_paused: pausing)
           LandingQueueProcessorJob.perform_later unless Current.user.landing_paused?
 
           render json: {
