@@ -743,7 +743,8 @@ class User < ApplicationRecord
 
   PROVIDER_CONFIGURED_CHECKS = {
     "claude" => :claude_configured?,
-    "codex"  => :codex_configured?
+    "codex"  => :codex_configured?,
+    "agy"    => :gemini_configured?
   }.freeze
 
   CODEX_AUTH_MODE_CREDENTIALS = {

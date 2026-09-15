@@ -1,0 +1,7 @@
+{"event":"init","conversation_id":"agy-conv-1","model":"gemini-test","cwd":"/tmp/work","tools":["mcp(syrus-chat-sidecar/read_live_state)"],"timestamp":"2026-09-15T00:00:00Z"}
+not-json
+{"event":"user","message":{"content":"Hello Antigravity."},"timestamp":"2026-09-15T00:00:01Z"}
+{"event":"step_update","message":{"role":"assistant","content":"I will inspect it."},"timestamp":"2026-09-15T00:00:02Z"}
+{"event":"step_update","tool_call":{"id":"tool-1","name":"mcp(syrus-chat-sidecar/read_live_state)","input":{"scope":"chat"}},"timestamp":"2026-09-15T00:00:03Z"}
+{"event":"step_update","tool_result":{"id":"tool-1","name":"mcp(syrus-chat-sidecar/read_live_state)","content":"ok","is_error":false},"timestamp":"2026-09-15T00:00:04Z"}
+{"event":"result","result":"Done.","num_turns":2,"usage":{"input_tokens":5,"output_tokens":4,"thinking_tokens":1,"cache_tokens":2,"total_tokens":12},"timestamp":"2026-09-15T00:00:05Z"}

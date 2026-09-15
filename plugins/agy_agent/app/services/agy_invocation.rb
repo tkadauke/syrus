@@ -22,6 +22,7 @@ class AgyInvocation
                  resume_session_id: nil,
                  resume_transcript_jsonl: nil,
                  mcp_server: nil,
+                 mcp_servers: nil,
                  model: nil,
                  effort_level: nil,
                  required_mcp_tools: nil,
@@ -38,6 +39,7 @@ class AgyInvocation
     @resume_session_id = resume_session_id
     @resume_transcript_jsonl = resume_transcript_jsonl
     @mcp_server = mcp_server
+    @mcp_servers = mcp_servers
     @model = model.to_s.strip.presence || self.class.configured_model
     @effort_level = effort_level.to_s.strip.presence || self.class.configured_effort
     @required_mcp_tools = Array(required_mcp_tools).compact_blank.map(&:to_s)
@@ -57,6 +59,7 @@ class AgyInvocation
       resume_session_id: @resume_session_id,
       resume_transcript_jsonl: @resume_transcript_jsonl,
       mcp_server: @mcp_server,
+      mcp_servers: @mcp_servers,
       model: @model,
       effort_level: @effort_level,
       required_mcp_tools: @required_mcp_tools,
@@ -70,13 +73,13 @@ class AgyInvocation
 
   def default_runner(workspace_path:, prompt:, api_key: nil, log_sink:, timeout:, agy_home: nil,
                      resume_session_id: nil, resume_transcript_jsonl: nil,
-                     mcp_server: nil, model: nil, effort_level: nil,
+                     mcp_server: nil, mcp_servers: nil, model: nil, effort_level: nil,
                      required_mcp_tools: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
                      on_session_id: ->(_session_id) { })
     agy_home = agy_home.presence || File.join(Dir.home, ".agy")
     FileUtils.mkdir_p(agy_home)
-    write_mcp_config(agy_home, mcp_server, log_sink) if mcp_server
+    write_mcp_config(agy_home, mcp_servers.presence || mcp_server, log_sink) if mcp_servers.present? || mcp_server
     restored_resume = restore_resume_transcript(
       agy_home: agy_home,
       workspace_path: workspace_path,
@@ -212,23 +215,40 @@ class AgyInvocation
   end
 
   def write_mcp_config(agy_home, mcp_server, log_sink)
+    servers = normalize_mcp_servers(mcp_server)
     config = {
-      mcpServers: {
-        "syrus-mcp-sidecar" => {
-          command: mcp_server.fetch(:command),
-          args: Array(mcp_server[:args]),
-          env: mcp_server.fetch(:env, {}).compact
+      mcpServers: servers.transform_values do |server|
+        {
+          command: server.fetch(:command),
+          args: Array(server[:args]),
+          env: server.fetch(:env, {}).compact
         }
-      }
+      end
     }
     path = File.join(agy_home, ".gemini", "config", "mcp_config.json")
     FileUtils.mkdir_p(File.dirname(path))
     File.write(path, JSON.pretty_generate(config) + "\n")
-    log_sink.call(
-      "[mcp_config] server=syrus-mcp-sidecar command=#{mcp_server[:command]} args=#{Array(mcp_server[:args]).join(' ')} path=#{path} env_keys=#{config[:mcpServers]['syrus-mcp-sidecar'][:env].keys.sort.join(',')}",
-      kind: "system"
-    )
+    servers.each do |name, server|
+      log_sink.call(
+        "[mcp_config] server=#{name} command=#{server[:command]} args=#{Array(server[:args]).join(' ')} path=#{path} env_keys=#{config[:mcpServers][name][:env].keys.sort.join(',')}",
+        kind: "system"
+      )
+    end
     path
+  end
+
+  def normalize_mcp_servers(mcp_server)
+    if mcp_server.is_a?(Hash) && mcp_server.key?(:command)
+      return { "syrus-mcp-sidecar" => mcp_server }
+    end
+
+    mcp_server.to_h.transform_values do |server|
+      {
+        command: server.fetch(:command),
+        args: Array(server[:args]),
+        env: server.fetch(:env, {})
+      }
+    end
   end
 
   def restore_resume_transcript(agy_home:, workspace_path:, session_id:, jsonl:, log_sink:)
@@ -287,9 +307,60 @@ class AgyInvocation
   end
 
   def process_step_update(event, log_sink)
+    tool_call_update = process_tool_call_update(event, log_sink)
+    tool_result_update = process_tool_result_update(event, log_sink)
     text = event.dig("message", "content").presence || event["message"].presence || event["content"].presence || event["text"].presence
     log_sink.call(text, kind: "assistant_text") if text.present?
-    text.present? ? { final_text: text } : nil
+    update = {}
+    update[:final_text] = text if text.present?
+    update.merge!(tool_call_update || {})
+    update.merge!(tool_result_update || {})
+    update.presence
+  end
+
+  def process_tool_call_update(event, log_sink)
+    tool_call = event["tool_call"] || event["toolUse"] || event["tool_use"]
+    return unless tool_call.is_a?(Hash)
+
+    name = normalize_tool_name(tool_call["name"] || tool_call["tool"])
+    id = tool_call["id"] || tool_call["call_id"]
+    input = tool_call["input"] || tool_call["arguments"] || {}
+    log_sink.call(
+      "[agy tool] #{name}",
+      kind: "tool_call",
+      tool_name: name,
+      tool_input: input,
+      tool_use_id: id
+    )
+    nil
+  end
+
+  def process_tool_result_update(event, log_sink)
+    tool_result = event["tool_result"] || event["toolResult"]
+    return unless tool_result.is_a?(Hash)
+
+    name = normalize_tool_name(tool_result["name"] || tool_result["tool"])
+    id = tool_result["id"] || tool_result["call_id"] || tool_result["tool_use_id"]
+    content = tool_result["content"] || tool_result["result"] || tool_result["output"]
+    error = tool_result["is_error"] == true || tool_result["error"] == true
+    log_sink.call(
+      "[agy tool_result] #{name || id}",
+      kind: "tool_result",
+      tool_name: name,
+      tool_result_content: content,
+      tool_result_error: error,
+      tool_use_id: id
+    )
+    nil
+  end
+
+  def normalize_tool_name(name)
+    raw = name.to_s
+    if (match = raw.match(/\Amcp\((.+?)\/(.+?)\)\z/))
+      "mcp__#{match[1]}__#{match[2]}"
+    else
+      raw.presence
+    end
   end
 
   def required_mcp_tools_update(event, required_mcp_tools, log_sink)
