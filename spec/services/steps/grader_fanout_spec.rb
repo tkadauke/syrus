@@ -758,6 +758,51 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
   end
 
+  it "keeps the root Go workspace backstop executable for core CLI changes while CLI targets are nested" do
+    write_config(<<~YAML)
+      grade:
+        - name: cli-go-workspace-backstop
+          run: mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'
+          phases: [review, landing, ci]
+          when_files_changed:
+            - "cli/**/*.go"
+            - "plugins/*/cli/**/*.go"
+    YAML
+    FileUtils.mkdir_p(@ws_path.join("cli"))
+    @ws_path.join("cli/.syrus.yml").write(<<~YAML)
+      project:
+        id: cli
+        label: CLI
+        kind: cli
+
+      prepare:
+        - mise exec go@1.26.5 -- go mod download
+
+      grade:
+        - name: go-tests
+          run: mise exec go@1.26.5 -- go test ./...
+          phases: [review, landing, ci]
+          when_files_changed:
+            - "**/*.go"
+    YAML
+    stub_changed_files("cli/cmd/jobs.go")
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    expect(grader_step.details).to include(
+      "name" => "cli-go-workspace-backstop",
+      "command" => %(mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")')
+    )
+    expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)).to contain_exactly(
+      include(
+        "name" => "cli-go-workspace-backstop",
+        "target_label" => "//:grade/cli-go-workspace-backstop",
+        "affected" => true
+      )
+    )
+  end
+
   it "does not materialize a duplicate grader batch when fanout is retried after inserting steps" do
     write_config(<<~YAML)
       grade:

@@ -1,0 +1,22 @@
+project:
+  id: cli
+  label: CLI
+  kind: cli
+
+prepare:
+  - mise exec go@1.26.5 -- go mod download
+
+grade:
+  - name: go-tests
+    description: |
+      Runs the core Syrus CLI Go test suite for changes under cli/. Plugin
+      CLI modules are still covered by the root workspace backstop because
+      go.work intentionally spans multiple modules.
+    run: mise exec go@1.26.5 -- go test ./...
+    phases: [review, landing, ci]
+    when_files_changed:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+    timeout_minutes: 5
