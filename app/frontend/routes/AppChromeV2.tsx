@@ -48,10 +48,42 @@ import { firstUnstartedChat } from "../lib/unstartedChat"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
 const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
+const MAINTENANCE_SIDEBAR_STATE_KEY = "syrus.maintenance_sidebar.state"
 const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
+type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
 
 function randomPubliliusSyrusQuote() {
   return PUBLILIUS_SYRUS_QUOTES[Math.floor(Math.random() * PUBLILIUS_SYRUS_QUOTES.length)]
+}
+
+function maintenanceSidebarTaskKey(task: MaintenanceTask) {
+  return `${task.id}:${task.task_key}`
+}
+
+function readMaintenanceSidebarState(): MaintenanceSidebarState {
+  try {
+    const raw = window.localStorage.getItem(MAINTENANCE_SIDEBAR_STATE_KEY)
+    if (!raw) return { collapsed: false, hasTaskSnapshot: false, taskKeys: [] }
+
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.taskKeys)) return { collapsed: false, hasTaskSnapshot: false, taskKeys: [] }
+
+    return {
+      collapsed: parsed.collapsed === true,
+      hasTaskSnapshot: true,
+      taskKeys: parsed.taskKeys.filter((key: unknown): key is string => typeof key === "string")
+    }
+  } catch {
+    return { collapsed: false, hasTaskSnapshot: false, taskKeys: [] }
+  }
+}
+
+function writeMaintenanceSidebarState({ collapsed, taskKeys }: { collapsed: boolean; taskKeys: string[] }) {
+  try {
+    window.localStorage.setItem(MAINTENANCE_SIDEBAR_STATE_KEY, JSON.stringify({ collapsed, taskKeys }))
+  } catch {
+    // Browser storage is a convenience here; the sidebar should still work without it.
+  }
 }
 
 export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNode; initialBootstrap: BootstrapPayload | null }) {
@@ -1110,7 +1142,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedIn: boolean }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => readMaintenanceSidebarState().collapsed)
   const [docsTask, setDocsTask] = useState<MaintenanceTask | null>(null)
   const [docsLoadingTaskId, setDocsLoadingTaskId] = useState<number | null>(null)
   const tasks = useQuery({
@@ -1131,6 +1163,25 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
     }
   })
   const visibleTasks = tasks.data?.tasks ?? []
+  const visibleTaskKeys = useMemo(() => visibleTasks.map(maintenanceSidebarTaskKey), [visibleTasks])
+
+  useEffect(() => {
+    if (!tasks.isSuccess) return
+
+    const storedState = readMaintenanceSidebarState()
+    const storedTaskKeys = new Set(storedState.taskKeys)
+    const hasNewTask = storedState.hasTaskSnapshot && visibleTaskKeys.some((key) => !storedTaskKeys.has(key))
+    const nextCollapsed = hasNewTask ? false : collapsed
+
+    if (nextCollapsed !== collapsed) setCollapsed(nextCollapsed)
+    writeMaintenanceSidebarState({ collapsed: nextCollapsed, taskKeys: visibleTaskKeys })
+  }, [collapsed, tasks.isSuccess, visibleTaskKeys])
+
+  function setCollapsedAndStore(nextCollapsed: boolean) {
+    setCollapsed(nextCollapsed)
+    writeMaintenanceSidebarState({ collapsed: nextCollapsed, taskKeys: visibleTaskKeys })
+  }
+
   if (visibleTasks.length === 0) return null
 
   async function openDocs(task: MaintenanceTask) {
@@ -1154,7 +1205,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
           <button
             aria-expanded={!collapsed}
             className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-muted hover:text-text-primary"
-            onClick={() => setCollapsed((value) => !value)}
+            onClick={() => setCollapsedAndStore(!collapsed)}
             type="button"
           >
             <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "-rotate-90" : ""}`} />
@@ -1165,7 +1216,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
         {collapsed ? (
           <button
             className="flex w-full items-center justify-between gap-2 rounded border border-border bg-surface px-2 py-1.5 text-left text-xs text-text-secondary shadow-sm hover:bg-surface-raised"
-            onClick={() => setCollapsed(false)}
+            onClick={() => setCollapsedAndStore(false)}
             type="button"
           >
             <span>{t("maintenance_tasks.sidebar_count", { count: visibleTasks.length })}</span>

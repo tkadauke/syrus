@@ -8,6 +8,7 @@ import type { BootstrapPayload } from "../api/bootstrap"
 import * as chatsApi from "../api/chats"
 import * as maintenanceApi from "../api/maintenanceTasks"
 import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayload } from "../api/chats"
+import type { MaintenanceTask } from "../api/maintenanceTasks"
 import { AppChromeV2 } from "./AppChromeV2"
 import { adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
 import { buildAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
@@ -2181,6 +2182,7 @@ describe("chatSectionsFromPayload", () => {
 
 describe("AppChromeV2 signed-out chrome", () => {
   beforeEach(() => {
+    window.localStorage.clear()
     vi.restoreAllMocks()
   })
 
@@ -2206,6 +2208,52 @@ describe("AppChromeV2 signed-out chrome", () => {
     renderAppChrome(<div>Dashboard</div>, { initialEntries: [ "/dashboard" ] })
 
     await waitFor(() => expect(sidebar).toHaveBeenCalled())
+  })
+})
+
+describe("AppChromeV2 maintenance sidebar", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("remembers the collapsed maintenance task state across remounts", async () => {
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
+      .mockResolvedValue({ tasks: [maintenanceTask({ title: "Repair stale indexes" })] })
+
+    const firstRender = renderAppChrome()
+    await screen.findByText("Repair stale indexes")
+
+    fireEvent.click(screen.getByRole("button", { name: "Maintenance" }))
+
+    expect(screen.queryByText("Repair stale indexes")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /1 maintenance task/i })).toBeInTheDocument()
+
+    firstRender.unmount()
+    renderAppChrome()
+
+    expect(await screen.findByRole("button", { name: /1 maintenance task/i })).toBeInTheDocument()
+    expect(screen.queryByText("Repair stale indexes")).not.toBeInTheDocument()
+  })
+
+  it("expands a remembered collapsed maintenance box when a new task appears", async () => {
+    window.localStorage.setItem("syrus.maintenance_sidebar.state", JSON.stringify({
+      collapsed: true,
+      taskKeys: [ "1:repair-stale-indexes" ]
+    }))
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
+      .mockResolvedValue({
+        tasks: [
+          maintenanceTask({ id: 1, task_key: "repair-stale-indexes", title: "Repair stale indexes" }),
+          maintenanceTask({ id: 2, task_key: "backfill-agents", title: "Backfill agents" })
+        ]
+      })
+
+    renderAppChrome()
+
+    await screen.findByText("Repair stale indexes")
+    expect(screen.getByText("Backfill agents")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /2 maintenance tasks/i })).not.toBeInTheDocument()
   })
 })
 
@@ -2295,6 +2343,40 @@ function moreChatsPayload(overrides: Partial<MoreChatsPayload> = {}): MoreChatsP
   return {
     chats: [],
     has_more: false,
+    ...overrides
+  }
+}
+
+function maintenanceTask(overrides: Partial<MaintenanceTask> = {}): MaintenanceTask {
+  return {
+    id: 1,
+    definition_key: "repair_stale_indexes",
+    task_key: "repair-stale-indexes",
+    state: "pending",
+    recurrence: "one_off",
+    category: "data",
+    title: "Repair stale indexes",
+    summary: "Repair stale search indexes.",
+    trigger_kind: "manual",
+    trigger_key: "repair_stale_indexes",
+    required_role: "admin",
+    current_step_key: null,
+    current_step_title: null,
+    total_units: 10,
+    completed_units: 0,
+    failed_units: 0,
+    progress_percent: 0,
+    eta_seconds: null,
+    started_at: null,
+    finished_at: null,
+    paused_at: null,
+    cancelled_at: null,
+    dismissed_at: null,
+    last_error: null,
+    pending_reason: null,
+    documentation: null,
+    steps: [],
+    paths: { admin: "/admin/maintenance_tasks/1", api: "/api/v1/app/admin/maintenance_tasks/1" },
     ...overrides
   }
 }
