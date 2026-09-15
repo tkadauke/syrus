@@ -307,7 +307,7 @@ describe("DashboardToolbar", () => {
     expect(nav).toBeTruthy()
     expect(columnsButton).toBeTruthy()
     // The columns button should appear before the nav in the DOM
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+     
     expect(columnsButton!.compareDocumentPosition(nav!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
@@ -320,7 +320,7 @@ describe("DashboardToolbar", () => {
     expect(nav).toBeTruthy()
     expect(lanesButton).toBeTruthy()
     // The kanban lanes button should appear before the nav in the DOM
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+     
     expect(lanesButton!.compareDocumentPosition(nav!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
