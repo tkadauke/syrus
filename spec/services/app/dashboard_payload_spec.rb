@@ -834,7 +834,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result.dig(:landing_queue, :status, :summary)).not_to include("should pick it up shortly")
     end
 
-    it "sorts eligible landing queue rows before blocked Epic merge-train rows when Queue is ascending" do
+    it "sorts landing queue rows by queue entry position when Queue is ascending" do
       AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
 
@@ -854,14 +854,14 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
 
-      expect(result[:items].map { |item| item[:id] }).to eq([ older.id, newer.id, epic_child.id ])
-      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, 2, nil ])
-      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "job:#{older.id}", "job:#{newer.id}", "epic:#{epic.id}" ])
+      expect(result[:items].map { |item| item[:id] }).to eq([ older.id, epic_child.id, newer.id ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, nil, 2 ])
+      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "job:#{older.id}", "epic:#{epic.id}", "job:#{newer.id}" ])
       expect(epic_child.reload.landing_queue_position).to be_nil
       expect(epic_child.landing_queue_entry_position).to eq(2)
     end
 
-    it "sorts blocked landing queue rows before eligible rows when Queue is descending" do
+    it "reverses queue entry position when Queue is descending" do
       AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
 
@@ -881,12 +881,12 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id, sort_column: "landing_queue_position", sort_direction: "desc")
 
-      expect(result[:items].map { |item| item[:id] }).to eq([ epic_child.id, newer.id, older.id ])
-      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ nil, 2, 1 ])
-      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "epic:#{epic.id}", "job:#{newer.id}", "job:#{older.id}" ])
+      expect(result[:items].map { |item| item[:id] }).to eq([ newer.id, epic_child.id, older.id ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 2, nil, 1 ])
+      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "job:#{newer.id}", "epic:#{epic.id}", "job:#{older.id}" ])
     end
 
-    it "applies eligible-first Queue sorting before paginating" do
+    it "applies queue entry sorting before paginating" do
       blocked_repo = Factories.repository(user: user, auto_merge_enabled: false)
       repo.update!(auto_merge_enabled: true)
       blocked_jobs = Array.new(described_class::PER_PAGE) do |index|
@@ -902,8 +902,8 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id, sort_column: "landing_queue_position", sort_direction: "asc")
 
-      expect(result[:items].first[:id]).to eq(visible_first.id)
-      expect(result[:items].first[:landing_queue_position]).to eq(1)
+      expect(result[:items].first[:id]).to eq(blocked_jobs.first.id)
+      expect(result[:items]).not_to include(hash_including(id: visible_first.id))
       expect(result[:items].map { |item| item[:id] }).to include(blocked_jobs.first.id)
     end
 
