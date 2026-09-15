@@ -117,6 +117,7 @@ class MergeTrainDispatcher
     excluded_failure_patterns = [
       "merge_train: base moved%",
       "merge_train: missing built base SHA%",
+      "merge_train: members not in :landing%",
       "#{LandingQueueReentry::START_BLOCKER_PREFIX}%",
       "#{MergeTrain::STALE_RUNTIME_FAILURE_REASON}%"
     ]
