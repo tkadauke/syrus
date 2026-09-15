@@ -362,7 +362,7 @@ module App
 
       @job_has_approval_blocking_runtime_work = PerformanceLogging.phase("job_detail.job.approval_blocking_runtime_work", job_id: @job.id) do
         job_active_run_states(exclude_non_approval_blocking: true).any? ||
-          active_work_units_for_job.any? { |unit| !Workflow::TriggerKind.non_approval_blocking?(unit.kind) }
+          active_work_units_for_job.any? { |unit| !Workflow::TriggerKind.non_approval_blocking?(unit.workflow&.trigger_kind || unit.kind) }
       end
     end
 

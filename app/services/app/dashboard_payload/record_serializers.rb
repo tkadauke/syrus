@@ -105,7 +105,7 @@ module App
           needs_attention_reason: job.needs_attention_reason,
           delivery_status: delivery_status,
           bulk_actions: bulk_actions,
-          can_approve: job.can_add_job_approval?(user) && !simple_epic_child?(job),
+          can_approve: dashboard_job_can_approve?(job),
           can_release_from_backlog: dashboard_job_can_release_from_backlog?(job),
           can_move_to_backlog: dashboard_job_can_move_to_backlog?(job),
           can_start_preview: PerformanceLogging.phase("dashboard_job.can_start_preview", job_id: job.id) { can_start_preview_for?(job) },
@@ -138,6 +138,20 @@ module App
         end
 
         job.active_runtime_work?
+      end
+
+      def dashboard_job_approval_blocking_runtime_work?(job)
+        if defined?(@job_runtime_approval_blocking_job_ids)
+          return @job_runtime_approval_blocking_job_ids.key?(job.id)
+        end
+
+        job.approval_blocking_runtime_work?
+      end
+
+      def dashboard_job_can_approve?(job)
+        job.can_add_job_approval?(user) &&
+          !dashboard_job_approval_blocking_runtime_work?(job) &&
+          !simple_epic_child?(job)
       end
 
       def dashboard_job_can_release_from_backlog?(job)
@@ -174,7 +188,7 @@ module App
           release_claim: writable && job.claimed_by_user_id == user.id,
           assign_owner: writable,
           set_priority: writable,
-          approve: writable && job.auto_merge_enabled? && job.may_approve? && job.can_add_job_approval?(user) && !simple_epic_child?(job),
+          approve: writable && job.auto_merge_enabled? && job.may_approve? && dashboard_job_can_approve?(job),
           close: writable && !job.closed?
         }
       end

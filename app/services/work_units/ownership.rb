@@ -34,6 +34,12 @@ module WorkUnits
         first_unit_by_job_id.transform_values { |unit| unit.workflow&.trigger_kind || unit.kind }
       end
 
+      def approval_blocking_job_ids
+        job_ids_for(states: ACTIVE_STATES, kinds: nil) do |unit|
+          !Workflow::TriggerKind.non_approval_blocking?(unit.workflow&.trigger_kind || unit.kind)
+        end.to_set
+      end
+
       def active_repair_work_by_job_id
         repair_kinds = WorkDefinitions.active_repair_work_kinds.map(&:to_s).to_set
         first_unit_by_job_id(kinds: repair_kinds).transform_values do |unit|
@@ -59,6 +65,7 @@ module WorkUnits
           unit = member.work_unit
           next unless allowed_states.include?(unit.state)
           next if allowed_kinds && !allowed_kinds.include?(unit.kind)
+          next if block_given? && !yield(unit)
 
           member.job_id
         end.uniq
