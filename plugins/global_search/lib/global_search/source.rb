@@ -26,7 +26,9 @@ module GlobalSearch
   # A provider may also contribute a global-search result type:
   #
   #   def self.search_type = "my_thing"
-  #   def self.search(query:, user:, limit:) = [ { id:, title:, path: } ]
+  #   def self.search_rows(query:, user:, limit:) = [ { my_thing_id:, rank:, snippet: } ]
+  #   def self.row_id_key = :my_thing_id
+  #   def self.result_json(row:, user:) = { id:, title:, path: }
   # The contract for a search result type contributed through this plugin's
   # "global_search:source" point.
   #
