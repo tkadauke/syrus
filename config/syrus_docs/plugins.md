@@ -257,7 +257,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | Key | Label | Bundled plugins |
 |---|---|---|
 | `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
-| `agent_provider` | Agent provider | `claude_agent`, `codex_agent` |
+| `agent_provider` | Agent provider | `agy_agent`, `claude_agent`, `codex_agent` |
 | `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory` |
 | `input_source` | Input source | `github_source`, `linear_source` |
 | `platform_delivery` | Platform delivery | `discord` |
@@ -2700,6 +2700,9 @@ no teardown, which is exactly why it is not an effect.
 
 Bundled plugins:
 
+- `agy_agent` — default-enabled Antigravity workflow provider. It writes the
+  Syrus sidecar into Antigravity's isolated `~/.gemini/config/mcp_config.json`
+  and reads `SYRUS_AGY_MODEL` / `SYRUS_AGY_EFFORT` as provider configuration.
 - `claude_agent` / `codex_agent` — default-enabled workflow and chat providers.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not

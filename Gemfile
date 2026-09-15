@@ -91,6 +91,7 @@ gem "ruby-vips", "~> 2.0"
 
 # Bundled plugins. These are installed with Syrus but enabled/disabled through
 # PluginRecord at runtime; adding/removing plugin gems still requires restart.
+gem "agy_agent",     path: "plugins/agy_agent"
 gem "claude_agent",  path: "plugins/claude_agent"
 gem "codex_agent",   path: "plugins/codex_agent"
 gem "github_source", path: "plugins/github_source"
