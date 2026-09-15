@@ -89,7 +89,9 @@ module App
     end
 
     def self.workflow_publication_branch_name(workflow)
-      workflow.artifact("publication_branch").presence || workflow.job.branch_name.presence
+      workflow.artifact(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT).presence ||
+        workflow.artifact("publication_branch").presence ||
+        workflow.job.branch_name.presence
     end
 
     def self.checkpoint_revision(checkpoint)

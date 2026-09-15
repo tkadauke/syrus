@@ -407,6 +407,46 @@ RSpec.describe "App API target graph inspection", type: :request do
       expect(body["targets"].map { |target| target["label"] }).to include("//cli:grade/go-tests")
     end
 
+    it "compiles a cleaned-up merge-train workflow graph from the integration branch" do
+      member_yaml = <<~YAML
+        grade:
+          - name: member-tests
+            run: bin/member
+      YAML
+      integration_yaml = <<~YAML
+        grade:
+          - name: train-tests
+            run: bin/train
+      YAML
+
+      with_graph_ref_checkouts(
+        "syrus/job-target-graph" => member_yaml,
+        "syrus/merge-train-123" => integration_yaml
+      )
+      job = Factories.job_with_run(
+        repository: repository,
+        user: user,
+        branch_name: "syrus/job-target-graph"
+      )
+      workflow = job.workflows.sole
+      workflow.update!(trigger_kind: "merge_train")
+      workflow.set_artifact!(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT, "syrus/merge-train-123")
+
+      with_cleaned_workflow_workspace do
+        get "/api/v1/app/jobs/#{job.id}/target_graph", params: { workflow_id: workflow.id, limit: 20 }
+      end
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["source"]).to include(
+        "scope" => "workflow",
+        "workflow_id" => workflow.id,
+        "ref" => "syrus/merge-train-123"
+      )
+      expect(body["targets"].map { |target| target["label"] }).to include("//:grade/train-tests")
+      expect(body["targets"].map { |target| target["label"] }).not_to include("//:grade/member-tests")
+    end
+
     it "prefers a published workflow checkpoint over the job branch when the workspace is cleaned up" do
       branch_yaml = <<~YAML
         grade:
