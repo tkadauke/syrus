@@ -388,7 +388,7 @@ RSpec.describe AgentActivity::SessionsQuery do
   end
 
   describe "recency sort query plan" do
-    it "uses the state-started-at index for status SmartFolders without a temp sort" do
+    it "uses the state-started-at index for run status recency queries without a temp sort" do
       3.times do |n|
         Factories.job_with_run(
           repository: my_repository,
@@ -398,8 +398,7 @@ RSpec.describe AgentActivity::SessionsQuery do
         )
       end
 
-      relation = described_class
-        .visible_relation(scope: :mine, user: operator)
+      relation = Run
         .where(state: "running")
         .order(started_at: :desc, id: :desc)
         .limit(AgentActivity::SessionsQuery::DEFAULT_PER)
@@ -410,9 +409,8 @@ RSpec.describe AgentActivity::SessionsQuery do
       expect(details).not_to include(match(/USE TEMP B-TREE FOR ORDER BY/))
     end
 
-    # SQLite still drives the All folder from the visibility/step filters and
-    # reports a temp sort even with plain or job/step-prefixed started_at
-    # indexes. Production MySQL may choose a different plan, so keep this spec
-    # to the state-filtered shape SQLite can cleanly verify.
+    # Agent Activity itself is currently agent/spawned-process-backed, but the
+    # migration this guards is a run-table hot-path index. Keep the assertion
+    # scoped to the run status/recency query shape SQLite can verify directly.
   end
 end
