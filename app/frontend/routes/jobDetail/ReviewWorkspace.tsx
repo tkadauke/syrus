@@ -20,6 +20,7 @@ import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector } from "./DiffReviewVersionSelector"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
+import { Pill, Section, surfaceClasses } from "../../components/ui"
 
 const SURFACE = "job_review_workspace"
 
@@ -155,7 +156,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
       <div className="min-w-0 space-y-4">
-        <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+        <Section.Root>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <SectionHeading>{t("review_summary_title")}</SectionHeading>
@@ -173,11 +174,11 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             </div>
           </div>
           {payload.summary ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
-        </section>
+        </Section.Root>
 
         <ReviewArtifactsPanel payload={payload} reviewArtifacts={reviewArtifacts} />
 
-        <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <Section.Root className="overflow-hidden" padding="none">
           <ReviewableDiff
             changedFilesPopup
             comments={feedback.diffThreads}
@@ -207,7 +208,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             showFileHeaders
             unavailableState={t("source_diff_not_available")}
           />
-        </section>
+        </Section.Root>
       </div>
       <div className="min-w-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
         {feedback.panel}
@@ -222,7 +223,7 @@ function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetail
   const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || payload.typed_artifacts.length > 0
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+    <Section.Root>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading>{t("review_artifacts_title")}</SectionHeading>
         {hasArtifacts ? (
@@ -237,7 +238,7 @@ function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetail
           {payload.test_plan || reviewArtifacts.length > 0 ? (
             <div className="grid gap-3 md:grid-cols-2">
               {payload.test_plan ? (
-                <div className="min-w-0 overflow-x-auto rounded border border-gray-200 p-3 dark:border-gray-800">
+                <div className={surfaceClasses("inset", "sm", "min-w-0 overflow-x-auto")}>
                   <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("section_test_plan")}</p>
                   <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
                     {payload.test_plan.steps.map((step, index) => <li className="break-words" key={`${index}-${step}`}>{step}</li>)}
@@ -245,7 +246,7 @@ function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetail
                 </div>
               ) : null}
               {reviewArtifacts.map((artifact) => (
-                <div className="min-w-0 overflow-x-auto rounded border border-gray-200 p-3 dark:border-gray-800" key={artifact}>
+                <div className={surfaceClasses("inset", "sm", "min-w-0 overflow-x-auto")} key={artifact}>
                   <p className="break-words text-sm text-gray-700 dark:text-gray-300">{artifact}</p>
                 </div>
               ))}
@@ -254,17 +255,17 @@ function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetail
           <TypedArtifactPanel artifacts={payload.typed_artifacts} />
         </div>
       ) : null}
-    </section>
+    </Section.Root>
   )
 }
 
 function ReviewStatePill({ label, tone }: { label: string; tone: "pending" | "submitted" | "handled" }) {
-  const className = {
-    handled: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",
-    pending: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200",
-    submitted: "bg-info/10 text-info"
-  }[tone]
-  return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
+  const semanticTone = {
+    handled: "success",
+    pending: "warning",
+    submitted: "info"
+  }[tone] as "success" | "warning" | "info"
+  return <Pill tone={semanticTone}>{label}</Pill>
 }
 
 function reviewArtifactSummaries(workflows: JobWorkflow[]) {

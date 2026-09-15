@@ -45,6 +45,7 @@ import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
+import { Notice, Section } from "../components/ui"
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
@@ -287,8 +288,8 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {command.dialog}
       {payload.job.state === "queued" && payload.repository.landing_paused && payload.repository.main_health === "broken" && payload.repository.main_branch_repair_blocks_work ? (
-        <div className="flex items-center gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40" role="alert">
-          <span className="text-amber-800 dark:text-amber-200">
+        <Notice className="flex items-center gap-3" role="alert" tone="warning">
+          <span>
             {payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}
           </span>
           {!payload.job.main_branch_repair ? (
@@ -296,7 +297,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
               {t("main_branch_health_view")}
             </Link>
           ) : null}
-        </div>
+        </Notice>
       ) : null}
       {feedbackPanelOpen ? (
         <JobFeedbackPanel
@@ -426,14 +427,14 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[62%_38%]">
         <div className="min-w-0 space-y-4">
-          <section className="min-w-0 overflow-x-auto rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+          <Section.Root className="min-w-0 overflow-x-auto">
             <SectionHeading>{t("section_issue")}</SectionHeading>
             {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_issue_body")}</p>}
-          </section>
-          <section className="min-w-0 overflow-x-auto rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+          </Section.Root>
+          <Section.Root className="min-w-0 overflow-x-auto">
             <SectionHeading>{t("section_agent_summary")}</SectionHeading>
             {payload.summary ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
-          </section>
+          </Section.Root>
 
           <TestPlanPanel testPlan={payload.test_plan} />
 
@@ -468,7 +469,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
             deployPath={payload.paths.app_deploy_path}
           />
 
-          <section className="min-w-0 overflow-x-auto rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">
+          <Section.Root className="min-w-0 overflow-x-auto text-sm" data-tour="job-pr-link">
             <SectionHeading>{t("section_details")}</SectionHeading>
             {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
             <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
@@ -494,7 +495,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               ) : null}
             </div>
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
-          </section>
+          </Section.Root>
 
           <ApprovalStatusPanel payload={payload} prefix={prefix} />
           {deliveryPanelRelevant(payload) ? <DeliveryPanel payload={payload} /> : null}
@@ -887,18 +888,16 @@ function JobMergeTrainPanel({ payload }: { payload: JobDetailPayload }) {
   const status = payload.merge_train_status
   if (!status) return null
 
-  const tone = status.phase === "failed"
-    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200"
-    : "border-teal-200 bg-teal-50 text-teal-900 dark:border-teal-900/70 dark:bg-teal-950/40 dark:text-teal-100"
+  const tone = status.phase === "failed" ? "danger" : "info"
   return (
-    <section className={`rounded border px-4 py-3 text-sm ${tone}`}>
+    <Notice tone={tone}>
       <span className="block font-medium">
         {t(`merge_train_phase.${status.phase}`, { defaultValue: status.phase })}
         {payload.epic ? ` · ${payload.epic.display_number}` : ""}
       </span>
       <span className="mt-1 block">{jobMergeTrainDetail(status, t)}</span>
       {status.branch ? <code className="mt-1 block break-all font-mono text-xs">{status.branch}</code> : null}
-    </section>
+    </Notice>
   )
 }
 
@@ -1034,7 +1033,7 @@ function AdmissionBudgetPanel({ payload }: { payload: JobDetailPayload }) {
     : t("admission_breakdown_telemetry_stale")
 
   return (
-    <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+    <Notice tone="warning">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-semibold">{t("admission_breakdown_title")}</span>
         <StartBlockedReasonPill
@@ -1048,7 +1047,7 @@ function AdmissionBudgetPanel({ payload }: { payload: JobDetailPayload }) {
       </div>
       <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_other") })}</p>
       {breakdown.telemetry_absent ? (
-        <p className="mt-2 rounded border border-amber-300 bg-amber-100 px-2 py-1.5 text-xs font-medium dark:border-amber-800 dark:bg-amber-900/50" role="status">
+        <p className="mt-2 rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-medium" role="status">
           {telemetryMessage}
         </p>
       ) : null}
@@ -1061,7 +1060,7 @@ function AdmissionBudgetPanel({ payload }: { payload: JobDetailPayload }) {
           ))}
         </ul>
       ) : null}
-    </section>
+    </Notice>
   )
 }
 
@@ -1070,8 +1069,9 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
   const retry = payload.job.retry_state
   if (!retry || (retry.state_label === "No failure" && !retry.classification)) return null
 
+  const tone = retry.auto_retry_exhausted ? "danger" : retry.provider_circuit_open ? "warning" : "neutral"
   return (
-    <section className={`rounded border px-4 py-3 text-sm ${retry.auto_retry_exhausted ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200" : retry.provider_circuit_open ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200" : "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>
+    <Notice tone={tone}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold">{retry.state_label}</span>
         <SmallPill>{retry.classification_label}</SmallPill>
@@ -1084,7 +1084,7 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
         {retry.retry_delayed_until ? <span>{t("retry_state_delayed_until")} <RelativeTimestamp value={retry.retry_delayed_until} /></span> : null}
         {retry.retry_delay_reason ? <span>{retry.retry_delay_reason}</span> : null}
       </div>
-    </section>
+    </Notice>
   )
 }
 
@@ -1118,7 +1118,7 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
   const { t } = useT("jobs")
   const count = payload.unsatisfied_dependencies.length
   return (
-    <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+    <Notice tone="warning">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <span className="font-medium">{t("blocked_on", { count })}</span>
@@ -1138,7 +1138,7 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
           </CommandButton>
         ) : null}
       </div>
-    </section>
+    </Notice>
   )
 }
 

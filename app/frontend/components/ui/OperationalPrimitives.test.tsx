@@ -44,6 +44,23 @@ describe("operational UI primitives", () => {
     expect(screen.getByRole("button", { name: "Copy transcript" })).toBeInTheDocument()
   })
 
+  it("renders custom code content while copying the raw code string", () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    render(
+      <CodeSurface code="raw ansi output" copyLabel="Copy log">
+        <span data-testid="rendered-log">rendered ansi output</span>
+      </CodeSurface>
+    )
+
+    expect(screen.getByTestId("rendered-log").closest("pre")).toBeInTheDocument()
+    expect(screen.queryByText("raw ansi output")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy log" }))
+    expect(writeText).toHaveBeenCalledWith("raw ansi output")
+  })
+
   it("renders metric and stat groups with variants and passthrough props", () => {
     render(
       <>
