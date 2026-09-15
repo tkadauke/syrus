@@ -4,6 +4,8 @@ module TestInsights
 
     STATUSES = %w[passed failed skipped error].freeze
     FLAKINESS_LOOKBACK = 20
+    CLASSIFICATION_SCORED = "scored".freeze
+    CLASSIFICATION_WIP_REPAIR_FAILURE = "wip_repair_failure".freeze
 
     belongs_to :test_run
     belongs_to :repository
@@ -17,12 +19,23 @@ module TestInsights
     scope :failed,  -> { where(status: "failed") }
     scope :skipped, -> { where(status: "skipped") }
     scope :errored, -> { where(status: "error") }
+    scope :failure_like, -> { where(status: %w[failed error]) }
+    scope :wip_repair_failures, -> {
+      joins(test_run: { run: :step })
+        .failure_like
+        .where.not(test_identity_id: nil)
+        .where(steps: { kind: "grader" })
+        .where.not(steps: { loop_id: nil })
+        .where(later_passing_grader_case_exists_sql)
+    }
+    scope :scored, -> { where.not(id: wip_repair_failures.select(:id)) }
 
     # Returns flakiness data for a specific (repository, suite_name, name) tuple.
     # A test is flaky if it has both passed and failed within the lookback window.
     # Returns nil if no history exists.
     def self.flakiness_score(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK)
       statuses = history_scope_for(repository: repository, suite_name: suite_name, name: name)
+        .scored
         .limit(lookback)
         .pluck(:status)
 
@@ -108,6 +121,7 @@ module TestInsights
 
       recent = where(repository_id: repository.id)
         .where(condition, *values)
+        .scored
         .order(:suite_name, :name, created_at: :desc, id: :desc)
         .select(:suite_name, :name, :status, :duration_ms, :created_at)
 
@@ -134,6 +148,7 @@ module TestInsights
       return {} if cases_by_identity_id.empty?
 
       ranked_cases = where(test_identity_id: cases_by_identity_id.keys)
+        .scored
         .select(
           "test_insight_cases.test_identity_id",
           "test_insight_cases.suite_name",
@@ -172,6 +187,43 @@ module TestInsights
         flaky:        failed > 0 && passed > 0,
         run_statuses: history.reverse.map(&:status)
       }
+    end
+
+    def self.classifications_for(test_cases)
+      cases = Array(test_cases)
+      ids = cases.filter_map(&:id)
+      return {} if ids.empty?
+
+      wip_ids = wip_repair_failures.where(id: ids).pluck(:id).to_set
+      ids.index_with do |id|
+        wip_ids.include?(id) ? CLASSIFICATION_WIP_REPAIR_FAILURE : CLASSIFICATION_SCORED
+      end
+    end
+
+    def self.classification_for(test_case)
+      classifications_for([ test_case ]).fetch(test_case.id, CLASSIFICATION_SCORED)
+    end
+
+    def self.later_passing_grader_case_exists_sql
+      <<~SQL.squish
+        EXISTS (
+          SELECT 1
+          FROM test_insight_cases later_cases
+          INNER JOIN test_insight_runs later_test_runs
+            ON later_test_runs.id = later_cases.test_run_id
+          INNER JOIN runs later_runs
+            ON later_runs.id = later_test_runs.run_id
+          INNER JOIN steps later_steps
+            ON later_steps.id = later_runs.step_id
+          WHERE later_cases.test_identity_id = test_insight_cases.test_identity_id
+            AND later_cases.status = 'passed'
+            AND later_test_runs.grader_name = test_insight_runs.grader_name
+            AND later_steps.kind = 'grader'
+            AND later_steps.workflow_id = steps.workflow_id
+            AND later_steps.loop_id = steps.loop_id
+            AND later_steps.iteration > steps.iteration
+        )
+      SQL
     end
   end
 end

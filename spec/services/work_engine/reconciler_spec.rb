@@ -3551,6 +3551,101 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("resumed #{prepare.slug} with #{prepare.runs.last.slug}")
   end
 
+  it "materializes a mandatory adversarial review repair when success propagation was interrupted" do
+    review_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "running",
+      started_at: 30.minutes.ago
+    )
+    review_workflow = Workflow.create!(
+      job: review_job,
+      trigger_kind: "initial",
+      state: "running",
+      started_at: 30.minutes.ago,
+      chain_template: [
+        { "type" => "step", "kind" => "implement" },
+        { "type" => "loop", "max_iterations" => 2, "steps" => %w[ implement adversarial_review ] },
+        {
+          "type" => "retry_until",
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        }
+      ],
+      artifacts: {
+        "adversarial_review_iterations" => [
+          { "iteration" => 1, "critique" => "Missing edge-case coverage.", "verdict" => "needs_work" }
+        ]
+      }
+    )
+    initial_implement = Step.create!(
+      workflow: review_workflow,
+      kind: "implement",
+      position: 0,
+      state: "succeeded",
+      started_at: 30.minutes.ago,
+      finished_at: 29.minutes.ago
+    )
+    review = Step.create!(
+      workflow: review_workflow,
+      kind: "adversarial_review",
+      position: 1,
+      iteration: 1,
+      loop_id: "review-loop",
+      state: "succeeded",
+      started_at: 29.minutes.ago,
+      finished_at: 28.minutes.ago
+    )
+    grader_fanout = Step.create!(
+      workflow: review_workflow,
+      kind: "grader_fanout",
+      position: 2,
+      iteration: 1,
+      loop_id: "grade-loop",
+      created_at: 28.minutes.ago
+    )
+    grader_collect = Step.create!(
+      workflow: review_workflow,
+      kind: "grader_collect",
+      position: 3,
+      iteration: 1,
+      loop_id: "grade-loop",
+      created_at: 28.minutes.ago
+    )
+    initial_implement.update!(next_step: review)
+    review.update!(next_step: grader_fanout)
+    grader_fanout.update!(next_step: grader_collect)
+    review_run = review.runs.create!(
+      job: review_job,
+      trigger_kind: review_workflow.trigger_kind,
+      agent_provider: review_workflow.agent_provider,
+      state: "succeeded",
+      started_at: 29.minutes.ago,
+      finished_at: 28.minutes.ago
+    )
+
+    result = reconcile_and_execute(workflow_id: review_workflow.id)
+
+    expect(kind(result, :succeeded_review_loop_needs_work_without_repair)).to be_present
+    expect(plan(result, :resume_review_loop_repair)).to have_attributes(
+      auto_executable: true,
+      target_type: "Step",
+      target_id: review.id
+    )
+    repair = review_workflow.reload.steps.find_by!(kind: "implement", loop_id: "review-loop", iteration: 2)
+    expect(repair).to be_queued
+    expect(repair.runs.last).to have_attributes(state: "queued", job_id: review_job.id)
+    expect(review.reload.next_step).to eq(repair)
+    expect(repair.next_step).to eq(
+      review_workflow.steps.find_by!(kind: "adversarial_review", loop_id: "review-loop", iteration: 2)
+    )
+    expect(result.repair_executions.map(&:message)).to include(
+      "resumed review loop repair from #{review.slug} with #{repair.slug}"
+    )
+    expect(review_run.reload).to be_succeeded
+  end
+
   it "does not resume a queued step whose predecessor has not succeeded" do
     prepare = workflow.steps.order(:position).second
     step.update!(next_step: prepare)
@@ -4842,6 +4937,51 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(issue.retry_after.to_i).to eq(reset_at.to_i)
     expect(repair_plan.auto_executable).to eq(true)
     expect(repair_plan.retry_after.to_i).to eq(reset_at.to_i)
+  end
+
+  it "keeps one delayed retry for repeated rate-limited landing reconciler passes" do
+    reset_at = 12.minutes.from_now
+    job.user.update!(gh_rate_limit_reset_at: reset_at)
+    train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+    job.update_columns(state: "landing")
+    workflow.update_columns(
+      trigger_kind: "merge_train",
+      state: "failed",
+      finished_at: Time.current,
+      artifacts: { "merge_train_id" => train.id }
+    )
+    step.update_columns(kind: "merge_train_land", state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", agent_provider: "claude", finished_at: Time.current)
+    attach_work_unit(workflow, kind: "merge_train", state: "failed", member_jobs: [ job ])
+    RunFailureClassification.create!(
+      run: run,
+      classification: "rate_limited",
+      retryable: true,
+      confidence: 0.9,
+      reason: "GitHub API rate limited",
+      classified_at: Time.current
+    )
+
+    expect {
+      3.times { reconcile_and_execute(run_id: run.id) }
+    }.to change { AutoRetryAttempt.where(workflow: workflow, run: run, failure_classification: "rate_limited").count }.by(1)
+      .and have_enqueued_job(AutoRetryJob).exactly(:once)
+
+    attempt = AutoRetryAttempt.find_by!(workflow: workflow, run: run, failure_classification: "rate_limited")
+    expect(attempt).to have_attributes(retry_kind: "failed_step", performed_at: nil, skipped_reason: nil)
+    expect(attempt.scheduled_at.to_i).to eq(reset_at.to_i)
+
+    expect {
+      perform_enqueued_jobs(only: AutoRetryJob)
+    }.to have_enqueued_job(AutoRetryJob).with(attempt.id)
+
+    expect(attempt.reload).to have_attributes(performed_at: nil, skipped_reason: nil)
+
+    expect {
+      3.times { reconcile_and_execute(run_id: run.id) }
+    }.not_to change { AutoRetryAttempt.where(workflow: workflow, run: run, failure_classification: "rate_limited").count }
+    expect(AutoRetryAttempt.pending.where(workflow: workflow, run: run, failure_classification: "rate_limited").count).to eq(1)
   end
 
   it "refreshes stale provider-delay classifications before planning retry loops" do

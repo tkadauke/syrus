@@ -69,7 +69,7 @@ Each `AgentInsights::Suggestion` captures:
 
 ## Reviewing Suggestions
 
-Navigate to `/repositories/:id/plugin/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Filter by state: Pending, Accepted, Dismissed, or All. Lists are paginated, and the state counts reflect all matching suggestions, not only the current page.
+Navigate to `/repositories/:id/plugin/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Each suggestion has a stable copyable display slug such as `INSIGHT-123`; accepted suggestions still retain links to any created Job. The repository view uses Syrus smart folders for Pending, Accepted, Dismissed, Retired, and All, and the shared filter bar supports created-date/range, state, severity, proposal type, category, confidence, and created-job presence filters. Folder, filter, and pagination state live in the URL, so refreshes and shared links preserve the selected view.
 
 Regular chat agents can inspect the same suggestions with `list_insights` and
 `read_insight`. Non-admin chat agents can only list/read suggestions for the

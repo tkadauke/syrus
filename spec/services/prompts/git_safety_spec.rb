@@ -35,9 +35,9 @@ end
 # commit-and-push pipeline must include GitSafety::TEXT, otherwise
 # the warning was never delivered to the agent.
 RSpec.describe "primary-agent prompts include GitSafety::TEXT" do
-  it "Initial" do
+  it "Implement" do
     issue = Struct.new(:title, :body).new("t", "b")
-    expect(Prompts::Initial.new(issue: issue).to_s).to include(Prompts::GitSafety::TEXT)
+    expect(Prompts::Implement.new(issue: issue).to_s).to include(Prompts::GitSafety::TEXT)
   end
 
   it "PrFeedback" do
@@ -50,6 +50,17 @@ RSpec.describe "primary-agent prompts include GitSafety::TEXT" do
       Prompts::Rebase.new(
         repo_slug: "acme/widgets", branch_name: "syrus/issue-1-1",
         base_branch: "main", pr_number: 99
+      ).to_s
+    ).to include(Prompts::GitSafety::TEXT)
+  end
+
+  it "StackRebase" do
+    expect(
+      Prompts::StackRebase.new(
+        repo_slug: "acme/widgets",
+        stack_entries: [
+          { "job_id" => 123, "branch_name" => "syrus/issue-1-1", "base_branch" => "main", "pr_number" => 99 }
+        ]
       ).to_s
     ).to include(Prompts::GitSafety::TEXT)
   end

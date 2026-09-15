@@ -71,6 +71,47 @@ RSpec.describe "Test Insight MCP tools" do
     )
   end
 
+  def create_loop_case!(identity:, workflow:, status:, iteration:, loop_id: "grade-loop", grader_name: "rspec", duration_ms: 100)
+    step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: iteration,
+      iteration: iteration,
+      loop_id: loop_id,
+      state: status == "passed" ? "succeeded" : "failed",
+      details: { "name" => grader_name }
+    )
+    run = Run.create!(
+      job: workflow.job,
+      user: workflow.user,
+      step: step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: status == "passed" ? "succeeded" : "failed"
+    )
+    test_run = create_test_run!(
+      run: run,
+      grader_name: grader_name,
+      total_count: 1,
+      passed_count: status == "passed" ? 1 : 0,
+      failed_count: status == "failed" ? 1 : 0,
+      error_count: status == "error" ? 1 : 0,
+      duration_ms: duration_ms
+    )
+
+    TestInsights::TestCase.create!(
+      test_run: test_run,
+      repository: repository,
+      test_identity: identity,
+      suite_name: identity.suite_name,
+      name: identity.name,
+      status: status,
+      duration_ms: duration_ms,
+      created_at: Time.current + iteration.seconds,
+      updated_at: Time.current + iteration.seconds
+    )
+  end
+
   def payload_from(response)
     JSON.parse(response.content.first[:text], symbolize_names: true)
   end
@@ -181,6 +222,7 @@ RSpec.describe "Test Insight MCP tools" do
       expect(payload.dig(:test, :recent_pass_count)).to eq(1)
       expect(payload.dig(:test, :avg_duration_ms)).to eq(100)
       expect(payload.fetch(:history).map { |entry| entry.dig(:test_case, :id) }).to eq([ failed_case.id, old_case.id ])
+      expect(payload.fetch(:history).map { |entry| entry.dig(:test_case, :classification) }).to eq(%w[scored scored])
       expect(payload.fetch(:duration_points).map { |point| point.fetch(:test_case_id) }).to eq([ old_case.id, failed_case.id ])
       expect(payload.dig(:related, :grader_names)).to eq([ "rspec" ])
       expect(payload.dig(:history, 0, :failure, :message, :text)).to eq("Expected true to be false")
@@ -212,6 +254,30 @@ RSpec.describe "Test Insight MCP tools" do
 
       expect(response).to be_error
       expect(response.content.first[:text]).to include("not_authorized")
+    end
+
+    it "classifies self-repaired grader loop failures separately from scored history" do
+      job = Factories.job(user: user, repository: repository)
+      workflow = job.initial_run.workflow
+      identity = create_identity!(name: "wip repair")
+      failed_case = create_loop_case!(identity: identity, workflow: workflow, status: "failed", iteration: 1, duration_ms: 40)
+      passed_case = create_loop_case!(identity: identity, workflow: workflow, status: "passed", iteration: 2, duration_ms: 80)
+      identity.refresh_summary!
+
+      response = described_class.call(
+        server_context: { chat_session: chat_session },
+        test_identity_id: identity.id,
+        history_limit: 10
+      )
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload.dig(:test, :recent_failure_count)).to eq(0)
+      expect(payload.dig(:test, :recent_pass_count)).to eq(1)
+      expect(payload.dig(:test, :failure_rate)).to eq(0.0)
+      expect(payload.dig(:test, :reasons)).not_to include("flaky")
+      expect(payload.fetch(:history).map { |entry| entry.dig(:test_case, :id) }).to eq([ passed_case.id, failed_case.id ])
+      expect(payload.fetch(:history).map { |entry| entry.dig(:test_case, :classification) }).to eq(%w[scored wip_repair_failure])
     end
   end
 

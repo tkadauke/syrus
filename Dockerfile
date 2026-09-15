@@ -25,8 +25,9 @@ WORKDIR /rails
 # Install base packages. Notes specific to Syrus:
 #   - `git` is needed at *runtime*, not just build, because the worker
 #     shells out to it for every clone / commit / push.
-#   - `nodejs` + `npm` are required to install the agent CLIs, which
-#     the agent worker spawns per Run via AgentInvocation / CodexInvocation.
+#   - `nodejs` + `npm` are required to install the npm-packaged agent CLIs,
+#     which the agent worker spawns per Run via AgentInvocation. Muse Code is
+#     installed below through Meta's launcher so it can fetch its native binary.
 #   - `gnupg` and `ca-certificates` are needed for NodeSource's apt repo.
 #   - `ffmpeg` extracts still frames from walkthrough videos at the
 #     timestamps Gemini flags, so the analysis chat turn can illustrate each
@@ -34,8 +35,14 @@ WORKDIR /rails
 ARG NODE_MAJOR=22
 ARG CLAUDE_CODE_VERSION=2.1.251
 ARG CODEX_CLI_VERSION=0.151.0
+ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh
+ARG ANTIGRAVITY_CLI_VERSION=1.2.1
+ARG ANTIGRAVITY_CLI_BUILD=5123043593420800
+ARG ANTIGRAVITY_CLI_LINUX_AMD64_SHA512=0629fe69e6949b35707935ef35da016074ea29a5d989a05f740713e0a9e927bf52ff1eada0204d3338779a469c938b6b7c5c44de2d296e5e8db255d26568de38
+ARG ANTIGRAVITY_CLI_LINUX_ARM64_SHA512=f6dd6057a82dcbc4ab0878d99c4b84cfc45c3e2f12647eaf435322ecdd18d0190620bca943185f542431b93f34f5ea19cf84e8fdb902e64529e110bfa0a5a46f
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eu; \
     apt-get update -qq && \
     apt-get install --no-install-recommends -y \
       ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips && \
@@ -43,6 +50,23 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
     apt-get install --no-install-recommends -y nodejs && \
     npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @openai/codex@${CODEX_CLI_VERSION} && \
+    mkdir -p /opt/muse/bin && \
+    curl -fsSL "${MUSE_LAUNCHER_URL}" -o /opt/muse/bin/muse && \
+    chmod 0755 /opt/muse/bin/muse && \
+    MUSE_LAUNCHER_INSTALL=1 /opt/muse/bin/muse && \
+    MUSE_NO_AUTO_UPDATE=1 /opt/muse/bin/muse --version && \
+    case "$(dpkg --print-architecture)" in \
+      amd64) antigravity_dir=x64; antigravity_arch=x64; antigravity_sha512="${ANTIGRAVITY_CLI_LINUX_AMD64_SHA512}" ;; \
+      arm64) antigravity_dir=arm; antigravity_arch=arm64; antigravity_sha512="${ANTIGRAVITY_CLI_LINUX_ARM64_SHA512}" ;; \
+      *) echo "unsupported architecture for Antigravity CLI: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac && \
+    antigravity_tarball="/tmp/antigravity-cli.tar.gz" && \
+    curl -fsSL -o "${antigravity_tarball}" \
+      "https://storage.googleapis.com/antigravity-public/antigravity-cli/${ANTIGRAVITY_CLI_VERSION}-${ANTIGRAVITY_CLI_BUILD}/linux-${antigravity_dir}/cli_linux_${antigravity_arch}.tar.gz" && \
+    echo "${antigravity_sha512}  ${antigravity_tarball}" | sha512sum -c - && \
+    tar -xzf "${antigravity_tarball}" -C /tmp antigravity && \
+    install -m 0755 /tmp/antigravity /usr/local/bin/agy && \
+    rm -f "${antigravity_tarball}" /tmp/antigravity && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
@@ -50,7 +74,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # BUNDLE_WITHOUT excludes both groups so test-only gems (capybara, vcr,
 # webmock, selenium-webdriver, rspec-rails, brakeman) don't ship in the
 # image. Single colon-separated string per Bundler's docs.
-ENV RAILS_ENV="production" \
+ENV PATH="/opt/muse/bin:${PATH}" \
+    MUSE_NO_AUTO_UPDATE="1" \
+    RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development:test" \

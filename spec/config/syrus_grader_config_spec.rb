@@ -26,6 +26,25 @@ RSpec.describe "Syrus grader configuration" do
             "eslint.config.js",
             "eslint-rules/**/*.js"
           ]
+        ],
+        [
+          "npm run format:frontend:changed",
+          [
+            "app/frontend/**/*.{ts,tsx,js,jsx,json,css,md,yml,yaml}",
+            "plugins/*/app/frontend/**/*.{ts,tsx,js,jsx,json,css,md,yml,yaml}",
+            "eslint-rules/**/*.js",
+            "package.json",
+            "package-lock.json",
+            "tsconfig.json",
+            "vite.config.ts"
+          ]
+        ],
+        [
+          "gofmt -w cli plugins/*/cli",
+          [
+            "cli/**/*.go",
+            "plugins/*/cli/**/*.go"
+          ]
         ]
       ]
     )

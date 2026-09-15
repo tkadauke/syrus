@@ -149,7 +149,7 @@ rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 landing_validation: speculative_landing_build → prepare → graders
-merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
+merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → try(merge_train_land; base-moved fallback: merge_train_rebase → merge_train_agent_rebase → retry_until(graders, repair: landing_fix) → merge_train_land_after_rebase)
 merge_train_validation: speculative_merge_train_build → prepare → graders
 coding_handoff: prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(graders, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan
 local_mode_handoff: prepare → retry_until(graders, repair: local_mode_handoff_fix) → summarize/test_plan/pr_open or summarize_amend/try(push)
@@ -315,6 +315,18 @@ Key steps:
   train and rebuilding through `LandingRetrier` — the deciding factor is
   the failed step's `Step::Kind#repair_semantics` (`:agentic` steps resume in
   place; `:rebuild`/`:publication` steps force a full merge-train rebuild).
+- **`merge_train_rebase`** / **`merge_train_land_after_rebase`** — Base-moved
+  recovery for merge trains. If `merge_train_land` detects that the base branch
+  moved during grading or landing (`merge_train_base_moved`), the workflow's
+  `Try` node inserts `merge_train_rebase`, which incrementally rebases the
+  integration branch onto the new base tip, records the fresh base SHA, and can
+  carry forward a green grade when `Repository#trust_clean_rebase_grade?` allows
+  it. A clean mechanical rebase skips `merge_train_agent_rebase`; a conflicted
+  rebase leaves the in-progress rebase for that agentic step to finish. The
+  workflow then runs a fresh landing grader loop and finishes with
+  `merge_train_land_after_rebase`, a `MergeTrainLand` subclass that reuses the
+  same push, merge, member reconciliation, and cleanup behavior against the
+  updated integration branch.
 - **`adversarial_review`** — Independent critic agent that reads the issue
   and the diff from the preceding `implement` (or `respond`) step, then calls
   `submit_adversarial_review(verdict, critique)`. Verdict `approved` exits the
@@ -875,12 +887,14 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   features that have no existing doc file should create one following the
   format in the existing files. PRs that add operator-facing behavior while
   leaving the docs stale are incomplete, same as public website docs.
-- **Prompts** all live under `app/services/prompts/` as PORO classes
-  (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::CiFailure`,
+- **Prompts** all live under `app/services/prompts/`. Core workflow prompt
+  classes include
+  (`Prompts::Implement`, `Prompts::PrFeedback`, `Prompts::CiFailure`,
   `Prompts::AdversarialReview`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::TestPlan`,
   `Prompts::ReviewPlan`,
-  `Prompts::Rebase`, `Prompts::PushRebase`, `Prompts::LandingFix`,
+  `Prompts::Rebase`, `Prompts::StackRebase`, `Prompts::PushRebase`,
+  `Prompts::LandingFix`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`, `Prompts::EpicContext`,
   `Prompts::Skill`,
   `VideoWalkthroughs::Prompts::Analysis`, `VideoWalkthroughs::Prompts::Context`,
@@ -888,6 +902,11 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   Each has a `to_s`. Compose by appending; never inline prompt text in
   jobs/services. Epic-aware prompts append `Prompts::EpicContext` as
   orientation only; it must not expand the current Job's implementation scope.
+  `Prompts::Implement`, `Prompts::Rebase`, and `Prompts::StackRebase`
+  render their static git-safety and phased-execution instructions through
+  `Prompts::SkillLoader` from `.claude/skills/implement/SKILL.md` and
+  `.claude/skills/rebase/SKILL.md`; those skill files are live prompt source
+  of truth, not duplicate stale documentation.
 - **Website/docs audit.** If no website/docs update is needed, the PR body
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
@@ -1104,8 +1123,10 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   `spec/config/queue_partitioning_spec.rb` guards both cases.
 - **Per-user max-turns** — `User#agent_max_turns` (default 200, range
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
-  per-run 30-minute timeout still bounds runaway loops). Threaded through
-  RunJob → AgentInvocation for both regular and rebase runs.
+  per-run 90-minute wall-clock timeout still bounds runaway loops). A
+  separate 20-minute no-output timeout treats a silent agent subprocess as
+  wedged rather than merely slow. Threaded through RunJob → AgentInvocation
+  for both regular and rebase runs.
 - **Plugin architecture** — Agent providers, chat providers, MCP tool sets,
   input sources, and source-control providers are registered as plugin gems
   via `Syrus::PluginRegistry`. Bundled plugins live under `plugins/` (e.g.
@@ -1687,6 +1708,9 @@ app/services/job_dependency_parser.rb        # parses Depends-on / Blocked-by is
 app/services/syrus_mcp/sidecar.rb            # MCP::Server boot + SIGTERM trap
 app/services/syrus_mcp/                      # all MCP sidecar tools (submit_summary, adversarial_review, memory, etc.)
 app/services/prompts/                        # all agent prompts (PORO)
+app/services/prompts/skill_loader.rb         # renders .claude/skills/*/SKILL.md into prompts
+.claude/skills/implement/SKILL.md            # live implement-step prompt instructions
+.claude/skills/rebase/SKILL.md               # live rebase/stack-rebase prompt instructions
 app/services/pr_summarizer.rb                # second-shot fallback
 app/jobs/poll_*.rb                           # polling jobs (cron-style; see config/recurring.yml)
 app/jobs/reap_stale_runs_job.rb              # kills zombie Runs every minute

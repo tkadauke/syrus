@@ -5,7 +5,32 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { cancelPendingAction, confirmChatProposal, confirmPendingAction, fetchChatMedia, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMediaPayload, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionGroup, type ChatPendingActionInline, type ChatPayload, type ChatPreviewPanel, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
+import {
+  cancelPendingAction,
+  confirmChatProposal,
+  confirmPendingAction,
+  fetchChatMedia,
+  rejectChatProposal,
+  rejectPendingAction,
+  searchChatEpics,
+  searchChatJobs,
+  searchChatProposals,
+  updateChatProposal,
+  type ChatEpicDependencySearchResult,
+  type ChatJobDependencySearchResult,
+  type ChatMediaPayload,
+  type ChatMessageItem,
+  type ChatPendingAction,
+  type ChatPendingActionGroup,
+  type ChatPendingActionInline,
+  type ChatPayload,
+  type ChatPreviewPanel,
+  type ChatProposal,
+  type ChatProposalChild,
+  type ChatProposalDependency,
+  type ChatProposalMutationPayload,
+  type ChatProposalSearchResult
+} from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { dispatchProposalUpdated } from "../../lib/appEvents"
 import { replaceProposalInMessages } from "./messageStreamItems"
@@ -22,13 +47,17 @@ import { linkifySlugs } from "../../lib/linkifySlugs"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { appendSearch, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
-import { pendingActionBadgeLabel, pendingActionGroupTerminalLabel, pendingActionKey, pendingActionResourceTitle, pendingActionResourceUrl, pendingActionTerminalLabel } from "./pendingActionDisplay"
+import {
+  pendingActionBadgeLabel,
+  pendingActionGroupTerminalLabel,
+  pendingActionKey,
+  pendingActionResourceTitle,
+  pendingActionResourceUrl,
+  pendingActionTerminalLabel
+} from "./pendingActionDisplay"
 import type { DependencyPill, EditableProposal } from "./proposalDisplay"
 import { PencilIcon } from "./icons"
 import { editableChildProposal, initialProposalDependencyPills, proposalConfirmAriaLabel, proposalConfirmLabel } from "./proposalDisplay"
-
-
-
 
 // Proposal / pending-action cards extracted from Chat.tsx: the proposal card and
 // its edit modal, dependency pickers/strips/links, materialized-result footer,
@@ -37,10 +66,32 @@ import { editableChildProposal, initialProposalDependencyPills, proposalConfirmA
 // on leaf modules and shared UI imports; unused header imports were pruned.
 
 function PillList({ values }: { values: string[] }) {
-  return <div className="flex flex-wrap gap-1">{values.map((value) => <span className="rounded bg-gray-100 px-2 py-0.5 font-mono dark:bg-gray-800" key={value}>{value}</span>)}</div>
+  return (
+    <div className="flex flex-wrap gap-1">
+      {values.map((value) => (
+        <span className="rounded bg-gray-100 px-2 py-0.5 font-mono dark:bg-gray-800" key={value}>
+          {value}
+        </span>
+      ))}
+    </div>
+  )
 }
 
-export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose, onNotice }: { chatId: string | number; proposal: EditableProposal; search: string; queryKey: ChatQueryKey; onClose: () => void; onNotice: (message: string | null) => void }) {
+export function ProposalEditModal({
+  chatId,
+  proposal,
+  search,
+  queryKey,
+  onClose,
+  onNotice
+}: {
+  chatId: string | number
+  proposal: EditableProposal
+  search: string
+  queryKey: ChatQueryKey
+  onClose: () => void
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(proposal.title)
@@ -65,15 +116,32 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     queryFn: () => fetchChatMedia(chatId),
     enabled: String(chatId).length > 0
   })
-  const availableMediaItems = proposalMediaItems(availableProposalMediaRefs(media.data, payload?.preview_panels || []), media.data, payload?.preview_panels || [])
-  const searchProposals = useCallback((query: string, signal: AbortSignal) => searchChatProposals(chatId, query, proposal.id, { signal }), [chatId, proposal.id])
+  const availableMediaItems = proposalMediaItems(
+    availableProposalMediaRefs(media.data, payload?.preview_panels || []),
+    media.data,
+    payload?.preview_panels || []
+  )
+  const searchProposals = useCallback(
+    (query: string, signal: AbortSignal) => searchChatProposals(chatId, query, proposal.id, { signal }),
+    [chatId, proposal.id]
+  )
   const searchJobs = useCallback((query: string, signal: AbortSignal) => searchChatJobs(query, { signal }), [])
   const searchEpics = useCallback((query: string, signal: AbortSignal) => searchChatEpics(query, { signal }), [])
-  const hasChanges = title !== proposal.title ||
+  const hasChanges =
+    title !== proposal.title ||
     body !== proposal.body ||
-    !sameValues(proposalDeps.map((dep) => dep.key), initialProposalDependencyPills(proposal).map((dep) => dep.key)) ||
-    !sameValues(jobDeps.map((dep) => dep.key), (proposal.depends_on_job_ids || []).map(String)) ||
-    !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String)) ||
+    !sameValues(
+      proposalDeps.map((dep) => dep.key),
+      initialProposalDependencyPills(proposal).map((dep) => dep.key)
+    ) ||
+    !sameValues(
+      jobDeps.map((dep) => dep.key),
+      (proposal.depends_on_job_ids || []).map(String)
+    ) ||
+    !sameValues(
+      epicDeps.map((dep) => dep.key),
+      (proposal.depends_on_epic_ids || []).map(String)
+    ) ||
     !sameValues(mediaIds, proposal.media_ids || []) ||
     routeToBacklog !== Boolean(proposal.route_to_backlog) ||
     targetEpicId !== (proposal.target_epic_id ?? null)
@@ -95,16 +163,17 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   }, [confirmDiscardOpen, hasChanges, onClose])
 
   const save = useMutation({
-    mutationFn: () => updateChatProposal(appendSearch(proposal.app_update_path, search), {
-      title: title.trim(),
-      body,
-      dependency_slugs: proposalDeps.map((dep) => dep.key),
-      depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
-      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
-      media_ids: mediaIds,
-      target_epic_id: targetEpicId,
-      ...(canRouteToBacklog ? { route_to_backlog: routeToBacklog } : {})
-    }),
+    mutationFn: () =>
+      updateChatProposal(appendSearch(proposal.app_update_path, search), {
+        title: title.trim(),
+        body,
+        dependency_slugs: proposalDeps.map((dep) => dep.key),
+        depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
+        depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
+        media_ids: mediaIds,
+        target_epic_id: targetEpicId,
+        ...(canRouteToBacklog ? { route_to_backlog: routeToBacklog } : {})
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       if (updated.proposal) dispatchProposalUpdated(queryKey[1], updated.proposal)
@@ -125,33 +194,48 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-3 py-6">
-      <div className="max-h-full w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-gray-950" role="dialog" aria-modal="true" aria-labelledby="proposal-edit-title">
+      <div
+        className="max-h-full w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-gray-950"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="proposal-edit-title"
+      >
         <form onSubmit={submit}>
           <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
             <div>
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="proposal-edit-title">{t("edit_proposal")}</h2>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="proposal-edit-title">
+                {t("edit_proposal")}
+              </h2>
               <p className="mt-0.5 font-mono text-xs text-gray-500 dark:text-gray-400">{proposal.slug}</p>
             </div>
-            <button className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button" aria-label={t("aria_close_proposal_editor")}>
+            <button
+              className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              onClick={onClose}
+              type="button"
+              aria-label={t("aria_close_proposal_editor")}
+            >
               <CloseIcon className="h-4 w-4" />
             </button>
           </div>
           <div className="space-y-5 px-5 py-4">
-            {save.isError ? <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{errorMessage(save.error, "Proposal update failed.")}</div> : null}
+            {save.isError ? (
+              <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+                {errorMessage(save.error, "Proposal update failed.")}
+              </div>
+            ) : null}
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
               Title
-              <Input
-                className="mt-1"
-                onChange={(event) => setTitle(event.target.value)}
-                required
-                type="text"
-                value={title}
-              />
+              <Input className="mt-1" onChange={(event) => setTitle(event.target.value)} required type="text" value={title} />
             </label>
             <div>
               <div className="mb-2 flex gap-2 sm:hidden">
                 {(["edit", "preview"] as const).map((tab) => (
-                  <button className={`rounded border px-3 py-1 text-sm ${activeTab === tab ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`} key={tab} onClick={() => setActiveTab(tab)} type="button">
+                  <button
+                    className={`rounded border px-3 py-1 text-sm ${activeTab === tab ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    type="button"
+                  >
                     {tab === "edit" ? "Edit" : "Preview"}
                   </button>
                 ))}
@@ -180,7 +264,12 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                   {targetEpicId != null ? (
                     <span className="inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                       <span className="min-w-0 truncate font-medium">{proposal.target_epic_label}</span>
-                      <button className="ml-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-300" onClick={() => setTargetEpicId(null)} type="button" aria-label={t("aria_remove_target_epic")}>
+                      <button
+                        className="ml-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-300"
+                        onClick={() => setTargetEpicId(null)}
+                        type="button"
+                        aria-label={t("aria_remove_target_epic")}
+                      >
                         <CloseIcon className="h-3 w-3" />
                       </button>
                     </span>
@@ -194,10 +283,13 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
               <fieldset>
                 <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">Route</legend>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <label className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${!routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}>
-                    <input
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${!routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}
+                  >
+                    <Input
                       checked={!routeToBacklog}
                       className="mt-1"
+                      fullWidth={false}
                       name="proposal-route"
                       onChange={() => setRouteToBacklog(false)}
                       type="radio"
@@ -207,10 +299,13 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                       <span className="block text-xs text-gray-500 dark:text-gray-400">Confirming creates and admits the Job to the usual start path.</span>
                     </span>
                   </label>
-                  <label className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}>
-                    <input
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}
+                  >
+                    <Input
                       checked={routeToBacklog}
                       className="mt-1"
+                      fullWidth={false}
                       name="proposal-route"
                       onChange={() => setRouteToBacklog(true)}
                       type="radio"
@@ -252,16 +347,15 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                 setSelected={setEpicDeps}
               />
             </div>
-            <ProposalMediaPicker
-              availableItems={availableMediaItems}
-              loading={media.isPending}
-              selectedRefs={mediaIds}
-              setSelectedRefs={setMediaIds}
-            />
+            <ProposalMediaPicker availableItems={availableMediaItems} loading={media.isPending} selectedRefs={mediaIds} setSelectedRefs={setMediaIds} />
           </div>
           <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
-            <button className={secondaryButton()} onClick={onClose} type="button">{t("cancel")}</button>
-            <button className={primaryButton()} disabled={save.isPending || title.trim().length === 0} type="submit">{t("save")}</button>
+            <button className={secondaryButton()} onClick={onClose} type="button">
+              {t("cancel")}
+            </button>
+            <button className={primaryButton()} disabled={save.isPending || title.trim().length === 0} type="submit">
+              {t("save")}
+            </button>
           </div>
         </form>
       </div>
@@ -288,20 +382,30 @@ function proposalSupportsBacklogRoute(proposal: Pick<ChatProposal, "kind" | "epi
   return !proposal.epic_bundle && (proposal.kind === "job" || proposal.kind === "syrus_issue")
 }
 
-function DependencyPicker({ label, placeholder, query, results, selected, setQuery, setSelected }: { label: string; placeholder: string; query: string; results: DependencyPill[]; selected: DependencyPill[]; setQuery: (query: string) => void; setSelected: (selected: DependencyPill[]) => void }) {
+function DependencyPicker({
+  label,
+  placeholder,
+  query,
+  results,
+  selected,
+  setQuery,
+  setSelected
+}: {
+  label: string
+  placeholder: string
+  query: string
+  results: DependencyPill[]
+  selected: DependencyPill[]
+  setQuery: (query: string) => void
+  setSelected: (selected: DependencyPill[]) => void
+}) {
   const selectedKeys = new Set(selected.map((item) => item.key))
   const availableResults = results.filter((item) => !selectedKeys.has(item.key))
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
         {label}
-        <Input
-          className="mt-1"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={placeholder}
-          type="text"
-          value={query}
-        />
+        <Input className="mt-1" onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} type="text" value={query} />
       </label>
       {availableResults.length > 0 ? (
         <div className="mt-1 max-h-36 overflow-y-auto rounded border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -323,10 +427,18 @@ function DependencyPicker({ label, placeholder, query, results, selected, setQue
       ) : null}
       <div className="mt-2 flex flex-wrap gap-2">
         {selected.map((item) => (
-          <span className="inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={item.key}>
+          <span
+            className="inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            key={item.key}
+          >
             <span className="min-w-0 truncate font-medium">{item.label}</span>
             {item.detail ? <span className="min-w-0 truncate text-gray-500 dark:text-gray-400">{item.detail}</span> : null}
-            <button className="ml-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-300" onClick={() => setSelected(selected.filter((selectedItem) => selectedItem.key !== item.key))} type="button" aria-label={`Remove ${item.label}`}>
+            <button
+              className="ml-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-300"
+              onClick={() => setSelected(selected.filter((selectedItem) => selectedItem.key !== item.key))}
+              type="button"
+              aria-label={`Remove ${item.label}`}
+            >
               <CloseIcon className="h-3 w-3" />
             </button>
           </span>
@@ -363,7 +475,8 @@ function useDebouncedDependencySearch<T>(query: string, searcher: (query: string
 type ProposalActionInput = { action: "confirm" | "reject"; path: string; start?: boolean; routeToBacklog?: boolean }
 
 function proposalActionButton(tone: "primary" | "secondary") {
-  const shared = "flex h-11 min-w-0 flex-1 items-center justify-center rounded px-2 text-xs font-medium whitespace-nowrap disabled:opacity-60 sm:flex-none sm:px-3 sm:text-sm"
+  const shared =
+    "flex h-11 min-w-0 flex-1 items-center justify-center rounded px-2 text-xs font-medium whitespace-nowrap disabled:opacity-60 sm:flex-none sm:px-3 sm:text-sm"
   if (tone === "primary") {
     return `${shared} bg-brand text-on-brand hover:opacity-90`
   }
@@ -371,7 +484,17 @@ function proposalActionButton(tone: "primary" | "secondary") {
   return `${shared} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600`
 }
 
-export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: ChatProposal; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+export function ProposalCard({
+  proposal,
+  prefix,
+  queryKey,
+  onNotice
+}: {
+  proposal: ChatProposal
+  prefix: string
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
@@ -407,95 +530,133 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
           <>
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
-                <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-info/10 text-info" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
-                {proposal.epic_bundle ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{proposal.active_children_count || 0} child Jobs</span> : null}
+                <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">
+                  {proposal.epic_bundle ? "Epic" : proposal.kind_label}
+                </span>
+                <span
+                  className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-info/10 text-info" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
+                >
+                  {proposal.state_label}
+                </span>
+                {proposal.epic_bundle ? (
+                  <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                    {proposal.active_children_count || 0} child Jobs
+                  </span>
+                ) : null}
               </div>
               {proposal.proposed ? <ProposalEditButton label={`Edit ${proposal.slug}`} onClick={() => setEditingProposal(proposal)} /> : null}
             </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <CopyableSlug className="text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
-            <ProposalDependencyStrip className="min-w-0 flex-1" dependencies={proposal.dependencies} hasDependencies={proposal.has_dependencies} prefix={prefix} />
-          </div>
-          <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
-        </>
-      }
-      body={
-        <>
-          <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
-          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} media={media.data} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} previewPanels={payload?.preview_panels || []} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
-        </>
-      }
-      footer={
-        <>
-          <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
-          <ProposalMediaTiles media={media.data} mediaIds={proposal.media_ids || []} previewPanels={payload?.preview_panels || []} />
-          {proposal.proposed ? (
-            <div className="mt-4 flex flex-nowrap gap-2 overflow-hidden" data-testid="proposal-action-footer">
-              {showDirectRouteActions ? (
-                <>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <CopyableSlug className="text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
+              <ProposalDependencyStrip
+                className="min-w-0 flex-1"
+                dependencies={proposal.dependencies}
+                hasDependencies={proposal.has_dependencies}
+                prefix={prefix}
+              />
+            </div>
+            <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
+          </>
+        }
+        body={
+          <>
+            <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
+            {proposal.epic_bundle ? (
+              <ProposalChildren
+                children={proposal.children || []}
+                media={media.data}
+                parentProposed={proposal.proposed}
+                mutation={proposalAction}
+                prefix={prefix}
+                previewPanels={payload?.preview_panels || []}
+                onEdit={(child) => setEditingProposal(editableChildProposal(child))}
+              />
+            ) : (
+              <ProposalMeta proposal={proposal} />
+            )}
+          </>
+        }
+        footer={
+          <>
+            <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
+            <ProposalMediaTiles media={media.data} mediaIds={proposal.media_ids || []} previewPanels={payload?.preview_panels || []} />
+            {proposal.proposed ? (
+              <div className="mt-4 flex flex-nowrap gap-2 overflow-hidden" data-testid="proposal-action-footer">
+                {showDirectRouteActions ? (
+                  <>
+                    <button
+                      aria-label={t("aria_confirm_proposal_to_backlog")}
+                      className={proposalActionButton("secondary")}
+                      disabled={proposalAction.isPending}
+                      onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: true })}
+                      title={t("aria_confirm_proposal_to_backlog")}
+                      type="button"
+                    >
+                      {t("proposal_route_backlog")}
+                    </button>
+                    <button
+                      aria-label={t("aria_confirm_proposal_and_implement")}
+                      className={proposalActionButton("primary")}
+                      disabled={proposalAction.isPending}
+                      onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: false })}
+                      title={t("aria_confirm_proposal_and_implement")}
+                      type="button"
+                    >
+                      {t("proposal_route_implement")}
+                    </button>
+                  </>
+                ) : (
                   <button
-                    aria-label={t("aria_confirm_proposal_to_backlog")}
-                    className={proposalActionButton("secondary")}
+                    aria-label={proposalConfirmAriaLabel(proposal, childJobCount)}
+                    className={proposalActionButton(showConfirmAndStart ? "secondary" : "primary")}
                     disabled={proposalAction.isPending}
-                    onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: true })}
-                    title={t("aria_confirm_proposal_to_backlog")}
+                    onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
+                    title={proposalConfirmAriaLabel(proposal, childJobCount)}
                     type="button"
                   >
-                    {t("proposal_route_backlog")}
+                    {proposalConfirmLabel(proposal, childJobCount)}
                   </button>
+                )}
+                {showConfirmAndStart ? (
                   <button
-                    aria-label={t("aria_confirm_proposal_and_implement")}
+                    aria-label={t("create_epic_and_start")}
                     className={proposalActionButton("primary")}
                     disabled={proposalAction.isPending}
-                    onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: false })}
-                    title={t("aria_confirm_proposal_and_implement")}
+                    onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, start: true })}
+                    title={t("create_epic_and_start")}
                     type="button"
                   >
-                    {t("proposal_route_implement")}
+                    Implement
                   </button>
-                </>
-              ) : (
+                ) : null}
                 <button
-                  aria-label={proposalConfirmAriaLabel(proposal, childJobCount)}
-                  className={proposalActionButton(showConfirmAndStart ? "secondary" : "primary")}
+                  aria-label="Reject proposal"
+                  className={proposalActionButton("secondary")}
                   disabled={proposalAction.isPending}
-                  onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
-                  title={proposalConfirmAriaLabel(proposal, childJobCount)}
+                  onClick={() => proposalAction.mutate({ action: "reject", path: proposal.app_reject_path })}
+                  title="Reject proposal"
                   type="button"
                 >
-                  {proposalConfirmLabel(proposal, childJobCount)}
+                  Reject
                 </button>
-              )}
-              {showConfirmAndStart ? (
-                <button
-                  aria-label={t("create_epic_and_start")}
-                  className={proposalActionButton("primary")}
-                  disabled={proposalAction.isPending}
-                  onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, start: true })}
-                  title={t("create_epic_and_start")}
-                  type="button"
-                >
-                  Implement
-                </button>
-              ) : null}
-              <button
-                aria-label="Reject proposal"
-                className={proposalActionButton("secondary")}
-                disabled={proposalAction.isPending}
-                onClick={() => proposalAction.mutate({ action: "reject", path: proposal.app_reject_path })}
-                title="Reject proposal"
-                type="button"
-              >
-                Reject
-              </button>
-              {proposalAction.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(proposalAction.error, "Proposal command failed.")}</div> : null}
-            </div>
-          ) : null}
-        </>
-      }
+                {proposalAction.isError ? (
+                  <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(proposalAction.error, "Proposal command failed.")}</div>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        }
       />
-      {editingProposal ? <ProposalEditModal chatId={queryKey[1]} proposal={editingProposal} search={search} queryKey={queryKey} onClose={() => setEditingProposal(null)} onNotice={onNotice} /> : null}
+      {editingProposal ? (
+        <ProposalEditModal
+          chatId={queryKey[1]}
+          proposal={editingProposal}
+          search={search}
+          queryKey={queryKey}
+          onClose={() => setEditingProposal(null)}
+          onNotice={onNotice}
+        />
+      ) : null}
     </>
   )
 }
@@ -528,15 +689,19 @@ function appendMissingMessages(messages: ChatMessageItem[], additions: ChatMessa
 
 function ProposalEditButton({ label, onClick }: { label: string; onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
   return (
-    <button className="shrink-0 rounded border border-gray-200 p-1.5 text-gray-500 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-400" onClick={onClick} type="button" aria-label={label}>
+    <button
+      className="shrink-0 rounded border border-gray-200 p-1.5 text-gray-500 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-400"
+      onClick={onClick}
+      type="button"
+      aria-label={label}
+    >
       <PencilIcon className="h-4 w-4" />
     </button>
   )
 }
 
 function proposalHasMedia(proposal: ChatProposal) {
-  return (proposal.media_ids || []).length > 0 ||
-    (proposal.children || []).some((child) => (child.media_ids || []).length > 0)
+  return (proposal.media_ids || []).length > 0 || (proposal.children || []).some((child) => (child.media_ids || []).length > 0)
 }
 
 type ProposalMediaKind = "snapshot" | "chat_image" | "preview_panel_version"
@@ -563,13 +728,27 @@ function ProposalMediaTiles({ media, mediaIds, previewPanels }: { media?: ChatMe
   )
 }
 
-function ProposalMediaPicker({ availableItems, loading, selectedRefs, setSelectedRefs }: { availableItems: ProposalMediaItem[]; loading: boolean; selectedRefs: string[]; setSelectedRefs: (refs: string[]) => void }) {
-  const selectedItems = proposalMediaItems(selectedRefs, {
-    snapshots: [],
-    chat_images: [],
-    typed_artifacts: [],
-    whiteboard_has_unsaved_content: false
-  }, []).map((item) => availableItems.find((available) => available.ref === item.ref) || item)
+function ProposalMediaPicker({
+  availableItems,
+  loading,
+  selectedRefs,
+  setSelectedRefs
+}: {
+  availableItems: ProposalMediaItem[]
+  loading: boolean
+  selectedRefs: string[]
+  setSelectedRefs: (refs: string[]) => void
+}) {
+  const selectedItems = proposalMediaItems(
+    selectedRefs,
+    {
+      snapshots: [],
+      chat_images: [],
+      typed_artifacts: [],
+      whiteboard_has_unsaved_content: false
+    },
+    []
+  ).map((item) => availableItems.find((available) => available.ref === item.ref) || item)
   const selectedSet = new Set(selectedRefs)
   const selectableItems = availableItems.filter((item) => !selectedSet.has(item.ref))
 
@@ -624,12 +803,21 @@ function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaI
   const border = interactive ? "hover:border-brand/40 hover:bg-brand/5" : ""
   const thumbnailUrl = item.kind === "chat_image" ? item.imageUrl || null : null
   const tile = thumbnailUrl ? (
-    <div className={`flex h-16 w-32 min-w-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${border}`} title={item.label}>
+    <div
+      className={`flex h-16 w-32 min-w-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${border}`}
+      title={item.label}
+    >
       <img alt={item.label} className="h-full w-full object-cover" src={thumbnailUrl} />
     </div>
   ) : (
-    <div className={`flex h-16 w-32 min-w-0 items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900 ${border}`} title={item.label}>
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-white text-xs font-semibold text-gray-500 dark:bg-gray-950 dark:text-gray-300" aria-hidden="true">
+    <div
+      className={`flex h-16 w-32 min-w-0 items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900 ${border}`}
+      title={item.label}
+    >
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-white text-xs font-semibold text-gray-500 dark:bg-gray-950 dark:text-gray-300"
+        aria-hidden="true"
+      >
         {mediaKindShortLabel(item.kind)}
       </div>
       <div className="min-w-0">
@@ -647,10 +835,7 @@ function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaI
         {tile}
       </button>
       {previewOpen ? (
-        <DocumentPreviewModal
-          file={{ title: item.label, rawUrl: thumbnailUrl, contentType: item.contentType || null }}
-          onClose={() => setPreviewOpen(false)}
-        />
+        <DocumentPreviewModal file={{ title: item.label, rawUrl: thumbnailUrl, contentType: item.contentType || null }} onClose={() => setPreviewOpen(false)} />
       ) : null}
     </>
   )
@@ -712,7 +897,17 @@ function mediaKindShortLabel(kind: ProposalMediaKind) {
   return "IMG"
 }
 
-export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectMessage }: { pendingAction: ChatPendingActionInline | ChatPendingAction; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectMessage?: (messageId: number) => void }) {
+export function PendingActionCard({
+  pendingAction,
+  queryKey,
+  onNotice,
+  onSelectMessage
+}: {
+  pendingAction: ChatPendingActionInline | ChatPendingAction
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+  onSelectMessage?: (messageId: number) => void
+}) {
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const action = useMutation({
@@ -758,8 +953,12 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
         <>
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{pendingActionBadgeLabel(pendingAction)}</span>
-              <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${isPending || isConfirming ? "bg-info/10 text-info" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+              <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">
+                {pendingActionBadgeLabel(pendingAction)}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${isPending || isConfirming ? "bg-info/10 text-info" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
+              >
                 {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
                 {isConfirming ? "Working..." : isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}
               </span>
@@ -790,7 +989,9 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
               </a>
             </h3>
           ) : (
-            <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{terminalLabel ? pendingAction.label : linkifySlugs(pendingAction.label)}</h3>
+            <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">
+              {terminalLabel ? pendingAction.label : linkifySlugs(pendingAction.label)}
+            </h3>
           )}
         </>
       }
@@ -798,15 +999,22 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
         resourceTitle || pendingAction.detail || pendingAction.reason || (pendingAction.execution_step && !isConfirming) || pendingAction.execution_error ? (
           <>
             {resourceTitle && resourceUrl ? (
-              <a className="inline-block break-words text-sm font-medium text-brand hover:underline" href={resourceUrl}>{resourceTitle}</a>
+              <a className="inline-block break-words text-sm font-medium text-brand hover:underline" href={resourceUrl}>
+                {resourceTitle}
+              </a>
             ) : resourceTitle ? (
               <p className="break-words text-sm font-medium text-gray-700 dark:text-gray-300">{resourceTitle}</p>
             ) : null}
             {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
             {pendingAction.reason ? (
-              <p className="mt-2 break-words text-xs text-gray-600 dark:text-gray-300"><span className="font-medium text-gray-700 dark:text-gray-200">Reason: </span>{pendingAction.reason}</p>
+              <p className="mt-2 break-words text-xs text-gray-600 dark:text-gray-300">
+                <span className="font-medium text-gray-700 dark:text-gray-200">Reason: </span>
+                {pendingAction.reason}
+              </p>
             ) : null}
-            {pendingAction.execution_step && !isConfirming ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{pendingAction.execution_step}</p> : null}
+            {pendingAction.execution_step && !isConfirming ? (
+              <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{pendingAction.execution_step}</p>
+            ) : null}
             {pendingAction.execution_error ? <p className="mt-2 break-words text-xs text-red-700 dark:text-red-300">{pendingAction.execution_error}</p> : null}
           </>
         ) : null
@@ -814,7 +1022,11 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
       footer={
         terminalLabel ? (
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
-            <span className={`rounded px-2 py-0.5 font-medium ${pendingAction.state === "confirmed" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{terminalLabel}</span>
+            <span
+              className={`rounded px-2 py-0.5 font-medium ${pendingAction.state === "confirmed" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}
+            >
+              {terminalLabel}
+            </span>
           </div>
         ) : isConfirming ? (
           <div className="flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
@@ -839,7 +1051,9 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
             >
               {rejectLabel}
             </button>
-            {action.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div> : null}
+            {action.isError ? (
+              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div>
+            ) : null}
           </div>
         ) : null
       }
@@ -847,7 +1061,15 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
   )
 }
 
-export function PendingActionGroupCard({ pendingActionGroup, queryKey, onNotice }: { pendingActionGroup: ChatPendingActionGroup; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+export function PendingActionGroupCard({
+  pendingActionGroup,
+  queryKey,
+  onNotice
+}: {
+  pendingActionGroup: ChatPendingActionGroup
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const [expanded, setExpanded] = useState(false)
@@ -879,22 +1101,19 @@ export function PendingActionGroupCard({ pendingActionGroup, queryKey, onNotice 
       header={
         <>
           <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">Batch</span>
-          <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{terminalLabel ? pendingActionGroup.label : linkifySlugs(pendingActionGroup.label)}</h3>
+          <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">
+            {terminalLabel ? pendingActionGroup.label : linkifySlugs(pendingActionGroup.label)}
+          </h3>
         </>
       }
       body={
         <>
           {pendingActionGroup.reason ? (
             <p className="mb-2 text-xs text-gray-600 dark:text-gray-300">
-              <span className="font-medium text-gray-700 dark:text-gray-200">Reason:</span>{" "}
-              <span>{pendingActionGroup.reason}</span>
+              <span className="font-medium text-gray-700 dark:text-gray-200">Reason:</span> <span>{pendingActionGroup.reason}</span>
             </p>
           ) : null}
-          <button
-            className="text-xs font-medium text-brand hover:underline"
-            onClick={() => setExpanded((value) => !value)}
-            type="button"
-          >
+          <button className="text-xs font-medium text-brand hover:underline" onClick={() => setExpanded((value) => !value)} type="button">
             {expanded ? "Hide targets" : `Show ${members.length} target${members.length === 1 ? "" : "s"}`}
           </button>
           {expanded ? (
@@ -905,7 +1124,9 @@ export function PendingActionGroupCard({ pendingActionGroup, queryKey, onNotice 
                   {member.state === "confirmed" ? (
                     <span className="text-green-700 dark:text-green-300">Succeeded</span>
                   ) : member.state === "failed" ? (
-                    <span className="break-words text-red-700 dark:text-red-300">{member.execution_error ? `Failed: ${member.execution_error}` : "Failed"}</span>
+                    <span className="break-words text-red-700 dark:text-red-300">
+                      {member.execution_error ? `Failed: ${member.execution_error}` : "Failed"}
+                    </span>
                   ) : member.state === "cancelled" ? (
                     <span className="text-gray-500 dark:text-gray-400">Cancelled</span>
                   ) : null}
@@ -915,7 +1136,9 @@ export function PendingActionGroupCard({ pendingActionGroup, queryKey, onNotice 
           ) : null}
           {pendingActionGroup.state === "confirmed" ? (
             <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-              {failedMembers.length > 0 ? `${succeededCount} of ${members.length} succeeded, ${failedMembers.length} failed.` : `All ${members.length} succeeded.`}
+              {failedMembers.length > 0
+                ? `${succeededCount} of ${members.length} succeeded, ${failedMembers.length} failed.`
+                : `All ${members.length} succeeded.`}
             </p>
           ) : null}
         </>
@@ -923,7 +1146,11 @@ export function PendingActionGroupCard({ pendingActionGroup, queryKey, onNotice 
       footer={
         terminalLabel ? (
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
-            <span className={`rounded px-2 py-0.5 font-medium ${pendingActionGroup.state === "confirmed" ? (failedMembers.length > 0 ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200") : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{terminalLabel}</span>
+            <span
+              className={`rounded px-2 py-0.5 font-medium ${pendingActionGroup.state === "confirmed" ? (failedMembers.length > 0 ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200") : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}
+            >
+              {terminalLabel}
+            </span>
           </div>
         ) : isConfirming ? (
           <div className="flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
@@ -948,7 +1175,9 @@ export function PendingActionGroupCard({ pendingActionGroup, queryKey, onNotice 
             >
               Reject all
             </button>
-            {action.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Batch action failed.")}</div> : null}
+            {action.isError ? (
+              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Batch action failed.")}</div>
+            ) : null}
           </div>
         ) : null
       }
@@ -964,7 +1193,17 @@ function PendingActionDetail({ detail }: { detail: string }) {
   )
 }
 
-function ProposalDependencyStrip({ className = "mt-2", dependencies, hasDependencies, prefix }: { className?: string; dependencies: ChatProposalDependency[]; hasDependencies: boolean; prefix: string }) {
+function ProposalDependencyStrip({
+  className = "mt-2",
+  dependencies,
+  hasDependencies,
+  prefix
+}: {
+  className?: string
+  dependencies: ChatProposalDependency[]
+  hasDependencies: boolean
+  prefix: string
+}) {
   const { t } = useT("chat")
   if (!hasDependencies) {
     return <div className={`${className} text-xs font-medium text-gray-500 dark:text-gray-400`}>{t("no_dependencies")}</div>
@@ -983,14 +1222,23 @@ function ProposalDependencyStrip({ className = "mt-2", dependencies, hasDependen
 function ProposalDependencyLink({ dependency, prefix }: { dependency: ChatProposalDependency; prefix: string }) {
   const title = dependency.display_label || dependency.materialized_label || dependency.title
   const label = dependency.display_label ? title : `${title} ${dependency.confirmed ? "✓" : "⏳"}`
-  const className = "inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+  const className =
+    "inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
 
   if (dependency.anchor_message_id) {
-    return <a className={className} href={`#message-${dependency.anchor_message_id}`}>{label}</a>
+    return (
+      <a className={className} href={`#message-${dependency.anchor_message_id}`}>
+        {label}
+      </a>
+    )
   }
 
   if (dependency.materialized_path) {
-    return <Link className={className} to={withRoutePrefix(dependency.materialized_path, prefix)}>{label}</Link>
+    return (
+      <Link className={className} to={withRoutePrefix(dependency.materialized_path, prefix)}>
+        {label}
+      </Link>
+    )
   }
 
   return <span className={className}>{label}</span>
@@ -1026,7 +1274,11 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
     const label = proposal.materialized_label || `JOB-${materialized.job_id}`
     return (
       <span>
-        → <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>{label}</ProposalResultLink>{materialized.job_title ? ` "${materialized.job_title}"` : ""}
+        →{" "}
+        <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>
+          {label}
+        </ProposalResultLink>
+        {materialized.job_title ? ` "${materialized.job_title}"` : ""}
       </span>
     )
   }
@@ -1036,24 +1288,30 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
     return (
       <>
         <span>
-          → <SlugHoverCard kind="epic" id={materialized.epic_id}>
+          →{" "}
+          <SlugHoverCard kind="epic" id={materialized.epic_id}>
             <CopyableSlug className="text-xs" slug={`EPIC-${materialized.epic_id}`} />
-          </SlugHoverCard>{materialized.epic_title ? (
+          </SlugHoverCard>
+          {materialized.epic_title ? (
             <>
-              {" \""}
-              <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>{materialized.epic_title}</ProposalResultLink>
-              {"\""}
+              {' "'}
+              <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>
+                {materialized.epic_title}
+              </ProposalResultLink>
+              {'"'}
             </>
           ) : null}
         </span>
         {children.length > 0 ? (
           <span className="basis-full sm:basis-auto">
-            Jobs: {children.map((job, index) => (
+            Jobs:{" "}
+            {children.map((job, index) => (
               <span key={`${job.job_id}-${index}`}>
                 {index > 0 ? ", " : ""}
                 <SlugHoverCard kind="job" id={job.job_id}>
                   <CopyableSlug className="text-xs" slug={`JOB-${job.job_id}`} />
-                </SlugHoverCard>{job.title ? ` "${job.title}"` : ""}
+                </SlugHoverCard>
+                {job.title ? ` "${job.title}"` : ""}
               </span>
             ))}
           </span>
@@ -1065,7 +1323,10 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
   if (proposal.materialized_label && proposal.materialized_path) {
     return (
       <span>
-        → <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>{proposal.materialized_label}</ProposalResultLink>
+        →{" "}
+        <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>
+          {proposal.materialized_label}
+        </ProposalResultLink>
       </span>
     )
   }
@@ -1076,7 +1337,11 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
 function ProposalResultLink({ path, prefix, children }: { path: string | null; prefix: string; children: ReactNode }) {
   if (!path) return <>{children}</>
 
-  return <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(path, prefix)}>{children}</Link>
+  return (
+    <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(path, prefix)}>
+      {children}
+    </Link>
+  )
 }
 
 function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
@@ -1084,19 +1349,55 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   const routeLabel = proposal.route_to_backlog ? t("proposal_route_backlog") : t("proposal_route_start_normally")
   return (
     <dl className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2 dark:text-gray-300">
-      <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("attached_scope")}</dt><dd>{proposal.scoped_repository_slug || t("no_repository_attached")}</dd></div>
-      {proposalSupportsBacklogRoute(proposal) ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_route")}</dt><dd>{routeLabel}</dd></div> : null}
+      <div>
+        <dt className="font-medium text-gray-500 dark:text-gray-400">{t("attached_scope")}</dt>
+        <dd>{proposal.scoped_repository_slug || t("no_repository_attached")}</dd>
+      </div>
+      {proposalSupportsBacklogRoute(proposal) ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_route")}</dt>
+          <dd>{routeLabel}</dd>
+        </div>
+      ) : null}
       <div>
         <dt className="font-medium text-gray-500 dark:text-gray-400">{t("dependencies")}</dt>
         <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : t("none")}</dd>
       </div>
-      {proposal.target_epic_label ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("target_epic")}</dt><dd>{proposal.target_epic_label}</dd></div> : null}
-      {proposal.goal_provenance ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("goal_provenance_label")}</dt><dd title={proposal.goal_provenance.prompt_snapshot.prompt || undefined}>{t("goal_provenance_value", { id: proposal.goal_provenance.chat_goal_id })}</dd></div> : null}
+      {proposal.target_epic_label ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("target_epic")}</dt>
+          <dd>{proposal.target_epic_label}</dd>
+        </div>
+      ) : null}
+      {proposal.goal_provenance ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("goal_provenance_label")}</dt>
+          <dd title={proposal.goal_provenance.prompt_snapshot.prompt || undefined}>
+            {t("goal_provenance_value", { id: proposal.goal_provenance.chat_goal_id })}
+          </dd>
+        </div>
+      ) : null}
     </dl>
   )
 }
 
-function ProposalChildren({ children, media, parentProposed, mutation, prefix, previewPanels, onEdit }: { children: ChatProposalChild[]; media?: ChatMediaPayload; parentProposed: boolean; mutation: UseMutationResult<ChatPayload | ChatProposalMutationPayload, Error, ProposalActionInput>; prefix: string; previewPanels: ChatPreviewPanel[]; onEdit: (child: ChatProposalChild) => void }) {
+function ProposalChildren({
+  children,
+  media,
+  parentProposed,
+  mutation,
+  prefix,
+  previewPanels,
+  onEdit
+}: {
+  children: ChatProposalChild[]
+  media?: ChatMediaPayload
+  parentProposed: boolean
+  mutation: UseMutationResult<ChatPayload | ChatProposalMutationPayload, Error, ProposalActionInput>
+  prefix: string
+  previewPanels: ChatPreviewPanel[]
+  onEdit: (child: ChatProposalChild) => void
+}) {
   const { t } = useT("chat")
 
   if (children.length === 0) return null
@@ -1107,13 +1408,32 @@ function ProposalChildren({ children, media, parentProposed, mutation, prefix, p
           <summary className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
             <span className="text-gray-400 group-open:rotate-90 dark:text-gray-500">▸</span>
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
-            <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-info/10 text-info" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
-            {child.proposed && parentProposed ? <ProposalEditButton label={`Edit ${child.slug}`} onClick={(event) => { event.stopPropagation(); onEdit(child) }} /> : null}
+            <span
+              className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-info/10 text-info" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
+            >
+              {child.state_label}
+            </span>
+            {child.proposed && parentProposed ? (
+              <ProposalEditButton
+                label={`Edit ${child.slug}`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onEdit(child)
+                }}
+              />
+            ) : null}
           </summary>
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span className="font-mono">{child.slug}</span>
+              <span>{child.repository_slug || "No repository attached"}</span>
+            </div>
             <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
-            {child.goal_provenance ? <div className="mt-2 text-xs text-gray-500 dark:text-gray-400" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>{t("goal_provenance_value", { id: child.goal_provenance.chat_goal_id })}</div> : null}
+            {child.goal_provenance ? (
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>
+                {t("goal_provenance_value", { id: child.goal_provenance.chat_goal_id })}
+              </div>
+            ) : null}
             <ProposalMediaTiles media={media} mediaIds={child.media_ids || []} previewPanels={previewPanels} />
             {child.proposed && parentProposed ? (
               <div className="mt-3">

@@ -15,6 +15,7 @@ module TestInsights
 
       ranked_cases = TestCase
         .where(test_identity_id: ids)
+        .scored
         .select(
           "test_insight_cases.test_identity_id",
           "test_insight_cases.status",
