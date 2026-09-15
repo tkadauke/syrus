@@ -314,7 +314,7 @@ module Api
         def credentials_options(user)
           {
             locales: User::LOCALES,
-            agent_providers: User.agent_providers,
+            agent_providers: user.configured_agent_providers,
             chat_providers: User.chat_providers.select { |provider| user.chat_provider_configured?(provider) },
             roles: User::ROLES,
             codex_auth_modes: User::CODEX_AUTH_MODES,
@@ -331,7 +331,7 @@ module Api
         end
 
         def testable_credentials
-          %w[ github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key ]
+          %w[ github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key agy ]
         end
 
         def claude_oauth!
@@ -359,7 +359,7 @@ module Api
                                   :enabled, :override_explicit_pins,
                                   { providers: [], causes: [] }
                                 ] },
-                                { provider_availability_pause_thresholds: [ :claude, :codex ] } ])
+                                { provider_availability_pause_thresholds: User.agent_providers.map(&:to_sym) } ])
         end
 
         def provider_param
