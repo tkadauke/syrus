@@ -70,6 +70,21 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(checkout.path.to_s).to include("/workflows/#{workflow.id}/.syrus/immutable-checkouts/steps/#{step.id}")
   end
 
+  it "preserves the workflow base ref when the source snapshot is a synthetic ref" do
+    snapshot.update!(
+      source_ref: "refs/syrus/source-snapshots/runs/123",
+      source_sha: feature_sha,
+      tree_sha: feature_tree_sha
+    )
+
+    checkout = described_class.new(step)
+    checkout.setup
+
+    expect(sh("git -C #{checkout.path} rev-parse HEAD").strip).to eq(feature_sha)
+    expect(sh("git -C #{checkout.path} rev-parse refs/remotes/origin/main").strip).to eq(main_sha)
+    expect(sh("git -C #{checkout.path} diff --name-only origin/main...HEAD").lines.map(&:strip)).to eq([ "feature.txt" ])
+  end
+
   it "runs normal prepare commands in the immutable checkout dependency environment" do
     checkout = described_class.new(step)
 
@@ -287,6 +302,14 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     @main_tree_sha ||= sh("git --git-dir=#{bare_remote_dir} rev-parse refs/heads/main^{tree}").strip
   end
 
+  def feature_sha
+    @feature_sha ||= sh("git --git-dir=#{bare_remote_dir} rev-parse refs/syrus/source-snapshots/runs/123").strip
+  end
+
+  def feature_tree_sha
+    @feature_tree_sha ||= sh("git --git-dir=#{bare_remote_dir} rev-parse refs/syrus/source-snapshots/runs/123^{tree}").strip
+  end
+
   def seed_remote(bare_path)
     Dir.mktmpdir("syrus-immutable-source-seed") do |seed|
       sh("git init -q -b main #{seed}")
@@ -297,8 +320,13 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       YAML
       sh("git -C #{seed} add README.md .syrus.yml")
       sh("git -C #{seed} commit -q -m 'initial' --author='Seed <s@e>'")
+      sh("git -C #{seed} checkout -q -b feature")
+      File.write(File.join(seed, "feature.txt"), "feature\n")
+      sh("git -C #{seed} add feature.txt")
+      sh("git -C #{seed} commit -q -m 'feature' --author='Seed <s@e>'")
       FileUtils.mkdir_p(bare_path.dirname)
       sh("git clone -q --bare #{seed} #{bare_path}")
+      sh("git --git-dir=#{bare_path} update-ref refs/syrus/source-snapshots/runs/123 refs/heads/feature")
     end
   end
 

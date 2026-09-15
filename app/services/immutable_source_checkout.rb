@@ -42,6 +42,7 @@ class ImmutableSourceCheckout
       materialize!(snapshot) unless restored_from_prepare_cache || restored_from_archive || valid_checkout?(snapshot)
     end
     verify_head!(snapshot)
+    ensure_base_ref!
     ensure_exclude_entry
     prepare_cache = build_prepare_cache(snapshot)
     if restored_from_prepare_cache && prepare_cache.hit?
@@ -146,15 +147,66 @@ class ImmutableSourceCheckout
     raise_infrastructure!("immutable source checkout SHA mismatch: could not read HEAD: #{e.message}")
   end
 
+  def ensure_base_ref!
+    return if git_ref_exists?(base_ref)
+
+    remote, branch = remote_tracking_ref_parts(base_ref)
+    log("[immutable_source_checkout] fetching base ref #{base_ref}")
+    ensure_remote!(remote)
+    authenticated_git_for(remote_repository(remote), "git_immutable_source_base_fetch") do |url|
+      @git.run(
+        "fetch", "--no-tags", url,
+        "+refs/heads/#{branch}:refs/remotes/#{remote}/#{branch}",
+        chdir: path.to_s,
+        env: @env
+      )
+    end
+    return if git_ref_exists?(base_ref)
+
+    raise_infrastructure!("immutable source checkout missing base ref #{base_ref}")
+  rescue GitRunner::GitError => e
+    raise_infrastructure!("immutable source checkout failed to fetch base ref #{base_ref}: #{e.message}")
+  end
+
+  def git_ref_exists?(ref)
+    @git.run("rev-parse", "--verify", "--quiet", ref, chdir: path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
+  end
+
+  def remote_tracking_ref_parts(ref)
+    remote, branch = ref.to_s.split("/", 2)
+    if remote.blank? || branch.blank?
+      raise_infrastructure!("immutable source checkout cannot determine base ref #{ref}")
+    end
+
+    [ remote, branch ]
+  end
+
+  def ensure_remote!(remote)
+    @git.run("remote", "get-url", remote, chdir: path.to_s)
+  rescue GitRunner::GitError
+    @git.run("remote", "add", remote, remote_repository(remote).remote_url, chdir: path.to_s)
+  end
+
   def authenticated_git(operation_type, &block)
+    authenticated_git_for(@repository, operation_type, &block)
+  end
+
+  def authenticated_git_for(repository, operation_type, &block)
     GithubAuthenticatedGit.run(
-      repository: @repository,
+      repository: repository,
       user: @job.user,
       git: @git,
       operation_type: operation_type,
       log: @log,
       &block
     )
+  end
+
+  def remote_repository(remote)
+    remote == "upstream" ? @job.base_repository : @repository
   end
 
   def ensure_exclude_entry
@@ -180,6 +232,7 @@ class ImmutableSourceCheckout
         FileUtils.mkdir_p(path.dirname)
         copy_tree!(prepare_cache.path, path)
         verify_head!(snapshot)
+        ensure_base_ref!
         ensure_exclude_entry
         record_prepare_cache!(prepare_cache, "hit")
         log("[immutable_source_checkout] prepare cache hit: #{prepare_cache.short_cache_key}")
@@ -316,6 +369,7 @@ class ImmutableSourceCheckout
     FileUtils.mkdir_p(path)
     run_tar!("tar", "-xzf", archive_path.to_s, "-C", path.to_s)
     verify_head!(snapshot)
+    ensure_base_ref!
     ensure_exclude_entry
     record_prepared!(snapshot, prepare_cache.plan, prepare_cache)
     prepare_cache.store_from!(path)
@@ -325,6 +379,7 @@ class ImmutableSourceCheckout
     FileUtils.rm_rf(path.to_s)
     materialize!(snapshot)
     verify_head!(snapshot)
+    ensure_base_ref!
     ensure_exclude_entry
     false
   ensure
@@ -351,6 +406,7 @@ class ImmutableSourceCheckout
     FileUtils.mkdir_p(path)
     copy_tree!(marker_path.dirname.dirname, path)
     verify_head!(snapshot)
+    ensure_base_ref!
     ensure_exclude_entry
     log("[immutable_source_checkout] restored checkout from local prepare cache before fetching source snapshot")
     true
@@ -374,6 +430,7 @@ class ImmutableSourceCheckout
     FileUtils.mkdir_p(path)
     run_tar!("tar", "-xzf", archive_path.to_s, "-C", path.to_s)
     verify_head!(snapshot)
+    ensure_base_ref!
     ensure_exclude_entry
     log("[immutable_source_checkout] restored checkout from prepared archive before fetching source snapshot")
     true
