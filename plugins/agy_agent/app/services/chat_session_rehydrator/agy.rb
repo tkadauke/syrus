@@ -90,7 +90,7 @@ class ChatSessionRehydrator::Agy
       "type" => "tool_result",
       "tool_result" => {
         "id" => message.tool_use_id.to_s,
-        "name" => canonical_name(message).presence,
+        "name" => agy_tool_name(canonical_name(message)).presence,
         "content" => canonical_content(message),
         "is_error" => canonical_error?(message)
       }.compact
@@ -111,7 +111,11 @@ class ChatSessionRehydrator::Agy
   end
 
   def canonical_name(message)
-    message.canonical_content_format? ? message.content["name"].to_s : message.tool_name.to_s
+    if message.canonical_content_format?
+      message.content["name"].presence || message.tool_name.to_s
+    else
+      message.tool_name.to_s
+    end
   end
 
   def canonical_input(message)

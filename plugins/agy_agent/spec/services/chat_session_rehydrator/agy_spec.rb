@@ -72,6 +72,7 @@ RSpec.describe ChatSessionRehydrator::Agy do
 
     expect(tool_call.dig("tool_call", "name")).to eq("mcp(syrus-chat-sidecar/read_live_state)")
     expect(tool_call.dig("tool_call", "input")).to eq("scope" => "chat")
+    expect(tool_result.dig("tool_result", "name")).to eq("mcp(syrus-chat-sidecar/read_live_state)")
     expect(tool_result.dig("tool_result", "content")).to eq("ok")
     expect(tool_result.dig("tool_result", "is_error")).to eq(false)
   end
