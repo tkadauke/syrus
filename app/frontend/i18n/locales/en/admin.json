@@ -1,5 +1,6 @@
 {
   "title": "Admin",
+  "loading": "Loading...",
   "page_title_queue": "Queue — Admin",
   "page_title_stuck": "Stuck Jobs — Admin",
   "page_title_resource_admission": "Resource Admission — Admin",
@@ -111,6 +112,10 @@
     "action_failed": "Action failed.",
     "filing": "Filing...",
     "issue_filed": "Issue filed"
+  },
+  "plugin_pages": {
+    "unavailable_heading": "Page unavailable",
+    "unavailable_body": "This admin page is not available right now."
   },
   "overview": {
     "heading": "Overview",
