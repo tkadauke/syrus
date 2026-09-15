@@ -130,11 +130,13 @@ transport before invoking. The decision is a `transport` (`:persistent` or
   `capabilities` array doesn't include `PersistentMcpDaemon::WORKFLOW_TOOLS_CAPABILITY`
   (`"workflow_tools"`). This is the outcome in production today, since
   `PersistentMcpDaemon::CAPABILITIES` is still empty (see above).
-- `provider_unsupported: ...` — Codex-only. Codex's MCP config
-  (`config.toml`) has no verified remote/HTTP transport wiring in this
-  codebase, so `AgentProviders::Codex` downgrades any `:persistent` decision
-  to `:stdio` with this reason before it ever builds a config, regardless of
-  daemon health/compatibility.
+- `provider_unsupported: ...` — provider has no verified remote/HTTP transport
+  wiring in this codebase. Codex's MCP config (`config.toml`) and
+  Antigravity's MCP config (`~/.gemini/config/mcp_config.json`) both model the
+  Syrus MCP sidecar as stdio today, so `AgentProviders::Codex` and
+  `AgentProviders::Agy` downgrade any `:persistent` decision to `:stdio` with
+  this reason before building their configs, regardless of daemon
+  health/compatibility.
 - `nil` (persistent, no fallback) — feature on, daemon healthy, compatible,
   and (Claude only) transport wiring exists. `AgentProviders::Claude` then
   builds an `http`-type `mcpServers` entry pointing at
