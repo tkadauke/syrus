@@ -2,6 +2,7 @@ module WorkEngine
   module Simulation
     class ScenarioRunner
       def self.call(path:, max_ticks: DEFAULT_MAX_TICKS)
+        SolidQueueBootstrap.ensure! if Rails.env.test?
         world = ScenarioLoader.load!(path)
         success_states = world.success_states.each_with_object({}) do |(key, states), result|
           job = world.jobs_by_key.fetch(key.to_s)

@@ -237,6 +237,7 @@ RSpec.describe DiagnoseRunJob do
 
     context "SolidQueue tables unreachable" do
       it "creates a snapshot without crashing when SQ tables are absent" do
+        drop_solid_queue_test_tables!
         run = running_run
 
         job = build_job
