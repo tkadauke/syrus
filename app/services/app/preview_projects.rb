@@ -92,7 +92,12 @@ module App
       files = changed_files
       return choices if files.empty?
 
-      choices.select { |choice| choice.path.blank? || project_path_matches?(choice.path, files) }
+      nested_choices = choices.reject { |choice| choice.path.blank? }
+      affected_nested = nested_choices.select { |choice| project_path_matches?(choice.path, files) }
+      root_choices = choices.select { |choice| choice.path.blank? }
+      root_owned_files = files.reject { |file| nested_choices.any? { |choice| project_path_matches?(choice.path, [ file ]) } }
+
+      affected_nested + (root_owned_files.any? ? root_choices : [])
     end
 
     def project_path_matches?(path, files)
