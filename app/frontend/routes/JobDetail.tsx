@@ -630,17 +630,19 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
         ))}
       </Select>
       <span className="text-xs text-gray-500 dark:text-gray-400" id={`job-${payload.job.id}-provider-help`}>
-        {t("provider_setting_help", { provider: agentProviderLabel(payload.job.agent_provider || "") })}
+        {t("provider_setting_help", { provider: agentProviderLabel(payload, payload.job.agent_provider || "") })}
       </span>
       {error ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</span> : null}
     </span>
   )
 }
 
-function agentProviderLabel(provider: string) {
-  if (provider === "codex") return "Codex"
-  if (provider === "claude") return "Claude Code"
-  return provider || "default"
+function agentProviderLabel(payload: JobDetailPayload, provider: string) {
+  if (!provider) return "default"
+
+  return payload.job.agent_provider === provider
+    ? payload.job.agent_provider_label || provider
+    : payload.job.job_provider_setting_options?.find((option) => option.value === provider)?.label || provider
 }
 
 function UrgentConfirmDialog({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {

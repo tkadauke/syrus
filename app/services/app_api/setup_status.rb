@@ -127,7 +127,8 @@ module AppApi
         github_pat: github_token_configured?,
         github_app: github_app_configured?,
         agent: agent_credential_configured?,
-        active_agent_provider: user.agent_provider
+        active_agent_provider: user.agent_provider,
+        active_agent_provider_label: App::Presentation.agent_provider_label(user.agent_provider)
       }
     end
 
