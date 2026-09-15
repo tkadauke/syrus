@@ -47,7 +47,7 @@ module App
       preview_projects = project_choices
       return Result.new(choices: [], unavailable_reason: "no_preview_configured") if preview_projects.empty?
 
-      affected = preview_projects.select { |project| affected_project?(project) }
+      affected = affected_projects(preview_projects)
       return Result.new(choices: [], unavailable_reason: "no_affected_preview_project") if affected.empty?
 
       enabled = affected.select { |project| visual_review_enabled?(project.visual_review) }
@@ -83,11 +83,19 @@ module App
       ]
     end
 
-    def affected_project?(project)
-      return true if changed_files.empty?
-      return true if project.path.blank?
+    def affected_projects(projects)
+      return projects if changed_files.empty?
 
-      changed_files.any? { |file| file == project.path || file.start_with?("#{project.path}/") }
+      nested_projects = projects.reject(&:root?)
+      affected_nested = nested_projects.select { |project| files_match_project?(project.path, changed_files) }
+      root_projects = projects.select(&:root?)
+      root_owned_files = changed_files.reject { |file| nested_projects.any? { |project| files_match_project?(project.path, [ file ]) } }
+
+      affected_nested + (root_owned_files.any? ? root_projects : [])
+    end
+
+    def files_match_project?(path, files)
+      files.any? { |file| file == path || file.start_with?("#{path}/") }
     end
 
     def visual_review_enabled?(config)
