@@ -58,4 +58,12 @@ RSpec.describe "search_source plugin tables" do
   it "has no rebuild hook for a table nobody claims" do
     expect(SyrusSearchDatabaseTasks.plugin_rebuild_hook("unclaimed_fts")).to be_nil
   end
+
+  it "registers the built-in job and epic backfill provider" do
+    providers = Syrus::PluginRegistry.providers_for("global_search:source")
+
+    expect(providers).to include(GlobalSearch::BuiltInSource)
+    expect(GlobalSearch::BuiltInSource).to respond_to(:upsert_job)
+    expect(GlobalSearch::BuiltInSource).to respond_to(:upsert_epic)
+  end
 end

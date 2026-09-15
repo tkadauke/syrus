@@ -144,4 +144,27 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: 
 
     expect(response).to have_http_status(:not_found)
   end
+
+  it "returns retryable unavailable JSON when artifact storage is temporarily unreachable" do
+    sign_in_as(user)
+    workflow = workflow_for(user)
+    workflow.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
+    unavailable_artifact = Struct.new(:filename, :content_type) do
+      def download
+        raise Errno::ECONNREFUSED, "minio:9000"
+      end
+    end.new("screenshot.png", "image/png")
+    allow_any_instance_of(Workflow).to receive(:visual_artifact_for).and_return(unavailable_artifact)
+
+    get "/api/v1/app/workflows/#{workflow.id}/visual_artifact", params: { type: "visual_review_screenshot" }
+
+    expect(response).to have_http_status(:service_unavailable)
+    expect(response.headers["Retry-After"]).to eq(StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
+    expect(JSON.parse(response.body)).to eq(
+      "error" => {
+        "code" => "storage_unavailable",
+        "message" => "Visual artifact storage is temporarily unavailable. Please retry shortly."
+      }
+    )
+  end
 end
