@@ -2,6 +2,10 @@ require "rails_helper"
 
 RSpec.describe ChatSessionRehydrator do
   describe ".for" do
+    before do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+    end
+
     it "returns the Claude rehydrator class for 'claude'" do
       expect(described_class.for("claude")).to eq(ChatSessionRehydrator::Claude)
     end

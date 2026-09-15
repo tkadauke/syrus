@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe Admin::Users::Filter do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   let!(:admin_user) { Factories.user(email_address: "admin@example.com") }
   let!(:plain_user) { Factories.user(email_address: "ophelia@example.com") }
   let!(:gh_token_user) { Factories.user(email_address: "alice@example.com", github_token: "ghp_x") }
