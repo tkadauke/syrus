@@ -87,7 +87,7 @@ export function ClaudeConnect({
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only on outage transitions
+     
   }, [backendOutage])
 
   async function authorize() {
