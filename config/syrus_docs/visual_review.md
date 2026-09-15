@@ -61,6 +61,17 @@ the files changed since the default branch match, the step records a
 `skipped` verdict without ever invoking the agent (mirrors a grader's
 `when_files_changed`).
 
+In project-aware monorepos, Syrus resolves affected preview-capable projects
+before invoking the reviewer. The visual-review prompt lists the affected
+projects with `project_id`, label, path, and owning `.syrus.yml`. If exactly
+one affected preview exists, the reviewer can call `start_preview` without a
+`project_id` or pass that id explicitly. If several affected previews exist,
+the reviewer must choose the relevant `project_id` for the UI under test and
+may start more than one project preview when the diff crosses products. A bare
+`start_preview` is ambiguous in that case. If no affected project has preview
+configuration, the reviewer should record `skipped` or explain the preview
+configuration gap rather than testing an unrelated app.
+
 When the agent does run, it reads the `submit_test_plan` artifact's
 `visual_review_recommended` / `visual_review_reason` fields — set by the
 implementing agent as a hint about whether this change is worth visually
@@ -120,6 +131,12 @@ visual_review:
   agent as a hint, not executed.
 
 See [`syrus_yml.md`](syrus_yml.md) for the full `.syrus.yml` reference.
+
+Nested `visual_review:` blocks are scoped to their project. Their
+`when_files_changed` patterns are resolved relative to the nested
+`.syrus.yml`, and their seed notes are shown when that project preview is one
+of the affected choices. Use root settings for repository-wide policy and
+nested settings for product-specific review scope, seed guidance, or opt-outs.
 
 ## Seeding requirements
 
