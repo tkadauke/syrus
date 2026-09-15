@@ -1,6 +1,6 @@
 require "rails_helper"
 
-# The repo-local `.syrus/skills/backport-hotfixes/SKILL.md` skill 
+# The repo-local `.syrus/skills/backport-hotfixes/SKILL.md` skill
 # that reconciles `main` back into `development` for periodic ScheduledTask
 # invocation . Like `promote` (the relevant change/spec/skills/promote_spec.rb),
 # this is plain git-tracked markdown with no Ruby class behind it —
