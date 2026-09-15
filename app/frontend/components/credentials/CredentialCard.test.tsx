@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ReactElement } from "react"
 import type { CredentialsPayload } from "../../api/credentials"
-import { ClaudeCredentialCard, CodexCredentialCard, GeminiCredentialCard, GithubCredentialCard } from "./CredentialCard"
+import { AgyCredentialCard, ClaudeCredentialCard, CodexCredentialCard, GeminiCredentialCard, GithubCredentialCard } from "./CredentialCard"
 
 function makePayload(overrides: {
   credential_status?: Partial<CredentialsPayload["credential_status"]>
@@ -369,5 +369,41 @@ describe("GeminiCredentialCard", () => {
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Gemini API key cleared."))
     const clearCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/clear_credential"))
     expect(JSON.parse(clearCall?.[1]?.body as string)).toEqual({ credential: "gemini_api_key" })
+  })
+})
+
+describe("AgyCredentialCard", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("explains that Antigravity uses the shared Gemini key when unset", () => {
+    mockRoutes()
+    renderCard(<AgyCredentialCard onNotice={() => {}} payload={makePayload()} />)
+
+    expect(screen.getByText("Not set")).toBeInTheDocument()
+    expect(screen.getByText(/Add a Gemini API key/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Test" })).not.toBeInTheDocument()
+  })
+
+  it("tests Antigravity readiness with the agy credential alias when the shared key is saved", async () => {
+    const fetchSpy = mockRoutes({
+      test: () => jsonResponse({
+        credential_test: {
+          credential: "agy",
+          ok: true,
+          message: "Antigravity accepted the shared Gemini API key.",
+          details: { shared_credential: "gemini_api_key" }
+        }
+      })
+    })
+    renderCard(<AgyCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { gemini_api_key: true } })} />)
+
+    expect(screen.getByText("Connected")).toBeInTheDocument()
+    expect(screen.getByText(/shared Gemini API key/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Test" }))
+
+    await waitFor(() => expect(screen.getByText(/Antigravity accepted/)).toBeInTheDocument())
+    const testCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/test_credential"))
+    expect(JSON.parse(testCall?.[1]?.body as string)).toEqual({ credential: "agy" })
   })
 })
