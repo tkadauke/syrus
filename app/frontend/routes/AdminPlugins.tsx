@@ -1,10 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { type ReactNode, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   disableAdminPlugin,
   enableAdminPlugin,
+  fetchAdminPlugin,
   fetchAdminPlugins,
   type AdminPlugin,
   type AdminPluginDisableConfirmation,
@@ -12,11 +13,12 @@ import {
   type AdminPluginsPayload
 } from "../api/adminPlugins"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
-import { Button } from "../components/Button"
+import { Button, buttonClasses } from "../components/Button"
 import { FilterBar, filterTreeFromPayload, topFilterChildren } from "../components/FilterBar"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
 
 export function AdminPlugins() {
@@ -59,6 +61,27 @@ export function AdminPlugins() {
   )
 }
 
+export function AdminPluginDetail() {
+  const { t } = useT("admin")
+  const { name = "" } = useParams()
+  usePageTitle(t("page_title_plugin_detail"))
+
+  const plugin = useQuery({
+    queryKey: ["admin", "plugins", name],
+    queryFn: () => fetchAdminPlugin(name),
+    enabled: name.length > 0
+  })
+
+  return (
+    <main aria-label={t("plugins.detail_aria")} className="mx-auto max-w-6xl space-y-6 p-6">
+      <Link className="text-sm font-medium text-brand hover:underline" to="/admin/plugins">{t("plugins.back_to_plugins")}</Link>
+      {plugin.isPending ? <PanelMessage>{t("plugins.detail_loading")}</PanelMessage> : null}
+      {plugin.isError ? <PanelMessage tone="error">{errorMessage(plugin.error, t("plugins.detail_error_load"))}</PanelMessage> : null}
+      {plugin.isSuccess ? <PluginDetailView plugin={plugin.data.plugin} /> : null}
+    </main>
+  )
+}
+
 function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFiltered: boolean }) {
   const { t } = useT("admin")
   if (plugins.length === 0) {
@@ -83,12 +106,17 @@ function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFilter
 
 function PluginCard({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
+  const navigate = useNavigate()
   const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
   const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation, unknown, boolean | undefined>({
     mutationFn: (confirmCascade) => plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name),
     onSuccess: (data) => {
       if ("requires_confirmation" in data && data.requires_confirmation) {
         setPendingCascade(data)
+        return
+      }
+      if (!plugin.enabled) {
+        navigate(`/admin/plugins/${encodeURIComponent(plugin.name)}`)
         return
       }
       pageReload.reloadPage()
@@ -123,15 +151,13 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
           </div>
           {plugin.description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.description}</p> : null}
-          {plugin.long_description ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             {plugin.category ? <span>{t("plugins.category")}: <span className="font-mono">{plugin.category_label || plugin.category}</span></span> : null}
-            <span>{t("plugins.default_state")}: {plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")}</span>
             {dependsOn.length > 0 ? <span>{t("plugins.depends_on")}: <span className="font-mono">{dependsOn.join(", ")}</span></span> : null}
             {dependents.length > 0 ? <span>{t("plugins.required_by")}: <span className="font-mono">{dependents.join(", ")}</span></span> : null}
           </div>
           {plugin.recommendation ? (
-            <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+            <p className="mt-3 rounded border border-info/25 bg-info/10 px-3 py-2 text-sm leading-6 text-info">
               <span className="font-medium">{t("plugins.suggested")}</span>{" "}
               {plugin.recommendation.reason}{" "}
               <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
@@ -140,6 +166,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           {toggle.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(toggle.error, t("plugins.error_toggle"))}</p> : null}
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
+          <Link className={buttonClasses("secondary")} to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>{t("plugins.details")}</Link>
           <span title={disableTooltip}>
             <Button
               disabled={toggle.isPending || (plugin.enabled && (!plugin.disableable || disableBlocked))}
@@ -149,7 +176,6 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
               {toggle.isPending ? t("plugins.saving") : plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
             </Button>
           </span>
-          <PluginMetadata plugin={plugin} />
         </div>
       </div>
 
@@ -190,29 +216,6 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         </details>
       ) : null}
 
-      <details className="mt-4">
-        <summary className="cursor-pointer select-none text-xs font-medium uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          {t("plugins.extension_points_heading")}
-        </summary>
-        {plugin.extension_points.length > 0 ? (
-          <div className="mt-2 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                <tr>
-                  <th className="py-2 pr-4 font-medium">{t("plugins.col_extension_point")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("plugins.col_class")}</th>
-                  <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {plugin.extension_points.map((extension) => <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />)}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("plugins.no_extension_points")}</p>
-        )}
-      </details>
     </article>
   )
 }
@@ -236,6 +239,188 @@ function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
       ))}
     </dl>
   )
+}
+
+function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
+  const { t } = useT("admin")
+  const visibleLinks = (plugin.links || []).filter((link) => plugin.enabled || link.enabled_only === false)
+
+  return (
+    <>
+      <header className="border-b border-gray-200 pb-5 dark:border-gray-700">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-9 w-9 shrink-0" src={plugin.icon_url} /> : null}
+              <PageHeading className="break-words">{plugin.display_name || plugin.name}</PageHeading>
+              <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{plugin.name}</span>
+              <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
+              {plugin.health ? <StatusBadge status={plugin.health.state} label={`${t("plugins.health")}: ${plugin.health.state}`} /> : null}
+            </div>
+            {plugin.health && plugin.health.reasons.length > 0 ? (
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-700 dark:text-amber-300">
+                {plugin.health.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            ) : null}
+            {plugin.description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{plugin.description}</p> : null}
+            {plugin.long_description ? <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
+            {plugin.recommendation ? (
+              <p className="mt-3 max-w-3xl rounded border border-info/25 bg-info/10 px-3 py-2 text-sm leading-6 text-info">
+                <span className="font-medium">{t("plugins.suggested")}</span> {plugin.recommendation.reason} <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
+              </p>
+            ) : null}
+          </div>
+          <PluginMetadata plugin={plugin} />
+        </div>
+        {visibleLinks.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {visibleLinks.map((link) => (
+              <a className={buttonClasses("primary")} href={link.href} key={`${link.kind}-${link.href}`}>{link.label}</a>
+            ))}
+          </div>
+        ) : null}
+      </header>
+
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="min-w-0 space-y-6">
+          <DetailSection title={t("plugins.config_heading")}>
+            {(plugin.config_schema || []).length > 0 ? (
+              <div className="space-y-2">
+                {(plugin.config_schema || []).map((entry) => {
+                  const key = String(entry["key"])
+                  return <KeyValueLine key={key} label={String(entry["label"] || key)} value={formatConfigValue(plugin.config?.[key])} />
+                })}
+              </div>
+            ) : <EmptyText>{t("plugins.no_config")}</EmptyText>}
+          </DetailSection>
+
+          <DetailSection title={t("plugins.docs_heading")}>
+            {(plugin.docs || []).length > 0 ? (
+              <div className="space-y-4">
+                {(plugin.docs || []).map((doc) => (
+                  <article className="min-w-0 overflow-hidden rounded border border-gray-200 p-4 dark:border-gray-800" data-testid="plugin-doc-card" key={doc.path}>
+                    <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
+                      <SectionHeading className="break-words">{doc.title}</SectionHeading>
+                      <span className="max-w-full break-all font-mono text-xs text-gray-500 dark:text-gray-400">{doc.path}</span>
+                    </div>
+                    <Markdown className="plugin-docs-prose min-w-0 text-sm text-gray-700 dark:text-gray-200" text={doc.body} />
+                  </article>
+                ))}
+              </div>
+            ) : <EmptyText>{t("plugins.no_docs")}</EmptyText>}
+          </DetailSection>
+
+          <DetailSection title={t("plugins.metrics_heading")}>
+            {(plugin.metrics || []).length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                    <tr>
+                      <th className="py-2 pr-4 font-medium">{t("plugins.col_metric")}</th>
+                      <th className="py-2 pr-4 font-medium">{t("plugins.col_type")}</th>
+                      <th className="py-2 pr-4 font-medium">{t("plugins.col_tags")}</th>
+                      <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {(plugin.metrics || []).map((metric) => (
+                      <tr key={metric.name}>
+                        <td className="py-3 pr-4">
+                          <div className="font-mono text-xs text-gray-800 dark:text-gray-100">{metric.name}</div>
+                          {metric.comment ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{metric.comment}</div> : null}
+                        </td>
+                        <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">{metric.type}</td>
+                        <td className="py-3 pr-4 font-mono text-xs text-gray-700 dark:text-gray-200">{metric.tags.length > 0 ? metric.tags.join(", ") : "-"}</td>
+                        <td className="py-3"><StatusBadge status={metric.available ? "available" : "disabled"} label={metric.available ? t("plugins.metric_available") : t("plugins.metric_unavailable")} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <EmptyText>{t("plugins.no_metrics")}</EmptyText>}
+          </DetailSection>
+
+          <DetailSection title={t("plugins.extension_points_heading")}>
+            {plugin.extension_points.length > 0 ? <ExtensionPointsTable extensions={plugin.extension_points} /> : <EmptyText>{t("plugins.no_extension_points")}</EmptyText>}
+          </DetailSection>
+
+          <DetailSection title={t("plugins.routes_heading")}>
+            {(plugin.routes || []).length > 0 ? (
+              <div className="space-y-2">
+                {(plugin.routes || []).map((route, index) => <KeyValueLine key={index} label={`${route["verb"] || ""} ${route["path"] || ""}`} value={String(route["controller"] || "")} />)}
+              </div>
+            ) : <EmptyText>{t("plugins.no_routes")}</EmptyText>}
+          </DetailSection>
+        </div>
+
+        <aside className="space-y-4">
+          <DetailSection title={t("plugins.metadata_heading")}>
+            <div className="space-y-2">
+              <KeyValueLine label={t("plugins.author")} value={plugin.author || "-"} />
+              <KeyValueLine label={t("plugins.version")} value={plugin.version || "-"} />
+              <KeyValueLine label={t("plugins.category")} value={plugin.category_label || plugin.category || "-"} />
+              <KeyValueLine label={t("plugins.default_state")} value={plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")} />
+              <KeyValueLine label={t("plugins.disableable")} value={plugin.disableable ? t("plugins.yes") : t("plugins.no")} />
+              <KeyValueLine label={t("plugins.homepage")} value={plugin.homepage || "-"} />
+              <KeyValueLine label={t("plugins.source")} value={plugin.source || "-"} />
+              <KeyValueLine label={t("plugins.depends_on")} value={(plugin.depends_on || []).join(", ") || "-"} />
+              <KeyValueLine label={t("plugins.optional_depends_on")} value={(plugin.optionally_depends_on || []).join(", ") || "-"} />
+              <KeyValueLine label={t("plugins.required_by")} value={(plugin.dependents || []).join(", ") || "-"} />
+              <KeyValueLine label={t("plugins.conflicts_with")} value={(plugin.conflicts_with || []).join(", ") || "-"} />
+            </div>
+          </DetailSection>
+        </aside>
+      </div>
+    </>
+  )
+}
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="min-w-0 space-y-3">
+      <SectionHeading>{title}</SectionHeading>
+      {children}
+    </section>
+  )
+}
+
+function EmptyText({ children }: { children: ReactNode }) {
+  return <p className="text-sm text-gray-500 dark:text-gray-400">{children}</p>
+}
+
+function KeyValueLine({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <dl className="grid gap-1 text-sm">
+      <dt className="font-medium text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className="break-words text-gray-800 dark:text-gray-100">{value}</dd>
+    </dl>
+  )
+}
+
+function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtensionPoint[] }) {
+  const { t } = useT("admin")
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-left text-sm">
+        <thead className="border-b border-gray-200 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          <tr>
+            <th className="py-2 pr-4 font-medium">{t("plugins.col_extension_point")}</th>
+            <th className="py-2 pr-4 font-medium">{t("plugins.col_class")}</th>
+            <th className="py-2 font-medium">{t("plugins.col_availability")}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {extensions.map((extension) => <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />)}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function formatConfigValue(value: unknown) {
+  if (value === null || typeof value === "undefined") return "-"
+  if (typeof value === "object") return JSON.stringify(value)
+  return String(value)
 }
 
 function ExtensionPointRow({ extension }: { extension: AdminPluginExtensionPoint }) {

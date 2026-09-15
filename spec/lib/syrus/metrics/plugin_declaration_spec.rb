@@ -78,5 +78,24 @@ RSpec.describe "Plugin metric declaration", :reset_plugin_registry do
       scope.dispose
       expect(Syrus::Metrics.registry.declared?(:syrus_probe_plugin_probe_total)).to be(false)
     end
+
+    it "retains metric metadata on the manifest for disabled-plugin admin detail pages" do
+      definition = Syrus::PluginApi::Definition.new(
+        name: "probe_plugin", namespace: Module.new, lib_dir: Rails.root.to_s
+      )
+      definition.metrics do
+        counter :probe_total, tags: %i[outcome], comment: "Probe"
+      end
+
+      expect(definition.manifest_arguments.fetch(:metrics)).to contain_exactly(
+        include(
+          "name" => "syrus_probe_plugin_probe_total",
+          "type" => "counter",
+          "tags" => [ "outcome" ],
+          "owner" => "probe_plugin",
+          "comment" => "Probe"
+        )
+      )
+    end
   end
 end
