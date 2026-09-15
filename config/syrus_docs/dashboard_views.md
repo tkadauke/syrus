@@ -71,14 +71,16 @@ shows a direct Unpause control on paused rows.
 
 Provider-availability pauses are automatic and reversible. Each user has a
 per-agent pause threshold in Agent Settings; the default is 10%, and 0 disables
-automatic provider-availability pauses for that provider. When Codex usage falls
-below the configured threshold, or a configured provider reports exhausted usage,
+automatic provider-availability pauses for that provider. When a probed
+provider's usage falls below the configured threshold, or a configured provider
+reports exhausted usage,
 Syrus records `pause_reason: provider_availability` /
 `start_blocked_reason: provider_availability` on the active Workflow and stops
 before creating the next Run. Running steps are allowed to finish. A scheduled
 recheck wakes the Workflow after the provider reset or a short probe interval;
-for Codex, the wakeup refreshes the structured usage snapshot before deciding
-whether to resume. The usage banner and Agent Settings both expose "Recheck" and
+for providers with structured usage probes, the wakeup refreshes the snapshot
+before deciding whether to resume. The usage banner and Agent Settings both
+expose "Recheck" and
 "Resume anyway"; the latter stores a per-user/provider override that suppresses
 provider-availability pauses until newer provider evidence arrives.
 
