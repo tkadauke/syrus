@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/credentials", type: :request do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   let(:user) do
     Factories.user(
       claude_oauth_token: "sk-existing",

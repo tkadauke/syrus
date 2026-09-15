@@ -1,6 +1,7 @@
 # Chat
 
-Syrus Chat can run turns through Claude or Codex. Each chat stores a concrete
+Syrus Chat can run turns through Claude, Codex, or any enabled plugin-provided
+chat provider such as Muse. Each chat stores a concrete
 `chat_provider` when it is created. The seed value comes from the user's chat
 provider setting, then the user's default agent provider, then Claude.
 

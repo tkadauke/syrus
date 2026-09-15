@@ -1127,7 +1127,7 @@
     "codex_code_placeholder": "Copy the full redirect URL from your browser's address bar and paste it here.",
     "codex_code_placeholder_disabled": "Authorize first, then paste the redirect URL",
     "muse_title": "Muse",
-    "muse_description": "Save a Muse API key for credential checks. Muse workflow execution is not enabled yet.",
+    "muse_description": "Save a Muse API key for Muse workflow and chat runs when the Muse Agent plugin is enabled.",
     "muse_api_key_label": "Muse API key",
     "muse_summary": "A Muse API key is saved for future Muse runs.",
     "muse_saved_notice": "Muse API key saved.",
