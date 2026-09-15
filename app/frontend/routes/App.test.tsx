@@ -10164,8 +10164,11 @@ describe("App", () => {
           can_start: true,
           can_release_from_backlog: false,
           can_poll_feedback: true,
+          can_recheck_pr_checks: true,
           can_rebase: true,
           can_check_mergeability: true,
+          can_send_job_upstream: true,
+          can_retry_pr_ingestion: true,
           can_run_visual_review: true,
           can_run_visual_diff: true,
           can_retry: true,
@@ -10175,12 +10178,24 @@ describe("App", () => {
             path: "/api/v1/app/jobs/42/run_again"
           },
           retry_failed_step_action: null,
+          retry_agent_options: ["codex"],
           can_restart: true,
           can_cancel: true,
+          can_open_in_coding_mode: true,
+          can_open_in_local_mode: true,
+          can_cancel_local_mode: true,
           can_approve: true,
           can_unapprove: true,
           can_reopen: true,
           can_mark_valid: true
+        },
+        paths: {
+          app_recheck_pr_checks_path: "/api/v1/app/jobs/42/recheck_pr_checks",
+          app_retry_pr_ingestion_path: "/api/v1/app/jobs/42/retry_pr_ingestion",
+          app_open_in_coding_mode_path: "/api/v1/app/jobs/42/open_in_coding_mode",
+          app_open_in_local_mode_path: "/api/v1/app/jobs/42/open_in_local_mode",
+          app_cancel_local_mode_path: "/api/v1/app/jobs/42/cancel_local_mode",
+          app_ref_movement_actions_path: "/api/v1/app/jobs/42/ref_movement_actions"
         }
       })), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -10197,19 +10212,50 @@ describe("App", () => {
       ["Approve", "POST", "/api/v1/app/jobs/42/approve"]
     ]
     const overflowCommands = [
-      ["Start Run", "POST", "/api/v1/app/jobs/42/start"],
+      ["Open in Coding Mode", "POST", "/api/v1/app/jobs/42/open_in_coding_mode"],
+      ["Open in Local Mode", "POST", "/api/v1/app/jobs/42/open_in_local_mode"],
+      ["Cancel Local Mode", "POST", "/api/v1/app/jobs/42/cancel_local_mode"],
       ["Check feedback", "POST", "/api/v1/app/jobs/42/poll_feedback"],
-      ["Rebase now", "POST", "/api/v1/app/jobs/42/rebase"],
+      ["Recheck checks", "POST", "/api/v1/app/jobs/42/recheck_pr_checks"],
       ["Check mergeability", "POST", "/api/v1/app/jobs/42/check_mergeability"],
+      ["Rebase now", "POST", "/api/v1/app/jobs/42/rebase"],
+      ["Send upstream", "POST", "/api/v1/app/jobs/42/ref_movement_actions"],
+      ["Retry PR ingestion", "POST", "/api/v1/app/jobs/42/retry_pr_ingestion"],
       ["Run visual review", "POST", "/api/v1/app/jobs/42/visual_review"],
       ["Run before/after comparison", "POST", "/api/v1/app/jobs/42/visual_diff"],
       ["Retry implementation", "POST", "/api/v1/app/jobs/42/run_again"],
+      ["Retry with Codex", "POST", "/api/v1/app/jobs/42/run_again"],
       ["Start over", "POST", "/api/v1/app/jobs/42/restart"],
       ["Unapprove", "POST", "/api/v1/app/jobs/42/unapprove"],
-      ["Cancel", "POST", "/api/v1/app/jobs/42/cancel"],
       ["Reopen", "POST", "/api/v1/app/jobs/42/reopen"],
       ["Mark valid", "POST", "/api/v1/app/jobs/42/mark_valid"],
-      ["Unpin", "DELETE", "/api/v1/app/jobs/42/pin"]
+      ["Start Run", "POST", "/api/v1/app/jobs/42/start"],
+      ["Unpin", "DELETE", "/api/v1/app/jobs/42/pin"],
+      ["Cancel", "POST", "/api/v1/app/jobs/42/cancel"]
+    ]
+    const overflowLabels = [
+      "Open in Coding Mode",
+      "Open in Local Mode",
+      "Cancel Local Mode",
+      "Check feedback",
+      "Recheck checks",
+      "Check mergeability",
+      "Rebase now",
+      "Send upstream",
+      "Retry PR ingestion",
+      "Run visual review",
+      "Run before/after comparison",
+      "Retry implementation",
+      "Retry with Codex",
+      "Retry with feedback",
+      "Retry with Codex and feedback",
+      "Start over",
+      "Unapprove",
+      "Reopen",
+      "Mark valid",
+      "Start Run",
+      "Unpin",
+      "Cancel"
     ]
 
     expect(await screen.findByRole("button", { name: "Approve" })).toBeInTheDocument()
@@ -10217,6 +10263,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "⋯" }))
     expect(screen.getByRole("menu")).toBeInTheDocument()
+    expect(within(screen.getByRole("menu")).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(overflowLabels)
     expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Retry with feedback" })).toBeInTheDocument()
     fireEvent.keyDown(window, { key: "Escape" })
     await waitFor(() => {

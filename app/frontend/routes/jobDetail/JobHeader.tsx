@@ -23,6 +23,39 @@ type HeaderAction = {
 type HeaderCommandInput = CommandInput
 type RetryPostInput = Extract<CommandInput, { method: "post" }>
 
+const HEADER_ACTION_ORDER: Record<string, number> = {
+  open_in_coding_mode: 100,
+  open_in_local_mode: 110,
+  cancel_local_mode: 120,
+
+  poll_feedback: 200,
+  recheck_pr_checks: 210,
+  check_mergeability: 220,
+  rebase: 230,
+  send_job_upstream: 240,
+  retry_pr_ingestion: 250,
+
+  run_visual_review: 300,
+  run_visual_diff: 310,
+
+  retry_failed_step: 400,
+  retry_implementation: 410,
+  retry_feedback: 420,
+  restart: 500,
+  unapprove: 510,
+  reopen: 520,
+  mark_valid: 530,
+  release_from_backlog: 540,
+  accept_triage: 550,
+  reject_triage: 560,
+  start: 570,
+  approve: 580,
+  move_to_backlog: 900,
+  pin: 910,
+  stop_landing: 990,
+  cancel: 1000
+}
+
 // Job detail header extracted from JobDetail.tsx: the header action bar
 // (HeaderActions + its overflow menu + retry-feedback dialog), the inline
 // feedback panel, and the chat-bubble icon. Entry points rendered by the
@@ -43,7 +76,7 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
   const actions = headerActions(payload, t)
   const visibleKeys = primaryHeaderActionKeys(payload, actions)
   const visibleActions = visibleKeys.map((key) => actions.find((action) => action.key === key)).filter((action): action is HeaderAction => Boolean(action))
-  const overflowActions = actions.filter((action) => !visibleKeys.includes(action.key))
+  const overflowActions = orderOverflowHeaderActions(actions.filter((action) => !visibleKeys.includes(action.key)))
   const canGiveFeedback = ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
   const canRequestChanges = (payload.actions.can_request_changes || payload.actions.can_open_in_coding_mode) && onToggleRequestChangesPanel
 
@@ -324,6 +357,25 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   available.push({ key: "pin", label: payload.pinned ? t("unpin") : t("pin"), input: payload.pinned ? { method: "delete", path: paths.app_pin_path } : { method: "post", path: paths.app_pin_path }, tone: "secondary" })
 
   return available
+}
+
+function orderOverflowHeaderActions(actions: HeaderAction[]) {
+  return actions
+    .map((action, index) => ({ action, index }))
+    .sort((left, right) => {
+      const leftRank = headerActionRank(left.action.key)
+      const rightRank = headerActionRank(right.action.key)
+      if (leftRank !== rightRank) return leftRank - rightRank
+      return left.index - right.index
+    })
+    .map(({ action }) => action)
+}
+
+function headerActionRank(key: string) {
+  if (key.startsWith("retry_implementation_")) return HEADER_ACTION_ORDER.retry_implementation
+  if (key.startsWith("retry_feedback_")) return HEADER_ACTION_ORDER.retry_feedback
+
+  return HEADER_ACTION_ORDER[key] ?? 800
 }
 
 function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderAction[]) {
