@@ -182,6 +182,34 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "approval actions" do
+    it "keeps can_approve true while visual diff is the only active runtime work" do
+      repo.update!(auto_merge_enabled: true)
+      job = Factories.job_record(user: user, owner_user: user, repository: repo, state: "implemented")
+      workflow = Workflow.create!(job: job, trigger_kind: "visual_diff", state: "queued")
+      attach_work_unit(workflow, state: "queued", kind: "visual_diff", member_jobs: [ job ])
+
+      result = call(subject: "job", section: "rows", state: "implemented")
+      item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
+
+      expect(item).to include(can_approve: true)
+      expect(item.fetch(:bulk_actions)).to include(approve: true)
+    end
+
+    it "keeps can_approve false while normal runtime work is active" do
+      repo.update!(auto_merge_enabled: true)
+      job = Factories.job_record(user: user, owner_user: user, repository: repo, state: "implemented")
+      workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+      attach_work_unit(workflow, state: "queued", kind: "retry", member_jobs: [ job ])
+
+      result = call(subject: "job", section: "rows", state: "implemented")
+      item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
+
+      expect(item).to include(can_approve: false)
+      expect(item.fetch(:bulk_actions)).to include(approve: false)
+    end
+  end
+
   describe "delivery status" do
     it "preloads PR links used by delivery status for job rows" do
       policy = instance_double(

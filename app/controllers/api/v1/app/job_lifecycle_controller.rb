@@ -228,6 +228,10 @@ module Api
             render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
             return
           end
+          if job.approval_blocking_runtime_work?
+            render_error("validation_failed", lifecycle_t("run_active"), status: :unprocessable_content)
+            return
+          end
           unless job.can_add_job_approval?(Current.user)
             render_error("validation_failed", lifecycle_t("approval_forbidden"), status: :unprocessable_content)
             return
