@@ -13,6 +13,10 @@ RSpec.describe SyrusAgyAgent::Engine do
     expect(Syrus::PluginRegistry.providers_for(:chat_provider)).to include(ChatProviders::Agy)
   end
 
+  it "registers the Antigravity CredentialProbe" do
+    expect(CredentialProbe.probe_handler_for("agy")).to eq(AgyCredentialProbe)
+  end
+
   it "registers a manifest named 'agy_agent'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "agy_agent" }
     expect(manifest).not_to be_nil

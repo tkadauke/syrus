@@ -166,10 +166,11 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(screen.getByTestId("credential-card-claude")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-codex")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-gemini")).toBeInTheDocument()
+    expect(screen.getByTestId("credential-card-agy")).toBeInTheDocument()
 
     // Every card shows its connected state — no password field impersonating
     // a saved secret, and no page-wide Save button for the section.
-    expect(screen.getAllByText("Connected")).toHaveLength(4)
+    expect(screen.getAllByText("Connected")).toHaveLength(5)
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
   })
 
