@@ -40,7 +40,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     body = parse_body
     expect(body.dig("user", "email_address")).to eq(user.email_address)
     expect(body.dig("user", "chat_provider")).to be_nil
-    expect(body.dig("options", "chat_providers")).to eq(%w[claude codex])
+    expect(body.dig("options", "chat_providers")).to eq(%w[claude codex muse])
     expect(body.dig("options", "agent_provider_labels")).to include(
       "claude" => "Claude Code",
       "codex" => "Codex",
@@ -48,7 +48,8 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     )
     expect(body.dig("options", "chat_provider_labels")).to include(
       "claude" => "Claude",
-      "codex" => "Codex"
+      "codex" => "Codex",
+      "muse" => "Muse Code"
     )
     expect(body.dig("user", "role")).to eq("developer")
     expect(body.dig("options", "roles")).to eq(%w[ developer product_owner ])
@@ -305,7 +306,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     get "/api/v1/app/credentials"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("options", "chat_providers")).to eq([ "claude" ])
+    expect(parse_body.dig("options", "chat_providers")).to eq(%w[claude muse])
   end
 
   it "updates team-visible profile fields" do
