@@ -47,6 +47,9 @@ recipes needed to run Syrus without reading the Rails source.
 
 - [Configuration](/docs/configuration): `.syrus.yml`, user settings,
   repository settings, credentials, and worker environment.
+- [Monorepo Adoption](/docs/monorepo-adoption): staged `.syrus.yml`
+  adoption for root-only repositories, nested project config, explicit
+  targets, and imported build graphs.
 - [Plugins](/docs/plugins): installed vs enabled plugins, UI contributions,
   MCP tools, plugin data, dependencies, and authoring guidelines.
 - [Syrus CLI](/docs/cli): terminal chat, inbox review, checkout,

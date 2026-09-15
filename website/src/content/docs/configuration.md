@@ -13,7 +13,9 @@ Syrus is configured in three layers:
 | User | The credentials/settings UI | GitHub token, agent credentials, preferred provider, failover policy, max agent turns |
 | Repository | Repository settings plus optional `.syrus.yml` in the target repo | Trigger label, polling, default branch, provider override, prepare commands |
 
-For deployment-specific placement, see [Deployment](/docs/deployment).
+For deployment-specific placement, see [Deployment](/docs/deployment). For a
+practical staged path from root-only repositories to project-aware monorepos,
+see [Monorepo Adoption](/docs/monorepo-adoption).
 
 ## `.syrus.yml`
 
@@ -22,6 +24,11 @@ workflow and by local CLI checkout commands. It configures deterministic
 setup commands before the agent runs, preview commands, optional review
 rounds, grader commands, and optional local hooks after an operator checks
 out a Syrus branch.
+
+Small repositories can keep a single root file. Monorepos can add nested
+`.syrus.yml` files and explicit targets deliberately; use
+[Monorepo Adoption](/docs/monorepo-adoption) for examples across app, CLI,
+desktop, iOS, Android, shared API/client code, and mixed-product layouts.
 
 ```yaml
 prepare:

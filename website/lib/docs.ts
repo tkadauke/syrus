@@ -26,6 +26,7 @@ const preferredOrder = [
   "collaboration",
   "features",
   "configuration",
+  "monorepo-adoption",
   "plugins",
   "cli",
   "desktop",
