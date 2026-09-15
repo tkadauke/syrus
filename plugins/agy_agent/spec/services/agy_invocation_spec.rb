@@ -25,17 +25,21 @@ RSpec.describe AgyInvocation do
 
       result = described_class.new("/tmp/wkt",
                                    prompt: "do it",
+                                   api_key: "AIza-test",
                                    runner: runner,
                                    agy_home: "/tmp/agy-home",
                                    resume_session_id: "abc",
+                                   resume_transcript_jsonl: "jsonl",
                                    model: "gemini-test",
                                    effort_level: "high").run
 
       expect(received).to include(
         workspace_path: "/tmp/wkt",
         prompt: "do it",
+        api_key: "AIza-test",
         agy_home: "/tmp/agy-home",
         resume_session_id: "abc",
+        resume_transcript_jsonl: "jsonl",
         mcp_server: nil,
         model: "gemini-test",
         effort_level: "high",
@@ -78,7 +82,7 @@ RSpec.describe AgyInvocation do
     it "runs agy with stream-json, disabled prompts, and prompt NDJSON on stdin" do
       Dir.mktmpdir do |home|
         large_prompt = "P" * 140_000
-        invocation = described_class.new("/tmp/wkt", prompt: large_prompt, agy_home: home)
+        invocation = described_class.new("/tmp/wkt", prompt: large_prompt, api_key: "AIza-test", agy_home: home)
 
         captured, = capture_popen(invocation)
 
@@ -92,6 +96,7 @@ RSpec.describe AgyInvocation do
           "--print-timeout", "90m"
         ])
         expect(captured[:cmd]).not_to include(large_prompt)
+        expect(captured[:cmd]).not_to include("AIza-test")
         expect(JSON.parse(captured[:stdin])).to eq(
           "event" => "user",
           "message" => { "content" => large_prompt }
@@ -99,6 +104,8 @@ RSpec.describe AgyInvocation do
         expect(captured[:env]["HOME"]).to eq(home)
         expect(captured[:env]["AGY_HOME"]).to eq(home)
         expect(captured[:env]["ANTIGRAVITY_HOME"]).to eq(home)
+        expect(captured[:env]["GEMINI_API_KEY"]).to eq("AIza-test")
+        expect(captured[:env]["GOOGLE_API_KEY"]).to eq("AIza-test")
       end
     end
 
@@ -110,6 +117,83 @@ RSpec.describe AgyInvocation do
 
         expect(captured[:cmd]).to include("--conversation", "conv-1")
         expect(captured[:cmd]).not_to include("P")
+      end
+    end
+
+    it "restores stored Antigravity JSONL before resuming" do
+      Dir.mktmpdir do |home|
+        jsonl = { event: "init", conversation_id: "conv-1" }.to_json + "\n"
+        invocation = described_class.new("/tmp/wkt", prompt: "P", agy_home: home,
+                                         resume_session_id: "conv-1",
+                                         resume_transcript_jsonl: jsonl)
+
+        captured, result = capture_popen(invocation)
+
+        path = AgyAgent::SessionPaths.canonical_path_for(home: home, cwd: "/tmp/wkt", session_id: "conv-1")
+        expect(File.read(path)).to eq(jsonl)
+        expect(captured[:cmd]).to include("--conversation", "conv-1")
+        expect(result.transcript_path).to eq(path)
+        expect(result.transcript_jsonl).to eq(jsonl)
+      end
+    end
+
+    it "starts fresh instead of putting an invalid conversation id on argv" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", agy_home: home,
+                                         resume_session_id: "../bad",
+                                         resume_transcript_jsonl: "{}\n",
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        captured, = capture_popen(invocation)
+
+        expect(captured[:cmd]).not_to include("--conversation")
+        expect(captured[:cmd]).not_to include("../bad")
+        expect(events).to include([
+          "[agy resume] invalid conversation id ../bad; starting a fresh Antigravity session",
+          { kind: "system" }
+        ])
+      end
+    end
+
+    it "logs when a resumed Antigravity session has no JSONL to restore" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", agy_home: home,
+                                         resume_session_id: "missing-conv",
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        capture_popen(invocation)
+
+        expect(events).to include([
+          "[agy resume] no stored JSONL for conversation missing-conv; provider resume may be rejected or incomplete",
+          { kind: "system" }
+        ])
+      end
+    end
+
+    it "logs when an Antigravity resume turn fails" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", agy_home: home,
+                                         resume_session_id: "gone-conv",
+                                         resume_transcript_jsonl: "{}\n",
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        _, result = capture_popen(
+          invocation,
+          lines: [
+            { event: "init", conversation_id: "gone-conv" },
+            { event: "error", message: "conversation not found" }
+          ],
+          exitstatus: 1
+        )
+
+        expect(result).not_to be_success
+        expect(events).to include([
+          "[agy resume] resume for conversation gone-conv did not complete successfully: conversation not found",
+          { kind: "system" }
+        ])
       end
     end
 
@@ -149,7 +233,7 @@ RSpec.describe AgyInvocation do
           }
         )
 
-        capture_popen(invocation)
+        captured, = capture_popen(invocation)
 
         config = JSON.parse(File.read(File.join(home, ".gemini", "config", "mcp_config.json")))
         expect(config).to eq(
@@ -161,6 +245,19 @@ RSpec.describe AgyInvocation do
             }
           }
         )
+        expect(captured[:cmd]).not_to include("test")
+      end
+    end
+
+    it "records the live session id as soon as the init event arrives" do
+      Dir.mktmpdir do |home|
+        seen = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", agy_home: home,
+                                         on_session_id: ->(sid) { seen << sid })
+
+        capture_popen(invocation)
+
+        expect(seen).to eq([ "conv-1" ])
       end
     end
 
