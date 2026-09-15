@@ -15,11 +15,15 @@ module BugReports
     end
 
     def mode
-      system_repo || user_fork_repo ? :direct_job : :github_issue
+      target_repository ? :direct_job : :github_issue
+    end
+
+    def target_repository
+      system_repo || user_fork_repo
     end
 
     def call(title:, description:, screenshot: nil, attachments: [], context: nil)
-      if (repo = system_repo || user_fork_repo)
+      if (repo = target_repository)
         route_to_creator(repo, title: title, description: description, screenshot: screenshot, attachments: attachments, context: context)
       else
         route_to_github_issue(title: title, description: description, screenshot: screenshot, attachments: attachments, context: context)

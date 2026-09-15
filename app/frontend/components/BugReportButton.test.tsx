@@ -12,7 +12,8 @@ import { chatTranscriptBugReportAttachment } from "../lib/chatBugReportAttachmen
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 
 vi.mock("../api/bugReports", () => ({
-  createBugReport: vi.fn()
+  createBugReport: vi.fn(),
+  startBugReportChat: vi.fn()
 }))
 
 vi.mock("../lib/errorRingBuffer", () => ({
@@ -30,6 +31,7 @@ URL.createObjectURL = vi.fn().mockReturnValue("blob:mock-url")
 URL.revokeObjectURL = vi.fn()
 
 const mockCreateBugReport = vi.mocked(bugReportsApi.createBugReport)
+const mockStartBugReportChat = vi.mocked(bugReportsApi.startBugReportChat)
 const mockGetRecentErrors = vi.mocked(getRecentErrors)
 const mockHtml2canvas = vi.mocked(html2canvasModule)
 
@@ -45,6 +47,8 @@ function renderButton(props: {
   bugReportMode?: "direct_job" | "github_issue" | null
   featureFlags?: Record<string, boolean>
   pageAttachments?: BugReportOptionalAttachment[]
+  onChatStarted?: (redirectTo: string) => void
+  reportIssueRepoSlug?: string | null
 } = {}) {
   const ref = createRef<BugReportButtonHandle>()
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -69,6 +73,7 @@ async function openDialog(ref: ReturnType<typeof renderButton>) {
 describe("BugReportButton", () => {
   beforeEach(() => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } as BugReportPayload)
+    mockStartBugReportChat.mockResolvedValue({ message: "Chat started.", chat_id: 42, redirect_to: "/chats/42" })
     mockGetRecentErrors.mockReturnValue([])
   })
 
@@ -282,6 +287,58 @@ describe("BugReportButton", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     expect(screen.getByRole("status")).toHaveTextContent("Bug report queued.")
+  })
+
+  it("shows Discuss between Cancel and Create Job in direct-job mode", async () => {
+    const ref = renderButton({ bugReportMode: "direct_job" })
+    await openDialog(ref)
+
+    const actions = within(screen.getByRole("dialog")).getAllByRole("button").map((button) => button.textContent)
+    expect(actions.slice(-3)).toEqual(["Cancel", "Discuss", "Create Job"])
+  })
+
+  it("does not show Discuss in GitHub issue mode", async () => {
+    const ref = renderButton({ bugReportMode: "github_issue", reportIssueRepoSlug: "tkadauke/syrus" })
+    await openDialog(ref)
+
+    expect(screen.queryByRole("button", { name: "Discuss" })).not.toBeInTheDocument()
+  })
+
+  it("starts a chat with the selected screenshot, files, and context", async () => {
+    const onChatStarted = vi.fn()
+    mockGetRecentErrors.mockReturnValue([
+      { message: "TypeError: boom", source: "app.js", at: "2026-09-15T00:00:00.000Z" }
+    ])
+    const ref = renderButton({
+      bugReportMode: "direct_job",
+      onChatStarted,
+      pageAttachments: [{
+        id: "diagnostics",
+        label: "Diagnostics",
+        defaultChecked: true,
+        buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+      }]
+    })
+    await openDialog(ref)
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Broken dashboard" } })
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Cards overlap after resize." } })
+    fireEvent.change(screen.getByLabelText(/add files/i), {
+      target: { files: [new File(["pdf"], "trace.pdf", { type: "application/pdf" })] }
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
+
+    await waitFor(() => expect(mockStartBugReportChat).toHaveBeenCalledOnce())
+    const input = mockStartBugReportChat.mock.calls[0][0]
+    expect(input.title).toBe("Broken dashboard")
+    expect(input.description).toBe("Cards overlap after resize.")
+    expect(input.screenshot).toBeInstanceOf(File)
+    expect(input.screenshot?.name).toBe("bug-report-viewport.png")
+    expect(input.attachments?.map((file) => file.name)).toEqual(["trace.pdf", "diagnostics.txt"])
+    expect(JSON.parse(input.context as string)).toMatchObject({
+      recent_errors: [{ message: "TypeError: boom" }]
+    })
+    expect(onChatStarted).toHaveBeenCalledWith("/chats/42")
   })
 
   it("disables editable fields and controls while the report is submitting", async () => {

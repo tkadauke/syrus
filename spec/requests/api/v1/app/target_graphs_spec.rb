@@ -1,4 +1,5 @@
 require "rails_helper"
+require "fileutils"
 require "tmpdir"
 
 RSpec.describe "App API target graph inspection", type: :request do
@@ -15,6 +16,29 @@ RSpec.describe "App API target graph inspection", type: :request do
         File.write(File.join(dir, ".syrus.yml"), yaml)
         block.call(Pathname.new(dir))
       end
+    end
+  end
+
+  def with_graph_ref_checkouts(refs)
+    allow(App::TargetGraphCheckout).to receive(:with_ref) do |repository:, user:, ref:, &block|
+      files = refs.fetch(ref)
+      files = { ".syrus.yml" => files } unless files.is_a?(Hash)
+
+      Dir.mktmpdir("target-graph-ref-spec-") do |dir|
+        files.each do |path, contents|
+          full_path = File.join(dir, path)
+          FileUtils.mkdir_p(File.dirname(full_path))
+          File.write(full_path, contents)
+        end
+        block.call(Pathname.new(dir))
+      end
+    end
+  end
+
+  def with_cleaned_workflow_workspace
+    Dir.mktmpdir("target-graph-cleaned-workspace-spec-") do |dir|
+      allow(WorkflowWorkspace).to receive(:path_for).and_return(Pathname.new(dir))
+      yield
     end
   end
 
@@ -246,7 +270,9 @@ RSpec.describe "App API target graph inspection", type: :request do
         ]
       )
 
-      get "/api/v1/app/workflows/#{workflow.id}/target_graph", params: { q: "grade/tests" }
+      with_cleaned_workflow_workspace do
+        get "/api/v1/app/workflows/#{workflow.id}/target_graph", params: { q: "grade/tests" }
+      end
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -322,12 +348,154 @@ RSpec.describe "App API target graph inspection", type: :request do
       job = Factories.job_with_run(repository: repository, user: user)
       workflow = job.workflows.sole
 
-      get "/api/v1/app/jobs/#{job.id}/target_graph", params: { workflow_id: workflow.id, limit: 1 }
+      with_cleaned_workflow_workspace do
+        get "/api/v1/app/jobs/#{job.id}/target_graph", params: { workflow_id: workflow.id, limit: 1 }
+      end
 
       expect(response).to have_http_status(:ok)
       body = parse_body
       expect(body["workflow"]).to include("id" => workflow.id)
       expect(body["page"]).to include("limit" => 1, "total" => 4, "next_offset" => 1)
+    end
+
+    it "compiles a cleaned-up workflow graph from the job branch instead of the repository default branch" do
+      default_yaml = <<~YAML
+        grade:
+          - name: root-tests
+            run: bin/rspec
+      YAML
+      branch_yaml = <<~YAML
+        grade:
+          - name: root-tests
+            run: bin/rspec
+      YAML
+      cli_yaml = <<~YAML
+        project:
+          id: cli
+          label: CLI
+          path: cli
+        grade:
+          - name: go-tests
+            run: go test ./...
+      YAML
+
+      with_graph_checkout(default_yaml)
+      with_graph_ref_checkouts(
+        "syrus/job-target-graph" => {
+          ".syrus.yml" => branch_yaml,
+          "cli/.syrus.yml" => cli_yaml
+        }
+      )
+      job = Factories.job_with_run(
+        repository: repository,
+        user: user,
+        branch_name: "syrus/job-target-graph"
+      )
+      workflow = job.workflows.sole
+
+      with_cleaned_workflow_workspace do
+        get "/api/v1/app/jobs/#{job.id}/target_graph", params: { workflow_id: workflow.id, limit: 20 }
+      end
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["source"]).to include(
+        "scope" => "workflow",
+        "workflow_id" => workflow.id,
+        "ref" => "syrus/job-target-graph"
+      )
+      expect(body["targets"].map { |target| target["label"] }).to include("//cli:grade/go-tests")
+    end
+
+    it "compiles a cleaned-up merge-train workflow graph from the integration branch" do
+      member_yaml = <<~YAML
+        grade:
+          - name: member-tests
+            run: bin/member
+      YAML
+      integration_yaml = <<~YAML
+        grade:
+          - name: train-tests
+            run: bin/train
+      YAML
+
+      with_graph_ref_checkouts(
+        "syrus/job-target-graph" => member_yaml,
+        "syrus/merge-train-123" => integration_yaml
+      )
+      job = Factories.job_with_run(
+        repository: repository,
+        user: user,
+        branch_name: "syrus/job-target-graph"
+      )
+      workflow = job.workflows.sole
+      workflow.update!(trigger_kind: "merge_train")
+      workflow.set_artifact!(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT, "syrus/merge-train-123")
+
+      with_cleaned_workflow_workspace do
+        get "/api/v1/app/jobs/#{job.id}/target_graph", params: { workflow_id: workflow.id, limit: 20 }
+      end
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["source"]).to include(
+        "scope" => "workflow",
+        "workflow_id" => workflow.id,
+        "ref" => "syrus/merge-train-123"
+      )
+      expect(body["targets"].map { |target| target["label"] }).to include("//:grade/train-tests")
+      expect(body["targets"].map { |target| target["label"] }).not_to include("//:grade/member-tests")
+    end
+
+    it "prefers a published workflow checkpoint over the job branch when the workspace is cleaned up" do
+      branch_yaml = <<~YAML
+        grade:
+          - name: branch-tests
+            run: bin/branch
+      YAML
+      checkpoint_yaml = <<~YAML
+        grade:
+          - name: checkpoint-tests
+            run: bin/checkpoint
+      YAML
+
+      job = Factories.job_with_run(
+        repository: repository,
+        user: user,
+        branch_name: "syrus/job-target-graph"
+      )
+      workflow = job.workflows.sole
+      run = workflow.steps.sole.runs.sole
+      checkpoint = RunCheckpoint.create!(
+        run: run,
+        workflow: workflow,
+        step: run.step,
+        job: job,
+        repository: repository,
+        user: user,
+        step_kind: run.step.kind,
+        commit_sha: "c" * 40,
+        base_sha: "b" * 40,
+        remote_ref: "refs/syrus/checkpoints/runs/#{run.id}",
+        status: "published",
+        published_at: Time.current
+      )
+      with_graph_ref_checkouts(
+        checkpoint.remote_ref => checkpoint_yaml,
+        "syrus/job-target-graph" => branch_yaml
+      )
+
+      with_cleaned_workflow_workspace do
+        get "/api/v1/app/jobs/#{job.id}/target_graph", params: { workflow_id: workflow.id, limit: 20 }
+      end
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["source"]["ref"]).to eq(
+        "#{checkpoint.remote_ref} (#{checkpoint.commit_sha.first(12)})"
+      )
+      expect(body["targets"].map { |target| target["label"] }).to include("//:grade/checkpoint-tests")
+      expect(body["targets"].map { |target| target["label"] }).not_to include("//:grade/branch-tests")
     end
   end
 end

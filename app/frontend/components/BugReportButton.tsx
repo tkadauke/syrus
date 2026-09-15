@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query"
 import type { ChangeEvent, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react"
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
-import { createBugReport } from "../api/bugReports"
+import { createBugReport, startBugReportChat } from "../api/bugReports"
 import { useShakeToReport } from "../hooks/useShakeToReport"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
@@ -70,9 +70,10 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   chatId?: number | null
   context: string
   featureFlags?: Record<string, boolean>
+  onChatStarted?: (redirectTo: string) => void
   pageAttachments?: BugReportOptionalAttachment[]
   reportIssueRepoSlug?: string | null
-}>(function BugReportButton({ bugReportMode, chatId, context, featureFlags, pageAttachments = [], reportIssueRepoSlug }, ref) {
+}>(function BugReportButton({ bugReportMode, chatId, context, featureFlags, onChatStarted, pageAttachments = [], reportIssueRepoSlug }, ref) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
@@ -97,33 +98,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   const openDialogRef = useRef<((options?: BugReportOpenOptions) => void) | null>(null)
 
   const bugReport = useMutation({
-    mutationFn: async () => {
-      const allAttachments = [...attachments]
-      const generatedAttachments = await buildSelectedOptionalAttachments(optionalAttachments, selectedOptionalAttachmentIds)
-      allAttachments.push(...generatedAttachments)
-      return createBugReport({
-        title,
-        description,
-        screenshot: selectedScreenshot(captures, screenshotChoice),
-        attachments: allAttachments,
-        context: bugContext ? JSON.stringify(bugContext) : undefined
-      })
-    },
+    mutationFn: () => buildSubmissionInput().then(createBugReport),
     onSuccess: (payload) => {
-      setOpen(false)
-      setTitle("")
-      setDescription("")
-      revokeCaptures(captures)
-      setCaptures({})
-      setAnnotatingChoice(null)
-      setScreenshotChoice("viewport")
-      setCaptureError(null)
-      setAttachments([])
-      setAttachmentError(null)
-      setBugContext(null)
-      setOptionalAttachments([])
-      setSelectedOptionalAttachmentIds(new Set())
-      setIsDragOver(false)
+      resetDialogAfterSubmit()
 
       if (payload.issue_url) {
         const issueUrl = payload.issue_url
@@ -138,6 +115,13 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
       } else {
         setNotice(payload.message || t("bug_report.queued"))
       }
+    }
+  })
+  const bugReportChat = useMutation({
+    mutationFn: () => buildSubmissionInput().then(startBugReportChat),
+    onSuccess: (payload) => {
+      resetDialogAfterSubmit()
+      onChatStarted?.(payload.redirect_to)
     }
   })
 
@@ -164,6 +148,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     if (capturing || open) return
     const mergedOptionalAttachments = mergeOptionalAttachments(pageAttachments, options.optionalAttachments)
     bugReport.reset()
+    bugReportChat.reset()
     setTitle(`${context} bug`)
     setDescription("")
     revokeCaptures(captures)
@@ -197,7 +182,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }
 
   async function chooseScreenshot(choice: ScreenshotChoice) {
-    if (bugReport.isPending) return
+    if (formDisabled) return
     setScreenshotChoice(choice)
 
     if (choice !== "fullPage" || captures.fullPage || capturingFullPage) return
@@ -221,6 +206,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   function closeDialog() {
     bugReport.reset()
+    bugReportChat.reset()
     revokeCaptures(captures)
     setCaptures({})
     setAnnotatingChoice(null)
@@ -231,6 +217,23 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setSelectedOptionalAttachmentIds(new Set())
     setIsDragOver(false)
     setOpen(false)
+  }
+
+  function resetDialogAfterSubmit() {
+    setOpen(false)
+    setTitle("")
+    setDescription("")
+    revokeCaptures(captures)
+    setCaptures({})
+    setAnnotatingChoice(null)
+    setScreenshotChoice("viewport")
+    setCaptureError(null)
+    setAttachments([])
+    setAttachmentError(null)
+    setBugContext(null)
+    setOptionalAttachments([])
+    setSelectedOptionalAttachmentIds(new Set())
+    setIsDragOver(false)
   }
 
   function applyAnnotation(choice: CapturedScreenshotChoice, annotatedDataUrl: string, shapes: Shape[]) {
@@ -248,7 +251,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }
 
   function handleAttachmentChange(fileList: FileList | File[] | null) {
-    if (bugReport.isPending) return
+    if (formDisabled) return
     const files = Array.from(fileList ?? [])
     if (files.length === 0) return
 
@@ -274,7 +277,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }
 
   function removeAttachment(index: number) {
-    if (bugReport.isPending) return
+    if (formDisabled) return
     setAttachments((current) => current.filter((_, i) => i !== index))
     setAttachmentError(null)
   }
@@ -287,7 +290,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   function handleDragEnter(event: DragEvent<HTMLElement>) {
     event.preventDefault()
     event.stopPropagation()
-    if (bugReport.isPending) return
+    if (formDisabled) return
     setIsDragOver(true)
   }
 
@@ -303,13 +306,13 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     event.preventDefault()
     event.stopPropagation()
     setIsDragOver(false)
-    if (bugReport.isPending || event.dataTransfer.files.length === 0) return
+    if (formDisabled || event.dataTransfer.files.length === 0) return
 
     handleAttachmentChange(event.dataTransfer.files)
   }
 
   function toggleOptionalAttachment(id: string, checked: boolean) {
-    if (bugReport.isPending) return
+    if (formDisabled) return
     setSelectedOptionalAttachmentIds((current) => {
       const next = new Set(current)
       if (checked) next.add(id)
@@ -321,7 +324,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (bugReport.isPending) return
+    if (formDisabled) return
     if (attachments.length + selectedOptionalAttachmentIds.size > MAX_EXTRA_ATTACHMENTS) {
       setAttachmentError(t("bug_report.attachments_max_reached"))
       return
@@ -329,18 +332,29 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     bugReport.mutate()
   }
 
+  function chatAboutThis() {
+    if (formDisabled) return
+    if (attachments.length + selectedOptionalAttachmentIds.size > MAX_EXTRA_ATTACHMENTS) {
+      setAttachmentError(t("bug_report.attachments_max_reached"))
+      return
+    }
+    bugReportChat.mutate()
+  }
+
   function submitOnShortcut(event: KeyboardEvent<HTMLFormElement>) {
-    if (bugReport.isPending || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+    if (formDisabled || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
 
     event.preventDefault()
     event.currentTarget.requestSubmit()
   }
 
   const isGitHubIssueMode = bugReportMode === "github_issue"
-  const formDisabled = bugReport.isPending
+  const formDisabled = bugReport.isPending || bugReportChat.isPending
   const submitLabel = bugReport.isPending
     ? (isGitHubIssueMode ? t("bug_report.submitting_issue") : t("bug_report.submitting"))
     : (isGitHubIssueMode ? t("bug_report.submit_issue") : t("bug_report.submit"))
+  const canChatAboutThis = bugReportMode === "direct_job"
+  const error = bugReport.error || bugReportChat.error
 
   return (
     <>
@@ -525,9 +539,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
               </div>
               <WhatsIncluded bugContext={bugContext} captures={captures} screenshotChoice={screenshotChoice} />
 
-              {bugReport.isError ? (
+              {error ? (
                 <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
-                  {errorMessage(bugReport.error, t("bug_report.error"))}
+                  {errorMessage(error, t("bug_report.error"))}
                 </p>
               ) : null}
 
@@ -535,7 +549,12 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                 <Button disabled={formDisabled} onClick={closeDialog} variant="secondary">
                   {t("bug_report.cancel")}
                 </Button>
-                <Button disabled={bugReport.isPending} type="submit">
+                {canChatAboutThis ? (
+                  <Button disabled={formDisabled} onClick={chatAboutThis} variant="secondary">
+                    {bugReportChat.isPending ? t("bug_report.starting_chat") : t("bug_report.chat_about_this")}
+                  </Button>
+                ) : null}
+                <Button disabled={formDisabled} type="submit">
                   {submitLabel}
                 </Button>
               </div>
@@ -545,6 +564,19 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
       ) : null}
     </>
   )
+
+  async function buildSubmissionInput() {
+    const allAttachments = [...attachments]
+    const generatedAttachments = await buildSelectedOptionalAttachments(optionalAttachments, selectedOptionalAttachmentIds)
+    allAttachments.push(...generatedAttachments)
+    return {
+      title,
+      description,
+      screenshot: selectedScreenshot(captures, screenshotChoice),
+      attachments: allAttachments,
+      context: bugContext ? JSON.stringify(bugContext) : undefined
+    }
+  }
 })
 
 function WhatsIncluded({

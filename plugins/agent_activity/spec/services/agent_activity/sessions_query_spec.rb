@@ -404,6 +404,10 @@ RSpec.describe AgentActivity::SessionsQuery do
         .order(Arel.sql("#{described_class.latest_process_started_sql} DESC"), id: :desc)
         .limit(AgentActivity::SessionsQuery::DEFAULT_PER)
 
+      sql = relation.to_sql
+      expect(sql).to include("spawned_processes.finished_at IS NULL")
+      expect(sql).not_to match(/agents\."?state"?/i)
+
       details = explain_details(relation)
 
       expect(details).to include(match(/idx_spawned_processes_agent_activity_recency/))
