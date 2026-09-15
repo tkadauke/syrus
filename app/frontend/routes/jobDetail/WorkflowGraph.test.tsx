@@ -135,6 +135,42 @@ describe("WorkflowsTab", () => {
     })
   })
 
+  it("keeps grade log surfaces as the mobile flex child with an internal scroll region", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/jobs/42/runs/51/grade_log") {
+        return Promise.resolve(new Response(JSON.stringify({
+          name: "migration-lint",
+          run_id: 51,
+          contents: "\u001b[31mfailed\u001b[0m\nline 2"
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].app_grade_log_path = "/api/v1/app/jobs/42/runs/51/grade_log"
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Grade log" }))
+
+    const stream = await screen.findByTestId("run-grade-log-stream")
+    expect(stream.className).toContain("max-md:flex-1")
+    expect(stream.className).toContain("max-md:min-h-0")
+    expect(stream.className).toContain("max-md:max-h-none")
+    expect(stream.querySelector("pre")?.className).toContain("max-md:flex-1")
+    expect(stream.querySelector("pre")?.className).toContain("overflow-auto")
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/runs/51/grade_log", expect.anything())
+  })
+
   it("shows desired work for a waiting intent even when no WorkUnit or Workflow exists yet", () => {
     render(
       <MemoryRouter>

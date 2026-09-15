@@ -54,7 +54,7 @@ export function CodeSurface({
       data-code-surface-mode={mode}
       {...props}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex h-full min-h-0 items-start gap-2">
         {children ? (
           <pre
             className={classes(
