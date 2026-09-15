@@ -132,6 +132,8 @@ class MuseInvocation
         aliveness_failed: runner_result.aliveness_failed
       )
     end
+  rescue Errno::ENOENT => e
+    process_start_failure(e)
   end
 
   def default_metadata(session_id)
@@ -315,6 +317,31 @@ class MuseInvocation
       )
       { jsonl: exec_jsonl.presence, path: nil }
     end
+  rescue Errno::ENOENT
+    log_sink.call(
+      "[muse transcript] export command unavailable; falling back to exec JSONL",
+      kind: "system"
+    )
+    { jsonl: exec_jsonl.presence, path: nil }
+  end
+
+  def process_start_failure(error)
+    AgentInvocation::Result.new(
+      turns: nil,
+      exit_status: nil,
+      timed_out: false,
+      is_error: true,
+      outcome: "process_failed",
+      final_text: sanitize("Muse process failed to start: #{error.message}"),
+      session_id: @session_id,
+      transcript_jsonl: nil,
+      transcript_path: nil,
+      process_outcome: "process_failed",
+      silent_timed_out: false,
+      stopped: false,
+      operator_killed: false,
+      aliveness_failed: false
+    )
   end
 
   def muse_export_command(session_id:, path:, redacted:)
