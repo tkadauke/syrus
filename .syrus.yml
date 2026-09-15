@@ -6,6 +6,11 @@
 # Ruby and Node deps explicit here because the presence of this file
 # disables RepoPrepPlan's lockfile auto-detection.
 
+project:
+  id: repo
+  label: Syrus App
+  kind: rails_app
+
 prepare: &syrus_prepare
   # Syrus scrubs worker/container Bundler env before running prepare
   # and preview setup. Pin Bundler's install location to the workspace
