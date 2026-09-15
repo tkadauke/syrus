@@ -232,8 +232,8 @@ bin/dev      # web + worker + tailwind + JS watch, on port 3000
 Open **http://localhost:3000**. The **first account becomes the admin**, and
 the first-run wizard walks you through GitHub credentials (a classic PAT +
 the GitHub App), the agent, a repository, and a guided first Epic. The
-**Configure agent** step handles Claude (reuse an existing `claude` login or
-authorize one — needs a Claude Pro/Max/Team/Enterprise plan) or Codex.
+**Configure agent** step handles installed agent-provider plugins such as
+Claude, Codex, and Antigravity.
 
 ### Handy commands
 
@@ -309,7 +309,7 @@ Kubernetes and Docker Compose specifics.
 | Stack | Rails 8 + Solid Queue (MySQL or single-host SQLite in prod, SQLite in dev/test) · React + TypeScript via Vite · Go CLI |
 | Trigger model | External polling for GitHub issues, PR feedback, CI failures, merge state, and scheduled tasks — no inbound webhooks |
 | Auth | Multi-user; first signup = admin, then invite-only |
-| Credentials | Per-user, encrypted at rest (GitHub token, Claude/Codex credentials, admin API token) |
+| Credentials | Per-user, encrypted at rest (GitHub token, agent-provider credentials, admin API token) |
 | Workers | Separate container from the web app |
 | Deploy | Kubernetes or Docker Compose |
 

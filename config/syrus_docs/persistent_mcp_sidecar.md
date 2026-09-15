@@ -173,11 +173,12 @@ safe, or vice versa — `PersistentMcpDaemon::CAPABILITIES` currently advertises
 (`feature_disabled`, `daemon_unreachable: ...`, `daemon_unhealthy: ...`,
 `daemon_incompatible: ...`), plus:
 
-- `provider_unsupported: ...` — Codex-only, same rationale as workflow's:
-  `ChatProviders::Codex#mcp_servers_for` reads every configured entry as a
-  stdio server (`.fetch("command")`), so an `http`-type entry would crash it.
-  `ChatTurnJob` downgrades any `:persistent` decision to `:stdio` with this
-  reason before building config when the turn's chat provider isn't Claude.
+- `provider_unsupported: ...` — non-Claude providers currently use stdio MCP
+  config only. `ChatProviders::Codex#mcp_servers_for` and
+  `ChatProviders::Agy#mcp_servers_for` read configured entries as stdio
+  servers, so an `http`-type entry would crash them. `ChatTurnJob` downgrades
+  any `:persistent` decision to `:stdio` with this reason before building
+  config when the turn's chat provider isn't Claude.
 - `nil` (persistent, no fallback) — `ChatTurnJob` builds `http`-type
   `mcpServers` entries for BOTH the essential and deferred config keys
   (`"syrus-chat-sidecar"` / `"syrus-chat-deferred-sidecar"`, same names as
