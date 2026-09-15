@@ -209,6 +209,7 @@ module Steps
             "target_health_skipped" => true,
             "target_label" => entry["target_label"],
             "target_health_record_id" => entry["target_health_record_id"],
+            "target_health_record_refs" => entry["target_health_record_refs"],
             "commit_sha" => entry["commit_sha"],
             "checked_at" => entry["checked_at"],
             "reason" => entry["reason"]

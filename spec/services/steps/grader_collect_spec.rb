@@ -862,6 +862,42 @@ RSpec.describe Steps::GraderCollect do
     expect(metrics).not_to have_key("cap")
   end
 
+  it "keeps target-health proof refs in iteration rollups for skipped graders" do
+    workflow.steps.where(kind: "grader").delete_all
+    workflow.set_artifact!(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY, [
+      {
+        "name" => "docs",
+        "required" => true,
+        "target_label" => "//:grade/docs",
+        "reason" => "latest target health record passed",
+        "target_health_record_id" => 321,
+        "target_health_record_refs" => [
+          {
+            "target_health_record_id" => 321,
+            "target_label" => "//:grade/docs",
+            "commit_sha" => "previous321",
+            "status" => "passed"
+          }
+        ],
+        "commit_sha" => "previous321",
+        "checked_at" => "2026-09-10T12:00:00Z"
+      }
+    ])
+
+    expect { handler.call }.not_to raise_error
+
+    iteration = workflow.reload.artifact("iterations").first
+    expect(iteration).to contain_exactly(
+      include(
+        "name" => "docs",
+        "status" => "passed",
+        "target_health_skipped" => true,
+        "target_health_record_id" => 321,
+        "target_health_record_refs" => [ include("target_health_record_id" => 321) ]
+      )
+    )
+  end
+
   describe "grade.rerun_only_failed carry-forward" do
     def carried_forward_entry(name: "lint", required: true)
       {
