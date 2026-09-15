@@ -6,6 +6,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       claude_oauth_token: "sk-existing",
       codex_api_key: "sk-codex-existing",
       codex_auth_json: Factories.codex_auth_json(access_token: "codex-access-existing"),
+      muse_api_key: "muse-existing",
       github_token: "ghp_existing"
     )
   end
@@ -55,12 +56,14 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       "claude_oauth_token" => true,
       "codex_api_key" => true,
       "codex_auth_json" => true,
+      "muse_api_key" => true,
       "github_token" => true
     )
     expect(body).not_to have_key("documents")
     expect(response.body).not_to include("sk-existing")
     expect(response.body).not_to include("sk-codex-existing")
     expect(response.body).not_to include("codex-access-existing")
+    expect(response.body).not_to include("muse-existing")
     expect(response.body).not_to include("ghp_existing")
   end
 
@@ -87,6 +90,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
         claude_oauth_token: "sk-new",
         codex_api_key: "",
         codex_auth_json: "",
+        muse_api_key: "",
         github_token: "",
         scheduling_paused: false,
         agent_max_turns: "500",
@@ -99,11 +103,27 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.claude_oauth_token).to eq("sk-new")
     expect(user.codex_api_key).to eq("sk-codex-existing")
     expect(user.codex_auth_json).to include("codex-access-existing")
+    expect(user.muse_api_key).to eq("muse-existing")
     expect(user.github_token).to eq("ghp_existing")
     expect(user.scheduling_paused).to be false
     expect(user.agent_max_turns).to eq(500)
     expect(user.role).to eq("product_owner")
     expect(parse_body["message"]).to eq("Credentials updated.")
+  end
+
+  it "saves Muse API keys without echoing the secret" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/credentials", params: {
+      user: {
+        muse_api_key: "muse-new-secret"
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.muse_api_key).to eq("muse-new-secret")
+    expect(parse_body.dig("credential_status", "muse_api_key")).to be true
+    expect(response.body).not_to include("muse-new-secret")
   end
 
   it "shows and updates per-provider availability pause thresholds" do
@@ -348,40 +368,37 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
   it "clears known credentials" do
     sign_in_as(user)
 
-    post "/api/v1/app/credentials/clear_credential", params: { credential: "github_token" }
+    post "/api/v1/app/credentials/clear_credential", params: { credential: "muse_api_key" }
 
     expect(response).to have_http_status(:ok)
-    expect(user.reload.github_token).to be_nil
-    expect(parse_body["message"]).to eq("GitHub token cleared.")
-    expect(parse_body.dig("credential_status", "github_token")).to be false
+    expect(user.reload.muse_api_key).to be_nil
+    expect(parse_body["message"]).to eq("Muse API key cleared.")
+    expect(parse_body.dig("credential_status", "muse_api_key")).to be false
   end
 
-  it "tests a configured credential and returns the provider result" do
+  it "tests a configured Muse credential and returns the provider result" do
     sign_in_as(user)
     result = CredentialProbe::Result.new(
-      credential: "github_token",
+      credential: "muse_api_key",
       ok: true,
-      message: "GitHub token is valid for ada.",
-      details: { login: "ada", scopes: [ "repo" ] }
+      message: "Muse API key is valid.",
+      details: {}
     )
     expect(CredentialProbe).to receive(:call)
-      .with(user: user, credential: "github_token")
+      .with(user: user, credential: "muse_api_key")
       .and_return(result)
 
-    post "/api/v1/app/credentials/test_credential", params: { credential: "github_token" }
+    post "/api/v1/app/credentials/test_credential", params: { credential: "muse_api_key" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("GitHub token is valid for ada.")
+    expect(parse_body["message"]).to eq("Muse API key is valid.")
     expect(parse_body["credential_test"]).to eq(
-      "credential" => "github_token",
+      "credential" => "muse_api_key",
       "ok" => true,
-      "message" => "GitHub token is valid for ada.",
-      "details" => {
-        "login" => "ada",
-        "scopes" => [ "repo" ]
-      }
+      "message" => "Muse API key is valid.",
+      "details" => {}
     )
-    expect(response.body).not_to include("ghp_existing")
+    expect(response.body).not_to include("muse-existing")
   end
 
   it "rejects unknown credential tests" do

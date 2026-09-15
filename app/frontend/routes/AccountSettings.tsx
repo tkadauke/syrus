@@ -19,7 +19,8 @@ import {
   ClaudeCredentialCard,
   CodexCredentialCard,
   GeminiCredentialCard,
-  GithubCredentialCard
+  GithubCredentialCard,
+  MuseCredentialCard
 } from "../components/credentials/CredentialCard"
 import {
   fetchCredentials,
@@ -123,6 +124,7 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
         <GithubCredentialCard onNotice={onNotice} payload={payload} />
         <ClaudeCredentialCard onNotice={onNotice} payload={payload} />
         <CodexCredentialCard onNotice={onNotice} payload={payload} />
+        <MuseCredentialCard onNotice={onNotice} payload={payload} />
         <GeminiCredentialCard onNotice={onNotice} payload={payload} />
         <PasskeysPanel />
         {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} /> : null}
@@ -602,6 +604,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     codex_api_key: "",
     codex_auth_json: "",
     gemini_api_key: "",
+    muse_api_key: "",
     github_token: "",
     agent_max_turns: payload.user.agent_max_turns,
     agent_provider_failover_policy: payload.user.agent_provider_failover_policy || {

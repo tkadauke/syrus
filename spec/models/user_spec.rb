@@ -143,7 +143,7 @@ RSpec.describe User do
     it "stores variable-length encrypted secret payloads in text columns" do
       column_types = User.columns.index_by(&:name).transform_values(&:type)
 
-      expect(column_types.values_at("claude_oauth_token", "codex_api_key", "github_token", "api_token"))
+      expect(column_types.values_at("claude_oauth_token", "codex_api_key", "github_token", "api_token", "muse_api_key"))
         .to all(eq(:text))
     end
 
@@ -151,11 +151,13 @@ RSpec.describe User do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-abc",
                                       codex_api_key: "sk-codex",
                                       codex_auth_json: Factories.codex_auth_json(access_token: "codex-access"),
+                                      muse_api_key: "muse-secret",
                                       github_token: "ghp_xyz"))
       reloaded = User.find(user.id)
       expect(reloaded.claude_oauth_token).to eq("oat-abc")
       expect(reloaded.codex_api_key).to eq("sk-codex")
       expect(reloaded.codex_auth_json).to include("codex-access")
+      expect(reloaded.muse_api_key).to eq("muse-secret")
       expect(reloaded.github_token).to eq("ghp_xyz")
     end
 
