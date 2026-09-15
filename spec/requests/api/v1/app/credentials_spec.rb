@@ -359,6 +359,17 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("credential_status", "gemini_api_key")).to be(true)
   end
 
+  it "lists Antigravity as a configured chat provider when the shared Gemini key is saved" do
+    user.update!(gemini_api_key: "AIza-test")
+    sign_in_as(user)
+
+    get "/api/v1/app/credentials"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("options", "chat_providers")).to include("agy")
+    expect(parse_body.dig("credential_status", "gemini_api_key")).to be(true)
+  end
+
   it "updates team-visible profile fields" do
     sign_in_as(user)
 
@@ -462,6 +473,27 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       "details" => {}
     )
     expect(response.body).not_to include("muse-existing")
+  end
+
+  it "tests Antigravity readiness through the shared Gemini credential" do
+    sign_in_as(user)
+    user.update!(gemini_api_key: "AIza-test")
+    result = CredentialProbe::Result.new(
+      credential: "agy",
+      ok: true,
+      message: "Antigravity accepted the shared Gemini API key.",
+      details: { shared_credential: "gemini_api_key" }
+    )
+    expect(CredentialProbe).to receive(:call)
+      .with(user: user, credential: "agy")
+      .and_return(result)
+
+    post "/api/v1/app/credentials/test_credential", params: { credential: "agy" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("credential_test", "credential")).to eq("agy")
+    expect(parse_body.dig("credential_test", "details", "shared_credential")).to eq("gemini_api_key")
+    expect(response.body).not_to include("AIza-test")
   end
 
   it "tests Antigravity readiness through the shared Gemini credential" do
