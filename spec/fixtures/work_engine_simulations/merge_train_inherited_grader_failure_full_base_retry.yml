@@ -1,0 +1,117 @@
+name: merge train inherited grader failure full base retry
+runner:
+  auto_retry_failed_jobs: false
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: merge-train-inherited-grader-failure-full-base-retry
+  auto_merge_enabled: true
+  main_branch_health_enabled: true
+  land_on_inherited_check_failure: true
+main_branch_health_checks:
+  - sha: base-broken-sha
+    checked_at: "2026-09-15 09:00:00"
+    ci_health: healthy
+    grader_health: broken
+    grader_failed_names:
+      - react-tests
+epics:
+  feature:
+    title: Feature with inherited landing failure
+jobs:
+  alpha:
+    title: Alpha member with inherited landing failure
+    epic: feature
+    state: landing
+    branch_name: syrus/direct-alpha
+    pr_number: 6401
+    approved_at: "2026-09-15 09:10:00"
+    workflow:
+      kind: merge_train
+      state: running
+      artifacts:
+        merge_train_id: 1
+        merge_train_base_sha: base-broken-sha
+        grade_plan_head_sha: integration-head-sha
+        grade_plan_fingerprint: react-fingerprint
+      work_unit:
+        state: running
+      steps:
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: react
+          kind: grader
+          state: failed
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          details:
+            name: react-tests
+            command: printf 'React failure without structured cases\n' && exit 1
+            output: "React failure without structured cases\n"
+            required: true
+            failures: allow_inherited
+            base_retry:
+              strategy: files_as_args
+          run:
+            state: failed
+        - key: collect
+          kind: grader_collect
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - react
+          run:
+            state: queued
+        - key: land
+          kind: merge_train_land
+          state: queued
+          depends_on:
+            - collect
+  beta:
+    title: Beta member with inherited landing failure
+    epic: feature
+    state: landing
+    branch_name: syrus/direct-beta
+    pr_number: 6402
+    approved_at: "2026-09-15 09:11:00"
+merge_trains:
+  active:
+    epic: feature
+    state: grading
+    base_branch: main
+    base_sha: base-broken-sha
+    integration_branch: syrus/merge-train-inherited-grader-failure
+    integration_sha: integration-head-sha
+    workflow_job: alpha
+    members:
+      - job: alpha
+        state: included
+      - job: beta
+        state: included
+outcomes:
+  default: success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+  epics:
+    feature:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+  events:
+    - grader_collect -> success
+    - merge_train_land -> success
+  absent_events:
+    - landing_fix

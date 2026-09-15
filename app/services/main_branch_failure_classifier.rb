@@ -229,7 +229,7 @@ class MainBranchFailureClassifier
     candidate_run = grader_step.runs.order(:created_at).last
     failed_cases = failed_test_cases_for_run(candidate_run, grader_name)
     base_retry = grader_step.details.to_h["base_retry"].to_h.stringify_keys
-    return nil if failed_cases.empty? && base_retry["strategy"] != "full_command"
+    return nil if base_retry.blank?
 
     BaseRevisionRetry.call(
       workflow: @workflow,

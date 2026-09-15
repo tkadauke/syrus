@@ -143,6 +143,59 @@ RSpec.describe BaseRevisionRetry do
     expect(result.command).to eq("bin/rspec-fast spec/models/widget_spec.rb")
   end
 
+  it "falls back to the full grader command when files_as_args has no failed cases" do
+    grader_step.update!(
+      details: grader_step.details.merge(
+        "output" => "Vitest failed before structured cases were stored\n",
+        "base_retry" => { "strategy" => "files_as_args" }
+      )
+    )
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: [],
+      log: ->(_message) {}
+    )
+    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
+      output << "Vitest failed before structured cases were stored\n"
+      instance_double(Process::Status, success?: false)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: true,
+      reason: "base_retry_full_command_failed_same_output",
+      command: "bin/rspec-fast"
+    )
+  end
+
+  it "falls back to the full grader command when files_as_args cannot synthesize a focused command" do
+    grader_step.update!(details: grader_step.details.merge("base_retry" => { "strategy" => "files_as_args" }))
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases.map { |test_case| test_case.except("file_path") },
+      log: ->(_message) {}
+    )
+    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
+      output << "Base passed\n"
+      instance_double(Process::Status, success?: true)
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: false,
+      reason: "base_retry_full_command_base_passed",
+      command: "bin/rspec-fast"
+    )
+  end
+
   it "treats non-test graders as inherited when the full base command fails with the same output" do
     grader_step.update!(
       details: {

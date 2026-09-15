@@ -30,10 +30,10 @@ class BaseRevisionRetry
 
     return run_full_command if config.fetch("strategy") == "full_command"
 
-    return skipped("no_failed_test_cases") if @failed_cases.empty?
+    return run_full_command if @failed_cases.empty?
 
     command = focused_command(config)
-    return skipped("no_focused_test_command") if command.blank?
+    return run_full_command if command.blank?
 
     output = +""
     parsed = nil
