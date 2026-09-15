@@ -96,6 +96,57 @@ if Rails.env.development?
     )
   end
 
+  unless demo_chat.messages.exists?(role: "tool_use", tool_use_id: "seed-list-jobs-tool-card")
+    ChatMessage.create!(
+      chat_session: demo_chat,
+      role: "assistant",
+      content: [ { "type" => "text", "text" => "I checked the representative Jobs through the chat tools." } ]
+    )
+    ChatMessage.create!(
+      chat_session: demo_chat,
+      role: "tool_use",
+      tool_name: "syrus-chat-sidecar.list_jobs",
+      tool_use_id: "seed-list-jobs-tool-card",
+      content: {
+        "type" => "tool_use",
+        "id" => "seed-list-jobs-tool-card",
+        "name" => "syrus-chat-sidecar.list_jobs",
+        "input" => { "query" => "preview" }
+      }
+    )
+    ChatMessage.create!(
+      chat_session: demo_chat,
+      role: "tool_result",
+      tool_name: "syrus-chat-sidecar.list_jobs",
+      tool_use_id: "seed-list-jobs-tool-card",
+      content: {
+        "type" => "tool_result",
+        "tool_use_id" => "seed-list-jobs-tool-card",
+        "content" => {
+          "jobs" => [
+            {
+              "id" => 101,
+              "issue_title" => "Inspect preview dashboard states",
+              "state" => "implemented",
+              "repository_slug" => "demo/syrus-preview",
+              "pr_number" => 12,
+              "priority" => "medium"
+            },
+            {
+              "id" => 102,
+              "issue_title" => "Repair seeded background workflow",
+              "state" => "failed",
+              "repository_slug" => "demo/syrus-preview",
+              "pr_number" => nil,
+              "priority" => "high"
+            }
+          ]
+        },
+        "is_error" => false
+      }
+    )
+  end
+
   demo_epic = Epic.find_or_initialize_by(repository: demo_repo, title: "Preview the operator workflow")
   demo_epic.assign_attributes(
     user: demo_user,
