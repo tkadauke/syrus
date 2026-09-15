@@ -1,8 +1,8 @@
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
 import { DescriptionList, Text } from "@app/components/ui"
-import { isPlainObject } from "@app/pluginToolCards"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, InternalLink, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { isPlainObject } from "@app/toolCardParsing"
 
 // Shared presentation for the mockups plugin's preview-panel chat tool cards
 // (the pending-action tool-card work). show_preview and close_preview both return the same

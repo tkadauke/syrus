@@ -62,8 +62,8 @@ export function ReasonBadges({ reasons }: { reasons: string[] }) {
   if (reasons.length === 0) return null
 
   return (
-      <div className="flex flex-wrap gap-1">
-        {reasons.map((reason) => (
+    <div className="flex flex-wrap gap-1">
+      {reasons.map((reason) => (
         <Pill className="text-2xs" key={reason} tone={REASON_TONES[reason] ?? "neutral"}>
           {t(`reason_${reason}`, { defaultValue: reason })}
         </Pill>
