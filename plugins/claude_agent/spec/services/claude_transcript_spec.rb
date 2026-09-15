@@ -189,5 +189,4 @@ RSpec.describe ClaudeTranscript do
       expect(summary.exit_reason).to be_nil
     end
   end
-
 end

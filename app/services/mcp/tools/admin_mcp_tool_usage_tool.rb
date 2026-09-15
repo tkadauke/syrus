@@ -88,7 +88,7 @@ module Mcp::Tools
 
       def normalized_surface(surface)
         value = surface.to_s.strip.presence || "chat"
-        return value if SURFACES.include?(value)
+        value if SURFACES.include?(value)
       end
     end
   end
