@@ -1,4 +1,5 @@
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
+import { DescriptionList, Text } from "@app/components/ui"
 import { Badge, CardShell, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { isPlainObject } from "@app/toolCardParsing"
 
@@ -81,12 +82,12 @@ export function PreviewPanelCard({ panel }: { panel: PreviewPanel }) {
         modalLabel={panel.title ?? `Panel #${panel.panelId}`}
       />
       {panel.entryFile || panel.fileCount != null ? (
-        <dl className="grid gap-1 sm:grid-cols-2">
+        <DescriptionList.Root className="sm:grid-cols-2" density="compact">
           {panel.entryFile ? <Row label="Entry file" value={panel.entryFile} /> : null}
           {panel.fileCount != null ? <Row label="Files" value={String(panel.fileCount)} /> : null}
-        </dl>
+        </DescriptionList.Root>
       ) : null}
-      {panel.note ? <div className="text-gray-600 dark:text-gray-300">{panel.note}</div> : null}
+      {panel.note ? <Text muted>{panel.note}</Text> : null}
     </CardShell>
   )
 }

@@ -1,3 +1,4 @@
+import { CodeSurface, Pill } from "../../components/ui"
 import { diffLineClass, diffMarkerClass, parseUnifiedDiff } from "../../components/diff/diffRendering"
 
 // Shared raw-diff summary/preview rendering for the get_job_diff, read_pr,
@@ -17,9 +18,9 @@ export function diffStats(diff: string): DiffStats {
 export function DiffStatBadges({ stats }: { stats: DiffStats }) {
   return (
     <div className="flex flex-wrap items-center gap-2 font-mono text-2xs">
-      {stats.fileCount > 0 ? <span className="text-gray-600 dark:text-gray-300">{stats.fileCount} file{stats.fileCount === 1 ? "" : "s"}</span> : null}
-      <span className="text-emerald-700 dark:text-emerald-300">+{stats.additions}</span>
-      <span className="text-red-700 dark:text-red-300">-{stats.deletions}</span>
+      {stats.fileCount > 0 ? <Pill tone="neutral">{stats.fileCount} file{stats.fileCount === 1 ? "" : "s"}</Pill> : null}
+      <Pill tone="success">+{stats.additions}</Pill>
+      <Pill tone="danger">-{stats.deletions}</Pill>
     </div>
   )
 }
@@ -31,13 +32,13 @@ export function RawDiffPreview({ diff }: { diff: string }) {
   if (lines.length === 0) return null
 
   return (
-    <div className="max-h-72 overflow-auto rounded border border-gray-200 bg-white font-mono text-2xs dark:border-gray-800 dark:bg-gray-950">
+    <CodeSurface code={diff} copyLabel="Copy diff" maxHeightClassName="max-h-72" mode="multiline">
       {lines.map((line, index) => (
-        <div className={`flex ${diffLineClass(line.kind)}`} key={index}>
+        <span className={`flex ${diffLineClass(line.kind)}`} key={index}>
           <span className={diffMarkerClass(line.kind)}>{line.marker}</span>
           <span className="min-w-0 flex-1 whitespace-pre-wrap break-words px-2 py-0.5">{line.code || " "}</span>
-        </div>
+        </span>
       ))}
-    </div>
+    </CodeSurface>
   )
 }

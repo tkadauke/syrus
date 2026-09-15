@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { DataTable } from "../../components/ui"
 import { displayValue, InternalLink, StatePill } from "./toolCardUi"
 
 // Shared presentation helpers for the core admin status/diagnostics/
@@ -93,31 +94,27 @@ export function JobRefLink({ jobId }: { jobId: number | string | null }) {
 }
 
 export function Table({ children }: { children: ReactNode }) {
-  return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">{children}</table>
-    </div>
-  )
+  return <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-1">{children}</DataTable.Root>
 }
 
 export function THead({ columns }: { columns: string[] }) {
   return (
-    <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-      <tr>
-        {columns.map((column) => <th className="px-2 py-1 font-semibold" key={column} scope="col">{column}</th>)}
-      </tr>
-    </thead>
+    <DataTable.Header>
+      <DataTable.Row>
+        {columns.map((column) => <DataTable.HeadCell className="px-2 py-1 text-2xs" key={column}>{column}</DataTable.HeadCell>)}
+      </DataTable.Row>
+    </DataTable.Header>
   )
 }
 
 export function TBody({ children }: { children: ReactNode }) {
-  return <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">{children}</tbody>
+  return <DataTable.Body>{children}</DataTable.Body>
 }
 
 export function Td({ children, mono = false, title, maxWidth }: { children: ReactNode; mono?: boolean; title?: string; maxWidth?: boolean }) {
   return (
-    <td className={`px-2 py-1 text-gray-700 dark:text-gray-300 ${maxWidth ? "max-w-[16rem] truncate" : "whitespace-nowrap"} ${mono ? "font-mono" : ""}`} title={title}>
+    <DataTable.Cell className={`${maxWidth ? "max-w-[16rem] truncate" : "whitespace-nowrap"} ${mono ? "font-mono" : ""} px-2 py-1 text-xs`} title={title}>
       {children}
-    </td>
+    </DataTable.Cell>
   )
 }
