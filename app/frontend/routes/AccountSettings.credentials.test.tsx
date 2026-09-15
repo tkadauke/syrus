@@ -56,7 +56,7 @@ function makePayload(overrides: {
         causes: ["usage_exhausted", "usage_low", "rate_limited", "provider_transient"],
         override_explicit_pins: false
       },
-      provider_availability_pause_thresholds: { claude: 10, codex: 10 },
+      provider_availability_pause_thresholds: { agy: 10, claude: 10, codex: 10 },
       provider_availability_overrides: {},
       scheduling_paused: false,
       auto_approve_mode: "never",
@@ -76,7 +76,7 @@ function makePayload(overrides: {
     provider_availability: {},
     options: {
       locales: ["en", "de", "la"],
-      agent_providers: overrides.agent_providers ?? ["claude", "codex"],
+      agent_providers: overrides.agent_providers ?? ["agy", "claude", "codex"],
       agent_provider_labels: overrides.agent_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
       chat_providers: overrides.chat_providers ?? [],
       chat_provider_labels: overrides.chat_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
@@ -243,26 +243,26 @@ describe("CredentialsRoute (provider cards)", () => {
   })
 
   it("saves the chat provider immediately per-change through a partial PATCH", async () => {
-    const fetchSpy = mockRoutes(makePayload({ chat_providers: ["claude", "codex"] }))
+    const fetchSpy = mockRoutes(makePayload({ chat_providers: ["agy", "claude", "codex"] }))
     renderCredentials()
 
     const select = await screen.findByLabelText("Chat provider")
-    fireEvent.change(select, { target: { value: "codex" } })
+    fireEvent.change(select, { target: { value: "agy" } })
 
     await waitFor(() => {
       const patchCall = fetchSpy.mock.calls.find(([url, init]) => String(url).endsWith("/api/v1/app/credentials") && init?.method === "PATCH")
       expect(patchCall).toBeTruthy()
-      expect(JSON.parse(patchCall?.[1]?.body as string)).toEqual({ user: { chat_provider: "codex" } })
+      expect(JSON.parse(patchCall?.[1]?.body as string)).toEqual({ user: { chat_provider: "agy" } })
     })
   })
 
   it("keeps the card's specific notice — the payload's generic message must not overwrite it", async () => {
-    const updated = { ...makePayload({ chat_providers: ["claude", "codex"] }), message: "Credentials updated." }
-    mockRoutes(makePayload({ chat_providers: ["claude", "codex"] }), { patch: () => jsonResponse(updated) })
+    const updated = { ...makePayload({ chat_providers: ["agy", "claude", "codex"] }), message: "Credentials updated." }
+    mockRoutes(makePayload({ chat_providers: ["agy", "claude", "codex"] }), { patch: () => jsonResponse(updated) })
     renderCredentials()
 
     const select = await screen.findByLabelText("Chat provider")
-    fireEvent.change(select, { target: { value: "codex" } })
+    fireEvent.change(select, { target: { value: "agy" } })
 
     expect(await screen.findByText("Chat provider saved.")).toBeInTheDocument()
     // The PATCH response's generic "Credentials updated." is stripped before
@@ -319,7 +319,7 @@ describe("CredentialsRoute (provider cards)", () => {
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(new Date("2026-08-29T11:00:00Z"))
     mockRoutes({
-      ...makePayload({ agent_providers: ["claude", "codex", "gemini"] }),
+      ...makePayload({ agent_providers: ["agy", "claude", "codex"] }),
       provider_availability: {
         claude: {
           provider: "claude",
@@ -378,16 +378,16 @@ describe("CredentialsRoute (provider cards)", () => {
             }
           }
         },
-        gemini: {
-          provider: "gemini",
-          label: "Gemini",
+        agy: {
+          provider: "agy",
+          label: "Antigravity",
           model: null,
           state: "available",
           open: false,
           usage_exhausted: false,
           retry_after: null,
           reason: null,
-          message: "Gemini available.",
+          message: "Antigravity available.",
           usage: {
             status: "warning",
             observed_at: "2026-08-29T11:00:00Z",
@@ -395,7 +395,7 @@ describe("CredentialsRoute (provider cards)", () => {
               status: "warning",
               source: "usage_probe",
               observed_at: "2026-08-29T11:00:00Z",
-              provider: "gemini",
+              provider: "agy",
               details: {
                 snapshot: {
                   primary: {
@@ -425,11 +425,11 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(within(codexPanel as HTMLElement).getByText(/42% remaining\./)).toBeInTheDocument()
     expect(within(codexPanel as HTMLElement).getByText("Resets in 1 day, 1 hour.")).toHaveAttribute("title", expect.stringContaining("2026"))
 
-    const geminiInput = screen.getByLabelText("Gemini pause threshold (%)")
-    const geminiPanel = geminiInput.closest(".grid")
-    expect(geminiPanel).not.toBeNull()
-    expect(within(geminiPanel as HTMLElement).getByText(/No usage percentage recorded\./)).toBeInTheDocument()
-    expect(within(geminiPanel as HTMLElement).getByText("Resets in 1 hour, 45 minutes.")).toHaveAttribute("title", expect.stringContaining("2026"))
+    const agyInput = screen.getByLabelText("Antigravity pause threshold (%)")
+    const agyPanel = agyInput.closest(".grid")
+    expect(agyPanel).not.toBeNull()
+    expect(within(agyPanel as HTMLElement).getByText(/No usage percentage recorded\./)).toBeInTheDocument()
+    expect(within(agyPanel as HTMLElement).getByText("Resets in 1 hour, 45 minutes.")).toHaveAttribute("title", expect.stringContaining("2026"))
   })
 
   it("uses plugin display names for Muse failover and availability controls", async () => {

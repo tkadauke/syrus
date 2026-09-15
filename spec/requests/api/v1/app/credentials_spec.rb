@@ -366,7 +366,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     get "/api/v1/app/credentials"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("options", "chat_providers")).to include("agy")
+    expect(parse_body.dig("options", "chat_providers")).to eq(%w[agy claude codex])
     expect(parse_body.dig("credential_status", "gemini_api_key")).to be(true)
   end
 
