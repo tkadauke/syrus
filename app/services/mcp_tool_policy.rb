@@ -30,60 +30,6 @@ class McpToolPolicy
     end
   end
 
-  # Capabilities that workflow-surface submit tools require. Maps a symbolic
-  # capability name to the set of workflow roles that hold it. Roles absent
-  # from the list do not have the capability and must not call the tool.
-  WORKFLOW_CAPABILITIES = {
-    submit_summary:            [
-      AgentRole::WORKFLOW_IMPLEMENT,
-      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-      AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL
-    ].freeze,
-    submit_test_plan:          [
-      AgentRole::WORKFLOW_IMPLEMENT,
-      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-      AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL
-    ].freeze,
-    submit_review_plan:        [
-      AgentRole::WORKFLOW_IMPLEMENT,
-      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-      AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL
-    ].freeze,
-    submit_job_metadata:       [
-      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-      AgentRole::WORKFLOW_MANUAL
-    ].freeze,
-    submit_artifact:           [
-      AgentRole::WORKFLOW_IMPLEMENT,
-      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-      AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL
-    ].freeze,
-    run_target_prepare:        [
-      AgentRole::WORKFLOW_IMPLEMENT,
-      AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL
-    ].freeze,
-    submit_visual_artifact:    [
-      AgentRole::WORKFLOW_IMPLEMENT,
-      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-      AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL,
-      AgentRole::WORKFLOW_VISUAL_REVIEWER
-    ].freeze,
-    submit_adversarial_review: [
-      AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
-      AgentRole::WORKFLOW_MANUAL
-    ].freeze,
-    submit_visual_review:      [
-      AgentRole::WORKFLOW_VISUAL_REVIEWER,
-      AgentRole::WORKFLOW_MANUAL
-    ].freeze
-  }.freeze
-
   # Story 11 (docs/plans/delivery-tracks-and-promotion.md) delivery-track/
   # ref-movement tools are chat- *and* skill-facing — a `run_skill` step
   # agent (e.g. a "promote release" skill) can inspect/dispatch ref
