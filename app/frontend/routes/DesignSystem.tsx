@@ -201,9 +201,14 @@ function ExtendedTokenSwatchesSection({ tokenValues }: { tokenValues: string[] }
     <section>
       <SectionHeading>{t("design_system.extended_tokens.heading")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("design_system.extended_tokens.description")}</p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {EXTENDED_TOKEN_GROUPS.map((group) => (
-          <div className="rounded border border-border bg-surface p-3" key={group}>
+          // min-w-0 keeps this grid item sized to its track instead of growing to
+          // fit a long nowrap value below (e.g. a full font-stack string) -- without
+          // it, the card's own auto min-width is its max-content width, which can
+          // exceed the track/viewport and force the whole grid (and page) to
+          // overflow horizontally, especially at mobile widths.
+          <div className="min-w-0 rounded border border-border bg-surface p-3" key={group}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium text-text-primary">{t(`design_system.extended_tokens.groups.${group}`)}</span>
               <ExtendedTokenGroupDemo group={group} valueFor={valueFor} />
@@ -211,8 +216,13 @@ function ExtendedTokenSwatchesSection({ tokenValues }: { tokenValues: string[] }
             <dl className="mt-2 space-y-1">
               {EXTENDED_TOKEN_GROUP_SPECS.filter((spec) => spec.group === group).map((spec) => (
                 <div className="flex items-center justify-between gap-2" key={spec.key}>
-                  <dt className="truncate text-xs text-text-secondary">{spec.key}</dt>
-                  <dd className="truncate font-mono text-xs text-text-primary">{valueFor(spec.key) || "—"}</dd>
+                  {/* shrink-0 (and no truncate) on the label: these are short, fixed
+                      key names that should never lose the shrink fight against a long
+                      value sharing the row -- only the value below truncates. */}
+                  <dt className="shrink-0 text-xs text-text-secondary">{spec.key}</dt>
+                  <dd className="min-w-0 truncate font-mono text-xs text-text-primary" title={valueFor(spec.key) || undefined}>
+                    {valueFor(spec.key) || "—"}
+                  </dd>
                 </div>
               ))}
             </dl>
