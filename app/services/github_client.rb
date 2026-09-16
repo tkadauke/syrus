@@ -898,6 +898,24 @@ class GithubClient
     raise
   end
 
+  # Returns { content: "...", size: N } for the file at `path` at `ref`,
+  # like #file_content_at but without the UTF-8 transcode step -- callers
+  # that need the raw decoded bytes (e.g. streaming an image) must use this
+  # instead, since #file_content_at's `.encode("UTF-8", ...)` mangles binary
+  # content. Returns nil if the path is not a blob (it's a directory or not
+  # found).
+  def binary_file_content_at(repo_slug, path, ref)
+    result = track_rate_limits { @client.contents(repo_slug, path: path, ref: ref) }
+    return nil unless result.respond_to?(:type) && result.type == "file"
+
+    { content: Base64.decode64(result.content.to_s), size: result.size.to_i }
+  rescue Octokit::NotFound
+    nil
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}:#{path}@#{ref}: #{e.message}")
+    raise
+  end
+
   private
 
   def owner_repo_json(repo)

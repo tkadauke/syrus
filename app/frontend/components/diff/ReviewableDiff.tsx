@@ -43,6 +43,7 @@ export type ReviewableDiffFile = {
   status?: string
   additions?: number
   deletions?: number
+  is_image?: boolean
 }
 
 export type DiffLineSelection = {
@@ -94,6 +95,11 @@ export type ReviewableDiffProps = {
   onSaveEditThread?: () => void
   onSelectFile?: (path: string) => void
   onStartEditThread?: (thread: DiffReviewThread) => void
+  // Renders a before/after thumbnail pair (or similar) for a file whose
+  // patch is unavailable because it's a recognized image. Takes over from
+  // `unavailableState` only when `file.is_image` is true; other
+  // binary/large files still fall back to the plain placeholder.
+  renderImageDiff?: (file: ReviewableDiffFile) => ReactNode
   scroll?: "bounded" | "natural"
   selectedPath?: string | null
   showFileHeaders?: boolean | "continuous"
@@ -188,6 +194,7 @@ export function ReviewableDiff({
   onSaveEditThread,
   onSelectFile,
   onStartEditThread,
+  renderImageDiff,
   scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
@@ -438,6 +445,7 @@ export function ReviewableDiff({
           onStartEditThread={onStartEditThread}
           onToggleFilesPopup={changedFilesPopup ? toggleFilesPopup : undefined}
           onToggleHighlightToken={wordHighlighting ? toggleHighlightToken : undefined}
+          renderImageDiff={renderImageDiff}
           selected={selectedPath === file.path}
           showFilesPopupTrigger={changedFilesPopup}
           showHeader={showHeader}
@@ -652,6 +660,7 @@ function DiffFileSection({
   onStartEditThread,
   onToggleFilesPopup,
   onToggleHighlightToken,
+  renderImageDiff,
   selected,
   showFilesPopupTrigger,
   showHeader,
@@ -682,6 +691,7 @@ function DiffFileSection({
   onStartEditThread?: (thread: DiffReviewThread) => void
   onToggleFilesPopup?: (event: MouseEvent<HTMLButtonElement>) => void
   onToggleHighlightToken?: (token: string) => void
+  renderImageDiff?: (file: ReviewableDiffFile) => ReactNode
   selected: boolean
   showFilesPopupTrigger?: boolean
   showHeader: boolean
@@ -831,6 +841,8 @@ function DiffFileSection({
           onToggleHighlightToken={onToggleHighlightToken}
           tokenCache={cacheEntry.tokensByHunk}
         />
+      ) : file.is_image && renderImageDiff ? (
+        renderImageDiff(file)
       ) : (
         <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{unavailableState}</div>
       )}

@@ -335,6 +335,12 @@
     "close_changed_files": "Close changed files",
     "browse_changed_files": "Browse changed files",
     "large_file_hidden": "This file's diff is large (~{{rowCount}} rendered lines) and is hidden by default.",
-    "load_file_diff": "Load diff for this file"
+    "load_file_diff": "Load diff for this file",
+    "image_before": "Before",
+    "image_after": "After",
+    "image_no_previous_version": "No previous version (file added)",
+    "image_no_new_version": "No new version (file removed)",
+    "image_previous_unavailable": "Previous version unavailable",
+    "image_new_unavailable": "New version unavailable"
   }
 }

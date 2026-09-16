@@ -335,6 +335,12 @@
     "close_changed_files": "Documenta mutata claude",
     "browse_changed_files": "Documenta mutata perlustra",
     "large_file_hidden": "Diff huius documenti magnum est (~{{rowCount}} lineae redditae) atque initio celatur.",
-    "load_file_diff": "Diff huius documenti onera"
+    "load_file_diff": "Diff huius documenti onera",
+    "image_before": "Ante",
+    "image_after": "Post",
+    "image_no_previous_version": "Nulla versio prior (documentum additum)",
+    "image_no_new_version": "Nulla versio nova (documentum ablatum)",
+    "image_previous_unavailable": "Versio prior non praesto est",
+    "image_new_unavailable": "Versio nova non praesto est"
   }
 }

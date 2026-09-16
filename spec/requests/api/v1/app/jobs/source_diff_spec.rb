@@ -38,6 +38,8 @@ RSpec.describe "App API job source diff browser", type: :request do
       "job_id" => job.id,
       "base_ref" => "aabbccdd1234567",
       "head_ref" => "deadbeef12345678",
+      "base_sha" => "aabbccdd1234567",
+      "head_sha" => "deadbeef12345678",
       "merge_base_sha" => "aabbccdd1234567",
       "default_ref" => "main",
       "truncated" => false,
@@ -45,8 +47,8 @@ RSpec.describe "App API job source diff browser", type: :request do
     )
     expect(body["branch_commits"]).to contain_exactly(include("sha" => "deadbeef12345678", "short_sha" => "deadbee"))
     expect(body["files"]).to contain_exactly(
-      include("path" => "app/models/user.rb", "status" => "modified", "additions" => 4, "deletions" => 1, "patch" => "@@ -1 +1 @@\n-old\n+new"),
-      include("path" => "public/logo.png", "status" => "added", "patch" => nil)
+      include("path" => "app/models/user.rb", "status" => "modified", "additions" => 4, "deletions" => 1, "patch" => "@@ -1 +1 @@\n-old\n+new", "is_image" => false),
+      include("path" => "public/logo.png", "status" => "added", "patch" => nil, "is_image" => true)
     )
     expect(body["version"]).to include(
       "version_index" => 1,

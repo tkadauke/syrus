@@ -113,6 +113,26 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
+  it("renders before/after image thumbnails for a patch-less image file instead of the generic placeholder", async () => {
+    const payload = sourceDiffPayload()
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue({
+      ...payload,
+      files: [
+        ...payload.files,
+        { additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }
+      ]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Implementation review")
+    const beforeThumb = screen.getByRole("button", { name: "Open Before" })
+    const afterThumb = screen.getByRole("button", { name: "Open After" })
+    expect(beforeThumb.querySelector("img")).toHaveAttribute("src", "/api/v1/app/jobs/42/source_image?ref=base-sha&path=app%2Fassets%2Fimages%2Flogo.png")
+    expect(afterThumb.querySelector("img")).toHaveAttribute("src", "/api/v1/app/jobs/42/source_image?ref=head-sha&path=app%2Fassets%2Fimages%2Flogo.png")
+  })
+
   it("starts review artifacts collapsed and expands them on demand", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
@@ -906,6 +926,8 @@ function sourceDiffPayload(overrides: Partial<JobSourceDiffPayload> = {}): JobSo
     job_id: 42,
     base_ref: "base-sha",
     head_ref: "head-sha",
+    base_sha: "base-sha",
+    head_sha: "head-sha",
     merge_base_sha: "base-sha",
     default_ref: "main",
     branch_commits: [],
