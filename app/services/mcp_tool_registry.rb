@@ -346,6 +346,7 @@ class McpToolRegistry
         workflow(Mcp::Tools::ReportMainConcernTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
+        workflow(Mcp::Tools::SubmitReportTool, capability: :submit_report, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitReviewPlanTool, capability: :submit_review_plan, required_roles: summary_roles, mutation: true),
         workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
         workflow(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),

@@ -97,6 +97,7 @@ class Workflow
       Entry.new(kind: "external_pr_ingest",  template: "ExternalPrIngest",  label: "External PR graders",   style: "bg-orange-100 text-orange-700",   retry_label: "Retry grader step",  feedback_kind: nil, runtime_role: "first_class", owns_job_lifecycle: true),
       Entry.new(kind: "external_pr_feedback", template: "ExternalPrFeedback", label: "External PR feedback", style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment, runtime_role: "first_class", diff_review_labeler: DiffReviewVersionLabels::Static.new("PR comment follow-up")),
       Entry.new(kind: "skill",               template: "Skill",             label: "Skill run",             style: "bg-lime-100 text-lime-700",       retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "investigation",       template: "Investigation",     label: "Investigation",         style: "bg-cyan-100 text-cyan-700",       retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
       Entry.new(kind: "deploy",              template: "Deploy",            label: "Deploy",                 style: "bg-sky-100 text-sky-700",         retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class")
     ].freeze
 

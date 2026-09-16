@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_034415) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1430,6 +1430,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
     t.integer "input_source_id"
     t.json "invalidation_evidence", null: false
     t.text "invalidation_reason"
+    t.boolean "investigation", default: false, null: false
     t.text "issue_body"
     t.integer "issue_number"
     t.string "issue_title"
@@ -3333,5 +3334,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end

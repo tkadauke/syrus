@@ -131,6 +131,10 @@ class Step
                 fail_policy: :advance,
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "run_skill",          handler: "RunSkill",           label: "Run skill",                  style: "bg-lime-100 text-lime-700",   agentic: true),
+      Entry.new(kind: "investigate",        handler: "Investigate",        label: "Investigate",                style: "bg-cyan-100 text-cyan-700",   agentic: true),
+      Entry.new(kind: "submit_report",      handler: "SubmitReport",       label: "Submit report",              style: "bg-cyan-200 text-cyan-800",   agentic: true,
+                required_mcp_tools: %w[submit_report],
+                skip_if_artifact: "investigation_report"),
       Entry.new(kind: "adversarial_review", handler: "AdversarialReview",  label: "Adversarial review",        style: "bg-rose-100 text-rose-700",   agentic: true,
                 required_mcp_tools: %w[submit_adversarial_review],
                 review_gate: {

@@ -129,6 +129,8 @@ class Job < ApplicationRecord
   validates :system_kind, inclusion: { in: SYSTEM_KINDS }, allow_nil: true
   validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_nil: true
   validate  :skill_name_requires_direct_or_cron_kind, if: -> { skill_name.present? }
+  validate  :investigation_requires_direct_kind, if: :investigation?
+  validate  :investigation_excludes_skill_name, if: -> { investigation? && skill_name.present? }
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -406,6 +408,16 @@ class Job < ApplicationRecord
 
   def skill_workflow_artifacts
     { "skill_name" => skill_name, "skill_args" => skill_args.presence || {} }
+  end
+
+  # A direct Job marked investigation-only at creation time (see
+  # InvestigationJobs::Creator): no PR is expected. Drives
+  # Workflows::Investigation (prepare -> investigate -> submit_report ->
+  # auto_close) instead of Workflows::Initial in #create_initial_run, so a
+  # blank diff never dead-ends the Job in the generic no_changes closure
+  # with no narrative captured.
+  def investigation_launch?
+    direct? && investigation?
   end
 
   def infrastructure?
@@ -1195,6 +1207,7 @@ class Job < ApplicationRecord
     no_changes
     promotion_landed
     hotfix_sync_landed
+    investigation_reported
   ].freeze
   # --- needs_attention flag --------------------------------------------------
   # Called by RunJob after a non-rebase run fails. Increments the
@@ -1630,7 +1643,7 @@ class Job < ApplicationRecord
       job: self,
       artifacts: skill_launch? ? skill_workflow_artifacts : nil
     )
-    prompt = if direct? && !skill_launch?
+    prompt = if direct? && !skill_launch? && !investigation_launch?
       Prompts::DirectJob.new(
         prompt: issue_body.to_s,
         epic: epic,
@@ -1677,6 +1690,8 @@ class Job < ApplicationRecord
   def initial_work_kind
     if skill_launch?
       "skill"
+    elsif investigation_launch?
+      "investigation"
     elsif main_branch_repair?
       "main_branch_repair"
     else
@@ -2016,6 +2031,14 @@ class Job < ApplicationRecord
 
   def skill_name_requires_direct_or_cron_kind
     errors.add(:skill_name, "requires kind=direct or kind=cron") unless direct? || cron?
+  end
+
+  def investigation_requires_direct_kind
+    errors.add(:investigation, "requires kind=direct") unless direct?
+  end
+
+  def investigation_excludes_skill_name
+    errors.add(:investigation, "cannot be combined with skill_name")
   end
 
   def external_pr_starts_implemented
