@@ -214,7 +214,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             {payload.epic.title}
           </PageHeading>
-          <StatePill state={payload.epic.state} />
+          <StatePill state={payload.epic.landing ? "landing" : payload.epic.state} />
           <EpicStuckBadge stuck={payload.epic.stuck} />
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">

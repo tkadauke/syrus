@@ -256,6 +256,13 @@ class Epic < ApplicationRecord
       child_jobs.all? { |job| job.closed? && MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
   end
 
+  # Landing is not a real Epic state (it's a Job-level AASM state), but it is
+  # surfaced as an apparent Epic status: while any child Job is landing, the
+  # Epic is effectively landing too, even though it's usually all of them.
+  def landing?(jobs: work_jobs.reload)
+    jobs.any?(&:landing?)
+  end
+
   def simple_status(jobs: work_jobs.reload)
     return "done" if user_approved_at.present?
     return "something_went_wrong" if jobs.any? { |job| job.closed? && !MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }

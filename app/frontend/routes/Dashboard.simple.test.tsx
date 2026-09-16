@@ -180,6 +180,7 @@ function simpleEpicItem(overrides: Partial<DashboardEpicItem>): DashboardEpicIte
     description: "",
     state: "in_progress",
     simple_status: "working_on_it",
+    landing: false,
     stuck: false,
     all_jobs_closed: false,
     owner: null,

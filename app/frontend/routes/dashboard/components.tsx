@@ -133,6 +133,13 @@ export function NeutralStatePill({ state }: { state: string }) {
   return <span className="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">{label}</span>
 }
 
+// Landing isn't a real Epic state (it's a Job-level AASM state), but while at
+// least one child Job is landing the Epic is effectively landing too, so the
+// dashboard shows "landing" in place of the Epic's underlying state pill.
+export function epicApparentState(epic: Pick<DashboardEpicItem, "landing" | "state">) {
+  return epic.landing ? "landing" : epic.state
+}
+
 export function OwnerBadge({ badge, fallback = null }: { badge: { label: string; kind: string } | null; fallback?: string | null }) {
   if (!badge && !fallback) return null
 
