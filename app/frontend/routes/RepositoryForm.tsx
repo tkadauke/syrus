@@ -438,6 +438,28 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             {t('repository_form.distributed_workflow_dag_hint')}
           </p>
           <Checkbox label={t('repository_form.check_land_inherited_failure')} onChange={(checked) => setValues({ ...values, land_on_inherited_check_failure: checked })} value={values.land_on_inherited_check_failure} />
+          <Checkbox
+            label={t('repository_form.check_known_flaky_dismissal')}
+            onChange={(checked) => setValues({ ...values, known_flaky_failure_dismissal_enabled: checked })}
+            value={values.known_flaky_failure_dismissal_enabled}
+          />
+          {values.known_flaky_failure_dismissal_enabled ? (
+            <Field label={t('repository_form.label_known_flaky_min_score')}>
+              <Form.Input
+                max={1}
+                min={0}
+                onChange={(event) => {
+                  const raw = event.target.value
+                  setValues({ ...values, known_flaky_failure_min_score: raw === '' ? null : Number(raw) })
+                }}
+                placeholder="0.1"
+                step={0.05}
+                type="number"
+                value={values.known_flaky_failure_min_score ?? ''}
+              />
+              <Form.HelpText>{t('repository_form.known_flaky_min_score_hint')}</Form.HelpText>
+            </Field>
+          ) : null}
           <Checkbox label={t('repository_form.check_main_health')} onChange={(checked) => setValues({
             ...values,
             main_branch_health_enabled: checked,
@@ -786,6 +808,8 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     auto_merge_enabled: payload.repository.auto_merge_enabled,
     trust_clean_rebase_grade: payload.repository.trust_clean_rebase_grade,
     land_on_inherited_check_failure: payload.repository.land_on_inherited_check_failure,
+    known_flaky_failure_dismissal_enabled: payload.repository.known_flaky_failure_dismissal_enabled,
+    known_flaky_failure_min_score: payload.repository.known_flaky_failure_min_score,
     main_branch_health_enabled: mainBranchHealthEnabled,
     main_branch_repair_enabled: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled,
     main_branch_repair_blocks_work: mainBranchHealthEnabled && payload.repository.main_branch_repair_blocks_work,

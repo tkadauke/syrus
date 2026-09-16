@@ -785,7 +785,10 @@
     "insight_scheduling_saved": "Insight scheduling settings saved.",
     "insight_scheduling_save_error": "Failed to save insight scheduling settings.",
     "insight_scheduling_min_max_error": "Minimum jobs must be less than maximum jobs.",
-    "check_land_inherited_failure": "Land when failing checks are already failing on the base branch"
+    "check_land_inherited_failure": "Land when failing checks are already failing on the base branch",
+    "check_known_flaky_dismissal": "Dismiss required-grader failures that are already confirmed flaky",
+    "label_known_flaky_min_score": "Minimum flakiness score to treat as confirmed",
+    "known_flaky_min_score_hint": "A required grader failure only counts as confirmed flaky when every one of its failing tests has this flakiness score or higher in Test Insights. Leave blank to use the default (0.1)."
   },
   "github_token": {
     "title": "GitHub integration",

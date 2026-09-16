@@ -29,7 +29,7 @@ module Adjudicators
       repository = workflow.job&.repository
       return Adjudication.inconclusive(adjudicator: name, reason: "not_enabled") unless repository&.known_flaky_failure_dismissal_enabled?
 
-      steps = Array(step).select { |candidate| candidate.respond_to?(:details) }
+      steps = Array(step || failed_grader_steps(workflow)).select { |candidate| candidate.respond_to?(:details) }
       return Adjudication.inconclusive(adjudicator: name) if steps.empty?
 
       min_score = repository.known_flaky_failure_min_score || DEFAULT_MIN_SCORE
@@ -89,6 +89,10 @@ module Adjudicators
         return score if score
       end
       nil
+    end
+
+    def self.failed_grader_steps(workflow)
+      workflow.steps.select { |candidate| candidate.kind == "grader" && candidate.state == "failed" }
     end
 
     # Asked of :test_evidence providers rather than read from a model: test
