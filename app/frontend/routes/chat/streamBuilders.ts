@@ -11,6 +11,7 @@ import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
 import { fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResult, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
+import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -18,8 +19,6 @@ import { fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResul
 // alone (the pre-the relevant change behavior) orphaned the outer group. ROOT_KEY is
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
-const READ_ONLY_TOOLS = new Set(["Read", "Glob", "Grep", "WebFetch", "WebSearch", "list_chat_media", "read_live_state", "read_memory", "search_memories", "list_memories", "list_design_docs", "read_design_doc"])
-const SIDE_EFFECTING_TOOLS = new Set(["Bash", "Edit", "MultiEdit", "Write", "NotebookEdit", "TodoWrite", "create_site", "save_site_version", "deploy_site", "propose_job", "propose_epic", "propose_epic_with_jobs", "show_preview", "write_preview_file", "edit_preview_file"])
 
 type OpenCall = {
   call: ChatToolGroupCall
@@ -177,11 +176,11 @@ function collapseSettledToolGroup(group: ChatToolGroupItem) {
 }
 
 function readOnlyTool(name: string) {
-  return READ_ONLY_TOOLS.has(name) || /^(list|read|search|get)_/.test(name)
+  return isReadOnlyToolName(name)
 }
 
 function sideEffectingTool(name: string) {
-  return SIDE_EFFECTING_TOOLS.has(name) || !readOnlyTool(name)
+  return !readOnlyTool(name)
 }
 
 function inspectionSummary(calls: ChatToolGroupCall[]) {
