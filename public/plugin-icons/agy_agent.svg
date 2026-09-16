@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Antigravity Agent">
+  <rect width="24" height="24" rx="5" fill="#111827"/>
+  <path d="M12 18V6M12 6 7.5 10.5M12 6l4.5 4.5" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M7 18h10" stroke="#4f46e5" stroke-width="1.7" stroke-linecap="round"/>
+</svg>

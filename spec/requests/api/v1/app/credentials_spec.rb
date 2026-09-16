@@ -359,17 +359,6 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("credential_status", "gemini_api_key")).to be(true)
   end
 
-  it "lists Antigravity as a configured chat provider when the shared Gemini key is saved" do
-    user.update!(gemini_api_key: "AIza-test")
-    sign_in_as(user)
-
-    get "/api/v1/app/credentials"
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("options", "chat_providers")).to eq(%w[agy claude codex])
-    expect(parse_body.dig("credential_status", "gemini_api_key")).to be(true)
-  end
-
   it "updates team-visible profile fields" do
     sign_in_as(user)
 

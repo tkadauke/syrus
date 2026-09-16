@@ -176,8 +176,9 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(screen.getByTestId("credential-card-agy")).toBeInTheDocument()
 
     // Every card shows its connected state — no password field impersonating
-    // a saved secret, and no page-wide Save button for the section.
-    expect(screen.getAllByText("Connected")).toHaveLength(5)
+    // a saved secret, and no page-wide Save button for the section. Gemini
+    // and Agy both read the same gemini_api_key flag, so both show Connected.
+    expect(screen.getAllByText("Connected")).toHaveLength(6)
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
   })
 
