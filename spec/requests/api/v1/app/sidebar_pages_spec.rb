@@ -53,8 +53,38 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
         "icon" => "spending",
         "smart_folder_api_path" => "/api/v1/app/spending",
         "smart_folder_subject" => "spending_report",
+        "smart_folder_all_link" => true,
         "order" => 50
       )
+    )
+  end
+
+  it "honors a plugin's opt-out of the generic unfiltered All smart-folder link" do
+    sign_in_as(user)
+    Syrus::PluginRegistry.reset!
+    page_provider = Class.new do
+      include Syrus::Plugin::SidebarPage
+
+      def self.sidebar_pages
+        [
+          {
+            id: "agent_activity.mine",
+            label: "Agent Activity",
+            path: "/agent_activity",
+            smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
+            smart_folder_subject: "agent_session",
+            smart_folder_all_link: false
+          }
+        ]
+      end
+    end
+    Syrus::PluginRegistry.register(name: "agent-activity-plugin", version: "0.1.0", provides: { sidebar_page: page_provider })
+
+    get "/api/v1/app/sidebar_pages"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("pages")).to contain_exactly(
+      include("id" => "agent_activity.mine", "smart_folder_all_link" => false)
     )
   end
 

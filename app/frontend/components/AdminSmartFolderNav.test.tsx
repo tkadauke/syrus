@@ -52,6 +52,13 @@ describe("AdminSmartFolderNav", () => {
     })
   })
 
+  it("omits the generic All link when allLabel/allPath are not provided", () => {
+    renderNav({ showAllLink: false })
+
+    expect(screen.queryByRole("link", { name: "All queue" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Stuck 2" })).toBeInTheDocument()
+  })
+
   it("renders the action menu through a body portal", () => {
     renderNav()
 
@@ -248,6 +255,7 @@ function renderNav({
   folders = smartFolders(),
   onMutationSuccess = vi.fn(),
   search,
+  showAllLink = true,
   subjectType
 }: {
   activeFolderId?: number | null
@@ -255,6 +263,7 @@ function renderNav({
   folders?: AdminSmartFolder[]
   onMutationSuccess?: () => void
   search?: string
+  showAllLink?: boolean
   subjectType?: string
 } = {}) {
   return render(
@@ -262,8 +271,7 @@ function renderNav({
       <MemoryRouter>
         <AdminSmartFolderNav
           activeFolderId={activeFolderId}
-          allLabel="All queue"
-          allPath="/admin/queue/active"
+          {...(showAllLink ? { allLabel: "All queue", allPath: "/admin/queue/active" } : {})}
           ariaLabel="Admin queue smart folders"
           currentFilter={currentFilter}
           folders={folders}

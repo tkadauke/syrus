@@ -570,6 +570,83 @@ describe("AppChromeV2", () => {
     expect(fetchSpy).toHaveBeenCalled()
   })
 
+  it("omits the generic All link for a plugin page whose own smart folders already include an unfiltered one", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(jsonResponse({
+          pages: [{
+            id: "agent_activity.mine",
+            label: "Agent Activity",
+            label_key: null,
+            path: "/agent_activity",
+            paths: ["/agent_activity"],
+            order: 35,
+            component: "agent_activity/AgentActivity",
+            icon: "activity",
+            smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
+            smart_folder_subject: "agent_session",
+            smart_folder_all_link: false
+          }]
+        }))
+      }
+
+      if (url.pathname === "/api/v1/app/agent_activity/sessions") {
+        expect(url.searchParams.get("smart_folder_id")).toBe("81")
+        return Promise.resolve(jsonResponse({
+          active_smart_folder_id: 81,
+          filter: { and: [] },
+          smart_folders: [
+            {
+              id: 81,
+              name: "All",
+              key: "agent_activity_all",
+              kind: "builtin",
+              subject_type: "agent_session",
+              visibility: "always",
+              position: 0,
+              count: 1000,
+              active: true,
+              filter: { and: [] },
+              path: "/agent_activity?smart_folder_id=81"
+            },
+            {
+              id: 82,
+              name: "Running",
+              key: "agent_activity_running",
+              kind: "builtin",
+              subject_type: "agent_session",
+              visibility: "always",
+              position: 1,
+              count: 5,
+              active: false,
+              filter: { and: [{ field: "status", op: "is", value: "running" }] },
+              path: "/agent_activity?smart_folder_id=82"
+            }
+          ]
+        }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Agent Activity</div>, {
+      initialEntries: ["/agent_activity?smart_folder_id=81"]
+    })
+
+    expect(await screen.findByRole("link", { name: "Agent Activity" })).toBeInTheDocument()
+    const folderNav = await screen.findByRole("navigation", { name: "Agent Activity smart folders" })
+    expect(within(folderNav).queryByRole("link", { name: "All agent activity" })).not.toBeInTheDocument()
+    expect(within(folderNav).getByRole("link", { name: "All 1000" })).toHaveAttribute("href", "/agent_activity?smart_folder_id=81")
+    expect(within(folderNav).getByRole("link", { name: "Running 5" })).toHaveAttribute("href", "/agent_activity?smart_folder_id=82")
+    expect(fetchSpy).toHaveBeenCalled()
+  })
+
   it("does not render plugin smart folders on plugin detail subroutes", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
