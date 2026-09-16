@@ -104,6 +104,16 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
+  it "refreshes the retention size snapshot hourly" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("refresh_retention_size_snapshot")).to include(
+      "class" => "RetentionSizeSnapshotJob",
+      "queue" => "cleanup",
+      "schedule" => "every hour"
+    )
+  end
+
   it "assigns every recurring task to an isolated app queue" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
     allowed_queues = %w[control_plane polling indexing cleanup low_priority_maintenance]

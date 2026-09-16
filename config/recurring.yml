@@ -117,6 +117,10 @@ default: &default
     class: WorkflowStepResourceProfileRefreshJob
     queue: low_priority_maintenance
     schedule: every hour
+  refresh_retention_size_snapshot:
+    class: RetentionSizeSnapshotJob
+    queue: cleanup
+    schedule: every hour
   reap_stale_branches:
     class: ReapStaleBranchesJob
     queue: cleanup

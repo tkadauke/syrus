@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_144445) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_153450) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -196,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_144445) do
     t.integer "provider_session_retention_days", default: 14, null: false
     t.integer "rebase_failure_cooldown_minutes", default: 60, null: false
     t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
+    t.integer "retention_available_space_override_gb", default: 0, null: false
     t.integer "run_diagnostic_retention_days", default: 30, null: false
     t.integer "run_health_snapshot_retention_days", default: 7, null: false
     t.integer "run_resource_summary_retention_days", default: 30, null: false

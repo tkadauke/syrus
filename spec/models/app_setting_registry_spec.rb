@@ -36,6 +36,7 @@ RSpec.describe AppSettingRegistry do
       :show_work_unit_debug,
       :video_retention_days,
       :video_storage_budget_mb,
+      :retention_available_space_override_gb,
       *RetentionPolicyRegistry.definitions.map(&:setting_key)
     ])
 

@@ -299,3 +299,54 @@ Three entries are worth calling out:
   admin settings unconditionally, the same as other plugin-owned settings
   like `discord_bot_token` — only the model's `.prunable` scope and PruneJob
   go inert while the plugin is disabled.
+
+### Retention size estimation
+
+`TableSizeEstimator` (`app/services/table_size_estimator.rb`) returns a fast,
+approximate `{ row_count_estimate, byte_size_estimate }` for a table name —
+never `COUNT(*)` or a full scan. It branches on
+`ActiveRecord::Base.connection.adapter_name` (the same idiom as
+`PluginRecord.search`): MySQL reads `information_schema.TABLES`
+(`TABLE_ROWS`, `DATA_LENGTH + INDEX_LENGTH`), which are InnoDB engine
+estimates that can drift between `ANALYZE TABLE` runs; SQLite feature-detects
+the `dbstat` virtual table (some builds lack `SQLITE_ENABLE_DBSTAT_VTAB`) for
+byte size and falls back to `nil` when it's unavailable, and uses
+`MAX(rowid)` as a fast row-count proxy, which undercounts after heavy
+deletes — an accepted tradeoff for an estimate.
+
+`RetentionSizeSnapshotJob` (`queue: cleanup`, hourly via `config/recurring.yml`)
+iterates every `RetentionPolicyRegistry` entry (core and plugin-contributed
+alike — never a hand-listed table set), estimates its table, reads the
+entry's current `AppSetting` retention value, and caches one
+`RetentionSizeSnapshotJob::TableSnapshot` per entry via `Rails.cache`
+(mirroring `DataRootDiskUsage`'s cached-snapshot/TTL pattern). It also
+computes `bytes_per_unit_estimate` (`current_byte_size / current_retention_value`)
+and `estimated_max_byte_size` (`bytes_per_unit_estimate * configured_retention_value`)
+so a future admin page doesn't need to recompute them; both are `nil` when
+the table is currently empty or the configured retention is already infinite
+(`0`) — there's no rate or ceiling to project in either case. The admin page
+must read `RetentionSizeSnapshotJob.table_snapshot(key)` /
+`.available_space` from cache, never compute these synchronously on page
+load.
+
+The job also caches one shared `AvailableSpace` snapshot
+(`{ available_bytes, source, computed_at }`). `source` is one of:
+
+- **`manual`** — the `retention_available_space_override_gb` `AppSetting`
+  (below) is set and takes priority over automatic inference.
+- **`measured`** — automatic inference succeeded: `DataRootDiskUsage.refresh!`
+  in SQLite local mode (`SYRUS_SQLITE`), or a `df`-based read of MySQL's
+  `@@datadir` filesystem when that path is locally readable.
+- **`unknown`** — neither a manual override nor automatic inference is
+  available (the common case for managed/remote MySQL, where `@@datadir`
+  isn't a path this process can see).
+
+### retention_available_space_override_gb
+
+**Type:** integer · **Default:** 0 (unset) · **Min:** 0
+
+Manual fallback for the retention page's "available space" figure, in
+gigabytes, used when `RetentionSizeSnapshotJob`'s automatic inference can't
+determine it. `AppSetting.retention_available_space_override_bytes` returns
+`nil` when unset (`0`) so the job can distinguish "no override" from "an
+operator picked 0 GB."
