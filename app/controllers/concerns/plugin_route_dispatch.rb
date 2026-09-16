@@ -1,6 +1,8 @@
 module PluginRouteDispatch
   extend ActiveSupport::Concern
 
+  DISPATCHED_ROUTE_ENV_KEY = "syrus.plugin_route_dispatch.dispatched".freeze
+
   private
 
   LEGACY_PLUGIN_DISABLED_CODES = {
@@ -33,6 +35,7 @@ module PluginRouteDispatch
     # request.path_parameters itself looks correct.
     request.path_parameters = request.path_parameters.merge(route.params).except(:plugin_route)
 
+    request.env[DISPATCHED_ROUTE_ENV_KEY] = true
     controller_class.dispatch(action_name, request, response)
   end
 end
