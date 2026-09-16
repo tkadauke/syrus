@@ -295,7 +295,7 @@ RSpec.describe Steps::Base, :ci_only do
               item: {
                 type: "mcp_tool_call",
                 server: "syrus-mcp-sidecar",
-                tool: "submit_test_plan",
+                tool_name: "submit_test_plan",
                 result: { ok: true },
                 call_id: "call_test_plan"
               }

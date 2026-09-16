@@ -387,14 +387,14 @@ class CodexInvocation
   def process_item_event(event, log_sink)
     item = event["item"] || {}
     status = item["status"] || event["type"].sub("item.", "")
-    item_id = event["id"].presence || item["id"].presence
+    item_id = event["id"].presence || item["call_id"].presence || item["id"].presence
     case item["type"]
     when "agent_message"
       text = item["text"].to_s
       log_sink.call(text, kind: "assistant_text") if text.present?
       { final_text: text, assistant_text_seen: text.present? }
     when "mcp_tool_call"
-      tool_name = [ item["server"], item["tool"] ].compact.join(".")
+      tool_name = codex_mcp_item_tool_name(item)
       return nil if tool_name.blank?
 
       if item["error"]
@@ -493,9 +493,22 @@ class CodexInvocation
     content.to_s
   end
 
+  def codex_mcp_item_tool_name(item)
+    raw_name = item["tool"].presence || item["tool_name"].presence || item["name"].presence
+    return raw_name if item["server"].blank? && raw_name.to_s.include?(".")
+
+    [ item["server"], raw_name ].compact.join(".")
+  end
+
   def codex_mcp_tool_name(item)
+    raw_name = item["tool"].presence || item["tool_name"].presence || item["name"].presence
+    return raw_name if raw_name.to_s.start_with?("mcp__")
+
     server = item["server"].presence
-    tool = item["tool"].presence || item["name"].presence
+    tool = raw_name
+    if server.blank? && raw_name.to_s.include?(".")
+      server, tool = raw_name.to_s.split(".", 2)
+    end
     return nil if server.blank? && tool.blank?
 
     [ "mcp", server, tool ].compact.join("__")

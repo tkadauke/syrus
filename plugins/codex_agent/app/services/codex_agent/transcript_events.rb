@@ -199,8 +199,17 @@ module CodexAgent
     end
 
     def codex_mcp_tool_name(item)
-      server = item["server"].presence || "mcp"
-      tool = item["tool"].presence || item["name"].presence || "tool"
+      raw_name = item["tool"].presence || item["tool_name"].presence || item["name"].presence
+      return raw_name if raw_name.to_s.start_with?("mcp__")
+
+      server = item["server"].presence
+      tool = raw_name
+      if server.blank? && raw_name.to_s.include?(".")
+        server, tool = raw_name.to_s.split(".", 2)
+      end
+
+      server = server.presence || "mcp"
+      tool = tool.presence || "tool"
       "mcp__#{server}__#{tool}"
     end
   end

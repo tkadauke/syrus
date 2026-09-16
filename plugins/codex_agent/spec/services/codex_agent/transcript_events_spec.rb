@@ -201,6 +201,67 @@ RSpec.describe CodexAgent::TranscriptEvents do
       )
     end
 
+    it "counts successful required MCP calls when Codex emits tool_name instead of tool" do
+      input = jsonl(
+        {
+          "timestamp" => "2026-06-01T10:00:00Z",
+          "type" => "thread.started",
+          "thread_id" => "codex-thread-1"
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:01Z",
+          "type" => "item.completed",
+          "item" => {
+            "type" => "mcp_tool_call",
+            "call_id" => "call_test_plan",
+            "server" => "syrus-mcp-sidecar",
+            "tool_name" => "submit_test_plan",
+            "result" => { "content" => [ { "type" => "text", "text" => "ok" } ], "isError" => false },
+            "status" => "completed"
+          }
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:02Z",
+          "type" => "turn.completed"
+        }
+      )
+
+      summary = ClaudeTranscript.new(input).summary
+
+      expect(summary.mcp_tool_called?).to be true
+      expect(summary.tool_call_counts).to include(
+        "mcp__syrus-mcp-sidecar__submit_test_plan" => 1
+      )
+    end
+
+    it "normalizes dotted Codex MCP tool names into MCP-prefixed calls" do
+      input = jsonl(
+        {
+          "timestamp" => "2026-06-01T10:00:00Z",
+          "type" => "thread.started",
+          "thread_id" => "codex-thread-1"
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:01Z",
+          "type" => "item.completed",
+          "item" => {
+            "type" => "mcp_tool_call",
+            "call_id" => "call_summary",
+            "name" => "syrus-mcp-sidecar.submit_summary",
+            "result" => { "ok" => true },
+            "status" => "completed"
+          }
+        }
+      )
+
+      summary = ClaudeTranscript.new(input).summary
+
+      expect(summary.mcp_tool_called?).to be true
+      expect(summary.tool_call_counts).to include(
+        "mcp__syrus-mcp-sidecar__submit_summary" => 1
+      )
+    end
+
     it "does not double-count completed MCP tool calls that have a matching started item" do
       summary = ClaudeTranscript.new(input).summary
 
