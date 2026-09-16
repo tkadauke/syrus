@@ -6,7 +6,8 @@ import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { Notice, PageDescription, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { TonePill } from "@app/components/StatusPill"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { useMediaQuery } from "@app/routes/dashboard/components"
@@ -184,9 +185,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
             {compact ? <SectionHeading>Design Docs</SectionHeading> : <PageHeading>Design Docs</PageHeading>}
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            <PageDescription>
               {mode === "repository" ? "Docs associated with this repository." : "Collaborative Markdown design documents."}
-            </p>
+            </PageDescription>
           </div>
           <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
             New doc
@@ -196,7 +197,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {isDesktop ? filterBar : showIndexControls ? (
         <div className="px-0">
-          <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          <details className="group rounded border border-border bg-surface">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
               <span>{t("filters_layout.folders_and_filters")}</span>
               <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("filters_layout.show")}</span>
@@ -218,9 +219,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           onSelect={(docId) => navigate(docPath(docId))}
         /> : null}
         <section className="min-w-0">
-          {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, "Unable to load design doc.")}</Panel> : null}
-          {!effectiveId && !detailQuery.isError ? <Panel>{mode === "chat" ? "No design docs are attached to this chat." : "Select a design doc to review or edit."}</Panel> : null}
-          {detailQuery.isPending && effectiveId ? <Panel>Loading design doc...</Panel> : null}
+          {detailQuery.isError ? <Notice tone="error">{errorMessage(detailQuery.error, "Unable to load design doc.")}</Notice> : null}
+          {!effectiveId && !detailQuery.isError ? <Notice>{mode === "chat" ? "No design docs are attached to this chat." : "Select a design doc to review or edit."}</Notice> : null}
+          {detailQuery.isPending && effectiveId ? <Notice>Loading design doc...</Notice> : null}
           {selectedDoc ? (
             <DesignDocEditor
               doc={selectedDoc}
@@ -274,28 +275,28 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
 }) {
   return (
     <aside className="min-w-0 space-y-3">
-      <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        {loading ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">Loading design docs...</div> : null}
-        {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">No visible design docs match these filters.</div> : null}
+      <Section className="overflow-hidden p-0">
+        {loading ? <Text className="p-4">Loading design docs...</Text> : null}
+        {!loading && docs.length === 0 ? <Text className="p-4">No visible design docs match these filters.</Text> : null}
         {docs.map((doc) => (
           <button
-            className={`block w-full border-b border-gray-100 p-3 text-left last:border-b-0 dark:border-gray-800 ${String(selectedId) === String(doc.id) ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
+            className={`block w-full border-b border-border p-3 text-left last:border-b-0 ${String(selectedId) === String(doc.id) ? "bg-brand/10" : "hover:bg-surface-raised"}`}
             key={doc.id}
             onClick={() => onSelect(doc.id)}
             type="button"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{doc.title}</p>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{doc.display_id}</p>
+                <Text className="truncate font-medium" tone="primary">{doc.title}</Text>
+                <Text className="mt-0.5" size="xs" tone="muted">{doc.display_id}</Text>
               </div>
               <StatusLabel value={doc.state} />
             </div>
-            <p className="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">{doc.repositories.map((repository) => repository.slug).join(", ") || "No repositories"}</p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Updated <RelativeTimestamp value={doc.updated_at} /></p>
+            <Text className="mt-2 truncate" size="xs" tone="muted">{doc.repositories.map((repository) => repository.slug).join(", ") || "No repositories"}</Text>
+            <Text className="mt-1" size="xs" tone="muted">Updated <RelativeTimestamp value={doc.updated_at} /></Text>
           </button>
         ))}
-      </div>
+      </Section>
     </aside>
   )
 }
@@ -764,16 +765,16 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         onVisibilityChange={(visibility) => metadataMutation.mutate({ visibility })}
       />
       {isArchived ? (
-        <Panel>
+        <Notice>
           <div className="flex flex-wrap items-center gap-2">
             <StatusLabel value="archived" />
-            <p className="text-sm text-gray-700 dark:text-gray-300">This design doc is archived. Content, comments, suggestions, and reviews are read only.</p>
+            <Text tone="primary">This design doc is archived. Content, comments, suggestions, and reviews are read only.</Text>
           </div>
-        </Panel>
+        </Notice>
       ) : null}
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
-        <div className="overflow-visible rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <Section className="overflow-visible p-0">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
             {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
@@ -856,7 +857,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             }}
           />
           </div>
-        </div>
+        </Section>
       </section>
       <aside className="space-y-4">
           <ThreadPanel
@@ -953,22 +954,22 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
   }
 
   return (
-    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
+    <Section aria-label="Design doc title bar" className="p-3" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
           <Input aria-label="Design doc title" disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            <span className="font-medium text-gray-700 dark:text-gray-300">{doc.display_id}</span>
+          <Text className="mt-1" size="xs" tone="muted">
+            <span className="font-medium text-text-secondary">{doc.display_id}</span>
             <span> / saved <RelativeTimestamp value={doc.updated_at} /></span>
-          </p>
+          </Text>
         </div>
         <StatusLabel value={doc.visibility} />
         <StatusLabel value={doc.state} />
         <div className="relative min-w-0">
           <div className="flex max-w-full flex-wrap items-center gap-1.5">
-            {selectedRepositories.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">No repositories</span> : null}
+            {selectedRepositories.length === 0 ? <Text as="span" size="xs" tone="muted">No repositories</Text> : null}
             {selectedRepositories.map((repository) => (
-              <span className="max-w-[11rem] truncate rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-300" key={repository.id}>
+              <span className="max-w-[11rem] truncate rounded border border-border px-2 py-1 text-xs text-text-secondary" key={repository.id}>
                 {repository.slug}
               </span>
             ))}
@@ -979,18 +980,18 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
             ) : null}
           </div>
           {repositoryPickerOpen && canManageMetadata ? (
-            <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
-              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-border bg-surface p-3 shadow-lg">
+              <label className="block text-xs font-medium uppercase text-text-muted">
                 Repositories
-                <select
+                <Select
                   aria-label="Repository associations"
-                  className="mt-1 block min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  className="mt-1 min-h-24"
                   multiple
                   value={repoIds}
                   onChange={(event) => setRepoIds(Array.from(event.target.selectedOptions).map((option) => option.value))}
                 >
                   {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
-                </select>
+                </Select>
               </label>
               <div className="mt-3 flex justify-end">
                 <Button onClick={onMetadataSave} size="sm" variant="secondary">Save repositories</Button>
@@ -1002,21 +1003,21 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
           {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
             <div
-              className={`absolute z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950 ${shareMenuAlignment === "left" ? "left-0" : "right-0"}`}
+              className={`absolute z-20 mt-2 w-80 rounded border border-border bg-surface p-3 shadow-lg ${shareMenuAlignment === "left" ? "left-0" : "right-0"}`}
               data-testid="design-doc-share-menu"
             >
-              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <label className="block text-xs font-medium uppercase text-text-muted">
                 Visibility
                 <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
                   <option value="private">Private</option>
                   <option value="public">Public</option>
                 </Select>
               </label>
-              <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <label className="mt-3 block text-xs font-medium uppercase text-text-muted">
                 Explicit collaborators
                 <Input aria-label="Collaborator user IDs" className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
               </label>
-              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Owner: {doc.owner?.name || doc.owner?.email_address || "Unknown"}</p>
+              <Text className="mt-3" size="xs" tone="muted">Owner: {doc.owner?.name || doc.owner?.email_address || "Unknown"}</Text>
               <div className="mt-3 flex justify-end">
                 <Button onClick={onMetadataSave} size="sm" variant="secondary">Save sharing</Button>
               </div>
@@ -1043,7 +1044,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
           ))}
         </Select>
       </div>
-    </section>
+    </Section>
   )
 }
 
@@ -1784,12 +1785,13 @@ function fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }: {
 }
 
 function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
-  const colors = tone === "error" ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200" : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-  return <div className={`rounded border p-4 ${colors} ${className}`}>{children}</div>
+  if (tone === "error") return <Notice className={className} tone="error">{children}</Notice>
+
+  return <Section className={className}>{children}</Section>
 }
 
 function StatusLabel({ value }: { value: string }) {
-  return <span className="shrink-0 rounded border border-gray-200 px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:text-gray-300">{value}</span>
+  return <TonePill tone="gray">{value}</TonePill>
 }
 
 function scopeDocs(docs: DesignDocSummary[], chatId?: number, designDocIds: number[] = []) {

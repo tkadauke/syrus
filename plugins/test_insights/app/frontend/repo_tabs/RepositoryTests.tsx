@@ -8,7 +8,22 @@ import { errorMessage } from "@app/lib/errorMessage"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
-import { PanelMessage } from "@app/components/PanelMessage"
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  FormField,
+  FormLabel,
+  Notice,
+  PageHeading,
+  Section,
+  SectionHeading,
+  TableSurface,
+  Text
+} from "@app/components/ui"
+import { TonePill } from "@app/components/StatusPill"
 
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {
   const [query, setQuery] = useState("")
@@ -38,27 +53,28 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
     <RepositoryPageShell
       activeTab="test_insights.tests"
       heading={shell ? (
-        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+        <PageHeading mono>
           <a className="hover:underline" href={shell.repository.github_url} rel="noopener" target="_blank">{shell.repository.slug}</a>
-        </h1>
+        </PageHeading>
       ) : null}
       prefix={prefix}
       tabs={shell?.tabs ?? []}
     >
-      {tests.isPending && !shell ? <PanelMessage>Loading tests...</PanelMessage> : null}
-      {tests.isError && !tests.data ? <PanelMessage tone="error">{errorMessage(tests.error, "Unable to load tests.")}</PanelMessage> : null}
+      {tests.isPending && !shell ? <Notice>Loading tests...</Notice> : null}
+      {tests.isError && !tests.data ? <Notice tone="error">{errorMessage(tests.error, "Unable to load tests.")}</Notice> : null}
       {shell ? (
         <section className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
-            <label className="block min-w-[18rem] flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-              Search tests
+            <FormField className="min-w-[18rem] flex-1">
+              <FormLabel htmlFor="test-search">Search tests</FormLabel>
               <Input
+                id="test-search"
                 className="mt-1"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="name, suite, or file"
                 value={query}
               />
-            </label>
+            </FormField>
             {selectedTestId ? (
               <Button
                 onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))}
@@ -83,30 +99,30 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
 function TestList({ error, isError, isFetching, payload, prefix, query }: { error: unknown; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; query: string }) {
   if (!payload) return null
   if (payload.tests.length === 0) {
-    return <PanelMessage>{query ? "No tests match this search." : "No test history yet. Search by name once tests have been ingested."}</PanelMessage>
+    return <Notice>{query ? "No tests match this search." : "No test history yet. Search by name once tests have been ingested."}</Notice>
   }
 
   return (
-    <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+    <TableSurface className="overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2 text-xs text-text-muted">
         <span>{query ? "Search results" : "Interesting tests"}</span>
         {isFetching ? <span>Updating results...</span> : null}
-        {isError ? <span className="text-red-600 dark:text-red-300">{errorMessage(error, "Unable to refresh results.")}</span> : null}
+        {isError ? <span className="text-danger">{errorMessage(error, "Unable to refresh results.")}</span> : null}
       </div>
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+      <DataTable>
+        <DataTableHead>
           <tr>
-            <th className="px-4 py-2">Test</th>
-            <th className="hidden px-4 py-2 md:table-cell">Suite</th>
-            <th className="px-4 py-2">Recent failures</th>
-            <th className="hidden px-4 py-2 sm:table-cell">Duration</th>
-            <th className="hidden px-4 py-2 sm:table-cell">Last seen</th>
+            <DataTableHeader>Test</DataTableHeader>
+            <DataTableHeader className="hidden md:table-cell">Suite</DataTableHeader>
+            <DataTableHeader>Recent failures</DataTableHeader>
+            <DataTableHeader className="hidden sm:table-cell">Duration</DataTableHeader>
+            <DataTableHeader className="hidden sm:table-cell">Last seen</DataTableHeader>
           </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
+        </DataTableHead>
+        <DataTableBody>
           {payload.tests.map((test) => (
-            <tr className="text-gray-700 dark:text-gray-300" key={test.id}>
-              <td className="max-w-md px-4 py-3">
+            <tr className="text-text-secondary" key={test.id}>
+              <DataTableCell className="max-w-md">
                 <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}>
                   {test.name}
                 </Link>
@@ -115,21 +131,19 @@ function TestList({ error, isError, isFetching, payload, prefix, query }: { erro
                     {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} reason={reason} />)}
                   </div>
                 ) : null}
-                {test.file_path ? <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{test.file_path}</div> : null}
-              </td>
-              <td className="hidden max-w-xs truncate px-4 py-3 text-gray-500 dark:text-gray-400 md:table-cell" title={test.suite_name}>{test.suite_name}</td>
-              <td className="whitespace-nowrap px-4 py-3">
-                <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${test.failed_count > 0 ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
-                  {test.failed_count}/{test.total_count}
-                </span>
-              </td>
-              <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(test.avg_duration_ms)}</td>
-              <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}</td>
+                {test.file_path ? <Text className="mt-1 truncate" size="xs" tone="muted">{test.file_path}</Text> : null}
+              </DataTableCell>
+              <DataTableCell className="hidden max-w-xs truncate text-text-muted md:table-cell" title={test.suite_name}>{test.suite_name}</DataTableCell>
+              <DataTableCell className="whitespace-nowrap">
+                <TonePill tone={test.failed_count > 0 ? "red" : "gray"}>{test.failed_count}/{test.total_count}</TonePill>
+              </DataTableCell>
+              <DataTableCell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{formatDuration(test.avg_duration_ms)}</DataTableCell>
+              <DataTableCell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}</DataTableCell>
             </tr>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </DataTableBody>
+      </DataTable>
+    </TableSurface>
   )
 }
 
@@ -144,41 +158,41 @@ function ReasonBadge({ reason }: { reason: string }) {
 }
 
 function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string }) {
-  if (isPending) return <PanelMessage>Loading test history...</PanelMessage>
-  if (isError) return <PanelMessage tone="error">{errorMessage(error, "Unable to load test history.")}</PanelMessage>
+  if (isPending) return <Notice>Loading test history...</Notice>
+  if (isError) return <Notice tone="error">{errorMessage(error, "Unable to load test history.")}</Notice>
   if (!detail) return null
 
   return (
     <div className="space-y-4">
-      <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <Section>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="break-words text-xl font-semibold text-gray-900 dark:text-gray-100">{detail.test.name}</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{detail.test.suite_name}</p>
-            {detail.test.file_path ? <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{detail.test.file_path}</p> : null}
+            <SectionHeading>{detail.test.name}</SectionHeading>
+            <Text className="mt-1" tone="muted">{detail.test.suite_name}</Text>
+            {detail.test.file_path ? <Text className="mt-1 font-mono" size="xs" tone="muted">{detail.test.file_path}</Text> : null}
           </div>
-          <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">{detail.test.fingerprint.slice(0, 12)}</span>
+          <TonePill tone="gray">{detail.test.fingerprint.slice(0, 12)}</TonePill>
         </div>
         <DurationChart history={detail.history} points={detail.duration_points} prefix={prefix} />
-      </section>
+      </Section>
 
-      <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+      <TableSurface className="overflow-hidden">
+        <DataTable>
+          <DataTableHead>
             <tr>
-              <th className="px-4 py-2">Time</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="hidden px-4 py-2 sm:table-cell">Duration</th>
-              <th className="px-4 py-2">Run</th>
-              <th className="hidden px-4 py-2 lg:table-cell">Failure</th>
+              <DataTableHeader>Time</DataTableHeader>
+              <DataTableHeader>Status</DataTableHeader>
+              <DataTableHeader className="hidden sm:table-cell">Duration</DataTableHeader>
+              <DataTableHeader>Run</DataTableHeader>
+              <DataTableHeader className="hidden lg:table-cell">Failure</DataTableHeader>
             </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
+          </DataTableHead>
+          <DataTableBody>
             {detail.history.map((item) => <HistoryRow item={item} key={item.id} prefix={prefix} />)}
-          </tbody>
-        </table>
+          </DataTableBody>
+        </DataTable>
         <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} />
-      </section>
+      </TableSurface>
     </div>
   )
 }
@@ -206,15 +220,15 @@ function HistoryPagination({ onPageChange, pagination }: { onPageChange: (page: 
 
 function HistoryRow({ item, prefix }: { item: RepositoryTestHistoryItem; prefix: string }) {
   return (
-    <tr className="text-gray-700 dark:text-gray-300">
-      <td className="whitespace-nowrap px-4 py-3">{item.created_at ? <RelativeTimestamp value={item.created_at} /> : "—"}</td>
-      <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
-      <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(item.duration_ms)}</td>
-      <td className="px-4 py-3">
+    <tr className="text-text-secondary">
+      <DataTableCell className="whitespace-nowrap">{item.created_at ? <RelativeTimestamp value={item.created_at} /> : "—"}</DataTableCell>
+      <DataTableCell><StatusBadge status={item.status} /></DataTableCell>
+      <DataTableCell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{formatDuration(item.duration_ms)}</DataTableCell>
+      <DataTableCell>
         <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(item.run.path, prefix)}>{item.run.slug}</Link>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.job.slug} · {item.grader_name}</div>
-      </td>
-      <td className="hidden max-w-md truncate px-4 py-3 text-gray-500 dark:text-gray-400 lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</td>
+        <Text className="mt-1" size="xs" tone="muted">{item.job.slug} · {item.grader_name}</Text>
+      </DataTableCell>
+      <DataTableCell className="hidden max-w-md truncate text-text-muted lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</DataTableCell>
     </tr>
   )
 }

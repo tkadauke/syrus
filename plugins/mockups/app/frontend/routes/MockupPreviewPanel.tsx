@@ -3,7 +3,8 @@ import { useEffect, useState } from "react"
 
 import { chatPreviewPanelFileUrl, fetchChatPreviewPanelFile } from "@app/api/chats"
 import { postJson } from "@app/api/client"
-import { PanelMessage } from "@app/components/PanelMessage"
+import { Select } from "@app/components/Select"
+import { Notice, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import type { MockupPanel } from "../api/mockups"
 
@@ -58,9 +59,10 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
         {panel.versions.length > 1 ? (
-          <select
+          <Select
             aria-label={t("version")}
-            className="rounded border border-gray-300 bg-white px-1.5 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+            className="text-xs"
+            fullWidth={false}
             onChange={(event) => setVersionId(Number(event.target.value))}
             value={versionId ?? ""}
           >
@@ -69,9 +71,9 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
                 {new Date(entry.created_at).toLocaleString()}
               </option>
             ))}
-          </select>
+          </Select>
         ) : null}
-        <span className="truncate font-mono text-xs text-gray-500 dark:text-gray-400">{entryPath}</span>
+        <Text as="span" className="truncate font-mono" size="xs" tone="muted">{entryPath}</Text>
         <a
           className="ml-auto text-xs text-brand underline hover:no-underline"
           href={panel.app_export_path}
@@ -81,7 +83,7 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
       </div>
 
       {!canRender ? (
-        <PanelMessage>{t("preview_access_pending")}</PanelMessage>
+        <Notice className="m-3">{t("preview_access_pending")}</Notice>
       ) : isHtml ? (
         <iframe
           className="h-full w-full min-h-0 flex-1 border-0"
@@ -99,9 +101,9 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           {textQuery.isPending ? (
-            <PanelMessage>{t("loading")}</PanelMessage>
+            <Notice className="m-3">{t("loading")}</Notice>
           ) : textQuery.isError ? (
-            <PanelMessage>{t("preview_unavailable")}</PanelMessage>
+            <Notice className="m-3" tone="error">{t("preview_unavailable")}</Notice>
           ) : (
             <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs text-gray-700 dark:text-gray-300">
               {textQuery.data?.content ?? ""}

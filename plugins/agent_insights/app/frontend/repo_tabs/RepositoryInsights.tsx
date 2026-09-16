@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { useState, type MouseEvent } from "react"
 import { Link, useParams, useLocation } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
@@ -7,7 +6,6 @@ import { useT } from "@app/hooks/useT"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { PanelMessage } from "@app/components/PanelMessage"
 import {
   acceptInsightSuggestion,
   acceptRemoveMemoryInsight,
@@ -20,8 +18,10 @@ import {
   type PaginationMeta
 } from "../api/insights"
 import { errorMessage } from "@app/lib/errorMessage"
-import { Button } from "@app/components/Button"
+import { Button, buttonClasses } from "@app/components/Button"
 import { Select } from "@app/components/Select"
+import { Notice, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { PILL_TONE_CLASSES, TonePill } from "@app/components/StatusPill"
 
 type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
 
@@ -60,8 +60,8 @@ export function RepositoryInsightsRoute() {
       prefix={prefix}
       tabs={payload?.tabs ?? []}
     >
-      {query.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
-      {query.isError ? <PanelMessage tone="error">{errorMessage(query.error, t("load_error"))}</PanelMessage> : null}
+      {query.isPending ? <Notice>{t("loading")}</Notice> : null}
+      {query.isError ? <Notice tone="error">{errorMessage(query.error, t("load_error"))}</Notice> : null}
       {payload ? (
         <InsightSuggestionsList
           repositoryId={repositoryId}
@@ -132,7 +132,7 @@ function InsightSuggestionsList({
               variant={stateFilter === tab.key ? "primary" : "secondary"}
             >
               {tab.label}
-              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${stateFilter === tab.key ? "bg-white/20 text-current" : PILL_TONE_CLASSES.gray}`}>
                 {tab.count}
               </span>
             </Button>
@@ -141,9 +141,9 @@ function InsightSuggestionsList({
       </div>
 
       {suggestions.length === 0 ? (
-        <div className="rounded border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+        <Notice className="p-8 text-center">
           {t("empty")}
-        </div>
+        </Notice>
       ) : (
         <div className="space-y-3">
           {suggestions.map((suggestion) => (
@@ -161,28 +161,20 @@ function InsightSuggestionsList({
           <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: meta.total })}</span>
           <div className="flex gap-2">
             {page > 1 ? (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page - 1)}
-                type="button"
-              >
+              <Button onClick={() => onPageChange(page - 1)} size="sm" variant="secondary">
                 {t("pagination_previous")}
-              </button>
+              </Button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
+              <span className={buttonClasses("secondary", "sm", "opacity-50")}>
                 {t("pagination_previous")}
               </span>
             )}
             {page < meta.total_pages ? (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page + 1)}
-                type="button"
-              >
+              <Button onClick={() => onPageChange(page + 1)} size="sm" variant="secondary">
                 {t("pagination_next")}
-              </button>
+              </Button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
+              <span className={buttonClasses("secondary", "sm", "opacity-50")}>
                 {t("pagination_next")}
               </span>
             )}
@@ -279,7 +271,7 @@ function SuggestionCard({
   }
 
   return (
-    <article className="cursor-pointer rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" onClick={handleCardClick}>
+    <Section as="article" className="cursor-pointer p-0" onClick={handleCardClick}>
       {confirmDialog}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -287,15 +279,13 @@ function SuggestionCard({
             <div className="flex flex-wrap items-center gap-2">
               <SeverityPill severity={suggestion.severity} />
               <ProposalPill proposalType={suggestion.proposal_type} />
-              <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                {suggestion.category}
-              </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <TonePill tone="gray">{suggestion.category}</TonePill>
+              <Text as="span" size="xs" tone="muted">
                 {t("confidence", { pct: Math.round(suggestion.confidence * 100) })}
                 <span aria-hidden="true"> · </span>
                 <span className="sr-only">{t("age_label")} </span>
                 <RelativeTimestamp value={suggestion.created_at} />
-              </span>
+              </Text>
               {suggestion.state !== "pending" && (
                 <StatePill state={suggestion.state} />
               )}
@@ -312,13 +302,14 @@ function SuggestionCard({
               {suggestion.title}
             </SectionHeading>
           </div>
-          <button
-            className="shrink-0 rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+          <Button
+            className="shrink-0"
             onClick={() => { if (expanded) setShowEvidence(false); setExpanded((v) => !v) }}
-            type="button"
+            size="sm"
+            variant="secondary"
           >
             {expanded ? t("collapse") : t("expand")}
-          </button>
+          </Button>
         </div>
 
         {expanded && (
@@ -565,7 +556,7 @@ function SuggestionCard({
           onError={(msg) => setError(msg)}
         />
       )}
-    </article>
+    </Section>
   )
 }
 
@@ -599,8 +590,8 @@ function AcceptForm({
   })
 
   return (
-    <div className="cursor-default border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800" data-insight-card-interactive>
-      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{t("accept_heading")}</h4>
+    <div className="cursor-default border-t border-border bg-surface-raised p-4" data-insight-card-interactive>
+      <SectionHeading as="h4">{t("accept_heading")}</SectionHeading>
 
       <div className="mt-3">
         <button
@@ -624,7 +615,7 @@ function AcceptForm({
         <div className="mt-2">
           <textarea
             aria-label={t("prompt_label")}
-            className="mt-1 w-full rounded border border-gray-300 p-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            className="mt-1 w-full rounded border border-border bg-surface p-2 text-sm text-text-primary"
             onChange={(e) => setPrompt(e.target.value)}
             rows={6}
             value={prompt}
@@ -653,47 +644,19 @@ function AcceptForm({
 
 function SeverityPill({ severity }: { severity: string }) {
   const { t } = useT("agent_insights")
-  const classes =
-    severity === "high"
-      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-      : severity === "medium"
-        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`severity_${severity}`)}
-    </span>
-  )
+  const tone = severity === "high" ? "red" : severity === "medium" ? "amber" : "gray"
+  return <TonePill tone={tone}>{t(`severity_${severity}`)}</TonePill>
 }
 
 function ProposalPill({ proposalType }: { proposalType: InsightSuggestion["proposal_type"] }) {
   const { t } = useT("agent_insights")
-  const classes =
-    proposalType === "remove_memory"
-      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-      : proposalType === "save_memory"
-        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`proposal_${proposalType}`)}
-    </span>
-  )
+  const tone = proposalType === "remove_memory" ? "red" : proposalType === "save_memory" ? "green" : "gray"
+  return <TonePill tone={tone}>{t(`proposal_${proposalType}`)}</TonePill>
 }
 
 function StatePill({ state }: { state: string }) {
   const { t } = useT("agent_insights")
-  const classes =
-    state === "accepted"
-      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-      : state === "retired"
-        ? "bg-gray-200 text-gray-500 dark:bg-gray-800/60 dark:text-gray-500"
-        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`state_${state}`)}
-    </span>
-  )
+  return <TonePill tone={state === "accepted" ? "green" : "gray"}>{t(`state_${state}`)}</TonePill>
 }
 
 function isInteractiveClickTarget(target: EventTarget | null) {

@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { PanelMessage } from "@app/components/PanelMessage"
-import { SectionHeading } from "@app/components/Heading"
+import { Notice, Section, SectionHeading, Text } from "@app/components/ui"
+import { TonePill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
 import { fetchJobTestResults, type JobTestCase, type JobTestRun, type JobTestSuite } from "../api/jobTests"
 
@@ -111,26 +111,26 @@ function TestRunSection({ testRun }: { testRun: JobTestRun }) {
   const allPassing = testRun.failed_count === 0 && testRun.error_count === 0
 
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <Section className="p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4">
         <SectionHeading>{testRun.grader_name}</SectionHeading>
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-emerald-600 dark:text-emerald-400">{testRun.passed_count} passed</span>
-          {testRun.failed_count > 0 ? <span className="font-medium text-red-600 dark:text-red-400">{testRun.failed_count} failed</span> : null}
-          {testRun.error_count > 0 ? <span className="font-medium text-red-600 dark:text-red-400">{testRun.error_count} error</span> : null}
-          {testRun.skipped_count > 0 ? <span className="text-gray-400 dark:text-gray-500">{testRun.skipped_count} skipped</span> : null}
-          {testRun.duration_ms != null ? <span className="text-gray-400 dark:text-gray-500">{formatTestDuration(testRun.duration_ms)}</span> : null}
-          <span className="text-gray-400 dark:text-gray-500">{testRun.total_count} total</span>
+          <TonePill tone="green">{testRun.passed_count} passed</TonePill>
+          {testRun.failed_count > 0 ? <TonePill tone="red">{testRun.failed_count} failed</TonePill> : null}
+          {testRun.error_count > 0 ? <TonePill tone="red">{testRun.error_count} error</TonePill> : null}
+          {testRun.skipped_count > 0 ? <TonePill tone="gray">{testRun.skipped_count} skipped</TonePill> : null}
+          {testRun.duration_ms != null ? <Text as="span" size="xs" tone="muted">{formatTestDuration(testRun.duration_ms)}</Text> : null}
+          <Text as="span" size="xs" tone="muted">{testRun.total_count} total</Text>
         </div>
       </div>
       {allPassing ? (
-        <p className="border-t border-gray-100 px-4 py-3 text-sm text-emerald-600 dark:border-gray-800 dark:text-emerald-400">{t("tests_all_passing")}</p>
+        <Text className="border-t border-border px-4 py-3" tone="success">{t("tests_all_passing")}</Text>
       ) : (
-        <div className="border-t border-gray-100 dark:border-gray-800">
+        <div className="border-t border-border">
           {testRun.suites.map((suite) => <SuiteGroup key={suite.suite_name} suite={suite} />)}
         </div>
       )}
-    </section>
+    </Section>
   )
 }
 
@@ -141,9 +141,9 @@ function TestsPanel({ jobId }: { jobId: number }) {
     queryFn: () => fetchJobTestResults(`/api/v1/app/jobs/${jobId}/test_results`)
   })
 
-  if (isPending) return <PanelMessage>{t("common:loading")}</PanelMessage>
-  if (isError) return <PanelMessage tone="error">{t("tests_load_error")}</PanelMessage>
-  if (!data || data.test_runs.length === 0) return <PanelMessage>{t("tests_empty")}</PanelMessage>
+  if (isPending) return <Notice>{t("common:loading")}</Notice>
+  if (isError) return <Notice tone="error">{t("tests_load_error")}</Notice>
+  if (!data || data.test_runs.length === 0) return <Notice>{t("tests_empty")}</Notice>
 
   return (
     <div className="space-y-4">
