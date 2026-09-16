@@ -435,6 +435,15 @@ under `Workflow#artifacts["typed_artifacts"]`; idempotent on `type` (replaces an
 prior entry with the same type); available to implement, summarize/test-plan, and
 rebase-conflict agents; use for structured outputs reviewers can see rendered
 (e.g. `rails_schema_erd`, `rails_migration_diff`);
+`list_artifacts(workflow_id)` and `read_artifact(workflow_id, type)` — read-only
+companions to `submit_artifact`/`submit_visual_artifact` (also on the chat
+sidecar, scoped by the same Job/repository ownership other chat read tools use);
+`list_artifacts` returns each `typed_artifacts` entry's type/title/content_type/
+byte_size/run_id/step_id/iteration/image_url so an agent can discover the `type`
+key a screenshot was actually stored under without guessing; `read_artifact`
+returns the stored image as an MCP image content block, the same way
+`browser_screenshot` already hands an agent real image bytes it can see this
+turn;
 `patch_workflow(step_kinds, after_kind, reason)` — lets an implementing agent
 add a check to its own running workflow when the work turns out to need one the
 template did not include. Append-only and attributed: it cannot remove a step
