@@ -147,6 +147,42 @@ gives an inherited-failure dismissal -- an operator or agent looking at why a
 red required grader did not block landing should never have to infer it from
 the absence of a failure.
 
+## new_test_flakiness_gate_enabled
+
+`KnownFlakyFailure` only has signal once a test has run at least twice across
+real Workflows -- a brand-new test, or one freshly modified by this Job, has
+no history yet, so neither it nor a plain `InheritedGraderFailure` comparison
+against base can tell a test that is flaky from day one apart from a
+genuinely stable one.
+
+`TouchedTestFiles` closes that gap the other direction, inside
+`Steps::GraderCollect`: once every required grader in an iteration has
+already passed, it looks at the test files this Job's diff added or modified
+relative to its effective base branch (`_spec.rb`, `_test.rb`,
+`.spec`/`.test.ts(x)`, `test_*.py`/`_test.py`, `_test.go` -- not the whole
+suite, and not the untouched majority of an existing spec file). When that
+set is non-empty, `TouchedTestRepeatGate` reruns just those files a few more
+times (default `TouchedTestRepeatGate::DEFAULT_REPEATS`, 5) via the same
+`:focused_test_command` extension point `BaseRevisionRetry` uses to build a
+"just these files" command. Results that disagree (some repeats pass, some
+fail) fail the grading iteration with a `grader_failure` Problem carrying
+`evidence: { new_test_flakiness: true, results: [...] }`, and a synthetic
+`new-test-flakiness-gate: <grader>` entry is appended to the iteration's
+`iterations` artifact (and to a dedicated `new_test_flakiness_gate` workflow
+artifact) so the repair prompt, the chat report, and the Job page all show
+"this Job's new test failed N/5 times on repeat" instead of a generic failed
+grader -- the agent or operator sees they introduced flakiness, not that they
+broke an existing check. A stable touched test (repeats all agree, pass or
+fail) leaves the iteration's outcome untouched.
+
+Off by default, opted in per repository via
+`Repository#new_test_flakiness_gate_enabled` (same shape as
+`known_flaky_failure_dismissal_enabled` above): it spends real extra command
+runs on every Job whose diff touches spec files, so a repository opts in
+deliberately rather than paying that cost by default.
+`Repository#new_test_flakiness_gate_repeats` overrides the default repeat
+count.
+
 ## Stopping a landing attempt
 
 While a Job is `landing` -- solo (`auto_merge`/`external_pr_merge`) or as part

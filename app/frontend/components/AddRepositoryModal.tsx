@@ -63,6 +63,8 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       land_on_inherited_check_failure: r.land_on_inherited_check_failure,
       known_flaky_failure_dismissal_enabled: r.known_flaky_failure_dismissal_enabled,
       known_flaky_failure_min_score: r.known_flaky_failure_min_score,
+      new_test_flakiness_gate_enabled: r.new_test_flakiness_gate_enabled,
+      new_test_flakiness_gate_repeats: r.new_test_flakiness_gate_repeats,
       main_branch_health_enabled: r.main_branch_health_enabled,
       main_branch_repair_enabled: r.main_branch_repair_enabled,
       main_branch_repair_blocks_work: r.main_branch_repair_blocks_work,

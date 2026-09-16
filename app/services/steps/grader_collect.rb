@@ -51,6 +51,7 @@ module Steps
       if failed_required.empty?
         skipped_count = target_health_skipped.size
         log("[grader_collect] all required graders passed (#{grader_steps.size} grader Step(s) ran, #{skipped_count} target-health skip(s))")
+        check_new_test_flakiness!(grader_steps)
         record_landing_validation!
         return
       end
@@ -144,6 +145,91 @@ module Steps
       log(
         "[grader_collect] required grader failures match confirmed-flaky test history; " \
         "treating as known-flaky: #{test_names.join(', ')}"
+      )
+    end
+
+    # The repeat-run flakiness gate for newly added or modified tests
+    # (EPIC-362). Adjudicators::KnownFlakyFailure only has signal once a test
+    # has run at least twice across real workflows, so it cannot tell apart a
+    # brand-new test that is flaky from day one -- this asks the question
+    # directly: rerun just this iteration's touched test files a few extra
+    # times, still under this grading iteration, before the Job's PR merges.
+    #
+    # Only runs once every required grader already passed this iteration --
+    # a required grader that is still red is reason enough to repair without
+    # spending extra reruns on top of it.
+    def check_new_test_flakiness!(grader_steps)
+      return unless repository.new_test_flakiness_gate_enabled?
+
+      touched_files = touched_test_files
+      return if touched_files.empty?
+
+      candidates = grader_steps.select { |g| g.state == "succeeded" && g.details.to_h["required"] }
+      results = candidates.filter_map { |grader_step| run_flaky_gate(grader_step, touched_files) }
+      inconsistent = results.select(&:inconsistent?)
+      return if inconsistent.empty?
+
+      record_new_test_flakiness!(inconsistent)
+      names = inconsistent.map { |result| "#{result.grader_name} (#{result.fail_count}/#{result.repeats} failed)" }.join(", ")
+      log("[grader_collect] newly touched tests failed intermittently on repeat runs: #{names}")
+      # Same Problem code as a plain grader failure (same remediation: repair
+      # and re-grade) -- the message, evidence, and the synthetic
+      # "new-test-flakiness-gate" iteration entry below are what tell the
+      # repairing agent and the PR/Job this was a *new* flake, not a generic
+      # failed check.
+      fail_with!(:grader_failure, "newly touched tests failed intermittently on repeat runs: #{names}",
+                 evidence: { new_test_flakiness: true, results: inconsistent.map(&:to_h) })
+    end
+
+    def touched_test_files
+      base_sha = landing_base_sha
+      return [] if base_sha.blank?
+
+      TouchedTestFiles.call(workspace_path: workspace.path, base_ref: base_sha)
+    end
+
+    def run_flaky_gate(grader_step, touched_files)
+      result = TouchedTestRepeatGate.call(
+        grader_step: grader_step,
+        touched_files: touched_files,
+        repeats: repository.new_test_flakiness_gate_repeats.presence || TouchedTestRepeatGate::DEFAULT_REPEATS,
+        workspace_path: workspace.path,
+        env: env,
+        log: method(:log)
+      )
+      return nil unless result.ran
+
+      result
+    end
+
+    def record_new_test_flakiness!(inconsistent_results)
+      entries = inconsistent_results.map do |result|
+        {
+          "name" => "new-test-flakiness-gate: #{result.grader_name}",
+          "status" => "failed",
+          "required" => true,
+          "command" => result.command,
+          "files" => result.files,
+          "repeats" => result.repeats,
+          "pass_count" => result.pass_count,
+          "fail_count" => result.fail_count,
+          "output" => "#{result.fail_count}/#{result.repeats} repeat run(s) of #{result.files.join(', ')} " \
+                       "failed after the grader itself passed -- this looks like a test that is flaky from " \
+                       "day one, not a broken implementation."
+        }
+      end
+      workflow.set_artifact!("new_test_flakiness_gate", entries)
+
+      iterations = Array(workflow.artifact("iterations"))
+      index = run.iteration - 1
+      iterations[index] = Array(iterations[index]) + entries
+      workflow.set_artifact!("iterations", iterations)
+    end
+
+    def env
+      ProcessRunner.forwarded_env(
+        Prepare.prep_env_forward,
+        extra: workspace_dependency_env.merge(Prepare.prep_extra_env(workflow: workflow, workspace_path: workspace.path))
       )
     end
 
