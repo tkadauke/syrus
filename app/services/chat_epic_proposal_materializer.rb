@@ -120,6 +120,7 @@ class ChatEpicProposalMaterializer
       repository: repository,
       epic: epic,
       kind: "direct",
+      investigation: proposal.investigation?,
       issue_number: nil,
       issue_title: proposal.title,
       issue_body: proposal.body,
