@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Antigravity Agent">
+  <rect width="24" height="24" rx="5" fill="#0f172a"/>
+  <path d="M12 4.25v15.5M4.25 12h15.5" fill="none" stroke="#67e8f9" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="m7.3 7.3 9.4 9.4M16.7 7.3l-9.4 9.4" fill="none" stroke="#f8fafc" stroke-width="1.4" stroke-linecap="round" opacity=".9"/>
+  <circle cx="12" cy="12" r="2.6" fill="#a78bfa"/>
+</svg>

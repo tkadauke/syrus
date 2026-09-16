@@ -11,7 +11,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   def encoded_filter(tree) = Filters::QueryParam.encode(tree)
 
   after do
-    Syrus::PluginRegistry.reset!
+    snapshot = Syrus::PluginRegistry.boot_snapshot
+    snapshot ? Syrus::PluginRegistry.restore(snapshot) : Syrus::PluginRegistry.reset!
   end
 
   it "401s with a JSON error when signed out" do
@@ -439,6 +440,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     it "returns one plugin with docs, links, metrics, routes, config, and enabled state" do
       sign_in_as(admin)
       Syrus::PluginRegistry.reset!
+      original_metrics_registry = Syrus::Metrics.registry
       Syrus::Metrics.reset!
       Syrus::PluginRegistry.register(
         name: "detail_plugin",
@@ -493,7 +495,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       )
       expect(plugin.fetch("docs")).to eq([])
     ensure
-      Syrus::Metrics.reset!
+      Syrus::Metrics.instance_variable_set(:@registry, original_metrics_registry) if original_metrics_registry
     end
 
     it "returns plugin-owned docs for bundled plugins without moving them into core docs" do

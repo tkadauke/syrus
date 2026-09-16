@@ -24,10 +24,11 @@ RSpec.describe Filters::Schema do
       schema = described_class.chip_for("agent_provider")
       expect(schema["bucket"]).to eq("enum")
       expect(schema["operators"]).to include("is", "is_one_of", "is_set")
-      expect(schema["values"]).to eq([
-        { "value" => "claude", "label" => "Claude" },
-        { "value" => "codex",  "label" => "Codex" }
-      ])
+      expect(schema["values"]).to eq(
+        User.agent_providers.map do |provider|
+          { "value" => provider, "label" => described_class.humanize_value(provider) }
+        end
+      )
     end
 
     it "inherits string operators from StringColumn base" do
