@@ -54,8 +54,8 @@ export default function MockupsPage() {
         search={location.search}
       />
 
-      <div className="flex min-h-0 flex-1 gap-3">
-        <Section className="min-h-0 flex-1 overflow-auto p-0">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
+        <Section className="min-h-[14rem] flex-1 overflow-auto p-0 lg:min-h-0">
           {listQuery.isPending ? (
             <Notice className="m-3">{t("loading")}</Notice>
           ) : listQuery.isError ? (
@@ -70,15 +70,15 @@ export default function MockupsPage() {
                   <li key={mockup.id}>
                     <button
                       aria-current={selected ? "true" : undefined}
-                      className={`flex w-full items-center gap-3 border-b border-border px-3 py-2 text-left hover:bg-surface-raised ${selected ? "bg-surface-raised" : ""}`}
+                      className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2 text-left hover:bg-surface-raised sm:flex-nowrap ${selected ? "bg-surface-raised" : ""}`}
                       onClick={() => select(mockup)}
                       type="button"
                     >
                       <Text as="span" className="font-mono" size="xs" tone="muted">{mockup.slug}</Text>
                       <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="primary">{mockup.title}</Text>
-                      <Text as="span" size="xs" tone="muted">{t("file_count", { count: mockup.file_count })}</Text>
+                      <Text as="span" className="shrink-0" size="xs" tone="muted">{t("file_count", { count: mockup.file_count })}</Text>
                       {mockup.updated_at ? (
-                        <RelativeTimestamp className="text-xs text-text-muted" value={mockup.updated_at} />
+                        <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={mockup.updated_at} />
                       ) : null}
                     </button>
                   </li>
@@ -91,7 +91,7 @@ export default function MockupsPage() {
         {selectedRef ? (
           <aside
             aria-label={t("preview_aria")}
-            className="flex min-h-0 w-1/2 flex-col rounded border border-border bg-surface"
+            className="flex min-h-[28rem] flex-col rounded border border-border bg-surface lg:min-h-0 lg:w-1/2"
           >
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
               <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="primary">
