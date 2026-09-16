@@ -89,6 +89,17 @@ RSpec.describe BranchPatchPresence do
       expect(described_class.classify(job: job, pr: pr, client: client, git: git))
         .to eq(described_class::HAS_UNIQUE)
     end
+
+    # A caller can compare against a ref other than the PR's own base or the
+    # repository default -- e.g. a merge train checking a member against the
+    # train's base branch, not whatever the member's own PR happened to target.
+    it "clones the overridden base_ref instead of the PR base or repository default" do
+      allow(git).to receive(:run).and_return("", "", "- abc already applied\n")
+
+      described_class.classify(job: job, pr: pr, client: client, git: git, base_ref: "release/1.0")
+
+      expect(git).to have_received(:run).with("clone", "--branch", "release/1.0", any_args)
+    end
   end
 
   it "returns true when git cherry reports only patch-equivalent commits" do

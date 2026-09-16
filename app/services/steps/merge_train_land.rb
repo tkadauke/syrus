@@ -348,7 +348,7 @@ module Steps
       train.members.includes(:job).each do |member|
         member_job = member.job
 
-        if integration_sha.present? && !member_landed?(member_job, integration_sha)
+        if integration_sha.present? && !member_landed?(member_job, integration_sha, train: train, client: client)
           handle_unverified_member!(member, member_job, integration_sha)
           unverified_members << member
           next
@@ -413,15 +413,47 @@ module Steps
     # the member's raw (unrebased) PR branch tip, since rebasing rewrites
     # commit SHAs -- the original branch tip is never an ancestor of the
     # rebased integration history even on the happy path.
-    def member_landed?(member_job, integration_sha)
+    def member_landed?(member_job, integration_sha, train:, client:)
       last_row = LandedCommit.where(landable: member_job, kind: "implementation").order(:position).last
       return false unless last_row
 
       case ancestor_of_integration(last_row.sha, integration_sha)
       when :ancestor then true
-      when :not_ancestor then false
-      when :indeterminate then trust_recent_build_evidence?(member_job, last_row)
+      when :not_ancestor then patch_equivalent_on_landed_base?(member_job, train, client)
+      when :indeterminate then trust_recent_build_evidence?(member_job, last_row) || patch_equivalent_on_landed_base?(member_job, train, client)
       end
+    end
+
+    # The ancestry check above answers "is the commit we rebased THIS build
+    # a literal ancestor of what we just landed" -- but a member's most
+    # recently recorded LandedCommit can point at a rebase from a build whose
+    # integration branch was later discarded, even though that member's actual
+    # diff already reached the base branch through an earlier, different
+    # build that landed successfully. Ancestry can never see that: the two
+    # commits share content, not lineage. `git cherry`-based patch equivalence
+    # (BranchPatchPresence, already trusted for this exact "landed some other
+    # way" question when closing a Job whose PR was closed unmerged) can. Only
+    # reached once ancestry has already said no or could not say -- this is a
+    # fallback, not a replacement, because it costs a full clone of the base
+    # branch.
+    def patch_equivalent_on_landed_base?(member_job, train, client)
+      return false if member_job.branch_name.blank?
+
+      classification = BranchPatchPresence.classify(
+        job: member_job, pr: nil, client: client, base_ref: train.base_branch,
+        git: streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      )
+      landed = classification == BranchPatchPresence::ALL_LANDED
+      log(
+        "merge_train: #{member_job.slug}'s recorded landed commit is not an ancestor of the integration, but its " \
+        "branch is patch-equivalent to what's already on #{train.base_branch} (classification=#{classification}); " \
+        "#{landed ? "treating it as landed" : "still needs re-landing"}",
+        kind: "system"
+      )
+      landed
+    rescue StandardError => e
+      log("merge_train: patch-equivalence fallback for #{member_job.slug} failed: #{e.class}: #{e.message}", kind: "system")
+      false
     end
 
     # `git merge-base --is-ancestor` answers through its exit status: 0 yes,
