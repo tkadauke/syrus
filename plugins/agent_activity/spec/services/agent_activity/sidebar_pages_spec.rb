@@ -18,7 +18,8 @@ RSpec.describe AgentActivity::SidebarPages do
         path: "/agent_activity",
         component: "agent_activity/AgentActivity",
         smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
-        smart_folder_subject: "agent_session"
+        smart_folder_subject: "agent_session",
+        smart_folder_all_link: false
       )
     )
   end
@@ -32,9 +33,16 @@ RSpec.describe AgentActivity::SidebarPages do
         path: "/agent_activity",
         component: "agent_activity/AgentActivity",
         smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
-        smart_folder_subject: "agent_session"
+        smart_folder_subject: "agent_session",
+        smart_folder_all_link: false
       )
     )
+  end
+
+  it "opts out of the sidebar's generic unfiltered All link, since AgentActivity::SmartFolders already registers its own" do
+    Current.api_user = admin
+
+    expect(described_class.sidebar_pages.sole.fetch(:smart_folder_all_link)).to eq(false)
   end
 
   it "is empty when the plugin is disabled" do

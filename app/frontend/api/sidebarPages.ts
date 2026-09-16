@@ -13,6 +13,8 @@ export type SidebarPluginPage = {
   section?: string | null
   smart_folder_api_path?: string | null
   smart_folder_subject?: string | null
+  /** Whether to also show the generic, unfiltered "All <label>" link above the page's own smart folders. Defaults to true. */
+  smart_folder_all_link?: boolean
   /** Endpoint returning {"count": n}; polled to badge the nav entry. */
   badge_api_path?: string | null
 }

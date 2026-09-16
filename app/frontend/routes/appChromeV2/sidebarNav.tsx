@@ -25,6 +25,7 @@ export type MergedNavItem = {
   order: number
   smartFolderApiPath?: string | null
   smartFolderSubject?: string | null
+  smartFolderAllLink?: boolean
   badgeApiPath?: string | null
 }
 
@@ -89,6 +90,7 @@ export function buildSidebarNavItems(
       order: page.order,
       smartFolderApiPath: page.smart_folder_api_path,
       smartFolderSubject: page.smart_folder_subject,
+      smartFolderAllLink: page.smart_folder_all_link ?? true,
       badgeApiPath: page.badge_api_path,
     }))
 
