@@ -34,6 +34,27 @@ below) doesn't break the others. A parse failure is also non-fatal: it's
 logged as a warning and the grader's pass/fail outcome is unaffected either
 way — ingestion never blocks the workflow.
 
+### Oversized example names don't drop the whole batch
+
+`test_insight_cases`/`test_insight_identities`' `name`, `suite_name`, and
+`file_path` columns are plain `t.string` (MySQL `VARCHAR(255)`), but a full
+RSpec example description (nested context + it-string, sometimes
+interpolated) routinely exceeds that. `TestInsights::Ingester` truncates
+those three fields to fit before every bulk insert
+(`TestInsights::TestCase.truncate_string_column`), using the *untruncated*
+suite_name/name to compute `TestIdentity.fingerprint_for` first so a test's
+durable identity never shifts just because its display name got clipped.
+Case rows are still batched 500 at a time via `insert_all!` for throughput,
+but a batch that fails anyway (any other DB-level insert error) falls back to
+inserting row-by-row so one bad row is skipped and reported instead of
+silently discarding every sibling row in that batch — a single oversized name
+used to roll back the whole ingest transaction and leave that grader run with
+zero recorded history. Both the per-row and top-level ingestion failure paths
+report through `OperationalLogging.ingest` (`source:
+"test_insights_ingester"` / `"test_insights_subscribers"`) in addition to the
+existing grader job-log warning line, so a recurring ingestion failure is
+discoverable without reading every grader's job log.
+
 Only one file path is supported per grader Step; if your test command fans
 out across multiple parallel workers (see the caveat below), point
 `junit_output` at a single merged/aggregated results file, or leave it unset
