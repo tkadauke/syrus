@@ -28,7 +28,7 @@ describe("toolPresentationRegistry", () => {
     })
 
     it("defaults examples to an empty array for a card that doesn't opt in", () => {
-      const entry = toolPresentationEntryFor("Bash")
+      const entry = toolPresentationEntryFor("Edit")
       expect(entry.examples).toEqual([])
     })
 
@@ -44,6 +44,16 @@ describe("toolPresentationRegistry", () => {
       const read = toolPresentationEntryFor("Read")
       expect(read.sourceType).toBe("provider_builtin")
       expect(read.readOnly).toBe(true)
+    })
+
+    it("gives provider built-ins with no dedicated card renderer their own example fixtures, including a Codex-envelope variant", () => {
+      const bash = toolPresentationEntryFor("Bash")
+      expect(bash.examples.length).toBeGreaterThan(0)
+      expect(bash.examples.some((example) => example.sourceType === "claude")).toBe(true)
+      expect(bash.examples.some((example) => example.sourceType === "codex")).toBe(true)
+
+      const read = toolPresentationEntryFor("Read")
+      expect(read.examples.length).toBeGreaterThan(0)
     })
 
     it("classifies a Local Mode management tool distinctly, even with no registered card", () => {
@@ -160,6 +170,44 @@ describe("toolPresentationRegistry", () => {
       const entries = allToolPresentationEntries().filter((entry) => entry.sourceType === "mcp_tool" && entry.ownerType === "core")
       expect(entries.length).toBeGreaterThan(0)
       expect(entries.every((entry) => entry.renderer !== null)).toBe(true)
+    })
+  })
+
+  describe("example fixture discovery", () => {
+    it("gives every discovered example a unique, non-empty id within its own tool", () => {
+      for (const entry of allToolPresentationEntries()) {
+        const ids = entry.examples.map((example) => example.id)
+        for (const id of ids) expect(id).toBeTruthy()
+        expect(new Set(ids).size).toBe(ids.length)
+      }
+    })
+
+    it("resolves a usable result body for every discovered example, whether declared via resultBody or parsedResult", () => {
+      for (const entry of allToolPresentationEntries()) {
+        for (const example of entry.examples) {
+          expect(example.resultBody !== undefined || example.parsedResult !== undefined).toBe(true)
+        }
+      }
+    })
+
+    it("collects examples across multiple plugins and core, not just one owner", () => {
+      const ownersWithExamples = new Set(
+        allToolPresentationEntries()
+          .filter((entry) => entry.examples.length > 0)
+          .map((entry) => `${entry.ownerType}:${entry.ownerName}`)
+      )
+
+      expect(ownersWithExamples.size).toBeGreaterThan(3)
+      expect(ownersWithExamples).toContain("core:core")
+      expect(ownersWithExamples).toContain("plugin:browser")
+    })
+
+    it("gives chat surface components their own representative fixture even though they never see a real tool_use/tool_result pair", () => {
+      const proposal = toolPresentationEntryFor("proposal_card")
+      expect(proposal.examples.length).toBeGreaterThan(0)
+
+      const pendingAction = toolPresentationEntryFor("pending_action_card")
+      expect(pendingAction.examples.length).toBeGreaterThan(0)
     })
   })
 

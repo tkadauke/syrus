@@ -140,3 +140,69 @@ const executeQueryToolCard: ToolCardRenderer = {
 }
 
 export default executeQueryToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample. Covers all three outcomes
+// QueryExecutor#run_and_audit can return (select, write, error) plus a
+// truncated large result set.
+export const examples = [
+  {
+    id: "select_rows",
+    label: "SELECT with rows",
+    input: { sql: "SELECT id, state, priority FROM jobs WHERE state = 'running' LIMIT 3" },
+    parsedResult: {
+      available: true,
+      read_only: true,
+      statement: "SELECT id, state, priority FROM jobs WHERE state = 'running' LIMIT 3",
+      columns: ["id", "state", "priority"],
+      rows: [
+        { id: 5035, state: "running", priority: "medium" },
+        { id: 5033, state: "running", priority: "medium" },
+        { id: 5010, state: "running", priority: "high" }
+      ],
+      row_count: 3,
+      truncated: false,
+      duration_ms: 4.2
+    }
+  },
+  {
+    id: "select_truncated_large_result",
+    label: "SELECT truncated at row limit (large result)",
+    description: "row_count (241) exceeds the returned rows array (100) -- exercises the TruncatedNotice.",
+    input: { sql: "SELECT * FROM job_logs" },
+    parsedResult: {
+      available: true,
+      read_only: true,
+      statement: "SELECT * FROM job_logs",
+      columns: ["id", "chunk"],
+      rows: Array.from({ length: 100 }, (_, index) => ({ id: index + 1, chunk: `log line ${index + 1}` })),
+      row_count: 241,
+      truncated: true,
+      duration_ms: 812.6
+    }
+  },
+  {
+    id: "write_affected_rows",
+    label: "UPDATE with affected rows",
+    input: { sql: "UPDATE jobs SET priority = 'high' WHERE id = 5035" },
+    parsedResult: {
+      available: true,
+      read_only: false,
+      statement: "UPDATE jobs SET priority = 'high' WHERE id = 5035",
+      affected_rows: 1,
+      duration_ms: 1.9
+    }
+  },
+  {
+    id: "query_error",
+    label: "Error: unknown column",
+    description: "available: false with a structured error -- the MCP response also sets result_error true, but the card reads the payload itself either way.",
+    input: { sql: "SELECT nonexistent_column FROM jobs" },
+    resultError: true,
+    parsedResult: {
+      available: false,
+      statement: "SELECT nonexistent_column FROM jobs",
+      error: { class: "Mysql2::Error", message: "Unknown column 'nonexistent_column' in 'field list'", hint: "Check the column exists with describe_table before querying it." }
+    }
+  }
+]

@@ -94,3 +94,25 @@ const listOpenPrsToolCard: ToolCardRenderer = {
 }
 
 export default listOpenPrsToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "mixed_mergeability",
+    label: "Mixed mergeability and draft state",
+    parsedResult: {
+      pull_requests: [
+        { number: 5041, title: "Add example fixtures for core and plugin tool presentations", head_ref: "syrus/direct-5035", base_ref: "main", mergeable: true, draft: false },
+        { number: 5038, title: "WIP: rework landing queue heuristics", head_ref: "syrus/direct-5010", base_ref: "main", mergeable: null, draft: true },
+        { number: 5022, title: "Fix flaky worker health sample", head_ref: "syrus/direct-4998", base_ref: "main", mergeable: false, draft: false }
+      ]
+    }
+  },
+  {
+    id: "no_open_prs",
+    label: "No open pull requests",
+    description: "Empty result set -- the card renders EmptyState instead of a bare table header.",
+    parsedResult: { pull_requests: [] }
+  }
+]

@@ -69,3 +69,25 @@ const listDesignDocsToolCard: ToolCardRenderer = {
 }
 
 export default listDesignDocsToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "three_design_docs",
+    label: "Three Design Docs",
+    parsedResult: {
+      design_docs: [
+        { id: 29, doc_ref: "DOC-29", title: "Public Release Readiness: Open-Source Launch Checklist", state: "draft" },
+        { id: 26, doc_ref: "DOC-26", title: "Distributed Workflow DAG Execution", state: "draft" },
+        { id: 10, doc_ref: "DOC-10", title: "Job Backlog", state: "archived" }
+      ]
+    }
+  },
+  {
+    id: "no_design_docs",
+    label: "No Design Docs",
+    description: "renderExpanded returns null for an empty list -- only the collapsed summary line renders.",
+    parsedResult: { design_docs: [] }
+  }
+]

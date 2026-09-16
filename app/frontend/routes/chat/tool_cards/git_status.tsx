@@ -80,3 +80,19 @@ const gitStatusToolCard: ToolCardRenderer = {
 }
 
 export default gitStatusToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "mixed_changes",
+    label: "Mixed staged and untracked changes",
+    parsedResult: { status: " M app/frontend/pluginToolCards.tsx\nA  app/frontend/toolPresentationRegistry.ts\n?? app/frontend/newFile.ts\nD  app/frontend/oldFile.ts" }
+  },
+  {
+    id: "clean_tree",
+    label: "Working tree clean",
+    description: "Empty status string -- the card renders EmptyState instead of a zero-row list.",
+    parsedResult: { status: "" }
+  }
+]
