@@ -162,10 +162,24 @@ relative to its effective base branch (`_spec.rb`, `_test.rb`,
 `.spec`/`.test.ts(x)`, `test_*.py`/`_test.py`, `_test.go` -- not the whole
 suite, and not the untouched majority of an existing spec file). When that
 set is non-empty, `TouchedTestRepeatGate` reruns just those files a few more
-times (default `TouchedTestRepeatGate::DEFAULT_REPEATS`, 5) via the same
-`:focused_test_command` extension point `BaseRevisionRetry` uses to build a
-"just these files" command. Results that disagree (some repeats pass, some
-fail) fail the grading iteration with a `grader_failure` Problem carrying
+times (default `TouchedTestRepeatGate::DEFAULT_REPEATS`, 5) against every
+required grader that already passed this iteration. Building that "just
+these files" command does *not* require the grader to have separately opted
+into `BaseRevisionRetry`'s `base_retry: { strategy: plugin }` -- that would
+make the gate a silent no-op for most repositories, since `base_retry` is a
+rarely-configured opt-in for a different feature. Instead: an explicit
+`command`/`files_as_args` `base_retry` on the grader (if the repository
+already configured one, e.g. this repo's own `rspec` grader) is reused
+as-is; otherwise `TouchedTestRepeatGate` asks the same `:focused_test_command`
+extension point `BaseRevisionRetry` uses, but with its own synthesized
+`plugin` strategy -- that point's whole contract is "can a language plugin
+build a file-scoped rerun command for this grader," independent of whatever
+`base_retry` the grader has (or doesn't have) configured. A grader whose
+language has no registered `:focused_test_command` provider (only Ruby and
+JavaScript today) and no explicit `base_retry` command is skipped for that
+grader, logged, rather than guessed at. Results that disagree (some repeats
+pass, some fail) fail the grading iteration with a `grader_failure` Problem
+carrying
 `evidence: { new_test_flakiness: true, results: [...] }`, and a synthetic
 `new-test-flakiness-gate: <grader>` entry is appended to the iteration's
 `iterations` artifact (and to a dedicated `new_test_flakiness_gate` workflow

@@ -6,8 +6,16 @@ RSpec.describe TouchedTestRepeatGate do
     Dir.mktmpdir("syrus-flaky-gate") { |dir| @dir = dir; ex.run }
   end
 
+  # No base_retry at all -- the common case. BaseRevisionRetry's
+  # `base_retry: { strategy: plugin }` is a separate, rarely-configured
+  # opt-in that this gate must not depend on (see the "no base_retry"
+  # examples below), so the default fixture deliberately omits it.
   let(:grader_step) do
-    Struct.new(:details).new({ "name" => "rspec", "command" => "bin/rspec", "base_retry" => { "strategy" => "plugin" } })
+    Struct.new(:details).new({ "name" => "rspec", "command" => "bin/rspec" })
+  end
+
+  def grader_step_with(details)
+    Struct.new(:details).new(details)
   end
 
   # A fake :focused_test_command provider stands in for Ruby::FocusedTestCommand
@@ -100,5 +108,76 @@ RSpec.describe TouchedTestRepeatGate do
 
     expect(result.ran).to be(false)
     expect(result.reason).to eq("no_focused_command")
+  end
+
+  describe "building the rerun command without BaseRevisionRetry's base_retry opt-in" do
+    # The regression this guards: a repository has never configured
+    # `base_retry: { strategy: plugin }` on its rspec grader (most don't --
+    # it's a separate feature), so the gate must still be able to build a
+    # command via the real, unstubbed Ruby plugin instead of silently
+    # declining every time.
+    it "asks the real Ruby focused_test_command provider even with no base_retry configured" do
+      step = grader_step_with({ "name" => "rspec", "command" => "bundle exec rspec" })
+
+      result = described_class.call(
+        grader_step: step,
+        touched_files: [ "spec/models/widget_spec.rb" ],
+        workspace_path: @dir,
+        repeats: 1
+      )
+
+      expect(result.ran).to be(true)
+      expect(result.command).to eq("bundle exec rspec spec/models/widget_spec.rb")
+    end
+
+    it "honors an explicit files_as_args base_retry without involving any plugin" do
+      expect(Syrus::PluginRegistry).not_to receive(:providers_for)
+      step = grader_step_with({
+        "name" => "tests", "command" => "bin/rspec-fast", "base_retry" => { "strategy" => "files_as_args" }
+      })
+
+      result = described_class.call(
+        grader_step: step,
+        touched_files: [ "spec/foo_spec.rb", "spec/bar_spec.rb" ],
+        workspace_path: @dir,
+        repeats: 1
+      )
+
+      expect(result.command).to eq("bin/rspec-fast spec/foo_spec.rb spec/bar_spec.rb")
+    end
+
+    it "honors an explicit command base_retry, interpolating {files}" do
+      expect(Syrus::PluginRegistry).not_to receive(:providers_for)
+      step = grader_step_with({
+        "name" => "tests", "command" => "bin/rspec-fast",
+        "base_retry" => { "strategy" => "command", "command" => "bin/rspec {files}" }
+      })
+
+      result = described_class.call(
+        grader_step: step,
+        touched_files: [ "spec/foo_spec.rb" ],
+        workspace_path: @dir,
+        repeats: 1
+      )
+
+      expect(result.command).to eq("bin/rspec spec/foo_spec.rb")
+    end
+
+    it "declines a full_command base_retry rather than rerunning the whole grader" do
+      expect(Syrus::PluginRegistry).not_to receive(:providers_for)
+      step = grader_step_with({
+        "name" => "tests", "command" => "bin/rspec-fast", "base_retry" => { "strategy" => "full_command" }
+      })
+
+      result = described_class.call(
+        grader_step: step,
+        touched_files: [ "spec/foo_spec.rb" ],
+        workspace_path: @dir,
+        repeats: 1
+      )
+
+      expect(result.ran).to be(false)
+      expect(result.reason).to eq("no_focused_command")
+    end
   end
 end
