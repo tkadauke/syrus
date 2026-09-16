@@ -66,6 +66,24 @@ registry:
   for the gallery. The legacy `/design_system` path remains a hidden preview
   alias so theming tools can keep opening `?theme_id=<id>` against the same
   real components without requiring the normal admin navigation entry.
+- **Admin → Tool Cards** (`/admin/tool_cards`) — the Tool Card Catalog:
+  every entry the frontend `toolPresentationRegistry.ts` contract knows about
+  (core and plugin MCP cards, provider built-ins like Claude/Codex
+  Bash/Read/Grep/WebSearch, Local Mode tools, and chat-surface components
+  like proposal/pending-action cards), reviewable from its own registered
+  example fixtures. `FilterBar` filters by tool name, owner type
+  (core/plugin/provider), owner/plugin name, source type, renderer type
+  (custom card vs. generic fallback), and coverage status (has examples vs.
+  none) — entirely client-side against the compiled registry, since there is
+  no ActiveRecord-backed collection here for `Filters::Subject` to query.
+  Each example renders through the real `<ToolGroup>` chat component (the
+  same collapsed row, expanded body, raw-details disclosure, and redaction a
+  live transcript gets), so a tool with no registered card renders its actual
+  generic-fallback body instead of being hidden from the catalog. A tool with
+  multiple examples gets an inline example selector; each entry has a stable
+  `#tool-<name>` anchor and a "Copy link" action that adds `?tool=<name>&
+  example=<id>` so operators can reference one exact example when giving
+  feedback.
 
 The performance and operational-log APIs are mirrored at `/api/v1/admin/performance`,
 `/api/v1/admin/performance/explain`, and `/api/v1/admin/operational_logs`
