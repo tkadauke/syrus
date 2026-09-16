@@ -1,7 +1,10 @@
-import type { ReactNode } from "react"
+import { useId, useState, type ReactNode } from "react"
 import i18n from "i18next"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill, truncateLines } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
+import { CloseIcon } from "@app/components/CloseIcon"
+import { Markdown } from "@app/lib/Markdown"
+import { Modal } from "@app/components/Modal"
 
 // Shared presentation helpers for the agent_memory plugin's chat tool cards
 // (the tool-card work). list_memories, search_memories, read_memory,
@@ -72,17 +75,69 @@ export function PublishedPill({ memory }: { memory: MemoryPayload }) {
   return <StatePill state={memory.published ? "published" : "private"} tone={memory.published ? "success" : "neutral"} />
 }
 
-export function ContentPreview({ content, maxLines = 4 }: { content: string; maxLines?: number }) {
-  const { preview, truncated, totalLines } = truncateLines(content, maxLines)
+// Wrapped prose (a memory written as a flowing paragraph, no literal "\n")
+// can still run to a dozen visual lines even though it is a single line by
+// truncateLines' newline-counting rules -- that's the "too much text on
+// this card" bug. Approximate the wrapped line count instead of relying on
+// literal newlines, so a long single-paragraph memory still collapses.
+const CONTENT_PREVIEW_MAX_LINES = 3
+const CONTENT_PREVIEW_CHARS_PER_LINE = 80
+
+function estimateVisualLineCount(text: string, charsPerLine: number): number {
+  return text.split("\n").reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
+}
+
+export function ContentPreview({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const estimatedLines = estimateVisualLineCount(content, CONTENT_PREVIEW_CHARS_PER_LINE)
+  const isLong = estimatedLines > CONTENT_PREVIEW_MAX_LINES
+
   return (
     <div className="space-y-1">
-      <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{preview}</div>
-      {truncated ? (
-        <Disclosure label={t("tool_show_full_content", { count: totalLines })}>
-          <div className="whitespace-pre-wrap break-words">{content}</div>
-        </Disclosure>
+      <div className={`whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300 ${isLong ? "line-clamp-3" : ""}`}>{content}</div>
+      {isLong ? (
+        <>
+          <button
+            className="text-2xs font-semibold uppercase text-brand hover:underline dark:text-brand-emphasis"
+            onClick={() => setExpanded(true)}
+            type="button"
+          >
+            {t("tool_show_more")}
+          </button>
+          {expanded ? <MemoryContentModal content={content} onClose={() => setExpanded(false)} /> : null}
+        </>
       ) : null}
     </div>
+  )
+}
+
+function MemoryContentModal({ content, onClose }: { content: string; onClose: () => void }) {
+  const titleId = useId()
+
+  return (
+    <Modal
+      className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-xl dark:bg-gray-900"
+      labelledBy={titleId}
+      onClose={onClose}
+      open
+    >
+      <div className="flex items-start justify-between gap-4 border-b border-gray-200 p-4 dark:border-gray-800">
+        <SectionLabel>
+          <span id={titleId}>{t("modal_content")}</span>
+        </SectionLabel>
+        <button
+          aria-label={t("tool_close")}
+          className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+          onClick={onClose}
+          type="button"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+        <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={content} />
+      </div>
+    </Modal>
   )
 }
 
@@ -162,7 +217,7 @@ export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; 
               <td className="whitespace-nowrap px-2 py-1"><KindBadge kind={row.kind} /></td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{scopeText(row)}</td>
               <td className="whitespace-nowrap px-2 py-1"><PublishedPill memory={row} /></td>
-              <td className="max-w-[24rem] px-2 py-1 text-gray-700 dark:text-gray-300"><ContentPreview content={row.content} maxLines={2} /></td>
+              <td className="max-w-[24rem] px-2 py-1 text-gray-700 dark:text-gray-300"><ContentPreview content={row.content} /></td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-500 dark:text-gray-400">{row.updatedAt ?? "—"}</td>
             </tr>
           ))}
