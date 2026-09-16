@@ -450,5 +450,19 @@ RSpec.describe TestInsights::TestCase do
       expect(data[:failed_count]).to eq(2)
       expect(data[:total_count]).to eq(2)
     end
+
+    it "does not merge history from rows linked to an unrelated TestIdentity via the raw-name fallback" do
+      # Same collision as history_scope_for's regression spec above, but through the
+      # batch path: an unlinked test case (`tc`, no test_identity_id) must not pull in
+      # "recent" rows that share its truncated suite_name/name but are linked to a
+      # different TestIdentity.
+      identity = create_identity(suite_name: "MySpec", name: "it does the full untruncated thing with far more detail")
+      create_case(test_identity: identity, name: "it does the thing", suite_name: "MySpec", status: "failed")
+
+      tc = build_case(name: "it does the thing", suite_name: "MySpec")
+      result = TestInsights::TestCase.batch_flakiness(repo, [ tc ])
+
+      expect(result[[ "MySpec", "it does the thing" ]]).to be_nil
+    end
   end
 end

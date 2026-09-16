@@ -133,7 +133,10 @@ module TestInsights
       condition = fallback_pairs.map { "(suite_name = ? AND name = ?)" }.join(" OR ")
       values = fallback_pairs.flat_map { |suite_name, name| [ suite_name, name ] }
 
-      recent = where(repository_id: repository.id)
+      # Same lossy-truncation collision risk as history_scope_for above: only
+      # match rows that were never linked to any identity, since a linked row
+      # sharing this truncated suite_name/name belongs to a different test.
+      recent = where(repository_id: repository.id, test_identity_id: nil)
         .where(condition, *values)
         .scored
         .order(:suite_name, :name, created_at: :desc, id: :desc)
