@@ -2791,6 +2791,20 @@ describe("Job detail navigation", () => {
     expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toBeInTheDocument()
   })
 
+  it("shows each job's status under its slug in the jump list", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    expect(screen.getByRole("option", { name: "1. JOB-1 — First snapshot title" })).toHaveTextContent("running")
+    expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toHaveTextContent("implemented")
+    expect(screen.getByRole("option", { name: "3. JOB-3 — Third snapshot title" })).toHaveTextContent("queued")
+  })
+
   it("uses the captured snapshot for previous and next navigation", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
