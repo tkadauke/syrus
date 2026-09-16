@@ -33,6 +33,10 @@ begin
   require_relative "../config/environment"
 
   Mcp::Sidecar.workflow(run_id: ARGV[run_id_index + 1].to_i).run
+rescue SystemExit => e
+  raise unless e.success?
+
+  exit(e.status)
 rescue Exception => e # rubocop:disable Lint/RescueException
   run_id = run_id_arg.to_s.empty? ? "(missing)" : run_id_arg
   warn "[syrus-mcp-sidecar] failed to start for run #{run_id}: #{e.class}: #{e.message}"

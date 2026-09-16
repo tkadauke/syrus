@@ -882,6 +882,49 @@ RSpec.describe CodexInvocation do
       expect(events.first.last[:tool_use_id]).to eq("item-fallback")
     end
 
+    it "falls back to item call_id when event id and item id are absent" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.completed",
+        "item" => {
+          "type" => "mcp_tool_call",
+          "call_id" => "call-test-plan",
+          "server" => "syrus-mcp-sidecar",
+          "tool_name" => "submit_test_plan",
+          "result" => { "ok" => true }
+        }
+      }
+
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.first.last).to include(
+        kind: "tool_result",
+        tool_name: "syrus-mcp-sidecar.submit_test_plan",
+        tool_use_id: "call-test-plan"
+      )
+    end
+
+    it "uses dotted MCP item names without adding an empty server prefix" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.completed",
+        "item" => {
+          "type" => "mcp_tool_call",
+          "call_id" => "call-summary",
+          "name" => "syrus-mcp-sidecar.submit_summary",
+          "result" => { "ok" => true }
+        }
+      }
+
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.first.last).to include(
+        kind: "tool_result",
+        tool_name: "syrus-mcp-sidecar.submit_summary",
+        tool_use_id: "call-summary"
+      )
+    end
+
     it "does not log nameless MCP or command tool rows" do
       inv, events, sink = invocation_with_sink
 

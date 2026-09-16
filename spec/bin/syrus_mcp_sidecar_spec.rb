@@ -13,6 +13,38 @@ RSpec.describe "bin/syrus-mcp-sidecar" do
     }.compact
   end
 
+  it "does not log successful SystemExit shutdown as a startup failure" do
+    Dir.mktmpdir do |dir|
+      script = <<~RUBY
+        require_relative "config/environment"
+
+        Mcp::Sidecar.singleton_class.define_method(:workflow) do |run_id:|
+          Object.new.tap do |sidecar|
+            sidecar.define_singleton_method(:run) { raise SystemExit.new(0) }
+          end
+        end
+
+        ARGV.replace(["--run-id", "123"])
+        load "bin/syrus-mcp-sidecar"
+      RUBY
+
+      _stdout, stderr, status = Open3.capture3(
+        clean_env.merge("SYRUS_DATA_ROOT" => dir),
+        RbConfig.ruby,
+        "-e",
+        script,
+        chdir: root,
+        unsetenv_others: true
+      )
+
+      expect(status).to be_success, stderr
+      sidecar_stderr = File.read(File.join(dir, "mcp-sidecar-logs", "run-123.stderr.log"))
+      expect(sidecar_stderr).to include("starting syrus-mcp-sidecar")
+      expect(sidecar_stderr).not_to include("failed to start for run")
+      expect(sidecar_stderr).not_to include("SystemExit")
+    end
+  end
+
   it "does not activate date before Bundler selects the application bundle" do
     script = <<~RUBY
       begin
