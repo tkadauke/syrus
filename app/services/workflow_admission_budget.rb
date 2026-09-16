@@ -45,6 +45,22 @@ class WorkflowAdmissionBudget
   HARD_DATA_ROOT_USED_PERCENT = 96.0
   SOFT_HOST_PRESSURE = 85.0
 
+  # syrus_admission_decisions_total is genuinely per-process (each pod
+  # decides for the work it dispatches), so it is declared and incremented
+  # here rather than sampled into a cache like the GLOBAL worker gauges --
+  # see config/syrus_docs/metrics.md's "Aggregating" section and
+  # Metrics::WorkerSampler. RunHostAdmission increments the same counter for
+  # its own admit/defer decisions without redeclaring it; this class is
+  # listed in config/initializers/metrics.rb so it is always loaded first.
+  def self.declare_metrics!
+    Syrus::Metrics.declare do
+      counter :admission_decisions_total, tags: %i[decision],
+              comment: "Workflow- and host-level admission decisions, tagged by the action taken " \
+                       "(per-process -- aggregate normally with sum)"
+    end
+  end
+  declare_metrics!
+
   def self.call(...) = new(...).call
 
   def initialize(workflow:, step: nil, now: Time.current)
@@ -712,6 +728,8 @@ class WorkflowAdmissionBudget
 
   def decision(action, reason, pressure, delay_until: nil, override: false, details: {})
     raise ArgumentError, "unknown admission action=#{action.inspect}" unless ACTIONS.include?(action)
+
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: action })
 
     Decision.new(
       action: action,

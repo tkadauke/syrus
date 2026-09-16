@@ -115,6 +115,27 @@ RSpec.describe RunHostAdmission do
     expect(decision.reason).to eq("host_capacity_available")
   end
 
+  # syrus_admission_decisions_total is the same per-process counter
+  # WorkflowAdmissionBudget increments; RunHostAdmission's own admit/defer
+  # decisions feed it too (see config/syrus_docs/metrics.md). Reads the count
+  # before/after since the registry is real and process-global.
+  it "increments syrus_admission_decisions_total for both admit and defer decisions" do
+    admit_before = admission_decisions_total("admit")
+    defer_before = admission_decisions_total("defer")
+
+    worker_sample(cpu_pressure_some: 10.0)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+    described_class.call(run: run)
+
+    expect(admission_decisions_total("admit")).to eq(admit_before + 1)
+
+    worker_sample(cpu_pressure_some: 55.0)
+    described_class.call(run: run)
+
+    expect(admission_decisions_total("defer")).to eq(defer_before + 1)
+  end
+
   it "admits control-plane steps on a worker with critical local pressure" do
     enable_distributed_workflow_dag!
     worker_sample(cpu_pressure_some: 55.0)
@@ -163,6 +184,10 @@ RSpec.describe RunHostAdmission do
         state: "running", started_at: 5.minutes.ago
       )
     end
+  end
+
+  def admission_decisions_total(decision)
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h[{ decision: decision }].to_i
   end
 
   def worker_sample(**attrs)

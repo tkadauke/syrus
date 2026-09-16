@@ -16,7 +16,13 @@ class SampleGlobalMetricsJob < ApplicationJob
   # control_plane shape.
   limits_concurrency to: 1, key: "sample_global_metrics", duration: 5.minutes, on_conflict: :discard
 
-  SAMPLERS = [ Metrics::QueueSampler, Metrics::PluginSampler, Metrics::LandingSampler ].freeze
+  SAMPLERS = [
+    Metrics::QueueSampler,
+    Metrics::PluginSampler,
+    Metrics::LandingSampler,
+    Metrics::WorkerSampler,
+    Metrics::FleetSampler
+  ].freeze
 
   def perform
     SAMPLERS.each do |sampler|
