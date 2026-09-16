@@ -187,6 +187,76 @@ RSpec.describe TestInsights::Ingester do
     expect(TestInsights::TestIdentity.find(identity_id).last_status).to eq("failed")
   end
 
+  it "truncates an oversized example name instead of dropping the batch" do
+    long_name = "does the thing when the context is " + ("very " * 60) + "long"
+    expect(long_name.bytesize).to be > 255
+
+    cases = [
+      parsed_case("pass_0", "passed"),
+      parsed_case(long_name, "failed", message: "assertion"),
+      parsed_case("pass_1", "passed")
+    ]
+    parsed = JunitXmlParser::ParsedRun.new(
+      total_count: 3, passed_count: 2, failed_count: 1, skipped_count: 0, error_count: 0,
+      duration_ms: 300, cases: cases
+    )
+    ingester = described_class.new(run: run, grader_name: "rspec", parsed_run: parsed)
+
+    expect { ingester.ingest! }
+      .to change(TestInsights::TestCase, :count).by(3)
+      .and change(TestInsights::TestIdentity, :count).by(3)
+
+    tr = TestInsights::TestRun.find_by!(run: run, grader_name: "rspec")
+    expect(tr).to have_attributes(total_count: 3, failed_count: 1)
+
+    truncated_case = tr.test_cases.find_by!(status: "failed")
+    expect(truncated_case.name.bytesize).to be <= 255
+    expect(truncated_case.name).to eq(long_name.safe_byteslice(0, 255))
+    expect(truncated_case.test_identity.name.bytesize).to be <= 255
+  end
+
+  it "keys identities off the untruncated name so two long names sharing a 255-byte prefix stay distinct" do
+    shared_prefix = "a" * 260
+    name_a = "#{shared_prefix}-first"
+    name_b = "#{shared_prefix}-second"
+
+    cases = [ parsed_case(name_a, "passed"), parsed_case(name_b, "passed") ]
+    parsed = JunitXmlParser::ParsedRun.new(
+      total_count: 2, passed_count: 2, failed_count: 0, skipped_count: 0, error_count: 0,
+      duration_ms: 100, cases: cases
+    )
+    ingester = described_class.new(run: run, grader_name: "rspec", parsed_run: parsed)
+
+    expect { ingester.ingest! }.to change(TestInsights::TestIdentity, :count).by(2)
+
+    fingerprint_a = TestInsights::TestIdentity.fingerprint_for(suite_name: "MySpec", name: name_a)
+    fingerprint_b = TestInsights::TestIdentity.fingerprint_for(suite_name: "MySpec", name: name_b)
+    expect(fingerprint_a).not_to eq(fingerprint_b)
+    expect(TestInsights::TestIdentity.exists?(fingerprint: fingerprint_a)).to be(true)
+    expect(TestInsights::TestIdentity.exists?(fingerprint: fingerprint_b)).to be(true)
+  end
+
+  it "isolates a single row's insert failure instead of discarding the whole batch" do
+    parsed = parsed_run(passed: 3, failed: 0, skipped: 0, error: 0)
+    ingester = described_class.new(run: run, grader_name: "rspec", parsed_run: parsed)
+
+    allow(TestInsights::TestCase).to receive(:insert_all!).and_wrap_original do |original, rows|
+      if rows.any? { |row| row[:name] == "pass_1" }
+        raise ActiveRecord::ValueTooLong, "Mysql2::Error: Data too long for column 'name' at row 2"
+      end
+
+      original.call(rows)
+    end
+    allow(OperationalLogging).to receive(:ingest)
+
+    expect { ingester.ingest! }.not_to raise_error
+
+    tr = TestInsights::TestRun.find_by!(run: run, grader_name: "rspec")
+    expect(tr.total_count).to eq(3)
+    expect(TestInsights::TestCase.where(test_run: tr).pluck(:name)).to contain_exactly("pass_0", "pass_2")
+    expect(OperationalLogging).to have_received(:ingest).with(hash_including(level: "error", source: "test_insights_ingester")).at_least(:once)
+  end
+
   it "allows different grader names for the same run" do
     ingester.ingest!
 

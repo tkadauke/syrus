@@ -33,10 +33,33 @@ module TestInsights
       # Logged to the run rather than only to Rails.logger: an operator looking
       # for why a grader produced no test data looks at the grader log.
       log(run, "[grader:#{event[:grader_name]}] warning: JunitXmlParser: JUnit XML parse error: #{e.message}")
+      report_failure(run: run, event: event, parser_name: "JunitXmlParser", error: e)
     rescue StandardError => e
       # Names the parser: when a plugin's parser breaks the ParsedRun contract,
       # which plugin it was is the whole diagnostic.
       log(run, "[grader:#{event[:grader_name]}] warning: test output ingestion failed via #{parser_name || 'JunitXmlParser'}: #{e.class}: #{e.message}")
+      report_failure(run: run, event: event, parser_name: parser_name || "JunitXmlParser", error: e)
+    end
+
+    # The job-log line above is easy to miss unless an operator is already
+    # looking at this specific run; route the same failure through Syrus's
+    # own operational log index too so a recurring ingestion failure (e.g. the
+    # whole-batch data loss this guards against) is discoverable/alertable
+    # without reading every grader's job log.
+    def self.report_failure(run:, event:, parser_name:, error:)
+      return if run.nil?
+
+      OperationalLogging.ingest(
+        level: "error",
+        source: "test_insights_subscribers",
+        message: "[grader:#{event[:grader_name]}] test output ingestion failed via #{parser_name}: #{error.class}: #{error.message}",
+        context: {
+          run_id: run.id,
+          grader_name: event[:grader_name].to_s
+        }
+      )
+    rescue StandardError
+      nil
     end
 
     def self.log(run, message)

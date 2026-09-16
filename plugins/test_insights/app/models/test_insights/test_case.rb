@@ -7,6 +7,20 @@ module TestInsights
     CLASSIFICATION_SCORED = "scored".freeze
     CLASSIFICATION_WIP_REPAIR_FAILURE = "wip_repair_failure".freeze
 
+    # test_insight_cases.name/suite_name/file_path and their test_insight_identities
+    # counterparts are plain `t.string` columns (MySQL VARCHAR(255)). RSpec's full
+    # example description (nested context + it-string, sometimes interpolated) can
+    # exceed that, and raw insert_all!/insert_all bypass AR validations, so an
+    # oversized value raises a DB-level error instead of failing a single record's
+    # validation. Truncate defensively before any bulk insert touches these columns.
+    # Fingerprinting must use the untruncated name/suite_name so identity keys stay
+    # stable regardless of truncation -- see TestIdentity.fingerprint_for callers.
+    MAX_STRING_COLUMN_BYTES = 255
+
+    def self.truncate_string_column(value, max_bytes: MAX_STRING_COLUMN_BYTES)
+      value.nil? ? nil : value.to_s.safe_byteslice(0, max_bytes)
+    end
+
     belongs_to :test_run
     belongs_to :repository
     belongs_to :test_identity, optional: true
