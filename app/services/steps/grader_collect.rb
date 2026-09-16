@@ -162,10 +162,19 @@ module Steps
       return unless repository.new_test_flakiness_gate_enabled?
 
       touched_files = touched_test_files
-      return if touched_files.empty?
+      if touched_files.empty?
+        log("[grader_collect] flaky_gate: no touched test files in this iteration's diff -- skipping")
+        return
+      end
 
+      log("[grader_collect] flaky_gate: checking #{touched_files.join(', ')} for day-one flakiness")
       candidates = grader_steps.select { |g| g.state == "succeeded" && g.details.to_h["required"] }
       results = candidates.filter_map { |grader_step| run_flaky_gate(grader_step, touched_files) }
+      if results.empty?
+        log("[grader_collect] flaky_gate: enabled, but no grader could build a focused rerun command for #{touched_files.join(', ')} -- nothing to check")
+        return
+      end
+
       inconsistent = results.select(&:inconsistent?)
       return if inconsistent.empty?
 
