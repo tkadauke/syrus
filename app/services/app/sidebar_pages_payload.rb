@@ -40,6 +40,13 @@ module App
         badge_api_path: page[:badge_api_path].presence&.to_s,
         smart_folder_api_path: page[:smart_folder_api_path].presence&.to_s,
         smart_folder_subject: page[:smart_folder_subject].presence&.to_s,
+        # Whether the sidebar should also render a generic, unfiltered "All
+        # <label>" link above the subject's own smart folders. Defaults to
+        # true for subjects (like Design Docs) with no built-in unfiltered
+        # folder of their own; a subject that already registers one (like
+        # Agent Activity's "All") sets this false to avoid a redundant
+        # second "All" entry.
+        smart_folder_all_link: page[:smart_folder_all_link].nil? ? true : ActiveModel::Type::Boolean.new.cast(page[:smart_folder_all_link]),
         order: page[:order].to_i
       }
     end
