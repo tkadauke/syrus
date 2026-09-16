@@ -36,6 +36,20 @@ module Syrus
       ensure
         observe(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, tags: tags)
       end
+
+      # Overwrites the tracked distribution for one tag combination to an
+      # externally computed absolute snapshot (buckets/sum/count), rather than
+      # accumulating individual #observe calls -- same idea as
+      # Counter#reconcile! and for the same reason (see Metrics::LandingSampler).
+      # `entry` must be shaped like the internal accumulator (`{buckets:, sum:,
+      # count:}`) with bucket boundaries as Floats, matching #buckets above.
+      def reconcile!(entry, tags: {})
+        key = key_for(tags)
+        @mutex.synchronize do
+          current = @values[key]
+          @values[key] = entry if current.nil? || entry[:count].to_i >= current[:count]
+        end
+      end
     end
   end
 end

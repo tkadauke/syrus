@@ -149,24 +149,29 @@ Job slug.
 
 **`jobs_landed_total`, `runs_total`, `run_duration_seconds`,
 `time_to_land_seconds`, and `queue_completed_total` are counters and a
-histogram**, instrumented from a per-source cursor instead: each tick queries
-only the Runs/Jobs/Solid-Queue-executions that finished since the previous
-tick's boundary and instruments each one exactly once, so the distribution
-underlying the histograms is real observations rather than a periodic
-snapshot. The cursor bootstraps to "now" on its first ever tick rather than
-backfilling the entire Job/Run history, the same instinct as
-`Metrics::ProductUsage`'s zero-preset: counting starts from when the sampler
-first runs, not from the beginning of time.
-
-**These five currently go dark on `/metrics` in production**, for the same
-reason noted above: `/metrics` is served by the **web** role only, while every
-Run/Job/queue-execution event they count happens on a **worker** process
-(`RunJob`, `LandingQueueProcessor`, Solid Queue itself). The instrumentation
-is real and ready for when a worker-side exporter ships; until then, only a
-process that itself runs `SampleGlobalMetricsJob` sees these counters move.
-The three gauges above are unaffected — they are cache-mediated, so the web
-process renders whatever the worker's tick last wrote regardless of which
-process incremented anything.
+histogram**, which cannot be `set` the way a gauge can — `Counter`/`Histogram`
+only ever accumulate (`#increment`/`#observe`), by design (see "Counters never
+reset" above). So `#sample!` keeps a per-source cursor and, each tick, folds
+every newly-finished Run/Job/queue-execution into a **cumulative snapshot**
+cached under its own key — a running total per counter tag combination, and a
+running bucket/sum/count per histogram tag combination — rather than mutating
+the live instrument directly. `#refresh_gauges!` reads that snapshot back and
+calls `Counter#reconcile!`/`Histogram#reconcile!` to overwrite this process's
+local instrument to match it: the same `set`-like idempotency the three gauges
+get from `Gauge#set`, just expressed as "catch up to the known total" because
+that is the only vocabulary a monotonic instrument has. This matters because
+`#sample!` runs from `SampleGlobalMetricsJob` on a **worker** process
+(`control_plane` queue), while `/metrics` is served by a **web** process with a
+completely separate in-process registry — mutating the counter/histogram
+directly inside `#sample!` would be invisible to every real scrape, exactly
+like an event counter incremented inside `RunJob` would be (see "Scraping"
+above). Because `#refresh_gauges!` reconciles from the cache rather than
+replaying `#sample!`'s own deltas, a web process that never ran a single tick
+itself still renders the full accumulated total the first time it scrapes.
+The cursor and the cumulative snapshot both bootstrap to "now" on their first
+ever tick rather than backfilling the entire Job/Run history, the same
+instinct as `Metrics::ProductUsage`'s zero-preset: counting starts from when
+the sampler first runs, not from the beginning of time.
 
 ## Aggregating: `max by`, never `sum`
 
