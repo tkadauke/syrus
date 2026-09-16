@@ -1359,6 +1359,12 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
           <dd>{routeLabel}</dd>
         </div>
       ) : null}
+      {proposal.investigation ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_investigation_label")}</dt>
+          <dd>{t("proposal_investigation_value")}</dd>
+        </div>
+      ) : null}
       <div>
         <dt className="font-medium text-gray-500 dark:text-gray-400">{t("dependencies")}</dt>
         <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : t("none")}</dd>

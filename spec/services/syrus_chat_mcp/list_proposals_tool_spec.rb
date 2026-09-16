@@ -59,6 +59,7 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         repository: repository.slug,
         route_to_backlog: false,
         initial_job_state: "default",
+        investigation: false,
         goal_provenance: nil,
         target_epic: nil,
         materialized: nil
@@ -78,6 +79,7 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         repository: repository.slug,
         route_to_backlog: false,
         initial_job_state: "default",
+        investigation: false,
         goal_provenance: nil,
         target_epic: nil,
         materialized: {

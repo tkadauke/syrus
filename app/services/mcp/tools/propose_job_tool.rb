@@ -45,6 +45,14 @@ module Mcp::Tools
       service of the currently active goal. Leave it false for opportunistic
       or unrelated follow-up work so that Job state changes do not wake the
       goal loop.
+      Set investigation=true for a read-only "go look into X and tell me
+      what you find" request (a QA walkthrough, an audit, answering a
+      question about behavior) where no pull request is expected. Confirming
+      such a proposal creates a Job that runs a narrative investigate ->
+      report chain instead of the normal implement -> PR chain, so a
+      thorough answer with no code changes is a fully successful outcome.
+      Leave it false (the default) for any proposal that should produce a
+      code change and a PR.
     DESC
 
     input_schema(
@@ -62,13 +70,14 @@ module Mcp::Tools
           description: "Media references to attach to the Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), pass chat image IDs as \"chat_image:123\", or pass a preview panel's current version id as \"preview_panel_version:42\" to hand the implementing agent that mockup's source files. Omit if no media is relevant."
         },
         route_to_backlog: { type: "boolean", description: "When true, confirming this direct Job proposal creates the Job in backlog and does not start its initial workflow. Defaults to false for the current start-normal behavior." },
+        investigation: { type: "boolean", description: "When true, confirming this proposal creates a read-only investigation Job (no PR expected) instead of a normal implementation Job. Defaults to false." },
         for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
       },
       required: %w[repo title description]
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, for_active_goal: false)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, investigation: false, for_active_goal: false)
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
@@ -130,6 +139,7 @@ module Mcp::Tools
             depends_on_job_ids: depends_on_job_ids,
             media_ids: Array(media),
             route_to_backlog: ActiveModel::Type::Boolean.new.cast(route_to_backlog),
+            investigation: ActiveModel::Type::Boolean.new.cast(investigation),
             **goal_attrs
           )
           dependencies.each do |dependency|
