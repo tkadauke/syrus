@@ -10,6 +10,7 @@
 # had the table/column.
 
 require "json"
+require "fileutils"
 require "open3"
 require "tmpdir"
 require "timeout"
@@ -70,8 +71,8 @@ rescue Timeout::Error
   exit 1
 end
 
-def create_isolated_primary_database!(env)
-  run!("bin/rails", "db:create", env: env)
+def prepare_isolated_data_root!(data_root)
+  FileUtils.mkdir_p(File.join(data_root, "db"))
 end
 
 def migrate_isolated_primary_database!(env)
@@ -92,7 +93,7 @@ def check_scratch!
   Dir.mktmpdir("syrus-primary-migrate-scratch-") do |data_root|
     env = rails_env_for(data_root)
 
-    create_isolated_primary_database!(env)
+    prepare_isolated_data_root!(data_root)
     migrate_isolated_primary_database!(env)
   end
 end
@@ -103,7 +104,7 @@ def check_tag!(tag)
   Dir.mktmpdir("syrus-primary-migrate-#{tag}-") do |data_root|
     env = rails_env_for(data_root)
 
-    create_isolated_primary_database!(env)
+    prepare_isolated_data_root!(data_root)
     load_schema_from_tag!(tag, data_root, env)
     migrate_isolated_primary_database!(env)
   end
