@@ -79,6 +79,92 @@ RSpec.describe "Plugin metric declaration", :reset_plugin_registry do
       expect(Syrus::Metrics.registry.declared?(:syrus_probe_plugin_probe_total)).to be(false)
     end
 
+    # The declarative sample-block form: no tick_interval, on_tick, or
+    # hand-written sampler class, just a gauge and a block. Registered and
+    # torn down alongside the metric declaration itself.
+    describe "a declarative sampled gauge" do
+      let(:cache) { ActiveSupport::Cache::MemoryStore.new }
+
+      before { allow(Rails).to receive(:cache).and_return(cache) }
+
+      def install(&sample_block)
+        definition = Syrus::PluginApi::Definition.new(
+          name: "probe_plugin", namespace: Module.new, lib_dir: Rails.root.to_s
+        )
+        definition.metrics { gauge(:probe_gauge, &sample_block) }
+
+        scope = Syrus::EffectScope.new(label: "probe")
+        teardown = definition.effects.sole[:block].call(scope)
+        [ definition, scope, teardown ]
+      end
+
+      it "registers a sampler that the shared registry can sample and refresh" do
+        install { 7 }
+
+        sampler = Syrus::Metrics.samplers.find { |s| s.respond_to?(:sampler_key) && s.sampler_key == "sampled_gauge:syrus_probe_plugin_probe_gauge" }
+        expect(sampler).to be_present
+
+        sampler.sample!
+        sampler.refresh_gauges!
+
+        expect(Syrus::Metrics.render).to include("syrus_probe_plugin_probe_gauge 7")
+      end
+
+      it "unregisters the sampler when the plugin's effect is disposed, so a disabled plugin's sampler stops sampling" do
+        _definition, scope = install { 7 }
+
+        scope.dispose
+
+        expect(Syrus::Metrics.samplers.map { |s| s.respond_to?(:sampler_key) ? s.sampler_key : nil })
+          .not_to include("sampled_gauge:syrus_probe_plugin_probe_gauge")
+      end
+
+      it "leaves no stale series once disabled: the gauge is absent, not frozen at its last value" do
+        _definition, scope = install { 7 }
+        sampler = Syrus::Metrics.samplers.find { |s| s.respond_to?(:sampler_key) && s.sampler_key == "sampled_gauge:syrus_probe_plugin_probe_gauge" }
+        sampler.sample!
+        sampler.refresh_gauges!
+        expect(Syrus::Metrics.render).to include("syrus_probe_plugin_probe_gauge 7")
+
+        scope.dispose
+
+        expect(Syrus::Metrics.render).not_to include("syrus_probe_plugin_probe_gauge")
+      end
+
+      it "rejects tags on a sampled gauge block" do
+        expect {
+          Syrus::Metrics.declare_plugin("bad_probe") { gauge(:tagged, tags: %i[state]) { 1 } }
+        }.to raise_error(Syrus::Metrics::Error, /does not support tags/)
+      end
+    end
+
+    # The full sampler class escape hatch: several gauges off one query pass,
+    # or a counter/histogram needing cursor-based cumulative logic.
+    describe "a full sampler class via `sampler`" do
+      it "registers and unregisters the class itself, no wrapper object" do
+        fake_sampler = Class.new do
+          def self.sample! = nil
+          def self.refresh_gauges! = nil
+        end
+        stub_const("FakeSampler", fake_sampler)
+
+        definition = Syrus::PluginApi::Definition.new(
+          name: "sampler_probe_plugin", namespace: Module.new, lib_dir: Rails.root.to_s
+        )
+        definition.metrics do
+          counter :probe_total
+          sampler FakeSampler
+        end
+
+        scope = Syrus::EffectScope.new(label: "probe")
+        teardown = definition.effects.sole[:block].call(scope)
+        expect(Syrus::Metrics.samplers).to include(FakeSampler)
+
+        teardown.call
+        expect(Syrus::Metrics.samplers).not_to include(FakeSampler)
+      end
+    end
+
     it "retains metric metadata on the manifest for disabled-plugin admin detail pages" do
       definition = Syrus::PluginApi::Definition.new(
         name: "probe_plugin", namespace: Module.new, lib_dir: Rails.root.to_s

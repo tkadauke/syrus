@@ -17,13 +17,16 @@ on every scrape would get slow at exactly the moment queue/DB pressure is the th
 
 ## Sampling
 
-`Throughput::MetricsSampler` follows `Metrics::LandingSampler`'s shape: `#sample!` runs on the plugin's own
-tick (`tick_interval 1.minute`, driven by `Throughput::Callbacks#on_tick`) and folds every `auto_merge`
-Workflow or `merge_train` that finished successfully since the last tick into a cumulative, cache-mediated
-total -- a cursor over `finished_at`, set exactly once per attempt and never revised, so nothing is
-double-counted across ticks. `Throughput::Callbacks#on_metrics_scrape`, called from the `/metrics` scrape
-path, reconciles this process's counters to that cached total -- necessary because the Workflow/MergeTrain
-that finishes runs on a worker process, while `/metrics` is served by the web role only.
+`Throughput::MetricsSampler` follows `Metrics::LandingSampler`'s shape and needs cursor-based cumulative
+logic (not a plain aggregate value), so it registers as a full sampler class via the manifest's
+`metrics do ... sampler MetricsSampler end` (see `Syrus::PluginApi::Definition#metrics`). `#sample!` runs on
+the shared control-plane tick (`SampleGlobalMetricsJob`, the same tick core samplers use -- no plugin-owned
+`tick_interval`) and folds every `auto_merge` Workflow or `merge_train` that finished successfully since the
+last tick into a cumulative, cache-mediated total -- a cursor over `finished_at`, set exactly once per
+attempt and never revised, so nothing is double-counted across ticks. `#refresh_gauges!`, called from that
+same shared registry on the `/metrics` scrape path, reconciles this process's counters to that cached total
+-- necessary because the Workflow/MergeTrain that finishes runs on a worker process, while `/metrics` is
+served by the web role only.
 
 ## Disabled means absent, not zero
 

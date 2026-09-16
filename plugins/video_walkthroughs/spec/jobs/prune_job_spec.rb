@@ -200,28 +200,6 @@ RSpec.describe VideoWalkthroughs::PruneJob do
       expect(purge_jobs_enqueued).to be_empty
     end
 
-    it "records the total stored bytes for the storage_bytes metric even when unlimited" do
-      AppSetting.current.update!(video_storage_budget_mb: 0)
-      walkthrough_with_blob(state: "analyzed", age: 2.days, byte_size: mb)
-      walkthrough_with_blob(state: "analyzed", age: 1.day,  byte_size: mb)
-
-      expect(VideoWalkthroughs::MetricsSampler).to receive(:record_storage_bytes!).with(2 * mb)
-
-      described_class.perform_now
-    end
-
-    it "records the total stored bytes for the storage_bytes metric under budget" do
-      AppSetting.current.update!(video_storage_budget_mb: 3)
-      walkthrough_with_blob(state: "analyzed", age: 4.days, byte_size: mb)
-      walkthrough_with_blob(state: "analyzed", age: 3.days, byte_size: mb)
-      walkthrough_with_blob(state: "analyzed", age: 2.days, byte_size: mb)
-      walkthrough_with_blob(state: "analyzed", age: 1.day,  byte_size: mb)
-
-      expect(VideoWalkthroughs::MetricsSampler).to receive(:record_storage_bytes!).with(4 * mb)
-
-      described_class.perform_now
-    end
-
     it "ignores in-flight rows in the size sweep budget accounting" do
       # A giant in-flight (analyzing) row must not be counted or purged; only
       # settled rows are candidates, and here the two settled rows fit budget.

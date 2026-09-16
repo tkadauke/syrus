@@ -47,7 +47,7 @@ class VideoWalkthroughs::PruneJob < ApplicationJob
 
     cutoff = days.days.ago
     purged = 0
-    settled_with_blob.where("#{table}.updated_at < ?", cutoff).find_each do |walkthrough|
+    VideoWalkthroughs::Walkthrough.settled_with_blob.where("#{table}.updated_at < ?", cutoff).find_each do |walkthrough|
       purge_video!(walkthrough)
       purged += 1
     end
@@ -62,14 +62,10 @@ class VideoWalkthroughs::PruneJob < ApplicationJob
     # the ordered (id, byte_size) candidates and pick the eviction set in Ruby.
     # Columns are table-qualified because the blob join also has id/byte_size;
     # the pluck is two integers per row, cheap even for thousands of videos.
-    candidates = settled_with_blob
+    candidates = VideoWalkthroughs::Walkthrough.settled_with_blob
       .order(Arel.sql("#{table}.updated_at ASC, #{table}.id ASC"))
       .pluck("#{table}.id", "#{table}.byte_size")
     total = candidates.sum { |(_id, bytes)| bytes.to_i }
-    # Recorded unconditionally (even at an unlimited budget) since this same
-    # daily tick is also this metric's only sample point -- see
-    # VideoWalkthroughs::MetricsSampler.
-    VideoWalkthroughs::MetricsSampler.record_storage_bytes!(total)
 
     budget = AppSetting.video_storage_budget_bytes
     return if budget.zero?
@@ -86,14 +82,6 @@ class VideoWalkthroughs::PruneJob < ApplicationJob
 
     VideoWalkthroughs::Walkthrough.where(id: evict).find_each { |walkthrough| purge_video!(walkthrough) }
     log("size sweep purged #{evict.size} video(s) to fit the #{budget / 1024 / 1024}MB budget")
-  end
-
-  # Only rows whose blob is still attached can be purged; the join keeps the
-  # sum/scan honest as blobs disappear.
-  def settled_with_blob
-    VideoWalkthroughs::Walkthrough
-      .where(state: %w[analyzed failed])
-      .joins(file_attachment: :blob)
   end
 
   def purge_video!(walkthrough)

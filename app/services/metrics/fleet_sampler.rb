@@ -18,6 +18,7 @@ module Metrics
       end
     end
     declare_metrics!
+    Syrus::Metrics.register_sampler(self)
 
     def self.sample!(...) = new(...).sample!
     def self.refresh_gauges!(...) = new(...).refresh_gauges!

@@ -15,9 +15,9 @@ module Syrus
       # sum.
       TYPES = %i[counter gauge histogram].freeze
 
-      attr_reader :name, :type, :tags, :comment, :owner, :share, :buckets
+      attr_reader :name, :type, :tags, :comment, :owner, :share, :buckets, :sample_block
 
-      def initialize(name:, type:, tags: [], comment: nil, owner: :core, share: false, buckets: nil)
+      def initialize(name:, type:, tags: [], comment: nil, owner: :core, share: false, buckets: nil, sample_block: nil)
         @name = name
         @type = type
         @tags = tags
@@ -25,7 +25,10 @@ module Syrus
         @owner = owner
         @share = share
         @buckets = buckets
+        @sample_block = sample_block
       end
+
+      def sampled? = sample_block.present?
 
       def validate!
         unless TYPES.include?(type)
@@ -36,6 +39,14 @@ module Syrus
         end
         if type != :histogram && buckets
           raise Error, "metric #{name}: only histograms take buckets"
+        end
+        if sample_block && type != :gauge
+          raise Error, "metric #{name}: only a gauge may declare a sample block " \
+                       "(a counter/histogram needs cursor-based cumulative logic -- use `sampler <class>` instead)"
+        end
+        if sample_block && tags.present?
+          raise Error, "metric #{name}: a sampled gauge block does not support tags -- " \
+                       "declare a full sampler class with `sampler <class>` for tagged output"
         end
 
         TagAllowlist.validate!(name: name, tags: tags)

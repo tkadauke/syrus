@@ -6,12 +6,4 @@ RSpec.describe VideoWalkthroughs::Callbacks do
       expect { described_class.on_tick }.to have_enqueued_job(VideoWalkthroughs::PruneJob)
     end
   end
-
-  describe ".on_metrics_scrape" do
-    it "refreshes the storage bytes gauge" do
-      expect(VideoWalkthroughs::MetricsSampler).to receive(:refresh_gauges!)
-
-      described_class.on_metrics_scrape
-    end
-  end
 end
