@@ -235,6 +235,13 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     handler.call
 
+    # #dependencies_settled? only treats settled_step's id as settled once
+    # settled_step itself is terminal (see Step#dependencies_settled?) --
+    # mirror StepDispatcher, which only evaluates readiness once @from_step
+    # has actually finished.
+    step.start!
+    step.succeed!
+
     grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
     expect(grader_steps.size).to eq(3)
     expect(grader_steps).to all(satisfy { |g| g.dependencies_settled?(settled_step: step) })
