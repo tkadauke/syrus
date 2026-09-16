@@ -1,7 +1,15 @@
 class FixZeroCronFieldsInScheduledTasksAndCronTemplates < ActiveRecord::Migration[8.1]
+  class MigrationScheduledTask < ActiveRecord::Base
+    self.table_name = "scheduled_tasks"
+  end
+
+  class MigrationCronTemplate < ActiveRecord::Base
+    self.table_name = "cron_templates"
+  end
+
   def up
-    fix_zero_cron_fields("ScheduledTasks::Task", ScheduledTasks::Task)
-    fix_zero_cron_fields("ScheduledTasks::CronTemplate", ScheduledTasks::CronTemplate)
+    fix_zero_cron_fields("scheduled_tasks", MigrationScheduledTask) if table_exists?(:scheduled_tasks)
+    fix_zero_cron_fields("cron_templates", MigrationCronTemplate) if table_exists?(:cron_templates)
   end
 
   def down
