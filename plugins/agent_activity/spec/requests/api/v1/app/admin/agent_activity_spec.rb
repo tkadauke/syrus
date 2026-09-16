@@ -149,7 +149,15 @@ RSpec.describe "API: /api/v1/app/admin/agent_activity", type: :request do
       expect(parse_body.fetch("sessions").map { |row| row.dig("job", "id") }).to eq([ running_job.id, failed_job.id ])
     end
 
-    it "combines an active SmartFolder with additional FilterBar chips" do
+    # FilterBar seeds its editable draft chip list from the server's
+    # already-merged `filter`, so a chip-bar Add/Edit resends whatever the
+    # SmartFolder already contributed alongside the user's own change. If the
+    # backend re-ANDs the SmartFolder's saved filter back in on top of that,
+    # each action reproduces a distinct symptom: Add duplicates the folder's
+    # chip, Edit leaves the pre-edit value alongside the new one, and Remove
+    # (below) resurrects the "removed" chip. See AgentActivity::Filter and
+    # Filters::BaseFilter.smart_folder_floor.
+    it "adds a chip via the FilterBar without duplicating the active SmartFolder's own chip" do
       sign_in_as(admin)
       running_implement = agent_activity_job_with_run(
         repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 2.minutes.ago }
@@ -158,7 +166,12 @@ RSpec.describe "API: /api/v1/app/admin/agent_activity", type: :request do
       agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "failed", started_at: 4.minutes.ago, finished_at: 3.minutes.ago })
       SmartFolder.ensure_builtins_for_subject!(AgentActivity::SmartFolders::SUBJECT)
       running_folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "Running")
-      q = Filters::QueryParam.encode("and" => [ { "field" => "step_kind", "op" => "is_one_of", "value" => [ "implement" ] } ])
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "status", "op" => "is", "value" => "running" },
+          { "field" => "step_kind", "op" => "is_one_of", "value" => [ "implement" ] }
+        ]
+      )
 
       get "/api/v1/app/admin/agent_activity/sessions", params: { smart_folder_id: running_folder.id, q: q }
 
@@ -172,6 +185,47 @@ RSpec.describe "API: /api/v1/app/admin/agent_activity", type: :request do
           { "field" => "step_kind", "op" => "is_one_of", "value" => [ "implement" ] }
         ]
       )
+    end
+
+    it "edits the active SmartFolder's own chip via the FilterBar without leaving the old value behind" do
+      sign_in_as(admin)
+      failed_implement = agent_activity_job_with_run(
+        repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "failed", started_at: 4.minutes.ago, finished_at: 3.minutes.ago }
+      )
+      agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 2.minutes.ago })
+      SmartFolder.ensure_builtins_for_subject!(AgentActivity::SmartFolders::SUBJECT)
+      running_folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "Running")
+      q = Filters::QueryParam.encode("and" => [ { "field" => "status", "op" => "is", "value" => "failed" } ])
+
+      get "/api/v1/app/admin/agent_activity/sessions", params: { smart_folder_id: running_folder.id, q: q }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("filter")).to eq(
+        "and" => [ { "field" => "status", "op" => "is", "value" => "failed" } ]
+      )
+      job_ids = parse_body.fetch("sessions").map { |row| row.dig("job", "id") }
+      expect(job_ids).to eq([ failed_implement.id ])
+    end
+
+    it "removes the SmartFolder's last chip via the FilterBar without the removed chip reappearing" do
+      sign_in_as(admin)
+      running_job = agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 2.minutes.ago })
+      failed_job = agent_activity_job_with_run(repository: repository, step_attrs: { kind: "implement" }, run_attrs: { state: "failed", started_at: 4.minutes.ago, finished_at: 3.minutes.ago })
+      SmartFolder.ensure_builtins_for_subject!(AgentActivity::SmartFolders::SUBJECT)
+      running_folder = SmartFolder.builtins(AgentActivity::SmartFolders::SUBJECT).find_by!(name: "Running")
+      # Clearing the chip bar's only chip while a SmartFolder is selected
+      # sends an explicit empty q= (rather than omitting it), so the backend
+      # can tell "the chip bar was just emptied" apart from "the chip bar was
+      # never touched".
+      q = Filters::QueryParam.encode("and" => [])
+
+      get "/api/v1/app/admin/agent_activity/sessions", params: { smart_folder_id: running_folder.id, q: q }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("active_smart_folder_id")).to eq(running_folder.id)
+      expect(parse_body.fetch("filter")).to eq("and" => [])
+      job_ids = parse_body.fetch("sessions").map { |row| row.dig("job", "id") }
+      expect(job_ids).to contain_exactly(running_job.id, failed_job.id)
     end
   end
 
