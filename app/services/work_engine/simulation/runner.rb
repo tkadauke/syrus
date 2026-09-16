@@ -602,6 +602,11 @@ module WorkEngine
       end
 
       def execute_run!(run, tick)
+        unless run.step&.dependencies_settled?
+          events << "tick #{tick}: #{run.slug} #{run.step&.kind} -> deferred waiting for dependencies"
+          return
+        end
+
         run_attempts[run_signature(run)] += 1
         outcome = outcome_for(run)
         events << "tick #{tick}: #{run.slug} #{run.step&.kind} -> #{outcome_label(outcome)}"

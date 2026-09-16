@@ -1634,6 +1634,72 @@ RSpec.describe RunJob, :ci_only do
   describe "inline successor routing" do
     include ActiveJob::TestHelper
 
+    it "defers a queued collect run until every grader dependency is terminal" do
+      repository.update!(distributed_workflow_dag_enabled: true)
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      workflow = Workflow.create!(
+        job: job,
+        user: user,
+        trigger_kind: "merge_train",
+        agent_provider: job.agent_provider,
+        state: "running"
+      )
+      fanout = Step.create!(
+        workflow: workflow,
+        kind: "grader_fanout",
+        position: 0,
+        state: "succeeded",
+        started_at: 3.minutes.ago,
+        finished_at: 2.minutes.ago,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE
+      )
+      passed_grader = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 1,
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        depends_on_ids: [ fanout.id ],
+        details: { "name" => "website-build", "required" => true }
+      )
+      running_grader = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 2,
+        state: "running",
+        started_at: 1.minute.ago,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        depends_on_ids: [ fanout.id ],
+        details: { "name" => "rspec", "required" => true }
+      )
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ passed_grader.id, running_grader.id ]
+      )
+      collect_run = collect.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider
+      )
+
+      clear_enqueued_jobs
+      expect {
+        RunJob.perform_now(collect_run.id)
+      }.to have_enqueued_job(RunJob).with(collect_run.id).on_queue("runs")
+
+      expect(collect.reload).to be_queued
+      expect(collect_run.reload).to be_queued
+      expect(workflow.reload).to be_running
+    end
+
     it "does not inline a mutable successor on a worker that lacks the workflow workspace" do
       repository.update!(distributed_workflow_dag_enabled: true)
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|

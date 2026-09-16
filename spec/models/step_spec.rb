@@ -63,7 +63,27 @@ RSpec.describe Step do
     end
   end
 
-describe "details JSON bag" do
+  describe "#dependencies_settled?" do
+    it "does not treat a non-terminal current dependency as settled" do
+      dependency = described_class.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 0,
+        state: "running",
+        started_at: Time.current
+      )
+      collect = described_class.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 1,
+        depends_on_ids: [ dependency.id ]
+      )
+
+      expect(collect.dependencies_settled?(settled_step: dependency)).to be(false)
+    end
+  end
+
+  describe "details JSON bag" do
     it "seeds an empty hash on new records (MySQL 8 disallows JSON column defaults)" do
       step = described_class.new(workflow: workflow, kind: "implement", position: 0)
       expect(step.details).to eq({})

@@ -70,6 +70,7 @@ class RunJob < ApplicationJob
   # not days.
   RUNS_PAUSED_RETRY_DELAY = 30.seconds
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
+  STEP_DEPENDENCY_RETRY_DELAY = 15.seconds
   # A spend budget resets on a day boundary, so retrying in fifteen seconds
   # would just burn queue cycles until midnight.
   SPEND_BUDGET_RETRY_DELAY = 15.minutes
@@ -297,6 +298,7 @@ class RunJob < ApplicationJob
     end
 
     return if handle_running_reentry
+    return if defer_until_step_dependencies_settle
 
     if workflow_starting? && (merged_pr = merged_pull_request)
       succeed_workflow_for_merged_pull_request!(merged_pr)
@@ -335,6 +337,23 @@ class RunJob < ApplicationJob
     @step.succeed!
     @step.save!
     log("step #{@step.kind} done (#{@workflow.slug})")
+  end
+
+  def defer_until_step_dependencies_settle
+    return false if @step.dependencies_settled?
+
+    unsettled = @step.depends_on_steps.reject(&:terminal?)
+    unsettled_summary = unsettled
+      .map { |dependency| "##{dependency.id} #{dependency.kind}=#{dependency.state}" }
+      .join(", ")
+    reason = unsettled_summary.presence || "predecessor active"
+    Rails.logger.info(
+      "[RunJob] step ##{@step.id} #{@step.kind} dependencies still active " \
+      "(#{reason}) — deferring Run ##{@run.id} by #{STEP_DEPENDENCY_RETRY_DELAY.inspect}"
+    )
+    log("step #{@step.kind} is waiting for dependencies to finish: #{reason}", kind: "system")
+    defer_run(@run.id, STEP_DEPENDENCY_RETRY_DELAY)
+    true
   end
 
   def handle_running_reentry

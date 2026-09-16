@@ -1,0 +1,90 @@
+name: parallel grader collect waits for active sibling
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: parallel-grader-collect-waits-for-active-sibling
+  distributed_workflow_dag_enabled: true
+jobs:
+  job:
+    title: Parallel grader collect waits for active sibling
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: lint
+          kind: grader
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          next_step: collect
+          details:
+            name: lint
+            required: true
+        - key: rspec
+          kind: grader
+          state: running
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          next_step: collect
+          details:
+            name: rspec
+            required: true
+          run:
+            state: running
+        - key: collect
+          kind: grader_collect
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - lint
+            - rspec
+          run:
+            state: queued
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on:
+            - collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+outcomes:
+  default: success
+  steps:
+    grader:rspec:
+      - status: pending
+      - status: success
+    grader_collect:
+      status: success
+success_states:
+  job:
+    - implemented
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - "grader_collect -> deferred waiting for dependencies"
+    - "grader -> {\"status\" => \"pending\""
+    - "grader -> {\"status\" => \"success\""
+    - "grader_collect -> {\"status\" => \"success\""
+    - "summarize -> success"
+    - "pr_open -> success"
+  absent_events:
+    - "grader_collect -> {\"status\" => \"failure\""
