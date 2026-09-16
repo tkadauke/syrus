@@ -21,6 +21,15 @@ module Prompts
         reads; there is no PR diff to fall back on.
       - `findings`: optional JSON array of at most 10 short strings, each
         one concise, standalone finding worth calling out on its own.
+      - `references`: optional JSON array of at most 20 `{ "type": ...,
+        "caption": ... }` objects, in the order they should appear,
+        pointing at artifacts/screenshots you already submitted this run
+        via `submit_artifact`/`submit_visual_artifact`. `type` must match
+        exactly -- for a screenshot, use the resolved type that tool's
+        response echoed back, not necessarily the type you originally
+        requested. `caption` is optional. Only reference evidence you
+        actually submitted; a `type` that doesn't match anything is
+        rejected.
 
       Don't recap the whole conversation in your reply. Just call the
       available `submit_report` tool name with valid JSON arguments and

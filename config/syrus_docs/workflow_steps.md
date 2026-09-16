@@ -335,14 +335,29 @@ plus the standard safety/context blocks). Unlike `implement`/`run_skill`,
 captures a diff, or calls `raise_no_changes_produced!` — the same read-only
 shape `AgentInsights::RunStep` uses. Success here is defined by the following
 `submit_report` step persisting a narrative report, not by producing a diff.
+Its agent role is the default `AgentRole::WORKFLOW_IMPLEMENT` (no explicit
+`agent_role:` on the `Step::Kind` entry), the same role `implement`/`run_skill`
+get — so it keeps access to the browser MCP tool set, `start_preview`/
+`stop_preview`, and `submit_artifact`/`submit_visual_artifact` for capturing
+evidence (a query log, a config dump, a screenshot) while it investigates.
+`Prompts::Investigation` tells the agent to note the exact artifact `type`
+each of those calls reports back, so the following `submit_report` step can
+point at that evidence by `type`.
 
 ### submit_report
 
 Agentic. Follows `investigate` in `investigation` workflows. Resumes the
 `investigate` step's agent session (the same "resume from the prior agentic
 step" pattern `test_plan`/`summarize` use) and asks the agent to call the
-`submit_report` MCP tool with a `title`, a markdown `narrative`, and optional
-`findings`. Skips the agent call when the report is already present
+`submit_report` MCP tool with a `title`, a markdown `narrative`, optional
+`findings`, and an optional ordered `references` list. Each `references`
+entry is `{ type:, caption: }`, where `type` must match the `type`/
+`original_type` of a `typed_artifacts` entry already recorded on the Workflow
+this run via `submit_artifact`/`submit_visual_artifact` — `SubmitReportTool`
+rejects a `type` that doesn't resolve, so the report can't carry a dangling
+pointer. `references` stores pointers, not copies, so a report renderer
+resolves each one against `Workflow#artifacts["typed_artifacts"]` at render
+time. Skips the agent call when the report is already present
 (`skip_if_artifact: "investigation_report"` on the `Step::Kind` entry mirrors
 `test_plan`'s `skip_if_artifact: "test_plan"`). Raises `Steps::Base::StepFailed`
 if the agent never calls the tool. The stored report lands on

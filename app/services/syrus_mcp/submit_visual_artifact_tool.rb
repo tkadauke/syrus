@@ -106,7 +106,7 @@ module SyrusMcp
           "[mcp] submit_visual_artifact: #{artifact_type.inspect} — #{artifact_title.truncate(60)} (#{image_data.bytesize} bytes)"
         )
 
-        MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
+        MCP::Tool::Response.new([ { type: "text", text: "Saved as artifact type #{stored_type.inspect}. Reference this exact type from submit_report to include it in the report." } ])
       rescue StandardError => e
         Rails.logger.error("[SyrusMcp::SubmitVisualArtifactTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
