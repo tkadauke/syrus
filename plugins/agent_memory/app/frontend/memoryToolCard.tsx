@@ -80,16 +80,25 @@ export function PublishedPill({ memory }: { memory: MemoryPayload }) {
 // truncateLines' newline-counting rules -- that's the "too much text on
 // this card" bug. Approximate the wrapped line count instead of relying on
 // literal newlines, so a long single-paragraph memory still collapses.
+//
+// The chars-per-line estimate has to match the actual rendering column, not
+// a single global guess: the list table's content <td> (max-w-[24rem], five
+// columns sharing the row) is much narrower than the detail card's full-width
+// body, so the same text wraps to noticeably more real lines in the table.
+// Underestimating chars-per-line is the safe direction (an occasional
+// unnecessary "Show more" costs nothing; failing to show one when the text
+// genuinely overflows is the bug this fixes), so both constants lean narrow.
 const CONTENT_PREVIEW_MAX_LINES = 3
-const CONTENT_PREVIEW_CHARS_PER_LINE = 80
+const DETAIL_CONTENT_CHARS_PER_LINE = 70
+const LIST_CONTENT_CHARS_PER_LINE = 40
 
 function estimateVisualLineCount(text: string, charsPerLine: number): number {
   return text.split("\n").reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
 }
 
-export function ContentPreview({ content }: { content: string }) {
+export function ContentPreview({ content, charsPerLine = DETAIL_CONTENT_CHARS_PER_LINE }: { content: string; charsPerLine?: number }) {
   const [expanded, setExpanded] = useState(false)
-  const estimatedLines = estimateVisualLineCount(content, CONTENT_PREVIEW_CHARS_PER_LINE)
+  const estimatedLines = estimateVisualLineCount(content, charsPerLine)
   const isLong = estimatedLines > CONTENT_PREVIEW_MAX_LINES
 
   return (
@@ -217,7 +226,7 @@ export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; 
               <td className="whitespace-nowrap px-2 py-1"><KindBadge kind={row.kind} /></td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{scopeText(row)}</td>
               <td className="whitespace-nowrap px-2 py-1"><PublishedPill memory={row} /></td>
-              <td className="max-w-[24rem] px-2 py-1 text-gray-700 dark:text-gray-300"><ContentPreview content={row.content} /></td>
+              <td className="max-w-[24rem] px-2 py-1 text-gray-700 dark:text-gray-300"><ContentPreview charsPerLine={LIST_CONTENT_CHARS_PER_LINE} content={row.content} /></td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-500 dark:text-gray-400">{row.updatedAt ?? "—"}</td>
             </tr>
           ))}

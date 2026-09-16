@@ -97,6 +97,17 @@ describe("list_memories tool card", () => {
     expect(screen.getByText("Show more")).toBeInTheDocument()
   })
 
+  it("shows the show-more button in the narrow list column for a moderate one-line paragraph that would still wrap past 3 lines there", () => {
+    // ~240 chars, no literal newlines: comfortably 3 lines or fewer against a
+    // wide/full-card estimate, but wraps to well over 3 real lines in the
+    // list table's narrow content column -- the exact case the "too much
+    // text shown by default" bug report was about.
+    const moderateParagraph = "word ".repeat(48).trim()
+    render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [{ ...globalMemory, content: moderateParagraph }] } }))}</>)
+
+    expect(screen.getByText("Show more")).toBeInTheDocument()
+  })
+
   it("falls back to null for a malformed payload", () => {
     const parsedResult = { oops: true }
 
