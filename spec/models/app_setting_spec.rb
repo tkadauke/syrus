@@ -122,6 +122,16 @@ RSpec.describe AppSetting do
     expect(AppSetting.chat_coding_workspace_budget_bytes).to eq(20_000 * 1024 * 1024)
   end
 
+  it ".retention_available_space_override_bytes is nil (unset) when the GB column is 0" do
+    expect(AppSetting.retention_available_space_override_bytes).to be_nil
+  end
+
+  it ".retention_available_space_override_bytes converts the GB column to bytes when set" do
+    AppSetting.current.update!(retention_available_space_override_gb: 50)
+
+    expect(AppSetting.retention_available_space_override_bytes).to eq(50.gigabytes)
+  end
+
   it "rejects a negative chat_coding_workspace_budget_mb but allows 0 (unlimited)" do
     setting = AppSetting.current
 
