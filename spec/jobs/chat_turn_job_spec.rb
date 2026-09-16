@@ -2147,6 +2147,36 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(chat.messages.where(role: %w[tool_use tool_result]).count).to eq(2)
   end
 
+  it "preserves chat tool messages when MCP usage lookup is unavailable" do
+    outage = ActiveRecord::ConnectionNotEstablished.new("mysql unavailable")
+
+    allow(Rails.logger).to receive(:warn).and_call_original
+    allow(McpToolUsage).to receive(:where).and_call_original
+    allow(McpToolUsage).to receive(:where)
+      .with(chat_session: chat, tool_use_id: "mcp_1")
+      .and_raise(outage)
+
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("● repo_info(...)", kind: "tool_call",
+                                      tool_name: "mcp__syrus-chat-sidecar__repo_info",
+                                      tool_input: { "repo" => repository.slug },
+                                      tool_use_id: "mcp_1")
+      log_sink.call("ok", kind: "tool_result",
+                          tool_result_content: { "slug" => repository.slug },
+                          tool_result_error: false,
+                          tool_use_id: "mcp_1")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    expect {
+      described_class.perform_now(chat.id, user_message.id)
+    }.not_to raise_error
+
+    expect(chat.messages.where(role: %w[tool_use tool_result]).count).to eq(2)
+    expect(Rails.logger).to have_received(:warn)
+      .with(a_string_matching(/chat transcript result record skipped: ActiveRecord::ConnectionNotEstablished: mysql unavailable/))
+  end
+
   it "moves pending action cards from the initiating user message to the producing tool call" do
     job = Factories.job(repository: repository)
     pending_action = chat.pending_actions.create!(
