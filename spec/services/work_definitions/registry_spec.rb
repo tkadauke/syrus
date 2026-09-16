@@ -115,6 +115,7 @@ RSpec.describe WorkDefinitions do
       external_pr_ingest
       external_pr_feedback
       skill
+      investigation
       deploy
       promotion
       hotfix_sync
@@ -160,6 +161,7 @@ RSpec.describe WorkDefinitions do
       external_pr_ingest
       external_pr_feedback
       skill
+      investigation
       deploy
       promotion
       hotfix_sync
