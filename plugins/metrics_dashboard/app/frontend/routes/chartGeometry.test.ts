@@ -42,6 +42,31 @@ describe("panelScale", () => {
 
     expect(scale.max).toBeGreaterThanOrEqual(50)
   })
+
+  // The actual point of hiding a series: a spiky series flattens everything
+  // else under the old scale, so hiding it must rescale to what's left, not
+  // just stop drawing its line inside the same range.
+  it("excludes hidden series from the range so the remaining lines rescale", () => {
+    const series = [ { name: "spiky", values: [ 1, 500 ] }, { name: "steady", values: [ 4, 6 ] } ]
+
+    const withSpiky = panelScale(series)
+    const spikyHidden = panelScale(series, new Set([ "spiky" ]))
+
+    expect(spikyHidden.max).toBeLessThan(withSpiky.max)
+    expect(spikyHidden.max).toBeLessThan(50)
+  })
+
+  it("ignores an empty or missing hidden set", () => {
+    const series = [ { name: "a", values: [ 1, 2 ] }, { name: "b", values: [ 50 ] } ]
+
+    expect(panelScale(series, new Set())).toEqual(panelScale(series))
+  })
+
+  it("falls back to the default range when every series is hidden", () => {
+    const series = [ { name: "a", values: [ 1, 2 ] } ]
+
+    expect(panelScale(series, new Set([ "a" ]))).toEqual({ min: 0, max: 1 })
+  })
 })
 
 describe("linePath", () => {
