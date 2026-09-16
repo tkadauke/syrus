@@ -22,7 +22,8 @@ module TestInsights
              repo_page_tab: "TestInsights::RepoPageTabs",
              ui_slot: "TestInsights::UiSlots",
              mcp_tool_set: "TestInsights::McpToolSet",
-             chat_mcp_tool_set: "TestInsights::ChatToolSet"
+             chat_mcp_tool_set: "TestInsights::ChatToolSet",
+             callbacks: "TestInsights::Callbacks"
     route :get, "/api/v1/app/jobs/:job_id/test_results", to: "api/v1/app/job_test_results#index"
     route :get, "/api/v1/app/repositories/:repository_id/flaky_tests", to: "api/v1/app/repository_flaky_tests#index"
     route :get, "/api/v1/app/repositories/:repository_id/tests", to: "api/v1/app/repository_tests#index"
@@ -53,5 +54,10 @@ module TestInsights
     always do |scope|
       TestInsights::DataCleanup.install_into(scope)
     end
+
+    # Retention for raw test_insight_cases/test_insight_runs history is
+    # enforced on this tick (see TestInsights::Callbacks), not the host's
+    # config/recurring.yml.
+    tick_interval 1.day
   end
 end

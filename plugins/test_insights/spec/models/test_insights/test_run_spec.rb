@@ -56,4 +56,15 @@ RSpec.describe TestInsights::TestRun do
     )
     expect { tr.destroy! }.to change(TestInsights::TestCase, :count).by(-1)
   end
+
+  describe ".prunable" do
+    it "matches rows older than RETAIN_AFTER" do
+      old = build_test_run(grader_name: "rspec-old").tap(&:save!)
+      old.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      fresh = build_test_run(grader_name: "rspec-fresh").tap(&:save!)
+
+      expect(described_class.prunable).to include(old)
+      expect(described_class.prunable).not_to include(fresh)
+    end
+  end
 end
