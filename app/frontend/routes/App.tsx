@@ -31,6 +31,7 @@ import { AdminAttentionItems } from "./AdminAttentionItems"
 import { AdminProcessDetail, AdminProcessesIndex } from "./AdminProcesses"
 import { AdminMcpToolUsage } from "./AdminMcpToolUsage"
 import { AdminSettings } from "./AdminSettings"
+import { RetentionSettings } from "./RetentionSettings"
 import { AdminStuck } from "./AdminStuck"
 import { AdminTranscript } from "./AdminTranscript"
 import { AdminUserDetailRoute, AdminUsersIndex } from "./AdminUsers"
@@ -114,6 +115,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/github_app/register", element: <AdminGithubAppRegister /> },
   { path: "/admin/github_app/confirm", element: <AdminGithubAppConfirm /> },
   { path: "/admin/features", element: <AdminFeatures /> },
+  { path: "/admin/retention_settings", element: <RetentionSettings /> },
   { path: "/admin/*", element: <PluginAdminPageRoute /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },

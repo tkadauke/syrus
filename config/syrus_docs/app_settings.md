@@ -350,3 +350,24 @@ gigabytes, used when `RetentionSizeSnapshotJob`'s automatic inference can't
 determine it. `AppSetting.retention_available_space_override_bytes` returns
 `nil` when unset (`0`) so the job can distinguish "no override" from "an
 operator picked 0 GB."
+
+### Admin Retention Settings page
+
+`/admin/retention_settings` (React: `RetentionSettings.tsx`; API:
+`Api::V1::App::Admin::RetentionSettingsController`, `GET`/`PATCH
+/api/v1/app/admin/retention_settings`) renders one row per
+`RetentionPolicyRegistry` entry — never a hand-listed table set in the
+controller — joining in the cached `RetentionSizeSnapshotJob` sizing data and
+the entry's current `AppSetting` value. Each row shows the table's current
+row count/byte size, its projected max size at the configured retention (or
+"Unbounded" when the setting is `0`), and, when available-space data exists,
+that max size as a percentage of available space; when available space is
+`unknown` the page surfaces the `retention_available_space_override_gb`
+input inline instead of a blank comparison. Each row edits its own retention
+window independently (a numeric input plus an "infinite retention" toggle
+that zeroes the value) rather than one flat form, since the settings are
+unrelated to each other. `update` validates against the same
+`AppSettingRegistry`-derived numericality bounds as every other retention
+setting, so `0` is always accepted as the infinite sentinel. This page covers
+only the DB-table entries in the registry; the existing walkthrough-video
+retention/budget settings documented above stay on `/settings/edit`.

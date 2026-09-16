@@ -197,6 +197,9 @@ de:
       unknown_secret: "Unbekanntes Geheimnis."
       secret_cleared: "%{label} gelöscht."
 
+    admin_retention_settings:
+      updated: "Aufbewahrungseinstellungen aktualisiert."
+
     direct_jobs:
       repository_not_found: "Repository nicht gefunden oder nicht aktiv."
       prompt_blank: "Prompt darf nicht leer sein."
