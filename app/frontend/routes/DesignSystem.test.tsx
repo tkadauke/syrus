@@ -118,6 +118,37 @@ describe("DesignSystemRoute", () => {
     expect(screen.getByText("font-sans")).toBeInTheDocument()
   })
 
+  it("never lets a long typography value squeeze its label unreadable or overflow its card", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(consoleThemePayload()))
+
+    renderRoute("/design_system?theme_id=9")
+
+    await waitFor(() => {
+      expect(screen.getByText('Previewing "Console" — shown on this page only. The rest of the app keeps your active theme.')).toBeInTheDocument()
+    })
+
+    const label = screen.getByText("font-sans")
+    const value = screen.getByText("ui-monospace, SFMono-Regular, monospace")
+
+    // The label never shares the value's shrink/truncate treatment, so a long
+    // font-stack string can't crush it down to an illegible "f…".
+    expect(label.className).toContain("shrink-0")
+    expect(label.className).not.toContain("truncate")
+
+    // The value truncates on its own, inside a grid card constrained to
+    // min-w-0 -- so a long value ellipsizes within its card instead of
+    // forcing the card (and the page) wider than the viewport.
+    expect(value.className).toContain("min-w-0")
+    expect(value.className).toContain("truncate")
+    expect(value.getAttribute("title")).toBe("ui-monospace, SFMono-Regular, monospace")
+
+    const card = label.closest("div.rounded")
+    expect(card?.className).toContain("min-w-0")
+
+    const grid = card?.parentElement
+    expect(grid?.className).toContain("grid-cols-1")
+  })
+
   it("scopes a non-color ?theme_id preview's shape/spacing/typography tokens to the page's own container", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(consoleThemePayload()))
 
