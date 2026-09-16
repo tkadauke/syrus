@@ -479,9 +479,9 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
               type="button"
             >
               <span className="flex items-start gap-2">
-                <span className="flex shrink-0 flex-col items-start gap-1">
+                <span className="flex w-20 shrink-0 flex-col items-start gap-1">
                   <span className="font-mono text-xs font-semibold text-gray-500 dark:text-gray-400">{item.slug}</span>
-                  {item.state ? <StatusPill state={item.state} /> : null}
+                  {item.state ? <StatusPill state={item.state} wrap /> : null}
                 </span>
                 <span className="min-w-0 flex-1 break-words leading-snug">{item.title}</span>
                 <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{index + 1}</span>
