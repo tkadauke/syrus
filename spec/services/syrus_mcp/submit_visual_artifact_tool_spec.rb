@@ -40,6 +40,14 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     expect(entries.first["type"]).to match(/\Avisual_review_screenshot_run_#{run.id}_1\z/)
   end
 
+  it "echoes the resolved artifact type back in the response so it can be referenced from submit_report" do
+    response = call
+
+    stored_type = run.workflow.reload.artifact("typed_artifacts").first["type"]
+    expect(response.content.first[:text]).to include(stored_type)
+    expect(response.content.first[:text]).to include("submit_report")
+  end
+
   it "attaches the decoded image bytes to the workflow" do
     call
 

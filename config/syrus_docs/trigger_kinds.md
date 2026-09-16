@@ -64,9 +64,14 @@ is the normal, successful outcome. `investigate` invokes the agent with
 `Prompts::Investigation` (the operator's prompt plus the standard
 safety/context blocks) but, unlike `implement`/`run_skill`, never commits,
 captures a diff, or calls `raise_no_changes_produced!` — it is read-only, the
-same as `AgentInsights::RunStep`. `submit_report` then resumes the
+same as `AgentInsights::RunStep`. Its agent role defaults to
+`AgentRole::WORKFLOW_IMPLEMENT`, so it keeps the browser MCP tools,
+`start_preview`/`stop_preview`, and `submit_artifact`/`submit_visual_artifact`
+for capturing evidence along the way. `submit_report` then resumes the
 `investigate` session and asks the agent to call the `submit_report` MCP tool
-with a narrative report (`title`, `narrative`, optional `findings`), stored
+with a narrative report (`title`, `narrative`, optional `findings`, and an
+optional ordered `references` list pointing back at artifacts/screenshots
+already submitted this run by `type`), stored
 on `Workflow#artifacts["investigation_report"]`; the step raises
 `Steps::Base::StepFailed` if the agent never calls it, the same
 required-tool-call pattern `test_plan`/`summarize` use. Success is always

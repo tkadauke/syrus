@@ -12,8 +12,8 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
   end
   let(:run) { job.workflows.last.first_step.runs.first }
 
-  def call(title: "Dashboard slowness", narrative: "It's slow because of an N+1 query.", findings: nil)
-    described_class.call(title: title, narrative: narrative, findings: findings, server_context: { run: run })
+  def call(title: "Dashboard slowness", narrative: "It's slow because of an N+1 query.", findings: nil, references: nil)
+    described_class.call(title: title, narrative: narrative, findings: findings, references: references, server_context: { run: run })
   end
 
   it "accepts a run_id-only sidecar context" do
@@ -35,14 +35,51 @@ RSpec.describe Mcp::Tools::SubmitReportTool do
     expect(run.workflow.reload.artifact("investigation_report")).to eq(
       "title" => "Dashboard slowness",
       "narrative" => "It's slow because of an N+1 query.",
-      "findings" => [ "N+1 query in DashboardController#index", "Missing index on jobs.repository_id" ]
+      "findings" => [ "N+1 query in DashboardController#index", "Missing index on jobs.repository_id" ],
+      "references" => []
     )
   end
 
-  it "defaults findings to an empty list when omitted" do
+  it "defaults findings and references to empty lists when omitted" do
     call
 
-    expect(run.workflow.reload.artifact("investigation_report")["findings"]).to eq([])
+    artifact = run.workflow.reload.artifact("investigation_report")
+    expect(artifact["findings"]).to eq([])
+    expect(artifact["references"]).to eq([])
+  end
+
+  it "persists an ordered list of references to artifacts already submitted this run" do
+    run.workflow.set_typed_artifact!(type: "n_plus_one_query_log", title: "Query log", payload: { rows: 42 })
+    run.workflow.set_typed_artifact!(type: "dashboard_screenshot_run_#{run.id}_1", title: "Dashboard screenshot", original_type: "dashboard_screenshot", renderer_type: :image_diff, payload: {})
+
+    call(references: [
+      { type: "n_plus_one_query_log", caption: "The offending query" },
+      { type: "dashboard_screenshot" }
+    ])
+
+    artifact = run.workflow.reload.artifact("investigation_report")
+    expect(artifact["references"]).to eq(
+      [
+        { "type" => "n_plus_one_query_log", "caption" => "The offending query" },
+        { "type" => "dashboard_screenshot" }
+      ]
+    )
+  end
+
+  it "rejects a reference whose type was never submitted this run" do
+    response = call(references: [ { type: "nonexistent_artifact" } ])
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("nonexistent_artifact")
+    expect(response.content.first[:text]).to include("does not match any artifact")
+    expect(run.workflow.reload.artifact("investigation_report")).to be_nil
+  end
+
+  it "rejects a reference with a blank type" do
+    response = call(references: [ { type: "  " } ])
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("references[].type is required")
   end
 
   it "normalizes binary-tagged UTF-8 and truncates oversized fields" do

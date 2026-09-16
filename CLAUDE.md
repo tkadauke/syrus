@@ -430,6 +430,13 @@ registered fork;
 `submit_test_plan(steps, notes)`, and
 `submit_review_plan(items, summary)` — write to Workflow `artifacts` and
 append `JobLog` audit lines;
+`submit_report(title, narrative, findings, references)` — used by the
+`submit_report` step of `investigation` Workflows to store the Job's
+no-PR narrative deliverable on `Workflow#artifacts["investigation_report"]`;
+`references` is an ordered list of `{ type, caption }` pointers back at
+evidence already captured this run via `submit_artifact`/
+`submit_visual_artifact` — each `type` must match an existing
+`typed_artifacts` entry, so the report can never carry a dangling pointer;
 `submit_artifact(type, title, payload)` — store a typed, named structured artifact
 under `Workflow#artifacts["typed_artifacts"]`; idempotent on `type` (replaces any
 prior entry with the same type); available to implement, summarize/test-plan, and
