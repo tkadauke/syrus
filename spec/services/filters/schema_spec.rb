@@ -25,6 +25,7 @@ RSpec.describe Filters::Schema do
       expect(schema["bucket"]).to eq("enum")
       expect(schema["operators"]).to include("is", "is_one_of", "is_set")
       expect(schema["values"]).to eq([
+        { "value" => "agy",    "label" => "Antigravity" },
         { "value" => "claude", "label" => "Claude" },
         { "value" => "codex",  "label" => "Codex" }
       ])

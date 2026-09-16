@@ -7,7 +7,7 @@ module Filters
         column :agent_provider
 
         def self.values
-          User.agent_providers
+          User.agent_providers.map { |key| key == "agy" ? { "value" => key, "label" => "Antigravity" } : key }
         end
 
         def apply
