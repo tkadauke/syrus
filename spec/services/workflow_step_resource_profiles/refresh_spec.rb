@@ -407,7 +407,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       repository: repository,
       duration: 1_000,
       cpu: 99.0,
-      finished_at: now - RunResourceSummary::RETAIN_AFTER - 1.second
+      finished_at: now - RunResourceSummary.retention_window - 1.second
     )
 
     described_class.new(now: now).refresh_all!

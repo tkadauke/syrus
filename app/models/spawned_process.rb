@@ -1,5 +1,8 @@
 class SpawnedProcess < ApplicationRecord
   include TracksFinishedAt
+  include HasConfigurableRetention
+
+  configurable_retention setting_key: :spawned_process_retention_days, unit: :days
 
   # The strict set of process kinds we know how to handle. Adding a
   # new kind means appending it here AND wiring the caller to pass
@@ -47,6 +50,12 @@ class SpawnedProcess < ApplicationRecord
   }
   scope :recent_or_active, ->(window = 1.hour) {
     where("finished_at IS NULL OR finished_at >= ?", window.ago)
+  }
+  scope :prunable, -> {
+    cutoff = retention_cutoff
+    next none unless cutoff
+
+    finished.where("finished_at < ?", cutoff)
   }
 
   def stale?(threshold = STALE_THRESHOLD)

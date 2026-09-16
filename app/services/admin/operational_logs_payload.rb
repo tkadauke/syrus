@@ -20,7 +20,7 @@ module Admin
 
       {
         enabled: true,
-        retention_seconds: OperationalLogEvent::RETENTION.to_i,
+        retention_seconds: (OperationalLogEvent.retention_window || 0).to_i,
         current_revision: current_revision,
         revision_scope: normalized.fetch(:revision_scope),
         filter_schema: filter_definition.schema,
@@ -49,7 +49,7 @@ module Admin
           code: "operational_log_indexing_disabled",
           message: "Operational log indexing is disabled for this instance."
         },
-        retention_seconds: OperationalLogEvent::RETENTION.to_i,
+        retention_seconds: (OperationalLogEvent.retention_window || 0).to_i,
         current_revision: current_revision,
         revision_scope: revision_scope,
         filter_schema: filter_definition.schema,
@@ -124,11 +124,11 @@ module Admin
     end
 
     def since_time
-      parsed_time(:since, default: 1.hour.ago, floor: OperationalLogEvent::RETENTION.ago)
+      parsed_time(:since, default: 1.hour.ago, floor: OperationalLogEvent.retention_floor)
     end
 
     def until_time
-      parsed_time(:until, default: nil, floor: OperationalLogEvent::RETENTION.ago)
+      parsed_time(:until, default: nil, floor: OperationalLogEvent.retention_floor)
     end
 
     def parsed_time(key, default:, floor:)

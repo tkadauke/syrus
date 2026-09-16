@@ -7,7 +7,9 @@ module MetricsDashboard
   class Sample < ApplicationRecord
     self.table_name = "metrics_dashboard_samples"
 
-    RETENTION = 30.days
+    include HasConfigurableRetention
+
+    configurable_retention setting_key: :metrics_dashboard_sample_retention_days, unit: :days
 
     validates :metric, :recorded_at, presence: true
     validates :value, presence: true
@@ -21,7 +23,10 @@ module MetricsDashboard
 
     scope :since, ->(time) { where(recorded_at: time..) }
     scope :for_metric, ->(metric) { where(metric: metric) }
-    scope :prunable, -> { where(recorded_at: ...RETENTION.ago) }
+    scope :prunable, -> {
+      cutoff = retention_cutoff
+      cutoff ? where(recorded_at: ...cutoff) : none
+    }
 
     # MySQL 8 rejects defaults on JSON columns, so the default is seeded here
     # rather than in the schema (see CLAUDE.md).

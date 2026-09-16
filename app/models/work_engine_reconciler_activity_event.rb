@@ -1,7 +1,8 @@
 class WorkEngineReconcilerActivityEvent < ApplicationRecord
   include ObservabilityEventRecord
+  include HasConfigurableRetention
 
-  RETAIN_AFTER = 7.days
+  configurable_retention setting_key: :work_engine_reconciler_activity_retention_days, unit: :days
 
   EVENT_TYPES = %w[run_started issues_detected repair_planned repair_executed run_finished run_failed].freeze
   SEVERITIES = %w[info warn error alarm].freeze
@@ -22,7 +23,10 @@ class WorkEngineReconcilerActivityEvent < ApplicationRecord
   before_update { raise ActiveRecord::ReadOnlyRecord, "WorkEngineReconcilerActivityEvent is append-only" }
   before_destroy { raise ActiveRecord::ReadOnlyRecord, "WorkEngineReconcilerActivityEvent is append-only" unless destroyed_by_association }
 
-  scope :prunable, -> { where("occurred_at < ?", RETAIN_AFTER.ago) }
+  scope :prunable, -> {
+    cutoff = retention_cutoff
+    cutoff ? where("occurred_at < ?", cutoff) : none
+  }
 
   def self.record!(event_type:, source:, message:, severity: "info", occurred_at: Time.current, job_id: nil, workflow_id: nil, step_id: nil, run_id: nil, issue_kind: nil, repair_action: nil, repair_status: nil, details: {})
     attrs = {

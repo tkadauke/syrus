@@ -77,7 +77,11 @@ module WorkflowStepResourceProfiles
     end
 
     def input_retain_after
-      [ WorkflowStepResourceProfile::INPUT_RETAIN_AFTER, RunResourceSummary::RETAIN_AFTER ].min
+      windows = [ WorkflowStepResourceProfile.input_retention_window, RunResourceSummary.retention_window ].compact
+      # Both settings default finite; if an operator sets both to infinite (0)
+      # there's no real window to bound the input query by, so fall back to a
+      # generously large one rather than dividing by/comparing against nil.
+      windows.empty? ? 100.years : windows.min
     end
 
     def grouped_inputs(summaries)
@@ -378,7 +382,7 @@ module WorkflowStepResourceProfiles
     end
 
     def span_sample_ranges_by_hostname(summaries)
-      retained_since = now - WorkerHostHealthSample::RETAIN_AFTER
+      retained_since = WorkerHostHealthSample.retention_floor(now: now)
       intervals_by_hostname = Hash.new { |hash, hostname| hash[hostname] = [] }
 
       summaries.each do |summary|

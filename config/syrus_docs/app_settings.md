@@ -219,3 +219,59 @@ The bot token used by the `discord` plugin's Gateway connector (`Discord::Gatewa
 **Type:** integer · **Default:** 0 (unlimited) · `0` = disabled
 
 Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a writable full clone plus installed dependencies, commonly 1–2 GB), measured in megabytes. When retained checkouts exceed the budget, `WorkflowWorkspacePruneJob` calls `ChatWorkspace.reclaim_coding_over_budget!` to LRU-evict the least-recently-active ones until total on-disk size is under budget — after safely backing up any un-pushed / uncommitted work to the remote (see the Coding Mode docs). `0` disables the size cap; the idle-reclaim window (`ChatWorkspace::RECLAIM_IDLE_CODING_AFTER`, 48 h) and reclaim-on-handoff still apply. Set this on busy instances where coding chats would otherwise fill the worker's data volume. `AppSetting.chat_coding_workspace_budget_bytes` converts it to bytes.
+
+## Data retention
+
+Per-table DB row retention windows are declared in `RetentionPolicyRegistry`
+(`app/models/retention_policy_registry.rb`), not hand-listed here or in
+`AppSettingRegistry` — `AppSettingRegistry::DEFINITIONS` folds each entry in
+as an admin-editable integer setting (`RetentionPolicyRegistry::Definition#as_app_setting_definition`),
+so validations and admin metadata stay in sync automatically. Every setting
+follows the same `0` = infinite retention convention as
+`video_storage_budget_mb`: a `0` value means the corresponding scope returns
+`.none` and the PruneJob is a no-op. Models include the shared
+`HasConfigurableRetention` concern and declare `configurable_retention
+setting_key:, unit:` once; the concern exposes `retention_window` (nil when
+infinite) and `retention_cutoff` (a `Time`, nil when infinite) as class
+methods.
+
+Scope is limited to DB-table row retention (MySQL/SQLite). Disk/blob-based
+retention (`WorkflowWorkspacePruneJob`'s workspace-directory constants,
+`ChatWorkspace::RECLAIM_IDLE_CODING_AFTER`, `CoverageHitMapTtlPruneJob::TTL_DAYS`,
+and the video walkthrough settings documented above) is out of scope and
+stays fixed or on its own settings.
+
+| Setting | Default | Unit | Table | PruneJob |
+| --- | --- | --- | --- | --- |
+| `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` |
+| `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` |
+| `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` |
+| `work_engine_reconciler_activity_retention_days` | 7 | days | `work_engine_reconciler_activity_events` | `WorkEngineReconcilerActivityPruneJob` |
+| `provider_session_retention_days` | 14 | days | `provider_sessions` | `ProviderSessionPruneJob` |
+| `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` |
+| `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` |
+| `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` |
+| `metrics_dashboard_sample_retention_days` | 30 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` |
+| `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` |
+| `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` |
+| `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` |
+| `workflow_step_resource_profile_input_retention_days` | 180 | days | (lookback only — see below) | none |
+
+Two entries are worth calling out:
+
+- **`operational_log_event_retention_hours`** is Syrus's own operational log
+  index — a high-volume, short-lived table — so its unit is hours, not days.
+  `OperationalLogEvent.retention_floor(now:)` clamps "since"/"floor" query
+  defaults across `OperationalLogIndex`, `OperationalLogSearch`, and
+  `Admin::OperationalLogsPayload` to the configured window (or the epoch, when
+  infinite) instead of assuming data always exists back to a fixed constant.
+- **`workflow_step_resource_profile_input_retention_days`** does not back a
+  deletion scope or PruneJob. It bounds how far back
+  `WorkflowStepResourceProfiles::Refresh` looks at `RunResourceSummary` rows
+  when rebuilding prediction profiles — a lookback window, not a retention
+  window — via `WorkflowStepResourceProfile.input_retention_window`. The
+  profile *rows* themselves are governed by the sibling
+  `workflow_step_resource_profile_retention_days` setting and the `.stale`
+  scope (already pruned inline by `WorkflowStepResourceProfileRefreshJob`;
+  `WorkflowStepResourceProfilePruneJob` is an independently schedulable
+  safety net on top of that).

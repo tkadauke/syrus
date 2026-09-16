@@ -97,4 +97,54 @@ RSpec.describe WorkflowStepResourceProfile do
       prediction_source: "host_correlated"
     )
   end
+
+  describe ".stale / .stale_as_of scope" do
+    def persisted_profile(last_observed_at:, sha: SecureRandom.hex(4))
+      described_class.create!(
+        repository: repository,
+        agent_provider: "codex",
+        trigger_kind: "initial",
+        step_kind: "implement_#{sha}",
+        grader_name: "",
+        job_kind: "issue",
+        sample_count: 40,
+        attributed_sample_count: 0,
+        process_attributed_sample_count: 0,
+        host_pressure_sample_count: 40,
+        attribution_quality: "host_correlated",
+        timeout_rate: 0.0,
+        failure_rate: 0.0,
+        last_observed_at: last_observed_at,
+        profile_version: described_class::PROFILE_VERSION
+      )
+    end
+
+    it "includes profiles older than the retention window" do
+      old = persisted_profile(last_observed_at: (described_class.retention_window + 1.day).ago)
+      fresh = persisted_profile(last_observed_at: 1.day.ago)
+
+      expect(described_class.stale).to include(old)
+      expect(described_class.stale).not_to include(fresh)
+    end
+
+    it "returns none when retention is set to 0 (infinite)" do
+      AppSetting.current.update!(workflow_step_resource_profile_retention_days: 0)
+      old = persisted_profile(last_observed_at: 10.years.ago)
+
+      expect(described_class.stale).to be_empty
+      expect(described_class.exists?(old.id)).to be true
+    end
+  end
+
+  describe ".input_retention_window" do
+    it "defaults to 180 days" do
+      expect(described_class.input_retention_window).to eq(180.days)
+    end
+
+    it "returns nil when set to 0 (infinite)" do
+      AppSetting.current.update!(workflow_step_resource_profile_input_retention_days: 0)
+
+      expect(described_class.input_retention_window).to be_nil
+    end
+  end
 end

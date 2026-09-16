@@ -92,6 +92,7 @@ RSpec.describe OperationalLogIndex do
 
   it "rebuilds in batched transactions instead of one transaction per row" do
     events = 3.times.map { |i| event(message: "event #{i}", occurred_at: (i + 1).minutes.ago) }
+    AppSetting.current # warm the singleton row so retention_floor's lookup below doesn't add a stray transaction
 
     transaction_count = 0
     callback = lambda do |_name, _started, _finished, _id, payload|

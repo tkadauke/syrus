@@ -44,7 +44,7 @@ class AppSettingRegistry
     end
   end
 
-  DEFINITIONS = [
+  BASE_DEFINITIONS = [
     Definition.new(
       key: :grade_max_iterations,
       type: :integer,
@@ -514,6 +514,12 @@ class AppSettingRegistry
       secret: false
     )
   ].freeze
+
+  # RetentionPolicyRegistry is the declarative source of truth for
+  # per-table retention windows; folding its entries in here means the
+  # numericality validation and admin-editable metadata below apply to
+  # every retention setting automatically instead of being hand-listed.
+  DEFINITIONS = (BASE_DEFINITIONS + RetentionPolicyRegistry.definitions.map(&:as_app_setting_definition)).freeze
 
   BY_KEY = DEFINITIONS.index_by(&:key).freeze
 

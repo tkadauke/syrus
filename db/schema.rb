@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_144445) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -180,20 +180,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
     t.string "github_app_slug"
     t.integer "grade_max_iterations", default: 5, null: false
     t.string "main_branch_breakage_policy", default: "strict", null: false
+    t.integer "main_branch_health_check_retention_days", default: 7, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_concurrent_agent_runs", default: 0, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "merge_train_enabled", default: false, null: false
     t.integer "merge_train_max_size", default: 20, null: false
+    t.integer "metrics_dashboard_sample_retention_days", default: 30, null: false
     t.string "mode", default: "advanced"
     t.datetime "mode_configured_at"
+    t.integer "notification_retention_days", default: 30, null: false
+    t.integer "operational_log_event_retention_hours", default: 6, null: false
     t.boolean "polling_paused", default: false, null: false
     t.integer "proactive_rebase_commit_threshold", default: 20, null: false
+    t.integer "provider_session_retention_days", default: 14, null: false
     t.integer "rebase_failure_cooldown_minutes", default: 60, null: false
     t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
+    t.integer "run_diagnostic_retention_days", default: 30, null: false
+    t.integer "run_health_snapshot_retention_days", default: 7, null: false
+    t.integer "run_resource_summary_retention_days", default: 30, null: false
     t.boolean "runs_paused", default: false, null: false
     t.boolean "show_work_unit_debug", default: false, null: false
     t.boolean "signups_open", default: false, null: false
+    t.integer "spawned_process_retention_days", default: 7, null: false
     t.string "telegram_bot_handle"
     t.text "telegram_bot_token"
     t.integer "telegram_update_offset", default: 0
@@ -201,10 +210,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
     t.integer "user_daily_spend_budget_usd", default: 0, null: false
     t.integer "video_retention_days", default: 7, null: false
     t.integer "video_storage_budget_mb", default: 2048, null: false
+    t.integer "work_engine_reconciler_activity_retention_days", default: 7, null: false
+    t.integer "worker_host_health_sample_retention_days", default: 7, null: false
     t.datetime "workflow_admission_control_changed_at"
     t.integer "workflow_admission_control_changed_by_user_id"
     t.boolean "workflow_admission_control_enabled", default: true, null: false
     t.string "workflow_admission_policy", default: "whole_workflow", null: false
+    t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
+    t.integer "workflow_step_resource_profile_retention_days", default: 180, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
   end
@@ -3002,7 +3015,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", default: {"elements" => []}, null: false
+    t.json "scene_json", default: { "elements" => [] }, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true

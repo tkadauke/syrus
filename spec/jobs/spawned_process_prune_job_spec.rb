@@ -21,6 +21,15 @@ RSpec.describe SpawnedProcessPruneJob do
     expect(SpawnedProcess.where(id: [ fresh.id, running.id ]).count).to eq(2)
   end
 
+  it "is a no-op when retention is set to 0 (infinite)" do
+    AppSetting.current.update!(spawned_process_retention_days: 0)
+    old = fixture(finished_at: 10.years.ago, outcome: "succeeded", exit_status: 0)
+
+    described_class.perform_now
+
+    expect(SpawnedProcess.exists?(old.id)).to be true
+  end
+
   # command_spans.spawned_process_id carries a real foreign key, and delete_all
   # skips the association's `dependent: :nullify`. In production this aborted
   # every sweep with ActiveRecord::InvalidForeignKey, so the table never got
