@@ -170,6 +170,7 @@ describe("MockupsPage", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Link copied to clipboard")
   })
 
+
   it("stacks the list and preview until the wide breakpoint", async () => {
     mockMockupsFetch()
 
