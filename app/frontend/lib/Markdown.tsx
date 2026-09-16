@@ -25,6 +25,59 @@ export function PlainText({ className, text }: { className?: string; text: strin
   return <div className={className}>{text}</div>
 }
 
+// Shared "light markdown" preview renderer for truncated content cards
+// (memory tool cards, Epic/Job/Design-Doc preview cards, etc). Unlike
+// `Markdown`, it never produces block elements or literal line breaks: block
+// markup (headings, list/blockquote markers, code fences, horizontal rules)
+// is stripped and every non-blank line is joined into one flowing string, so
+// a caller can safely bound the result with CSS `line-clamp-N` — wrapping is
+// purely a function of container width, not literal newlines fighting the
+// clamp. Headings render bold instead of as header elements. Light inline
+// emphasis (bold/italic/inline code) still renders via the same inline
+// tokenizer `Markdown` uses; math rendering is skipped.
+export function renderLightMarkdown(text: string, options: { linkifySlugs?: boolean } = {}): ReactNode[] {
+  const flattened = flattenLightMarkdown(text)
+  return renderInline(flattened, { linkifySlugs: options.linkifySlugs, renderMath: false })
+}
+
+function flattenLightMarkdown(text: string): string {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n")
+  const segments: string[] = []
+  let inFence = false
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence
+      continue
+    }
+
+    if (inFence) {
+      if (line.trim() !== "") segments.push(line.trim())
+      continue
+    }
+
+    if (line.trim() === "") continue
+    if (/^\s*(?:---+|\*\*\*+)\s*$/.test(line)) continue
+
+    const heading = line.match(/^\s*#{1,6}\s+(.+)$/)
+    if (heading) {
+      segments.push(`**${heading[1].trim()}**`)
+      continue
+    }
+
+    let content = line
+    while (/^\s*>\s?/.test(content)) content = content.replace(/^\s*>\s?/, "")
+
+    const list = content.match(/^\s*(?:[-*+]|\d+[.)])\s+(.+)$/)
+    if (list) content = list[1]
+
+    content = content.trim()
+    if (content) segments.push(content)
+  }
+
+  return segments.join(" ")
+}
+
 function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNode[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n")
   const blocks: ReactNode[] = []
