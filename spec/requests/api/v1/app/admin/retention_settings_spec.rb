@@ -109,7 +109,7 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     expect(AppSetting.current.reload.notification_retention_days).to eq(30)
   end
 
-  it "updates the manual available-space override" do
+  it "updates the manual available-space override and immediately reflects it in available_space, without waiting for the snapshot job to rerun" do
     sign_in_as(admin)
 
     patch "/api/v1/app/admin/retention_settings", params: {
@@ -119,6 +119,17 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.retention_available_space_override_gb).to eq(500)
     expect(parse_body["retention_available_space_override_gb"]).to eq(500)
+    expect(parse_body["available_space"]).to include(
+      "available_bytes" => 500.gigabytes,
+      "source" => "manual"
+    )
+
+    get "/api/v1/app/admin/retention_settings"
+
+    expect(parse_body["available_space"]).to include(
+      "available_bytes" => 500.gigabytes,
+      "source" => "manual"
+    )
   end
 
   it "ignores unregistered keys" do
