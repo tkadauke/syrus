@@ -614,9 +614,16 @@ module WorkEngine
         start_run!(run, outcome)
         case outcome_status(outcome)
         when "success"
-          simulate_side_effects!(run, outcome)
-          finish_simulated_processes!(run, "succeeded")
-          succeed_run_and_step!(run)
+          if simulate_side_effects!(run, outcome) == :failed
+            finish_simulated_processes!(run, "failed")
+            fail_run!(run, agent_outcome: "error",
+                           failure_code: simulated_failure_code(outcome),
+                           error_message: simulated_outcome_field(outcome, "error_message"),
+                           error_class: simulated_outcome_field(outcome, "error_class"))
+          else
+            finish_simulated_processes!(run, "succeeded")
+            succeed_run_and_step!(run)
+          end
         when "pending"
           # Leave the run active for another tick. This lets scenarios model
           # parallel fanout where one grader is still running while another
@@ -762,6 +769,8 @@ module WorkEngine
         when "auto_merge"
           close_job_if_possible!(job, "pr_merged")
         when "merge_train_land", "merge_train_land_after_rebase"
+          return mark_merge_train_members_unverified!(run, outcome) if simulated_outcome_field(outcome, "unverified_members").present?
+
           close_merge_train_members!(run)
         when "stack_auto_rebase"
           simulate_stack_auto_rebase!(run, outcome)
@@ -802,9 +811,32 @@ module WorkEngine
 
       def close_merge_train_members!(run)
         train = MergeTrain.find_by(id: run.workflow.artifact("merge_train_id"))
+        train&.members&.find_each { |member| member.update!(state: "merged") }
         member_jobs = train&.member_jobs&.to_a.presence || run.workflow.work_unit&.member_jobs&.to_a || [ run.job ]
         member_jobs.compact.each { |member_job| close_job_if_possible!(member_job, "pr_merged") }
         train&.update!(state: "succeeded", finished_at: Time.current) unless train&.state == "succeeded"
+      end
+
+      def mark_merge_train_members_unverified!(run, outcome)
+        train = MergeTrain.find_by(id: run.workflow.artifact("merge_train_id"))
+        return :failed unless train
+
+        configured = Array(simulated_outcome_field(outcome, "unverified_members")).map(&:to_s)
+        members = if configured.empty?
+          train.members.to_a
+        elsif configured.include?("all")
+          train.members.to_a
+        else
+          train.members.includes(:job).select { |member| configured.include?(member.job_id.to_s) || configured.include?(member.job&.slug.to_s) }
+        end
+        members = train.members.to_a if members.empty?
+
+        slugs = members.filter_map { |member| member.job&.slug }
+        reason = simulated_outcome_field(outcome, "error_message").presence ||
+          "merge_train: landed integration #{train.integration_sha.to_s.first(9)} but could not verify #{slugs.size}/#{train.members.size} member(s): #{slugs.join(', ')}; needs re-landing"
+        members.each { |member| member.update!(state: "failed", reason: reason.truncate(500)) }
+        train.update!(state: "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
+        :failed
       end
 
       def close_job_if_possible!(job, reason)

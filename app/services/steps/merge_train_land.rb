@@ -502,6 +502,7 @@ module Steps
                "#{slugs.size}/#{train.members.size} member(s): #{slugs.join(', ')}; needs re-landing"
       train.update!(state: "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
       log(reason, kind: "system")
+      fail_with!(:merge_train_rebuild_required, reason)
     end
 
     # There is no integration PR when the branch turned out to already be on

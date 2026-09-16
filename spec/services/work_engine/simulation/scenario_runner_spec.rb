@@ -134,6 +134,19 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("merge_train_land")
   end
 
+  it "does not let unverified merge-train member reconciliation become a false-green workflow" do
+    result = run_scenario("merge_train_unverified_member_fails_land_step")
+
+    expect(result).to be_success
+    job = Job.find(result.job_ids.first)
+    expect(job).to be_closed
+    workflows = job.workflows.where(trigger_kind: "merge_train").order(:id).to_a
+    expect(workflows.first).to be_failed
+    expect(workflows.first.steps.find_by!(kind: "merge_train_land")).to be_failed
+    expect(workflows.last).to be_succeeded
+    expect(MergeTrainMember.where(job: job).pluck(:state)).to include("failed", "merged")
+  end
+
   it "rebuilds a terminal bundle train even when the poisoned workflow still owns runtime" do
     result = run_scenario("terminal_bundle_train_final_fix_rebuilds")
 

@@ -853,9 +853,10 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
           .with("merge-base", "--is-ancestor", "a-landed-1", "basesha123", chdir: "/tmp/ws")
           .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not an ancestor"))
 
-        handler.call
+        expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not verify 1\/1 member/)
 
         expect(a.reload.state).not_to eq("closed")
+        expect(train.reload.state).to eq("failed")
       end
 
       it "closes a member whose commits are on base" do
@@ -929,7 +930,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       it "treats a clean exit 1 as a genuine 'did not land' and does not close the member" do
         handler, a, _train = land_with_ancestry_error(1)
 
-        handler.call
+        expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not verify 1\/1 member/)
 
         expect(a.reload.state).not_to eq("closed")
       end
@@ -955,7 +956,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         handler, a, train = land_with_ancestry_error(128)
         LandedCommit.where(landable: a).update_all(created_at: handler.workflow.created_at - 1.hour)
 
-        handler.call
+        expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not verify 1\/1 member/)
 
         expect(a.reload.state).not_to eq("closed")
         expect(train.members.find_by(job: a).state).not_to eq("merged")
@@ -1064,7 +1065,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(client).to receive(:merge_pull_request)
         .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
 
-      handler.call
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not verify 1\/2 member/)
 
       expect(a.reload).not_to be_closed
       expect(a.landed_sha).to be_nil
@@ -1101,7 +1102,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(client).to receive(:merge_pull_request)
         .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
 
-      handler.call
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not verify 1\/1 member/)
 
       expect(a.reload).not_to be_closed
       expect(train.members.find_by(job: a).state).to eq("failed")
@@ -1195,7 +1196,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(client).to receive(:merge_pull_request)
         .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
 
-      handler.call
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not verify 1\/1 member/)
 
       expect(a.reload).not_to be_closed
       expect(train.members.find_by(job: a).state).to eq("failed")
