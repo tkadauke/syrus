@@ -2475,6 +2475,9 @@ describe("ArtifactsTab", () => {
     expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
   })
 
+})
+
+describe("ReportTab", () => {
   it("labels the primary tab Report and hides the Review tab for an investigation Job", () => {
     renderJobDetail(jobPayload({ job: { ...baseJob(), investigation: true } }))
 

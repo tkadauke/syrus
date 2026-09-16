@@ -92,6 +92,16 @@ failed `investigate`/`submit_report` step leaves the Job on the normal
 `:failed` → Retry path instead of always closing, since investigation Jobs
 are operator-facing, not infrastructure.
 
+**Job detail rendering:** an investigation Job (`Job#investigation?`) has no
+PR, so the Job detail page's primary tab (still `?tab=summary`, the id is
+unchanged) renders a Report view instead of the PR-shaped Summary tab, and
+the PR-only Review tab is hidden entirely. `App::JobDetailPayload#report`
+surfaces the submitted `investigation_report` artifact (`title`, `narrative`,
+`findings`, and `references` resolved against the run's `typed_artifacts`)
+for the frontend's `ReportTab` (`app/frontend/routes/jobDetail/Report.tsx`)
+to render, inlining referenced screenshots/artifacts with the same
+`ArtifactBody` renderer the Artifacts tab uses.
+
 ## pr_comment
 
 **When it fires:** New non-Syrus-bot review comments appear on the Job's PR since the last addressed comment.
