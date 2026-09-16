@@ -257,6 +257,61 @@ during a rollout"), which is what keeps this from becoming the per-request
 unbounded case the rest of the allowlist guards against -- see the comment on
 `Syrus::Metrics::TagAllowlist::ALLOWED` for the full reasoning.
 
+### Resilience
+
+| Metric | Meaning |
+|---|---|
+| `syrus_provider_circuit_state{provider}` | circuit state per configured agent provider |
+| `syrus_github_rate_limit_remaining{credential_mode}` | lowest observed GitHub API rate-limit remaining, by credential mode |
+| `syrus_repositories_main_branch_broken_count` | repositories whose default branch health is currently broken |
+
+`Metrics::ResilienceSampler` (`app/services/metrics/resilience_sampler.rb`) owns
+all three, sampled the same GLOBAL, cache-mediated way as the queue-health and
+fleet gauges above -- plain snapshots, no cursor needed, since none of the
+three is a monotonic count. Each corresponds to a failure mode documented
+elsewhere in this codebase as having already happened in production and
+staying invisible outside a Rails console until someone went looking by hand
+-- the same "everything looks fine except the one number that matters" shape
+as the queue-backlog incident that motivated this whole metrics plan.
+
+**`provider_circuit_state`** reads `ProviderCircuitBreaker.call` for every
+provider `User.agent_providers` knows about, not just the ones a user has
+configured -- the same "publish a known key even when it has nothing to
+report" instinct as `Metrics::ProductUsage.preset_all!`, so a closed provider
+reads as an explicit `0` rather than an absent series. `ProviderCircuitBreaker`
+already suppresses automatic retries and CI repair during provider-wide
+transient outages (see `CLAUDE.md` "Failure resilience"). This gauge does not
+implement the classic three-state circuit breaker (closed/half-open/open):
+`ProviderCircuitBreaker` itself only distinguishes closed and open, and splits
+open into an ordinary transient-failure open and a longer-lived usage-limit
+exhaustion open (see `ProviderCircuitBreaker::USAGE_LIMIT_OPEN_FOR`). The
+gauge's three values follow that real distinction instead of inventing a
+half-open state that does not exist in the code: `0` closed, `1` open
+(transient failures), `2` open (usage limit exhausted).
+
+**`github_rate_limit_remaining`** reads the `gh_rate_limit_remaining` column
+GitHub's response headers already persist onto whichever record authenticated
+the request (`GithubClient#persist_rate_limit_headers!`) -- an `Installation`
+for GitHub App auth (`credential_mode="app"`), a `User` for personal-access-token
+auth (`credential_mode="pat"`), matching `Job#credential_mode`'s own values.
+The gauge reports the *lowest* remaining count observed across every
+Installation/User in each mode, because a single exhausted installation or
+user token can stall polling for everything it authenticates just as
+effectively as an instance-wide exhaustion would -- worst case is the
+informative reading here, the same instinct `Metrics::WorkerSampler` uses for
+"one worker at 3277m and another idle at 51m." A credential mode with no
+observation yet (nobody has made a tracked GitHub call under it) is omitted
+rather than reported as `0`, which would misread as "exhausted."
+
+**`repositories_main_branch_broken_count`** counts repositories where
+`Repository#main_health_broken?` is true. `StepDispatcher` pauses every
+workflow on the instance, including landing, while any repository's main
+branch health is broken (`StepDispatcher::MAIN_HEALTH_BLOCK_REASON`, see
+`CLAUDE.md` "Main-branch health & repair") -- this gauge is what makes that
+instance-wide stall condition visible on the dashboard instead of requiring
+someone to notice landing has gone quiet. It reports only a count, never
+repository names or ids, per the cardinality rule below.
+
 ## Aggregating: `max by`, never `sum`
 
 Metrics prefixed `syrus_global_` are **one fact about the whole cluster**, not a
@@ -271,9 +326,11 @@ Summing across pods multiplies the value by the number of pods scraped. The
 `syrus_global_` prefix exists to make that rule legible from the metric name,
 but it is not the only signal: `job_state`, `landing_queue_depth`,
 `queue_table_rows`, `worker_cpu_percent`, `worker_memory_percent`,
-`active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`, and
-`spawned_processes` are every bit as GLOBAL and cache-mediated as the
-`syrus_global_*` gauges, just declared without the prefix -- their
+`active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`,
+`spawned_processes`, `provider_circuit_state`, `github_rate_limit_remaining`,
+and `repositories_main_branch_broken_count` are every bit as GLOBAL and
+cache-mediated as the `syrus_global_*` gauges, just declared without the
+prefix -- their
 `docs/metrics-catalog.md` description ends in `(GLOBAL -- aggregate with max
 by...)` instead. Treat that annotation, not the name, as authoritative.
 
@@ -326,6 +383,11 @@ without a scrubbing pass to get wrong.
 `hostname` and `version` are on the allowlist despite naming a churning
 identifier -- see *Fleet* above for why that is a deliberate, narrow
 exception rather than a precedent for adding more identifiers casually.
+
+`credential_mode` is on the allowlist for `syrus_github_rate_limit_remaining`
+-- a closed, two-value set (`"app"`/`"pat"`, matching `Job#credential_mode`),
+not an identifier, so it does not carry the growth risk `repository`/`user`/
+`sha` are rejected for.
 
 High-cardinality detail belongs in the event tables that already exist for it —
 `mcp_tool_usages`, `performance_log_events` and friends. Metrics do not replace

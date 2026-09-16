@@ -21,6 +21,7 @@ Rails.application.config.to_prepare do
     "Metrics::LandingSampler",
     "Metrics::WorkerSampler",
     "Metrics::FleetSampler",
+    "Metrics::ResilienceSampler",
     "WorkflowAdmissionBudget"
   ].each do |owner|
     owner.constantize
