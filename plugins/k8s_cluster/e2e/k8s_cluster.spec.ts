@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
+import { expectNativePluginSurface } from "../../../e2e/support/pluginNativeUi"
 
 const GENERATED_AT = "2026-01-01T00:00:00Z"
 
@@ -132,6 +133,7 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
 
   await page.goto("/k8s_clusters")
   await expect(page.getByRole("heading", { name: "Kubernetes Clusters" })).toBeVisible()
+  await expectNativePluginSurface(page, "Kubernetes Clusters")
 
   await page.getByLabel("Label", { exact: true }).fill(clusterLabel)
   await page.getByLabel("Kubeconfig", { exact: true }).fill(KUBECONFIG)

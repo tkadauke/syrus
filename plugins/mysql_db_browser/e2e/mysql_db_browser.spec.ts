@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page, type Route } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
+import { expectNativePluginSurface } from "../../../e2e/support/pluginNativeUi"
 
 const DATABASE_NAME = "app_production"
 const TABLE_NAME = "users"
@@ -170,6 +171,7 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
 
   await page.goto("/db_browser")
   await expect(page.getByRole("heading", { name: "DB Browser" })).toBeVisible()
+  await expectNativePluginSurface(page, "DB Browser")
 
   const labelInput = page.getByLabel("Label", { exact: true })
   await expect(labelInput).toHaveAttribute("id", /.+/)

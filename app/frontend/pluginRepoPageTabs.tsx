@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { useLocation, useParams } from "react-router-dom"
 import { fetchRepoPluginTabs } from "./api/repoPluginTabs"
+import { Notice, Page, PageHeader, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {
@@ -56,7 +57,11 @@ export function PluginRepoPageTabRoute() {
   })
 
   if (tabs.isPending) {
-    return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("common:loading")}</main>
+    return (
+      <Page size="narrow">
+        <Notice>{t("common:loading")}</Notice>
+      </Page>
+    )
   }
 
   const tab = tabs.data?.tabs.find((candidate) => candidate.paths.some((path) => path === normalizedPath))
@@ -64,15 +69,17 @@ export function PluginRepoPageTabRoute() {
 
   if (!tab || !Component) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t("plugin_repo_tabs.unavailable_heading")}</h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("plugin_repo_tabs.unavailable_body")}</p>
-      </main>
+      <Page size="narrow">
+        <PageHeader>
+          <PageHeading>{t("plugin_repo_tabs.unavailable_heading")}</PageHeading>
+          <Text>{t("plugin_repo_tabs.unavailable_body")}</Text>
+        </PageHeader>
+      </Page>
     )
   }
 
   return (
-    <Suspense fallback={<main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("common:loading")}</main>}>
+    <Suspense fallback={<Page size="narrow"><Notice>{t("common:loading")}</Notice></Page>}>
       <Component />
     </Suspense>
   )

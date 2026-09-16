@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
+import { expectNativePluginSurface } from "../../../e2e/support/pluginNativeUi"
 
 test("signed-in user can view failing, flaky, and slow tests on a repository's Tests tab", async ({ page }) => {
   await signInAsDemo(page)
@@ -12,6 +13,7 @@ test("signed-in user can view failing, flaky, and slow tests on a repository's T
   // level: 1 disambiguates from the pinned chat's own "demo/syrus-preview"
   // heading (level 2) rendered in the sidebar's "Recent chats" nav.
   await expect(page.getByRole("heading", { name: "demo/syrus-preview", level: 1 })).toBeVisible()
+  await expectNativePluginSurface(page, "demo/syrus-preview")
   await expect(page.getByText("Interesting tests")).toBeVisible()
 
   const failingRow = page.locator("tr").filter({ has: page.getByRole("link", { name: "raises when the discount exceeds the order total" }) })

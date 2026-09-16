@@ -1,11 +1,13 @@
 import { test, expect } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
+import { expectNativePluginSurface } from "../../../e2e/support/pluginNativeUi"
 
 test("signed-in user can create a design doc, comment on it, and see it persist", async ({ page }) => {
   await signInAsDemo(page)
 
   await page.goto("/design_docs")
   await expect(page.getByRole("heading", { name: "Design Docs", level: 1 })).toBeVisible()
+  await expectNativePluginSurface(page, "Design Docs")
 
   await page.getByRole("button", { name: "New doc", exact: true }).click()
   await expect(page).toHaveURL(/\/design_docs\/(\d+)$/)

@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
+import { expectNativePluginSurface } from "../../../e2e/support/pluginNativeUi"
 
 const PERFORMANCE_PATH = "/api/v1/app/admin/performance"
 const REQUEST_PATH = "/api/v1/app/jobs/4430"
@@ -194,6 +195,7 @@ test("Syrus Dev Performance UI drills into a seeded request/run and runs a real 
 
   await page.goto("/admin/performance")
   await expect(page.getByRole("heading", { name: "Performance" })).toBeVisible()
+  await expectNativePluginSurface(page, "Performance")
 
   // Overview tab surfaces the seeded request/run across every summary table.
   await expect(page.getByText(REQUEST_PATH, { exact: false }).first()).toBeVisible()
