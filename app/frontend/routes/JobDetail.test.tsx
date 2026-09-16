@@ -2474,6 +2474,56 @@ describe("ArtifactsTab", () => {
     }), { activeTab: "artifacts" })
     expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
   })
+
+  it("labels the primary tab Report and hides the Review tab for an investigation Job", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), investigation: true } }))
+
+    expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Summary" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Review" })).not.toBeInTheDocument()
+  })
+
+  it("keeps the Summary and Review tabs for a non-investigation Job", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), investigation: false } }))
+
+    expect(screen.getByRole("button", { name: "Summary" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Review" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Report" })).not.toBeInTheDocument()
+  })
+
+  it("renders the submitted investigation report -- narrative, findings, and a referenced artifact -- instead of the PR-shaped Summary tab", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), investigation: true },
+      typed_artifacts: [
+        { type: "dashboard_screenshot", title: "Dashboard screenshot", payload: { image_url: "https://example.com/shot.png" }, created_at: "2026-08-06T10:00:00Z", renderer_type: "image_diff" }
+      ],
+      report: {
+        workflow_id: 9,
+        title: "Dashboard slowness",
+        narrative: "It's slow because of an **N+1 query**.",
+        findings: [ "N+1 query in DashboardController#index" ],
+        references: [
+          {
+            type: "dashboard_screenshot",
+            caption: "The offending screen",
+            artifact: { type: "dashboard_screenshot", title: "Dashboard screenshot", payload: { image_url: "https://example.com/shot.png" }, created_at: "2026-08-06T10:00:00Z", renderer_type: "image_diff" }
+          }
+        ]
+      }
+    }))
+
+    expect(screen.getByRole("heading", { name: "Dashboard slowness" })).toBeInTheDocument()
+    expect(screen.getByText("N+1 query").tagName).toBe("STRONG")
+    expect(screen.getByText("N+1 query in DashboardController#index")).toBeInTheDocument()
+    expect(screen.getByText("The offending screen")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Dashboard screenshot" })).toHaveAttribute("src", "https://example.com/shot.png")
+  })
+
+  it("shows a not-submitted placeholder on the Report view before submit_report runs", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), investigation: true }, report: null }))
+
+    expect(screen.getByText("No report submitted yet.")).toBeInTheDocument()
+  })
 })
 
 describe("PrioritySelector", () => {
@@ -3371,6 +3421,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     coverage: null,
     summary: null,
     test_plan: null,
+    report: null,
     feedback_history: [],
     pending_feedback: [],
     landing_queue_entry: null,
@@ -3492,6 +3543,7 @@ function baseJob(): JobDetailPayload["job"] {
   return {
     id: 1,
     kind: "direct",
+    investigation: false,
     state: "running",
     summary_state: "running",
     priority: "medium",
