@@ -24,6 +24,8 @@ module SyrusMcp
       SubmitArtifactTool,
       RunTargetPrepareTool,
       SubmitVisualArtifactTool,
+      ListArtifactsTool,
+      ReadArtifactTool,
       ::Mcp::Tools::SubmitJobMetadataTool,
       ::Mcp::Tools::SubmitAdversarialReviewTool
     ].freeze

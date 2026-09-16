@@ -256,6 +256,8 @@ class McpToolRegistry
         chat(Mcp::Tools::ListJobWorkflowsTool, tier: :deferred),
         chat(Mcp::Tools::ReadWorkflowTool, tier: :deferred),
         chat(Mcp::Tools::ReadRunTranscriptTool, tier: :deferred),
+        chat(Mcp::Tools::ListArtifactsTool, tier: :deferred),
+        chat(Mcp::Tools::ReadArtifactTool, tier: :deferred),
         chat(Mcp::Tools::ExplainStuckJobTool, tier: :deferred),
         chat(Mcp::Tools::AssignJobToEpicTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ListOpenIssuesTool, tier: :deferred),
@@ -356,6 +358,8 @@ class McpToolRegistry
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
         workflow(SyrusMcp::SubmitVisualArtifactTool, capability: :submit_visual_artifact, required_roles: visual_artifact_roles, mutation: true),
+        workflow(SyrusMcp::ListArtifactsTool, required_roles: visual_artifact_roles),
+        workflow(SyrusMcp::ReadArtifactTool, required_roles: visual_artifact_roles),
         workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, mutation: true),
         workflow(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
           AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
