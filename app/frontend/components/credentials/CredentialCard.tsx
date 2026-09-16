@@ -877,7 +877,7 @@ export function MuseCredentialCard({ payload, onNotice }: CardProps) {
   )
 }
 
-// ---------- Gemini ----------
+// ---------- Antigravity ----------
 
 export function AgyCredentialCard({ payload, onNotice }: CardProps) {
   const { t } = useT("settings")
@@ -908,6 +908,8 @@ export function AgyCredentialCard({ payload, onNotice }: CardProps) {
     </CredentialCard>
   )
 }
+
+// ---------- Gemini ----------
 
 export function GeminiCredentialCard({ payload, onNotice }: CardProps) {
   // settings is the default namespace; the Gemini setup sheet's copy lives in

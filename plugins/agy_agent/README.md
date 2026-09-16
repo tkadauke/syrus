@@ -53,4 +53,4 @@ The helper verifies `agy --version`. If neither `GEMINI_API_KEY` nor `GOOGLE_API
 
 The Antigravity card in Credentials shares the Gemini API key card intentionally: the key remains the durable credential, while the Antigravity card probes whether that key and the local `agy` CLI can run provider turns.
 
-See also `config/syrus_docs/antigravity.md` for the operator-facing setup reference indexed by Syrus docs search.
+See also `docs/syrus_docs/antigravity.md` for the operator-facing setup reference indexed by Syrus docs search.
