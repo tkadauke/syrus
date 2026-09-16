@@ -481,7 +481,7 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
             >
               <span className="flex flex-col gap-1">
                 <span className="min-w-0 break-words leading-snug">{item.title}</span>
-                <MetadataLine className="flex flex-wrap items-center text-xs text-gray-500 dark:text-gray-400">
+                <MetadataLine className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                   {item.state ? <StatusPill state={item.state} wrap /> : null}
                   <span className="font-mono font-semibold text-gray-500 dark:text-gray-400">{item.slug}</span>
                   {item.ownerBadge ? <OwnerBadge badge={item.ownerBadge} /> : null}

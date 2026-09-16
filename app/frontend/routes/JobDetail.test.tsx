@@ -2841,6 +2841,19 @@ describe("Job detail navigation", () => {
     expect(within(singleUserOption).queryByText("jane@example.com")).not.toBeInTheDocument()
   })
 
+  it("adds horizontal and vertical gaps between metadata chips so separators don't glue to text", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    const option = screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })
+    const metadataLine = within(option).getByText("JOB-2").closest("div")
+    expect(metadataLine).toHaveClass("gap-x-1.5", "gap-y-1")
+  })
+
   it("uses the captured snapshot for previous and next navigation", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
