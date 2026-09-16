@@ -238,6 +238,17 @@
       "heading": "Farb-Tokens",
       "description": "Semantische Farb-Custom-Properties, aus denen jede Komponente unten gestaltet ist."
     },
+    "extended_tokens": {
+      "heading": "Erweiterte Tokens",
+      "description": "Nicht-farbliche Custom-Properties für Form, Schatten, Abstand, Dichte und Typografie, aus denen jede Komponente unten ebenfalls gestaltet ist.",
+      "groups": {
+        "shape": "Form",
+        "shadow": "Schatten",
+        "spacing": "Abstand",
+        "density": "Dichte",
+        "typography": "Typografie"
+      }
+    },
     "buttons": {
       "heading": "Buttons",
       "description": "Button-Varianten und -Größen.",

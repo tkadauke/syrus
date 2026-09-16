@@ -7,8 +7,10 @@ module ThemingTools
   class ListUserThemesTool < MCP::Tool
     tool_name "list_user_themes"
 
-    description "List the current user's own custom (non-built-in) color themes, including any in-progress " \
-      "preview drafts."
+    description "List the current user's own custom (non-built-in) themes, including any in-progress " \
+      "preview drafts. Each theme's `tokens` includes the 13 light/dark color keys plus every non-color " \
+      "shape/shadow/spacing/density/typography group, already defaulted (Theme::DEFAULT_EXTENDED_TOKENS) for " \
+      "any group the theme never overrode."
 
     input_schema(properties: {})
 

@@ -167,6 +167,34 @@ RSpec.describe ThemingTools::ChatToolSet do
       expect(response.error?).to be true
       expect(response.content.first[:text]).to match(/tokens/i)
     end
+
+    it "applies partial non-color (extended) token overrides while defaulting the rest to the active theme" do
+      active = Factories.theme(
+        slug: "terracotta", built_in: true,
+        tokens: { "light" => full_tokens("active-light"), "dark" => full_tokens("active-dark"), "shape" => { "radius-control" => "1px", "radius-panel" => "2px" } }
+      )
+      user.update!(color_theme: active)
+      allow(AppEvents).to receive(:broadcast)
+
+      call_tool("preview_theme", name: "My Draft", shape: { "radius-control" => "0px" })
+
+      theme = Theme.last
+      expect(theme.tokens["shape"]).to eq("radius-control" => "0px", "radius-panel" => "2px")
+      expect(theme.tokens).not_to have_key("shadow")
+    end
+
+    it "defaults every non-color group to Theme::DEFAULT_EXTENDED_TOKENS when the active theme never set any" do
+      active = Factories.theme(slug: "terracotta", built_in: true, tokens: { "light" => full_tokens("active-light"), "dark" => full_tokens("active-dark") })
+      user.update!(color_theme: active)
+      allow(AppEvents).to receive(:broadcast)
+
+      call_tool("preview_theme", name: "My Draft", typography: { "font-sans" => "monospace" })
+
+      theme = Theme.last
+      expect(theme.tokens["typography"]).to eq("font-sans" => "monospace")
+      expect(theme.tokens_with_defaults["typography"]["text-body"]).to eq(Theme::DEFAULT_EXTENDED_TOKENS.fetch("typography").fetch("text-body"))
+      expect(theme.tokens_with_defaults["shape"]).to eq(Theme::DEFAULT_EXTENDED_TOKENS.fetch("shape"))
+    end
   end
 
   def legible_tokens
@@ -245,6 +273,26 @@ RSpec.describe ThemingTools::ChatToolSet do
       expect(response.error?).to be true
       expect(response.content.first[:text]).to match(/theme_id|light|dark/i)
     end
+
+    it "creates and installs a new theme with partial non-color token overrides, defaulting the rest" do
+      response = nil
+      expect {
+        response = call_tool(
+          "install_theme", name: "Console-ish", light: legible_tokens["light"], dark: legible_tokens["dark"],
+          shape: { "radius-control" => "0px" }, typography: { "font-sans" => "monospace" }
+        )
+      }.to change(Theme, :count).by(1)
+
+      theme = Theme.last
+      expect(response.error?).to be_falsey
+      expect(theme.tokens["shape"]).to eq("radius-control" => "0px")
+      expect(theme.tokens).not_to have_key("density")
+
+      result = payload(response)
+      expect(result[:tokens][:shape][:"radius-control"]).to eq("0px")
+      expect(result[:tokens][:shape][:"radius-panel"]).to eq(Theme::DEFAULT_EXTENDED_TOKENS.fetch("shape").fetch("radius-panel"))
+      expect(result[:tokens][:density]).to eq(Theme::DEFAULT_EXTENDED_TOKENS.fetch("density").symbolize_keys)
+    end
   end
 
   describe "list_user_themes" do
@@ -257,6 +305,20 @@ RSpec.describe ThemingTools::ChatToolSet do
 
       expect(response.error?).to be_falsey
       expect(payload(response)[:themes]).to contain_exactly(JSON.parse(JSON.generate(mine.public_payload), symbolize_names: true))
+    end
+
+    it "includes fully-defaulted non-color token groups for a theme that only overrode some of them" do
+      Factories.theme(
+        owner_user: user, built_in: false, name: "Partial",
+        tokens: legible_tokens.merge("density" => { "control-height-sm" => "1.5rem" })
+      )
+
+      response = call_tool("list_user_themes")
+
+      theme_payload = payload(response)[:themes].first
+      expect(theme_payload[:tokens][:density][:"control-height-sm"]).to eq("1.5rem")
+      expect(theme_payload[:tokens][:density][:"control-height-md"]).to eq(Theme::DEFAULT_EXTENDED_TOKENS.fetch("density").fetch("control-height-md"))
+      expect(theme_payload[:tokens][:shape]).to eq(Theme::DEFAULT_EXTENDED_TOKENS.fetch("shape").symbolize_keys)
     end
   end
 
@@ -297,6 +359,20 @@ RSpec.describe ThemingTools::ChatToolSet do
       response = call_tool("update_user_theme", theme_id: theirs.id, name: "Hijacked")
 
       expect(response.error?).to be true
+    end
+
+    it "applies partial non-color token overrides while keeping other stored groups and keys untouched" do
+      theme = Factories.theme(
+        owner_user: user, built_in: false, name: "Old Name",
+        tokens: legible_tokens.merge("shape" => { "radius-control" => "1px", "radius-panel" => "2px" })
+      )
+
+      response = call_tool("update_user_theme", theme_id: theme.id, shape: { "radius-control" => "0px" }, density: { "control-height-sm" => "1.5rem" })
+
+      expect(response.error?).to be_falsey
+      theme.reload
+      expect(theme.tokens["shape"]).to eq("radius-control" => "0px", "radius-panel" => "2px")
+      expect(theme.tokens["density"]).to eq("control-height-sm" => "1.5rem")
     end
   end
 
@@ -341,6 +417,17 @@ RSpec.describe ThemingTools::ChatToolSet do
 
       expect(response.error?).to be true
       expect(Theme.exists?(theirs.id)).to be true
+    end
+
+    it "deletes a custom theme that has non-color token overrides just as it would a color-only theme" do
+      other_active = Factories.theme(built_in: true, tokens: legible_tokens)
+      user.update!(color_theme: other_active)
+      theme = Factories.theme(owner_user: user, built_in: false, tokens: legible_tokens.merge("typography" => { "font-sans" => "monospace" }))
+
+      response = call_tool("delete_user_theme", theme_id: theme.id)
+
+      expect(response.error?).to be_falsey
+      expect(Theme.exists?(theme.id)).to be false
     end
   end
 end

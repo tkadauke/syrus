@@ -4,12 +4,12 @@ require Rails.root.join("db/migrate/20260828154548_seed_built_in_themes")
 RSpec.describe SeedBuiltInThemes, :ci_only do
   let(:migration) { described_class.new }
 
-  it "seeds all 18 built-in Theme rows on an existing database" do
+  it "seeds all 19 built-in Theme rows on an existing database" do
     expect(Theme.where(built_in: true).count).to eq(0)
 
     migration.up
 
-    expect(Theme.where(built_in: true).count).to eq(18)
+    expect(Theme.where(built_in: true).count).to eq(19)
     expect(Theme.find_by(slug: "terracotta")).to be_present
   end
 
