@@ -89,8 +89,21 @@ function builtin(toolName: string, options: { aliases?: string[]; readOnly: bool
 // toolArgumentSummary already groups them in one switch case); registering
 // Agent as an alias of Task means alias resolution actually does something
 // on a real, existing case instead of an invented one.
+//
+// Codex has no separate built-in vocabulary of its own to register here: its
+// MCP tool calls go through the same syrus-mcp-sidecar entries above, and
+// its one non-MCP built-in — running a shell command — is the same concept
+// as Claude's Bash under two different raw names. `CodexInvocation` persists
+// it as chat tool_name "bash" (see
+// plugins/codex_agent/app/services/codex_invocation.rb); the workflow-Run
+// transcript path (`CodexAgent::TranscriptEvents`) instead emits the literal
+// item type name, "command_execution". Both alias to this one Bash entry
+// rather than duplicating it as a separate provider entry, so the two
+// providers "resolve consistently" (same canonical name, display label,
+// progress label, and argument summary) regardless of which raw name a
+// given transcript happened to carry.
 const PROVIDER_BUILTIN_ENTRIES: ToolPresentationEntry[] = [
-  builtin("Bash", { readOnly: false }),
+  builtin("Bash", { aliases: ["bash", "command_execution"], readOnly: false }),
   builtin("Read", { readOnly: true }),
   builtin("Edit", { readOnly: false }),
   builtin("MultiEdit", { readOnly: false }),
