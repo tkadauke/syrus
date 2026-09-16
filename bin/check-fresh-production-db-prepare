@@ -22,6 +22,17 @@ trap cleanup EXIT
 
 mkdir -p "$tmpdir/db" "$tmpdir/search"
 
+# Kubernetes creates the MySQL databases before Rails starts. That means
+# `db:prepare` sees existing-but-empty secondary databases and takes the
+# migration path, not the schema-load path. Empty SQLite files reproduce that
+# shape locally.
+touch \
+  "$tmpdir/db/production.sqlite3" \
+  "$tmpdir/db/production_cache.sqlite3" \
+  "$tmpdir/db/production_queue.sqlite3" \
+  "$tmpdir/db/production_cable.sqlite3" \
+  "$tmpdir/search/search.sqlite3"
+
 env \
   SYRUS_SQLITE=1 \
   RAILS_ENV=production \
@@ -34,5 +45,33 @@ env \
   SYRUS_APP_HOST="${SYRUS_APP_HOST:-localhost}" \
   SYRUS_PREVIEW_BASE_DOMAIN="${SYRUS_PREVIEW_BASE_DOMAIN:-localhost}" \
   "$root/bin/rails" db:prepare
+
+env \
+  SYRUS_SQLITE=1 \
+  RAILS_ENV=production \
+  RAILS_MASTER_KEY="${RAILS_MASTER_KEY:-8c3f538bb0a369f25d62cf5fa7e9be09}" \
+  SECRET_KEY_BASE="${SECRET_KEY_BASE:-fresh-db-prepare-local-secret}" \
+  DB_HOST="${DB_HOST:-127.0.0.1}" \
+  SYRUS_DATABASE_PASSWORD="${SYRUS_DATABASE_PASSWORD:-fresh-db-prepare}" \
+  SYRUS_DATA_ROOT="$tmpdir" \
+  SEARCH_DATABASE_PATH="$tmpdir/search/search.sqlite3" \
+  SYRUS_APP_HOST="${SYRUS_APP_HOST:-localhost}" \
+  SYRUS_PREVIEW_BASE_DOMAIN="${SYRUS_PREVIEW_BASE_DOMAIN:-localhost}" \
+  "$root/bin/rails" runner '
+    checks = {
+      "cache" => [ ActiveRecord::Base.configurations.configs_for(env_name: Rails.env, name: "cache").configuration_hash, %w[solid_cache_entries] ],
+      "queue" => [ ActiveRecord::Base.configurations.configs_for(env_name: Rails.env, name: "queue").configuration_hash, %w[solid_queue_jobs solid_queue_processes solid_queue_recurring_tasks] ],
+      "cable" => [ ActiveRecord::Base.configurations.configs_for(env_name: Rails.env, name: "cable").configuration_hash, %w[solid_cable_messages] ]
+    }
+
+    checks.each do |name, (config, tables)|
+      ActiveRecord::Base.establish_connection(config)
+      connection = ActiveRecord::Base.connection
+      missing = tables.reject { |table| connection.table_exists?(table) }
+      raise "#{name} database missing table(s): #{missing.join(", ")}" if missing.any?
+    ensure
+      ActiveRecord::Base.connection_handler.clear_active_connections!
+    end
+  '
 
 echo "[check-fresh-production-db-prepare] ok"
