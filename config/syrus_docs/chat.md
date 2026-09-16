@@ -505,6 +505,19 @@ the standalone direct Job proposal card; grouped Epic proposal children keep
 their existing materialization behavior and cannot be routed to backlog by this
 v1 control.
 
+`propose_job` also accepts `investigation` for a read-only "go look into X and
+tell me what you find" request (a QA walkthrough, an audit, answering a
+question about behavior) where no pull request is expected. It defaults to
+false. When true, confirming the proposal creates a Job with `investigation:
+true` (see `Job#investigation_launch?`), which dispatches `Workflows::Investigation`
+(`prepare -> investigate -> submit_report -> auto_close`) instead of the normal
+implement/PR chain, so a thorough answer with no code changes is a fully
+successful outcome. The proposal card shows an "Investigation" badge when set.
+Unlike `route_to_backlog`, `investigation` is not restricted to the standalone
+direct Job proposal card — it can be combined with `epic_id` to target an
+existing Epic, and both `ChatProposalFiler` and `ChatEpicProposalMaterializer`
+propagate it onto the created Job either way.
+
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that
 would exceed it are skipped (existing attachments are never evicted) and the
