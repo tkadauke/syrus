@@ -299,6 +299,29 @@ pattern raises `Steps::Base::AgentGaveUpWaiting` instead of
 agent session from whichever of the two ran, so `run_skill → summarize →
 pr_open` composes exactly like `implement → summarize → pr_open`.
 
+### investigate
+
+Agentic. The `investigation` workflow's read-only exploration step: invokes
+the agent with `Prompts::Investigation` (the operator's investigation prompt
+plus the standard safety/context blocks). Unlike `implement`/`run_skill`,
+`investigate` never calls `perform_agentic_change_step` and never commits,
+captures a diff, or calls `raise_no_changes_produced!` — the same read-only
+shape `AgentInsights::RunStep` uses. Success here is defined by the following
+`submit_report` step persisting a narrative report, not by producing a diff.
+
+### submit_report
+
+Agentic. Follows `investigate` in `investigation` workflows. Resumes the
+`investigate` step's agent session (the same "resume from the prior agentic
+step" pattern `test_plan`/`summarize` use) and asks the agent to call the
+`submit_report` MCP tool with a `title`, a markdown `narrative`, and optional
+`findings`. Skips the agent call when the report is already present
+(`skip_if_artifact: "investigation_report"` on the `Step::Kind` entry mirrors
+`test_plan`'s `skip_if_artifact: "test_plan"`). Raises `Steps::Base::StepFailed`
+if the agent never calls the tool. The stored report lands on
+`Workflow#artifacts["investigation_report"]`; `auto_close` then closes the Job
+with `closure_reason: "investigation_reported"`.
+
 ### respond
 
 Agentic. Addresses PR review feedback or chat feedback. Reads the new comments and makes the requested changes.
