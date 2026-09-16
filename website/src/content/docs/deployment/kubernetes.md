@@ -162,8 +162,9 @@ data-root filesystem approaches full: warning at 85% used, critical at
 95% used or less than 5GB free. The banner reports the used percentage,
 available space, and `$SYRUS_DATA_ROOT` path so operators can clean old
 workflow workspaces or resize the PVC before clone and prepare steps
-start failing. Prometheus integration is planned in
-[#197](https://github.com/tkadauke/syrus/issues/197) and
-[#198](https://github.com/tkadauke/syrus/issues/198); until then, route
-container logs to your cluster logging stack and alert on repeated worker
-failures or growing queue depth.
+start failing. Syrus also exposes an authenticated `GET /metrics` endpoint in
+the Prometheus text exposition format -- queue health, product usage, landing
+queue/run throughput, worker CPU/memory and admission decisions, and fleet
+(pod version, spawned process) gauges and counters. Route container logs to
+your cluster logging stack, scrape `/metrics` from a Prometheus instance, and
+alert on repeated worker failures or growing queue depth.

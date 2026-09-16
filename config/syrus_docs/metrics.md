@@ -1,10 +1,12 @@
 # Metrics
 
 Syrus exposes aggregate metrics in the Prometheus text exposition format at
-`GET /metrics`. This is step 1 of the plan in
-`docs/plans/prometheus-dashboard.md`; the worker exporter, the single-replica
-global exporter, Grafana dashboards, telemetry and the embedded dashboard plugin
-are later steps and are not built yet.
+`GET /metrics`. This covers the queue-health, product-usage, landing-queue/
+run-throughput, worker/admission, and fleet metric groups from the plan in
+`docs/plans/prometheus-dashboard.md`; a genuine worker exporter (one that
+scrapes every pod, not just web), the single-replica global exporter, Grafana
+dashboards, telemetry and the embedded dashboard plugin are later steps and
+are not built yet.
 
 ## Why it exists
 
@@ -40,7 +42,14 @@ slow at exactly the moment those tables are the problem.
 **Scope:** currently served by the **web** role only. Worker pods run several
 forked processes that share no memory, so scraping them needs a separate
 exporter with a shared store; that is a later step. Until then, counters
-incremented on workers are not yet exported.
+incremented on workers are not yet exported -- this currently applies to
+`syrus_admission_decisions_total`, which is incremented wherever an admission
+decision is made (see *Workers and admission* below), including on workers.
+`syrus_worker_cpu_percent`/`syrus_worker_memory_percent` are not affected by
+this gap: they are sampled from the `worker_host_health_samples` table (rows
+every worker writes on its own heartbeat) into the same web-served cache the
+other GLOBAL gauges use, so they are visible today even though no worker pod
+is scraped directly.
 
 ## What is exposed
 
@@ -173,6 +182,81 @@ ever tick rather than backfilling the entire Job/Run history, the same
 instinct as `Metrics::ProductUsage`'s zero-preset: counting starts from when
 the sampler first runs, not from the beginning of time.
 
+### Workers and admission
+
+| Metric | Meaning |
+|---|---|
+| `syrus_worker_cpu_percent{hostname}` | latest CPU utilization sample per worker |
+| `syrus_worker_memory_percent{hostname}` | latest memory utilization sample per worker |
+| `syrus_active_agent_runs` | currently running agentic Runs, subject to the global concurrency cap |
+| `syrus_max_concurrent_agent_runs` | the configured ceiling, so the dashboard panel shows capacity alongside utilization |
+| `syrus_admission_decisions_total{decision}` | admission decisions, tagged by the action taken |
+| `syrus_workflow_step_duration_seconds{kind}` | Step wall clock from start to finish |
+
+`Metrics::WorkerSampler` (`app/services/metrics/worker_sampler.rb`) owns the
+first four. `worker_cpu_percent`/`worker_memory_percent` read the most recent
+`WorkerHostHealthSample` per hostname within a 2-minute window -- the same
+freshness window `RunHostAdmission`/`WorkflowAdmissionBudget` use to decide a
+sample is still trustworthy -- and are the panel that would have shown "one
+worker at 3277m and another idle at 51m" instead of someone finding it by
+hand. `active_agent_runs` and `max_concurrent_agent_runs` are plain gauges
+read from `Run.running_agent_runs.count` and `AppSetting.max_concurrent_agent_runs`.
+All four are GLOBAL and cache-mediated exactly like the queue-health and
+landing-queue gauges above.
+
+`workflow_step_duration_seconds` is a histogram and therefore goes through
+the same cursor + cumulative-snapshot dance `run_duration_seconds` uses (see
+above) -- `WorkerSampler` keeps its own cursor over `Step`'s
+`started_at`/`finished_at`. It is deliberately a *different* metric from
+`syrus_run_duration_seconds{step_kind}`: a Run's duration is one attempt, but
+a Step's `started_at`/`finished_at` spans every repair/retry attempt inside
+it, so a Step that failed once and was repaired still reports one wall-clock
+duration for the whole Step rather than one per Run.
+
+`syrus_admission_decisions_total` is the one metric in this group that is
+**not** GLOBAL. Admission decisions happen inline in
+`WorkflowAdmissionBudget#call` and `RunHostAdmission#call` -- see
+`config/syrus_docs/multi_worker.md` -- and the counter is incremented at the
+exact moment a decision is produced, in whichever process (web or worker)
+made it. It is declared once, in `WorkflowAdmissionBudget`, and
+`RunHostAdmission` increments the same declared counter for its own
+`admit`/`defer` decisions rather than redeclaring it. Per *Aggregating*
+below, this is fine for a per-process counter -- Prometheus sums it across
+every pod that exposes it -- but see the *Scope* note above: until a worker
+exporter exists, only decisions made on the web role's own process are
+actually visible on a scrape.
+
+### Fleet
+
+| Metric | Meaning |
+|---|---|
+| `syrus_instance_versions{role,version}` | live pods by role and git SHA |
+| `syrus_spawned_processes{kind,state}` | subprocesses running or recently finished, by kind and state |
+
+`Metrics::FleetSampler` (`app/services/metrics/fleet_sampler.rb`) owns both,
+sampled the same GLOBAL, cache-mediated way as the queue-health gauges --
+plain snapshots, no cursor needed, since neither is a monotonic count.
+
+`instance_versions` reads `InstanceVersion.fresh` (a live heartbeat within
+the last two minutes) grouped by `role` and `version` -- "two versions during
+a rollout" is the expected, informative reading this metric exists to show,
+not a bug. `spawned_processes` reads `SpawnedProcess.recent_or_active`
+(running, or finished within the last hour) grouped by `kind` and a `state`
+of `"running"` or the process's terminal `outcome` (see
+`SpawnedProcess::OUTCOMES`).
+
+**`hostname` and `version` are allowed tags, as a deliberate, narrow
+exception.** `Syrus::Metrics::TagAllowlist` otherwise forbids both -- pod
+names and git SHAs churn across deploys, which is exactly the kind of
+unbounded-over-time growth the allowlist exists to block. They are allowed
+here because these gauges are sampled centrally from one process and cached,
+not scraped per-pod: there is no Prometheus-assigned `instance` label to
+lean on instead, since only the web role serves `/metrics` today. The set of
+values alive at any moment stays small (the live worker fleet, "two versions
+during a rollout"), which is what keeps this from becoming the per-request
+unbounded case the rest of the allowlist guards against -- see the comment on
+`Syrus::Metrics::TagAllowlist::ALLOWED` for the full reasoning.
+
 ## Aggregating: `max by`, never `sum`
 
 Metrics prefixed `syrus_global_` are **one fact about the whole cluster**, not a
@@ -184,9 +268,18 @@ sum by (queue) (syrus_global_queue_oldest_age_seconds)   # wrong: N x the truth
 ```
 
 Summing across pods multiplies the value by the number of pods scraped. The
-`syrus_global_` prefix exists to make that rule legible from the metric name.
+`syrus_global_` prefix exists to make that rule legible from the metric name,
+but it is not the only signal: `job_state`, `landing_queue_depth`,
+`queue_table_rows`, `worker_cpu_percent`, `worker_memory_percent`,
+`active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`, and
+`spawned_processes` are every bit as GLOBAL and cache-mediated as the
+`syrus_global_*` gauges, just declared without the prefix -- their
+`docs/metrics-catalog.md` description ends in `(GLOBAL -- aggregate with max
+by...)` instead. Treat that annotation, not the name, as authoritative.
 
-Non-global metrics are per-process and aggregate normally.
+Non-global metrics (`syrus_admission_decisions_total` and every `*_total`
+counter/histogram not listed above) are per-process and aggregate normally
+with `sum`.
 
 ## Staleness
 
@@ -229,6 +322,10 @@ standard way to destroy a Prometheus install. It also carries a second job: the
 metric store structurally cannot contain a repository name, an issue title, a
 prompt or a diff, which is what will let telemetry share aggregates later
 without a scrubbing pass to get wrong.
+
+`hostname` and `version` are on the allowlist despite naming a churning
+identifier -- see *Fleet* above for why that is a deliberate, narrow
+exception rather than a precedent for adding more identifiers casually.
 
 High-cardinality detail belongs in the event tables that already exist for it —
 `mcp_tool_usages`, `performance_log_events` and friends. Metrics do not replace

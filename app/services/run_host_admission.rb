@@ -73,10 +73,12 @@ class RunHostAdmission
   attr_reader :run, :queue_name, :now
 
   def admit(reason)
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: "admit" })
     Decision.new(action: "admit", reason: reason, delay: nil, details: basic_details(reason))
   end
 
   def defer(reason)
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: "defer" })
     Decision.new(action: "defer", reason: reason, delay: RETRY_DELAY, details: details(reason))
   end
 
