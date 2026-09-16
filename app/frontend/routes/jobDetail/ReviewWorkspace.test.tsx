@@ -155,6 +155,116 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("data_table")).not.toBeInTheDocument()
   })
 
+  it("labels a version-matched review artifact with version, workflow/run, trigger kind, iteration, and sha range", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "visual_review_screenshot_run_5_1",
+          title: "Homepage after fix",
+          payload: { image_url: "https://example.test/a.png", iteration: 2 },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "image_diff",
+          workflow_id: 12,
+          run_id: 5,
+          step_id: 55,
+          trigger_kind: "chat_feedback",
+          base_sha: "abcdef1234567",
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Homepage after fix")).toBeInTheDocument()
+    const provenance = screen.getByText(/Workflow 12/)
+    expect(provenance).toHaveTextContent("Version 1")
+    expect(provenance).toHaveTextContent("Workflow 12")
+    expect(provenance).toHaveTextContent("Run 5")
+    expect(provenance).toHaveTextContent("chat_feedback")
+    expect(provenance).toHaveTextContent("Iteration 2")
+    expect(provenance).toHaveTextContent("abcdef1 → head-sh")
+    expect(screen.queryByText("Unversioned")).not.toBeInTheDocument()
+  })
+
+  it("shows a provenance-less artifact as unversioned instead of hiding it", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "rails_schema_erd",
+          title: "Schema ERD",
+          payload: { tables: [] },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "erd_diagram"
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Schema ERD")).toBeInTheDocument()
+    expect(screen.getByText("Unversioned")).toBeInTheDocument()
+  })
+
+  it("filters out artifacts tied to a different diff review version while keeping unversioned ones visible", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 100 }),
+      versions: [ version({ id: 100 }), version({ id: 200, version_index: 2, label: "Chat feedback #1" }) ]
+    }))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "visual_review_screenshot_run_5_1",
+          title: "Matches selected version",
+          payload: {},
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "image_diff",
+          run_id: 5,
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        },
+        {
+          type: "visual_review_screenshot_run_9_1",
+          title: "From a later round",
+          payload: {},
+          created_at: "2026-01-02T00:00:00Z",
+          renderer_type: "image_diff",
+          run_id: 9,
+          head_sha: "other-head-sha",
+          diff_review_version_id: 200
+        },
+        {
+          type: "rails_schema_erd",
+          title: "No provenance at all",
+          payload: {},
+          created_at: "2026-01-03T00:00:00Z",
+          renderer_type: "erd_diagram"
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Matches selected version")).toBeInTheDocument()
+    expect(screen.getByText("No provenance at all")).toBeInTheDocument()
+    expect(screen.queryByText("From a later round")).not.toBeInTheDocument()
+  })
+
   it("creates a whole-review comment from the permanent comment form", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))

@@ -8,6 +8,15 @@ export type TypedArtifact = {
   payload: SchemaErdPayload | MigrationDiffPayload | ImageDiffPayload | BeforeAfterVisualDiffPayload | Record<string, unknown>
   created_at: string
   renderer_type: "erd_diagram" | "migration_diff" | "data_table" | "before_after_diff" | "before_after_visual_diff" | "image_diff" | null
+  // Provenance: workflow-scoped typed artifacts (Job review artifacts) carry
+  // these; chat-scoped artifacts generally don't, so treat them as optional.
+  workflow_id?: number | null
+  run_id?: number | null
+  step_id?: number | null
+  trigger_kind?: string | null
+  base_sha?: string | null
+  head_sha?: string | null
+  diff_review_version_id?: number | null
 }
 
 export type ErdColumn = {

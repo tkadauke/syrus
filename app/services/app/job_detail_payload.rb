@@ -612,33 +612,44 @@ module App
       RefMovementActionsSummary.for(repository: @job.repository, job: @job).find { |action| action[:name] == "send_job_upstream" }
     end
 
+    # Collects typed artifacts from every artifact-bearing workflow. Earlier
+    # versions of this method deduplicated by `type`, keeping only the most
+    # recent workflow's entry — which silently dropped older visual/adversarial
+    # review rounds. Every entry is now preserved, tagged with provenance
+    # (workflow/run/step, trigger_kind, base_sha/head_sha, and, when known,
+    # diff_review_version_id) so the review UI can group and filter rounds
+    # instead of collapsing them.
     def typed_artifacts_json
       renderer_map = Syrus::PluginRegistry
         .providers_for(:artifact_renderer)
         .each_with_object({}) { |klass, hash| hash[klass.artifact_type] = klass.renderer_type.to_s }
 
-      # Collect typed artifacts from all workflows, deduplicating by type and
-      # keeping the most recent entry (by workflow created_at) for each type.
-      latest_by_type = {}
-      artifact_workflows_matching("typed_artifacts").each do |wf|
-        next unless wf.artifacts.is_a?(Hash)
+      artifact_workflows_matching("typed_artifacts").flat_map do |wf|
+        next [] unless wf.artifacts.is_a?(Hash)
 
-        Array(wf.artifact("typed_artifacts")).each do |entry|
+        Array(wf.artifact("typed_artifacts")).filter_map do |entry|
           next unless entry.is_a?(Hash) && entry["type"].present?
 
-          latest_by_type[entry["type"]] = entry
+          typed_artifact_json(entry, wf, renderer_map)
         end
       end
+    end
 
-      latest_by_type.values.map do |entry|
-        {
-          type: entry["type"],
-          title: entry["title"],
-          payload: entry["payload"],
-          created_at: entry["created_at"],
-          renderer_type: entry["renderer_type"].presence || renderer_map[entry["type"]] || renderer_map[entry["original_type"]]
-        }
-      end
+    def typed_artifact_json(entry, workflow, renderer_map)
+      {
+        type: entry["type"],
+        title: entry["title"],
+        payload: entry["payload"],
+        created_at: entry["created_at"],
+        renderer_type: entry["renderer_type"].presence || renderer_map[entry["type"]] || renderer_map[entry["original_type"]],
+        workflow_id: entry["workflow_id"] || workflow.id,
+        run_id: entry["run_id"],
+        step_id: entry["step_id"],
+        trigger_kind: entry["trigger_kind"].presence || workflow.trigger_kind,
+        base_sha: entry["base_sha"],
+        head_sha: entry["head_sha"],
+        diff_review_version_id: entry["diff_review_version_id"]
+      }
     end
 
     def latest_coverage_json

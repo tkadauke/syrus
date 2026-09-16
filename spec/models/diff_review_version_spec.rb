@@ -88,4 +88,37 @@ RSpec.describe DiffReviewVersion do
 
     expect(described_class.default_for_review(job)).to eq(run_version)
   end
+
+  describe ".best_match_for" do
+    it "prefers an exact run_id match" do
+      version = described_class.create!(
+        job: job, workflow: workflow, run: run, version_index: 1,
+        base_sha: "aaa", head_sha: "bbb", source_key: "workflow:#{workflow.id}:run:#{run.id}",
+        files_snapshot: [], metadata: {}
+      )
+
+      expect(described_class.best_match_for(job_id: job.id, run_id: run.id, workflow_id: workflow.id)).to eq(version)
+    end
+
+    it "falls back to the most recent version for the workflow when no run matches" do
+      older = described_class.create!(
+        job: job, workflow: workflow, version_index: 1,
+        base_sha: "aaa", head_sha: "bbb", source_key: "wf-older",
+        files_snapshot: [], metadata: {}
+      )
+      newer = described_class.create!(
+        job: job, workflow: workflow, version_index: 2,
+        base_sha: "ccc", head_sha: "ddd", source_key: "wf-newer",
+        files_snapshot: [], metadata: {}
+      )
+
+      result = described_class.best_match_for(job_id: job.id, run_id: nil, workflow_id: workflow.id)
+      expect(result).to eq(newer)
+      expect(result).not_to eq(older)
+    end
+
+    it "returns nil when neither run_id nor workflow_id match anything" do
+      expect(described_class.best_match_for(job_id: job.id, run_id: 999_999, workflow_id: 999_999)).to be_nil
+    end
+  end
 end

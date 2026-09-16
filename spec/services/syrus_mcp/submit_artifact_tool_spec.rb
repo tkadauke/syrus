@@ -82,6 +82,37 @@ RSpec.describe SyrusMcp::SubmitArtifactTool do
     expect(run.workflow.reload.artifact("typed_artifacts")).to be_nil
   end
 
+  it "stamps run_id/step_id/trigger_kind provenance even with no matching diff review version" do
+    call
+
+    entry = run.workflow.reload.artifact("typed_artifacts").first
+    expect(entry).to include(
+      "workflow_id"  => run.workflow_id,
+      "run_id"       => run.id,
+      "step_id"      => run.step_id,
+      "trigger_kind" => run.workflow.trigger_kind
+    )
+    expect(entry.keys).not_to include("diff_review_version_id")
+  end
+
+  it "stamps base_sha/head_sha/diff_review_version_id from the matching diff review version" do
+    version = DiffReviewVersion.create!(
+      job: run.job, workflow: run.workflow, run: run, version_index: 1,
+      base_sha: "base123", head_sha: "head456",
+      source_key: "workflow:#{run.workflow_id}:run:#{run.id}",
+      files_snapshot: [], metadata: {}
+    )
+
+    call
+
+    entry = run.workflow.reload.artifact("typed_artifacts").first
+    expect(entry).to include(
+      "base_sha" => "base123",
+      "head_sha" => "head456",
+      "diff_review_version_id" => version.id
+    )
+  end
+
   it "writes a JobLog audit line" do
     expect { call }.to change { run.job_logs.count }.by(1)
     expect(run.job_logs.last.chunk).to include("[mcp] submit_artifact: \"rails_schema_erd\"")
