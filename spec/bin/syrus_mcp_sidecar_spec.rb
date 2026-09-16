@@ -16,7 +16,21 @@ RSpec.describe "bin/syrus-mcp-sidecar" do
   it "does not log successful SystemExit shutdown as a startup failure" do
     Dir.mktmpdir do |dir|
       script = <<~RUBY
+        require "fileutils"
         require_relative "config/environment"
+
+        module SyrusSidecarBootstrap
+          def self.prepare_bundle!(sidecar_env_key:)
+          end
+
+          def self.open_run_stderr!(run_id:, server_name:)
+            log_dir = File.join(ENV.fetch("SYRUS_DATA_ROOT"), "mcp-sidecar-logs")
+            FileUtils.mkdir_p(log_dir)
+            $stderr.reopen(File.join(log_dir, "run-\#{run_id}.stderr.log"), "a")
+            $stderr.sync = true
+            warn "[syrus-mcp-sidecar] starting \#{server_name}"
+          end
+        end
 
         Mcp::Sidecar.singleton_class.define_method(:workflow) do |run_id:|
           Object.new.tap do |sidecar|
@@ -25,7 +39,9 @@ RSpec.describe "bin/syrus-mcp-sidecar" do
         end
 
         ARGV.replace(["--run-id", "123"])
-        load "bin/syrus-mcp-sidecar"
+        sidecar_script = File.read("bin/syrus-mcp-sidecar")
+          .sub(%(require_relative "../lib/syrus_sidecar_bootstrap"\\n), "")
+        eval(sidecar_script, TOPLEVEL_BINDING, File.expand_path("bin/syrus-mcp-sidecar", Dir.pwd))
       RUBY
 
       _stdout, stderr, status = Open3.capture3(
