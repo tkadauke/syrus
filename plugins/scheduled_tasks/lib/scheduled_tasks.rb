@@ -62,6 +62,11 @@ module ScheduledTasks
     route :get,    "/api/v1/admin/cron_templates", to: "api/v1/admin/cron_templates#index"
     route :get,    "/api/v1/admin/cron_templates/:id", to: "api/v1/admin/cron_templates#show"
 
+    metrics do
+      gauge :autopaused_total,
+            comment: "Tasks currently auto-paused after hitting AppSetting.max_job_failures"
+    end
+
     frontend routes: { "scheduled_tasks/ScheduledTasksPage" => "app/frontend/routes/ScheduledTasksPage.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/scheduled_tasks.json" ]
 

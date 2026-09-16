@@ -34,9 +34,13 @@ module Syrus
       # a no-op, and the monotonic invariant still holds because the tracked
       # value never moves backward -- a stale or reset upstream total simply
       # does not apply rather than making the series appear to shrink.
+      #
+      # Compared and stored as floats (not `.to_i`) so a fractional cumulative
+      # total -- e.g. summed dollar cost -- is not silently floored to the
+      # nearest whole unit on every tick.
       def reconcile!(total, tags: {})
         key = key_for(tags)
-        @mutex.synchronize { @values[key] = total if total.to_i > (@values[key] || 0) }
+        @mutex.synchronize { @values[key] = total if total.to_f > (@values[key] || 0).to_f }
       end
     end
   end

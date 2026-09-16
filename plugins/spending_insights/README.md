@@ -17,3 +17,9 @@ Enable Spending Insights when operators need ongoing visibility into automation 
 ## Operational Notes
 
 The plugin reports recorded spend data. It does not enforce budgets or pause work by itself.
+
+## Metrics
+
+While enabled, exports `syrus_spending_insights_run_cost_usd_total{provider,trigger_kind}` (a cumulative
+counter of `Run#cost_usd`) to `/metrics`, so a cost blowup is alertable rather than only visible on this
+page. See `docs/syrus_docs/spending_insights.md` for how it is sampled.

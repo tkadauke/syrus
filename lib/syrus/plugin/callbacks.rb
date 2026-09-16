@@ -16,6 +16,15 @@ module Syrus
       def on_disable = nil
       def on_tick = nil
 
+      # Called on the /metrics scrape path (MetricsController), for a plugin
+      # that samples a global, cache-mediated metric on its own tick (see
+      # Metrics::QueueSampler's doc for why: the tick runs on a worker
+      # process, /metrics is served by web, and the two do not share a
+      # Syrus::Metrics registry). A plugin with nothing to refresh here
+      # -- one whose metrics are incremented in-process at the event site --
+      # simply leaves this at its default no-op.
+      def on_metrics_scrape = nil
+
       # Registers a cleanup block for this plugin at the point an effect
       # takes hold (e.g. right after a daemon process is spawned), instead
       # of reconstructing the inverse later in a hand-written teardown
