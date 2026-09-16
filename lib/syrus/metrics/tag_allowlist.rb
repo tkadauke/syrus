@@ -48,6 +48,8 @@ module Syrus
         plugin
         hostname
         version
+        job
+        skip_reason
       ].freeze
 
       # Named explicitly so the error message can say *why*, rather than just

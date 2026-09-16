@@ -32,6 +32,30 @@ class AutoRetryAttempt < ApplicationRecord
   # planner that keeps proposing retries runs out instead of spinning.
   NOT_RETRYABLE_SKIP_PREFIX = "failure is not retryable".freeze
 
+  # Bounded categories for `skipped_reason`, safe to use as a metric tag (see
+  # Syrus::Metrics::TagAllowlist) -- the raw string routinely carries
+  # per-attempt interpolation (a classification name, a provider, another
+  # attempt's schedule time) that would make it an unbounded label if used
+  # directly. Built from the exact same prefixes that decide budget
+  # exemption, so `syrus_auto_retry_attempts_total{skip_reason}` is a direct
+  # instrument for BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES staying correct: a
+  # permanent condition wrongly added to that list shows up here as a
+  # specific, spiking category instead of disappearing into "other".
+  SKIP_REASON_CATEGORIES = BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES.index_with { |prefix|
+    prefix.parameterize(separator: "_")
+  }.freeze
+
+  # `skipped_reason` -> a small, bounded category for metrics/reporting.
+  # `nil` (not skipped -- still pending, or already performed) categorizes as
+  # "none".
+  def self.skip_reason_category(skipped_reason)
+    return "none" if skipped_reason.blank?
+    return "not_retryable" if skipped_reason.start_with?(NOT_RETRYABLE_SKIP_PREFIX)
+
+    _prefix, category = SKIP_REASON_CATEGORIES.find { |prefix, _| skipped_reason.start_with?(prefix) }
+    category || "other"
+  end
+
   belongs_to :job
   belongs_to :workflow
   belongs_to :run, optional: true
