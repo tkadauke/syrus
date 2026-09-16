@@ -52,11 +52,26 @@ module ThemeCssGenerator
     lines = ["#{selector} {"]
     Theme::TOKEN_KEYS.each { |key| lines << "  --color-#{key}: #{mode_tokens.fetch(key)};" }
     Theme::DERIVED_COLOR_TOKENS.each { |key, value| lines << "  --color-#{key}: #{value};" }
+    extended_token_lines(theme).each { |line| lines << line }
     Theme::SYNTAX_TOKEN_KEYS.each do |key|
       value = mode_tokens[key]
       lines << "  --shiki-#{key}: #{value};" if value
     end
     lines << "}"
     lines
+  end
+
+  # Non-color groups (shape/shadow/spacing/density/typography) aren't
+  # split by light/dark -- see Theme::EXTENDED_TOKEN_GROUPS -- so the same
+  # values are emitted into both the light and dark scoped blocks, exactly
+  # like Theme::DERIVED_COLOR_TOKENS above. tokens_with_defaults fills in
+  # DEFAULT_EXTENDED_TOKENS for any group/key a theme doesn't override, so
+  # every built-in theme keeps emitting the full set.
+  def self.extended_token_lines(theme)
+    extended = theme.tokens_with_defaults
+    Theme::EXTENDED_TOKEN_GROUPS.each_with_object([]) do |(group, keys), lines|
+      group_tokens = extended.fetch(group)
+      keys.each { |key| lines << "  --#{key}: #{group_tokens.fetch(key)};" }
+    end
   end
 end
