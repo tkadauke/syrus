@@ -57,9 +57,16 @@ describe("Button", () => {
     }
   })
 
-  it("applies size classes", () => {
+  it("applies size classes from the density and typography tokens", () => {
     render(<Button size="sm">Small</Button>)
-    expect(screen.getByRole("button", { name: "Small" }).className).toContain("text-xs")
+    const className = screen.getByRole("button", { name: "Small" }).className
+    expect(className).toContain("h-[var(--control-height-sm)]")
+    expect(className).toContain("text-[length:var(--text-caption)]")
+  })
+
+  it("renders the control radius from the shape token", () => {
+    render(<Button>Save</Button>)
+    expect(screen.getByRole("button", { name: "Save" }).className).toContain("rounded-[var(--radius-control)]")
   })
 
   it("gives the icon size no text-oriented padding so it doesn't fight a caller's fixed h-*/w-*", () => {

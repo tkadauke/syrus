@@ -48,7 +48,7 @@ export function CodeSurface({
   return (
     <div
       className={classes(
-        "group/code-surface overflow-hidden rounded-[var(--radius-panel)] border border-border bg-surface-inset text-text-primary",
+        "group/code-surface overflow-hidden rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface-inset text-text-primary",
         className
       )}
       data-code-surface-mode={mode}
@@ -58,7 +58,7 @@ export function CodeSurface({
         {children ? (
           <pre
             className={classes(
-              "min-w-0 flex-1 p-3 font-mono text-xs leading-5 [color-scheme:dark] [&_span]:contrast-more:!text-text-primary",
+              "min-w-0 flex-1 p-3 font-mono text-[length:var(--text-caption)] leading-5 [color-scheme:dark] [&_span]:contrast-more:!text-text-primary",
               MODE_CLASSES[mode],
               maxHeightClassName
             )}
@@ -70,7 +70,7 @@ export function CodeSurface({
             code={code}
             lang={lang}
             className={classes(
-              "min-w-0 flex-1 p-3 font-mono text-xs leading-5 [color-scheme:dark] [&_span]:contrast-more:!text-text-primary",
+              "min-w-0 flex-1 p-3 font-mono text-[length:var(--text-caption)] leading-5 [color-scheme:dark] [&_span]:contrast-more:!text-text-primary",
               MODE_CLASSES[mode],
               maxHeightClassName
             )}

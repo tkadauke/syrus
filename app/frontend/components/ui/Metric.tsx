@@ -38,9 +38,9 @@ function Card({ className = "", description, label, meta, tone = "neutral", valu
   return (
     <Surface className={classes("min-w-0", className)} padding="sm" variant="panel" {...props}>
       <div className="min-w-0">
-        <div className="truncate text-xs font-medium uppercase leading-4 tracking-wide text-text-muted">{label}</div>
+        <div className="truncate text-[length:var(--text-caption)] font-medium uppercase leading-4 tracking-wide text-text-muted">{label}</div>
         <div className={classes("mt-1 truncate font-mono text-2xl font-semibold leading-8", VALUE_TONE_CLASSES[tone])}>{value}</div>
-        {description ? <div className="mt-1 text-xs leading-4 text-text-muted">{description}</div> : null}
+        {description ? <div className="mt-1 text-[length:var(--text-caption)] leading-4 text-text-muted">{description}</div> : null}
         {meta ? <div className="mt-2 text-2xs font-medium uppercase leading-4 tracking-wide text-text-subtle">{meta}</div> : null}
       </div>
     </Surface>

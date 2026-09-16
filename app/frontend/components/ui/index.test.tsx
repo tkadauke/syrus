@@ -91,7 +91,10 @@ describe("@app/components/ui", () => {
     expect(input).toHaveAttribute("aria-invalid", "true")
     expect(screen.getByText("*")).toHaveAttribute("aria-hidden", "true")
     expect(await screen.findByText("Use the short GitHub repository name.")).toHaveAttribute("id", "repo-name-help")
+    expect(screen.getByText("Use the short GitHub repository name.").className).toContain("text-[length:var(--text-caption)]")
     expect(screen.getByRole("alert")).toHaveTextContent("Repository name is required")
+    expect(screen.getByRole("alert").className).toContain("text-[length:var(--text-caption)]")
+    expect(screen.getByText("Repository name").className).toContain("text-[length:var(--text-body)]")
     expect(input).toHaveAttribute("aria-describedby", "repo-name-help repo-name-error")
   })
 
@@ -205,14 +208,17 @@ describe("@app/components/ui", () => {
         <Text data-testid="body">Normal</Text>
         <Text data-testid="muted" muted>Muted</Text>
         <Text as="code" data-testid="mono" variant="mono">JOB-1</Text>
+        <Text data-testid="caption" variant="caption">Caption</Text>
         <Text data-testid="danger" tone="danger">Failed</Text>
       </>
     )
 
     expect(screen.getByTestId("body").className).toContain("text-text-primary")
+    expect(screen.getByTestId("body").className).toContain("text-[length:var(--text-body)]")
     expect(screen.getByTestId("muted").className).toContain("text-text-muted")
     expect(screen.getByTestId("mono").tagName).toBe("CODE")
     expect(screen.getByTestId("mono").className).toContain("font-mono")
+    expect(screen.getByTestId("caption").className).toContain("text-[length:var(--text-caption)]")
     expect(screen.getByTestId("danger").className).toContain("text-danger-text")
     expect(screen.getByTestId("muted").className).not.toMatch(/\btext-gray-/)
   })

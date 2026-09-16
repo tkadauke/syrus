@@ -28,7 +28,11 @@ const TONE_ACCENT_CLASSES: Record<SemanticTone, string> = {
 function Root({ children, className = "", tone = "neutral", ...props }: ToolCardRootProps) {
   return (
     <Surface
-      className={classes("relative overflow-hidden text-xs before:absolute before:inset-y-0 before:left-0 before:w-1", TONE_ACCENT_CLASSES[tone], className)}
+      className={classes(
+        "relative overflow-hidden text-[length:var(--text-caption)] before:absolute before:inset-y-0 before:left-0 before:w-1",
+        TONE_ACCENT_CLASSES[tone],
+        className
+      )}
       padding="sm"
       variant="panel"
       {...props}
@@ -43,8 +47,8 @@ function Header({ actions, className = "", eyebrow, meta, title, ...props }: Too
     <div className={classes("flex min-w-0 items-start justify-between gap-3 pl-1", className)} {...props}>
       <div className="min-w-0">
         {eyebrow ? <div className="truncate text-2xs font-semibold uppercase leading-4 tracking-wide text-text-subtle">{eyebrow}</div> : null}
-        <div className="truncate text-sm font-semibold leading-5 text-text-primary">{title}</div>
-        {meta ? <div className="mt-0.5 truncate text-xs leading-4 text-text-muted">{meta}</div> : null}
+        <div className="truncate text-[length:var(--text-body)] font-semibold leading-5 text-text-primary">{title}</div>
+        {meta ? <div className="mt-0.5 truncate text-[length:var(--text-caption)] leading-4 text-text-muted">{meta}</div> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
     </div>
@@ -56,7 +60,12 @@ function Body({ className = "", ...props }: ToolCardBodyProps) {
 }
 
 function Footer({ className = "", ...props }: ToolCardFooterProps) {
-  return <div className={classes("mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2 pl-1", className)} {...props} />
+  return (
+    <div
+      className={classes("mt-2 flex flex-wrap items-center gap-2 border-t border-[length:var(--border-width)] border-border pt-2 pl-1", className)}
+      {...props}
+    />
+  )
 }
 
 export const ToolCard = { Root, Header, Body, Footer }
