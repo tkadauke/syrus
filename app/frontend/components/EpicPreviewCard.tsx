@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import type { EpicDetailJob } from "../api/epics"
 import { fetchEpicDetail } from "../api/epics"
 import { useT } from "../hooks/useT"
+import { renderLightMarkdown } from "../lib/Markdown"
 import { Card, Skeleton } from "./Card"
 import { CopyableSlug } from "./CopyableSlug"
 import { EpicDeploymentStagePipeline } from "./DeploymentStagePipeline"
@@ -49,7 +50,6 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
 
   const { epic, jobs } = data
   const description = epic.description ?? ""
-  const truncatedDesc = description.length > 500 ? description.slice(0, 500) + "…" : description
   const totalCount = epic.jobs_count
 
   const sortedJobs = [...jobs].sort((a, b) => attentionPriority(a.state) - attentionPriority(b.state))
@@ -82,9 +82,9 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
           })}
         </div>
       )}
-      {!compact && truncatedDesc && (
-        <p className="mb-3 line-clamp-4 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-400">
-          {truncatedDesc}
+      {!compact && description && (
+        <p className="mb-3 line-clamp-4 break-words text-xs text-gray-600 dark:text-gray-400">
+          {renderLightMarkdown(description)}
         </p>
       )}
       {!compact && previewJobs.length > 0 && (

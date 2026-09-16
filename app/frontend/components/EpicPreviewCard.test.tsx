@@ -64,12 +64,29 @@ describe("EpicPreviewCard", () => {
     await waitFor(() => expect(screen.getByText("Make onboarding easy.")).toBeInTheDocument())
   })
 
-  it("truncates description at 500 chars and appends ellipsis", async () => {
+  it("renders a heading in the description as bold text with no line break", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload({ description: "# Goal\nMake onboarding easy.", jobs_count: 0 })))
+    renderCard(7)
+    const strong = await screen.findByText("Goal", { selector: "strong" })
+    expect(strong.closest("p")).toHaveTextContent("Goal Make onboarding easy.")
+    expect(screen.queryByText(/^# Goal/)).not.toBeInTheDocument()
+  })
+
+  it("clamps a long description to 4 lines instead of char-slicing it", async () => {
     const longDesc = "x".repeat(600)
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload({ description: longDesc, jobs_count: 0 })))
     renderCard(7)
-    await waitFor(() => expect(screen.getByText(/…$/)).toBeInTheDocument())
-    expect(screen.getByText(/…$/).textContent).toHaveLength(501)
+    await waitFor(() => expect(screen.getByText(longDesc)).toBeInTheDocument())
+    expect(screen.getByText(longDesc).className).toContain("line-clamp-4")
+    expect(screen.queryByText(/…$/)).not.toBeInTheDocument()
+  })
+
+  it("renders bold, italic, and inline code in the description preview", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload({ description: "Some **bold**, *italic*, and `code` text.", jobs_count: 0 })))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByText("bold", { selector: "strong" })).toBeInTheDocument())
+    expect(screen.getByText("italic", { selector: "em" })).toBeInTheDocument()
+    expect(screen.getByText("code", { selector: "code" })).toBeInTheDocument()
   })
 
   it("renders a progress bar when jobs_count > 0", async () => {

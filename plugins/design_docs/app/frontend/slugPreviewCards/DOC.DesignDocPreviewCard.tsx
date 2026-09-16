@@ -4,7 +4,7 @@ import { Card, Skeleton } from "@app/components/Card"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { useT } from "@app/hooks/useT"
-import { Markdown } from "@app/lib/Markdown"
+import { renderLightMarkdown } from "@app/lib/Markdown"
 import { fetchDesignDocPreview, type DesignDocUser } from "../api/designDocs"
 
 const MAX_COLLABORATOR_NAMES = 3
@@ -61,10 +61,8 @@ export function DesignDocPreviewCard({ id, compact = false }: { id: number; comp
         {doc.title}
       </Link>
       {!compact && doc.preview_text ? (
-        <div className="mb-3 line-clamp-6 text-xs text-gray-600 dark:text-gray-400 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
-          {/* chat-prose-compact-headings (app/assets/tailwind/application.css) clamps h1-h4 to
-              font-size: inherit -- see that file for why this can't be a Tailwind utility override. */}
-          <Markdown className="chat-prose-compact-headings" text={doc.preview_text} />
+        <div className="mb-3 line-clamp-6 break-words text-xs text-gray-600 dark:text-gray-400">
+          {renderLightMarkdown(doc.preview_text)}
         </div>
       ) : null}
       {!compact ? (
