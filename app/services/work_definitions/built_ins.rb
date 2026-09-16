@@ -594,6 +594,16 @@ module WorkDefinitions
     self.scope = "job"
   end
 
+  class Investigation < Base
+    include ResumesFailedSteps
+    include CheckpointPreemptable
+
+    self.kind = "investigation"
+    self.workflow_trigger_kind = "investigation"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+  end
+
   class Deploy < Base
     include ResumesFailedSteps
     include CheckpointPreemptable

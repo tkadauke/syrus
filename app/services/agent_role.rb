@@ -67,7 +67,7 @@ module AgentRole
     case kind
     when "agent_rebase", "stack_agent_rebase", "push_agent_rebase", "merge_train_agent_rebase"
       WORKFLOW_REBASE_CONFLICT
-    when "summarize", "summarize_amend", "test_plan", "refresh_job_metadata", "review_plan"
+    when "summarize", "summarize_amend", "test_plan", "refresh_job_metadata", "review_plan", "submit_report"
       WORKFLOW_SUMMARY_TEST_PLAN
     when "adversarial_review"
       WORKFLOW_ADVERSARIAL_REVIEWER
