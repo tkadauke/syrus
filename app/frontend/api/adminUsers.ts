@@ -33,6 +33,7 @@ export type AdminUserRow = {
   has_codex_token: boolean
   has_codex_api_key: boolean
   has_codex_auth_json: boolean
+  has_muse_token?: boolean
   has_api_token: boolean
   agent_max_turns: number
   github_api_blocked: boolean

@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe Admin::Users::Filter do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   let!(:admin_user) { Factories.user(email_address: "admin@example.com") }
   let!(:plain_user) { Factories.user(email_address: "ophelia@example.com") }
   let!(:gh_token_user) { Factories.user(email_address: "alice@example.com", github_token: "ghp_x") }
@@ -11,6 +15,7 @@ RSpec.describe Admin::Users::Filter do
                    codex_auth_mode: "chatgpt_login",
                    codex_auth_json: Factories.codex_auth_json(access_token: "access_x"))
   end
+  let!(:muse_user) { Factories.user(email_address: "mona@example.com", muse_api_key: "muse_x") }
   let!(:rate_low_user) do
     Factories.user(email_address: "lila@example.com",
                    gh_rate_limit_remaining: 50,
@@ -64,6 +69,12 @@ RSpec.describe Admin::Users::Filter do
     filter = filter_from_tree("has_codex_token", "is", "true")
 
     expect(filter.apply(User.all)).to contain_exactly(codex_user, codex_login_user)
+  end
+
+  it "filters by Muse API key presence" do
+    filter = filter_from_tree("has_muse_token", "is", "true")
+
+    expect(filter.apply(User.all)).to contain_exactly(muse_user)
   end
 
   it "filters by low GitHub rate limit" do

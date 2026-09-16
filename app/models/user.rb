@@ -59,7 +59,8 @@ class User < ApplicationRecord
     "claude_oauth_token" => "Claude OAuth token",
     "codex_api_key" => "Codex API key",
     "codex_auth_json" => "Codex ChatGPT auth.json",
-    "gemini_api_key" => "Gemini API key"
+    "gemini_api_key" => "Gemini API key",
+    "muse_api_key" => "Muse API key"
   }.freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",
@@ -170,6 +171,7 @@ class User < ApplicationRecord
   encrypts :codex_api_key
   encrypts :codex_auth_json
   encrypts :gemini_api_key
+  encrypts :muse_api_key
   encrypts :github_token
   # `deterministic: true` so we can WHERE on the encrypted column
   # for the API auth lookup. Same plaintext always encrypts to the
@@ -741,28 +743,10 @@ class User < ApplicationRecord
 
   private
 
-  PROVIDER_CONFIGURED_CHECKS = {
-    "claude" => :claude_configured?,
-    "codex"  => :codex_configured?
-  }.freeze
-
-  CODEX_AUTH_MODE_CREDENTIALS = {
-    "api_key"       => :codex_api_key,
-    "chatgpt_login" => :codex_auth_json
-  }.freeze
-
   def provider_configured?(provider)
-    method_name = PROVIDER_CONFIGURED_CHECKS[provider.to_s]
-    method_name ? send(method_name) : false
-  end
-
-  def claude_configured?
-    claude_oauth_token.present?
-  end
-
-  def codex_configured?
-    attr = CODEX_AUTH_MODE_CREDENTIALS[codex_auth_mode]
-    attr ? public_send(attr).present? : false
+    AgentProviders.for(provider).configured_for_user?(self)
+  rescue AgentProviders::ConfigurationError
+    false
   end
 
   def generate_webauthn_id

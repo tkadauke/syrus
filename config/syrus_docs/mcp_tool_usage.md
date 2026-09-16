@@ -155,7 +155,7 @@ called, and the sidecar stderr tail.
 
 Different agents expose workflow-sidecar tools with different fully qualified
 names, such as `mcp__syrus-mcp-sidecar__submit_summary` for Claude and
-`syrus-mcp-sidecar.submit_summary` for Codex. Required-tool prompts should tell
+`syrus-mcp-sidecar.submit_summary` for Codex or Muse. Required-tool prompts should tell
 the agent to call the exact name shown in its tool list; a bare call such as
 `submit_summary` can fail when the sidecar is connected but the tool was
 advertised under a prefixed name.

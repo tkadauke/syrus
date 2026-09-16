@@ -137,20 +137,19 @@ module Runs
         return
       end
 
-      return unless agent_provider == "codex"
       return if ProviderUsageLimit.inconclusive?(text)
       return unless agent_outcome.to_s == ProviderUsageLimit::OUTCOME ||
         failure_classification_record&.classification == ProviderUsageLimit::CLASSIFICATION ||
         ProviderUsageLimit.detect?(text)
 
-      ProviderAvailabilityEvidence.record_codex_invocation_failure!(
+      ProviderAvailabilityEvidence.record_invocation_usage_limit!(
         run: run,
         model: ProviderUsageLimit.extract_model(text),
         message: text,
         observed_at: finished_at || Time.current
       )
     rescue StandardError => e
-      Rails.logger.warn("[ProviderAvailabilityEvidence] failed to record Codex failure for Run ##{run.id}: #{e.class}: #{e.message}")
+      Rails.logger.warn("[ProviderAvailabilityEvidence] failed to record provider usage failure for Run ##{run.id}: #{e.class}: #{e.message}")
       nil
     end
 

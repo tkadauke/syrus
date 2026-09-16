@@ -81,6 +81,7 @@ export type JobRecord = {
   triaging_uncertainty_reason?: string | null
   credential_mode: string | null
   agent_provider: string | null
+  agent_provider_label?: string | null
   job_provider_setting?: string
   job_provider_setting_options?: Array<{ value: string; label: string; configured: boolean }>
   provider_availability?: ProviderAvailability

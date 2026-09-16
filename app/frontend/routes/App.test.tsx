@@ -16373,6 +16373,12 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       validity: "valid",
       credential_mode: "pat",
       agent_provider: "codex",
+      job_provider_setting: "default",
+      job_provider_setting_options: [
+        { value: "default", label: "Default", configured: true },
+        { value: "claude", label: "Claude Code", configured: true },
+        { value: "codex", label: "Codex", configured: true }
+      ],
       stack_base: "auto",
       issue_number: 12,
       issue_url: "https://github.com/acme/widgets/issues/12",

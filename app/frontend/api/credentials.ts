@@ -41,6 +41,7 @@ export type CredentialStatus = {
   claude_oauth_token: boolean
   codex_api_key: boolean
   codex_auth_json: boolean
+  muse_api_key?: boolean
   api_token: boolean | null
 }
 
@@ -66,7 +67,9 @@ export type PersonalDocument = {
 export type CredentialsOptions = {
   locales: string[]
   agent_providers: string[]
+  agent_provider_labels?: Record<string, string>
   chat_providers: string[]
+  chat_provider_labels?: Record<string, string>
   roles: string[]
   codex_auth_modes: string[]
   agent_provider_failover_causes: string[]
@@ -135,6 +138,7 @@ export type CredentialsInput = {
   codex_api_key: string
   codex_auth_json: string
   gemini_api_key: string
+  muse_api_key: string
   github_token: string
   agent_max_turns: number
   agent_provider_failover_policy: AgentProviderFailoverPolicy

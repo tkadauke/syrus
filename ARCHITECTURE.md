@@ -1423,6 +1423,7 @@ The registry defines twenty-four extension points:
 |---|---|---|---|
 | `claude_agent` | `plugins/claude_agent` | `:agent_provider`, `:chat_provider` | enabled |
 | `codex_agent` | `plugins/codex_agent` | `:agent_provider`, `:chat_provider` | enabled |
+| `muse_agent` | `plugins/muse_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
 | `github_source` | `plugins/github_source` | `:input_source`, `:source_control_provider` | enabled, non-disableable |
 | `linear_source` | `plugins/linear_source` | `:input_source` | disabled by default |
 | `ruby` | `plugins/ruby` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command`, `:affected_test_analyzer` | enabled |

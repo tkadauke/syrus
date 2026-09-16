@@ -19,6 +19,9 @@ class ClaudeTranscript
   if (events = "CodexAgent::TranscriptEvents".safe_constantize)
     include events
   end
+  if (events = "MuseAgent::TranscriptEvents".safe_constantize)
+    include events
+  end
 
   Event = Data.define(:kind, :timestamp, :data)
   # `kind` is one of:
@@ -65,7 +68,7 @@ class ClaudeTranscript
     parsed = JSON.parse(line)
     return [] unless parsed.is_a?(Hash)
 
-    case parsed["type"]
+    case parsed["type"].presence || parsed["record_type"].presence
     when "system"      then [ system_event(parsed) ].compact
     when "user"        then user_events(parsed)
     when "assistant"   then assistant_events(parsed)
@@ -77,6 +80,7 @@ class ClaudeTranscript
     when "turn.completed" then [ codex_turn_completed_event(parsed) ]
     when "turn.failed", "error" then [ codex_error_result_event(parsed) ]
     when "item.started", "item.completed" then codex_item_events(parsed)
+    when "event"       then muse_event_events(parsed)
     else                    [ Event.new(kind: :other, timestamp: parsed["timestamp"], data: parsed) ]
     end
   rescue JSON::ParserError, NoMethodError, TypeError
@@ -115,6 +119,9 @@ class ClaudeTranscript
         turns = ev.data[:turns]
         cost_usd = ev.data[:cost_usd]
         exit_reason = ev.data[:subtype]
+        session_id ||= ev.data[:session_id]
+        model      ||= ev.data[:model]
+        cwd        ||= ev.data[:cwd]
       end
     end
     result_only_tool_calls.each do |tool_use_id, tool_name|
@@ -129,7 +136,7 @@ class ClaudeTranscript
       total_cost_usd: cost_usd,
       exit_reason: exit_reason,
       tool_call_counts: tool_calls.tally,
-      mcp_tool_called: tool_calls.any? { |n| n.to_s.start_with?("mcp__") },
+      mcp_tool_called: tool_calls.any? { |n| n.to_s.start_with?("mcp__") || n.to_s.include?(".") },
       available_tools_at_init: init&.dig(:tools) || [],
       session_id: session_id,
       model: model,

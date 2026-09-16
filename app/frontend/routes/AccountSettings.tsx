@@ -19,7 +19,8 @@ import {
   ClaudeCredentialCard,
   CodexCredentialCard,
   GeminiCredentialCard,
-  GithubCredentialCard
+  GithubCredentialCard,
+  MuseCredentialCard
 } from "../components/credentials/CredentialCard"
 import {
   fetchCredentials,
@@ -123,6 +124,7 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
         <GithubCredentialCard onNotice={onNotice} payload={payload} />
         <ClaudeCredentialCard onNotice={onNotice} payload={payload} />
         <CodexCredentialCard onNotice={onNotice} payload={payload} />
+        <MuseCredentialCard onNotice={onNotice} payload={payload} />
         <GeminiCredentialCard onNotice={onNotice} payload={payload} />
         <PasskeysPanel />
         {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} /> : null}
@@ -165,7 +167,7 @@ function ChatProviderPanel({ payload, onNotice }: { payload: CredentialsPayload;
         value={payload.options.chat_providers.includes(chatProvider) ? chatProvider : ""}
       >
         <option disabled value="">{t('account_settings.select_provider')}</option>
-        {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
+        {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{providerLabel(payload, provider, "chat")}</option>)}
       </Select>
     </section>
   )
@@ -282,7 +284,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
           <Form.Field>
             <Form.Label>{t('account_settings.agent_provider')}</Form.Label>
             <Form.Select onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
-              {payload.options.agent_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
+              {payload.options.agent_providers.map((provider) => <option key={provider} value={provider}>{providerLabel(payload, provider)}</option>)}
             </Form.Select>
           </Form.Field>
         ) : null}
@@ -602,6 +604,7 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     codex_api_key: "",
     codex_auth_json: "",
     gemini_api_key: "",
+    muse_api_key: "",
     github_token: "",
     agent_max_turns: payload.user.agent_max_turns,
     agent_provider_failover_policy: payload.user.agent_provider_failover_policy || {
@@ -676,7 +679,7 @@ function AgentProviderFailoverSettings({
               <Checkbox
                 checked={policy.providers.includes(provider)}
                 key={provider}
-                label={titleize(provider)}
+                label={providerLabel(payload, provider)}
                 onChange={(event) => toggleProvider(provider, event.target.checked)}
               />
             ))}
@@ -754,7 +757,7 @@ function ProviderAvailabilitySettings({
           <div className="grid gap-3 rounded border border-gray-100 p-3 dark:border-gray-800 sm:grid-cols-[1fr_auto] sm:items-center" key={provider}>
             <div className="min-w-0">
               <Form.Field>
-                <Form.Label>{t("account_settings.provider_availability_threshold", { provider: titleize(provider) })}</Form.Label>
+                <Form.Label>{t("account_settings.provider_availability_threshold", { provider: providerLabel(payload, provider) })}</Form.Label>
                 <Form.Input
                   className="max-w-32"
                   max={100}
@@ -814,6 +817,11 @@ function ProviderAvailabilitySettings({
 
 function titleize(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
+}
+
+function providerLabel(payload: CredentialsPayload, provider: string, kind: "agent" | "chat" = "agent") {
+  const labels = kind === "chat" ? payload.options.chat_provider_labels : payload.options.agent_provider_labels
+  return labels?.[provider] || titleize(provider)
 }
 
 function providerUsageReset(availability?: ProviderAvailability) {

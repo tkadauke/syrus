@@ -93,6 +93,7 @@ gem "ruby-vips", "~> 2.0"
 # PluginRecord at runtime; adding/removing plugin gems still requires restart.
 gem "claude_agent",  path: "plugins/claude_agent"
 gem "codex_agent",   path: "plugins/codex_agent"
+gem "muse_agent",    path: "plugins/muse_agent"
 gem "github_source", path: "plugins/github_source"
 gem "linear_source", path: "plugins/linear_source"
 gem "syrus_dev",     path: "plugins/syrus_dev"

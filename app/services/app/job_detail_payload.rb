@@ -193,6 +193,7 @@ module App
         triaging_uncertainty_reason: @job.triaging_uncertainty_reason,
         credential_mode: @job.credential_mode,
         agent_provider: workflow_agent_provider,
+        agent_provider_label: App::Presentation.agent_provider_label(workflow_agent_provider),
         job_provider_setting: @job.job_provider_setting,
         job_provider_setting_options: job_provider_setting_options,
         provider_availability: provider_availability,

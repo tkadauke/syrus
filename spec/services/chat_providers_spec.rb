@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe ChatProviders do
+  before do
+    PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+  end
+
   describe ChatProviders::Base do
     it "does not crash when an anonymous provider class uses the fallback key" do
       provider_class = Class.new(described_class)
@@ -12,10 +16,11 @@ RSpec.describe ChatProviders do
   it "resolves configured chat provider adapters" do
     expect(described_class.for("claude")).to eq(ChatProviders::Claude)
     expect(described_class.for("codex")).to eq(ChatProviders::Codex)
+    expect(described_class.for("muse")).to eq(ChatProviders::Muse)
   end
 
   it "lists chat provider keys from enabled plugins" do
-    expect(described_class.provider_keys).to eq(%w[claude codex])
+    expect(described_class.provider_keys).to eq(%w[claude codex muse])
   end
 
   it "raises for unknown chat providers" do

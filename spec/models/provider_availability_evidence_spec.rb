@@ -42,6 +42,49 @@ RSpec.describe ProviderAvailabilityEvidence do
     end
   end
 
+  describe ".record_invocation_usage_limit!" do
+    before do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
+    end
+
+    let(:user) { Factories.user(muse_api_key: "muse-secret") }
+    let(:job) { Factories.job(user: user, repository: Factories.repository(user: user), agent_provider: "muse") }
+    let(:run) { job.initial_run }
+
+    it "records non-Codex invocation usage evidence without Codex account scoping" do
+      run.update!(agent_provider: "muse", agent_outcome: "provider_usage_limit")
+      run.create_run_failure_classification!(
+        classification: "provider_usage_limit",
+        confidence: 0.95,
+        retryable: false,
+        reason: "usage exhausted",
+        classified_at: Time.current
+      )
+
+      evidence = described_class.record_invocation_usage_limit!(
+        run: run,
+        message: "Muse API error: model muse-spark-test weekly usage limit exhausted",
+        observed_at: Time.zone.parse("2026-09-15 10:00:00 UTC")
+      )
+
+      expect(evidence).to have_attributes(
+        user: user,
+        run: run,
+        provider: "muse",
+        account_id: nil,
+        model: "muse-spark-test",
+        status: "exhausted",
+        source: "muse_invocation_failure"
+      )
+      expect(evidence.details).to include(
+        "run_id" => run.id,
+        "agent_outcome" => "provider_usage_limit",
+        "failure_classification" => "provider_usage_limit",
+        "message" => "Muse API error: model muse-spark-test weekly usage limit exhausted"
+      )
+    end
+  end
+
   describe ".record_claude_probe!" do
     let(:user) { Factories.user(claude_oauth_token: "sk-ant-oat01-abc") }
 
