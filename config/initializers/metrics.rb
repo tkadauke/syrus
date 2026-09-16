@@ -17,7 +17,8 @@ Rails.application.config.to_prepare do
     "SkipIfPending",
     "Metrics::QueueSampler",
     "Metrics::PluginSampler",
-    "Metrics::ProductUsage"
+    "Metrics::ProductUsage",
+    "Metrics::LandingSampler"
   ].each do |owner|
     owner.constantize
   rescue NameError => e
