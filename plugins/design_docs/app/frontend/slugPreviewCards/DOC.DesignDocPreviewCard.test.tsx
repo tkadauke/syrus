@@ -57,7 +57,7 @@ describe("DesignDocPreviewCard", () => {
     expect(screen.getByRole("link", { name: "See more" })).toHaveAttribute("href", "/design_docs/20")
   })
 
-  it("clamps preview-rendered heading font size so the card stays compact", async () => {
+  it("renders a heading in the preview text as bold text with no line break", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       design_doc: {
         id: 20,
@@ -75,15 +75,33 @@ describe("DesignDocPreviewCard", () => {
 
     renderCard(20)
 
-    const heading = await screen.findByRole("heading", { level: 1, name: "Heading" })
-    // font-size clamping lives in a plain, unlayered CSS rule
-    // (.chat-prose-compact-headings h1..h4 in application.css), not a Tailwind
-    // utility class, because Tailwind v4 wraps utilities -- including
-    // arbitrary-variant ones -- in `@layer utilities`, which always loses to
-    // an unlayered rule like `.chat-prose h1` regardless of specificity. This
-    // asserts the wiring that activates that rule; the rule's actual effect
-    // is not visible under jsdom, which doesn't apply the compiled stylesheet.
-    expect(heading.closest(".chat-prose")).toHaveClass("chat-prose-compact-headings")
+    const strong = await screen.findByText("Heading", { selector: "strong" })
+    expect(strong.closest("div")).toHaveTextContent("Heading Body text.")
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument()
+  })
+
+  it("clamps a long preview to 6 lines and renders bold/italic/inline-code", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      design_doc: {
+        id: 20,
+        display_id: "DOC-20",
+        accessible: true,
+        title: "T",
+        owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
+        collaborators: [],
+        comments_count: 0,
+        latest_version_number: 1,
+        updated_at: "2026-09-01T12:00:00Z",
+        preview_text: "Some **bold**, *italic*, and `code` text."
+      }
+    }))
+
+    renderCard(20)
+
+    await waitFor(() => expect(screen.getByText("bold", { selector: "strong" })).toBeInTheDocument())
+    expect(screen.getByText("italic", { selector: "em" })).toBeInTheDocument()
+    expect(screen.getByText("code", { selector: "code" })).toBeInTheDocument()
+    expect(screen.getByText("bold", { selector: "strong" }).closest("div")?.className).toContain("line-clamp-6")
   })
 
   it("shows a concise collaborator summary when there are many collaborators", async () => {

@@ -69,25 +69,25 @@ describe("JobPreviewCard", () => {
     await waitFor(() => expect(screen.getByText("Some description here.")).toBeInTheDocument())
   })
 
-  it("truncates issue body at 500 chars and appends ellipsis", async () => {
+  it("clamps a long issue body to 6 lines instead of char-slicing it", async () => {
     const longBody = "a".repeat(600)
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       job: { id: 1, state: "open", issue_title: "T", issue_body: longBody }
     }))
     renderCard(1)
-    await waitFor(() => expect(screen.getByText(/…$/)).toBeInTheDocument())
-    const el = screen.getByText(/…$/)
-    expect(el.textContent).toHaveLength(501) // 500 chars + "…"
+    await waitFor(() => expect(screen.getByText(longBody)).toBeInTheDocument())
+    expect(screen.getByText(longBody).className).toContain("line-clamp-6")
+    expect(screen.queryByText(/…$/)).not.toBeInTheDocument()
   })
 
-  it("does not truncate body that is exactly 500 chars", async () => {
-    const body = "b".repeat(500)
+  it("renders bold, italic, and inline code in the body preview", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      job: { id: 1, state: "open", issue_title: "T", issue_body: body }
+      job: { id: 1, state: "open", issue_title: "T", issue_body: "Some **bold**, *italic*, and `code` text." }
     }))
     renderCard(1)
-    await waitFor(() => expect(screen.getByText(body)).toBeInTheDocument())
-    expect(screen.queryByText(/…$/)).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("bold", { selector: "strong" })).toBeInTheDocument())
+    expect(screen.getByText("italic", { selector: "em" })).toBeInTheDocument()
+    expect(screen.getByText("code", { selector: "code" })).toBeInTheDocument()
   })
 
   it("renders a See More link pointing to the job detail page", async () => {
