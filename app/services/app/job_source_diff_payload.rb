@@ -1,5 +1,7 @@
 module App
   class JobSourceDiffPayload
+    IMAGE_EXTENSIONS = %w[.png .jpg .jpeg .gif .webp .svg .bmp .ico].freeze
+
     def self.build(job:, user:, params: {})
       new(job: job, user: user, params: params).payload
     end
@@ -39,7 +41,7 @@ module App
         truncated: diff_result[:truncated] == true
       )
 
-      base_payload(base_ref: base, head_ref: head, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
+      base_payload(base_ref: base, head_ref: head, base_sha: base, head_sha: head, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
         .merge(
           files: Array(diff_result[:files]).map { |file| file_json(file) },
           truncated: diff_result[:truncated] == true,
@@ -92,6 +94,8 @@ module App
       base_payload(
         base_ref: fixture[:base_ref],
         head_ref: fixture[:head_ref],
+        base_sha: fixture[:base_sha].presence || fixture[:merge_base_sha].presence || fixture[:base_ref],
+        head_sha: fixture[:head_sha].presence || fixture[:head_ref],
         branch_commits: fixture.fetch(:branch_commits, []),
         merge_base_sha: fixture[:merge_base_sha]
       ).merge(
@@ -121,6 +125,8 @@ module App
       base_payload(
         base_ref: version.base_ref.presence || version.base_sha,
         head_ref: version.head_ref.presence || version.head_sha,
+        base_sha: version.base_sha,
+        head_sha: version.head_sha,
         branch_commits: branch_commits,
         merge_base_sha: merge_base_sha
       ).merge(
@@ -134,7 +140,7 @@ module App
 
     def no_branch_diff_payload(branch_commits:, merge_base_sha:)
       ref = merge_base_sha.presence || job_base_branch
-      base_payload(base_ref: ref, head_ref: ref, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
+      base_payload(base_ref: ref, head_ref: ref, base_sha: ref, head_sha: ref, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
         .merge(
           files: [],
           truncated: false,
@@ -144,11 +150,13 @@ module App
         )
     end
 
-    def base_payload(base_ref:, head_ref:, branch_commits: [], merge_base_sha: nil)
+    def base_payload(base_ref:, head_ref:, base_sha: nil, head_sha: nil, branch_commits: [], merge_base_sha: nil)
       {
         job_id: @job.id,
         base_ref: base_ref,
         head_ref: head_ref,
+        base_sha: base_sha,
+        head_sha: head_sha,
         merge_base_sha: merge_base_sha,
         default_ref: @repository.default_branch,
         branch_commits: branch_commits.map { |commit| commit_json(commit) }
@@ -170,7 +178,8 @@ module App
         status: file[:status].to_s,
         additions: file[:additions].to_i,
         deletions: file[:deletions].to_i,
-        patch: file[:patch]
+        patch: file[:patch],
+        is_image: image_file?(file[:path]) && file[:patch].nil?
       }
     end
 
@@ -180,8 +189,17 @@ module App
         status: file["status"].to_s,
         additions: file["additions"].to_i,
         deletions: file["deletions"].to_i,
-        patch: file["patch"]
+        patch: file["patch"],
+        is_image: image_file?(file["path"]) && file["patch"].nil?
       }
+    end
+
+    # Binary/large-file detection isn't a real flag from GitHub's compare API
+    # -- it's inferred from `patch` being nil. For files that are also nil
+    # because of that AND look like an image by extension, the frontend can
+    # render before/after thumbnails instead of the generic placeholder.
+    def image_file?(path)
+      IMAGE_EXTENSIONS.include?(File.extname(path.to_s).downcase)
     end
 
     def iso8601(value)

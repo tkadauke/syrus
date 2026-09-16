@@ -514,6 +514,45 @@ describe("ReviewableDiff", () => {
     })
     expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
   })
+
+  it("shows the plain unavailable placeholder for a patch-less non-image file", () => {
+    const binaryFiles = [
+      { additions: 0, deletions: 0, patch: null, path: "vendor/some.bin", status: "modified" }
+    ]
+
+    render(<ReviewableDiff files={binaryFiles} mode="single-file" selectedPath="vendor/some.bin" unavailableState="Diff not available" />)
+
+    expect(screen.getByText("Diff not available")).toBeInTheDocument()
+  })
+
+  it("delegates to renderImageDiff for a patch-less image file instead of the plain placeholder", () => {
+    const imageFiles = [
+      { additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }
+    ]
+
+    render(
+      <ReviewableDiff
+        files={imageFiles}
+        mode="single-file"
+        renderImageDiff={(file) => <div data-testid="image-diff">{file.path}</div>}
+        selectedPath="app/assets/images/logo.png"
+        unavailableState="Diff not available"
+      />
+    )
+
+    expect(screen.getByTestId("image-diff")).toHaveTextContent("app/assets/images/logo.png")
+    expect(screen.queryByText("Diff not available")).not.toBeInTheDocument()
+  })
+
+  it("falls back to the plain placeholder for an image file when no renderImageDiff is given", () => {
+    const imageFiles = [
+      { additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }
+    ]
+
+    render(<ReviewableDiff files={imageFiles} mode="single-file" selectedPath="app/assets/images/logo.png" unavailableState="Diff not available" />)
+
+    expect(screen.getByText("Diff not available")).toBeInTheDocument()
+  })
 })
 
 describe("large-file gating", () => {

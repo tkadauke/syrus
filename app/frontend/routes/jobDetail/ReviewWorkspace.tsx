@@ -17,6 +17,7 @@ import {
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
+import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
@@ -72,6 +73,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
         ...sourceDiff.data,
         base_ref: historicalVersion.data.base_ref || historicalVersion.data.base_sha,
         head_ref: historicalVersion.data.head_ref || historicalVersion.data.head_sha,
+        base_sha: historicalVersion.data.base_sha,
+        head_sha: historicalVersion.data.head_sha,
         files: historicalVersion.data.files,
         truncated: historicalVersion.data.truncated,
         diff_error: historicalVersion.data.diff_error,
@@ -235,6 +238,9 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             onSaveEditThread={feedback.onSaveEditThread}
             onSelectFile={setSelectedPath}
             onStartEditThread={feedback.onStartEditThread}
+            renderImageDiff={(file) => (
+              <ImageDiffThumbnails baseRef={activeDiff.base_sha ?? activeDiff.base_ref} file={file} headRef={activeDiff.head_sha ?? activeDiff.head_ref} jobId={jobId} />
+            )}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders

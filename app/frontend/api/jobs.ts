@@ -1112,10 +1112,12 @@ export type JobSourceDiffPayload = {
   job_id: number
   base_ref: string | null
   head_ref: string | null
+  base_sha: string | null
+  head_sha: string | null
   merge_base_sha: string | null
   default_ref: string
   branch_commits: Array<{ sha: string; short_sha: string; message: string; date: string | null }>
-  files: Array<{ path: string; status: string; additions: number; deletions: number; patch: string | null }>
+  files: Array<{ path: string; status: string; additions: number; deletions: number; patch: string | null; is_image?: boolean }>
   truncated: boolean
   diff_error: string | null
   version: DiffReviewVersion | null
@@ -1339,6 +1341,14 @@ export function fetchJobSourceFileContent(id: string | number, ref: string, path
 
 export function fetchJobSourceDiff(id: string, search = "") {
   return getJson<JobSourceDiffPayload>(`/api/v1/app/jobs/${id}/source_diff${search}`)
+}
+
+// Direct <img src> URL for a raw file's bytes at a given ref -- the browser's
+// existing session cookie authenticates the request, so no separate fetch is
+// needed to render an image diff thumbnail.
+export function jobSourceImageUrl(id: string | number, ref: string, path: string) {
+  const params = new URLSearchParams({ ref, path })
+  return `/api/v1/app/jobs/${id}/source_image?${params.toString()}`
 }
 
 export function fetchDiffReviewVersions(jobId: string | number) {

@@ -10,6 +10,7 @@ import { fetchJobSource, fetchJobSourceDiff, fetchJobSourceFileContent, fetchWor
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import type { LineAnnotation } from "../../components/diff/diffRendering"
+import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { refOptionsFor, sourceDiffSearch, sourceSearch } from "./sourceRefs"
 import { PanelMessage } from "./components"
@@ -397,6 +398,9 @@ function SourceDiffBrowser({
               onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}
               onStartEditThread={feedback.onStartEditThread}
+              renderImageDiff={(file) => (
+                <ImageDiffThumbnails baseRef={payload.base_sha ?? payload.base_ref} file={file} headRef={payload.head_sha ?? payload.head_ref} jobId={payload.job_id} />
+              )}
               selectedPath={selectedPath}
               showFileHeaders
               unavailableState={t("source_diff_not_available")}
