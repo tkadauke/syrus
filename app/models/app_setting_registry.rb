@@ -502,6 +502,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :retention_available_space_override_gb,
+      type: :integer,
+      default: 0,
+      min: 0,
+      max: nil,
+      category: "Data retention",
+      operational_meaning: "Manual fallback for available disk space shown on the retention sizing admin page, in gigabytes, used when automatic inference (SQLite data-root disk usage, or a locally-readable MySQL datadir) can't determine it.",
+      zero_means: "Unset; Syrus falls back to automatic available-space inference and reports it as unknown when that also fails.",
+      admin_editable: true,
+      secret: false
+    ),
+    Definition.new(
       key: :main_concern_report_threshold,
       type: :integer,
       default: 2,
