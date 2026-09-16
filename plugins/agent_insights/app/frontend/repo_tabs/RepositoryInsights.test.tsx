@@ -312,30 +312,19 @@ describe("RepositoryInsightsRoute", () => {
     })
   })
 
-  describe("Accept form — collapsed prompt", () => {
+  describe("Accept suggestion modal", () => {
     beforeEach(() => {
       vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
     })
 
-    it("hides the prompt textarea by default when a suggested_prompt exists", async () => {
+    it("opens a dialog named Accept suggestion with the full prompt visible immediately", async () => {
       renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
 
       const acceptBtn = await screen.findByRole("button", { name: "Accept" })
       fireEvent.click(acceptBtn)
 
-      expect(screen.queryByRole("textbox", { name: "Prompt" })).not.toBeInTheDocument()
-      expect(screen.getByRole("button", { name: "Edit prompt" })).toBeInTheDocument()
-    })
-
-    it("shows the prompt textarea after clicking Edit prompt", async () => {
-      renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
-
-      const acceptBtn = await screen.findByRole("button", { name: "Accept" })
-      fireEvent.click(acceptBtn)
-
-      fireEvent.click(screen.getByRole("button", { name: "Edit prompt" }))
-
-      expect(screen.getByRole("textbox", { name: "Prompt" })).toBeInTheDocument()
+      const dialog = await screen.findByRole("dialog", { name: "Accept suggestion" })
+      expect(within(dialog).getByRole("textbox", { name: "Prompt" })).toHaveValue("Fix the prepare step")
     })
 
     it("shows the prompt textarea expanded by default when no suggested_prompt", async () => {
@@ -344,7 +333,8 @@ describe("RepositoryInsightsRoute", () => {
       const acceptBtn = await screen.findByRole("button", { name: "Accept" })
       fireEvent.click(acceptBtn)
 
-      expect(screen.getByRole("textbox", { name: "Prompt" })).toBeInTheDocument()
+      const dialog = await screen.findByRole("dialog", { name: "Accept suggestion" })
+      expect(within(dialog).getByRole("textbox", { name: "Prompt" })).toHaveValue("")
     })
 
     it("does not show the create-job checkbox", async () => {
@@ -354,6 +344,71 @@ describe("RepositoryInsightsRoute", () => {
       fireEvent.click(acceptBtn)
 
       expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+    })
+
+    it("closes the dialog when Cancel is clicked", async () => {
+      renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
+
+      fireEvent.click(await screen.findByRole("button", { name: "Accept" }))
+      await screen.findByRole("dialog", { name: "Accept suggestion" })
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+      expect(screen.queryByRole("dialog", { name: "Accept suggestion" })).not.toBeInTheDocument()
+    })
+
+    it("does not expand the card when the dialog opens or is cancelled, if it started collapsed", async () => {
+      renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
+
+      fireEvent.click(await screen.findByRole("button", { name: "Accept" }))
+      await screen.findByRole("dialog", { name: "Accept suggestion" })
+      expect(screen.queryByText("Suggested prompt")).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+      expect(screen.queryByText("Suggested prompt")).not.toBeInTheDocument()
+    })
+
+    it("keeps the card expanded across accept dialog open/cancel if it started expanded", async () => {
+      renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
+
+      fireEvent.click(await screen.findByText("Frequent prepare failures"))
+      expect(screen.getByText("Suggested prompt")).toBeInTheDocument()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Accept" }))
+      await screen.findByRole("dialog", { name: "Accept suggestion" })
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+      expect(screen.getByText("Suggested prompt")).toBeInTheDocument()
+    })
+
+    it("sends the edited prompt on confirm", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ message: "Suggestion accepted.", suggestion: makeSuggestion({ state: "accepted" }) }))
+        }
+        return Promise.resolve(jsonResponse(payload([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])))
+      })
+
+      renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
+
+      fireEvent.click(await screen.findByRole("button", { name: "Accept" }))
+      const dialog = await screen.findByRole("dialog", { name: "Accept suggestion" })
+      const textarea = within(dialog).getByRole("textbox", { name: "Prompt" })
+      fireEvent.change(textarea, { target: { value: "Fix the prepare step, carefully" } })
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/insight_suggestions/1",
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ action_type: "accept", create_job: true, prompt: "Fix the prepare step, carefully" })
+          })
+        )
+      })
     })
   })
 

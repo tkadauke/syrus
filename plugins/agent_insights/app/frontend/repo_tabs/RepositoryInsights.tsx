@@ -8,6 +8,7 @@ import { useConfirm } from "@app/hooks/useConfirm"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { Modal } from "@app/components/Modal"
 import {
   acceptInsightSuggestion,
   acceptRemoveMemoryInsight,
@@ -421,15 +422,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </Button>
             ) : canCreateJob ? (
-              <Button
-                disabled={showAcceptForm}
-                onClick={() => {
-                  setShowAcceptForm(true)
-                  setExpanded(true)
-                }}
-                size="sm"
-                variant="primary"
-              >
+              <Button disabled={showAcceptForm} onClick={() => setShowAcceptForm(true)} size="sm" variant="primary">
                 {t("accept")}
               </Button>
             ) : null}
@@ -473,16 +466,15 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
       </div>
 
       {showAcceptForm && suggestion.state === "pending" && (
-        <AcceptForm
-          repositoryId={repositoryId}
-          suggestion={suggestion}
+        <AcceptSuggestionModal
           onClose={() => setShowAcceptForm(false)}
+          onError={(msg) => setError(msg)}
           onSuccess={(msg) => {
             setShowAcceptForm(false)
             setNotice(msg)
             queryClient.invalidateQueries({ queryKey })
           }}
-          onError={(msg) => setError(msg)}
+          suggestion={suggestion}
         />
       )}
     </article>
@@ -523,21 +515,18 @@ function updateCachedSuggestion(queryClient: ReturnType<typeof useQueryClient>, 
   })
 }
 
-function AcceptForm({
-  repositoryId,
+function AcceptSuggestionModal({
   suggestion,
   onClose,
   onSuccess,
   onError
 }: {
-  repositoryId: string
   suggestion: InsightSuggestion
   onClose: () => void
   onSuccess: (message: string) => void
   onError: (message: string) => void
 }) {
   const { t } = useT("agent_insights")
-  const [promptExpanded, setPromptExpanded] = useState(!suggestion.suggested_prompt)
   const [prompt, setPrompt] = useState(suggestion.suggested_prompt || "")
 
   const mutation = useMutation({
@@ -553,43 +542,42 @@ function AcceptForm({
   })
 
   return (
-    <div className="cursor-default border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800" data-insight-card-interactive>
-      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{t("accept_heading")}</h4>
+    <Modal
+      backdropClassName="fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] items-stretch justify-center bg-gray-950/40 p-0 sm:items-center sm:p-4"
+      className="flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[min(92dvw,32rem)] sm:rounded-lg dark:bg-gray-950"
+      closeOnBackdropClick={!mutation.isPending}
+      closeOnEscape={!mutation.isPending}
+      label={t("accept_heading")}
+      onClose={onClose}
+      open
+    >
+      <header className="flex shrink-0 items-center border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("accept_heading")}</h2>
+      </header>
 
-      <div className="mt-3">
-        <button
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          onClick={() => setPromptExpanded((v) => !v)}
-          type="button"
-        >
-          <svg className={`h-3 w-3 transition-transform ${promptExpanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-          </svg>
-          {t("edit_prompt")}
-        </button>
+      <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+        <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="accept-suggestion-prompt">
+          {t("prompt_label")}
+        </label>
+        <textarea
+          className="mt-1 w-full rounded border border-gray-300 p-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          id="accept-suggestion-prompt"
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={10}
+          value={prompt}
+        />
+        {mutation.isError && <p className="mt-2 text-xs text-red-700 dark:text-red-400">{errorMessage(mutation.error, t("accept_error"))}</p>}
       </div>
 
-      {promptExpanded && (
-        <div className="mt-2">
-          <textarea
-            aria-label={t("prompt_label")}
-            className="mt-1 w-full rounded border border-gray-300 p-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-            onChange={(e) => setPrompt(e.target.value)}
-            rows={6}
-            value={prompt}
-          />
-        </div>
-      )}
-
-      <div className="mt-3 flex gap-2">
-        <Button disabled={mutation.isPending || !prompt.trim()} onClick={() => mutation.mutate()} variant="primary">
-          {mutation.isPending ? t("confirming") : t("confirm_accept")}
-        </Button>
+      <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
         <Button onClick={onClose} variant="secondary">
           {t("cancel")}
         </Button>
+        <Button disabled={mutation.isPending || !prompt.trim()} onClick={() => mutation.mutate()} variant="primary">
+          {mutation.isPending ? t("confirming") : t("confirm_accept")}
+        </Button>
       </div>
-    </div>
+    </Modal>
   )
 }
 
