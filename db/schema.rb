@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_045301) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2160,6 +2160,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
     t.bigint "github_repository_id"
     t.string "grader_health", default: "unknown", null: false
     t.integer "installation_id"
+    t.boolean "known_flaky_failure_dismissal_enabled", default: false, null: false
+    t.float "known_flaky_failure_min_score"
     t.boolean "land_on_inherited_check_failure", default: false, null: false
     t.boolean "landing_paused", default: false, null: false
     t.string "last_ci_evaluated_sha"
@@ -3333,5 +3335,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_170526) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end

@@ -1130,16 +1130,25 @@ and a broken cheap check must not stop the expensive rungs from running.
 Verdicts do not apply themselves. A call site passes `authorized:` naming the
 adjudicators whose verdict it will act on; an unauthorized adjudicator still
 runs and its verdict is still reported, marked as withheld, so a decision is
-recorded without being acted on. `Steps::GraderCollect` pre-authorizes only
-`inherited_grader_failure`, which is exactly what it acted on before rung 0
-existed.
+recorded without being acted on. `Steps::GraderCollect` pre-authorizes
+`inherited_grader_failure` and `known_flaky_failure`, which is exactly what
+it acted on before rung 0 existed plus the flakiness check added alongside it.
 
-Core ships two, both adaptations of checks that already existed in their own
-private shapes: `inherited_grader_failure` (`.syrus.yml`'s
+Core ships three. Two are adaptations of checks that already existed in their
+own private shapes: `inherited_grader_failure` (`.syrus.yml`'s
 `grade.failures: allow_inherited`, via `MainBranchFailureClassifier`) and
-`validated_landing` (the `LandingValidationCache` reuse decision). A language
-plugin that can tell "this grader was already failing" from its own parsed
-output is the obvious contributor.
+`validated_landing` (the `LandingValidationCache` reuse decision). The third,
+`known_flaky_failure` (`Adjudicators::KnownFlakyFailure`), dismisses a
+required-grader failure when every one of its failing tests already has a
+confirmed-flaky history -- the case `inherited_grader_failure` cannot catch
+because the flake reproduces on the base branch too, just intermittently. It
+reads flakiness scores through the `:test_evidence` extension point below
+rather than depending on a specific test-history plugin directly, and is
+opt-in per repository (`Repository#known_flaky_failure_dismissal_enabled`,
+off by default) because dismissing a real failure on a flaky reputation is a
+real risk. A language plugin that can tell "this grader was already failing"
+from its own parsed output is the obvious contributor to this extension
+point.
 
 ## `grade_detector`
 

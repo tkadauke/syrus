@@ -113,6 +113,40 @@ Syrus already made this distinction for its *own* grader steps via
 the same idea applied to GitHub check runs, which previously had nowhere to
 record which checks failed.
 
+## known_flaky_failure_dismissal_enabled
+
+`InheritedGraderFailure` cannot catch a spec that fails intermittently on the
+base branch too -- comparing against a single base-branch run proves nothing
+when the flake might simply not have reproduced there this time. That gap has
+stalled a merge train for hours across dozens of retries: a genuinely flaky
+spec kept failing a required grader on every `landing_fix` retry, unrelated
+to the PR's diff.
+
+`Adjudicators::KnownFlakyFailure` closes it from the other direction: when
+every failing test in a required grader Step already has a confirmed-flaky
+history in Test Insights (`flaky: true`, and a flakiness score at or above a
+configurable floor), the failure is dismissed at rung 0 instead of blocking
+landing or spending a `landing_fix` repair turn. It reuses whatever
+`:test_evidence` plugin already answers "which tests failed in this run" and
+"what is this test's flakiness score" -- with no such plugin, or no scoring
+history yet, it declines rather than guessing.
+
+Off by default, opted in per repository via
+`Repository#known_flaky_failure_dismissal_enabled` (same shape as
+`trust_clean_rebase_grade` and `land_on_inherited_check_failure` above): a
+repository whose flakiness history is not yet trustworthy should not have
+required-grader failures waved off silently.
+`Repository#known_flaky_failure_min_score` optionally raises the minimum
+flakiness score a test needs before its failure counts as "confirmed" flaky
+(default `Adjudicators::KnownFlakyFailure::DEFAULT_MIN_SCORE`), guarding
+against a single historical blip looking like a pattern. A dismissal is
+recorded as a `known_flaky_grader_failure` workflow artifact (the dismissed
+grader names, the confirmed-flaky tests and their scores) and logged on the
+`grader_collect` Step, the same visibility `record_inherited_main_failure!`
+gives an inherited-failure dismissal -- an operator or agent looking at why a
+red required grader did not block landing should never have to infer it from
+the absence of a failure.
+
 ## Stopping a landing attempt
 
 While a Job is `landing` -- solo (`auto_merge`/`external_pr_merge`) or as part
