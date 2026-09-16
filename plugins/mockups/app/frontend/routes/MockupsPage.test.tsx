@@ -59,6 +59,17 @@ function renderPage(initialEntry = "/mockups") {
   )
 }
 
+function mockMockupsFetch() {
+  return vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const path = String(input)
+    if (path.startsWith("/api/v1/app/mockups/")) return Promise.resolve(jsonResponse(detail()))
+    if (path.startsWith("/api/v1/app/preview_panels/4/files/index.html")) {
+      return Promise.resolve(jsonResponse({ content: "<h1>Rendered mockup</h1>", binary: false }))
+    }
+    return Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } }))
+  })
+}
+
 describe("MockupsPage", () => {
   afterEach(() => vi.restoreAllMocks())
 
@@ -84,29 +95,34 @@ describe("MockupsPage", () => {
   // The click opens the mockup beside the list rather than navigating away, so
   // the filtered list the operator built stays on screen.
   it("opens the selected mockup in the side panel", async () => {
-    vi.spyOn(window, "fetch").mockImplementation((input) => {
-      const path = String(input)
-      if (path.startsWith("/api/v1/app/mockups/")) return Promise.resolve(jsonResponse(detail()))
-      return Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } }))
-    })
+    const fetchSpy = mockMockupsFetch()
 
     renderPage()
     fireEvent.click(await screen.findByRole("button", { name: /MOCKUP-1/ }))
 
     expect(await screen.findByRole("complementary", { name: "Mockup preview" })).toBeInTheDocument()
-    // The html panel renders in a sandboxed iframe titled after the mockup.
-    expect(await screen.findByTitle("Nav sketch")).toBeInTheDocument()
+    const iframe = await screen.findByTitle("Nav sketch")
+    expect(iframe).toHaveAttribute("srcdoc", "<h1>Rendered mockup</h1>")
+    expect(iframe).not.toHaveAttribute("src", "http://preview-panel-4.lvh.me?v=9")
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/preview_panels/4/files/index.html?v=9", expect.anything())
   })
 
   it("renders the preview directly when the route carries a slug", async () => {
-    vi.spyOn(window, "fetch").mockImplementation((input) => {
-      const path = String(input)
-      if (path.startsWith("/api/v1/app/mockups/")) return Promise.resolve(jsonResponse(detail()))
-      return Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } }))
-    })
+    mockMockupsFetch()
 
     renderPage("/mockups/MOCKUP-1")
 
     await waitFor(() => expect(screen.getByRole("complementary", { name: "Mockup preview" })).toBeInTheDocument())
+  })
+
+  it("stacks the list and preview until the wide breakpoint", async () => {
+    mockMockupsFetch()
+
+    const { container } = renderPage("/mockups/MOCKUP-1")
+
+    await screen.findByRole("complementary", { name: "Mockup preview" })
+    const splitPane = container.querySelector(".lg\\:flex-row")
+    expect(splitPane).toHaveClass("flex-col", "lg:flex-row")
+    expect(screen.getByRole("complementary", { name: "Mockup preview" })).toHaveClass("min-h-[28rem]", "lg:w-1/2")
   })
 })
