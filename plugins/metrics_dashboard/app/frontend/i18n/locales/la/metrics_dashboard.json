@@ -7,6 +7,8 @@
   "panel_empty": "Nulla data hoc intervallo adhuc collecta.",
   "no_data_notice": "Nihil adhuc collectum est. Collectio post minutum ab instrumento incitato incipit.",
   "stale_notice": "Collectio cessavisse videtur. Ultimum exemplum: {{at}}.",
+  "hide_series": "Seriem {{name}} celare",
+  "show_series": "Seriem {{name}} ostendere",
   "panels": {
     "queue_oldest_age": "Vetustissimum opus exspectans, per ordinem",
     "queue_ready": "Opera exspectantia, per ordinem",

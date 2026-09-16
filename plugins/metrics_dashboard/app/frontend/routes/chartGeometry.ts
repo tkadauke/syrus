@@ -31,9 +31,22 @@ export function yScale(values: (number | null)[]): Scale {
   return { min: Math.max(0, min), max: dataMax + (dataMax - dataMin) * 0.1 }
 }
 
-/** Scale across every series in a panel, so lines in one chart are comparable. */
-export function panelScale(series: { values: (number | null)[] }[]): Scale {
-  const all = series.flatMap((entry) => entry.values)
+/**
+ * Scale across every series in a panel, so lines in one chart are comparable.
+ *
+ * `hiddenNames` excludes toggled-off series from the range entirely -- the
+ * point of hiding a series is usually to stop it from flattening the rest,
+ * so the axis has to rescale to what remains rather than just stop drawing
+ * the hidden line inside the old range.
+ */
+export function panelScale(
+  series: { name?: string; values: (number | null)[] }[],
+  hiddenNames?: ReadonlySet<string>
+): Scale {
+  const visible = hiddenNames && hiddenNames.size > 0
+    ? series.filter((entry) => !entry.name || !hiddenNames.has(entry.name))
+    : series
+  const all = visible.flatMap((entry) => entry.values)
   return yScale(all)
 }
 
