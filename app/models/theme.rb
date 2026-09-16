@@ -57,6 +57,60 @@ class Theme < ApplicationRecord
     token-punctuation token-link token-inserted token-deleted token-changed
   ].freeze
 
+  # Extended (non-color) token groups: shape/control radius, panel
+  # shadow/elevation, page/section spacing, control heights + table row
+  # height (density), and typography/font choices. Unlike TOKEN_KEYS these
+  # are NOT split by light/dark -- they mirror the single :root definition
+  # of --radius-*, --shadow-panel, --space-*, --control-height-*,
+  # --table-row-height, --font-*, and --text-* in
+  # app/assets/tailwind/application.css, none of which currently vary
+  # between light and dark mode. Stored as sibling top-level keys on
+  # `tokens` alongside "light"/"dark" (e.g. tokens["shape"]["radius-panel"]).
+  EXTENDED_TOKEN_GROUPS = {
+    "shape" => %w[radius-control radius-panel radius-pill border-width],
+    "shadow" => %w[shadow-panel],
+    "spacing" => %w[space-page-x space-page-y space-section space-section-compact],
+    "density" => %w[control-height-sm control-height-md table-row-height],
+    "typography" => %w[font-sans font-mono text-page-title text-section-title text-body text-caption]
+  }.freeze
+
+  # Default value for every EXTENDED_TOKEN_GROUPS key, copied from
+  # application.css's :root block. A stored theme that omits a group
+  # entirely (including every color-only theme that predates this token
+  # expansion), or omits individual keys within a group, gets these
+  # defaults merged in by #tokens_with_defaults -- so old themes keep
+  # working without a data migration/backfill.
+  DEFAULT_EXTENDED_TOKENS = {
+    "shape" => {
+      "radius-control" => "0.375rem",
+      "radius-panel" => "0.5rem",
+      "radius-pill" => "999px",
+      "border-width" => "1px"
+    },
+    "shadow" => {
+      "shadow-panel" => "0 1px 2px rgb(0 0 0 / 0.06)"
+    },
+    "spacing" => {
+      "space-page-x" => "1.5rem",
+      "space-page-y" => "1.5rem",
+      "space-section" => "1rem",
+      "space-section-compact" => "0.75rem"
+    },
+    "density" => {
+      "control-height-sm" => "2rem",
+      "control-height-md" => "2.5rem",
+      "table-row-height" => "3rem"
+    },
+    "typography" => {
+      "font-sans" => "Inter, ui-sans-serif, system-ui, sans-serif",
+      "font-mono" => "ui-monospace, SFMono-Regular, Menlo, monospace",
+      "text-page-title" => "2rem",
+      "text-section-title" => "0.95rem",
+      "text-body" => "0.875rem",
+      "text-caption" => "0.75rem"
+    }
+  }.freeze
+
   MODES = %w[light dark].freeze
   TERRACOTTA_SLUG = "terracotta".freeze
 
@@ -94,7 +148,22 @@ class Theme < ApplicationRecord
   end
 
   def public_payload
-    { id: id, slug: slug, name: name, built_in: built_in, position: position, tokens: tokens }
+    { id: id, slug: slug, name: name, built_in: built_in, position: position, tokens: tokens_with_defaults }
+  end
+
+  # Merges each EXTENDED_TOKEN_GROUPS group's stored overrides onto
+  # DEFAULT_EXTENDED_TOKENS, leaving "light"/"dark" untouched. Missing
+  # groups, and missing keys within a present group, resolve to the shared
+  # default -- so a pre-expansion, color-only stored theme (or a
+  # partially-specified new one) still returns a complete token payload.
+  def tokens_with_defaults
+    return tokens unless tokens.is_a?(Hash)
+
+    extended = EXTENDED_TOKEN_GROUPS.keys.index_with do |group|
+      DEFAULT_EXTENDED_TOKENS.fetch(group).merge(stored_group_tokens(group))
+    end
+
+    tokens.merge(extended)
   end
 
   # WCAG AA (4.5:1) contrast check across text/tone pairings, per mode.
@@ -189,5 +258,34 @@ class Theme < ApplicationRecord
       missing = TOKEN_KEYS - mode_tokens.keys
       errors.add(:tokens, "#{mode} is missing keys: #{missing.join(', ')}") if missing.any?
     end
+
+    EXTENDED_TOKEN_GROUPS.each_key { |group| validate_extended_token_group(group) }
+  end
+
+  # Extended groups are optional -- a group missing entirely resolves to
+  # DEFAULT_EXTENDED_TOKENS via #tokens_with_defaults. But a *present*
+  # group must only contain known keys with string values, so a typo'd key
+  # or a wrong-typed value (e.g. a number instead of a CSS length string)
+  # is rejected instead of silently stored.
+  def validate_extended_token_group(group)
+    return unless tokens.key?(group)
+
+    group_tokens = tokens[group]
+    unless group_tokens.is_a?(Hash)
+      errors.add(:tokens, "#{group} must be a hash of token values")
+      return
+    end
+
+    allowed_keys = EXTENDED_TOKEN_GROUPS.fetch(group)
+    unknown = group_tokens.keys - allowed_keys
+    errors.add(:tokens, "#{group} has unknown keys: #{unknown.join(', ')}") if unknown.any?
+
+    invalid = group_tokens.select { |key, value| allowed_keys.include?(key) && !value.is_a?(String) }
+    errors.add(:tokens, "#{group} values must be strings: #{invalid.keys.join(', ')}") if invalid.any?
+  end
+
+  def stored_group_tokens(group)
+    value = tokens[group]
+    value.is_a?(Hash) ? value : {}
   end
 end
