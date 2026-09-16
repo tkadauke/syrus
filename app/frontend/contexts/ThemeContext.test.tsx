@@ -47,7 +47,9 @@ function customColorTheme(): ColorTheme {
     position: null,
     tokens: {
       light: { brand: "#abcdef" },
-      dark: { brand: "#123456" }
+      dark: { brand: "#123456" },
+      shape: { "radius-panel": "1rem" },
+      typography: { "font-sans": "Comic Sans MS, sans-serif" }
     }
   }
 }
@@ -167,6 +169,7 @@ describe("ThemeContext", () => {
 
     expect(document.documentElement.getAttribute("data-theme")).toBe("ocean")
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("")
+    expect(document.documentElement.style.getPropertyValue("--radius-panel")).toBe("")
   })
 
   it("applies token values as inline custom properties for a custom color theme, matching the resolved mode", () => {
@@ -176,6 +179,13 @@ describe("ThemeContext", () => {
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("#abcdef")
     expect(document.documentElement.style.getPropertyValue("--color-link")).toBe("var(--color-brand-emphasis)")
     expect(document.documentElement.style.getPropertyValue("--color-warning-surface")).toBe("color-mix(in srgb, var(--color-surface) 94%, var(--color-warning))")
+  })
+
+  it("applies extended (non-color) token groups as unprefixed inline custom properties for a custom color theme", () => {
+    renderProbe("light", customColorTheme())
+
+    expect(document.documentElement.style.getPropertyValue("--radius-panel")).toBe("1rem")
+    expect(document.documentElement.style.getPropertyValue("--font-sans")).toBe("Comic Sans MS, sans-serif")
   })
 
   it("re-applies the custom theme's dark token set when resolved mode changes", () => {
@@ -192,12 +202,14 @@ describe("ThemeContext", () => {
 
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("#abcdef")
     expect(document.documentElement.style.getPropertyValue("--color-link")).toBe("var(--color-brand-emphasis)")
+    expect(document.documentElement.style.getPropertyValue("--radius-panel")).toBe("1rem")
 
     screen.getByRole("button", { name: "ocean" }).click()
 
     expect(document.documentElement.getAttribute("data-theme")).toBe("ocean")
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("")
     expect(document.documentElement.style.getPropertyValue("--color-link")).toBe("")
+    expect(document.documentElement.style.getPropertyValue("--radius-panel")).toBe("")
   })
 
   it("persists a color theme change and updates the shared bootstrap cache", async () => {
