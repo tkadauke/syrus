@@ -22,10 +22,12 @@ module SyrusDev
     route :get, "/admin/performance", to: "spa#show"
     route :get, "/admin/operational_logs", to: "spa#show"
     route :get, "/admin/design_system", to: "spa#show"
+    route :get, "/admin/tool_cards", to: "spa#show"
     frontend routes: {
           "syrus_dev/AdminPerformance" => "app/frontend/routes/AdminPerformance.tsx",
           "syrus_dev/AdminOperationalLogs" => "app/frontend/routes/AdminOperationalLogs.tsx",
-          "syrus_dev/AdminDesignSystem" => "app/frontend/routes/AdminDesignSystem.tsx"
+          "syrus_dev/AdminDesignSystem" => "app/frontend/routes/AdminDesignSystem.tsx",
+          "syrus_dev/AdminToolCards" => "app/frontend/routes/AdminToolCards.tsx"
         },
         i18n: [ "app/frontend/i18n/locales/*/syrus_dev.json" ]
   end
