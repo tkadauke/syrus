@@ -134,6 +134,26 @@ function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
   }
 }
 
+// Unlike Coding Mode, the read-only file actions (coding_files/coding_file)
+// work for a planning-mode chat's attached repository regardless of the
+// coding_mode feature flag -- see readOnlyFilesTabVisible and the
+// chats_controller.rb comment on #coding_files. The commits/diff paths are
+// deliberately omitted: those stay Coding-Mode-only.
+function makePlanningFilesPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
+  const payload = makePayload({ mode: "planning" })
+  return {
+    ...payload,
+    ...overrides,
+    coding_mode_enabled: false,
+    paths: {
+      ...payload.paths,
+      app_coding_files_path: "/api/v1/app/chats/1/coding_files",
+      app_coding_file_path: "/api/v1/app/chats/1/coding_file",
+      ...overrides.paths
+    }
+  }
+}
+
 function renderWorkspacePanel(payload: ChatPayload, options: {
   activeTab?: WorkspaceTab
   onSelectTab?: (tab: WorkspaceTab) => void
@@ -325,6 +345,34 @@ describe("ChatWorkspacePanel coding files", () => {
     expect(container.querySelector("pre code")).not.toBeInTheDocument()
   })
 
+  it("renders a read-only Files panel for planning-mode chats with an attached repository, without a Diff tab or commit selector", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: null, files: ["README.md"] })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({
+      binary: false,
+      content: "# Widgets\n",
+      path: "README.md",
+      too_large: false
+    })
+
+    renderWorkspacePanel(makePlanningFilesPayload())
+    fireEvent.click(await screen.findByRole("button", { name: "README.md" }))
+
+    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Diff" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Commit")).not.toBeInTheDocument()
+    expect(fetchCodingCommits).not.toHaveBeenCalled()
+    expect(fetchCodingDiff).not.toHaveBeenCalled()
+  })
+
+  it("still renders the Diff tab and commit selector for coding-mode chats", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: [] })
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    expect(await screen.findByRole("button", { name: "Diff" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Commit")).toBeInTheDocument()
+  })
+
   it("shows a file list and renders only the selected file diff", async () => {
     vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: [] })
     vi.mocked(fetchCodingDiff).mockResolvedValue({
@@ -406,12 +454,16 @@ describe("ChatWorkspacePanel coding files", () => {
     })
   })
 
-  it("deselects the files panel when the coding checkout disappears", async () => {
+  it("deselects the files panel when the coding checkout disappears and no repository remains attached", async () => {
     vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: [] })
     const onSelectTab = vi.fn()
     const { rerender } = renderWorkspacePanel(makeCodingPayload(), { onSelectTab })
 
-    const withoutCheckout = makePayload({ mode: "planning", coding_checkout_branch: null })
+    // Losing the coding checkout no longer hides the tab on its own -- a
+    // planning-mode chat with a repository still attached keeps a read-only
+    // Files tab (see readOnlyFilesTabVisible). Only losing the repository
+    // attachment too removes the tab.
+    const withoutCheckout = makePayload({ mode: "planning", coding_checkout_branch: null, repository: null })
     rerender(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>

@@ -1,19 +1,27 @@
 # Coding workspace relay
 
 The coding workspace relay is a lightweight HTTP server that runs on the `chat`
-queue worker and serves coding-session file and diff reads to web pods. It solves
-the multi-pod problem: `$SYRUS_DATA_ROOT/chat-workspaces/` is on the worker pod's
-local disk, so the web pod cannot read it directly. The relay uses the same
-pattern as `Terminal::Relay`.
+queue worker and serves chat-workspace file, commit, and diff reads to web pods.
+It solves the multi-pod problem: `$SYRUS_DATA_ROOT/chat-workspaces/` is on the
+worker pod's local disk, so the web pod cannot read it directly. The relay uses
+the same pattern as `Terminal::Relay`.
+
+Despite the "coding" name (a holdover from when this only served Coding Mode),
+the relay backs a per-chat repository checkout that both planning-mode and
+Coding Mode sessions can have: `ChatWorkspace.attach_repository!` (planning
+mode's `attach_repository` MCP tool, and `ChatTurnJob`'s unconditional
+checkout refresh) and `ensure_coding_checkout!` (Coding Mode) both write relay
+credentials through the same `write_relay_credentials!` call. See "Read-only
+file browsing outside Coding Mode" below for which endpoints that unlocks.
 
 ## Architecture
 
 The worker binds a TCP port on startup and records its `host:port` in
-`chat_sessions.coding_relay_address` when a coding checkout is active. Web pods
-read that address from the DB and proxy the three coding sidebar endpoints to the
-worker. Request auth is a per-session bearer token stored in
-`chat_sessions.coding_relay_token` (generated once per checkout, cleared on
-reclaim or cancel).
+`chat_sessions.coding_relay_address` whenever a chat workspace checkout is
+active (planning mode or Coding Mode). Web pods read that address from the DB
+and proxy the four coding sidebar endpoints to the worker. Request auth is a
+per-session bearer token stored in `chat_sessions.coding_relay_token`
+(generated once per checkout, cleared on reclaim or cancel).
 
 These routes are served by the relay:
 
@@ -23,6 +31,26 @@ These routes are served by the relay:
 | `GET /workspace/commits?session_id=N` | Up to 50 recent commits on the checkout branch |
 | `GET /workspace/file?session_id=N&path=<rel>[&ref=<sha>]` | File content from the live checkout or a commit |
 | `GET /workspace/diff?session_id=N&mode=<cumulative\|turn>[&ref=<sha>]` | Live checkout diff or a single-commit diff |
+
+## Read-only file browsing outside Coding Mode
+
+`Api::V1::App::ChatsController#coding_files` and `#coding_file` (the file-tree
+and file-content endpoints) work for any chat with an attached repository,
+regardless of `Feature.coding_mode_enabled?` or chat mode — they only require
+`chat_session.repository` to be present. `#coding_commits` and `#coding_diff`
+stay behind the `coding_mode_enabled?` gate: commit history and diffs are tied
+to the writable Coding Mode checkout, not to read-only browsing.
+
+Practically, this means a planning-mode chat with an attached repository gets
+a read-only **Files** workspace tab (`readOnlyFilesTabVisible` in
+`app/frontend/routes/chat/utils.ts`) showing the file tree and file content —
+no Diff sub-tab, no commit selector — as soon as the underlying checkout
+exists and has produced relay credentials (via the `attach_repository` MCP
+tool or `ChatTurnJob`'s automatic checkout refresh). Before that, the panel
+shows the same "relay unavailable, refresh queued" state Coding Mode's panel
+shows while its checkout is still warming up. A Coding Mode chat with an
+active checkout still gets the full read/write-adjacent panel (`Files` +
+`Diff` tabs, commit selector) via `codingFilesTabVisible`.
 
 ## Configuration
 

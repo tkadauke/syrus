@@ -14,7 +14,7 @@ import {
   CHAT_WORKSPACE_TAB_KEY,
   CHAT_WORKSPACE_WIDTH_KEY
 } from "./constants"
-import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible, runtimeTabVisible } from "./utils"
+import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible, readOnlyFilesTabVisible, runtimeTabVisible } from "./utils"
 
 // Unlike every other workspace tab kind (a hardcoded singleton), preview
 // panels are multi-instance: one tab per open PreviewPanel, keyed by id
@@ -102,7 +102,7 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false,
     ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
     ...(mediaTabVisible(payload) ? (["media"] as WorkspaceTab[]) : []),
     ...(hasPins ? (["pinned"] as WorkspaceTab[]) : []),
-    ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
+    ...(codingFilesTabVisible(payload) || readOnlyFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
     ...(localDiffTabVisible(payload) ? (["diff"] as WorkspaceTab[]) : []),
     ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : []),
     ...(runtimeTabVisible(payload) ? (["runtime"] as WorkspaceTab[]) : []),

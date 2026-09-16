@@ -143,6 +143,13 @@ The coding sidebar includes a file tree, a diff browser, and a compact commit
 selector. Operators can inspect the live working tree at HEAD or choose a recent
 commit on the checkout branch to view file contents and that commit's diff.
 
+A planning-mode chat with an attached repository gets a read-only version of
+the same **Files** tab — just the file tree and file content, with no Diff
+sub-tab or commit selector — once the chat has a local checkout of that
+repository (for example after the agent calls `attach_repository`, or
+automatically as part of a turn). This works whether or not Coding Mode is
+enabled instance-wide.
+
 Before each Coding Mode turn, Syrus attempts to create or restore the writable
 checkout. When that checkout is first created or restored, repository
 preparation runs asynchronously on the chat worker so the agent can begin

@@ -450,7 +450,9 @@ stay live for every participant.
 The right-side workspace panel's tab set (`WorkspaceTab` in
 `app/frontend/routes/chat/workspaceTabs.ts`, rendered by
 `WorkspacePanels.tsx`) is not a fixed list. Beyond the built-in singleton tabs
-(Whiteboard, Context, Media, Pinned, Files, Local Diff, Jobs) and the
+(Whiteboard, Context, Media, Pinned, Files — read/write with a Diff sub-tab in
+Coding Mode, read-only tree-and-content in planning mode once a repository is
+attached, see `coding_workspace_relay.md` — Local Diff, Jobs) and the
 multi-instance preview panel tabs (`preview:<id>`, see `preview_panels.md`), a
 plugin can register additional tabs through the `:workspace_tab` extension
 point (`Syrus::Plugin::WorkspaceTab`) — declarative id/label/component
