@@ -15,6 +15,7 @@ module MaintenanceTasks
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
       current_step_key = @task.current_step_key
       current_step_title = @task.current_step_title
+      checkpoint = @task.checkpoint
 
       task = MaintenanceTask.find(@task.id)
       task.with_lock do
@@ -24,12 +25,14 @@ module MaintenanceTasks
         completed = task.completed_units.to_i + result.processed.to_i
         failed = task.failed_units.to_i + result.failed.to_i
         total = adjusted_total_units(task, completed)
+        task.checkpoint_will_change!
         task.assign_attributes(
           completed_units: completed,
           failed_units: failed,
           total_units: total,
           current_step_key: current_step_key,
           current_step_title: current_step_title,
+          checkpoint: checkpoint.deep_dup,
           eta_seconds: eta_seconds(completed, total, elapsed, result.processed.to_i),
           last_error: nil
         )
