@@ -12,4 +12,14 @@ RSpec.describe PruneOldNotificationsJob do
     expect(Notification.where(id: old.id)).to be_empty
     expect(Notification.where(id: [ cutoff.id, fresh.id ])).to contain_exactly(cutoff, fresh)
   end
+
+  it "is a no-op when retention is set to 0 (infinite)" do
+    AppSetting.current.update!(notification_retention_days: 0)
+    user = Factories.user
+    old = Notification.create!(user: user, kind: "job_failed", body: "Old", created_at: 10.years.ago)
+
+    described_class.perform_now
+
+    expect(Notification.exists?(old.id)).to be true
+  end
 end

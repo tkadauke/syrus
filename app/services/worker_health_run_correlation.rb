@@ -61,7 +61,7 @@ class WorkerHealthRunCorrelation
     pressured = summaries.select { |summary| %w[warning critical].include?(summary.dig(:pressure, :level)) }
 
     {
-      retained_since: (now - WorkerHostHealthSample::RETAIN_AFTER).iso8601,
+      retained_since: WorkerHostHealthSample.retention_floor(now: now).iso8601,
       runs_analyzed: runs.size,
       pressure_run_count: pressured.size,
       latest_pressure_runs: pressured.first(5),
@@ -78,7 +78,7 @@ class WorkerHealthRunCorrelation
   private_class_method :summarized_run?
 
   def self.summary_as_json(run, summary, now:)
-    retained_since = now - WorkerHostHealthSample::RETAIN_AFTER
+    retained_since = WorkerHostHealthSample.retention_floor(now: now)
     range_start = summary.started_at || run.started_at || run.created_at
     range_finish = summary.finished_at || run.finished_at || now
     effective_since = range_start ? [ range_start, retained_since ].max : nil
@@ -143,7 +143,7 @@ class WorkerHealthRunCorrelation
   private_class_method :metric
 
   def self.preload_samples_by_hostname(runs, now:)
-    retained_since = now - WorkerHostHealthSample::RETAIN_AFTER
+    retained_since = WorkerHostHealthSample.retention_floor(now: now)
     hostnames = Set.new
     starts = []
     finishes = []
@@ -388,7 +388,7 @@ class WorkerHealthRunCorrelation
   end
 
   def retained_since
-    @retained_since ||= now - WorkerHostHealthSample::RETAIN_AFTER
+    @retained_since ||= WorkerHostHealthSample.retention_floor(now: now)
   end
 
   def retention_limited?
@@ -531,7 +531,7 @@ class WorkerHealthRunCorrelation
     end
 
     def retained_since
-      @retained_since ||= now - WorkerHostHealthSample::RETAIN_AFTER
+      @retained_since ||= WorkerHostHealthSample.retention_floor(now: now)
     end
 
     def retention_limited?

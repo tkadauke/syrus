@@ -35,7 +35,9 @@ RSpec.describe AppSettingRegistry do
       :proactive_rebase_commit_threshold,
       :show_work_unit_debug,
       :video_retention_days,
-      :video_storage_budget_mb
+      :video_storage_budget_mb,
+      :retention_available_space_override_gb,
+      *RetentionPolicyRegistry.definitions.map(&:setting_key)
     ])
 
     expect(described_class.metadata_for([ :proactive_rebase_commit_threshold ])).to eq([
@@ -50,5 +52,16 @@ RSpec.describe AppSettingRegistry do
         secret: false
       }
     ])
+  end
+
+  it "folds RetentionPolicyRegistry entries in as admin-editable integer settings with a 0=infinite floor" do
+    RetentionPolicyRegistry.definitions.each do |retention_definition|
+      definition = described_class.fetch(retention_definition.setting_key)
+
+      expect(definition.type).to eq(:integer)
+      expect(definition.default).to eq(retention_definition.default_value)
+      expect(definition.admin_editable).to be true
+      expect(definition.numericality_options).to include(greater_than_or_equal_to: 0)
+    end
   end
 end

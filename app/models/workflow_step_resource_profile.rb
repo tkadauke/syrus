@@ -1,7 +1,9 @@
 class WorkflowStepResourceProfile < ApplicationRecord
+  include HasConfigurableRetention
+
   PROFILE_VERSION = 1
-  INPUT_RETAIN_AFTER = 180.days
-  RETAIN_AFTER = 180.days
+
+  configurable_retention setting_key: :workflow_step_resource_profile_retention_days, unit: :days
 
   SOFT_PREDICTION_SAMPLE_COUNT = 10
   NORMAL_ADMISSION_SAMPLE_COUNT = 30
@@ -39,7 +41,23 @@ class WorkflowStepResourceProfile < ApplicationRecord
   }
 
   scope :stale, -> { stale_as_of(Time.current) }
-  scope :stale_as_of, ->(now) { where("last_observed_at < ?", now - RETAIN_AFTER) }
+  scope :stale_as_of, ->(now) {
+    window = retention_window
+    next none unless window
+
+    where("last_observed_at < ?", now - window)
+  }
+
+  # A second, independent retention setting: how far back RunResourceSummary
+  # rows are considered as input when rebuilding profiles. This is a lookback
+  # window, not a row-deletion scope, so it bypasses the shared
+  # configurable_retention macro (which only tracks one setting per model).
+  def self.input_retention_window
+    value = AppSetting.current.workflow_step_resource_profile_input_retention_days.to_i
+    return nil if value.zero?
+
+    value.days
+  end
 
   def self.refresh_all!(now: Time.current)
     WorkflowStepResourceProfiles::Refresh.new(now: now).refresh_all!

@@ -191,6 +191,14 @@ class AppSetting < ApplicationRecord
     mb.to_i.positive? ? mb * 1024 * 1024 : 0
   end
 
+  # Manual fallback for RetentionSizeSnapshotJob's available-space inference.
+  # nil means unset, so the job falls back to automatic detection (and
+  # reports source: "unknown" if that also comes up empty).
+  def self.retention_available_space_override_bytes
+    gb = current.retention_available_space_override_gb
+    gb.to_i.positive? ? gb.to_i.gigabytes : nil
+  end
+
   def self.telegram_bot_token
     current.telegram_bot_token.presence
   end

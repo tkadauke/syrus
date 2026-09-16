@@ -66,7 +66,7 @@ class OperationalLogIndex < SearchRecord
       )
     end
 
-    def search(query: nil, since: OperationalLogEvent::RETENTION.ago, until_time: nil, level: nil, role: nil, hostname: nil, app_revision: nil, limit: 50, offset: 0)
+    def search(query: nil, since: OperationalLogEvent.retention_floor, until_time: nil, level: nil, role: nil, hostname: nil, app_revision: nil, limit: 50, offset: 0)
       return fallback_search(query: query, since: since, until_time: until_time, level: level, role: role, hostname: hostname, app_revision: app_revision, limit: limit, offset: offset) unless available?
 
       ensure_fresh!
@@ -155,7 +155,7 @@ class OperationalLogIndex < SearchRecord
     # spawned as its subprocess) gets its local operational_log_fts seeded
     # once at container boot (REBUILD_HOOKS replays the retention window)
     # and never again, since IndexOperationalLogEventsJob never runs there.
-    # Once that boot-time seed ages out of OperationalLogEvent::RETENTION,
+    # Once that boot-time seed ages out of the configured retention window,
     # every search silently returns zero rows even though the primary DB
     # keeps accumulating events, with no error surfaced anywhere. Detect
     # that drift here and self-heal instead of requiring an operator to
@@ -190,7 +190,7 @@ class OperationalLogIndex < SearchRecord
     # (one transaction, and one fsync, per row) — the difference between a
     # sub-second rebuild and one that blocks a search for minutes.
     def rebuild!
-      OperationalLogEvent.where(occurred_at: OperationalLogEvent::RETENTION.ago..)
+      OperationalLogEvent.where(occurred_at: OperationalLogEvent.retention_floor..)
         .find_in_batches(batch_size: REBUILD_BATCH_SIZE) do |batch|
           upsert_many(batch, delete_ids: batch.map(&:id))
         end

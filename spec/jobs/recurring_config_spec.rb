@@ -74,6 +74,46 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
+  it "prunes run health snapshots daily" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("prune_run_health_snapshots")).to include(
+      "class" => "RunHealthSnapshotPruneJob",
+      "queue" => "cleanup",
+      "schedule" => "every day at 3:22am"
+    )
+  end
+
+  it "prunes main branch health checks daily" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("prune_main_branch_health_checks")).to include(
+      "class" => "MainBranchHealthCheckPruneJob",
+      "queue" => "cleanup",
+      "schedule" => "every day at 3:25am"
+    )
+  end
+
+  it "prunes stale workflow step resource profiles daily" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("prune_workflow_step_resource_profiles")).to include(
+      "class" => "WorkflowStepResourceProfilePruneJob",
+      "queue" => "cleanup",
+      "schedule" => "every day at 3:55am"
+    )
+  end
+
+  it "refreshes the retention size snapshot hourly" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("refresh_retention_size_snapshot")).to include(
+      "class" => "RetentionSizeSnapshotJob",
+      "queue" => "cleanup",
+      "schedule" => "every hour"
+    )
+  end
+
   it "assigns every recurring task to an isolated app queue" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
     allowed_queues = %w[control_plane polling indexing cleanup low_priority_maintenance]

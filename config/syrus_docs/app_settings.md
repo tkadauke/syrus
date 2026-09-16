@@ -219,3 +219,155 @@ The bot token used by the `discord` plugin's Gateway connector (`Discord::Gatewa
 **Type:** integer · **Default:** 0 (unlimited) · `0` = disabled
 
 Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a writable full clone plus installed dependencies, commonly 1–2 GB), measured in megabytes. When retained checkouts exceed the budget, `WorkflowWorkspacePruneJob` calls `ChatWorkspace.reclaim_coding_over_budget!` to LRU-evict the least-recently-active ones until total on-disk size is under budget — after safely backing up any un-pushed / uncommitted work to the remote (see the Coding Mode docs). `0` disables the size cap; the idle-reclaim window (`ChatWorkspace::RECLAIM_IDLE_CODING_AFTER`, 48 h) and reclaim-on-handoff still apply. Set this on busy instances where coding chats would otherwise fill the worker's data volume. `AppSetting.chat_coding_workspace_budget_bytes` converts it to bytes.
+
+## Data retention
+
+Per-table DB row retention windows are declared in `RetentionPolicyRegistry`
+(`app/models/retention_policy_registry.rb`), not hand-listed here or in
+`AppSettingRegistry` — `AppSettingRegistry.definitions` folds each entry in
+as an admin-editable integer setting (`RetentionPolicyRegistry::Definition#as_app_setting_definition`),
+so validations and admin metadata stay in sync automatically. Every setting
+follows the same `0` = infinite retention convention as
+`video_storage_budget_mb`: a `0` value means the corresponding scope returns
+`.none` and the PruneJob is a no-op. Models include the shared
+`HasConfigurableRetention` concern and declare `configurable_retention
+setting_key:, unit:` once; the concern exposes `retention_window` (nil when
+infinite), `retention_cutoff` (a `Time`, nil when infinite), and
+`retention_floor(now:)` (a `Time`, the epoch when infinite — used to clamp
+"since"/"floor" query defaults rather than assuming data exists arbitrarily
+far back) as class methods.
+
+`RetentionPolicyRegistry.definitions` recomputes on every call, merging
+`CORE_DEFINITIONS` with whatever any installed plugin contributes via the
+`:retention_policy` extension point (`Syrus::Plugin::RetentionPolicy`,
+`Syrus::PluginRegistry.all_plugins` — unfiltered by enabled state, since the
+AppSetting column and its validation/admin metadata must exist regardless of
+whether the plugin happens to be enabled). A plugin that owns a prunable
+table (e.g. `metrics_dashboard`) must never be hand-listed in core's
+`CORE_DEFINITIONS` — a core file naming a plugin's model/job class by string
+would make that plugin undeletable in practice (see CLAUDE.md's "core specs
+must not enumerate plugin-provided things" rule). See
+`plugins/metrics_dashboard/app/services/metrics_dashboard/retention_policy.rb`
+for the reference implementation.
+
+Scope is limited to DB-table row retention (MySQL/SQLite). Disk/blob-based
+retention (`WorkflowWorkspacePruneJob`'s workspace-directory constants,
+`ChatWorkspace::RECLAIM_IDLE_CODING_AFTER`, `CoverageHitMapTtlPruneJob::TTL_DAYS`,
+and the video walkthrough settings documented above) is out of scope and
+stays fixed or on its own settings.
+
+| Setting | Default | Unit | Table | PruneJob |
+| --- | --- | --- | --- | --- |
+| `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` |
+| `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` |
+| `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` |
+| `work_engine_reconciler_activity_retention_days` | 7 | days | `work_engine_reconciler_activity_events` | `WorkEngineReconcilerActivityPruneJob` |
+| `provider_session_retention_days` | 14 | days | `provider_sessions` | `ProviderSessionPruneJob` |
+| `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` |
+| `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` |
+| `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` |
+| `metrics_dashboard_sample_retention_days` | 30 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` |
+| `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` |
+| `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` |
+| `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` |
+| `workflow_step_resource_profile_input_retention_days` | 180 | days | (lookback only — see below) | none |
+
+Three entries are worth calling out:
+
+- **`operational_log_event_retention_hours`** is Syrus's own operational log
+  index — a high-volume, short-lived table — so its unit is hours, not days.
+  `OperationalLogEvent.retention_floor(now:)` clamps "since"/"floor" query
+  defaults across `OperationalLogIndex`, `OperationalLogSearch`, and
+  `Admin::OperationalLogsPayload` to the configured window (or the epoch, when
+  infinite) instead of assuming data always exists back to a fixed constant.
+- **`workflow_step_resource_profile_input_retention_days`** does not back a
+  deletion scope or PruneJob. It bounds how far back
+  `WorkflowStepResourceProfiles::Refresh` looks at `RunResourceSummary` rows
+  when rebuilding prediction profiles — a lookback window, not a retention
+  window — via `WorkflowStepResourceProfile.input_retention_window`. The
+  profile *rows* themselves are governed by the sibling
+  `workflow_step_resource_profile_retention_days` setting and the `.stale`
+  scope (already pruned inline by `WorkflowStepResourceProfileRefreshJob`;
+  `WorkflowStepResourceProfilePruneJob` is an independently schedulable
+  safety net on top of that).
+- **`metrics_dashboard_sample_retention_days`** is the one plugin-owned
+  entry in the table above. It is contributed by the `metrics_dashboard`
+  plugin via the `:retention_policy` extension point rather than hand-listed
+  in `RetentionPolicyRegistry::CORE_DEFINITIONS`, so the plugin stays
+  physically removable (`bin/plugin-boundary-audit metrics_dashboard`). The
+  column itself is still added by a core migration and validated/exposed in
+  admin settings unconditionally, the same as other plugin-owned settings
+  like `discord_bot_token` — only the model's `.prunable` scope and PruneJob
+  go inert while the plugin is disabled.
+
+### Retention size estimation
+
+`TableSizeEstimator` (`app/services/table_size_estimator.rb`) returns a fast,
+approximate `{ row_count_estimate, byte_size_estimate }` for a table name —
+never `COUNT(*)` or a full scan. It branches on
+`ActiveRecord::Base.connection.adapter_name` (the same idiom as
+`PluginRecord.search`): MySQL reads `information_schema.TABLES`
+(`TABLE_ROWS`, `DATA_LENGTH + INDEX_LENGTH`), which are InnoDB engine
+estimates that can drift between `ANALYZE TABLE` runs; SQLite feature-detects
+the `dbstat` virtual table (some builds lack `SQLITE_ENABLE_DBSTAT_VTAB`) for
+byte size and falls back to `nil` when it's unavailable, and uses
+`MAX(rowid)` as a fast row-count proxy, which undercounts after heavy
+deletes — an accepted tradeoff for an estimate.
+
+`RetentionSizeSnapshotJob` (`queue: cleanup`, hourly via `config/recurring.yml`)
+iterates every `RetentionPolicyRegistry` entry (core and plugin-contributed
+alike — never a hand-listed table set), estimates its table, reads the
+entry's current `AppSetting` retention value, and caches one
+`RetentionSizeSnapshotJob::TableSnapshot` per entry via `Rails.cache`
+(mirroring `DataRootDiskUsage`'s cached-snapshot/TTL pattern). It also
+computes `bytes_per_unit_estimate` (`current_byte_size / current_retention_value`)
+and `estimated_max_byte_size` (`bytes_per_unit_estimate * configured_retention_value`)
+so a future admin page doesn't need to recompute them; both are `nil` when
+the table is currently empty or the configured retention is already infinite
+(`0`) — there's no rate or ceiling to project in either case. The admin page
+must read `RetentionSizeSnapshotJob.table_snapshot(key)` /
+`.available_space` from cache, never compute these synchronously on page
+load.
+
+The job also caches one shared `AvailableSpace` snapshot
+(`{ available_bytes, source, computed_at }`). `source` is one of:
+
+- **`manual`** — the `retention_available_space_override_gb` `AppSetting`
+  (below) is set and takes priority over automatic inference.
+- **`measured`** — automatic inference succeeded: `DataRootDiskUsage.refresh!`
+  in SQLite local mode (`SYRUS_SQLITE`), or a `df`-based read of MySQL's
+  `@@datadir` filesystem when that path is locally readable.
+- **`unknown`** — neither a manual override nor automatic inference is
+  available (the common case for managed/remote MySQL, where `@@datadir`
+  isn't a path this process can see).
+
+### retention_available_space_override_gb
+
+**Type:** integer · **Default:** 0 (unset) · **Min:** 0
+
+Manual fallback for the retention page's "available space" figure, in
+gigabytes, used when `RetentionSizeSnapshotJob`'s automatic inference can't
+determine it. `AppSetting.retention_available_space_override_bytes` returns
+`nil` when unset (`0`) so the job can distinguish "no override" from "an
+operator picked 0 GB."
+
+### Admin Retention Settings page
+
+`/admin/retention_settings` (React: `RetentionSettings.tsx`; API:
+`Api::V1::App::Admin::RetentionSettingsController`, `GET`/`PATCH
+/api/v1/app/admin/retention_settings`) renders one row per
+`RetentionPolicyRegistry` entry — never a hand-listed table set in the
+controller — joining in the cached `RetentionSizeSnapshotJob` sizing data and
+the entry's current `AppSetting` value. Each row shows the table's current
+row count/byte size, its projected max size at the configured retention (or
+"Unbounded" when the setting is `0`), and, when available-space data exists,
+that max size as a percentage of available space; when available space is
+`unknown` the page surfaces the `retention_available_space_override_gb`
+input inline instead of a blank comparison. Each row edits its own retention
+window independently (a numeric input plus an "infinite retention" toggle
+that zeroes the value) rather than one flat form, since the settings are
+unrelated to each other. `update` validates against the same
+`AppSettingRegistry`-derived numericality bounds as every other retention
+setting, so `0` is always accepted as the infinite sentinel. This page covers
+only the DB-table entries in the registry; the existing walkthrough-video
+retention/budget settings documented above stay on `/settings/edit`.

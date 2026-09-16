@@ -7,13 +7,13 @@ RSpec.describe WorkEngineReconcilerActivityPruneJob do
         event_type: "run_finished",
         source: "spec",
         message: "old",
-        occurred_at: (WorkEngineReconcilerActivityEvent::RETAIN_AFTER + 1.second).ago
+        occurred_at: (WorkEngineReconcilerActivityEvent.retention_window + 1.second).ago
       )
       WorkEngineReconcilerActivityEvent.record!(
         event_type: "run_finished",
         source: "spec",
         message: "fresh",
-        occurred_at: WorkEngineReconcilerActivityEvent::RETAIN_AFTER.ago
+        occurred_at: WorkEngineReconcilerActivityEvent.retention_window.ago
       )
       # record! buffers; a reader flushes before querying, so the spec does too.
       Observability::EventSink.flush!(kinds: [ :work_engine_reconciler_activity ])
@@ -23,5 +23,18 @@ RSpec.describe WorkEngineReconcilerActivityPruneJob do
       expect(WorkEngineReconcilerActivityEvent.exists?(message: "old")).to be(false)
       expect(WorkEngineReconcilerActivityEvent.exists?(message: "fresh")).to be(true)
     end
+  end
+
+  it "is a no-op when retention is set to 0 (infinite)" do
+    AppSetting.current.update!(work_engine_reconciler_activity_retention_days: 0)
+    WorkEngineReconcilerActivityEvent.record!(
+      event_type: "run_finished",
+      source: "spec",
+      message: "ancient",
+      occurred_at: 10.years.ago
+    )
+    Observability::EventSink.flush!(kinds: [ :work_engine_reconciler_activity ])
+
+    expect { described_class.perform_now }.not_to change { WorkEngineReconcilerActivityEvent.count }
   end
 end

@@ -44,7 +44,7 @@ class AppSettingRegistry
     end
   end
 
-  DEFINITIONS = [
+  BASE_DEFINITIONS = [
     Definition.new(
       key: :grade_max_iterations,
       type: :integer,
@@ -502,6 +502,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :retention_available_space_override_gb,
+      type: :integer,
+      default: 0,
+      min: 0,
+      max: nil,
+      category: "Data retention",
+      operational_meaning: "Manual fallback for available disk space shown on the retention sizing admin page, in gigabytes, used when automatic inference (SQLite data-root disk usage, or a locally-readable MySQL datadir) can't determine it.",
+      zero_means: "Unset; Syrus falls back to automatic available-space inference and reports it as unknown when that also fails.",
+      admin_editable: true,
+      secret: false
+    ),
+    Definition.new(
       key: :main_concern_report_threshold,
       type: :integer,
       default: 2,
@@ -515,14 +527,23 @@ class AppSettingRegistry
     )
   ].freeze
 
-  BY_KEY = DEFINITIONS.index_by(&:key).freeze
-
+  # RetentionPolicyRegistry is the declarative source of truth for
+  # per-table retention windows; folding its entries in here means the
+  # numericality validation and admin-editable metadata below apply to
+  # every retention setting automatically instead of being hand-listed.
+  #
+  # Recomputed on every call (RetentionPolicyRegistry.definitions itself
+  # recomputes, merging in plugin-contributed entries) rather than frozen
+  # once, so a plugin's retention setting is picked up whenever its
+  # `:retention_policy` provider is registered instead of only if that
+  # happened to already be true the one time this constant would otherwise
+  # have been evaluated.
   def self.definitions
-    DEFINITIONS
+    BASE_DEFINITIONS + RetentionPolicyRegistry.definitions.map(&:as_app_setting_definition)
   end
 
   def self.fetch(key)
-    BY_KEY.fetch(key.to_sym)
+    definitions.index_by(&:key).fetch(key.to_sym)
   end
 
   def self.admin_editable_keys
@@ -530,7 +551,7 @@ class AppSettingRegistry
   end
 
   def self.boolean_key?(key)
-    BY_KEY[key.to_sym]&.boolean? || false
+    definitions.index_by(&:key)[key.to_sym]&.boolean? || false
   end
 
   def self.metadata_for(keys = definitions.map(&:key))

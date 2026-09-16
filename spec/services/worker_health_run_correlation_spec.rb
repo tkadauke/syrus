@@ -331,7 +331,7 @@ RSpec.describe WorkerHealthRunCorrelation do
     payload = described_class.for_run(run, now: now)
 
     expect(payload[:retention_limited]).to be(true)
-    expect(payload.dig(:range, :effective_since)).to eq((now - WorkerHostHealthSample::RETAIN_AFTER).iso8601)
+    expect(payload.dig(:range, :effective_since)).to eq(WorkerHostHealthSample.retention_floor(now: now).iso8601)
     expect(payload[:sample_count]).to eq(1)
     expect(payload.dig(:summary, :cpu_used_percent)).to eq(avg: 91.0, max: 91.0)
     expect(payload.dig(:pressure, :reasons)).to include("run started before retained worker health history")

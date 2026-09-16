@@ -117,4 +117,23 @@ RSpec.describe SpawnedProcess do
       expect(described_class.stale).not_to include(fresh)
     end
   end
+
+  describe ".prunable" do
+    it "includes finished rows older than the retention window" do
+      old = described_class.create!(base_attrs.merge(finished_at: (described_class.retention_window + 1.day).ago, outcome: "succeeded"))
+      fresh = described_class.create!(base_attrs.merge(finished_at: 1.hour.ago, outcome: "succeeded"))
+      running = described_class.create!(base_attrs)
+
+      expect(described_class.prunable).to contain_exactly(old)
+      expect(described_class.prunable).not_to include(fresh, running)
+    end
+
+    it "returns none when retention is set to 0 (infinite)" do
+      AppSetting.current.update!(spawned_process_retention_days: 0)
+      old = described_class.create!(base_attrs.merge(finished_at: 10.years.ago, outcome: "succeeded"))
+
+      expect(described_class.prunable).to be_empty
+      expect(described_class.exists?(old.id)).to be true
+    end
+  end
 end

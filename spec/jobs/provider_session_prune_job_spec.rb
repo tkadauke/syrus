@@ -9,7 +9,7 @@ RSpec.describe ProviderSessionPruneJob do
     old_session    = ProviderSession.create!(resumable: old_run,    session_id: "old",    transcript_jsonl: "x")
     new_session    = ProviderSession.create!(resumable: new_run,    session_id: "new",    transcript_jsonl: "x")
     active_session = ProviderSession.create!(resumable: active_run, session_id: "active", transcript_jsonl: "x")
-    old_session.update_columns(updated_at: (ProviderSession::RETAIN_AFTER_TERMINAL + 1.day).ago)
+    old_session.update_columns(updated_at: (ProviderSession.retention_window + 1.day).ago)
     active_session.update_columns(updated_at: 1.year.ago)  # old, but parent is active → keep
 
     expect {
@@ -41,6 +41,15 @@ RSpec.describe ProviderSessionPruneJob do
   end
 
   it "is a no-op when nothing is prunable" do
+    expect { described_class.perform_now }.not_to change { ProviderSession.count }
+  end
+
+  it "is a no-op when retention is set to 0 (infinite)" do
+    AppSetting.current.update!(provider_session_retention_days: 0)
+    old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
+    old_session = ProviderSession.create!(resumable: old_run, session_id: "old", transcript_jsonl: "x")
+    old_session.update_columns(updated_at: 10.years.ago)
+
     expect { described_class.perform_now }.not_to change { ProviderSession.count }
   end
 end

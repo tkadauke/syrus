@@ -197,6 +197,9 @@ la:
       unknown_secret: "Arcanum ignotum."
       secret_cleared: "%{label} deletum est."
 
+    admin_retention_settings:
+      updated: "Res retentionis renovatae sunt."
+
     direct_jobs:
       repository_not_found: "Repositorium non inventum vel non activum."
       prompt_blank: "Incitamentum vacuum esse non potest."

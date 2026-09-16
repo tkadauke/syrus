@@ -1,9 +1,12 @@
 class MainBranchHealthCheck < ApplicationRecord
+  include HasConfigurableRetention
+
   SOURCES = %w[ ci_poll grader_workflow concern_quorum ].freeze
   CONCLUSIVE_GRADER_HEALTH = %w[ healthy broken ].freeze
   SETTLED_CI_HEALTH = %w[ healthy broken not_configured inconclusive ].freeze
   SETTLED_GRADER_HEALTH = %w[ healthy broken inconclusive ].freeze
-  RETAIN_AFTER = 7.days
+
+  configurable_retention setting_key: :main_branch_health_check_retention_days, unit: :days
 
   belongs_to :repository
   belongs_to :workflow, optional: true
@@ -13,7 +16,10 @@ class MainBranchHealthCheck < ApplicationRecord
   validates :source, presence: true, inclusion: { in: SOURCES }
 
   scope :recent, -> { order(checked_at: :desc) }
-  scope :pruneable, -> { where(checked_at: ..RETAIN_AFTER.ago) }
+  scope :pruneable, -> {
+    cutoff = retention_cutoff
+    cutoff ? where(checked_at: ..cutoff) : none
+  }
 
   def self.conclusive_grader_result_exists?(repository:, sha:)
     where(

@@ -91,6 +91,16 @@ RSpec.describe MainBranchHealthCheck do
       )
       expect(MainBranchHealthCheck.pruneable).to contain_exactly(old)
     end
+
+    it "returns none when retention is set to 0 (infinite)" do
+      AppSetting.current.update!(main_branch_health_check_retention_days: 0)
+      MainBranchHealthCheck.create!(
+        repository: repository, sha: "ancient", checked_at: 10.years.ago,
+        ci_health: "unknown", grader_health: "unknown", source: "ci_poll"
+      )
+
+      expect(MainBranchHealthCheck.pruneable).to be_empty
+    end
   end
 
   describe ".record_ci_poll" do

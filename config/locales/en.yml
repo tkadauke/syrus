@@ -225,6 +225,9 @@ en:
       unknown_secret: "Unknown secret."
       secret_cleared: "%{label} cleared."
 
+    admin_retention_settings:
+      updated: "Retention settings updated."
+
     direct_jobs:
       repository_not_found: "Repository not found or not active."
       prompt_blank: "Prompt can't be blank."

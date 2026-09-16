@@ -407,7 +407,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       repository: repository,
       duration: 1_000,
       cpu: 99.0,
-      finished_at: now - RunResourceSummary::RETAIN_AFTER - 1.second
+      finished_at: now - RunResourceSummary.retention_window - 1.second
     )
 
     described_class.new(now: now).refresh_all!
@@ -415,6 +415,29 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     profile = WorkflowStepResourceProfile.first
     expect(profile.sample_count).to eq(1)
     expect(profile.p50_duration_seconds).to eq(100.0)
+  end
+
+  it "falls back to a 100-year lookback when both input retention settings are 0 (infinite)" do
+    AppSetting.current.update!(
+      workflow_step_resource_profile_input_retention_days: 0,
+      run_resource_summary_retention_days: 0
+    )
+    resource_summary(repository: repository, duration: 100, cpu: 10.0)
+    resource_summary(
+      repository: repository,
+      duration: 1_000,
+      cpu: 99.0,
+      # Older than either default retention window would have allowed, but
+      # well within the 100.years fallback used when both windows are nil.
+      finished_at: now - 50.years
+    )
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.sample_count).to eq(2)
+    expect(profile.p50_duration_seconds).to eq(100.0)
+    expect(profile.p90_duration_seconds).to eq(1_000.0)
   end
 
   it "caps each refresh to recent summaries so maintenance stays bounded" do

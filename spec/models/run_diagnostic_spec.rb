@@ -24,12 +24,20 @@ RSpec.describe RunDiagnostic do
   end
 
   describe ".prunable" do
-    it "matches rows older than RETAIN_AFTER" do
+    it "matches rows older than the configured retention window" do
       old = described_class.create!(run: Factories.run, error_class: "X")
-      old.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      old.update_columns(created_at: (described_class.retention_window + 1.day).ago)
       fresh = described_class.create!(run: Factories.run, error_class: "X")
       expect(described_class.prunable).to include(old)
       expect(described_class.prunable).not_to include(fresh)
+    end
+
+    it "returns none when retention is set to 0 (infinite)" do
+      AppSetting.current.update!(run_diagnostic_retention_days: 0)
+      old = described_class.create!(run: Factories.run, error_class: "X")
+      old.update_columns(created_at: 10.years.ago)
+
+      expect(described_class.prunable).to be_empty
     end
   end
 end
