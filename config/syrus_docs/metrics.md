@@ -2,11 +2,11 @@
 
 Syrus exposes aggregate metrics in the Prometheus text exposition format at
 `GET /metrics`. This covers the queue-health, product-usage, landing-queue/
-run-throughput, worker/admission, and fleet metric groups from the plan in
-`docs/plans/prometheus-dashboard.md`; a genuine worker exporter (one that
-scrapes every pod, not just web), the single-replica global exporter, Grafana
-dashboards, telemetry and the embedded dashboard plugin are later steps and
-are not built yet.
+run-throughput, worker/admission, fleet, resilience, and maintenance/pruner
+metric groups from the plan in `docs/plans/prometheus-dashboard.md`; a genuine
+worker exporter (one that scrapes every pod, not just web), the single-replica
+global exporter, Grafana dashboards, telemetry and the embedded dashboard
+plugin are later steps and are not built yet.
 
 ## Why it exists
 
@@ -312,6 +312,65 @@ instance-wide stall condition visible on the dashboard instead of requiring
 someone to notice landing has gone quiet. It reports only a count, never
 repository names or ids, per the cardinality rule below.
 
+### Maintenance and pruners
+
+| Metric | Meaning |
+|---|---|
+| `syrus_recurring_job_last_success_seconds{job}` | seconds since a `config/recurring.yml` job last completed successfully |
+| `syrus_provider_sessions_bytes` | total `transcript_jsonl` bytes across all `provider_sessions` rows |
+| `syrus_provider_sessions_rows` | total `provider_sessions` row count |
+| `syrus_auto_retry_attempts_total{skip_reason}` | auto-retry attempts by settled outcome |
+
+`Metrics::MaintenanceSampler` (`app/services/metrics/maintenance_sampler.rb`)
+owns all four. Motivating incident: `provider_sessions` reached 6.0 GB, rows
+dating back over a month, because the `prune_provider_sessions` recurring
+task had silently stopped -- invisible outside a Rails console until someone
+went looking by hand, the same shape as every other incident this metrics
+effort exists to catch.
+
+**`recurring_job_last_success_seconds`** is a generic staleness signal
+covering every job declared in `config/recurring.yml` -- pruners chief among
+them, but every recurring job gets covered without a bespoke gauge per table.
+`job` is the `config/recurring.yml` key (`prune_provider_sessions`,
+`reap_stale_runs`, ...), not the underlying Solid Queue class name.
+`Metrics::QueueSource#recurring_job_last_success_at` reads the most recent
+`solid_queue_jobs.finished_at` per configured job's class. That table alone is
+not sufficient: Solid Queue prunes finished job rows after
+`SolidQueue.clear_finished_jobs_after` (1 day by default), far shorter than
+the staleness this gauge exists to catch. `Metrics::MaintenanceSampler` keeps
+its own durable high-water mark in the cache (100-day TTL), advanced forward
+on every tick that observes a newer success and otherwise left alone -- so a
+job that has not actually succeeded in weeks keeps growing this gauge instead
+of the evidence aging out of `solid_queue_jobs` and making it look merely
+unobserved. A job with no recorded success at all (never run, or nothing
+observed since the sampler started) is omitted rather than reported as `0`,
+which would misread as "just succeeded."
+
+**`provider_sessions_bytes`/`provider_sessions_rows`** are `provider_sessions`
+table headline gauges, sampled directly (`SUM(LENGTH(transcript_jsonl))` and
+`COUNT(*)`) given the table's history and its `prune_provider_sessions`
+pruning task.
+
+**`auto_retry_attempts_total`** counts every settled `AutoRetryAttempt` --
+performed (`skip_reason="none"`) or skipped -- the same cursor-over-`updated_at`,
+cache-mediated counter shape `Metrics::LandingSampler` uses for `runs_total`.
+`CLAUDE.md`'s "Failure resilience" section documents production hitting an
+unbounded auto-retry accumulation bug twice: a permanent skip condition
+(`"failure classification changed"`, written for a verdict that had not
+changed) sat in `AutoRetryAttempt::BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES`, so
+every resulting skip did not count against the retry budget, and the
+reconciler kept proposing another attempt -- production reached roughly
+460,000 attempts at two per second before anyone noticed. `skip_reason` is a
+bounded category (`AutoRetryAttempt.skip_reason_category`), not the raw
+`skipped_reason` string -- that string routinely interpolates a
+classification name or a schedule time, which would make it an unbounded
+label. Categories mirror `BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES` one-to-one,
+plus `not_retryable` for `AutoRetryAttempt::NOT_RETRYABLE_SKIP_PREFIX` (a
+skip that correctly counts against budget) and `other` for anything
+unrecognized -- so a rate spike on one budget-exempt category is a direct
+instrument for that exact regression recurring, without waiting for the
+Job/Workflow-level symptoms to show up first.
+
 ## Aggregating: `max by`, never `sum`
 
 Metrics prefixed `syrus_global_` are **one fact about the whole cluster**, not a
@@ -328,8 +387,9 @@ but it is not the only signal: `job_state`, `landing_queue_depth`,
 `queue_table_rows`, `worker_cpu_percent`, `worker_memory_percent`,
 `active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`,
 `spawned_processes`, `provider_circuit_state`, `github_rate_limit_remaining`,
-and `repositories_main_branch_broken_count` are every bit as GLOBAL and
-cache-mediated as the `syrus_global_*` gauges, just declared without the
+`repositories_main_branch_broken_count`, `recurring_job_last_success_seconds`,
+`provider_sessions_bytes`, and `provider_sessions_rows` are every bit as
+GLOBAL and cache-mediated as the `syrus_global_*` gauges, just declared without the
 prefix -- their
 `docs/metrics-catalog.md` description ends in `(GLOBAL -- aggregate with max
 by...)` instead. Treat that annotation, not the name, as authoritative.

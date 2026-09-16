@@ -65,6 +65,7 @@ class MetricsController < Api::BaseController
     Metrics::WorkerSampler.refresh_gauges!
     Metrics::FleetSampler.refresh_gauges!
     Metrics::ResilienceSampler.refresh_gauges!
+    Metrics::MaintenanceSampler.refresh_gauges!
     self.class.last_refresh_at = now
   rescue StandardError => e
     Rails.logger.warn("[MetricsController] could not refresh global gauges: #{e.class}: #{e.message}")
