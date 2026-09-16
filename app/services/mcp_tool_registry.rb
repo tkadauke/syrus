@@ -344,6 +344,7 @@ class McpToolRegistry
         workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReportMainConcernTool, required_roles: workflow_roles, mutation: true),
+        workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitReviewPlanTool, capability: :submit_review_plan, required_roles: summary_roles, mutation: true),
