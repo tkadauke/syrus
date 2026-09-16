@@ -63,6 +63,20 @@ Unlike `submit_artifact`, the image bytes are not stored in the `Workflow#artifa
 
 If the configured ActiveStorage backend is temporarily unreachable while serving that `image_url` (for example a transient MinIO connection refusal in the k3s service path), the app API returns `503` JSON with `error.code = "storage_unavailable"` and a short `Retry-After` header instead of raising a 500. The admin overview includes an "Artifact storage" tile backed by the same ActiveStorage probe so operators can distinguish a storage/backend outage from a broken workflow artifact.
 
+## MCP tools: `list_artifacts` / `read_artifact` (workflow surface)
+
+Read-only companions to `submit_artifact`/`submit_visual_artifact`, for an agent that needs to discover or actually see a previously submitted artifact — the only prior consumer was the human-facing `visual_artifact` HTTP endpoint and its React viewer. Same role availability as `submit_visual_artifact` (implement, summary_test_plan, rebase_conflict, manual, visual_reviewer).
+
+`list_artifacts` takes a `workflow_id` (integer, required) and returns each `typed_artifacts` entry as `{ type, title, content_type, byte_size, run_id, step_id, iteration, image_url }` — `content_type`/`byte_size`/`iteration`/`image_url` come from the entry's `payload` and are only populated for image entries written by `submit_visual_artifact`. Use this first to find the `type` key an entry was actually stored under, since `submit_visual_artifact` rewrites the caller-supplied `type` into a run-scoped stored type (e.g. `visual_review_screenshot_run_44_1`).
+
+`read_artifact` takes `workflow_id` and `type` (both required) and returns the stored image (looked up via `Workflow#visual_artifact_for(type)`) as an MCP image content block — the same mechanism `browser_screenshot` already uses to hand an agent real image bytes it can see mid-turn, not a metadata-only echo. It only succeeds for artifacts with an attached ActiveStorage blob (i.e. ones written by `submit_visual_artifact`); a `type` written only by `submit_artifact` has no image to read.
+
+Both tools scope `workflow_id` to the same repository and owning user as the current Run — a `workflow_id` from a different Job's repository, or a nonexistent id, is rejected with "workflow_id is outside this repository scope" rather than resolved.
+
+## MCP tools: `list_artifacts` / `read_artifact` (chat surface)
+
+Chat-surface counterparts, available to chat agents. Same input/output shape as the workflow-surface tools above, but `workflow_id` is authorized via the same ownership scoping every other chat workflow-inspection tool uses (`read_workflow`, `read_run_transcript`): any Workflow belonging to a Job in a repository owned by the chat session's user, regardless of which repository the chat session itself is attached to.
+
 ## MCP tool: `submit_artifact` (chat surface)
 
 Available to chat agents (planning, coding, and local-mode sessions). Same parameters, validation, and replace-on-type idempotency as the workflow-surface tool above, but it writes into `ChatSession#artifacts["typed_artifacts"]` instead of `Workflow#artifacts["typed_artifacts"]` — there is no Workflow or Run in a chat session. A chat agent asked to visualize the schema or explain a migration can call `read_schema`/`explain_migration`-style repository tooling and then `submit_artifact` to hand the operator a rendered result in the chat.

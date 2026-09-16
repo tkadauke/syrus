@@ -142,6 +142,7 @@ RSpec.describe McpToolRegistry do
           get_coverage_report read_run_worker_health start_preview stop_preview
           read_preview_log report_main_concern submit_summary submit_test_plan submit_review_plan
           submit_artifact patch_workflow run_target_prepare submit_visual_artifact
+          list_artifacts read_artifact
         ]
       )
     end
@@ -170,6 +171,7 @@ RSpec.describe McpToolRegistry do
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
           read_preview_log report_main_concern submit_visual_review submit_visual_artifact
+          list_artifacts read_artifact
         ]
       )
     end
