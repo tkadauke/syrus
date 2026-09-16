@@ -692,6 +692,51 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#binary_file_content_at" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+
+    it "decodes base64 content without transcoding to UTF-8" do
+      png_bytes = "\x89PNG\r\n\x1A\n\x00\x01".b
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/app/assets/images/logo.png")
+        .with(query: hash_including("ref" => "deadbeef"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            type: "file",
+            encoding: "base64",
+            size: png_bytes.bytesize,
+            content: Base64.encode64(png_bytes)
+          }.to_json
+        )
+
+      result = client.binary_file_content_at("acme/widgets", "app/assets/images/logo.png", "deadbeef")
+
+      expect(result[:content].b).to eq(png_bytes)
+      expect(result[:size]).to eq(png_bytes.bytesize)
+    end
+
+    it "returns nil when the path is a directory, not a file" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/app")
+        .with(query: hash_including("ref" => "deadbeef"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [ { type: "file", name: "user.rb" } ].to_json
+        )
+
+      expect(client.binary_file_content_at("acme/widgets", "app", "deadbeef")).to be_nil
+    end
+
+    it "returns nil when the file does not exist at that ref" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/contents/missing.png")
+        .with(query: hash_including("ref" => "deadbeef"))
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
+
+      expect(client.binary_file_content_at("acme/widgets", "missing.png", "deadbeef")).to be_nil
+    end
+  end
+
   describe "#commit_tree_sha" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 

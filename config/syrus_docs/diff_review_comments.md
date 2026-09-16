@@ -54,6 +54,21 @@ persists a version for the displayed comparison, including explicit `base`/
 /diff_review_versions/:id` returns the selected version plus its stored
 `files` array; it does not call GitHub or depend on the current branch head.
 
+Each file entry in `source_diff`'s `files` array (and the equivalent
+`diff_review_versions` `files` array) also carries `is_image`: true only when
+`patch` is `nil` (GitHub omitted it for a binary/oversized file) and the path's
+extension looks like an image (`.png .jpg .jpeg .gif .webp .svg .bmp .ico`).
+The `source_diff` payload additionally exposes `base_sha`/`head_sha` (the exact
+refs compared, alongside the existing `base_ref`/`head_ref` display refs) so a
+client can fetch raw file bytes at either side. `ReviewableDiff` renders a
+before/after thumbnail pair for an `is_image` file instead of the generic
+"Diff not available" placeholder; an `added` file has no "before" thumbnail and
+a `removed` file has no "after" thumbnail. Thumbnails are fetched from
+`GET /api/v1/app/jobs/:id/source_image?path=...&ref=...`, which streams raw
+(non-UTF-8-transcoded) file bytes at an arbitrary path+ref with the correct
+`Content-Type` — the JSON `source`/`source_diff` endpoints can't carry binary
+content without corrupting it.
+
 Listing follows normal Job visibility. Mutations use the existing Job write
 policy: the job owner, a global admin, or a write-tier-or-higher repository
 member. The list endpoint defaults to the latest diff review version and also

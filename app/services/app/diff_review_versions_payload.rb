@@ -1,5 +1,7 @@
 module App
   class DiffReviewVersionsPayload
+    IMAGE_EXTENSIONS = ::App::JobSourceDiffPayload::IMAGE_EXTENSIONS
+
     def self.index(job:)
       new(job: job).index
     end
@@ -83,8 +85,13 @@ module App
         status: file["status"].to_s,
         additions: file["additions"].to_i,
         deletions: file["deletions"].to_i,
-        patch: file["patch"]
+        patch: file["patch"],
+        is_image: image_file?(file["path"]) && file["patch"].nil?
       }
+    end
+
+    def image_file?(path)
+      IMAGE_EXTENSIONS.include?(File.extname(path.to_s).downcase)
     end
   end
 end

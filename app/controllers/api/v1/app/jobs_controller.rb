@@ -134,6 +134,30 @@ module Api
           render json: ::App::JobSourceDiffPayload.build(job: find_job, user: Current.user, params: params)
         end
 
+        # Streams raw (non-UTF-8-transcoded) file bytes for a binary/image
+        # diff thumbnail at an arbitrary path+ref -- #source and #source_diff
+        # both return JSON and can't carry corruption-free binary content.
+        def source_image
+          job = find_job
+          path = params[:path].to_s
+          ref = params[:ref].to_s
+          if path.blank? || ref.blank?
+            render_error("bad_request", "path and ref are required.", status: :bad_request)
+            return
+          end
+
+          client = GithubClient.for(repository: job.repository, user: Current.user)
+          file = client.binary_file_content_at(job.repository.slug, path, ref)
+          unless file
+            render_error("not_found", "File not found at that ref.", status: :not_found)
+            return
+          end
+
+          send_data file[:content], type: Marcel::MimeType.for(name: path), disposition: "inline"
+        rescue ArgumentError
+          render_error("no_github_token", "GitHub token not configured. Add one in Settings to browse source.", status: :unprocessable_content)
+        end
+
         def timeline
           unless Current.user&.admin?
             render_error("forbidden", "Admin access required.", status: :forbidden)
