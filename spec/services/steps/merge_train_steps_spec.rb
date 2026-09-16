@@ -1,5 +1,6 @@
 require "rails_helper"
 require "ostruct"
+require "tmpdir"
 
 RSpec.describe "Steps::MergeTrain*", :ci_only do
   let(:user) { Factories.user(github_token: "ghp_test") }
@@ -801,6 +802,19 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(client).to receive(:delete_branch).and_return(true)
     end
 
+    # The unverified-member fallback below shells out through
+    # BranchPatchPresence, which clones into WorkflowWorkspace.data_root. Pin
+    # it to a throwaway tmpdir so an unstubbed run doesn't touch ~/.syrus.
+    around do |example|
+      original = ENV["SYRUS_DATA_ROOT"]
+      Dir.mktmpdir("syrus-merge-train-land") do |dir|
+        ENV["SYRUS_DATA_ROOT"] = dir
+        example.run
+      end
+    ensure
+      ENV["SYRUS_DATA_ROOT"] = original
+    end
+
     # Epic 294 landed its integration PR and then marked all 11 members failed,
     # stranding their Jobs in `landing` and sending two more trains to re-land
     # commits already on main. `ancestor_of_integration` rescued EVERY
@@ -976,6 +990,59 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         allow(handler).to receive(:workspace).and_return(failing_workspace)
 
         expect { handler.call }.to raise_error(GitRunner::GitError, /destination path already exists/)
+      end
+    end
+
+    # A member's most recently recorded LandedCommit can point at a rebase
+    # whose integration branch was later discarded, even though that
+    # member's actual diff already reached the base branch through an
+    # earlier, different build that landed successfully. Ancestry alone
+    # cannot see that -- the two commits share content, not lineage -- so it
+    # failed the same member on every subsequent single-member train,
+    # forever, with no way to escape the loop short of an operator noticing
+    # and manually reconciling it. Patch equivalence (the same git-cherry
+    # check ClosedPullRequestResolution already trusts for "this PR was
+    # closed unmerged, but did the work land anyway?") can see it.
+    describe "when ancestry says no but the member's branch is patch-equivalent to base" do
+      def land_with_stale_ancestry(cherry_output)
+        a = member_job(issue_number: 43)
+        train = build_train([ a ])
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        record_landed_commit!(a, sha: "a-landed-1")
+        allow(handler).to receive(:repository).and_return(repository)
+        git = stub_git(handler)
+        allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+        allow(git).to receive(:run).with("merge-base", "--is-ancestor", anything, anything, hash_including(:chdir))
+          .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not an ancestor"))
+        allow(git).to receive(:run)
+          .with("clone", "--branch", "master", "--no-tags", anything, anything, hash_including(:env))
+          .and_return("")
+        allow(git).to receive(:run)
+          .with("fetch", anything, "refs/heads/#{a.branch_name}:refs/remotes/syrus-closed-pr/head", hash_including(:chdir))
+          .and_return("")
+        allow(git).to receive(:run)
+          .with("cherry", "-v", "origin/master", "refs/remotes/syrus-closed-pr/head", hash_including(:chdir))
+          .and_return(cherry_output)
+        [ handler, a, train ]
+      end
+
+      it "closes the member instead of failing the train again" do
+        handler, a, train = land_with_stale_ancestry("- abc already applied\n")
+
+        handler.call
+
+        expect(a.reload).to be_closed
+        expect(a.closure_reason).to eq("pr_merged")
+        expect(train.members.find_by(job: a).state).to eq("merged")
+      end
+
+      it "still fails the member when its branch genuinely has unmerged commits" do
+        handler, a, train = land_with_stale_ancestry("+ abc still unique\n")
+
+        expect { handler.call }.to raise_error(Steps::Base::StepFailed, /could not verify 1\/1 member/)
+
+        expect(a.reload.state).not_to eq("closed")
+        expect(train.reload.state).to eq("failed")
       end
     end
 

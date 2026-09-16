@@ -18,20 +18,21 @@ class BranchPatchPresence
   # Real, unmerged commits.
   HAS_UNIQUE = :has_unique
 
-  def self.classify(job:, pr:, client:, git: nil)
-    new(job: job, pr: pr, client: client, git: git).classify
+  def self.classify(job:, pr:, client:, git: nil, base_ref: nil)
+    new(job: job, pr: pr, client: client, git: git, base_ref: base_ref).classify
   end
 
-  def self.no_unique_commits?(job:, pr:, client:, git: nil)
-    classify(job: job, pr: pr, client: client, git: git) != HAS_UNIQUE
+  def self.no_unique_commits?(job:, pr:, client:, git: nil, base_ref: nil)
+    classify(job: job, pr: pr, client: client, git: git, base_ref: base_ref) != HAS_UNIQUE
   end
 
-  def initialize(job:, pr:, client:, git: nil)
+  def initialize(job:, pr:, client:, git: nil, base_ref: nil)
     @job = job
     @pr = pr
     @client = client
     @git = git || GitRunner.new
     @env = { "GIT_TERMINAL_PROMPT" => "0" }
+    @base_ref_override = base_ref
   end
 
   # Unknowable reads as HAS_UNIQUE: without evidence, assume there is
@@ -63,8 +64,12 @@ class BranchPatchPresence
     @job.repository.authenticated_push_url(@client.access_token)
   end
 
+  # An explicit override lets a caller compare against something other than
+  # the PR's own base (or the repository default) -- e.g. a merge train
+  # verifying a member against the train's base branch after landing, rather
+  # than reopening the question of what that member's own PR was targeting.
   def base_ref
-    @base_ref ||= MergeabilityRecorder.base_ref(@pr) || @job.repository.default_branch
+    @base_ref ||= @base_ref_override.presence || MergeabilityRecorder.base_ref(@pr) || @job.repository.default_branch
   end
 
   def branch_name
