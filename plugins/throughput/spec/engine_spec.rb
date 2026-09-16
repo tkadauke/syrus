@@ -9,11 +9,22 @@ RSpec.describe Throughput::Engine do
     expect(Syrus::PluginRegistry.providers_for(:ui_slot)).to include(Throughput::UiSlots)
   end
 
-  it "samples landing throughput on the plugin tick, which only fires while enabled" do
-    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "throughput" }
+  # MetricsSampler registers via the manifest's `metrics do ... sampler
+  # MetricsSampler end` DSL (Syrus::PluginApi::Definition#metrics), not a
+  # plugin-owned tick_interval/on_tick -- it samples on the shared
+  # control-plane tick (SampleGlobalMetricsJob) like every other sampler.
+  it "registers its landing throughput sampler only while enabled" do
+    PluginRecord.find_or_create_by!(name: "throughput") { |record| record.enabled = true }
+    Syrus::Installer.sync!
+    expect(Syrus::Metrics.samplers).to include(Throughput::MetricsSampler)
 
-    expect(manifest.tick_interval).to eq(1.minute)
-    expect(Array(manifest.provides[:callbacks])).to include(Throughput::Callbacks)
+    PluginRecord.find_by!(name: "throughput").update!(enabled: false)
+    Syrus::Installer.sync!
+    expect(Syrus::Metrics.samplers).not_to include(Throughput::MetricsSampler)
+
+    PluginRecord.find_by!(name: "throughput").update!(enabled: true)
+    Syrus::Installer.sync!
+    expect(Syrus::Metrics.samplers).to include(Throughput::MetricsSampler)
   end
 
   # Plugin metrics follow while_enabled semantics: a disabled plugin emits no

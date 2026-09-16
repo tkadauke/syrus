@@ -176,13 +176,32 @@ module Syrus
       #   metrics do
       #     counter :relay_requests_total, tags: %i[outcome], comment: "..."
       #     histogram :relay_duration_seconds, buckets: [0.01, 0.25, 1, 5]
+      #
+      #     # The common case: one aggregate value on a timer. No sampler
+      #     # class, tick_interval, or on_tick/on_metrics_scrape wiring
+      #     # needed -- the framework samples the block on the shared
+      #     # control-plane tick and caches the result.
+      #     gauge :queue_depth, comment: "..." do
+      #       RelayQueue.depth
+      #     end
+      #
+      #     # The escape hatch: several gauges off one query pass, or a
+      #     # counter/histogram that needs cursor-based cumulative logic
+      #     # (see Metrics::QueueSampler). Must implement .sample!/.refresh_gauges!.
+      #     sampler RelayMetricsSampler
       #   end
       #
       # Registered as a `while_enabled` effect, so a disabled plugin declares
       # nothing and emits no series. That is the correct reading of "disabled":
       # not zero, which would mean enabled-but-unused, but absent. The registry
       # applies the `syrus_<plugin>_` prefix itself, so a plugin cannot declare
-      # into core's namespace.
+      # into core's namespace. Any sampler the block declares -- a `gauge`
+      # sample block or a `sampler <class>` -- lives and dies with the same
+      # effect: it registers into Syrus::Metrics's sampler registry (the same
+      # registry SampleGlobalMetricsJob and MetricsController iterate for
+      # every sampler, core or plugin) here, and unregisters on the teardown
+      # this effect returns, so a disabled plugin's sampler stops sampling
+      # rather than going stale.
       def metrics(&block)
         raise Error, "metrics requires a block" unless block
 
@@ -191,7 +210,13 @@ module Syrus
         while_enabled("metrics") do |scope|
           scope.effect("metrics") do
             declared = Syrus::Metrics.declare_plugin(plugin_name, &block)
-            -> { Syrus::Metrics.undeclare(declared) }
+            samplers = build_samplers(plugin_name, block)
+            samplers.each { |sampler| Syrus::Metrics.register_sampler(sampler) }
+
+            lambda do
+              samplers.each { |sampler| Syrus::Metrics.unregister_sampler(sampler) }
+              Syrus::Metrics.undeclare(declared)
+            end
           end
         end
       end
@@ -302,6 +327,27 @@ module Syrus
       end
 
       private
+
+      # Evaluates the `metrics` block a second time through a scratch
+      # Declaration -- the same double-evaluation `metric_declarations`
+      # already uses for the catalog -- so sampler wiring stays independent
+      # of the registry's own pass through Syrus::Metrics.declare_plugin,
+      # which returns bare names rather than the full Definition objects
+      # (see the "removes a plugin's metrics when it is undeclared" spec,
+      # which depends on that names-array return shape).
+      def build_samplers(plugin_name, block)
+        declaration = Syrus::Metrics::Declaration
+          .new(owner: plugin_name, prefix: "#{plugin_name}_")
+          .tap { |d| d.instance_eval(&block) }
+
+        gauge_samplers = declaration.definitions.filter_map do |definition|
+          next unless definition.sample_block
+
+          Syrus::Metrics::SampledGauge.new(definition: definition)
+        end
+
+        gauge_samplers + declaration.samplers
+      end
 
       def resolve_constant(value)
         return value unless value.is_a?(String) || value.is_a?(Symbol)

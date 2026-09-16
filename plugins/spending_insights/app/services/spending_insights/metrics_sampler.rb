@@ -6,11 +6,14 @@ module SpendingInsights
   # served by the web role only (config/syrus_docs/metrics.md, "Scope") --
   # incrementing a counter directly at that call site would sit invisible in
   # the worker's own registry forever. So this follows Metrics::LandingSampler's
-  # shape: #sample! runs on the plugin's own tick, folds every newly-finished
-  # Run's cost into a cumulative cache-mediated total exactly once (a cursor
-  # over `finished_at`, set exactly once per Run and never revised), and
-  # #refresh_gauges! -- called from Callbacks#on_metrics_scrape on the /metrics
-  # scrape path -- reconciles this process's counter to that known total.
+  # shape: #sample! runs on the shared control-plane tick (registered via the
+  # manifest's `metrics do ... sampler MetricsSampler end` -- see
+  # Syrus::PluginApi::Definition#metrics -- rather than a plugin-owned
+  # tick_interval/on_tick), folding every newly-finished Run's cost into a
+  # cumulative cache-mediated total exactly once (a cursor over `finished_at`,
+  # set exactly once per Run and never revised), and #refresh_gauges! --
+  # called from that same shared registry on the /metrics scrape path --
+  # reconciles this process's counter to that known total.
   class MetricsSampler
     CACHE_KEY = "spending_insights:metrics:run_cost_sample".freeze
     CURSOR_CACHE_KEY = "spending_insights:metrics:run_cost_sample:cursor".freeze

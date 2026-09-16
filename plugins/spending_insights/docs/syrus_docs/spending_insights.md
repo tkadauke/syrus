@@ -17,11 +17,14 @@ so a cost blowup shows up on an existing dashboard/alerting pipeline instead of 
 page and notice.
 
 **Sampling.** A Run's cost is finalized on whichever worker process ran its agent invocation, but `/metrics`
-is served by the web role only. `SpendingInsights::MetricsSampler#sample!` runs on the plugin's own tick
-(`tick_interval 1.minute`, driven by `SpendingInsights::Callbacks#on_tick`) and folds every Run that finished
-with a recorded cost since the last tick into a cumulative, cache-mediated total -- the same cursor pattern
-`Metrics::LandingSampler` uses for `syrus_runs_total`. `SpendingInsights::Callbacks#on_metrics_scrape`, called
-from the `/metrics` scrape path, reconciles this process's counter to that cached total.
+is served by the web role only. `SpendingInsights::MetricsSampler` needs cursor-based cumulative logic (not a
+plain aggregate value), so it registers as a full sampler class via the manifest's
+`metrics do ... sampler MetricsSampler end` (see `Syrus::PluginApi::Definition#metrics`). `#sample!` runs on
+the shared control-plane tick (`SampleGlobalMetricsJob`, the same tick core samplers use -- no plugin-owned
+`tick_interval`) and folds every Run that finished with a recorded cost since the last tick into a cumulative,
+cache-mediated total -- the same cursor pattern `Metrics::LandingSampler` uses for `syrus_runs_total`.
+`#refresh_gauges!`, called from that same shared registry on the `/metrics` scrape path, reconciles this
+process's counter to that cached total.
 
 **Disabled means absent, not zero.** Like every plugin metric, this follows `while_enabled` semantics: a
 disabled Spending Insights plugin declares no metric at all, so the series disappears from `/metrics` rather

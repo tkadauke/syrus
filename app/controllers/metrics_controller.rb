@@ -70,18 +70,20 @@ class MetricsController < Api::BaseController
   # produce a scrape of everything else. Returning a 500 here would take the
   # per-process counters down with it, which is the opposite of what a
   # monitoring endpoint should do under stress.
+  #
+  # Iterates Syrus::Metrics.samplers rather than a hardcoded list -- the same
+  # registry SampleGlobalMetricsJob samples into. Adding a new core or plugin
+  # sampler requires no change here; each sampler's refresh is independently
+  # rescued so one unreachable source costs its own gauges, not the scrape.
   def refresh_global_gauges
     now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     return if self.class.last_refresh_at && (now - self.class.last_refresh_at) < REFRESH_WINDOW
 
-    Metrics::QueueSampler.refresh_gauges!
-    Metrics::PluginSampler.refresh_gauges!
-    Metrics::LandingSampler.refresh_gauges!
-    Metrics::WorkerSampler.refresh_gauges!
-    Metrics::FleetSampler.refresh_gauges!
-    Metrics::ResilienceSampler.refresh_gauges!
-    Metrics::MaintenanceSampler.refresh_gauges!
-    Metrics::AttentionSampler.refresh_gauges!
+    Syrus::Metrics.samplers.each do |sampler|
+      sampler.refresh_gauges!
+    rescue StandardError => e
+      Rails.logger.warn("[MetricsController] could not refresh #{sampler}: #{e.class}: #{e.message}")
+    end
     refresh_plugin_gauges
     self.class.last_refresh_at = now
   rescue StandardError => e

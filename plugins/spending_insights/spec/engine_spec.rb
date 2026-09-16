@@ -17,13 +17,6 @@ RSpec.describe SpendingInsights::Engine do
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(SpendingInsights::SidebarPages)
   end
 
-  it "samples run cost on the plugin tick, which only fires while enabled" do
-    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "spending_insights" }
-
-    expect(manifest.tick_interval).to eq(1.minute)
-    expect(Array(manifest.provides[:callbacks])).to include(SpendingInsights::Callbacks)
-  end
-
   # Plugin metrics follow while_enabled semantics: a disabled plugin emits no
   # series at all, which is what disambiguates "off" from "on and unused."
   # The declaration itself is a Syrus::Installer while_enabled effect, which
@@ -41,6 +34,24 @@ RSpec.describe SpendingInsights::Engine do
     PluginRecord.find_by!(name: "spending_insights").update!(enabled: true)
     Syrus::Installer.sync!
     expect(Syrus::Metrics.registry.declared?(:syrus_spending_insights_run_cost_usd_total)).to be(true)
+  end
+
+  # MetricsSampler registers via the manifest's `metrics do ... sampler
+  # MetricsSampler end` DSL (Syrus::PluginApi::Definition#metrics), not a
+  # plugin-owned tick_interval/on_tick -- it samples on the shared
+  # control-plane tick (SampleGlobalMetricsJob) like every other sampler.
+  it "registers its cost sampler only while enabled" do
+    PluginRecord.find_or_create_by!(name: "spending_insights") { |record| record.enabled = true }
+    Syrus::Installer.sync!
+    expect(Syrus::Metrics.samplers).to include(SpendingInsights::MetricsSampler)
+
+    PluginRecord.find_by!(name: "spending_insights").update!(enabled: false)
+    Syrus::Installer.sync!
+    expect(Syrus::Metrics.samplers).not_to include(SpendingInsights::MetricsSampler)
+
+    PluginRecord.find_by!(name: "spending_insights").update!(enabled: true)
+    Syrus::Installer.sync!
+    expect(Syrus::Metrics.samplers).to include(SpendingInsights::MetricsSampler)
   end
 
   it "is treated as enabled on a fresh install with no prior PluginRecord row", :reset_plugin_registry do

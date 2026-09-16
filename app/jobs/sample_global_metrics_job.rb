@@ -6,6 +6,13 @@
 # reveal a polling backlog, so sampling them from behind that same backlog would
 # make the metric disappear exactly when it matters most.
 #
+# Iterates Syrus::Metrics.samplers rather than a hardcoded list. Core samplers
+# register themselves at class-body-eval time (Metrics::QueueSampler and
+# friends); plugin samplers register through the manifest `metrics do ... end`
+# DSL (see Syrus::PluginApi::Definition#metrics). Either way, adding a new
+# sampler requires no change to this file -- that is the acceptance test for
+# "automatic".
+#
 # Each sampler degrades on its own -- one unreachable source costs its own
 # gauges, not the whole tick.
 class SampleGlobalMetricsJob < ApplicationJob
@@ -16,19 +23,8 @@ class SampleGlobalMetricsJob < ApplicationJob
   # control_plane shape.
   limits_concurrency to: 1, key: "sample_global_metrics", duration: 5.minutes, on_conflict: :discard
 
-  SAMPLERS = [
-    Metrics::QueueSampler,
-    Metrics::PluginSampler,
-    Metrics::LandingSampler,
-    Metrics::WorkerSampler,
-    Metrics::FleetSampler,
-    Metrics::ResilienceSampler,
-    Metrics::MaintenanceSampler,
-    Metrics::AttentionSampler
-  ].freeze
-
   def perform
-    SAMPLERS.each do |sampler|
+    Syrus::Metrics.samplers.each do |sampler|
       sampler.sample!
     rescue StandardError => e
       Rails.logger.warn("[SampleGlobalMetricsJob] #{sampler} failed: #{e.class}: #{e.message}")
