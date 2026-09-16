@@ -688,19 +688,102 @@ module Seeds
             "on-brand" => "#190d2b"
           }
         }
+      },
+      {
+        # Proves the non-color side of the expanded token model (see
+        # Theme::EXTENDED_TOKEN_GROUPS): sharp corners, no panel shadow, a
+        # tighter spacing/density scale, and an all-monospace type stack --
+        # a terminal/console aesthetic that reads as unmistakably different
+        # from every other built-in even at a glance, without touching a
+        # single color decision. The color palette itself is intentionally
+        # unoriginal: it's Slate's `surface`/`surface-raised`/`border`/
+        # `text-primary`/`text-secondary`/status-tone values verbatim (an
+        # already contrast-checked, passing palette -- see BUILT_IN_SLUGS in
+        # spec/db/seeds/themes_spec.rb), so only `brand`/`brand-emphasis`/
+        # `on-brand` are new here (a terminal-green accent) and only the
+        # brand-vs-on-brand contrast pairing needs independent verification.
+        slug: "console",
+        name: "Console",
+        tokens: {
+          "light" => {
+            "brand" => "#166534",
+            "brand-emphasis" => "#15803d",
+            "surface" => "#ffffff",
+            "surface-raised" => "#f5f7f9",
+            "border" => "#dee5ea",
+            "text-primary" => "#131c22",
+            "text-secondary" => "#5c6f7a",
+            "success" => "#047857",
+            "warning" => "#b45309",
+            "danger" => "#b91c1c",
+            "info" => "#1d4ed8",
+            "neutral" => "#4d5c66",
+            "on-brand" => "#ffffff"
+          },
+          "dark" => {
+            "brand" => "#4ade80",
+            "brand-emphasis" => "#86efac",
+            "surface" => "#09090b",
+            "surface-raised" => "#17222a",
+            "border" => "#2c3d47",
+            "text-primary" => "#eaf1f5",
+            "text-secondary" => "#a1b6c1",
+            "success" => "#a7f3d0",
+            "warning" => "#fde68a",
+            "danger" => "#fecaca",
+            "info" => "#bfdbfe",
+            "neutral" => "#b6c6cf",
+            "on-brand" => "#09090b"
+          },
+          "shape" => {
+            "radius-control" => "0px",
+            "radius-panel" => "0px",
+            "radius-pill" => "2px",
+            "border-width" => "2px"
+          },
+          "shadow" => {
+            "shadow-panel" => "none"
+          },
+          "spacing" => {
+            "space-page-x" => "1rem",
+            "space-page-y" => "1rem",
+            "space-section" => "0.75rem",
+            "space-section-compact" => "0.5rem"
+          },
+          "density" => {
+            "control-height-sm" => "1.75rem",
+            "control-height-md" => "2.125rem",
+            "table-row-height" => "2.25rem"
+          },
+          "typography" => {
+            "font-sans" => "ui-monospace, SFMono-Regular, \"Fira Code\", \"Source Code Pro\", monospace",
+            "font-mono" => "ui-monospace, SFMono-Regular, \"Fira Code\", \"Source Code Pro\", monospace",
+            "text-page-title" => "1.5rem",
+            "text-section-title" => "0.85rem",
+            "text-body" => "0.8125rem",
+            "text-caption" => "0.6875rem"
+          }
+        }
       }
     ].freeze
 
     # BASE_DEFINITIONS with each mode's tokens hash augmented by
-    # Theme::SYNTAX_TOKEN_KEYS values (see SYNTAX_TOKEN_ALIASES above).
+    # Theme::SYNTAX_TOKEN_KEYS values (see SYNTAX_TOKEN_ALIASES above). Any
+    # Theme::EXTENDED_TOKEN_GROUPS entries a definition sets (e.g. Console's
+    # "shape"/"shadow"/"spacing"/"density"/"typography") aren't per-mode, so
+    # they're carried forward untouched rather than getting folded into the
+    # augmented light/dark hashes -- a definition with no extended groups at
+    # all (every theme before Console) still ends up with none here, same as
+    # before this augmentation existed.
     DEFINITIONS = BASE_DEFINITIONS.map do |definition|
       tokens = definition.fetch(:tokens)
-      augmented_tokens = %w[light dark].index_with do |mode|
+      augmented_modes = %w[light dark].index_with do |mode|
         mode_tokens = tokens.fetch(mode)
         syntax_tokens = SYNTAX_TOKEN_ALIASES.transform_values { |ui_key| mode_tokens.fetch(ui_key) }
         mode_tokens.merge(syntax_tokens)
       end
-      definition.merge(tokens: augmented_tokens)
+      extended_groups = tokens.except("light", "dark")
+      definition.merge(tokens: augmented_modes.merge(extended_groups))
     end.freeze
 
     def self.seed!

@@ -238,6 +238,17 @@
       "heading": "Tesserae coloris",
       "description": "Proprietates coloris significantes quibus omne elementum infra formatur."
     },
+    "extended_tokens": {
+      "heading": "Tesserae auctae",
+      "description": "Proprietates non-coloris formae, umbrae, spatii, densitatis, et typographiae quibus omne elementum infra etiam formatur.",
+      "groups": {
+        "shape": "Forma",
+        "shadow": "Umbra",
+        "spacing": "Spatium",
+        "density": "Densitas",
+        "typography": "Typographia"
+      }
+    },
     "buttons": {
       "heading": "Pulsatoria",
       "description": "Genera et magnitudines pulsatorii.",
