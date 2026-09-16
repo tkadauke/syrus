@@ -258,7 +258,15 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         created_at: created_at,
         updated_at: created_at
       )
-      SolidQueue::ReadyExecution.create!(job: queue_job, priority: 10, queue_name: queue_name, created_at: created_at) if ready
+      if ready
+        # SolidQueue::Job's own after_create callback (Executable#prepare_for_execution)
+        # already dispatches an unscheduled, unblocked job straight to "ready" -- so the
+        # ReadyExecution row we want (with our explicit backdated created_at) already has
+        # a same-job_id row in place. Replace it instead of inserting a second one, which
+        # violates the job_id uniqueness constraint on solid_queue_ready_executions.
+        queue_job.ready_execution&.destroy
+        SolidQueue::ReadyExecution.create!(job: queue_job, priority: 10, queue_name: queue_name, created_at: created_at)
+      end
       if claimed
         process = SolidQueue::Process.create!(
           hostname: worker_host,
