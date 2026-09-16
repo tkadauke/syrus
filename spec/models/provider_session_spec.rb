@@ -88,16 +88,25 @@ RSpec.describe ProviderSession do
   end
 
   describe ".prunable" do
-    it "includes sessions whose Run is terminal AND older than RETAIN_AFTER_TERMINAL" do
+    it "includes sessions whose Run is terminal AND older than the configured retention window" do
       old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
       new_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
 
       old_session = described_class.create!(resumable: old_run, session_id: "old", transcript_jsonl: "x")
       new_session = described_class.create!(resumable: new_run, session_id: "new", transcript_jsonl: "x")
-      old_session.update_columns(updated_at: (described_class::RETAIN_AFTER_TERMINAL + 1.day).ago)
+      old_session.update_columns(updated_at: (described_class.retention_window + 1.day).ago)
 
       expect(described_class.prunable.pluck(:id)).to eq([ old_session.id ])
       expect(described_class.prunable).not_to include(new_session)
+    end
+
+    it "returns none when retention is set to 0 (infinite)" do
+      AppSetting.current.update!(provider_session_retention_days: 0)
+      old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
+      old_session = described_class.create!(resumable: old_run, session_id: "old", transcript_jsonl: "x")
+      old_session.update_columns(updated_at: 10.years.ago)
+
+      expect(described_class.prunable).to be_empty
     end
 
     # Rows here are few but enormous (~375KB of transcript each), so an

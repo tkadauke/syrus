@@ -65,7 +65,7 @@ module OperationalLogSearch
         text: JSON.generate(
           {
             enabled: true,
-            retention_seconds: OperationalLogEvent::RETENTION.to_i,
+            retention_seconds: (OperationalLogEvent.retention_window || 0).to_i,
             count: rows.size,
             logs: rows.map { |row| log_payload(row) }
           }
@@ -93,7 +93,7 @@ module OperationalLogSearch
   end
 
   def parse_since(value)
-    retention_floor = OperationalLogEvent::RETENTION.ago
+    retention_floor = OperationalLogEvent.retention_floor
     parsed = if value.blank?
       1.hour.ago
     elsif (match = value.to_s.match(/\A(\d+)([mhd])\z/i))

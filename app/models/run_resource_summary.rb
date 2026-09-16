@@ -1,5 +1,6 @@
 class RunResourceSummary < ApplicationRecord
-  RETAIN_AFTER = 30.days
+  include HasConfigurableRetention
+
   SUMMARY_VERSION = 2
   HOST_SAMPLE_CONFIDENCES = %w[ unknown low insufficient sufficient ].freeze
   PROCESS_ATTRIBUTION_CONFIDENCES = %w[ unknown low medium high ].freeze
@@ -22,7 +23,12 @@ class RunResourceSummary < ApplicationRecord
   validates :host_pressure_level, inclusion: { in: PRESSURE_LEVELS }
   validates :process_attribution_confidence, inclusion: { in: PROCESS_ATTRIBUTION_CONFIDENCES }
 
-  scope :prunable, -> { where("created_at < ?", RETAIN_AFTER.ago) }
+  configurable_retention setting_key: :run_resource_summary_retention_days, unit: :days
+
+  scope :prunable, -> {
+    cutoff = retention_cutoff
+    cutoff ? where("created_at < ?", cutoff) : none
+  }
 
   def self.refresh_for!(run, now: Time.current)
     RunResourceSummaries::Builder.new(run: run, now: now).refresh!

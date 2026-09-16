@@ -2,9 +2,11 @@ require "digest"
 
 class OperationalLogEvent < ApplicationRecord
   include ObservabilityEventRecord
+  include HasConfigurableRetention
+
+  configurable_retention setting_key: :operational_log_event_retention_hours, unit: :hours
 
   LEVELS = %w[ debug info warn error fatal unknown ].freeze
-  RETENTION = 6.hours
   EVENT_UID_FIELDS = %i[
     occurred_at
     level
@@ -32,7 +34,18 @@ class OperationalLogEvent < ApplicationRecord
 
   after_commit :enqueue_index, on: :create
 
-  scope :expired, -> { where(occurred_at: ...RETENTION.ago) }
+  scope :expired, -> {
+    cutoff = retention_cutoff
+    cutoff ? where(occurred_at: ...cutoff) : none
+  }
+
+  # Events older than the retention window are guaranteed gone, so any
+  # caller using RETENTION as a "since"/"floor" default clamps to this
+  # instead. Infinite retention (window nil) means no clamp is needed.
+  def self.retention_floor(now: Time.current)
+    window = retention_window
+    window ? now - window : Time.at(0)
+  end
 
   def self.persist_observability_events!(rows, batch_size:)
     rows.each_slice(batch_size) do |batch|

@@ -1,4 +1,6 @@
 class ProviderSession < ApplicationRecord
+  include HasConfigurableRetention
+
   belongs_to :resumable, polymorphic: true
 
   before_validation :mirror_run_id_for_run_resumables
@@ -16,15 +18,18 @@ class ProviderSession < ApplicationRecord
   }
 
   # Keep captured agent sessions for diagnostics and provider resume
-  # rehydration for two weeks after the parent Run reaches a terminal
-  # state. After that, ProviderSessionPruneJob deletes them. Active Runs
-  # (queued/running) are never pruned.
-  RETAIN_AFTER_TERMINAL = 14.days
+  # rehydration after the parent Run reaches a terminal state (defaults to
+  # two weeks; 0 = infinite retention). After that, ProviderSessionPruneJob
+  # deletes them. Active Runs (queued/running) are never pruned.
+  configurable_retention setting_key: :provider_session_retention_days, unit: :days
 
   scope :prunable, -> {
+    cutoff = retention_cutoff
+    next none unless cutoff
+
     for_runs
       .where(runs: { state: Run::TERMINAL_STATES })
-      .where("provider_sessions.updated_at < ?", RETAIN_AFTER_TERMINAL.ago)
+      .where("provider_sessions.updated_at < ?", cutoff)
   }
 
   # Sessions whose Run already succeeded and still carry a transcript. Kept as

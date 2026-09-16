@@ -3,8 +3,8 @@ require "rails_helper"
 RSpec.describe RunResourceSummaryPruneJob do
   it "keeps detailed summaries for thirty days" do
     freeze_time do
-      old = create_summary!(created_at: (RunResourceSummary::RETAIN_AFTER + 1.second).ago)
-      boundary = create_summary!(created_at: RunResourceSummary::RETAIN_AFTER.ago)
+      old = create_summary!(created_at: (RunResourceSummary.retention_window + 1.second).ago)
+      boundary = create_summary!(created_at: RunResourceSummary.retention_window.ago)
       fresh = create_summary!(created_at: 1.hour.ago)
 
       described_class.perform_now
@@ -13,6 +13,15 @@ RSpec.describe RunResourceSummaryPruneJob do
       expect(RunResourceSummary.exists?(boundary.id)).to be(true)
       expect(RunResourceSummary.exists?(fresh.id)).to be(true)
     end
+  end
+
+  it "is a no-op when retention is set to 0 (infinite)" do
+    AppSetting.current.update!(run_resource_summary_retention_days: 0)
+    old = create_summary!(created_at: 10.years.ago)
+
+    described_class.perform_now
+
+    expect(RunResourceSummary.exists?(old.id)).to be(true)
   end
 
   def create_summary!(created_at:)

@@ -157,6 +157,18 @@ default: &default
     class: PurgeExpiredPasskeyChallengesJob
     queue: cleanup
     schedule: every day at 3:45am
+  prune_run_health_snapshots:
+    class: RunHealthSnapshotPruneJob
+    queue: cleanup
+    schedule: every day at 3:22am
+  prune_main_branch_health_checks:
+    class: MainBranchHealthCheckPruneJob
+    queue: cleanup
+    schedule: every day at 3:25am
+  prune_workflow_step_resource_profiles:
+    class: WorkflowStepResourceProfilePruneJob
+    queue: cleanup
+    schedule: every day at 3:55am
 development:
   <<: *default
 

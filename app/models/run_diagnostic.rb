@@ -1,4 +1,6 @@
 class RunDiagnostic < ApplicationRecord
+  include HasConfigurableRetention
+
   belongs_to :run
 
   # JSON-on-text columns. Letting Rails serialize keeps the model
@@ -10,12 +12,10 @@ class RunDiagnostic < ApplicationRecord
 
   validates :error_class, presence: true
 
-  # 30 days is generous — failed Runs that get manually retried
-  # rarely need their diagnostic past a couple weeks. Bump if it
-  # turns out incident triage drags out longer.
-  RETAIN_AFTER = 30.days
+  configurable_retention setting_key: :run_diagnostic_retention_days, unit: :days
 
   scope :prunable, -> {
-    where("created_at < ?", RETAIN_AFTER.ago)
+    cutoff = retention_cutoff
+    cutoff ? where("created_at < ?", cutoff) : none
   }
 end
