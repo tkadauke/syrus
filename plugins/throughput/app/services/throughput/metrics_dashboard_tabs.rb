@@ -12,7 +12,7 @@ module Throughput
           panels: [
             { key: "landing_units", metric: "syrus_throughput_landing_units_total",
               group_by: "unit_type", mode: :rate, unit: "units", label: "Landing units, by type" },
-            { key: "jobs_landed", metric: "syrus_throughput_jobs_landed_total",
+            { key: "throughput_jobs_landed", metric: "syrus_throughput_jobs_landed_total",
               group_by: nil, mode: :rate, unit: "jobs", label: "Jobs landed" }
           ]
         }

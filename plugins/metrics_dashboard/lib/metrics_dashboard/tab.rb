@@ -48,6 +48,16 @@ module MetricsDashboard
   #     already captures every series /metrics exposes, plugin or core,
   #     with no wiring needed here.
   #
+  #     Each panel's :key must be unique across the *entire* dashboard, not
+  #     just within the contributing tab: the frontend uses it verbatim as a
+  #     React list key and as the localStorage key for that panel's
+  #     per-series legend-toggle state
+  #     (`metrics_dashboard.hidden_series.<key>.<series name>`). A key that
+  #     collides with a core panel or another plugin's panel makes toggling
+  #     one chart's series silently toggle the other's too. Namespace with
+  #     the plugin's own name (e.g. `throughput_jobs_landed`), mirroring how
+  #     :metric is already namespaced.
+  #
   #     Returning [] contributes nothing (e.g. a plugin that wants to hide
   #     its tab in some mode); this plugin discovers one tab per currently
   #     enabled, healthy contributor, so a disabled contributor's tab is

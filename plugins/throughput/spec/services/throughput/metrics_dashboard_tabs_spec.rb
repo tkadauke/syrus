@@ -6,7 +6,7 @@ RSpec.describe Throughput::MetricsDashboardTabs do
 
     expect(tab[:id]).to eq("throughput")
     expect(tab[:label]).to be_present
-    expect(tab[:panels].map { |panel| panel[:key] }).to match_array(%w[landing_units jobs_landed])
+    expect(tab[:panels].map { |panel| panel[:key] }).to match_array(%w[landing_units throughput_jobs_landed])
   end
 
   # A panel pointed at a metric name this plugin doesn't actually declare

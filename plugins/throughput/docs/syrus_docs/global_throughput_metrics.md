@@ -38,5 +38,5 @@ from `/metrics` entirely rather than freezing them at their last value or report
 When the `metrics_dashboard` plugin is also enabled, Throughput contributes its own "Throughput" tab there
 (`Throughput::MetricsDashboardTabs`, registered under metrics_dashboard's hosted `"metrics_dashboard:tab"`
 point -- see `plugins/metrics_dashboard/docs/syrus_docs/metrics_dashboard.md`), charting both counters above
-(`landing_units`, grouped by `unit_type`, and `jobs_landed`). The tab is absent, not empty, whenever either
-plugin is disabled.
+(`landing_units`, grouped by `unit_type`, and `throughput_jobs_landed`). The tab is absent, not empty, whenever
+either plugin is disabled.
