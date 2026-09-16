@@ -23,7 +23,8 @@ class SampleGlobalMetricsJob < ApplicationJob
     Metrics::WorkerSampler,
     Metrics::FleetSampler,
     Metrics::ResilienceSampler,
-    Metrics::MaintenanceSampler
+    Metrics::MaintenanceSampler,
+    Metrics::AttentionSampler
   ].freeze
 
   def perform

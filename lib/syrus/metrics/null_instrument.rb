@@ -18,6 +18,7 @@ module Syrus
       def increment(*, **) = nil
       def decrement(*, **) = nil
       def set(*, **) = nil
+      def clear(*, **) = nil
       def observe(*, **) = nil
       def preset(*, **) = nil
       def samples = []

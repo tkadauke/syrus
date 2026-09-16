@@ -2,11 +2,12 @@
 
 Syrus exposes aggregate metrics in the Prometheus text exposition format at
 `GET /metrics`. This covers the queue-health, product-usage, landing-queue/
-run-throughput, worker/admission, fleet, resilience, and maintenance/pruner
-metric groups from the plan in `docs/plans/prometheus-dashboard.md`; a genuine
-worker exporter (one that scrapes every pod, not just web), the single-replica
-global exporter, Grafana dashboards, telemetry and the embedded dashboard
-plugin are later steps and are not built yet.
+run-throughput, worker/admission, fleet, resilience, maintenance/pruner, and
+escalation/attention metric groups from the plan in
+`docs/plans/prometheus-dashboard.md`; a genuine worker exporter (one that
+scrapes every pod, not just web), the single-replica global exporter, Grafana
+dashboards, telemetry and the embedded dashboard plugin are later steps and
+are not built yet.
 
 ## Why it exists
 
@@ -371,6 +372,46 @@ unrecognized -- so a rate spike on one budget-exempt category is a direct
 instrument for that exact regression recurring, without waiting for the
 Job/Workflow-level symptoms to show up first.
 
+### Escalations and attention
+
+| Metric | Meaning |
+|---|---|
+| `syrus_escalations_per_landing_ratio` | escalations opened per landing over the trailing window |
+| `syrus_attention_items_open_total{problem_code}` | currently open, unexpired AttentionItems by problem code |
+
+`Metrics::AttentionSampler` (`app/services/metrics/attention_sampler.rb`) owns
+both, wiring up `Metrics::EscalationsPerLanding` and `AttentionItem` --
+services that were fully implemented but exported nowhere: not on `/metrics`,
+not on the `metrics_dashboard` plugin, not on any admin page. Both are GLOBAL
+gauges, sampled the same cache-mediated way as the queue-health gauges above
+-- plain snapshots, no cursor needed, since neither is a monotonic count.
+
+**`escalations_per_landing_ratio`** is the Workflow Engine V3 "one metric"
+(see `docs/plans/workflow-engine-v3.md` and `Metrics::EscalationsPerLanding`):
+escalations (distinct `AttentionItem`s opened in the trailing window, one per
+problem rather than per occurrence) divided by landings (`auto_merge`/
+`merge_train` Workflows that succeeded in the same window). Trending down
+means the attention ladder is learning to resolve problems below the level
+that needs a human; flat means it isn't. `Metrics::EscalationsPerLanding::Result#ratio`
+is `nil` when nothing landed in the window -- an infinity would read as a
+number, and "no landings" is the honest answer -- so `#refresh_gauges!`
+`Gauge#clear`s the gauge in that case rather than `set`ting a misleading `0`.
+It does the same on a cache miss (the sampler has stopped, or has not run
+yet): a stale ratio from an earlier tick left `set` on the live instrument
+past its `CACHE_TTL` would render as "still healthy" through the exact outage
+this gauge exists to surface, so absence takes priority over staleness the
+same way the maintenance-and-pruners gauges above prefer an omitted job over
+a fabricated zero.
+
+**`attention_items_open_total`** reads `AttentionItem.open_decisions.unexpired`
+(the same scope `AttentionItem.queue_summary` uses) grouped by `problem_code`
+across both the `operator` and `triage` queues -- the current size of the
+human-attention backlog, broken down by what kind of problem is waiting.
+`problem_code` is on the cardinality allowlist because `Problem::Kind` is a
+closed, bounded registry (see `config/syrus_docs/attention_items.md` and
+`app/models/problem/kind.rb`), not a free-form string -- the same reasoning
+that allows `skip_reason` above.
+
 ## Aggregating: `max by`, never `sum`
 
 Metrics prefixed `syrus_global_` are **one fact about the whole cluster**, not a
@@ -388,9 +429,10 @@ but it is not the only signal: `job_state`, `landing_queue_depth`,
 `active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`,
 `spawned_processes`, `provider_circuit_state`, `github_rate_limit_remaining`,
 `repositories_main_branch_broken_count`, `recurring_job_last_success_seconds`,
-`provider_sessions_bytes`, and `provider_sessions_rows` are every bit as
-GLOBAL and cache-mediated as the `syrus_global_*` gauges, just declared without the
-prefix -- their
+`provider_sessions_bytes`, `provider_sessions_rows`,
+`escalations_per_landing_ratio`, and `attention_items_open_total` are every
+bit as GLOBAL and cache-mediated as the `syrus_global_*` gauges, just declared
+without the prefix -- their
 `docs/metrics-catalog.md` description ends in `(GLOBAL -- aggregate with max
 by...)` instead. Treat that annotation, not the name, as authoritative.
 
@@ -448,6 +490,11 @@ exception rather than a precedent for adding more identifiers casually.
 -- a closed, two-value set (`"app"`/`"pat"`, matching `Job#credential_mode`),
 not an identifier, so it does not carry the growth risk `repository`/`user`/
 `sha` are rejected for.
+
+`problem_code` is on the allowlist for `syrus_attention_items_open_total` for
+the same reason -- `Problem::Kind`'s registry is a closed, fixed set of codes
+(see `app/models/problem/kind.rb`), not a value that grows with the amount of
+work Syrus does.
 
 High-cardinality detail belongs in the event tables that already exist for it —
 `mcp_tool_usages`, `performance_log_events` and friends. Metrics do not replace
