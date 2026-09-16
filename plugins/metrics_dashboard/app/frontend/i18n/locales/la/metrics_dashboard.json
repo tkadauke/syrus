@@ -9,11 +9,41 @@
   "stale_notice": "Collectio cessavisse videtur. Ultimum exemplum: {{at}}.",
   "hide_series": "Seriem {{name}} celare",
   "show_series": "Seriem {{name}} ostendere",
+  "tabs_aria": "Tabulae paginae metrorum",
+  "tabs": {
+    "queue_throughput": "Ordo et Cursus",
+    "workers_fleet": "Operarii et Classis",
+    "resilience_product": "Firmitas et Opus",
+    "other": "Alia"
+  },
   "panels": {
     "queue_oldest_age": "Vetustissimum opus exspectans, per ordinem",
     "queue_ready": "Opera exspectantia, per ordinem",
     "queue_failed": "Novae executiones lapsae, per genus operis",
     "queue_orphaned": "Lineae ordinis orbatae",
-    "feature_usage": "Usus facultatum, per facultatem"
+    "queue_table_rows": "Summa linearum ordinis Solid Queue",
+    "queue_completed": "Executiones ordinis perfectae",
+    "jobs_landed": "Opera perducta",
+    "job_state": "Opera, per statum",
+    "landing_queue_depth": "Altitudo ordinis perductionis, per causam impedimenti",
+    "runs_total": "Cursus, per statum",
+    "worker_cpu": "Usus CPU operariorum, per hospitem",
+    "worker_memory": "Usus memoriae operariorum, per hospitem",
+    "active_agent_runs": "Cursus agentum activi",
+    "max_concurrent_agent_runs": "Maximus numerus cursuum agentum simul",
+    "admission_decisions": "Decisiones admissionis, per decisionem",
+    "instance_versions": "Vasa viva, per versionem",
+    "spawned_processes": "Processus geniti, per genus",
+    "provider_circuit_state": "Status circuli praebitoris, per praebitorem",
+    "github_rate_limit": "Limes GitHub relictus, per modum crederum",
+    "main_branch_broken_count": "Repositoria ramo principali fracto",
+    "recurring_job_last_success": "Tempus post ultimum successum operis recurrentis, per opus",
+    "provider_sessions_bytes": "Spatium sessionum praebitoris",
+    "provider_sessions_rows": "Lineae sessionum praebitoris",
+    "auto_retry_attempts": "Conatus automatici iterandi, per exitum",
+    "escalations_per_landing": "Escalationes per perductionem",
+    "attention_items_open": "Res attentionis apertae, per codicem problematis",
+    "feature_usage": "Usus facultatum, per facultatem",
+    "plugin_enabled": "Instrumenta incitata"
   }
 }

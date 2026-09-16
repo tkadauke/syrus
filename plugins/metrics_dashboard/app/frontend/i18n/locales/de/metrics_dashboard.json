@@ -9,11 +9,41 @@
   "stale_notice": "Die Aufzeichnung scheint gestoppt zu sein. Letzte Messung: {{at}}.",
   "hide_series": "Serie {{name}} ausblenden",
   "show_series": "Serie {{name}} einblenden",
+  "tabs_aria": "Registerkarten des Metrik-Dashboards",
+  "tabs": {
+    "queue_throughput": "Queue & Durchsatz",
+    "workers_fleet": "Worker & Flotte",
+    "resilience_product": "Resilienz & Produkt",
+    "other": "Sonstiges"
+  },
   "panels": {
     "queue_oldest_age": "Ältester wartender Job, nach Queue",
     "queue_ready": "Wartende Jobs, nach Queue",
     "queue_failed": "Neue fehlgeschlagene Ausführungen, nach Job-Klasse",
     "queue_orphaned": "Verwaiste Queue-Zeilen",
-    "feature_usage": "Feature-Nutzungen, nach Feature"
+    "queue_table_rows": "Gesamtzahl Solid-Queue-Zeilen",
+    "queue_completed": "Abgeschlossene Queue-Ausführungen",
+    "jobs_landed": "Gelandete Jobs",
+    "job_state": "Jobs, nach Status",
+    "landing_queue_depth": "Landing-Queue-Tiefe, nach Blockierungsgrund",
+    "runs_total": "Runs, nach Status",
+    "worker_cpu": "Worker-CPU-Auslastung, nach Host",
+    "worker_memory": "Worker-Speicherauslastung, nach Host",
+    "active_agent_runs": "Aktive Agent-Runs",
+    "max_concurrent_agent_runs": "Maximale gleichzeitige Agent-Runs",
+    "admission_decisions": "Zulassungsentscheidungen, nach Entscheidung",
+    "instance_versions": "Laufende Pods, nach Version",
+    "spawned_processes": "Gestartete Prozesse, nach Art",
+    "provider_circuit_state": "Provider-Schaltkreisstatus, nach Provider",
+    "github_rate_limit": "Verbleibendes GitHub-Ratenlimit, nach Anmeldemodus",
+    "main_branch_broken_count": "Repositories mit defektem Hauptbranch",
+    "recurring_job_last_success": "Zeit seit letztem Erfolg wiederkehrender Jobs, nach Job",
+    "provider_sessions_bytes": "Provider-Sitzungsspeicher",
+    "provider_sessions_rows": "Provider-Sitzungszeilen",
+    "auto_retry_attempts": "Automatische Wiederholungsversuche, nach Ergebnis",
+    "escalations_per_landing": "Eskalationen pro Landung",
+    "attention_items_open": "Offene Attention-Items, nach Problemcode",
+    "feature_usage": "Feature-Nutzungen, nach Feature",
+    "plugin_enabled": "Aktivierte Plugins"
   }
 }

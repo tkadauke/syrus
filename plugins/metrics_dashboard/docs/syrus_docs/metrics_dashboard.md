@@ -12,11 +12,21 @@ SQL to find, because nothing was recording it. This plugin is that hour turned
 into a page.
 
 It is **not** a query builder, and should not grow into one. It answers a fixed
-set of questions:
+set of questions, grouped into three tabs:
 
-- Is the queue keeping up? (oldest waiting job, depth, by queue)
-- What is failing? (failed executions by job class, orphaned queue rows)
-- Which features are used?
+- **Queue & Throughput** — is the queue keeping up (oldest waiting job, depth,
+  by queue), what is failing (failed executions by job class, orphaned queue
+  rows), and is Syrus actually landing work (jobs landed, runs by state,
+  landing queue depth, Solid Queue table size).
+- **Workers & Fleet** — is the worker fleet keeping up (per-host CPU/memory,
+  active vs. max concurrent agent runs, admission decisions) and what is
+  actually running right now (live pods by version, spawned subprocesses).
+- **Resilience & Product** — are the failure modes documented in `CLAUDE.md`'s
+  "Things that bit us" currently happening (provider circuit state, GitHub
+  rate limit, main-branch-broken count), is maintenance still working
+  (recurring-job staleness, provider-session table growth, auto-retry
+  outcomes), is the escalation ladder trending down, and which
+  features/plugins are used.
 
 An install that needs arbitrary queries needs Prometheus, and `/metrics` is
 already there for it — at which point this plugin can be turned off without
@@ -49,23 +59,63 @@ than a time-series database growing inside the primary database.
 
 ## What it can and cannot see
 
-**Accurate: `syrus_global_*`.** Queue depth, oldest age, orphaned rows, plugin
-enablement. These are sampled cluster-wide into the cache by
-`SampleGlobalMetricsJob`, so every process renders the same numbers and the
-recorder's copy is the truth.
+**Accurate: cache-mediated GLOBAL facts.** Queue depth, oldest age, orphaned
+rows, plugin enablement, job/landing-queue state, worker CPU/memory, fleet
+instance versions and spawned processes, provider circuit state, GitHub rate
+limit, main-branch-broken count, maintenance staleness, and the escalation
+ladder. Most of these carry a `syrus_global_` metric-name prefix; the newer
+ones (e.g. `syrus_job_state`, `syrus_worker_cpu_percent`) don't, but every
+panel whose `mode` is `:value` still declares `aggregate: :max` for the same
+reason: the event that produced the number happened on one worker, but
+`#sample!` writes it to a shared cache and `#refresh_gauges!` sets it from
+that cache on whichever process serves `/metrics` — so every process renders
+the same number, and the recorder's copy is the truth.
 
-**Partial: per-process counters.** `syrus_feature_used_total` is incremented in
-whichever process served the request — currently web. The recorder runs on a
-worker, so it records that worker's share, which is usually zero.
+**Partial: genuinely per-process counters.** `syrus_feature_used_total` and
+`syrus_admission_decisions_total` are incremented in whichever process
+serves the request or makes the admission decision — currently web for
+feature usage, whichever worker is deciding for `admission_decisions`. The
+recorder runs on one worker, so it records only that process's share, which
+is frequently zero.
 
 That gap is the cross-process capture that is not built yet (see
 `docs/plans/prometheus-dashboard.md`): worker pods fork one process per queue
-definition sharing no memory, and are not scraped. The feature-usage panel is
-therefore present but thin until that lands, at which point it fills in with no
-change to this plugin.
+definition sharing no memory, and are not scraped. The feature-usage and
+admission-decisions panels are therefore present but thin until that lands, at
+which point they fill in with no change to this plugin.
 
 This is stated rather than hidden because a dashboard that quietly shows a
 plausible-but-wrong zero is worse than one that shows nothing.
+
+## Tabs
+
+Each entry in `DashboardPayload::PANELS` declares a `category:` (one of
+`DashboardPayload::CATEGORIES` — `queue_throughput`, `workers_fleet`,
+`resilience_product`). The payload publishes that per panel plus a top-level
+`categories` array in canonical display order, and the page renders one tab
+per category with a panel grid underneath — the window selector and the
+shared crosshair (`hoverIndex`) stay at the page level, above the tabs, since
+both apply regardless of which tab is showing. The active tab is tracked in
+the URL as a `tab` search param alongside the existing `window` one, so a link
+to a specific tab is shareable and survives reload; an unrecognized or missing
+`tab` value falls back to the first category.
+
+A panel that forgets to set `category:` does not silently disappear from the
+dashboard: `DashboardPayload.category_for` falls it back to `"other"`, and the
+payload appends an `"other"` entry to `categories` only when some panel
+actually needed it — so a real, correctly-categorized panel set never grows a
+spurious "Other" tab. `dashboard_payload_spec.rb` additionally asserts every
+declared panel has a real category, so drift here fails a spec rather than
+waiting to be noticed as a mystery tab in production.
+
+**Not every core metric has a panel.** `time_to_land_seconds`,
+`run_duration_seconds`, and `workflow_step_duration_seconds` are histograms.
+`TextFormatParser` drops every histogram family before a sample ever reaches
+`metrics_dashboard_samples` — charting a quantile properly means re-deriving
+it from buckets, which is outside what this plugin promises — so a panel
+pointed at one of them would render permanently empty. They remain visible
+through `/metrics` for an external Prometheus, which can derive real
+quantiles from the buckets.
 
 ## Reading the panels
 
