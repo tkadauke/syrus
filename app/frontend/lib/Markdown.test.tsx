@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it } from "vitest"
-import { Markdown, PlainText } from "./Markdown"
+import { Markdown, PlainText, renderLightMarkdown } from "./Markdown"
 
 describe("Markdown", () => {
   it("renders common chat markdown as React elements", () => {
@@ -295,5 +295,56 @@ describe("Markdown", () => {
     expect(container.querySelector("ul")).toBeNull()
     expect(container.querySelector("strong")).toBeNull()
     expect(container.querySelector("code")).toBeNull()
+  })
+})
+
+describe("renderLightMarkdown", () => {
+  it("renders a heading as bold text with no literal # marker and no line break", () => {
+    const { container } = render(<div>{renderLightMarkdown("# Title\n\nBody text.")}</div>)
+
+    expect(container.querySelector("strong")).toHaveTextContent("Title")
+    expect(container.querySelector("h1")).toBeNull()
+    expect(container.querySelector("h2")).toBeNull()
+    expect(container.textContent).toBe("Title Body text.")
+    expect(container.textContent).not.toContain("#")
+    expect(container.innerHTML).not.toContain("<br")
+  })
+
+  it("flattens multi-paragraph input into one space-joined string with no line breaks", () => {
+    const { container } = render(<div>{renderLightMarkdown("Paragraph one.\n\nParagraph two.\n\nParagraph three.")}</div>)
+
+    expect(container.textContent).toBe("Paragraph one. Paragraph two. Paragraph three.")
+    expect(container.textContent).not.toContain("\n")
+  })
+
+  it("keeps light inline emphasis: bold, italic, and inline code", () => {
+    const { container } = render(<div>{renderLightMarkdown("Some **bold**, *italic*, and `code` text.")}</div>)
+
+    expect(container.querySelector("strong")).toHaveTextContent("bold")
+    expect(container.querySelector("em")).toHaveTextContent("italic")
+    expect(container.querySelector("code")).toHaveTextContent("code")
+  })
+
+  it("strips list markers and blockquote markers", () => {
+    const { container } = render(<div>{renderLightMarkdown("- First item\n- Second item\n> A quoted line")}</div>)
+
+    expect(container.textContent).toBe("First item Second item A quoted line")
+  })
+
+  it("linkifies slugs by default, matching renderInline's default", () => {
+    render(
+      <MemoryRouter>
+        <div>{renderLightMarkdown("See JOB-100 for details.")}</div>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/100")
+  })
+
+  it("skips slug linkification when linkifySlugs is false", () => {
+    render(<div>{renderLightMarkdown("See JOB-100 for details.", { linkifySlugs: false })}</div>)
+
+    expect(screen.queryByRole("link")).toBeNull()
+    expect(screen.getByText(/See JOB-100 for details\./)).toBeInTheDocument()
   })
 })
