@@ -7,6 +7,14 @@
 # settings (see app_setting_registry.rb) so validations and admin metadata
 # don't need to be hand-listed per key; a future admin page can read this
 # registry directly for table sizing / retention UI.
+#
+# Core-owned tables are declared inline below. A plugin that owns a prunable
+# table (e.g. metrics_dashboard) must NOT be hand-listed here — a core file
+# naming a plugin's model/job class would make that plugin undeletable in
+# practice (see CLAUDE.md's "core specs must not enumerate plugin-provided
+# things" rule and bin/plugin-boundary-audit). Instead the plugin implements
+# the `:retention_policy` extension point (see Syrus::Plugin::RetentionPolicy)
+# and `.definitions` merges its contributions in on every read.
 class RetentionPolicyRegistry
   Definition = Data.define(
     :key,
@@ -60,7 +68,7 @@ class RetentionPolicyRegistry
     end
   end
 
-  DEFINITIONS = [
+  CORE_DEFINITIONS = [
     Definition.new(
       key: :run_diagnostic,
       model: "RunDiagnostic",
@@ -166,19 +174,6 @@ class RetentionPolicyRegistry
       category: "Diagnostics"
     ),
     Definition.new(
-      key: :metrics_dashboard_sample,
-      model: "MetricsDashboard::Sample",
-      table_name: "metrics_dashboard_samples",
-      age_column: :recorded_at,
-      scope_name: :prunable,
-      setting_key: :metrics_dashboard_sample_retention_days,
-      default_value: 30,
-      unit: :days,
-      job_class: "MetricsDashboard::PruneJob",
-      description: "One-minute-resolution metric series samples backing the Metrics Dashboard plugin.",
-      category: "Plugins"
-    ),
-    Definition.new(
       key: :run_health_snapshot,
       model: "RunHealthSnapshot",
       table_name: "run_health_snapshots",
@@ -232,13 +227,27 @@ class RetentionPolicyRegistry
     )
   ].freeze
 
-  BY_KEY = DEFINITIONS.index_by(&:key).freeze
-
+  # Recomputed on every call rather than frozen once, so a plugin's
+  # contribution is picked up at whatever point its `:retention_policy`
+  # provider is registered (also matching Rails dev-mode reload semantics,
+  # where a plugin's manifest is rebuilt on every `to_prepare`).
   def self.definitions
-    DEFINITIONS
+    CORE_DEFINITIONS + plugin_definitions
   end
 
   def self.fetch(key)
-    BY_KEY.fetch(key.to_sym)
+    definitions.index_by(&:key).fetch(key.to_sym)
+  end
+
+  # Syrus::PluginRegistry.all_plugins (not the enabled-filtered
+  # providers_for) is used deliberately: the AppSetting column, its
+  # validation, and its admin metadata must exist regardless of whether the
+  # contributing plugin is currently enabled — same as every other
+  # plugin-owned AppSetting (video_retention_days, discord_bot_token, etc).
+  # Only the model's own `.prunable`-style scope and PruneJob go inert while
+  # the plugin is disabled.
+  def self.plugin_definitions
+    Syrus::PluginRegistry.all_plugins.flat_map { |manifest| Array(manifest.provides[:retention_policy]) }
+      .flat_map(&:retention_definitions)
   end
 end
