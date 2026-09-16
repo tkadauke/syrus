@@ -28,6 +28,7 @@ function payload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
     coverage: null,
     summary: null,
     test_plan: null,
+    report: null,
     feedback_history: [],
     landing_queue_entry: null,
     preview: null,

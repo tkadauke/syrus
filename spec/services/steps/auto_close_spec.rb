@@ -28,6 +28,19 @@ RSpec.describe Steps::AutoClose do
     expect(job.reload.state).to eq("closed")
   end
 
+  it "closes an investigation Job with investigation_reported instead of the Job's kind" do
+    investigation_job = Job.create!(user: user, repository: repository, kind: "direct", issue_number: nil, investigation: true, priority: "low")
+    investigation_workflow = Workflow.create!(job: investigation_job, user: user, trigger_kind: "investigation", chain_template: [ "auto_close" ])
+    investigation_step = Step.create!(workflow: investigation_workflow, kind: "auto_close", position: 0)
+    investigation_run = Run.create!(job: investigation_job, user: user, step: investigation_step, trigger_kind: investigation_workflow.trigger_kind)
+
+    described_class.new(investigation_run).call
+
+    expect(investigation_job.reload.state).to eq("closed")
+    expect(investigation_job.closure_reason).to eq("investigation_reported")
+    expect(Job::SUCCESSFUL_CLOSURE_REASONS).to include(investigation_job.closure_reason)
+  end
+
   it "raises instead of silently succeeding when the Job doesn't actually close" do
     # Regression guard for if the close attempt no-ops for any
     # reason, the step must surface that as a failure rather than let the

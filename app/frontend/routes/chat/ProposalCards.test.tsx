@@ -410,6 +410,19 @@ describe("ProposalCard routing", () => {
     expect(screen.getAllByText("Backlog").length).toBeGreaterThan(0)
   })
 
+  it("shows an investigation badge on investigation-flagged Job proposal cards", async () => {
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job", investigation: true }))
+
+    expect(screen.getByText("Investigation")).toBeInTheDocument()
+    expect(screen.getByText("Read-only, no PR expected")).toBeInTheDocument()
+  })
+
+  it("does not show an investigation badge on ordinary Job proposal cards", async () => {
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job", investigation: false }))
+
+    expect(screen.queryByText("Investigation")).not.toBeInTheDocument()
+  })
+
   it("lets operators choose backlog routing before confirming a direct Job proposal", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)

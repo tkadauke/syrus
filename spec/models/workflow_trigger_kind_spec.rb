@@ -49,7 +49,8 @@ RSpec.describe Workflow::TriggerKind do
       "external_pr_ingest",
       "external_pr_feedback",
       "skill",
-      "deploy"
+      "deploy",
+      "investigation"
     )
     expect(described_class.runtime_role_values("child")).to contain_exactly("landing_validation", "merge_train_validation", "visual_diff")
     expect(described_class.runtime_role_values("infrastructure")).to contain_exactly("main_grader")

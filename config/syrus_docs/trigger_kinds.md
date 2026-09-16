@@ -48,6 +48,61 @@ resolved path/class are recorded on the Run so a repo-local skill silently
 shadowing a built-in one of the same name is never a debugging trap — see the
 Run detail payload and `Admin::JobStateSerializer`.
 
+## investigation
+
+**When it fires:** A `direct` Job is created with `investigation: true` set
+(`InvestigationJobs::Creator`), rather than a free-form implementation
+prompt. `Job#investigation_launch?` (`direct? && investigation?`) is what
+`Job#create_initial_run` checks to dispatch this chain instead of
+`Workflows::Initial`.
+
+**Step chain:** `prepare → investigate → submit_report → auto_close`
+
+Investigation Jobs are for read-only exploration — QA walkthroughs, audits,
+"why is X slow" questions — where no PR is ever expected and no code change
+is the normal, successful outcome. `investigate` invokes the agent with
+`Prompts::Investigation` (the operator's prompt plus the standard
+safety/context blocks) but, unlike `implement`/`run_skill`, never commits,
+captures a diff, or calls `raise_no_changes_produced!` — it is read-only, the
+same as `AgentInsights::RunStep`. Its agent role defaults to
+`AgentRole::WORKFLOW_IMPLEMENT`, so it keeps the browser MCP tools,
+`start_preview`/`stop_preview`, and `submit_artifact`/`submit_visual_artifact`
+for capturing evidence along the way. `submit_report` then resumes the
+`investigate` session and asks the agent to call the `submit_report` MCP tool
+with a narrative report (`title`, `narrative`, optional `findings`, and an
+optional ordered `references` list pointing back at artifacts/screenshots
+already submitted this run by `type`), stored
+on `Workflow#artifacts["investigation_report"]`; the step raises
+`Steps::Base::StepFailed` if the agent never calls it, the same
+required-tool-call pattern `test_plan`/`summarize` use. Success is always
+defined by a submitted report, never by a diff, so this chain always reaches
+a narrative-producing step instead of dead-ending in the generic
+`no_changes` closure with nothing captured.
+
+`auto_close` then closes the Job as part of normal step progression, the
+same non-agentic terminal step `agent_insight` uses — but with
+`closure_reason: "investigation_reported"` instead of the Job's own `kind`
+(always `"direct"` for an investigation Job, which would collapse into the
+same generic reason any other direct Job's PR-less no-op could produce).
+`investigation_reported` is a `Job::SUCCESSFUL_CLOSURE_REASONS` entry, so a
+completed investigation satisfies dependency gates and counts as a
+successful outcome like `no_changes` or `pr_merged` do. Unlike
+`agent_insight`, this trigger kind does not set `owns_job_lifecycle`: a
+failed `investigate`/`submit_report` step leaves the Job on the normal
+`:failed` → Retry path instead of always closing, since investigation Jobs
+are operator-facing, not infrastructure.
+
+**Job detail rendering:** since an investigation Job never reaches `pr_open`,
+its Job detail page swaps the PR-shaped Summary tab for a **Report** tab
+(`app/frontend/routes/jobDetail/Report.tsx`) whenever `Job#investigation` is
+true (`App::JobDetailPayload#report_json`, gated the same way). The Report
+tab renders the submitted `investigation_report` narrative (markdown) and
+findings, plus any referenced artifacts/screenshots resolved against
+`Workflow#artifacts["typed_artifacts"]` and rendered with the same
+`ArtifactBody` renderer the Artifacts tab uses. The PR-only Review tab is
+hidden entirely for investigation Jobs; other tabs (Workflows, Agent
+Conversation, Timeline, Artifacts, Source, etc.) are unaffected.
+
 ## pr_comment
 
 **When it fires:** New non-Syrus-bot review comments appear on the Job's PR since the last addressed comment.

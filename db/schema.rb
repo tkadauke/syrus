@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_153450) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_200854) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -597,6 +597,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_153450) do
     t.datetime "filed_at"
     t.integer "github_issue_number"
     t.json "goal_prompt_snapshot"
+    t.boolean "investigation", default: false, null: false
     t.integer "job_id"
     t.string "kind", default: "syrus_issue", null: false
     t.string "labels"
@@ -1445,6 +1446,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_153450) do
     t.integer "input_source_id"
     t.json "invalidation_evidence", null: false
     t.text "invalidation_reason"
+    t.boolean "investigation", default: false, null: false
     t.text "issue_body"
     t.integer "issue_number"
     t.string "issue_title"

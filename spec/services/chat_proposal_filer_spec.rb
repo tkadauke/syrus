@@ -128,6 +128,57 @@ RSpec.describe ChatProposalFiler do
       expect(job.runs).to be_empty
     end
 
+    it "creates an investigation-flagged direct Job that dispatches Workflows::Investigation" do
+      job_proposal = proposal(
+        slug: "investigate-flaky-deploys",
+        title: "Investigate flaky deploys",
+        body: "Look into why deploys keep failing and report back.",
+        investigation: true
+      )
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      }.to change(Job, :count).by(1)
+        .and have_enqueued_job(RunJob).exactly(:once)
+
+      job = job_proposal.reload.job
+      expect(job.kind).to eq("direct")
+      expect(job.investigation?).to eq(true)
+      expect(job.issue_body).to eq("Look into why deploys keep failing and report back.")
+
+      workflow = job.workflows.last
+      expect(workflow.trigger_kind).to eq("investigation")
+    end
+
+    it "propagates investigation intent even when the proposal also targets an existing, non-empty Epic" do
+      epic = Factories.epic(user: user, repository: repository)
+      existing_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 42)
+      job_proposal = proposal(
+        slug: "investigate-under-epic",
+        title: "Investigate under epic",
+        kind: "job",
+        investigation: true,
+        target_epic: epic,
+        depends_on_job_ids: [ existing_child.id ]
+      )
+
+      expect(job_proposal.epic_bundle?).to eq(false)
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      job = job_proposal.reload.job
+      expect(job.investigation?).to eq(true)
+      expect(job.epic).to eq(epic)
+    end
+
+    it "does not flag a Job investigation when the proposal omits it" do
+      job_proposal = proposal(slug: "normal-job", title: "Normal job")
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      expect(job_proposal.reload.job.investigation?).to eq(false)
+    end
+
     it "resolves pending proposal-backed dependencies after the referenced proposal files" do
       upstream = proposal(slug: "upstream-job", title: "Upstream job")
       dependent = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil)

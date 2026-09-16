@@ -146,6 +146,7 @@ export type ChatProposal = {
   target_epic_label: string | null
   route_to_backlog?: boolean
   route_label?: string
+  investigation?: boolean
   app_update_path: string
   app_confirm_path: string
   app_reject_path: string
