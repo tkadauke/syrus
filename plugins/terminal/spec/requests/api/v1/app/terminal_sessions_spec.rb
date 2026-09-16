@@ -336,6 +336,41 @@ RSpec.describe "App API terminal sessions", type: :request do
     expect(Terminal::Session.last.working_directory).to eq(Rails.root.to_s)
   end
 
+  it "logs the open_count badge poll once as the terminal controller action" do
+    Feature.where(slug: "operational_log_indexing").delete_all
+    Feature.create!(slug: "operational_log_indexing", category: "Operations", name: "Operational log indexing", enabled: true)
+    Feature.clear_enabled_cache!("operational_log_indexing")
+    OperationalLogging.reset_instance_configuration_cache!
+    Observability::EventSink.clear!(kind: :operational)
+    Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+    sign_in_as(user)
+    Terminal::Session.create!(
+      user: user,
+      name: "Shell",
+      working_directory: "/tmp/shell",
+      auth_token: SecureRandom.hex(32),
+      started_at: Time.current
+    )
+
+    get "/api/v1/app/terminal_sessions/open_count"
+    Observability::EventSink.flush!(kinds: [ :operational ])
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to eq("count" => 1)
+    events = OperationalLogEvent.where(source: "action_controller").select do |event|
+      event.message.start_with?("GET /api/v1/app/terminal_sessions/open_count ")
+    end
+    expect(events.count).to eq(1)
+    expect(events.sole.context).to include(
+      "controller" => "Api::V1::App::TerminalSessionsController",
+      "action" => "open_count"
+    )
+  ensure
+    Observability::EventSink.clear!(kind: :operational)
+    OperationalLogging.reset_instance_configuration_cache!
+    Current.reset
+  end
+
   it "shows a session scoped to the current user" do
     sign_in_as(user)
     session = Terminal::Session.create!(

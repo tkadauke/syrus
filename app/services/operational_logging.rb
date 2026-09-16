@@ -14,6 +14,10 @@ module OperationalLogging
     /((?:password|passwd|secret|token|api[_-]?key)=)[^&\s]+/i,
     /((?:access|refresh|id)_token["']?\s*[:=]\s*["']?)[^"',\s}]+/i
   ].freeze
+  PLUGIN_ROUTE_DISPATCHER_CONTROLLERS = [
+    "Api::V1::App::PluginRoutesController",
+    "Api::V1::Admin::PluginRoutesController"
+  ].freeze
 
   module_function
 
@@ -203,12 +207,20 @@ module OperationalLogging
   end
 
   def ignored_request?(payload)
+    return true if plugin_route_dispatcher_wrapper_request?(payload)
+
     path = payload[:path].to_s
     path.start_with?(
       "/api/v1/admin/performance",
       "/api/v1/app/admin/performance",
       "/api/v1/app/admin/operational_logs"
     )
+  end
+
+  def plugin_route_dispatcher_wrapper_request?(payload)
+    return false unless payload[:controller].to_s.in?(PLUGIN_ROUTE_DISPATCHER_CONTROLLERS)
+
+    payload[:request]&.env&.fetch(PluginRouteDispatch::DISPATCHED_ROUTE_ENV_KEY, false) == true
   end
 
   def expected_request_failure(payload)
