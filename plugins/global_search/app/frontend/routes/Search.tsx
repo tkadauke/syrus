@@ -1,5 +1,5 @@
 import { withRoutePrefix } from "@app/lib/routing"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { SectionHeading } from "@app/components/Heading"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
@@ -11,43 +11,44 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { FilterBar, type FilterLinkBuilder } from "@app/components/FilterBar"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
-import { PILL_TONE_CLASSES } from "@app/components/StatusPill"
+import { PILL_TONE_CLASSES, TonePill } from "@app/components/StatusPill"
+import { Notice, Page, PageDescription, PageHeader, PageHeading, Section, Skeleton, Text } from "@app/components/ui"
 
 type SearchFilter = string | "all"
 
 const fallbackFilters: SearchTypeOption[] = fallbackSearchTypeOptions
 
-const typeStyles: Partial<Record<SearchResultType, { border: string; badge: string; label: string }>> = {
+const typeStyles: Record<SearchResultType, { border: string; tone: "amber" | "blue" | "gray" | "green"; label: string }> = {
   job: {
     border: "border-l-info",
-    badge: "bg-info/10 text-info ring-info/30",
+    tone: "blue",
     label: "Job"
   },
   epic: {
     border: "border-l-purple-500",
-    badge: "bg-purple-50 text-purple-700 ring-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:ring-purple-800",
+    tone: "gray",
     label: "Epic"
   },
   chat: {
     border: "border-l-green-500",
-    badge: PILL_TONE_CLASSES.green,
+    tone: "green",
     label: "Chat"
   },
   test_case: {
     border: "border-l-amber-500",
-    badge: PILL_TONE_CLASSES.amber,
+    tone: "amber",
     label: "Test"
   },
   design_doc: {
     border: "border-l-cyan-500",
-    badge: "bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-950 dark:text-cyan-200 dark:ring-cyan-800",
+    tone: "gray",
     label: "Design Doc"
   }
 }
 
 const fallbackTypeStyle = {
   border: "border-l-gray-400",
-  badge: "bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700",
+  tone: "gray" as const,
   label: "Result"
 }
 
@@ -68,11 +69,11 @@ export function SearchRoute() {
   const filters = [{ type: "all", label: "All" }, ...typeFilters]
 
   return (
-    <main aria-label={t("search_aria")} className="mx-auto max-w-[72rem] space-y-6 p-6">
-      <header className="space-y-4">
+    <Page aria-label={t("search_aria")} className="max-w-[72rem]">
+      <PageHeader className="space-y-4">
         <div>
           <PageHeading>{t('search.heading')}</PageHeading>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</p>
+          <PageDescription>{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</PageDescription>
         </div>
         <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
           {filters.map((filter) => (
@@ -82,7 +83,7 @@ export function SearchRoute() {
           ))}
         </nav>
         {search.data ? (
-          <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+          <Section>
             <FilterBar
               buildLink={searchFilterLink}
               filter={search.data.filter}
@@ -91,26 +92,26 @@ export function SearchRoute() {
               search={location.search}
               suggestionSearch={activeFilter === "job" || activeFilter === "epic" ? { surface: "dashboard", subject: activeFilter } : undefined}
             />
-          </section>
+          </Section>
         ) : null}
-      </header>
+      </PageHeader>
 
       {query.length === 0 ? (
-        <PanelMessage>{t('search.use_sidebar')}</PanelMessage>
+        <Notice>{t('search.use_sidebar')}</Notice>
       ) : query.length < 2 ? (
-        <PanelMessage>{t('search.min_chars')}</PanelMessage>
+        <Notice>{t('search.min_chars')}</Notice>
       ) : search.isPending ? (
         <SearchSkeleton />
       ) : search.isError ? (
-        <PanelMessage tone="error">{t('search.error')}</PanelMessage>
+        <Notice tone="error">{t('search.error')}</Notice>
       ) : results.length === 0 ? (
-        <PanelMessage>{t('search.no_results')}</PanelMessage>
+        <Notice>{t('search.no_results')}</Notice>
       ) : (
-        <section className="divide-y divide-gray-200 overflow-hidden rounded border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
+        <Section className="divide-y divide-border overflow-hidden p-0">
           {results.map((result) => <SearchResultRow key={`${result.type}-${result.id}`} result={result} />)}
-        </section>
+        </Section>
       )}
-    </main>
+    </Page>
   )
 }
 
@@ -126,14 +127,14 @@ function SearchResultRow({ result }: { result: SearchResult }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${styles.badge}`}>{styles.label}</span>
+            <TonePill tone={styles.tone}>{styles.label}</TonePill>
             {result.slug ? (
               <SlugHoverCard id={result.id} kind={slugHoverKind(result.type)} prefix={slugPrefix(result.slug)}>
                 <CopyableSlug slug={result.slug} />
               </SlugHoverCard>
             ) : null}
-            {result.repository_slug ? <span className="text-xs text-gray-500 dark:text-gray-400">{result.repository_slug}</span> : null}
-            {result.state ? <span className="text-xs capitalize text-gray-500 dark:text-gray-400">{result.state.replace(/_/g, " ")}</span> : null}
+            {result.repository_slug ? <Text as="span" size="xs" tone="muted">{result.repository_slug}</Text> : null}
+            {result.state ? <Text as="span" className="capitalize" size="xs" tone="muted">{result.state.replace(/_/g, " ")}</Text> : null}
           </div>
           <SectionHeading className="mt-2">
             <Link className="break-words hover:text-brand hover:underline dark:hover:text-brand-emphasis" to={withRoutePrefix(result.path, prefix)}>
@@ -145,7 +146,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
           <ResultMetadata result={result} />
           {hasGroupedMatches ? <GroupedChatMatches result={result} routePrefix={prefix} /> : null}
         </div>
-        {result.updated_at || result.created_at ? <RelativeTimestamp className="shrink-0 text-xs text-gray-500 dark:text-gray-400" value={result.updated_at || result.created_at} /> : null}
+        {result.updated_at || result.created_at ? <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={result.updated_at || result.created_at} /> : null}
       </div>
     </article>
   )
@@ -173,9 +174,9 @@ function TestCaseDetails({ result }: { result: TestCaseSearchResult }) {
   if (parts.length === 0) return null
 
   return (
-    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+    <Text className="mt-1" size="xs" tone="muted">
       {parts.join(" · ")}
-    </p>
+    </Text>
   )
 }
 
@@ -197,16 +198,16 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
         <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
         {expanded ? t('search.hide') : t('search.show')} {groupedMatches.length} {groupedMatches.length === 1 ? t('search.match_more') : t('search.matches_more')}
       </button>
-      {!expanded ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{hiddenMatchCount} {t('search.more')} {matchLabel} {t('search.in_this_chat')}</span> : null}
+      {!expanded ? <Text as="span" className="ml-2" size="xs" tone="muted">{hiddenMatchCount} {t('search.more')} {matchLabel} {t('search.in_this_chat')}</Text> : null}
       {expanded ? (
-        <div className="mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
+        <div className="mt-3 divide-y divide-border border-t border-border">
           {groupedMatches.map((match) => (
             <Link className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-900" key={match.id} to={withRoutePrefix(match.path, routePrefix)}>
               <Snippet html={match.snippet || ""} />
-              {match.created_at ? <RelativeTimestamp className="mt-1 block text-xs text-gray-500 dark:text-gray-400" value={match.created_at} /> : null}
+              {match.created_at ? <RelativeTimestamp className="mt-1 block text-xs text-text-muted" value={match.created_at} /> : null}
             </Link>
           ))}
-          {result.has_more_matches ? <div className="py-3 text-xs text-gray-500 dark:text-gray-400">{t('search.top_matches_shown', { count: groupedMatches.length })}</div> : null}
+          {result.has_more_matches ? <Text className="py-3" size="xs" tone="muted">{t('search.top_matches_shown', { count: groupedMatches.length })}</Text> : null}
         </div>
       ) : null}
     </div>
@@ -217,7 +218,7 @@ function Snippet({ html }: { html: string }) {
   const { t } = useT("common")
   return (
     <p
-      className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300 [&_mark]:rounded [&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:text-gray-950 dark:[&_mark]:bg-yellow-500/40 dark:[&_mark]:text-yellow-50"
+      className="mt-2 text-sm leading-6 text-text-secondary [&_mark]:rounded [&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:text-gray-950 dark:[&_mark]:bg-yellow-500/40 dark:[&_mark]:text-yellow-50"
       dangerouslySetInnerHTML={{ __html: sanitizeSnippet(html) }}
     />
   )
@@ -228,21 +229,15 @@ function SearchSkeleton() {
   return (
     <section aria-label={t("loading_search_aria")} className="space-y-3">
       {[0, 1, 2, 3].map((index) => (
-        <div className="animate-pulse rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950" key={index}>
-          <div className="h-4 w-20 rounded bg-gray-200 dark:bg-gray-800" />
-          <div className="mt-3 h-5 w-2/3 rounded bg-gray-200 dark:bg-gray-800" />
-          <div className="mt-3 h-4 w-full rounded bg-gray-100 dark:bg-gray-900" />
-          <div className="mt-2 h-4 w-5/6 rounded bg-gray-100 dark:bg-gray-900" />
-        </div>
+        <Section className="animate-pulse" key={index}>
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="mt-3 h-5 w-2/3" />
+          <Skeleton className="mt-3 h-4 w-full" />
+          <Skeleton className="mt-2 h-4 w-5/6" />
+        </Section>
       ))}
     </section>
   )
-}
-
-function PanelMessage({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "error" }) {
-  const { t } = useT("common")
-  const color = tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-500 dark:text-gray-400"
-  return <div className={`rounded border border-gray-200 bg-white p-6 text-sm ${color} dark:border-gray-800 dark:bg-gray-950`}>{children}</div>
 }
 
 function activeFilterFromParams(params: URLSearchParams): SearchFilter {

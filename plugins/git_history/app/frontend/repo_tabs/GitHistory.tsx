@@ -1,11 +1,11 @@
 import { useMemo } from "react"
 import { useInfiniteQuery } from "@tanstack/react-query"
 import { Link, useLocation, useParams } from "react-router-dom"
-import { PageHeading } from "@app/components/Heading"
-import { PanelMessage } from "@app/components/PanelMessage"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { TonePill } from "@app/components/StatusPill"
+import { Button } from "@app/components/Button"
+import { Notice, PageHeading, Section } from "@app/components/ui"
 import { routePrefix } from "@app/lib/routing"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
@@ -57,8 +57,8 @@ export function GitHistory() {
       prefix={prefix}
       tabs={firstPage?.tabs ?? []}
     >
-      {history.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
-      {history.isError ? <PanelMessage tone="error">{t("error")}</PanelMessage> : null}
+      {history.isPending ? <Notice>{t("loading")}</Notice> : null}
+      {history.isError ? <Notice tone="error">{t("error")}</Notice> : null}
 
       {firstPage ? (
         !available ? (
@@ -67,20 +67,19 @@ export function GitHistory() {
           <EmptyPanel label={t("empty")} />
         ) : (
           <>
-            <ul className="divide-y divide-gray-200 rounded border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-700 dark:bg-gray-900">
+            <Section as="ul" className="divide-y divide-border overflow-hidden p-0">
               {groups.map((group) => <CommitGroupRow group={group} key={commitGroupKey(group)} />)}
-            </ul>
+            </Section>
 
             {history.hasNextPage ? (
               <div className="flex justify-center">
-                <button
-                  className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+                <Button
                   disabled={history.isFetchingNextPage}
                   onClick={() => void history.fetchNextPage()}
-                  type="button"
+                  variant="secondary"
                 >
                   {history.isFetchingNextPage ? t("loading_more") : t("load_more")}
-                </button>
+                </Button>
               </div>
             ) : null}
           </>
@@ -91,11 +90,7 @@ export function GitHistory() {
 }
 
 function EmptyPanel({ label }: { label: string }) {
-  return (
-    <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-      {label}
-    </p>
-  )
+  return <Notice>{label}</Notice>
 }
 
 function CommitGroupRow({ group }: { group: CommitGroup }) {

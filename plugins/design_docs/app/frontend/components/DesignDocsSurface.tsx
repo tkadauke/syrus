@@ -8,7 +8,8 @@ import { CopyableSlug } from "@app/components/CopyableSlug"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { Notice, PageDescription, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { TonePill } from "@app/components/StatusPill"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { useMediaQuery } from "@app/routes/dashboard/components"
@@ -188,9 +189,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
             {compact ? <SectionHeading>{t("title")}</SectionHeading> : <PageHeading>{t("title")}</PageHeading>}
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            <PageDescription>
               {mode === "repository" ? t("repository_description") : t("index_description")}
-            </p>
+            </PageDescription>
           </div>
           <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
             {t("new_doc")}
@@ -200,7 +201,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {isDesktop ? filterBar : showIndexControls ? (
         <div className="px-0">
-          <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          <details className="group rounded border border-border bg-surface">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
               <span>{tNav("filters_layout.folders_and_filters")}</span>
               <span className="text-gray-400 group-open:hidden dark:text-gray-500">{tNav("filters_layout.show")}</span>
@@ -1018,16 +1019,16 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         onVisibilityChange={(visibility) => metadataMutation.mutate({ visibility })}
       />
       {isArchived ? (
-        <Panel>
+        <Notice>
           <div className="flex flex-wrap items-center gap-2">
             <StatusLabel value="archived" />
-            <p className="text-sm text-gray-700 dark:text-gray-300">{t("archived_read_only")}</p>
+            <Text tone="primary">{t("archived_read_only")}</Text>
           </div>
-        </Panel>
+        </Notice>
       ) : null}
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
-        <div className="overflow-visible rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <Section className="overflow-visible p-0">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
             {summaryVisible ? <Input aria-label={t("aria_change_summary")} className="min-w-[12rem] flex-1" placeholder={t("optional_change_summary")} value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
@@ -1110,7 +1111,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             }}
           />
           </div>
-        </div>
+        </Section>
       </section>
       <aside className="space-y-4">
           <ThreadPanel
@@ -1220,22 +1221,22 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
   }
 
   return (
-    <section aria-label={t("aria_title_bar")} className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
+    <Section aria-label={t("aria_title_bar")} className="p-3" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
           <Input aria-label={t("aria_title_input")} disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
-          <p className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <Text className="mt-1" size="xs" tone="muted">
             <CopyableSlug className="text-xs font-medium" slug={doc.display_id} />
-            <span>{t("saved_prefix")} <RelativeTimestamp value={doc.updated_at} /></span>
-          </p>
+            <span> {t("saved_prefix")} <RelativeTimestamp value={doc.updated_at} /></span>
+          </Text>
         </div>
         <StatusLabel value={doc.visibility} />
         <StatusLabel value={doc.state} />
         <div className="relative min-w-0">
           <div className="flex max-w-full flex-wrap items-center gap-1.5">
-            {selectedRepositories.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("no_repositories")}</span> : null}
+            {selectedRepositories.length === 0 ? <Text as="span" size="xs" tone="muted">{t("no_repositories")}</Text> : null}
             {selectedRepositories.map((repository) => (
-              <span className="max-w-[11rem] truncate rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-300" key={repository.id}>
+              <span className="max-w-[11rem] truncate rounded border border-border px-2 py-1 text-xs text-text-secondary" key={repository.id}>
                 {repository.slug}
               </span>
             ))}
@@ -1246,18 +1247,18 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
             ) : null}
           </div>
           {repositoryPickerOpen && canManageMetadata ? (
-            <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
-              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-border bg-surface p-3 shadow-lg">
+              <label className="block text-xs font-medium uppercase text-text-muted">
                 {t("repositories")}
-                <select
+                <Select
                   aria-label={t("aria_repository_associations")}
-                  className="mt-1 block min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  className="mt-1 min-h-24"
                   multiple
                   value={repoIds}
                   onChange={(event) => setRepoIds(Array.from(event.target.selectedOptions).map((option) => option.value))}
                 >
                   {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
-                </select>
+                </Select>
               </label>
               <div className="mt-3 flex justify-end">
                 <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_repositories")}</Button>
@@ -1269,22 +1270,22 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
           {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">{t("share")}</Button> : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
             <div
-              className="absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950"
+              className="absolute z-40 mt-2 max-w-[calc(100vw-2rem)] rounded border border-border bg-surface p-3 shadow-lg"
               data-testid="design-doc-share-menu"
               style={shareMenuStyle}
             >
-              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <label className="block text-xs font-medium uppercase text-text-muted">
                 {t("visibility")}
                 <Select aria-label={t("aria_share_visibility")} className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
                   <option value="private">{t("visibility_private")}</option>
                   <option value="public">{t("visibility_public")}</option>
                 </Select>
               </label>
-              <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <label className="mt-3 block text-xs font-medium uppercase text-text-muted">
                 {t("explicit_collaborators")}
                 <Input aria-label={t("aria_collaborator_user_ids")} className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
               </label>
-              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</p>
+              <Text className="mt-3" size="xs" tone="muted">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</Text>
               <div className="mt-3 flex justify-end">
                 <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_sharing")}</Button>
               </div>
@@ -1311,7 +1312,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
           ))}
         </Select>
       </div>
-    </section>
+    </Section>
   )
 }
 
@@ -2065,14 +2066,15 @@ function fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }: {
 }
 
 function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
-  const colors = tone === "error" ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200" : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-  return <div className={`rounded border p-4 ${colors} ${className}`}>{children}</div>
+  if (tone === "error") return <Notice className={className} tone="error">{children}</Notice>
+
+  return <Section className={className}>{children}</Section>
 }
 
 function StatusLabel({ value }: { value: string }) {
   const { t } = useT("design_docs")
   const key = value.toLowerCase().replace(/\s+/g, "_")
-  return <span className="shrink-0 rounded border border-gray-200 px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:text-gray-300">{t(`status.${key}`, { defaultValue: value })}</span>
+  return <TonePill tone="gray">{t(`status.${key}`, { defaultValue: value })}</TonePill>
 }
 
 function scopeDocs(docs: DesignDocSummary[], chatId?: number, designDocIds: number[] = []) {
