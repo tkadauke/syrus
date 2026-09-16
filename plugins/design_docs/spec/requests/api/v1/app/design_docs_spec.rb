@@ -266,6 +266,42 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("title") }).not_to include(own_doc.title)
   end
 
+  it "adds a chip via the FilterBar without duplicating the active SmartFolder's own chip" do
+    # FilterBar seeds its draft chip list from the server's already-merged
+    # `filter`, so adding a chip resends the folder's own chip alongside it.
+    # If the backend re-ANDs the SmartFolder's saved filter back in on top
+    # of that, the folder's chip is duplicated. See DesignDocs::Filter and
+    # Filters::BaseFilter.smart_folder_floor.
+    matching = create_design_doc(title: "Accepted plan", markdown: "Operational queue health", state: "accepted")
+    create_design_doc(title: "Accepted notes", markdown: "Release notes", state: "accepted")
+    sign_in_as(owner)
+
+    post "/api/v1/app/smart_folders", params: {
+      subject_type: "design_doc",
+      filter: { and: [ { field: "state", op: "is", value: "accepted" } ] }.to_json,
+      smart_folder: { name: "Accepted docs" }
+    }
+    folder = owner.smart_folders.find_by!(name: "Accepted docs")
+
+    q = Filters::QueryParam.encode(
+      "and" => [
+        { "field" => "state", "op" => "is", "value" => "accepted" },
+        { "field" => "content", "op" => "matches", "value" => "queue health" }
+      ]
+    )
+
+    get "/api/v1/app/design_docs", params: { smart_folder_id: folder.id, q: q }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("filter")).to eq(
+      "and" => [
+        { "field" => "state", "op" => "is", "value" => "accepted" },
+        { "field" => "content", "op" => "matches", "value" => "queue health" }
+      ]
+    )
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ matching.id ])
+  end
+
   it "lists visible docs scoped to a repository" do
     public_doc = create_design_doc(title: "Repository plan", visibility: "public")
     public_doc.repositories << repository
