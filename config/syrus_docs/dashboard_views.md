@@ -140,6 +140,35 @@ synthesize ordinary AST chip nodes such as `{ "field": "title", "op":
 base64url filter tree as manually added chips and can be saved in
 SmartFolders.
 
+**SmartFolder floor vs. ad hoc chip-bar filter.** `Filters::BaseFilter.from_params`
+always ANDs a given `smart_folder:` argument with the request's `q=`/legacy
+params -- that low-level AND is unconditional by design. Any controller that
+resolves `current_filter` for a SmartFolder-backed FilterBar surface must
+therefore pass its `smart_folder:` argument through
+`Filters::BaseFilter.smart_folder_floor(params, active_smart_folder, user:)`
+instead of the active folder directly: once the chip bar's own ad hoc filter
+is active (a present `q=`, even one that decodes to zero chips, or legacy URL
+params with real chips), the SmartFolder's saved filter stops acting as a
+floor and the chip bar becomes the sole source of truth. Skipping this guard
+re-ANDs the folder's saved filter into the user's own chip-bar edits on every
+request -- adding a chip duplicates the folder's own chip, editing a chip
+leaves the pre-edit value alongside the new one, and removing the chip bar's
+last chip resurrects it. `active_smart_folder_id` in the response is
+unaffected by this guard and keeps reflecting the selected folder for UI
+purposes (breadcrumb/sidebar highlighting) even once its filter floor has
+been dropped. Mirrors `App::DashboardPayload#active_smart_folder_for_filter`,
+which predates and inspired the shared helper.
+
+`FilterBar.tsx`'s `applyTree` seeds its editable draft chip list from the
+server's already-merged `filter`, so a chip-bar Add/Edit always resends
+whatever the SmartFolder already contributed alongside the change -- `q=`
+carries the full intended state, not just a delta. Clearing the chip bar's
+last chip while a SmartFolder is selected sends an explicit empty `q=`
+(rather than omitting the param, as it does when no SmartFolder is active)
+specifically so the backend's guard above can tell "the chip bar was just
+emptied" apart from "the chip bar was never touched" -- both leave the same
+merged filter otherwise.
+
 The `matches` operator is separate from `StringColumn`'s `contains` operator.
 `Filters::Chips::FullTextStringColumn` is the reusable search-style text base;
 until a subject has a database-specific full-text implementation, it uses a

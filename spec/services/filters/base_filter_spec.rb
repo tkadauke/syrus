@@ -7,6 +7,12 @@ RSpec.describe Filters::BaseFilter do
     Class.new do
       include Filters::BaseFilter
 
+      def self.build_tree_from_url_params(params)
+        return nil unless params[:state].present?
+
+        { "and" => [ { "field" => "state", "op" => "is", "value" => params[:state] } ] }
+      end
+
       def initialize(tree, user: nil)
         @ast = Filters::Ast.parse(tree)
         @user = user
@@ -99,6 +105,43 @@ RSpec.describe Filters::BaseFilter do
       right = { "and" => [ chip("kind", "is", "issue") ] }
       result = concrete_filter_class.send(:merge_and, left, right)
       expect(result["and"]).to include(left, chip("kind", "is", "issue"))
+    end
+  end
+
+  describe ".smart_folder_floor" do
+    let(:smart_folder) { Struct.new(:filter).new({ "and" => [ chip("state", "is", "open") ] }) }
+
+    it "returns nil when there is no smart folder to guard" do
+      result = concrete_filter_class.smart_folder_floor({}, nil)
+      expect(result).to be_nil
+    end
+
+    it "keeps the smart folder when the request carries no ad hoc filter at all" do
+      result = concrete_filter_class.smart_folder_floor({}, smart_folder)
+      expect(result).to eq(smart_folder)
+    end
+
+    it "drops the smart folder once legacy URL params make the ad hoc filter active" do
+      result = concrete_filter_class.smart_folder_floor({ state: "closed" }, smart_folder)
+      expect(result).to be_nil
+    end
+
+    it "drops the smart folder when q= carries chips" do
+      q = Filters::QueryParam.encode("and" => [ chip("kind", "is", "issue") ])
+      result = concrete_filter_class.smart_folder_floor({ q: q }, smart_folder)
+      expect(result).to be_nil
+    end
+
+    it "drops the smart folder when q= is present but decodes to zero chips" do
+      q = Filters::QueryParam.encode("and" => [])
+      result = concrete_filter_class.smart_folder_floor({ q: q }, smart_folder)
+      expect(result).to be_nil
+    end
+
+    it "drops the smart folder when q= is present as a string key" do
+      q = Filters::QueryParam.encode("and" => [])
+      result = concrete_filter_class.smart_folder_floor({ "q" => q }, smart_folder)
+      expect(result).to be_nil
     end
   end
 

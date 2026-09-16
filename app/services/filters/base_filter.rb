@@ -46,6 +46,31 @@ module Filters
         new(tree, user: user)
       end
 
+      # Whether `smart_folder`'s saved filter should still act as the floor
+      # for a `from_params` call built from these params. `from_params`
+      # itself always ANDs a given `smart_folder:` argument in (see its own
+      # spec coverage), so any caller backing a chip-bar UI with an active
+      # SmartFolder must resolve its `smart_folder:` argument through here
+      # instead of passing the currently selected folder unconditionally —
+      # otherwise every add/edit/remove in the chip bar re-ANDs the folder's
+      # saved filter back into the user's own ad hoc one: duplicating added
+      # chips, resurrecting edited-away values, and reinstating removed
+      # ones. Mirrors App::DashboardPayload#active_smart_folder_for_filter.
+      #
+      # A present `q=` — even one that decodes to zero chips — always means
+      # the chip bar itself is now the source of truth: FilterBar sends an
+      # explicit empty tree once a SmartFolder is selected specifically so
+      # "the chip bar was just emptied" can be told apart from "the chip bar
+      # was never touched" (both of which leave the tree empty, but only the
+      # former should drop the folder's floor). Absent a `q=` at all, fall
+      # back to whether the legacy flat URL params carry any chips.
+      def smart_folder_floor(params, smart_folder, user: nil)
+        return nil if smart_folder.nil?
+        return nil if params.key?(Filters::QueryParam::PARAM_NAME) || params.key?(Filters::QueryParam::PARAM_NAME.to_s)
+
+        from_params(params, smart_folder: nil, user: user).active? ? nil : smart_folder
+      end
+
       private
 
       def chip(field, op, value)

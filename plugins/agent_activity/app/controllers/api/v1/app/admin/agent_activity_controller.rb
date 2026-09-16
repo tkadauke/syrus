@@ -48,7 +48,10 @@ module Api
           private
 
           def current_filter
-            @current_filter ||= ::AgentActivity::Filter.from_params(params, smart_folder: active_smart_folder, user: Current.user)
+            @current_filter ||= begin
+              smart_folder = ::AgentActivity::Filter.smart_folder_floor(params, active_smart_folder, user: Current.user)
+              ::AgentActivity::Filter.from_params(params, smart_folder: smart_folder, user: Current.user)
+            end
           end
 
           def active_smart_folder
