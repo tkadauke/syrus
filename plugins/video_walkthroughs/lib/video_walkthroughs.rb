@@ -46,6 +46,12 @@ module VideoWalkthroughs
       scope.effect("gemini credential probe") { ::CredentialProbe.register_probe("gemini_api_key", VideoWalkthroughs::CredentialProbe) }
     end
 
+    metrics do
+      gauge :storage_bytes,
+            comment: "Total bytes of stored video blobs, weighed against AppSetting.video_storage_budget_bytes " \
+                     "before PruneJob's LRU eviction runs"
+    end
+
     # Retention is enforced on the plugin's own tick rather than the host's
     # recurring.yml, so removing the plugin removes the schedule with it.
     tick_interval 1.day

@@ -52,6 +52,22 @@ RSpec.describe "Syrus::Metrics reconcile!" do
 
       expect(Syrus::Metrics.render).to include('syrus_reconciled_total{state="succeeded"} 42')
     end
+
+    # A cumulative dollar total (see SpendingInsights::MetricsSampler) is the
+    # motivating case: flooring it to `.to_i` on every tick would discard the
+    # fractional remainder forever instead of just rounding the display.
+    it "preserves a fractional total instead of flooring it" do
+      counter.reconcile!(12.5, tags: { state: "succeeded" })
+
+      expect(Syrus::Metrics.render).to include('syrus_reconciled_total{state="succeeded"} 12.5')
+    end
+
+    it "still advances from a fractional total to a larger one" do
+      counter.reconcile!(1.25, tags: { state: "succeeded" })
+      counter.reconcile!(1.75, tags: { state: "succeeded" })
+
+      expect(Syrus::Metrics.render).to include('syrus_reconciled_total{state="succeeded"} 1.75')
+    end
   end
 
   describe "Histogram#reconcile!" do

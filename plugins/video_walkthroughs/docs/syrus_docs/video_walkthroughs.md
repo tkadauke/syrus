@@ -62,6 +62,17 @@ Gemini is used for broad analysis and ASR (transcription). Claude handles OCR of
 
 The analysis report and extracted screenshots persist indefinitely. Only the raw video blob is pruned. The Gemini Files API retains uploads for ~48 hours, after which `analyze_walkthrough_segment` re-uploads the stored blob on demand.
 
+## Metrics
+
+While enabled, exports `syrus_video_walkthroughs_storage_bytes` (a gauge) to `/metrics` (see
+`config/syrus_docs/metrics.md`): the total stored video bytes `PruneJob`'s size sweep is weighing against
+`AppSetting.video_storage_budget_bytes`, so the budget is visible before it starts evicting rather than only
+after the fact. `PruneJob`'s daily tick already computes this exact total to decide whether to evict, so it
+also records it here (`VideoWalkthroughs::MetricsSampler.record_storage_bytes!`) rather than a second query
+on its own schedule -- meaning the gauge is only as fresh as the last prune run, which matches how often
+eviction itself can happen. Like every plugin metric, disabling the plugin removes the series entirely
+rather than freezing it at its last value.
+
 ## Desktop app recording
 
 The desktop app's screen recorder (`+` → "Record a walkthrough"):

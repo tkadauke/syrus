@@ -470,6 +470,13 @@ consumer. With cumulative counters a missed scrape costs resolution rather than
 data, any number of consumers can read independently, and PromQL compensates for
 the one legitimate reset — a process restart, where the series drops to zero.
 
+`Counter#reconcile!` (the cache-mediated "catch up to this known total" path a
+worker-fed sampler uses to bring a counter current on the web process that
+actually scrapes -- see `Metrics::LandingSampler`'s class doc) compares and
+stores as floats rather than flooring to an integer, so a fractional
+cumulative total — a summed dollar cost, say — is not silently truncated on
+every tick. A cumulative Run cost counter is one example of this.
+
 ## Cardinality
 
 Labels must come from `Syrus::Metrics::TagAllowlist::ALLOWED`, and declaring a
@@ -495,6 +502,10 @@ not an identifier, so it does not carry the growth risk `repository`/`user`/
 the same reason -- `Problem::Kind`'s registry is a closed, fixed set of codes
 (see `app/models/problem/kind.rb`), not a value that grows with the amount of
 work Syrus does.
+
+`unit_type` is on the allowlist for the `throughput` plugin's
+`syrus_throughput_landing_units_total` -- a closed two-value set (`"auto_merge"`/
+`"merge_train"`), not an identifier.
 
 High-cardinality detail belongs in the event tables that already exist for it —
 `mcp_tool_usages`, `performance_log_events` and friends. Metrics do not replace
@@ -532,6 +543,38 @@ end
 Plugin metrics follow `while_enabled` semantics: a **disabled plugin declares
 nothing and emits no series**. That is deliberate — absent means "not
 applicable", whereas a zero would mean "enabled, and nobody uses it".
+
+A plugin's `metrics do ... end` block declares through a `while_enabled`
+effect (`Syrus::Installer`), which is **sync-on-read** like every other
+Installer-backed registry (`Filters::Registry.subjects`,
+`SmartFolder.registered_subjects`, `CredentialProbe`'s registries) — nothing
+re-applies it on a timer. `MetricsController` calls `Syrus::Installer.sync!`
+on its own read path (right before rendering) for exactly this reason: so a
+plugin enabled or disabled since this process's last sync renders the correct
+metric set on the very next scrape, instead of waiting for some other
+subsystem's unrelated read to happen to trigger the sync first.
+
+**A global metric that a worker-side event feeds still needs a sampler.**
+`/metrics` is served by the web role only (see *Scope* above), so a plugin
+whose event happens on a worker — a Run finishing, a landing attempt
+completing, a nightly prune job computing a total — cannot just call
+`increment`/`set` at the event site; that mutation would sit invisible in the
+worker's own in-process registry forever, exactly like the core samplers
+above. The fix is the same shape those use, just plugin-owned: sample on the
+plugin's own tick (`tick_interval` + `Callbacks#on_tick`) into a
+cache-mediated cumulative total, and override
+`Syrus::Plugin::Callbacks#on_metrics_scrape` — called for every enabled,
+healthy plugin's `:callbacks` provider from the `/metrics` scrape path — to
+reconcile this process's instrument to that cached total. Core cannot name a
+plugin's sampler directly (that would make the plugin undeletable), so
+`MetricsController` asks generically instead: every registered `:callbacks`
+provider gets `on_metrics_scrape` called, and one plugin's failure there does
+not blank another plugin's metrics. The `spending_insights` and `throughput`
+plugins' own docs work through the counter case (a cursor over a
+`finished_at`-style column, folded into a cumulative total exactly once per
+event); `video_walkthroughs`' docs work through the simpler gauge case (a job
+that already computes the number for its own purposes just also caches it
+here).
 
 Three instrument types, and no Summary: client-side quantiles cannot be
 aggregated across processes, since there is no function of two pods' p99 values
