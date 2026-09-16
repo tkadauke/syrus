@@ -11,7 +11,8 @@ import type { DashboardSortState } from "./helpers"
 const repository: DashboardRepository = {
   id: 1,
   repository_path: "/repositories/1",
-  slug: "acme/widgets"
+  slug: "acme/widgets",
+  multiple_members: false
 }
 
 const controls = {

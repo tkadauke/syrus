@@ -482,7 +482,7 @@ export type LandingQueueBlockerJob = {
   epic_id?: number | null
   epic_title?: string | null
   bundle_other_job_count?: number | null
-  repository: { id: number; slug: string; repository_path: string }
+  repository: { id: number; slug: string; repository_path: string; multiple_members: boolean }
   latest_workflow_state: string | null
   latest_workflow_trigger_kind: string | null
   latest_workflow_id: number | null

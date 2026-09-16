@@ -50,6 +50,22 @@ describe("job navigation context", () => {
     expect(context?.items[49].id).toBe(70)
   })
 
+  it("carries the owner badge and updated_at only when the repository has multiple members", () => {
+    const context = createDashboardJobNavigationContext({
+      currentJobId: 1,
+      label: "Dashboard",
+      items: [
+        dashboardJob(1, { repository: { slug: "acme/widgets", multiple_members: true }, owner_badge: { label: "jane@example.com", kind: "other_user" }, updated_at: "2026-09-11T11:00:00Z" }),
+        dashboardJob(2, { repository: { slug: "acme/widgets", multiple_members: false }, owner_badge: { label: "jane@example.com", kind: "other_user" }, updated_at: "2026-09-11T11:00:00Z" })
+      ]
+    })
+
+    expect(context?.items[0].ownerBadge).toEqual({ label: "jane@example.com", kind: "other_user" })
+    expect(context?.items[0].updatedAt).toBe("2026-09-11T11:00:00Z")
+    expect(context?.items[1].ownerBadge).toBeNull()
+    expect(context?.items[1].updatedAt).toBe("2026-09-11T11:00:00Z")
+  })
+
   it("captures Epic jobs in their supplied linear order", () => {
     const context = createEpicJobNavigationContext({
       currentJobId: 12,
@@ -75,14 +91,15 @@ describe("job navigation context", () => {
   })
 })
 
-function dashboardJob(id: number) {
+function dashboardJob(id: number, overrides: Record<string, unknown> = {}) {
   return {
     id,
     title: `Job ${id}`,
     state: "running",
     summary_state: "running",
     repository: { slug: "acme/widgets" },
-    paths: { job_path: `/jobs/${id}` }
+    paths: { job_path: `/jobs/${id}` },
+    ...overrides
   }
 }
 

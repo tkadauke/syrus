@@ -657,23 +657,24 @@ module App
       @job_runtime_active_landing_work_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_landing_work", count: job_ids.size) do
         work_unit_snapshot.active_landing_work_by_job_id
       end
-      @job_runtime_repository_memberships_by_repo_and_user = PerformanceLogging.phase("dashboard_jobs.preload.repository_memberships", count: job_ids.size) do
-        repository_memberships_by_repo_and_user_for(jobs)
+      repo_memberships = PerformanceLogging.phase("dashboard_jobs.preload.repository_memberships", count: job_ids.size) do
+        repository_memberships_for_repos(jobs)
       end
+      @job_runtime_repository_memberships_by_repo_and_user = repo_memberships.index_by { |membership| [ membership.repository_id, membership.user_id ] }
+      @job_runtime_repository_membership_counts_by_repo_id = repo_memberships.group_by(&:repository_id).transform_values(&:size)
     end
 
     # Batches the RepositoryMembership lookups that Repository#effective_agent_provider
     # would otherwise perform one-by-one (via #membership_for) for every job row --
     # see provider_mismatch_for / effective_repository_agent_provider in RecordSerializers.
-    def repository_memberships_by_repo_and_user_for(jobs)
-      pairs = jobs.filter_map do |job|
-        owner_user = job_owner_user(job)
-        [ job.repository_id, owner_user.id ] if job.repository_id && owner_user
-      end.uniq
-      return {} if pairs.empty?
+    # Fetched by repository_id only (not narrowed to job owners) so the same
+    # single query also backs the repository_json "multiple_members" flag
+    # (see #repository_multiple_members?) without a second query per repo.
+    def repository_memberships_for_repos(jobs)
+      repo_ids = jobs.filter_map(&:repository_id).uniq
+      return [] if repo_ids.empty?
 
-      RepositoryMembership.where(repository_id: pairs.map(&:first), user_id: pairs.map(&:last))
-        .index_by { |membership| [ membership.repository_id, membership.user_id ] }
+      RepositoryMembership.where(repository_id: repo_ids).to_a
     end
 
     def paused_job_ids(job_ids, work_unit_snapshot: nil)
@@ -792,8 +793,24 @@ module App
       {
         id: repository.id,
         slug: repository.slug,
-        repository_path: repository_path(repository)
+        repository_path: repository_path(repository),
+        multiple_members: repository_multiple_members?(repository)
       }
+    end
+
+    # Job listings already batch a single repository_memberships query via
+    # preload_job_runtime_state (see #repository_memberships_for_repos); reuse
+    # those counts when available. Other subjects (epic, workflow) fall back
+    # to a per-repository-id memoized COUNT query, capped at one query per
+    # distinct repository per request.
+    def repository_multiple_members?(repository)
+      count = @job_runtime_repository_membership_counts_by_repo_id&.[](repository.id)
+      return count > 1 if count
+
+      @repository_multiple_members_by_id ||= {}
+      @repository_multiple_members_by_id.fetch(repository.id) do
+        @repository_multiple_members_by_id[repository.id] = repository.repository_memberships.count > 1
+      end
     end
 
     def tag_json(tag)

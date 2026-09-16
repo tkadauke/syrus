@@ -14,6 +14,7 @@ export type DashboardRepository = {
   id: number
   slug: string
   repository_path: string
+  multiple_members: boolean
 }
 
 export type DashboardHealthBlockedRepository = {

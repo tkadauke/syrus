@@ -338,6 +338,27 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "repository multiple_members on job items" do
+    it "is false when the repository has a single member" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:repository][:multiple_members]).to be(false)
+    end
+
+    it "is true when the repository has more than one member" do
+      repo.repository_memberships.create!(user: Factories.user, role: "read")
+      job = Factories.job_record(user: user, repository: repo)
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:repository][:multiple_members]).to be(true)
+    end
+  end
+
   describe "backlogged job dashboard surfaces" do
     before { SmartFolder.ensure_builtins_for_subject!("job") }
 

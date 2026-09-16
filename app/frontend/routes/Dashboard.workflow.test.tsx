@@ -24,7 +24,7 @@ function workflowItem(id: number, jobTitle: string): DashboardWorkflowItem {
       id: id * 10,
       title: jobTitle,
       state: "running",
-      repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+      repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", multiple_members: false },
       owner_user: null,
       owner_badge: null,
       path: `/jobs/${id * 10}`

@@ -1,5 +1,10 @@
 import { withRoutePrefix } from "./routing"
 
+export type JobNavigationOwnerBadge = {
+  label: string
+  kind: string
+}
+
 export type JobNavigationItem = {
   id: number
   slug: string
@@ -7,6 +12,8 @@ export type JobNavigationItem = {
   title: string
   repository?: string | null
   state?: string | null
+  ownerBadge?: JobNavigationOwnerBadge | null
+  updatedAt?: string | null
 }
 
 export type JobNavigationContext = {
@@ -28,7 +35,9 @@ type DashboardNavigationSource = {
   title: string
   state?: string | null
   summary_state?: string | null
-  repository?: { slug?: string | null } | null
+  repository?: { slug?: string | null; multiple_members?: boolean } | null
+  owner_badge?: JobNavigationOwnerBadge | null
+  updated_at?: string | null
   paths: { job_path: string }
 }
 
@@ -126,7 +135,9 @@ function dashboardNavigationItem(job: DashboardNavigationSource): JobNavigationI
     path: job.paths.job_path,
     title: job.title,
     repository: job.repository?.slug ?? null,
-    state: job.summary_state ?? job.state ?? null
+    state: job.summary_state ?? job.state ?? null,
+    ownerBadge: job.repository?.multiple_members ? job.owner_badge ?? null : null,
+    updatedAt: job.updated_at ?? null
   }
 }
 

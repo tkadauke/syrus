@@ -153,7 +153,7 @@ function simpleJob(overrides: Partial<DashboardJobItem>): DashboardJobItem {
     pr_mergeable_checked_at: null,
     commits_behind_base: null,
     workflows_count: 1,
-    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", multiple_members: false },
     epic: null,
     owner_badge: null,
     tags: [],
@@ -198,7 +198,7 @@ function simpleEpicItem(overrides: Partial<DashboardEpicItem>): DashboardEpicIte
     updated_at: "2026-07-30T12:00:00Z",
     done_at: null,
     archived_at: null,
-    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", multiple_members: false },
     paths: {
       epic_path: "/epics/9",
       edit_epic_path: "/epics/9/edit",

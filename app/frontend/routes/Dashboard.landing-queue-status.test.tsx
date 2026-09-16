@@ -51,7 +51,7 @@ function jobItem(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
     pr_mergeable_checked_at: null,
     commits_behind_base: null,
     workflows_count: 1,
-    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", multiple_members: false },
     epic: null,
     owner_badge: null,
     tags: [],
