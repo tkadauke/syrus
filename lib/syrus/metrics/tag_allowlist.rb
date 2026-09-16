@@ -16,6 +16,18 @@ module Syrus
     module TagAllowlist
       # Every entry here must have a small, bounded set of values that does not
       # grow with the amount of work Syrus does.
+      #
+      # `hostname` and `version` are the two deliberate exceptions to "bounded
+      # set of values" in the strict sense -- pod names and git SHAs do churn
+      # across deploys over a long enough retention window. They are allowed
+      # anyway because the worker/fleet gauges (syrus_worker_cpu_percent,
+      # syrus_instance_versions, ...) are sampled centrally from one process
+      # and cached, not scraped per-pod -- there is no Prometheus-assigned
+      # `instance` label to fall back on, since only the web role currently
+      # serves /metrics (see config/syrus_docs/metrics.md). The set of values
+      # actually alive at any moment is small (the live worker fleet, "two
+      # versions during a rollout"), which is what keeps this from becoming
+      # the per-request unbounded case the rest of this list guards against.
       ALLOWED = %i[
         queue
         state
@@ -33,6 +45,8 @@ module Syrus
         feature
         tool
         plugin
+        hostname
+        version
       ].freeze
 
       # Named explicitly so the error message can say *why*, rather than just
@@ -51,7 +65,6 @@ module Syrus
         user: "grows with the number of users",
         user_id: "grows with the number of users",
         user_email: "personal data, and unbounded",
-        hostname: "pod names churn on every deploy; use the scrape target's instance label",
         path: "unbounded",
         url: "unbounded",
         message: "unbounded free text",
