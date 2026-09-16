@@ -39,6 +39,15 @@ class Repository < ApplicationRecord
   # required grader land. known_flaky_failure_min_score overrides the adjudicator's
   # default minimum flakiness score floor; nil means use that default.
   attribute :known_flaky_failure_dismissal_enabled, :boolean, default: false
+  # Opt-in: after required graders pass, rerun just the test files this Job's
+  # diff touched (added or modified) a few more times (TouchedTestRepeatGate)
+  # to catch a test that is flaky from day one -- KnownFlakyFailure has no
+  # run history to work from for a test that has never run before. Off by
+  # default -- same shape as known_flaky_failure_dismissal_enabled -- since it
+  # spends real extra command runs on every Job whose diff touches spec files.
+  # new_test_flakiness_gate_repeats overrides the default repeat count; nil
+  # means use TouchedTestRepeatGate::DEFAULT_REPEATS.
+  attribute :new_test_flakiness_gate_enabled, :boolean, default: false
   attribute :feedback_policy, :string, default: "confirm"
   attribute :epic_dependency_policy, :string, default: "linear"
   attribute :fork_pr_grace_period_hours, :integer, default: 24

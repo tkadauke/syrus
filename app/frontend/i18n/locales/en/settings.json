@@ -788,7 +788,10 @@
     "check_land_inherited_failure": "Land when failing checks are already failing on the base branch",
     "check_known_flaky_dismissal": "Dismiss required-grader failures that are already confirmed flaky",
     "label_known_flaky_min_score": "Minimum flakiness score to treat as confirmed",
-    "known_flaky_min_score_hint": "A required grader failure only counts as confirmed flaky when every one of its failing tests has this flakiness score or higher in Test Insights. Leave blank to use the default (0.1)."
+    "known_flaky_min_score_hint": "A required grader failure only counts as confirmed flaky when every one of its failing tests has this flakiness score or higher in Test Insights. Leave blank to use the default (0.1).",
+    "check_new_test_flakiness_gate": "Rerun newly added or modified tests to catch day-one flakiness",
+    "label_new_test_flakiness_gate_repeats": "Repeat runs for touched tests",
+    "new_test_flakiness_gate_repeats_hint": "After required graders pass, rerun just the test files this Job's diff added or modified this many times. Inconsistent results are reported as new test flakiness instead of a generic grader failure. Leave blank to use the default (5)."
   },
   "github_token": {
     "title": "GitHub integration",

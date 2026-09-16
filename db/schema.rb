@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_045301) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_055304) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2177,6 +2177,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_045301) do
     t.boolean "main_branch_repair_enabled", default: true, null: false
     t.integer "main_health_poll_error_streak", default: 0, null: false
     t.string "name", null: false, collation: "NOCASE"
+    t.boolean "new_test_flakiness_gate_enabled", default: false, null: false
+    t.integer "new_test_flakiness_gate_repeats"
     t.string "owner", null: false, collation: "NOCASE"
     t.json "plugin_signals"
     t.datetime "plugin_signals_observed_at"
