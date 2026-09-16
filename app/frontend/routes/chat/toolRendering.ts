@@ -305,15 +305,9 @@ export function toolResultSummary(name: string, body: string) {
 export function typedToolResult(name: string, body: string, error = false): TypedToolResult | null {
   if (error) return null
 
-  const normalizedName = normalizedToolName(name)
-  const parsed = parseJsonText(body)
-
-  switch (normalizedName) {
-    case "set_bookmark":
-      return bookmarkResult(parsed)
-    default:
-      return null
-  }
+  // set_bookmark used to be special-cased here; superseded by its
+  // tool_cards/set_bookmark.tsx renderer (same pattern as read_job/propose_job).
+  return null
 }
 
 export function normalizedToolCardParsedResult(parsed: unknown): unknown {
@@ -467,14 +461,6 @@ function chatMediaResultCount(value: Record<string, unknown>) {
 
 function countSummary(count: number, noun: string) {
   return `${count} ${noun}${count === 1 || noun.endsWith("s") ? "" : "s"}`
-}
-
-function bookmarkResult(parsed: unknown): TypedToolResult | null {
-  if (!isPlainObject(parsed)) return null
-  const label = stringValue(parsed.label).trim()
-  if (!label) return null
-
-  return { type: "success_row", label: `Bookmark added: ${label}` }
 }
 
 export function parseJsonText(value: string): unknown {
