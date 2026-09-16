@@ -249,7 +249,14 @@ grade:
       files vs per-class siblings.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
     phases: [review, landing, ci]
-    timeout_minutes: 3
+    # Same shared-worker contention as thread-budget/plugin-model-namespaces/
+    # plugin-boundaries, plus this one also forces Zeitwerk to autoload every
+    # file (heavier than a plain boot). Landing now runs enough concurrent
+    # bundle-check graders that the 3-minute budget those got bumped to has
+    # itself started producing spurious exit-124s here with zero eager-load
+    # findings; 5 minutes matches the headroom already given to
+    # fresh-production-db-prepare/cli-go-workspace-backstop.
+    timeout_minutes: 5
 
   - name: work-engine-simulations
     description: |
