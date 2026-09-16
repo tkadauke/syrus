@@ -5,6 +5,7 @@ describe("pluginIconSrc", () => {
   it("returns the known icon path for a sourced plugin", () => {
     expect(pluginIconSrc("ruby")).toBe("/plugin-icons/ruby.svg")
     expect(pluginIconSrc("syrus-rails")).toBe("/plugin-icons/syrus-rails.svg")
+    expect(pluginIconSrc("agy_agent")).toBe("/plugin-icons/agy_agent.svg")
   })
 
   it("falls back to the SPQR eagle for an unrecognized plugin name", () => {
@@ -15,6 +16,7 @@ describe("pluginIconSrc", () => {
 describe("providerIconSrc", () => {
   it("maps short agent/chat provider ids to their plugin icon", () => {
     expect(providerIconSrc("claude")).toBe("/plugin-icons/claude_agent.svg")
+    expect(providerIconSrc("agy")).toBe("/plugin-icons/agy_agent.svg")
   })
 
   it("falls back to the SPQR eagle for a provider with no sourced mark", () => {

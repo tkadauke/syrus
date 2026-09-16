@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Antigravity Agent">
+  <rect width="24" height="24" rx="5" fill="#111827"/>
+  <circle cx="12" cy="12" r="3" fill="#4285f4"/>
+  <ellipse cx="12" cy="12" rx="9" ry="3.6" fill="none" stroke="#e5e7eb" stroke-width="1.4" transform="rotate(-25 12 12)"/>
+</svg>

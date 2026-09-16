@@ -19,14 +19,17 @@ const KNOWN_PLUGIN_ICONS: Record<string, string> = {
   github_source: "/plugin-icons/github_source.svg",
   discord: "/plugin-icons/discord.svg",
   linear_source: "/plugin-icons/linear_source.svg",
-  claude_agent: "/plugin-icons/claude_agent.svg"
+  claude_agent: "/plugin-icons/claude_agent.svg",
+  agy_agent: "/plugin-icons/agy_agent.svg"
 }
 
-// agent_provider/chat_provider values ("claude", "codex") are shorter than
-// the plugin manifest names ("claude_agent", "codex_agent") they map to.
+// agent_provider/chat_provider values ("claude", "codex", "agy") are shorter
+// than the plugin manifest names ("claude_agent", "codex_agent", "agy_agent")
+// they map to.
 const PROVIDER_PLUGIN_NAMES: Record<string, string> = {
   claude: "claude_agent",
-  codex: "codex_agent"
+  codex: "codex_agent",
+  agy: "agy_agent"
 }
 
 export function pluginIconSrc(pluginName: string): string {
