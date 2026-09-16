@@ -137,18 +137,22 @@ RSpec.describe App::JobDetailPayload do
       expect(artifacts.first).to include(renderer_type: "erd_diagram")
     end
 
-    it "deduplicates by type across workflows, keeping the most recent entry" do
+    it "preserves same-type entries from multiple workflows instead of collapsing to the latest, tagging each with provenance" do
       job = Factories.job_record(user: user, repository: repo)
-      Workflow.create!(
+      older_workflow = Workflow.create!(
         job: job, trigger_kind: "initial", state: "succeeded",
         created_at: 1.hour.ago,
         artifacts: {
           "typed_artifacts" => [
-            { "type" => "rails_schema_erd", "title" => "Old ERD", "payload" => { "version" => 1 }, "created_at" => "2026-08-06T09:00:00Z" }
+            {
+              "type" => "rails_schema_erd", "title" => "Old ERD", "payload" => { "version" => 1 },
+              "created_at" => "2026-08-06T09:00:00Z", "workflow_id" => nil, "run_id" => 501, "step_id" => 5001,
+              "trigger_kind" => "initial", "base_sha" => "aaa111", "head_sha" => "bbb222", "diff_review_version_id" => 7
+            }
           ]
         }
       )
-      Workflow.create!(
+      newer_workflow = Workflow.create!(
         job: job, trigger_kind: "retry", state: "succeeded",
         created_at: Time.current,
         artifacts: {
@@ -159,8 +163,28 @@ RSpec.describe App::JobDetailPayload do
       )
 
       artifacts = payload_for(job).fetch(:typed_artifacts)
-      expect(artifacts.size).to eq(1)
-      expect(artifacts.first[:title]).to eq("Updated ERD")
+      expect(artifacts.map { |a| a[:title] }).to contain_exactly("Old ERD", "Updated ERD")
+
+      old_entry = artifacts.find { |a| a[:title] == "Old ERD" }
+      expect(old_entry).to include(
+        workflow_id: older_workflow.id,
+        run_id: 501,
+        step_id: 5001,
+        trigger_kind: "initial",
+        base_sha: "aaa111",
+        head_sha: "bbb222",
+        diff_review_version_id: 7
+      )
+
+      new_entry = artifacts.find { |a| a[:title] == "Updated ERD" }
+      expect(new_entry).to include(
+        workflow_id: newer_workflow.id,
+        trigger_kind: "retry",
+        run_id: nil,
+        base_sha: nil,
+        head_sha: nil,
+        diff_review_version_id: nil
+      )
     end
 
     it "includes artifacts of different types from multiple workflows" do

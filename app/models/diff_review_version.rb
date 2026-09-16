@@ -43,6 +43,21 @@ class DiffReviewVersion < ApplicationRecord
     default_branch ? scope.where.not(reason: "source_diff", head_sha: default_branch) : scope
   end
 
+  # Best-effort provenance lookup for a Run/Workflow that wants to tag an
+  # artifact with the DiffReviewVersion it was captured against. Prefers an
+  # exact run_id match (the Run that produced the diff being reviewed);
+  # falls back to the most recent version recorded for the same workflow
+  # (e.g. a later review-step Run looking at an earlier implement Run's
+  # diff). Deliberately does not attempt ancestry/range containment beyond
+  # that — see the "Make job review artifacts version-aware" design note.
+  def self.best_match_for(job_id:, run_id: nil, workflow_id: nil)
+    return nil if job_id.blank?
+
+    scope = where(job_id: job_id)
+    by_run = run_id.present? ? scope.where(run_id: run_id).latest_first.first : nil
+    by_run || (workflow_id.present? ? scope.where(workflow_id: workflow_id).latest_first.first : nil)
+  end
+
   private
 
   def normalize_strings

@@ -97,7 +97,8 @@ module SyrusMcp
             "step_id"      => run.step_id,
             "iteration"    => run.step&.iteration,
             "original_type" => artifact_type
-          }
+          },
+          **TypedArtifactProvenance.for_run(run)
         )
 
         Mcp::Tools.write_log(

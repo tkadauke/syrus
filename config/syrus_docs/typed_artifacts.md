@@ -10,10 +10,17 @@ Typed artifacts live as an array of entries under `Workflow#artifacts["typed_art
 
 ```json
 {
-  "type":       "rails_schema_erd",
-  "title":      "Schema ERD",
-  "payload":    { ... },
-  "created_at": "2026-07-29T12:00:00Z"
+  "type":                    "rails_schema_erd",
+  "title":                   "Schema ERD",
+  "payload":                 { ... },
+  "created_at":              "2026-07-29T12:00:00Z",
+  "workflow_id":             123,
+  "trigger_kind":            "initial",
+  "run_id":                  456,
+  "step_id":                 789,
+  "base_sha":                "abc123",
+  "head_sha":                "def456",
+  "diff_review_version_id":  12
 }
 ```
 
@@ -21,8 +28,10 @@ Typed artifacts live as an array of entries under `Workflow#artifacts["typed_art
 - **`title`** — human-readable label shown in the UI.
 - **`payload`** — arbitrary JSON object; schema is defined by the artifact type and its renderer.
 - **`created_at`** — ISO 8601 timestamp set at write time.
+- **`workflow_id`** / **`trigger_kind`** — always stamped by `Workflow#set_typed_artifact!` from the writing workflow itself.
+- **`run_id`** / **`step_id`** / **`base_sha`** / **`head_sha`** / **`diff_review_version_id`** — best-effort provenance, present only when the caller supplied it. `SyrusMcp::SubmitArtifactTool` and `SyrusMcp::SubmitVisualArtifactTool` derive these via `SyrusMcp::TypedArtifactProvenance.for_run(run)`, which always fills `run_id`/`step_id` and looks up `DiffReviewVersion.best_match_for(job_id:, run_id:, workflow_id:)` (exact Run match first, falling back to the most recent version for the same Workflow) to fill `base_sha`/`head_sha`/`diff_review_version_id` when a matching diff review version exists. An entry written without a matching version simply omits those three keys — the job detail UI treats that as "unversioned" rather than guessing.
 
-Calling `submit_artifact` with the same `type` a second time **replaces** the previous entry. Entries with different types accumulate.
+Calling `submit_artifact` with the same `type` a second time **replaces** the previous entry within that workflow's own array. Entries with different types accumulate. This replace-on-type behavior is scoped per-workflow; see "Artifacts panel in job detail" below for how same-type entries from *different* workflows (e.g. successive review rounds) are handled.
 
 ## MCP tool: `submit_artifact` (workflow surface)
 
@@ -103,7 +112,9 @@ The job detail page shows an **Artifacts** tab listing all typed artifacts for t
 | `image_diff` | Single `<img>`, linked to the full-size image (after-only; no before/after comparison yet) |
 | `null` (no registered renderer) | Raw JSON display |
 
-Artifacts are deduplicated by `type` across all workflows on the job; the most recently produced entry for each type wins. The tab count reflects the number of unique artifact types present.
+Every typed artifact entry from every artifact-bearing workflow on the job is returned — same-type entries from different workflows (e.g. successive visual/adversarial review rounds, or a schema ERD resubmitted on a later `pr_comment` workflow) are **not** collapsed to the most recent one; each is tagged with the provenance fields described above so the UI can group, label, and (on the Review tab) filter them by diff review version instead of silently dropping older rounds. The tab count reflects the total number of entries, not unique types.
+
+On the Job detail **Review** tab, the "Review artifacts" panel additionally filters this list against the selected diff review version/range: an artifact whose `diff_review_version_id` or `head_sha` matches the selection is shown; one tied to a different version is hidden; one with no provenance at all is always shown, labeled "Unversioned" rather than silently hidden or misattributed to whatever version happens to be selected. Matching is exact only (`diff_review_version_id` first, then `head_sha`) — no ancestry/range-containment inference.
 
 ## syrus_rails plugin artifact types
 
