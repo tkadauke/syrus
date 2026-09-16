@@ -1167,20 +1167,17 @@ module Api
           render_error("server_error", "Could not submit coding handoff: #{e.message}", status: :internal_server_error)
         end
 
+        # Read-only file tree; intentionally not gated behind
+        # Feature.coding_mode_enabled? or a coding_checkout_branch (only
+        # writable Coding Mode checkouts set that column) so a planning-mode
+        # chat can browse an attached repository too. proxy_to_coding_relay_response
+        # already returns nil (=> render_coding_relay_unavailable!) when no
+        # checkout has produced relay credentials yet, for either mode.
         def coding_files
           chat_session = find_chat_session
-          unless Feature.coding_mode_enabled?
-            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
-            return
-          end
 
           unless chat_session.repository
             render_error("not_found", "No repository attached to this chat.", status: :not_found)
-            return
-          end
-
-          if chat_session.coding_checkout_branch.blank?
-            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
             return
           end
 
@@ -1234,20 +1231,14 @@ module Api
           render json: result
         end
 
+        # Read-only file content counterpart to #coding_files -- see that
+        # method's comment for why this isn't gated on Feature.coding_mode_enabled?
+        # or coding_checkout_branch.
         def coding_file
           chat_session = find_chat_session
-          unless Feature.coding_mode_enabled?
-            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
-            return
-          end
 
           unless chat_session.repository
             render_error("not_found", "No repository attached to this chat.", status: :not_found)
-            return
-          end
-
-          if chat_session.coding_checkout_branch.blank?
-            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
             return
           end
 
@@ -1526,7 +1517,12 @@ module Api
           enqueued = Rails.cache.write(cache_key, true, unless_exist: true, expires_in: 15.seconds)
           return unless enqueued
 
-          ChatCodingRelayRefreshJob.perform_later(chat_session.id)
+          storage_key = chat_session.workspace_storage_key
+          if storage_key.present?
+            ChatCodingRelayRefreshJob.set(queue: "resume-#{storage_key}").perform_later(chat_session.id)
+          else
+            ChatCodingRelayRefreshJob.perform_later(chat_session.id)
+          end
         rescue StandardError => e
           Rails.logger.warn("[ChatsController] could not enqueue coding relay refresh for chat #{chat_session.id}: #{e.class}: #{e.message}")
         end

@@ -1,19 +1,27 @@
 # Coding workspace relay
 
 The coding workspace relay is a lightweight HTTP server that runs on the `chat`
-queue worker and serves coding-session file and diff reads to web pods. It solves
-the multi-pod problem: `$SYRUS_DATA_ROOT/chat-workspaces/` is on the worker pod's
-local disk, so the web pod cannot read it directly. The relay uses the same
-pattern as `Terminal::Relay`.
+queue worker and serves chat-workspace file, commit, and diff reads to web pods.
+It solves the multi-pod problem: `$SYRUS_DATA_ROOT/chat-workspaces/` is on the
+worker pod's local disk, so the web pod cannot read it directly. The relay uses
+the same pattern as `Terminal::Relay`.
+
+Despite the "coding" name (a holdover from when this only served Coding Mode),
+the relay backs a per-chat repository checkout that both planning-mode and
+Coding Mode sessions can have: `ChatWorkspace.attach_repository!` (planning
+mode's `attach_repository` MCP tool, and `ChatTurnJob`'s unconditional
+checkout refresh) and `ensure_coding_checkout!` (Coding Mode) both write relay
+credentials through the same `write_relay_credentials!` call. See "Read-only
+file browsing outside Coding Mode" below for which endpoints that unlocks.
 
 ## Architecture
 
 The worker binds a TCP port on startup and records its `host:port` in
-`chat_sessions.coding_relay_address` when a coding checkout is active. Web pods
-read that address from the DB and proxy the three coding sidebar endpoints to the
-worker. Request auth is a per-session bearer token stored in
-`chat_sessions.coding_relay_token` (generated once per checkout, cleared on
-reclaim or cancel).
+`chat_sessions.coding_relay_address` whenever a chat workspace checkout is
+active (planning mode or Coding Mode). Web pods read that address from the DB
+and proxy the four coding sidebar endpoints to the worker. Request auth is a
+per-session bearer token stored in `chat_sessions.coding_relay_token`
+(generated once per checkout, cleared on reclaim or cancel).
 
 These routes are served by the relay:
 
@@ -23,6 +31,26 @@ These routes are served by the relay:
 | `GET /workspace/commits?session_id=N` | Up to 50 recent commits on the checkout branch |
 | `GET /workspace/file?session_id=N&path=<rel>[&ref=<sha>]` | File content from the live checkout or a commit |
 | `GET /workspace/diff?session_id=N&mode=<cumulative\|turn>[&ref=<sha>]` | Live checkout diff or a single-commit diff |
+
+## Read-only file browsing outside Coding Mode
+
+`Api::V1::App::ChatsController#coding_files` and `#coding_file` (the file-tree
+and file-content endpoints) work for any chat with an attached repository,
+regardless of `Feature.coding_mode_enabled?` or chat mode — they only require
+`chat_session.repository` to be present. `#coding_commits` and `#coding_diff`
+stay behind the `coding_mode_enabled?` gate: commit history and diffs are tied
+to the writable Coding Mode checkout, not to read-only browsing.
+
+Practically, this means a planning-mode chat with an attached repository gets
+a read-only **Files** workspace tab (`readOnlyFilesTabVisible` in
+`app/frontend/routes/chat/utils.ts`) showing the file tree and file content —
+no Diff sub-tab, no commit selector — as soon as the underlying checkout
+exists and has produced relay credentials (via the `attach_repository` MCP
+tool or `ChatTurnJob`'s automatic checkout refresh). Before that, the panel
+shows the same "relay unavailable, refresh queued" state Coding Mode's panel
+shows while its checkout is still warming up. A Coding Mode chat with an
+active checkout still gets the full read/write-adjacent panel (`Files` +
+`Diff` tabs, commit selector) via `codingFilesTabVisible`.
 
 ## Configuration
 
@@ -57,6 +85,40 @@ present.
 - Both columns are cleared on `reclaim_coding_checkout!` or `cancel_coding_checkout!`.
 - The chat payload exposes `coding_relay_ready: true` once the relay address is
   recorded, so the UI can show a loading state while the relay warms up.
+
+## Relay refresh routing (`workspace_storage_key`)
+
+`chat_sessions.coding_relay_address`/`coding_relay_token` are opportunistic:
+they only get written by whichever worker most recently confirmed the
+checkout on local disk (`ChatWorkspace#write_relay_credentials!`, called from
+`ensure_root!`, `attach_repository!`, `ensure_coding_checkout!`, and
+`refresh_relay_credentials!`), and `ChatsController` clears both columns on any
+transient relay connection failure (worker restart, pod reschedule, a brief
+network blip — not just an actually-missing checkout). `ChatCodingRelayRefreshJob`
+is the repair path for that cleared state.
+
+That same `write_relay_credentials!` call also stamps
+`chat_sessions.workspace_storage_key` with `WorkerStorageIdentity.key` — the
+identity of the worker whose local disk holds the checkout. When
+`ChatsController#schedule_coding_relay_refresh!` enqueues the refresh job, it
+routes it onto that worker's own `resume-<workspace_storage_key>` queue
+(the same storage-affinity mechanism `RunJob` uses for retry-from-failed-step)
+instead of the plain `chat` queue, so the refresh lands on the worker that can
+actually see the checkout. A chat session with no `workspace_storage_key` yet
+(no checkout has ever been confirmed anywhere) falls back to the plain `chat`
+queue — there is nothing to route to.
+
+`ChatCodingRelayRefreshJob` and `ChatWorkspace#refresh_relay_credentials!`
+never re-clone: the checkout may hold uncommitted agent work, and a silent
+re-clone would destroy it. If the job is correctly routed to the worker that
+recorded the checkout and the checkout is still missing there (genuinely
+lost — wiped disk, evicted PVC), it logs an error identifying the chat session
+and worker, clears the (already-stale) relay credentials, and stamps
+`coding_checkout_prepare_status: "workspace_lost"` with a `coding_checkout_prepare_failure`
+message instead of silently no-opping. A chat landing on a worker other than
+the one recorded in `workspace_storage_key` (should not happen given the
+routing above, but is not treated as proof of loss) logs a warning and leaves
+the session untouched.
 
 ## Pre-turn checkout and prep visibility
 
@@ -98,4 +160,9 @@ waking the agent into a half-prepared checkout.
 The chat queue must run on exactly one worker pod. Chat workspaces are on local
 disk and the relay address recorded in the DB points to that pod. Do not put the
 `chat` queue on multiple pods or scale it past one replica. See `multi_worker.md`
-for the full constraint.
+for the full constraint. `workspace_storage_key` routing (above) makes relay
+*refresh* resilient to that constraint being violated — a scaled-out `chat`
+queue no longer strands the refresh on a pod without the checkout — but it does
+not make the rest of Coding Mode (checkout creation, prep, `ChatTurnJob`) safe
+to run across more than one `chat`-queue replica; the single-pod requirement
+still applies there.

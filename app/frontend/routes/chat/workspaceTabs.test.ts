@@ -157,6 +157,32 @@ describe("availableWorkspaceTabs", () => {
     expect(availableWorkspaceTabs(payload)).toContain("jobs")
   })
 
+  it("includes a read-only files tab for a planning-mode chat with an attached repository", () => {
+    const payload = makePayload()
+    payload.chat.mode = "planning"
+    expect(availableWorkspaceTabs(payload)).toContain("files")
+  })
+
+  it("excludes the files tab when no repository is attached", () => {
+    const payload = makePayload()
+    payload.chat.mode = "planning"
+    payload.chat.repository = null
+    expect(availableWorkspaceTabs(payload)).not.toContain("files")
+  })
+
+  it("excludes the files tab in local mode even with a repository attached", () => {
+    const payload = makePayload()
+    payload.chat.mode = "local"
+    expect(availableWorkspaceTabs(payload)).not.toContain("files")
+  })
+
+  it("includes the files tab for a coding-mode chat with an active checkout", () => {
+    const payload = makePayload({ coding_mode_enabled: true })
+    payload.chat.mode = "coding"
+    payload.chat.coding_checkout_branch = "syrus/chat-1"
+    expect(availableWorkspaceTabs(payload)).toContain("files")
+  })
+
   it("excludes the diff tab when the tunnel is connected but the chat has switched back to planning mode", () => {
     const payload = makePayload({ local_mode_enabled: true, local_tunnel_connected: true })
     payload.chat.mode = "planning"

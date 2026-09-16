@@ -930,12 +930,24 @@ class ChatWorkspace
   end
 
   def write_relay_credentials!
+    stamp_workspace_storage_key!
+
     relay_address = ChatWorkspaceRelay.ensure_running! || ChatWorkspaceRelay.relay_address
     return if relay_address.blank?
     return if @chat_session.coding_relay_address == relay_address && @chat_session.coding_relay_token.present?
 
     token = SecureRandom.hex(32)
     @chat_session.update_columns(coding_relay_address: relay_address, coding_relay_token: token)
+  end
+
+  # Stamps which worker's data root holds this chat's local checkout, so a
+  # later relay refresh can be routed back to the same worker instead of
+  # landing on an arbitrary one (see ChatCodingRelayRefreshJob routing).
+  def stamp_workspace_storage_key!
+    key = WorkerStorageIdentity.key
+    return if @chat_session.workspace_storage_key == key
+
+    @chat_session.update_columns(workspace_storage_key: key)
   end
 
   def clear_relay_credentials!
