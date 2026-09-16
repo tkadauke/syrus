@@ -1,4 +1,5 @@
 require "open3"
+require "shellwords"
 require "timeout"
 
 # Reruns the touched test files TouchedTestFiles finds a few extra times, in
@@ -37,7 +38,10 @@ class TouchedTestRepeatGate
     return skipped("no_touched_files") if @touched_files.empty?
 
     command = focused_command
-    return skipped("no_focused_command") if command.blank?
+    if command.blank?
+      @log.call("[flaky_gate:#{grader_name}] no focused rerun command available for #{@touched_files.join(', ')} -- skipping")
+      return skipped("no_focused_command")
+    end
 
     @log.call("[flaky_gate:#{grader_name}] rerunning #{@touched_files.join(', ')} #{@repeats}x: #{command}")
     outcomes = Array.new(@repeats) { run_once(command) }
@@ -62,19 +66,65 @@ class TouchedTestRepeatGate
 
   private
 
-  # Reuses the same :focused_test_command extension point BaseRevisionRetry
-  # uses to build a "just these failed tests" command -- the touched files are
-  # passed in the same failed_cases shape (a file_path per entry) a real
-  # failure list would use, so each language plugin's own filtering (e.g.
-  # Ruby::FocusedTestCommand only claims *_spec.rb paths) naturally scopes the
-  # command to the files it understands.
+  # Deliberately does NOT require the grader to have opted into
+  # BaseRevisionRetry's `base_retry: { strategy: plugin }` -- that would make
+  # this gate a silent no-op for essentially every repository, since
+  # `base_retry` is a separate, rarely-configured opt-in for a different
+  # feature (most graders, including this very repo's own `rspec` grader,
+  # either have no `base_retry` at all or use a different strategy like
+  # `files_as_args`). Honors an explicit `command`/`files_as_args` base_retry
+  # when the operator already configured one for this grader -- it already
+  # means "here is how to run just these files against this command" -- but
+  # otherwise (no base_retry, or strategy `plugin`) asks the
+  # :focused_test_command providers directly with a synthesized `plugin`
+  # strategy: that extension point's whole contract is "can a language
+  # plugin build a file-scoped rerun command for this grader," independent
+  # of whatever base_retry BaseRevisionRetry separately uses.
   def focused_command
+    case base_retry_strategy
+    when "command"
+      interpolate_explicit_command(base_retry_config["command"])
+    when "files_as_args"
+      files_as_args_command
+    when "full_command"
+      # Rerunning the entire grader command N times would defeat the cost
+      # bound this gate exists to keep -- decline rather than fall back to
+      # the whole suite.
+      nil
+    else
+      plugin_command
+    end
+  end
+
+  def base_retry_config
+    @base_retry_config ||= @grader_step.details.to_h["base_retry"].to_h.stringify_keys
+  end
+
+  def base_retry_strategy
+    base_retry_config["strategy"].to_s.presence
+  end
+
+  def interpolate_explicit_command(template)
+    return nil if template.blank?
+
+    template.to_s
+      .gsub("{files}", Shellwords.join(@touched_files))
+      .gsub("{failed_count}", @touched_files.size.to_s)
+  end
+
+  def files_as_args_command
+    return nil if grader_command.blank?
+
+    "#{grader_command} #{Shellwords.join(@touched_files)}"
+  end
+
+  def plugin_command
     Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
       command = provider.command_for(
         grader_name: grader_name,
         grader_command: grader_command,
         failed_cases: @touched_files.map { |path| { "file_path" => path } },
-        base_retry: @grader_step.details.to_h["base_retry"]
+        base_retry: { "strategy" => "plugin" }
       )
       return command.to_s.strip if command.to_s.strip.present?
     rescue StandardError => e
