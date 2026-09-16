@@ -26,4 +26,12 @@ are computed at read time with `rate()`.
 | `syrus_global_queue_orphaned_rows` | gauge | — | no | Unfinished job rows with no execution row -- unreachable by work and by the finished-job pruner (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_ready_count` | gauge | `queue` | no | Jobs ready to be claimed (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_global_queue_sample_age_seconds` | gauge | — | no | Age of the cached queue sample; large means the sampler has stopped |
+| `syrus_job_state` | gauge | `state` | no | Jobs grouped by state (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_jobs_landed_total` | counter | — | no | Jobs whose PR reached the base branch |
+| `syrus_landing_queue_depth` | gauge | `blocked_reason` | no | Approved/landing Jobs by why they are not landing yet, "none" meaning eligible (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_queue_completed_total` | counter | — | no | Solid Queue executions that finished -- pairs with syrus_global_queue_ready_count for the queue-starved alert |
+| `syrus_queue_table_rows` | gauge | — | no | Total Solid Queue row count across every table, the table-level companion to syrus_global_queue_orphaned_rows (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_run_duration_seconds` | histogram | `step_kind` | no | Run wall clock by step kind |
+| `syrus_runs_total` | counter | `state`, `trigger_kind` | no | Runs by terminal state |
 | `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |
+| `syrus_time_to_land_seconds` | histogram | — | no | Wall clock from Job creation to landing |

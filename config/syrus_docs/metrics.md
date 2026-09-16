@@ -118,6 +118,56 @@ is the point — product analytics is exactly where a user-supplied string gets
 passed as a label, and that is how a metrics system acquires unbounded
 cardinality.
 
+### Landing queue and run throughput
+
+| Metric | Meaning |
+|---|---|
+| `syrus_job_state{state}` | Jobs grouped by state |
+| `syrus_landing_queue_depth{blocked_reason}` | approved/landing Jobs by why they are not landing yet, `"none"` meaning eligible |
+| `syrus_queue_table_rows` | total Solid Queue row count across every table |
+| `syrus_jobs_landed_total` | Jobs whose PR reached the base branch |
+| `syrus_time_to_land_seconds` | wall clock from Job creation to landing |
+| `syrus_runs_total{state,trigger_kind}` | Runs by terminal state |
+| `syrus_run_duration_seconds{step_kind}` | Run wall clock by step kind |
+| `syrus_queue_completed_total` | Solid Queue executions that finished |
+
+`Metrics::LandingSampler` (`app/services/metrics/landing_sampler.rb`) owns all
+eight. It runs on the same `SampleGlobalMetricsJob` recurring tick as
+`Metrics::QueueSampler`, but the eight metrics split into two different
+instrumentation shapes:
+
+**`job_state`, `landing_queue_depth`, and `queue_table_rows` are gauges**,
+sampled by aggregate query and cached exactly like the queue-health gauges
+above — `refresh_gauges!` sets them from the cache on the scrape path, no
+query. `landing_queue_depth` deliberately does **not** recompute
+`LandingQueueProcessor#blockage_for` — that would be its own expensive
+aggregate query on every tick. It reads the `landing_queue_blocked_reason`
+column `LandingQueueProcessor` already persists onto each approved/landing Job
+every 30 seconds, and keeps only the bounded `key` (e.g.
+`"waiting_github_mergeability"`), never the `params` hash, which can carry a
+Job slug.
+
+**`jobs_landed_total`, `runs_total`, `run_duration_seconds`,
+`time_to_land_seconds`, and `queue_completed_total` are counters and a
+histogram**, instrumented from a per-source cursor instead: each tick queries
+only the Runs/Jobs/Solid-Queue-executions that finished since the previous
+tick's boundary and instruments each one exactly once, so the distribution
+underlying the histograms is real observations rather than a periodic
+snapshot. The cursor bootstraps to "now" on its first ever tick rather than
+backfilling the entire Job/Run history, the same instinct as
+`Metrics::ProductUsage`'s zero-preset: counting starts from when the sampler
+first runs, not from the beginning of time.
+
+**These five currently go dark on `/metrics` in production**, for the same
+reason noted above: `/metrics` is served by the **web** role only, while every
+Run/Job/queue-execution event they count happens on a **worker** process
+(`RunJob`, `LandingQueueProcessor`, Solid Queue itself). The instrumentation
+is real and ready for when a worker-side exporter ships; until then, only a
+process that itself runs `SampleGlobalMetricsJob` sees these counters move.
+The three gauges above are unaffected — they are cache-mediated, so the web
+process renders whatever the worker's tick last wrote regardless of which
+process incremented anything.
+
 ## Aggregating: `max by`, never `sum`
 
 Metrics prefixed `syrus_global_` are **one fact about the whole cluster**, not a

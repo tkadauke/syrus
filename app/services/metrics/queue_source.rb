@@ -54,5 +54,22 @@ module Metrics
                        :scheduled_execution, :blocked_execution)
         .count
     end
+
+    # Table-level companion to orphaned_rows: every row in solid_queue_jobs,
+    # regardless of state. A pruner silently stopping shows up here as
+    # unbounded growth before it shows up anywhere else.
+    def table_rows
+      SolidQueue::Job.count
+    end
+
+    # Jobs that finished in `[after, through)`, for syrus_queue_completed_total
+    # -- the numerator of the "queue starved" alert
+    # (rate(syrus_queue_completed_total[5m]) == 0 and syrus_queue_ready_count > 0).
+    # Windowed rather than a running total because finished rows are pruned by
+    # clear_solid_queue_finished_jobs, so there is no stable all-time count to
+    # read back.
+    def completed_count(after:, through:)
+      SolidQueue::Job.where(finished_at: after...through).count
+    end
   end
 end

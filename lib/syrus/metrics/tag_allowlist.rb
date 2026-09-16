@@ -25,6 +25,7 @@ module Syrus
         decision
         outcome
         reason
+        blocked_reason
         role
         kind
         provider
