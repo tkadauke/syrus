@@ -27,6 +27,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `affected_test_analyzer`
 - `build_system_graph_provider`
 - `workspace_tab`
+- `retention_policy`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The index page is the scan-and-filter inventory: each card

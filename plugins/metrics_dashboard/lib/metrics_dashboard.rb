@@ -20,7 +20,8 @@ module MetricsDashboard
     disableable true
 
     provides sidebar_page: "MetricsDashboard::SidebarPages",
-             callbacks: "MetricsDashboard::Callbacks"
+             callbacks: "MetricsDashboard::Callbacks",
+             retention_policy: "MetricsDashboard::RetentionPolicy"
 
     # PluginTickSchedulerJob only ticks enabled, healthy plugins, so recording
     # stops when the plugin is disabled without any flag of our own to keep in

@@ -43,6 +43,7 @@ module Syrus
       test_evidence
       runtime_session_provider
       build_system_graph_provider
+      retention_policy
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -88,7 +89,8 @@ module Syrus
       test_evidence:           -> { Syrus::Plugin::TestEvidence },
       memory_store:            -> { Syrus::Plugin::MemoryStore },
       runtime_session_provider: -> { Syrus::Plugin::RuntimeSessionProvider },
-      build_system_graph_provider: -> { Syrus::Plugin::BuildSystemGraphProvider }
+      build_system_graph_provider: -> { Syrus::Plugin::BuildSystemGraphProvider },
+      retention_policy:        -> { Syrus::Plugin::RetentionPolicy }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

@@ -29,5 +29,15 @@ module HasConfigurableRetention
       window = retention_window
       window ? window.ago : nil
     end
+
+    # Rows older than the retention window are guaranteed gone, so callers
+    # correlating other data (Runs, command spans, query "since" defaults)
+    # against this model's history clamp to this floor instead of querying
+    # earlier than what could possibly still exist. Infinite retention
+    # (window nil) means no clamp is needed, so it returns the epoch.
+    def retention_floor(now: Time.current)
+      window = retention_window
+      window ? now - window : Time.at(0)
+    end
   end
 end
