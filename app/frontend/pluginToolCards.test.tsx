@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest"
 import {
+  discoveredToolCardEntries,
   pluginToolCardRendererFor,
   pluginToolCardRendererKeys,
   pluginToolCardCollapsedSummary,
   pluginToolCardExpandedBody,
   renderToolCard,
+  resolveExampleResultBody,
   summarizeToolCard,
+  toolCardContextForExample,
   type ToolCardContext,
+  type ToolCardExample,
   type ToolCardRenderer
 } from "./pluginToolCards"
 
@@ -91,5 +95,78 @@ describe("pluginToolCards", () => {
       expect(typeof key).toBe("string")
       expect(key.length).toBeGreaterThan(0)
     }
+  })
+
+  describe("example fixtures", () => {
+    function findExample(toolName: string, id: string): ToolCardExample {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === toolName)
+      const example = entry?.examples.find((candidate) => candidate.id === id)
+      if (!example) throw new Error(`fixture not found: ${toolName}/${id}`)
+      return example
+    }
+
+    it("discovers examples exported alongside a core card module", () => {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "list_jobs")
+      expect(entry?.examples.length).toBeGreaterThan(0)
+    })
+
+    it("discovers examples exported alongside a plugin card module, purely by directory convention", () => {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "browser_click")
+      expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "browser" })
+      expect(entry?.examples.length).toBeGreaterThan(0)
+    })
+
+    it("resolves resultBody directly when an example supplies it", () => {
+      const example: ToolCardExample = { id: "x", label: "x", resultBody: "not json at all" }
+      expect(resolveExampleResultBody(example)).toBe("not json at all")
+    })
+
+    it("derives resultBody by JSON-encoding parsedResult when resultBody is omitted", () => {
+      const example: ToolCardExample = { id: "x", label: "x", parsedResult: { a: 1 } }
+      expect(resolveExampleResultBody(example)).toBe(JSON.stringify({ a: 1 }))
+    })
+
+    it("resultBody wins over parsedResult when both are given", () => {
+      const example: ToolCardExample = { id: "x", label: "x", resultBody: "literal text", parsedResult: { a: 1 } }
+      expect(resolveExampleResultBody(example)).toBe("literal text")
+    })
+
+    it("builds a real ToolCardContext from a fixture, deriving parsedResult from resultBody when not given explicitly", () => {
+      const example = findExample("list_jobs", "two_open_jobs")
+      const context = toolCardContextForExample("list_jobs", example)
+
+      expect(context.toolName).toBe("list_jobs")
+      expect(context.resultError).toBe(false)
+      expect(context.parsedResult).toEqual(example.parsedResult)
+      expect(context.resultBody).toBe(JSON.stringify(example.parsedResult))
+    })
+
+    it("a malformed example's context best-effort-parses to null instead of throwing", () => {
+      const example: ToolCardExample = { id: "malformed", label: "malformed", resultBody: "not valid json {" }
+      const context = toolCardContextForExample("list_jobs", example)
+
+      expect(context.parsedResult).toBeNull()
+      expect(context.resultBody).toBe("not valid json {")
+    })
+
+    it("renders a card's own malformed-payload fallback cleanly for a real discovered malformed fixture, without throwing", () => {
+      const example = findExample("list_jobs", "malformed_missing_jobs_key")
+      const renderer = pluginToolCardRendererFor("list_jobs")
+      const context = toolCardContextForExample("list_jobs", example)
+
+      expect(() => renderToolCard(renderer, context)).not.toThrow()
+      expect(renderToolCard(renderer, context)).toBeNull()
+      expect(summarizeToolCard(renderer, context)).toBeNull()
+    })
+
+    it("renders every discovered example through its own card without throwing, malformed or not", () => {
+      for (const entry of discoveredToolCardEntries) {
+        for (const example of entry.examples) {
+          const context = toolCardContextForExample(entry.renderer.toolName, example)
+          expect(() => renderToolCard(entry.renderer, context)).not.toThrow()
+          expect(() => summarizeToolCard(entry.renderer, context)).not.toThrow()
+        }
+      }
+    })
   })
 })

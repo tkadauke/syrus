@@ -141,3 +141,41 @@ const readJobToolCard: ToolCardRenderer = {
 }
 
 export default readJobToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "running_job_with_dependencies",
+    label: "Running Job with dependencies and deployment stages",
+    input: { job_ref: "JOB-5035" },
+    parsedResult: {
+      job: {
+        id: 5035,
+        issue_title: "Add example fixtures for core and plugin tool presentations",
+        state: "running",
+        pr_number: null,
+        branch_name: "syrus/direct-5035",
+        priority: "medium",
+        agent_provider: "claude",
+        dependencies: [
+          { id: 5033, state: "approved" },
+          { epic_id: 366, display_number: "EPIC-366", state: "open" },
+          { pending: true, unresolved_ref: "#4210", unresolved_ref_state: "open" }
+        ],
+        deployment_stages: [
+          { name: "merged", label: "Merged", reached: true },
+          { name: "staging", label: "Staging", reached: true },
+          { name: "production", label: "Production", reached: false }
+        ]
+      }
+    }
+  },
+  {
+    id: "malformed_missing_job_key",
+    label: "Malformed: missing job key",
+    description: "Unexpected payload with no `job` object -- both collapsedSummary and renderExpanded return null so the generic fallback body renders instead of throwing.",
+    input: { job_ref: "JOB-999999" },
+    parsedResult: { error: "Job not found" }
+  }
+]

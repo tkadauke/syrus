@@ -108,3 +108,26 @@ const listEpicsToolCard: ToolCardRenderer = {
 }
 
 export default listEpicsToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "two_epics_in_progress",
+    label: "Two Epics in progress",
+    input: { state: "open" },
+    parsedResult: {
+      epics: [
+        { id: 366, title: "Tool Card Catalog And Unified Presentation Registry", state: "open", repository_slug: "tkadauke/syrus", child_job_count: 5, open_job_count: 2 },
+        { id: 359, title: "Distributed Grader Execution", state: "landing", repository_slug: "tkadauke/syrus", child_job_count: 3, open_job_count: 0 }
+      ]
+    }
+  },
+  {
+    id: "no_open_epics",
+    label: "No open Epics",
+    description: "Empty result set -- the card renders its own \"No Epics found.\" row.",
+    input: { state: "open" },
+    parsedResult: { epics: [] }
+  }
+]
