@@ -123,6 +123,7 @@ module Mcp
           depends_on_job_ids: Array(proposal.depends_on_job_ids),
           route_to_backlog: proposal.route_to_backlog?,
           initial_job_state: proposal.route_to_backlog? ? "backlog" : "default",
+          investigation: proposal.investigation?,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
           repository: proposal.effective_repository&.slug,
           goal_provenance: App::GoalProvenancePayload.for(proposal),

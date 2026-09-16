@@ -128,6 +128,27 @@ RSpec.describe ChatProposalFiler do
       expect(job.runs).to be_empty
     end
 
+    it "creates an investigation-flagged direct Job that launches the investigation Workflow chain" do
+      job_proposal = proposal(
+        slug: "investigate-dashboard",
+        title: "Go check on the dashboard",
+        body: "Investigate why /dashboard feels slow and report back.",
+        investigation: true
+      )
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      }.to change(Job, :count).by(1)
+
+      job = job_proposal.reload.job
+      expect(job).to be_investigation
+      expect(job).to be_investigation_launch
+      expect(job.workflows.last.trigger_kind).to eq("investigation")
+      expect(job.workflows.last.steps.order(:position).pluck(:kind)).to eq(
+        %w[prepare investigate submit_report auto_close]
+      )
+    end
+
     it "resolves pending proposal-backed dependencies after the referenced proposal files" do
       upstream = proposal(slug: "upstream-job", title: "Upstream job")
       dependent = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil)

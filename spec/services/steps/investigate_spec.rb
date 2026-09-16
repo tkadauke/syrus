@@ -46,6 +46,45 @@ RSpec.describe Steps::Investigate do
     expect(prompt).to include("investigation-only Job")
   end
 
+  it "resolves the built-in investigate-and-report skill and records provenance on the Run" do
+    handler.call
+
+    run.reload
+    expect(run.skill_source).to eq("built_in")
+    expect(run.skill_resolved_path).to be_nil
+    expect(run.skill_resolved_class).to eq("Skills::InvestigateAndReport")
+  end
+
+  context "when a repo-local skill shadows the built-in investigate-and-report skill" do
+    let(:shadow_resolution) do
+      Skills::Resolution.new(
+        source: :repo_override,
+        path: ".syrus/skills/investigate-and-report/SKILL.md",
+        klass: nil,
+        definition: Skills::Definition.new(
+          name: "investigate-and-report",
+          description: "Repo-local override",
+          parameters: Skills::ParameterSchema.normalize([ { "key" => "request", "type" => "text", "required" => true } ]),
+          instructions: "Repo override answer for: {{request}}"
+        )
+      )
+    end
+
+    before do
+      allow(Skills).to receive(:for).and_return(shadow_resolution)
+    end
+
+    it "records skill_source=repo_override with the resolved path instead of a class, and renders its instructions" do
+      handler.call
+
+      run.reload
+      expect(run.skill_source).to eq("repo_override")
+      expect(run.skill_resolved_path).to eq(".syrus/skills/investigate-and-report/SKILL.md")
+      expect(run.skill_resolved_class).to be_nil
+      expect(run.prompt).to include("Repo override answer for: Investigate: why does /dashboard feel slow?")
+    end
+  end
+
   it "includes the phased-execution note telling the agent not to call submit_report here" do
     handler.call
 

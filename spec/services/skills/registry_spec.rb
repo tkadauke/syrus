@@ -6,6 +6,10 @@ RSpec.describe Skills::Registry do
       expect(described_class.values).to include("investigate")
     end
 
+    it "includes the investigate-and-report built-in skill" do
+      expect(described_class.values).to include("investigate-and-report")
+    end
+
     it "includes the onboard-to-syrus built-in skill" do
       expect(described_class.values).to include("onboard-to-syrus")
     end

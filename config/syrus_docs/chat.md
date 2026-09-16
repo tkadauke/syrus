@@ -502,6 +502,17 @@ the standalone direct Job proposal card; grouped Epic proposal children keep
 their existing materialization behavior and cannot be routed to backlog by this
 v1 control.
 
+`propose_job` also accepts `investigation`, for marking a proposal as
+investigation-only at proposal time. It defaults to false. When true,
+confirming the proposal creates a `direct` Job with `investigation: true`
+instead of the normal free-form implementation prompt: no pull request is
+expected, and the Job runs a `prepare -> investigate -> submit_report ->
+auto_close` chain that ends in a narrative report artifact instead. Use it for
+QA walkthroughs, audits, and "go check on X and tell me what you find"
+requests. The `investigate` step's instructions come from the built-in
+`investigate-and-report` skill (see `skills.md`) unless the target repository
+overrides it with its own `.syrus/skills/investigate-and-report/SKILL.md`.
+
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that
 would exceed it are skipped (existing attachments are never evicted) and the

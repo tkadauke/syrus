@@ -45,6 +45,13 @@ module Mcp::Tools
       service of the currently active goal. Leave it false for opportunistic
       or unrelated follow-up work so that Job state changes do not wake the
       goal loop.
+      Set investigation=true to mark this as an investigation-only Job --
+      no pull request is expected, and there is no requirement to change any
+      code. Use it for QA walkthroughs, audits, or "go check on X and tell
+      me what you find" requests: confirming the proposal runs a
+      prepare -> investigate -> submit_report -> auto_close chain that ends
+      in a narrative report artifact instead of a PR. Defaults to false for
+      the current normal implementation behavior.
     DESC
 
     input_schema(
@@ -62,13 +69,14 @@ module Mcp::Tools
           description: "Media references to attach to the Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), pass chat image IDs as \"chat_image:123\", or pass a preview panel's current version id as \"preview_panel_version:42\" to hand the implementing agent that mockup's source files. Omit if no media is relevant."
         },
         route_to_backlog: { type: "boolean", description: "When true, confirming this direct Job proposal creates the Job in backlog and does not start its initial workflow. Defaults to false for the current start-normal behavior." },
-        for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
+        for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." },
+        investigation: { type: "boolean", description: "When true, confirming this proposal creates an investigation-only Job: no pull request is expected, and the Job runs a prepare -> investigate -> submit_report -> auto_close chain that ends in a narrative report instead. Defaults to false for the current normal implementation behavior." }
       },
       required: %w[repo title description]
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, for_active_goal: false)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], route_to_backlog: false, for_active_goal: false, investigation: false)
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
@@ -130,6 +138,7 @@ module Mcp::Tools
             depends_on_job_ids: depends_on_job_ids,
             media_ids: Array(media),
             route_to_backlog: ActiveModel::Type::Boolean.new.cast(route_to_backlog),
+            investigation: ActiveModel::Type::Boolean.new.cast(investigation),
             **goal_attrs
           )
           dependencies.each do |dependency|

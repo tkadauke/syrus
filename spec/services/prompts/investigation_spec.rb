@@ -1,10 +1,10 @@
 require "rails_helper"
 
 RSpec.describe Prompts::Investigation do
-  let(:issue) { instance_double("Issue", body: "Why does /dashboard feel slow?") }
+  let(:definition) { Skills::InvestigateAndReport.definition }
 
   def build(**overrides)
-    described_class.new(issue: issue, **overrides).to_s
+    described_class.new(definition: definition, request: "Why does /dashboard feel slow?", **overrides).to_s
   end
 
   it "includes the investigation request body" do
@@ -40,5 +40,19 @@ RSpec.describe Prompts::Investigation do
     text = build(epic: epic)
 
     expect(text).to include("Epic context")
+  end
+
+  it "renders a repo-local override definition's instructions instead of the built-in text" do
+    override = Skills::Definition.new(
+      name: "investigate-and-report",
+      description: "Repo-local override",
+      parameters: Skills::ParameterSchema.normalize([ { "key" => "request", "type" => "text", "required" => true } ]),
+      instructions: "Repo override answer for: {{request}}"
+    )
+
+    text = described_class.new(definition: override, request: "Why does /dashboard feel slow?").to_s
+
+    expect(text).to include("Repo override answer for: Why does /dashboard feel slow?")
+    expect(text).not_to include("submit_artifact")
   end
 end
