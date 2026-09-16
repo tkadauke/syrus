@@ -3,7 +3,7 @@ import i18n from "i18next"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
 import { CloseIcon } from "@app/components/CloseIcon"
-import { Markdown } from "@app/lib/Markdown"
+import { Markdown, renderLightMarkdown } from "@app/lib/Markdown"
 import { Modal } from "@app/components/Modal"
 
 // Shared presentation helpers for the agent_memory plugin's chat tool cards
@@ -103,7 +103,7 @@ export function ContentPreview({ content, charsPerLine = DETAIL_CONTENT_CHARS_PE
 
   return (
     <div className="space-y-1">
-      <div className={`whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300 ${isLong ? "line-clamp-3" : ""}`}>{content}</div>
+      <div className={`break-words text-gray-700 dark:text-gray-300 ${isLong ? "line-clamp-3" : ""}`}>{renderLightMarkdown(content)}</div>
       {isLong ? (
         <>
           <button
