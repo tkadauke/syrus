@@ -1131,16 +1131,32 @@ and a broken cheap check must not stop the expensive rungs from running.
 Verdicts do not apply themselves. A call site passes `authorized:` naming the
 adjudicators whose verdict it will act on; an unauthorized adjudicator still
 runs and its verdict is still reported, marked as withheld, so a decision is
-recorded without being acted on. `Steps::GraderCollect` pre-authorizes only
-`inherited_grader_failure`, which is exactly what it acted on before rung 0
-existed.
+recorded without being acted on. `Steps::GraderCollect` pre-authorizes
+`inherited_grader_failure`, `known_flaky_failure`, and
+`isolated_repro_dismissal`, which is exactly what it acted on before rung 0
+existed plus the two flakiness checks added alongside it.
 
-Core ships two, both adaptations of checks that already existed in their own
-private shapes: `inherited_grader_failure` (`.syrus.yml`'s
+Core ships four. Two are adaptations of checks that already existed in their
+own private shapes: `inherited_grader_failure` (`.syrus.yml`'s
 `grade.failures: allow_inherited`, via `MainBranchFailureClassifier`) and
-`validated_landing` (the `LandingValidationCache` reuse decision). A language
-plugin that can tell "this grader was already failing" from its own parsed
-output is the obvious contributor.
+`validated_landing` (the `LandingValidationCache` reuse decision). The other
+two dismiss a required-grader failure on flakiness grounds, from two
+different kinds of evidence: `known_flaky_failure`
+(`Adjudicators::KnownFlakyFailure`) when every one of its failing tests
+already has a confirmed-flaky history -- the case `inherited_grader_failure`
+cannot catch because the flake reproduces on the base branch too, just
+intermittently -- and `isolated_repro_dismissal`
+(`Adjudicators::IsolatedReproDismissal`, see `landing_queue.md`'s
+`isolated_repro_dismissal_enabled`) when every one of its failing tests has
+an agent-recorded, same-SHA, pre-fix "did not reproduce in isolation" record
+instead of accumulated history. Both read their evidence through the
+`:test_evidence` extension point below rather than depending on a specific
+test-history plugin directly, and both are opt-in per repository
+(`Repository#known_flaky_failure_dismissal_enabled` /
+`#isolated_repro_dismissal_enabled`, off by default) because dismissing a
+real failure on a flaky reputation is a real risk. A language plugin that can
+tell "this grader was already failing" from its own parsed output is the
+obvious contributor to this extension point.
 
 ## `grade_detector`
 

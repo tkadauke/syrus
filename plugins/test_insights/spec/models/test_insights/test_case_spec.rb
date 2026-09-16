@@ -222,6 +222,21 @@ RSpec.describe TestInsights::TestCase do
       expect(result).to be_nil
     end
 
+    it "does not merge history from rows linked to an unrelated TestIdentity via the raw-name fallback" do
+      # `name` is truncated to fit VARCHAR(255), so two distinct long tests can share
+      # the same truncated suite_name/name while their fingerprints (computed on the
+      # untruncated name) stay distinct. The row below belongs to a different test
+      # (linked to `identity`, whose fingerprint doesn't match the query below) but
+      # coincidentally has the same raw suite_name/name -- it must never be picked up
+      # by the legacy raw-name fallback now that it's tied to a TestIdentity.
+      identity = create_identity(suite_name: "MySpec", name: "it does the full untruncated thing with far more detail")
+      create_case(test_identity: identity, name: "it does the thing", suite_name: "MySpec", status: "failed")
+
+      result = TestInsights::TestCase.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result).to be_nil
+    end
+
     it "excludes self-repaired grader loop failures from scored history" do
       identity = create_identity
       workflow = run.workflow
@@ -434,6 +449,78 @@ RSpec.describe TestInsights::TestCase do
       expect(data[:flaky]).to be(false)
       expect(data[:failed_count]).to eq(2)
       expect(data[:total_count]).to eq(2)
+    end
+
+    it "does not merge history from rows linked to an unrelated TestIdentity via the raw-name fallback" do
+      # Same collision as history_scope_for's regression spec above, but through the
+      # batch path: an unlinked test case (`tc`, no test_identity_id) must not pull in
+      # "recent" rows that share its truncated suite_name/name but are linked to a
+      # different TestIdentity.
+      identity = create_identity(suite_name: "MySpec", name: "it does the full untruncated thing with far more detail")
+      create_case(test_identity: identity, name: "it does the thing", suite_name: "MySpec", status: "failed")
+
+      tc = build_case(name: "it does the thing", suite_name: "MySpec")
+      result = TestInsights::TestCase.batch_flakiness(repo, [ tc ])
+
+      expect(result[[ "MySpec", "it does the thing" ]]).to be_nil
+    end
+  end
+
+  describe ".prunable" do
+    it "matches rows older than RETAIN_AFTER" do
+      old = create_case
+      old.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      fresh = create_case
+
+      expect(described_class.prunable).to include(old)
+      expect(described_class.prunable).not_to include(fresh)
+    end
+  end
+
+  describe "pruning older-than-window rows" do
+    it "does not affect flakiness_score/history_scope_for for a test with recent activity inside the window" do
+      stale_failure = create_case(status: "failed")
+      stale_failure.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      create_case(status: "passed")
+      create_case(status: "passed")
+
+      described_class.prunable.delete_all
+
+      result = described_class.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result[:total_count]).to eq(2)
+      expect(result[:failed_count]).to eq(0)
+      expect(result[:flaky]).to be(false)
+      expect(described_class.history_scope_for(repository: repo, suite_name: "MySpec", name: "it does the thing").count).to eq(2)
+    end
+  end
+
+  describe ".prunable" do
+    it "matches rows older than RETAIN_AFTER" do
+      old = create_case
+      old.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      fresh = create_case
+
+      expect(described_class.prunable).to include(old)
+      expect(described_class.prunable).not_to include(fresh)
+    end
+  end
+
+  describe "pruning older-than-window rows" do
+    it "does not affect flakiness_score/history_scope_for for a test with recent activity inside the window" do
+      stale_failure = create_case(status: "failed")
+      stale_failure.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      create_case(status: "passed")
+      create_case(status: "passed")
+
+      described_class.prunable.delete_all
+
+      result = described_class.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result[:total_count]).to eq(2)
+      expect(result[:failed_count]).to eq(0)
+      expect(result[:flaky]).to be(false)
+      expect(described_class.history_scope_for(repository: repo, suite_name: "MySpec", name: "it does the thing").count).to eq(2)
     end
   end
 end

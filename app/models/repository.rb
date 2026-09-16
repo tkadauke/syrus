@@ -32,6 +32,31 @@ class Repository < ApplicationRecord
   # and red on a PR for specs A *and* B -- so how safe this is depends on how
   # granular a repository's check names are. See PrCheckAttribution.
   attribute :land_on_inherited_check_failure, :boolean, default: false
+  # Opt-in: dismiss a required-grader failure at rung 0 (Adjudicators::KnownFlakyFailure)
+  # when every one of its failing tests already has a confirmed-flaky history in
+  # Test Insights. Off by default -- same shape as trust_clean_rebase_grade and
+  # land_on_inherited_check_failure -- since acting on it silently lets a red
+  # required grader land. known_flaky_failure_min_score overrides the adjudicator's
+  # default minimum flakiness score floor; nil means use that default.
+  attribute :known_flaky_failure_dismissal_enabled, :boolean, default: false
+  # Opt-in: after required graders pass, rerun just the test files this Job's
+  # diff touched (added or modified) a few more times (TouchedTestRepeatGate)
+  # to catch a test that is flaky from day one -- KnownFlakyFailure has no
+  # run history to work from for a test that has never run before. Off by
+  # default -- same shape as known_flaky_failure_dismissal_enabled -- since it
+  # spends real extra command runs on every Job whose diff touches spec files.
+  # new_test_flakiness_gate_repeats overrides the default repeat count; nil
+  # means use TouchedTestRepeatGate::DEFAULT_REPEATS.
+  attribute :new_test_flakiness_gate_enabled, :boolean, default: false
+  # Opt-in: dismiss a required-grader failure at rung 0
+  # (Adjudicators::IsolatedReproDismissal) when every one of its failing
+  # tests has an agent-recorded, same-SHA, pre-fix "did not reproduce in
+  # isolation" record -- distinct evidence from known_flaky_failure_dismissal_enabled's
+  # statistical flakiness_score: a verified single-occurrence repro attempt
+  # rather than accumulated cross-run history. Off by default -- same shape as
+  # known_flaky_failure_dismissal_enabled -- since acting on it silently lets
+  # a red required grader land.
+  attribute :isolated_repro_dismissal_enabled, :boolean, default: false
   attribute :feedback_policy, :string, default: "confirm"
   attribute :epic_dependency_policy, :string, default: "linear"
   attribute :fork_pr_grace_period_hours, :integer, default: 24

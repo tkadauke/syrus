@@ -140,7 +140,7 @@ RSpec.describe McpToolRegistry do
         *%w[
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log report_main_concern submit_summary submit_test_plan submit_review_plan
+          read_preview_log report_main_concern record_isolated_repro submit_summary submit_test_plan submit_review_plan
           submit_artifact patch_workflow run_target_prepare submit_visual_artifact
           list_artifacts read_artifact
         ]
@@ -156,7 +156,7 @@ RSpec.describe McpToolRegistry do
         *%w[
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log report_main_concern submit_adversarial_review
+          read_preview_log report_main_concern record_isolated_repro submit_adversarial_review
         ]
       )
     end
@@ -170,7 +170,7 @@ RSpec.describe McpToolRegistry do
         *%w[
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log report_main_concern submit_visual_review submit_visual_artifact
+          read_preview_log report_main_concern record_isolated_repro submit_visual_review submit_visual_artifact
           list_artifacts read_artifact
         ]
       )

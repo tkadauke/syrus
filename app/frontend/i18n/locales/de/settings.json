@@ -785,7 +785,14 @@
     "insight_scheduling_saved": "Insight-Planungseinstellungen gespeichert.",
     "insight_scheduling_save_error": "Insight-Planungseinstellungen konnten nicht gespeichert werden.",
     "insight_scheduling_min_max_error": "Mindestanzahl Jobs muss kleiner als die Höchstanzahl sein.",
-    "check_land_inherited_failure": "Landen, wenn fehlschlagende Checks bereits auf dem Basis-Branch fehlschlagen"
+    "check_land_inherited_failure": "Landen, wenn fehlschlagende Checks bereits auf dem Basis-Branch fehlschlagen",
+    "check_known_flaky_dismissal": "Fehlschläge erforderlicher Prüfungen verwerfen, die bereits als flatterhaft bestätigt sind",
+    "label_known_flaky_min_score": "Mindest-Flakiness-Wert für eine Bestätigung",
+    "known_flaky_min_score_hint": "Ein Fehlschlag einer erforderlichen Prüfung gilt nur dann als bestätigt flatterhaft, wenn jeder fehlgeschlagene Test in Test Insights diesen Flakiness-Wert oder höher aufweist. Leer lassen, um den Standardwert (0.1) zu verwenden.",
+    "check_new_test_flakiness_gate": "Neu hinzugefügte oder geänderte Tests erneut ausführen, um Flakiness vom ersten Tag an zu erkennen",
+    "label_new_test_flakiness_gate_repeats": "Wiederholungsläufe für geänderte Tests",
+    "new_test_flakiness_gate_repeats_hint": "Nachdem die erforderlichen Prüfungen bestanden wurden, werden nur die Testdateien, die der Diff dieses Jobs hinzugefügt oder geändert hat, so oft erneut ausgeführt. Widersprüchliche Ergebnisse werden als neue Test-Flakiness gemeldet statt als generischer Prüfungsfehler. Leer lassen, um den Standardwert (5) zu verwenden.",
+    "check_isolated_repro_dismissal": "Fehlschläge erforderlicher Prüfungen verwerfen, die ein Agent isoliert nicht reproduzieren konnte"
   },
   "github_token": {
     "title": "GitHub-Integration",

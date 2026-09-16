@@ -7,6 +7,33 @@ module TestInsights
     CLASSIFICATION_SCORED = "scored".freeze
     CLASSIFICATION_WIP_REPAIR_FAILURE = "wip_repair_failure".freeze
 
+    # test_insight_cases.name/suite_name/file_path and their test_insight_identities
+    # counterparts are plain `t.string` columns (MySQL VARCHAR(255)). RSpec's full
+    # example description (nested context + it-string, sometimes interpolated) can
+    # exceed that, and raw insert_all!/insert_all bypass AR validations, so an
+    # oversized value raises a DB-level error instead of failing a single record's
+    # validation. Truncate defensively before any bulk insert touches these columns.
+    # Fingerprinting must use the untruncated name/suite_name so identity keys stay
+    # stable regardless of truncation -- see TestIdentity.fingerprint_for callers.
+    MAX_STRING_COLUMN_BYTES = 255
+
+    def self.truncate_string_column(value, max_bytes: MAX_STRING_COLUMN_BYTES)
+      value.nil? ? nil : value.to_s.safe_byteslice(0, max_bytes)
+    end
+
+    # FLAKINESS_LOOKBACK/HISTORY_LIMIT (TestIdentity) are about *count* of
+    # executions, not calendar time, so an actively-run test's most recent
+    # history stays well inside this window in practice. 90 days is generous
+    # enough for that, while still keeping the table (the plugin's highest-
+    # volume by far -- one row per test example per grader run) from growing
+    # unbounded. A genuinely dormant test's older rows age out, which is fine:
+    # a test nobody has run isn't contributing to any live flakiness decision.
+    RETAIN_AFTER = 90.days
+
+    scope :prunable, -> {
+      where("created_at < ?", RETAIN_AFTER.ago)
+    }
+
     belongs_to :test_run
     belongs_to :repository
     belongs_to :test_identity, optional: true
@@ -119,7 +146,10 @@ module TestInsights
       condition = fallback_pairs.map { "(suite_name = ? AND name = ?)" }.join(" OR ")
       values = fallback_pairs.flat_map { |suite_name, name| [ suite_name, name ] }
 
-      recent = where(repository_id: repository.id)
+      # Same lossy-truncation collision risk as history_scope_for above: only
+      # match rows that were never linked to any identity, since a linked row
+      # sharing this truncated suite_name/name belongs to a different test.
+      recent = where(repository_id: repository.id, test_identity_id: nil)
         .where(condition, *values)
         .scored
         .order(:suite_name, :name, created_at: :desc, id: :desc)
@@ -140,7 +170,15 @@ module TestInsights
       )
       return identity.test_cases.order(created_at: :desc, id: :desc) if identity
 
-      where(repository_id: repository.id, suite_name: suite_name, name: name).order(created_at: :desc, id: :desc)
+      # No TestIdentity matches this fingerprint, so there is nothing for
+      # identity.test_cases above to have covered. Only fall back to matching
+      # by raw suite_name/name among rows that were never linked to any
+      # identity at all (pre-TestIdentity legacy rows) -- name is truncated to
+      # fit VARCHAR(255), so matching it against rows that *do* have a linked
+      # identity could silently merge two distinct long tests that share the
+      # same 255-byte prefix.
+      where(repository_id: repository.id, suite_name: suite_name, name: name, test_identity_id: nil)
+        .order(created_at: :desc, id: :desc)
     end
 
     def self.batch_flakiness_by_identity(cases, lookback:)

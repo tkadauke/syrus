@@ -113,6 +113,137 @@ Syrus already made this distinction for its *own* grader steps via
 the same idea applied to GitHub check runs, which previously had nowhere to
 record which checks failed.
 
+## known_flaky_failure_dismissal_enabled
+
+`InheritedGraderFailure` cannot catch a spec that fails intermittently on the
+base branch too -- comparing against a single base-branch run proves nothing
+when the flake might simply not have reproduced there this time. That gap has
+stalled a merge train for hours across dozens of retries: a genuinely flaky
+spec kept failing a required grader on every `landing_fix` retry, unrelated
+to the PR's diff.
+
+`Adjudicators::KnownFlakyFailure` closes it from the other direction: when
+every failing test in a required grader Step already has a confirmed-flaky
+history in Test Insights (`flaky: true`, and a flakiness score at or above a
+configurable floor), the failure is dismissed at rung 0 instead of blocking
+landing or spending a `landing_fix` repair turn. It reuses whatever
+`:test_evidence` plugin already answers "which tests failed in this run" and
+"what is this test's flakiness score" -- with no such plugin, or no scoring
+history yet, it declines rather than guessing.
+
+Off by default, opted in per repository via
+`Repository#known_flaky_failure_dismissal_enabled` (same shape as
+`trust_clean_rebase_grade` and `land_on_inherited_check_failure` above): a
+repository whose flakiness history is not yet trustworthy should not have
+required-grader failures waved off silently.
+`Repository#known_flaky_failure_min_score` optionally raises the minimum
+flakiness score a test needs before its failure counts as "confirmed" flaky
+(default `Adjudicators::KnownFlakyFailure::DEFAULT_MIN_SCORE`), guarding
+against a single historical blip looking like a pattern. A dismissal is
+recorded as a `known_flaky_grader_failure` workflow artifact (the dismissed
+grader names, the confirmed-flaky tests and their scores) and logged on the
+`grader_collect` Step, the same visibility `record_inherited_main_failure!`
+gives an inherited-failure dismissal -- an operator or agent looking at why a
+red required grader did not block landing should never have to infer it from
+the absence of a failure.
+
+## new_test_flakiness_gate_enabled
+
+`KnownFlakyFailure` only has signal once a test has run at least twice across
+real Workflows -- a brand-new test, or one freshly modified by this Job, has
+no history yet, so neither it nor a plain `InheritedGraderFailure` comparison
+against base can tell a test that is flaky from day one apart from a
+genuinely stable one.
+
+`TouchedTestFiles` closes that gap the other direction, inside
+`Steps::GraderCollect`: once every required grader in an iteration has
+already passed, it looks at the test files this Job's diff added or modified
+relative to its effective base branch (`_spec.rb`, `_test.rb`,
+`.spec`/`.test.ts(x)`, `test_*.py`/`_test.py`, `_test.go` -- not the whole
+suite, and not the untouched majority of an existing spec file). When that
+set is non-empty, `TouchedTestRepeatGate` reruns just those files a few more
+times (default `TouchedTestRepeatGate::DEFAULT_REPEATS`, 5) against every
+required grader that already passed this iteration. Building that "just
+these files" command does *not* require the grader to have separately opted
+into `BaseRevisionRetry`'s `base_retry: { strategy: plugin }` -- that would
+make the gate a silent no-op for most repositories, since `base_retry` is a
+rarely-configured opt-in for a different feature. Instead: an explicit
+`command`/`files_as_args` `base_retry` on the grader (if the repository
+already configured one, e.g. this repo's own `rspec` grader) is reused
+as-is; otherwise `TouchedTestRepeatGate` asks the same `:focused_test_command`
+extension point `BaseRevisionRetry` uses, but with its own synthesized
+`plugin` strategy -- that point's whole contract is "can a language plugin
+build a file-scoped rerun command for this grader," independent of whatever
+`base_retry` the grader has (or doesn't have) configured. A grader whose
+language has no registered `:focused_test_command` provider (only Ruby and
+JavaScript today) and no explicit `base_retry` command is skipped for that
+grader, logged, rather than guessed at. Results that disagree (some repeats
+pass, some fail) fail the grading iteration with a `grader_failure` Problem
+carrying
+`evidence: { new_test_flakiness: true, results: [...] }`, and a synthetic
+`new-test-flakiness-gate: <grader>` entry is appended to the iteration's
+`iterations` artifact (and to a dedicated `new_test_flakiness_gate` workflow
+artifact) so the repair prompt, the chat report, and the Job page all show
+"this Job's new test failed N/5 times on repeat" instead of a generic failed
+grader -- the agent or operator sees they introduced flakiness, not that they
+broke an existing check. A stable touched test (repeats all agree, pass or
+fail) leaves the iteration's outcome untouched.
+
+Off by default, opted in per repository via
+`Repository#new_test_flakiness_gate_enabled` (same shape as
+`known_flaky_failure_dismissal_enabled` above): it spends real extra command
+runs on every Job whose diff touches spec files, so a repository opts in
+deliberately rather than paying that cost by default.
+`Repository#new_test_flakiness_gate_repeats` overrides the default repeat
+count.
+
+## isolated_repro_dismissal_enabled
+
+`KnownFlakyFailure`'s `flakiness_score` needs accumulated cross-run history
+to say anything -- a test that has only ever failed once, or whose history
+was lost to an ingestion bug, gives it nothing to work with. An agent
+investigating a required-grader failure during `landing_fix` (or another
+repair step) often already does the obvious thing: run the exact failing
+example in isolation, against the exact failing commit, before touching any
+code, to see whether it reproduces. That is a different, better-grounded
+signal than either `flakiness_score`'s accumulated history or an agent's
+unverifiable opinion that a test "looks flaky" (rejected elsewhere as
+correlated with each Job's incentive to get its own PR unblocked, not
+independent) -- it's a verifiable *action*, with a command and its raw
+output, that speaks to this one occurrence immediately.
+
+The `record_isolated_repro` MCP tool lets an agent record that fact as
+structured evidence -- the exact command, its raw output, and whether it
+reproduced -- via a `:test_evidence` provider's `record_isolated_repro!`/
+`isolated_repro_evidence` capability (`TestInsights::IsolatedReproAttempt`,
+stored in its own table, never mixed into `TestCase`'s `scored` pool that
+`flakiness_score` reads). `IsolatedReproRecorder` validates the call before
+it is ever stored: it reads the workspace's actual `git rev-parse HEAD`
+rather than trusting an agent-supplied SHA, and requires it to still equal
+the exact commit the last grading iteration failed at -- which rejects both
+a repro run against the wrong commit and one recorded after the agent's own
+fix commits exist (either moves HEAD away from the graded commit) -- and
+requires the named test to be among what the grader Step actually reported
+failing, not merely asserted by the agent.
+
+`Adjudicators::IsolatedReproDismissal` closes the loop at rung 0: when every
+failing test in a required grader Step has a same-SHA, pre-fix "did not
+reproduce" record, the failure is dismissed instead of blocking landing or
+spending another repair turn. Off by default, opted in per repository via
+`Repository#isolated_repro_dismissal_enabled` (same shape as
+`known_flaky_failure_dismissal_enabled` above). A dismissal is recorded as an
+`isolated_repro_grader_failure` workflow artifact (the dismissed grader
+names, the non-reproducing tests, and the SHA) and logged on the
+`grader_collect` Step, the same visibility `record_known_flaky_failure!`
+gives a flakiness-history dismissal.
+
+A same-workflow `retry_until` re-run of the whole grader is a different
+thing entirely and is not what this records: that is a normal grading
+execution and already belongs in `TestCase`'s `scored` pool (excluded from
+it only via `TestCase.wip_repair_failures` when it's the workflow's own
+in-loop self-repair). `record_isolated_repro` is for a single, deliberately
+targeted example run outside the normal grading loop.
+
 ## Stopping a landing attempt
 
 While a Job is `landing` -- solo (`auto_merge`/`external_pr_merge`) or as part

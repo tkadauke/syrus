@@ -13,10 +13,14 @@
 module Adjudicators
   # Rung 0 first, cheapest first. AgenticGraderReview is rung 3 and costs a
   # turn, so it sits last and declines outright unless the work definition's
-  # ladder includes it.
+  # ladder includes it. KnownFlakyFailure and IsolatedReproDismissal sit with
+  # the other rung-0 checks, ahead of it -- a free, deterministic answer must
+  # get its turn before an expensive one is asked the same question.
   BUILT_INS = [
     Adjudicators::InheritedGraderFailure,
     Adjudicators::ValidatedLanding,
+    Adjudicators::KnownFlakyFailure,
+    Adjudicators::IsolatedReproDismissal,
     Adjudicators::AgenticGraderReview
   ].freeze
 

@@ -34,6 +34,27 @@ below) doesn't break the others. A parse failure is also non-fatal: it's
 logged as a warning and the grader's pass/fail outcome is unaffected either
 way — ingestion never blocks the workflow.
 
+### Oversized example names don't drop the whole batch
+
+`test_insight_cases`/`test_insight_identities`' `name`, `suite_name`, and
+`file_path` columns are plain `t.string` (MySQL `VARCHAR(255)`), but a full
+RSpec example description (nested context + it-string, sometimes
+interpolated) routinely exceeds that. `TestInsights::Ingester` truncates
+those three fields to fit before every bulk insert
+(`TestInsights::TestCase.truncate_string_column`), using the *untruncated*
+suite_name/name to compute `TestIdentity.fingerprint_for` first so a test's
+durable identity never shifts just because its display name got clipped.
+Case rows are still batched 500 at a time via `insert_all!` for throughput,
+but a batch that fails anyway (any other DB-level insert error) falls back to
+inserting row-by-row so one bad row is skipped and reported instead of
+silently discarding every sibling row in that batch — a single oversized name
+used to roll back the whole ingest transaction and leave that grader run with
+zero recorded history. Both the per-row and top-level ingestion failure paths
+report through `OperationalLogging.ingest` (`source:
+"test_insights_ingester"` / `"test_insights_subscribers"`) in addition to the
+existing grader job-log warning line, so a recurring ingestion failure is
+discoverable without reading every grader's job log.
+
 Only one file path is supported per grader Step; if your test command fans
 out across multiple parallel workers (see the caveat below), point
 `junit_output` at a single merged/aggregated results file, or leave it unset
@@ -301,7 +322,7 @@ Test Insights is the `test_insights` plugin. It owns the four primary tables
 the `test_identity_fts` search index, the query and comparison services, the
 five MCP tools, the repository Tests tab, and the Job detail Tests tab.
 
-Core keeps three things:
+Core keeps four things:
 
 - **`JunitXmlParser`**, because `ParsedRun` is the contract of the
   `:test_result_parser` extension point. A language plugin's framework-native
@@ -314,5 +335,54 @@ Core keeps three things:
   which tests failed rather than reading a model. With the plugin disabled the
   counts are zero and it falls back to its coarser pass/fail comparison --
   exactly what a repository with no test data already got.
+- **`Adjudicators::KnownFlakyFailure`**, a rung-0 adjudicator (see
+  `plugins.md`'s `adjudicator` extension point) that asks `:test_evidence`
+  providers for failing test cases and their flakiness scores rather than
+  reading `TestInsights::TestCase` directly. With the plugin disabled there is
+  no provider, so it always declines with `no_flakiness_history` -- the same
+  "cannot tell" posture the ladder requires from a rung-0 check with no data.
+- **`Adjudicators::IsolatedReproDismissal`**, a second rung-0 adjudicator (see
+  `landing_queue.md`'s `isolated_repro_dismissal_enabled`) that asks
+  `:test_evidence` providers whether a failing test has an agent-recorded,
+  same-SHA, pre-fix "did not reproduce in isolation" record, via the
+  `record_isolated_repro`/`isolated_repro_evidence` capability this plugin
+  implements against its own `TestInsights::IsolatedReproAttempt` table. With
+  the plugin disabled there is no provider, so it always declines with
+  `no_isolated_repro_evidence`.
 
 Disabling the plugin stops ingestion and hides the UI; recorded history stays.
+
+## Isolated repro attempts
+
+`test_insight_isolated_repro_attempts` (`TestInsights::IsolatedReproAttempt`)
+is deliberately a separate table from `test_insight_cases`, not another row
+shape in it: an isolated repro attempt is a single, deliberate, agent-run
+action -- one exact command and its raw output, targeted at one failing
+example, recorded via the `record_isolated_repro` MCP tool -- not a grader
+execution. Mixing the two would dilute `TestCase.flakiness_score`'s
+statistical `scored` pool with a fundamentally different kind of evidence.
+See `landing_queue.md`'s `isolated_repro_dismissal_enabled` for the full
+recording/validation/adjudication flow.
+
+## Retention
+
+`test_insight_cases` is by far the plugin's highest-volume table (one row per
+test example per grader run). `TestInsightsPruneJob` deletes rows older than
+`TestInsights::TestCase::RETAIN_AFTER` (90 days), `TestInsights::TestRun::RETAIN_AFTER`-old
+rows from `test_insight_runs`, and `TestInsights::IsolatedReproAttempt::RETAIN_AFTER`-old
+rows (30 days -- an isolated repro attempt is only ever useful in the
+immediate aftermath of the grading iteration it backs, unlike `TestCase`'s
+statistical history) from `test_insight_isolated_repro_attempts` — all three
+are plain age cutoffs, no per-`test_identity_id` row-count cap. `TestIdentity`
+summary columns (`last_status`, `recent_*` counters) and search indexing are
+unaffected: they're rolled up from recent activity, not the raw rows
+themselves, so pruning old raw history doesn't erase live flakiness signal
+for a test that's still running.
+
+The sweep runs on the plugin's own daily tick (`TestInsights::Callbacks.on_tick`,
+`tick_interval 1.day` in the manifest) rather than the host's
+`config/recurring.yml`, so disabling or removing the plugin removes the
+schedule with it, matching `ScheduledTasks::Callbacks` and
+`VideoWalkthroughs::Callbacks`. Ticking (and therefore pruning) only happens
+while the plugin is enabled; since ingestion also stops while disabled, no
+new rows accumulate for pruning to catch up on once it's re-enabled.

@@ -51,6 +51,7 @@ module Steps
       if failed_required.empty?
         skipped_count = target_health_skipped.size
         log("[grader_collect] all required graders passed (#{grader_steps.size} grader Step(s) ran, #{skipped_count} target-health skip(s))")
+        check_new_test_flakiness!(grader_steps)
         record_landing_validation!
         return
       end
@@ -79,30 +80,36 @@ module Steps
     # Rung 0 of the attention ladder: free, deterministic adjudication before
     # the failure costs anyone anything.
     #
-    # Only `inherited_grader_failure` is pre-authorized here, which is exactly
-    # what this site already acted on. Other adjudicators still run and their
-    # verdicts are still recorded, but acting on one would be a behavior change
-    # in when graders are treated as authoritative -- the plan's "an
-    # adjudication never applies itself" guardrail.
+    # Only `inherited_grader_failure`, `known_flaky_failure`, and
+    # `isolated_repro_dismissal` are pre-authorized here. Other adjudicators
+    # still run and their verdicts are still recorded, but acting on one
+    # would be a behavior change in when graders are treated as authoritative
+    # -- the plan's "an adjudication never applies itself" guardrail.
     def dismissed_by_rung_zero?(failed_required)
       verdict = Adjudicators.call(
         problem: Problem[:grader_failure, evidence: { grader_names: grader_names(failed_required) }],
         workflow: workflow,
         step: failed_required,
-        authorized: %w[inherited_grader_failure]
+        authorized: %w[inherited_grader_failure known_flaky_failure isolated_repro_dismissal]
       )
       workflow.set_artifact!("rung_zero_adjudication", verdict.to_h.merge("adjudicated_at" => Time.current.iso8601))
       return false unless verdict.dismiss?
 
-      @inherited_main_failure_evidence = verdict.evidence if verdict.adjudicator == Adjudicators::InheritedGraderFailure.name
-      record_inherited_main_failure!(failed_required)
+      case verdict.adjudicator
+      when Adjudicators::InheritedGraderFailure.name
+        record_inherited_main_failure!(failed_required, verdict.evidence)
+      when Adjudicators::KnownFlakyFailure.name
+        record_known_flaky_failure!(failed_required, verdict.evidence)
+      when Adjudicators::IsolatedReproDismissal.name
+        record_isolated_repro_dismissal!(failed_required, verdict.evidence)
+      end
       true
     end
 
     def grader_names(grader_steps) = grader_steps.map { |grader| grader.details["name"] }
 
-    def record_inherited_main_failure!(failed_required)
-      verdict_evidence = @inherited_main_failure_evidence.to_h
+    def record_inherited_main_failure!(failed_required, verdict_evidence)
+      verdict_evidence = verdict_evidence.to_h
       classified = nil
       unless verdict_evidence.key?(:classifications) || verdict_evidence.key?("classifications")
         classified = MainBranchFailureClassifier.call(workflow: workflow, failed_grader_steps: failed_required)
@@ -119,6 +126,142 @@ module Steps
       log(
         "[grader_collect] required grader failures match broken-main evidence; " \
         "treating as inherited: #{inherited_names.join(', ')}"
+      )
+    end
+
+    # Surfaces an Adjudicators::KnownFlakyFailure dismissal the same way
+    # record_inherited_main_failure! surfaces an inherited one -- an operator
+    # looking at why a red required grader did not block landing must be able
+    # to see this, not just infer it from the absence of a failure.
+    def record_known_flaky_failure!(failed_required, verdict_evidence)
+      verdict_evidence = verdict_evidence.to_h
+      tests = (verdict_evidence[:tests] || verdict_evidence["tests"] || []).map(&:to_h)
+      min_score = verdict_evidence[:min_score] || verdict_evidence["min_score"]
+      workflow.set_artifact!("known_flaky_grader_failure", {
+        "grader_names" => grader_names(failed_required),
+        "tests" => tests,
+        "min_score" => min_score,
+        "classified_at" => Time.current.iso8601
+      })
+      test_names = tests.map { |test| "#{test[:suite_name] || test['suite_name']}##{test[:name] || test['name']}" }
+      log(
+        "[grader_collect] required grader failures match confirmed-flaky test history; " \
+        "treating as known-flaky: #{test_names.join(', ')}"
+      )
+    end
+
+    # Surfaces an Adjudicators::IsolatedReproDismissal dismissal the same way
+    # record_known_flaky_failure! surfaces one -- an operator looking at why
+    # a red required grader did not block landing must be able to see this,
+    # including the exact SHA the repro ran against.
+    def record_isolated_repro_dismissal!(failed_required, verdict_evidence)
+      verdict_evidence = verdict_evidence.to_h
+      tests = (verdict_evidence[:tests] || verdict_evidence["tests"] || []).map(&:to_h)
+      sha = verdict_evidence[:sha] || verdict_evidence["sha"]
+      workflow.set_artifact!("isolated_repro_grader_failure", {
+        "grader_names" => grader_names(failed_required),
+        "tests" => tests,
+        "sha" => sha,
+        "classified_at" => Time.current.iso8601
+      })
+      test_names = tests.map { |test| "#{test[:suite_name] || test['suite_name']}##{test[:name] || test['name']}" }
+      log(
+        "[grader_collect] required grader failures did not reproduce in agent-run isolated repro attempts " \
+        "at #{sha.to_s.first(9)}; treating as flaky: #{test_names.join(', ')}"
+      )
+    end
+
+    # The repeat-run flakiness gate for newly added or modified tests
+    # (EPIC-362). Adjudicators::KnownFlakyFailure only has signal once a test
+    # has run at least twice across real workflows, so it cannot tell apart a
+    # brand-new test that is flaky from day one -- this asks the question
+    # directly: rerun just this iteration's touched test files a few extra
+    # times, still under this grading iteration, before the Job's PR merges.
+    #
+    # Only runs once every required grader already passed this iteration --
+    # a required grader that is still red is reason enough to repair without
+    # spending extra reruns on top of it.
+    def check_new_test_flakiness!(grader_steps)
+      return unless repository.new_test_flakiness_gate_enabled?
+
+      touched_files = touched_test_files
+      if touched_files.empty?
+        log("[grader_collect] flaky_gate: no touched test files in this iteration's diff -- skipping")
+        return
+      end
+
+      log("[grader_collect] flaky_gate: checking #{touched_files.join(', ')} for day-one flakiness")
+      candidates = grader_steps.select { |g| g.state == "succeeded" && g.details.to_h["required"] }
+      results = candidates.filter_map { |grader_step| run_flaky_gate(grader_step, touched_files) }
+      if results.empty?
+        log("[grader_collect] flaky_gate: enabled, but no grader could build a focused rerun command for #{touched_files.join(', ')} -- nothing to check")
+        return
+      end
+
+      inconsistent = results.select(&:inconsistent?)
+      return if inconsistent.empty?
+
+      record_new_test_flakiness!(inconsistent)
+      names = inconsistent.map { |result| "#{result.grader_name} (#{result.fail_count}/#{result.repeats} failed)" }.join(", ")
+      log("[grader_collect] newly touched tests failed intermittently on repeat runs: #{names}")
+      # Same Problem code as a plain grader failure (same remediation: repair
+      # and re-grade) -- the message, evidence, and the synthetic
+      # "new-test-flakiness-gate" iteration entry below are what tell the
+      # repairing agent and the PR/Job this was a *new* flake, not a generic
+      # failed check.
+      fail_with!(:grader_failure, "newly touched tests failed intermittently on repeat runs: #{names}",
+                 evidence: { new_test_flakiness: true, results: inconsistent.map(&:to_h) })
+    end
+
+    def touched_test_files
+      base_sha = landing_base_sha
+      return [] if base_sha.blank?
+
+      TouchedTestFiles.call(workspace_path: workspace.path, base_ref: base_sha)
+    end
+
+    def run_flaky_gate(grader_step, touched_files)
+      result = TouchedTestRepeatGate.call(
+        grader_step: grader_step,
+        touched_files: touched_files,
+        repeats: repository.new_test_flakiness_gate_repeats.presence || TouchedTestRepeatGate::DEFAULT_REPEATS,
+        workspace_path: workspace.path,
+        env: env,
+        log: method(:log)
+      )
+      return nil unless result.ran
+
+      result
+    end
+
+    def record_new_test_flakiness!(inconsistent_results)
+      entries = inconsistent_results.map do |result|
+        {
+          "name" => "new-test-flakiness-gate: #{result.grader_name}",
+          "status" => "failed",
+          "required" => true,
+          "command" => result.command,
+          "files" => result.files,
+          "repeats" => result.repeats,
+          "pass_count" => result.pass_count,
+          "fail_count" => result.fail_count,
+          "output" => "#{result.fail_count}/#{result.repeats} repeat run(s) of #{result.files.join(', ')} " \
+                       "failed after the grader itself passed -- this looks like a test that is flaky from " \
+                       "day one, not a broken implementation."
+        }
+      end
+      workflow.set_artifact!("new_test_flakiness_gate", entries)
+
+      iterations = Array(workflow.artifact("iterations"))
+      index = run.iteration - 1
+      iterations[index] = Array(iterations[index]) + entries
+      workflow.set_artifact!("iterations", iterations)
+    end
+
+    def env
+      ProcessRunner.forwarded_env(
+        Prepare.prep_env_forward,
+        extra: workspace_dependency_env.merge(Prepare.prep_extra_env(workflow: workflow, workspace_path: workspace.path))
       )
     end
 
