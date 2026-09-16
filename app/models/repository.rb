@@ -48,6 +48,15 @@ class Repository < ApplicationRecord
   # new_test_flakiness_gate_repeats overrides the default repeat count; nil
   # means use TouchedTestRepeatGate::DEFAULT_REPEATS.
   attribute :new_test_flakiness_gate_enabled, :boolean, default: false
+  # Opt-in: dismiss a required-grader failure at rung 0
+  # (Adjudicators::IsolatedReproDismissal) when every one of its failing
+  # tests has an agent-recorded, same-SHA, pre-fix "did not reproduce in
+  # isolation" record -- distinct evidence from known_flaky_failure_dismissal_enabled's
+  # statistical flakiness_score: a verified single-occurrence repro attempt
+  # rather than accumulated cross-run history. Off by default -- same shape as
+  # known_flaky_failure_dismissal_enabled -- since acting on it silently lets
+  # a red required grader land.
+  attribute :isolated_repro_dismissal_enabled, :boolean, default: false
   attribute :feedback_policy, :string, default: "confirm"
   attribute :epic_dependency_policy, :string, default: "linear"
   attribute :fork_pr_grace_period_hours, :integer, default: 24

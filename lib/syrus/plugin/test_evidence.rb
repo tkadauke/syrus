@@ -25,6 +25,23 @@ module Syrus
     # failure also reproduces on the base branch. Return nil when there is no
     # scoring history for the given test -- that is "cannot tell," not "not
     # flaky."
+    #
+    # Two more capabilities back Adjudicators::IsolatedReproDismissal -- a
+    # different, per-occurrence signal from flakiness_score's accumulated
+    # cross-run history, so it is stored separately and must never feed
+    # flakiness_score's statistical pool:
+    #
+    #   .record_isolated_repro!(repository:, grader_name:, suite_name:, name:, sha:,
+    #                            reproduced:, command:, output:, exit_status: nil,
+    #                            job: nil, workflow: nil, run: nil) => void
+    #   .isolated_repro_evidence(repository:, suite_name:, name:, sha:)
+    #     => Hash (:reproduced, :recorded_at, :command, :grader_name) or nil
+    #
+    # `record_isolated_repro!` is a plain writer -- IsolatedReproRecorder
+    # (core) validates the SHA and the failing-test match before calling it,
+    # so a provider does not need to re-derive that itself. Return nil from
+    # `isolated_repro_evidence` when no record exists for the given
+    # (suite_name, name, sha) -- "cannot tell," not "reproduced."
     module TestEvidence
     end
   end

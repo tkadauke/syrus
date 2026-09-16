@@ -19,6 +19,12 @@ module TestInsights
           TestInsights::TestIdentity.for_repository(repository).find_each(&:destroy)
         end
       end
+
+      scope.effect("repository isolated repro attempts") do
+        Syrus::DataCleanup.register("Repository", "test_insights.isolated_repro_attempts") do |repository|
+          TestInsights::IsolatedReproAttempt.where(repository_id: repository.id).find_each(&:destroy)
+        end
+      end
     end
   end
 end

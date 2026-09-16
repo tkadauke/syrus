@@ -139,4 +139,29 @@ RSpec.describe Prompts::GradeFailureFeedback do
 
     expect(out).not_to include("report_main_concern")
   end
+
+  it "advises recording an isolated repro attempt before making a fix when graders fail" do
+    iterations = [
+      [
+        { "name" => "tests", "status" => "failed", "exit_code" => 1, "output" => "failure\n" }
+      ]
+    ]
+
+    out = described_class.new(iterations: iterations).to_s
+
+    expect(out).to include("record_isolated_repro")
+    expect(out).to include("BEFORE making any fix")
+  end
+
+  it "does not advise record_isolated_repro for timeout-only latest grader failures" do
+    iterations = [
+      [
+        { "name" => "react-tests", "status" => "failed", "required" => true, "exit_code" => 1, "output" => "Error: Test timed out in 5000ms." }
+      ]
+    ]
+
+    out = described_class.new(iterations: iterations).to_s
+
+    expect(out).not_to include("record_isolated_repro")
+  end
 end

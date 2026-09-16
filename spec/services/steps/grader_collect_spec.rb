@@ -341,6 +341,70 @@ RSpec.describe Steps::GraderCollect do
     expect(workflow.reload.artifact("known_flaky_grader_failure")).to be_nil
   end
 
+  it "dismisses a required grader failure whose only failing tests have a same-SHA isolated repro non-reproduction" do
+    job.repository.update!(isolated_repro_dismissal_enabled: true)
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "abc123")
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_step.update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+    )
+    provider = Class.new do
+      def self.failed_test_cases(run:, grader_name:)
+        [ { "suite_name" => "spec/services/steps/preflight_grader_fanout_spec.rb", "name" => "makes every preflight grader ready" } ]
+      end
+
+      def self.isolated_repro_evidence(repository:, suite_name:, name:, sha:)
+        return nil unless sha == "abc123"
+
+        { reproduced: false, recorded_at: Time.current }
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+
+    expect { handler.call }.not_to raise_error
+
+    artifact = workflow.reload.artifact("isolated_repro_grader_failure")
+    expect(artifact).to include(
+      "grader_names" => [ "rspec" ],
+      "sha" => "abc123",
+      "tests" => [
+        include(
+          "suite_name" => "spec/services/steps/preflight_grader_fanout_spec.rb",
+          "name" => "makes every preflight grader ready",
+          "reproduced" => false
+        )
+      ]
+    )
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("did not reproduce in agent-run isolated repro attempts")
+  end
+
+  it "does not dismiss a required grader failure whose isolated repro evidence is for a different SHA" do
+    job.repository.update!(isolated_repro_dismissal_enabled: true)
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "abc123")
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_step.update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+    )
+    provider = Class.new do
+      def self.failed_test_cases(run:, grader_name:)
+        [ { "suite_name" => "spec/models/widget_spec.rb", "name" => "does the new thing" } ]
+      end
+
+      def self.isolated_repro_evidence(repository:, suite_name:, name:, sha:) = nil
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+
+    expect(workflow.reload.artifact("isolated_repro_grader_failure")).to be_nil
+  end
+
   it "uses base-revision retry when main health is broken but no base grader conclusion is cached" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     MainBranchHealthCheck.record_grader_workflow(

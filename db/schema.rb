@@ -2161,6 +2161,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
     t.bigint "github_repository_id"
     t.string "grader_health", default: "unknown", null: false
     t.integer "installation_id"
+    t.boolean "isolated_repro_dismissal_enabled", default: false, null: false
     t.boolean "known_flaky_failure_dismissal_enabled", default: false, null: false
     t.float "known_flaky_failure_min_score"
     t.boolean "land_on_inherited_check_failure", default: false, null: false
@@ -2844,6 +2845,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
     t.index ["repository_id", "last_failed_at", "id"], name: "idx_test_identities_repo_last_failed"
     t.index ["repository_id", "last_passed_at", "id"], name: "idx_test_identities_repo_last_passed"
     t.index ["repository_id"], name: "index_test_insight_identities_on_repository_id"
+  end
+
+  create_table "test_insight_isolated_repro_attempts", force: :cascade do |t|
+    t.text "command"
+    t.datetime "created_at", null: false
+    t.integer "exit_status"
+    t.string "grader_name", limit: 128, null: false
+    t.bigint "job_id"
+    t.string "name", limit: 255, null: false
+    t.text "output"
+    t.bigint "repository_id", null: false
+    t.boolean "reproduced", null: false
+    t.bigint "run_id"
+    t.string "sha", limit: 64, null: false
+    t.string "suite_name", limit: 255, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workflow_id"
+    t.index ["repository_id", "sha"], name: "idx_isolated_repro_attempts_on_repo_and_sha"
   end
 
   create_table "test_insight_runs", force: :cascade do |t|

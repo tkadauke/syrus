@@ -183,6 +183,14 @@ module Prompts
           If CI or graders are failing in files you did not touch, call
           `report_main_concern` with your reasoning before retrying. Do not
           burn retries on a systemic failure.
+
+          If you suspect a specific failing test is flaky rather than a real
+          regression, run that exact example in isolation, against the
+          current commit, BEFORE making any fix. If it does not reproduce,
+          call `record_isolated_repro` with the exact command and its raw
+          output -- this is structured, auditable evidence, not a broad
+          rerun of the whole grader and not just your opinion that it's
+          flaky.
         PROMPT
       end
     end

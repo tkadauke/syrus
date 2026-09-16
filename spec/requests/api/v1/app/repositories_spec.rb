@@ -1660,6 +1660,34 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.known_flaky_failure_min_score).to eq(0.3)
   end
 
+  it "includes isolated_repro_dismissal_enabled in the edit form payload" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", isolated_repro_dismissal_enabled: true)
+
+    get "/api/v1/app/repositories/#{repository.id}/edit"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("repository", "isolated_repro_dismissal_enabled")).to be(true)
+  end
+
+  it "updates isolated_repro_dismissal_enabled via PATCH" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", isolated_repro_dismissal_enabled: false)
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: {
+      repository: {
+        owner: repository.owner,
+        name: repository.name,
+        default_branch: repository.default_branch,
+        trigger_label: repository.trigger_label,
+        isolated_repro_dismissal_enabled: true
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(repository.reload.isolated_repro_dismissal_enabled?).to be(true)
+  end
+
   it "rejects invalid review policies via PATCH" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")

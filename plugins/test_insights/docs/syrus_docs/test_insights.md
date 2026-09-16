@@ -341,15 +341,38 @@ Core keeps four things:
   reading `TestInsights::TestCase` directly. With the plugin disabled there is
   no provider, so it always declines with `no_flakiness_history` -- the same
   "cannot tell" posture the ladder requires from a rung-0 check with no data.
+- **`Adjudicators::IsolatedReproDismissal`**, a second rung-0 adjudicator (see
+  `landing_queue.md`'s `isolated_repro_dismissal_enabled`) that asks
+  `:test_evidence` providers whether a failing test has an agent-recorded,
+  same-SHA, pre-fix "did not reproduce in isolation" record, via the
+  `record_isolated_repro`/`isolated_repro_evidence` capability this plugin
+  implements against its own `TestInsights::IsolatedReproAttempt` table. With
+  the plugin disabled there is no provider, so it always declines with
+  `no_isolated_repro_evidence`.
 
 Disabling the plugin stops ingestion and hides the UI; recorded history stays.
+
+## Isolated repro attempts
+
+`test_insight_isolated_repro_attempts` (`TestInsights::IsolatedReproAttempt`)
+is deliberately a separate table from `test_insight_cases`, not another row
+shape in it: an isolated repro attempt is a single, deliberate, agent-run
+action -- one exact command and its raw output, targeted at one failing
+example, recorded via the `record_isolated_repro` MCP tool -- not a grader
+execution. Mixing the two would dilute `TestCase.flakiness_score`'s
+statistical `scored` pool with a fundamentally different kind of evidence.
+See `landing_queue.md`'s `isolated_repro_dismissal_enabled` for the full
+recording/validation/adjudication flow.
 
 ## Retention
 
 `test_insight_cases` is by far the plugin's highest-volume table (one row per
 test example per grader run). `TestInsightsPruneJob` deletes rows older than
-`TestInsights::TestCase::RETAIN_AFTER` (90 days) and, independently,
-`TestInsights::TestRun::RETAIN_AFTER`-old rows from `test_insight_runs` — both
+`TestInsights::TestCase::RETAIN_AFTER` (90 days), `TestInsights::TestRun::RETAIN_AFTER`-old
+rows from `test_insight_runs`, and `TestInsights::IsolatedReproAttempt::RETAIN_AFTER`-old
+rows (30 days -- an isolated repro attempt is only ever useful in the
+immediate aftermath of the grading iteration it backs, unlike `TestCase`'s
+statistical history) from `test_insight_isolated_repro_attempts` — all three
 are plain age cutoffs, no per-`test_identity_id` row-count cap. `TestIdentity`
 summary columns (`last_status`, `recent_*` counters) and search indexing are
 unaffected: they're rolled up from recent activity, not the raw rows

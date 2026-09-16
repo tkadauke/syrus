@@ -60,6 +60,7 @@ export type RepositoryFormRecord = {
   known_flaky_failure_min_score: number | null
   new_test_flakiness_gate_enabled: boolean
   new_test_flakiness_gate_repeats: number | null
+  isolated_repro_dismissal_enabled: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
   main_branch_repair_blocks_work: boolean
@@ -131,6 +132,7 @@ export type RepositoryInput = {
   known_flaky_failure_min_score: number | null
   new_test_flakiness_gate_enabled: boolean
   new_test_flakiness_gate_repeats: number | null
+  isolated_repro_dismissal_enabled: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
   main_branch_repair_blocks_work: boolean
