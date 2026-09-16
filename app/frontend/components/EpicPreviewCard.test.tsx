@@ -58,6 +58,14 @@ describe("EpicPreviewCard", () => {
     expect(screen.getByText("in progress")).toBeInTheDocument()
   })
 
+  it("shows landing as the apparent status when the epic is landing", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload({ landing: true })))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByText("Onboarding flow")).toBeInTheDocument())
+    expect(screen.getByText("landing")).toBeInTheDocument()
+    expect(screen.queryByText("in progress")).not.toBeInTheDocument()
+  })
+
   it("renders the epic description", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
     renderCard(7)
