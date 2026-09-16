@@ -113,6 +113,26 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
+  it("renders before/after image thumbnails for a patch-less image file instead of the generic placeholder", async () => {
+    const payload = sourceDiffPayload()
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue({
+      ...payload,
+      files: [
+        ...payload.files,
+        { additions: 0, deletions: 0, is_image: true, patch: null, path: "app/assets/images/logo.png", status: "modified" }
+      ]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Implementation review")
+    const beforeThumb = screen.getByRole("button", { name: "Open Before" })
+    const afterThumb = screen.getByRole("button", { name: "Open After" })
+    expect(beforeThumb.querySelector("img")).toHaveAttribute("src", "/api/v1/app/jobs/42/source_image?ref=base-sha&path=app%2Fassets%2Fimages%2Flogo.png")
+    expect(afterThumb.querySelector("img")).toHaveAttribute("src", "/api/v1/app/jobs/42/source_image?ref=head-sha&path=app%2Fassets%2Fimages%2Flogo.png")
+  })
+
   it("starts review artifacts collapsed and expands them on demand", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
@@ -153,6 +173,116 @@ describe("ReviewWorkspace", () => {
     expect(screen.getByText("Column")).toBeInTheDocument()
     expect(screen.getByText("name")).toBeInTheDocument()
     expect(screen.queryByText("data_table")).not.toBeInTheDocument()
+  })
+
+  it("labels a version-matched review artifact with version, workflow/run, trigger kind, iteration, and sha range", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "visual_review_screenshot_run_5_1",
+          title: "Homepage after fix",
+          payload: { image_url: "https://example.test/a.png", iteration: 2 },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "image_diff",
+          workflow_id: 12,
+          run_id: 5,
+          step_id: 55,
+          trigger_kind: "chat_feedback",
+          base_sha: "abcdef1234567",
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Homepage after fix")).toBeInTheDocument()
+    const provenance = screen.getByText(/Workflow 12/)
+    expect(provenance).toHaveTextContent("Version 1")
+    expect(provenance).toHaveTextContent("Workflow 12")
+    expect(provenance).toHaveTextContent("Run 5")
+    expect(provenance).toHaveTextContent("chat_feedback")
+    expect(provenance).toHaveTextContent("Iteration 2")
+    expect(provenance).toHaveTextContent("abcdef1 → head-sh")
+    expect(screen.queryByText("Unversioned")).not.toBeInTheDocument()
+  })
+
+  it("shows a provenance-less artifact as unversioned instead of hiding it", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "rails_schema_erd",
+          title: "Schema ERD",
+          payload: { tables: [] },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "erd_diagram"
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Schema ERD")).toBeInTheDocument()
+    expect(screen.getByText("Unversioned")).toBeInTheDocument()
+  })
+
+  it("filters out artifacts tied to a different diff review version while keeping unversioned ones visible", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 100 }),
+      versions: [ version({ id: 100 }), version({ id: 200, version_index: 2, label: "Chat feedback #1" }) ]
+    }))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "visual_review_screenshot_run_5_1",
+          title: "Matches selected version",
+          payload: {},
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "image_diff",
+          run_id: 5,
+          head_sha: "head-sha",
+          diff_review_version_id: 100
+        },
+        {
+          type: "visual_review_screenshot_run_9_1",
+          title: "From a later round",
+          payload: {},
+          created_at: "2026-01-02T00:00:00Z",
+          renderer_type: "image_diff",
+          run_id: 9,
+          head_sha: "other-head-sha",
+          diff_review_version_id: 200
+        },
+        {
+          type: "rails_schema_erd",
+          title: "No provenance at all",
+          payload: {},
+          created_at: "2026-01-03T00:00:00Z",
+          renderer_type: "erd_diagram"
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Matches selected version")).toBeInTheDocument()
+    expect(screen.getByText("No provenance at all")).toBeInTheDocument()
+    expect(screen.queryByText("From a later round")).not.toBeInTheDocument()
   })
 
   it("creates a whole-review comment from the permanent comment form", async () => {
@@ -675,6 +805,138 @@ describe("ReviewWorkspace", () => {
     expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=first-head&head=third-head")
   })
 
+  it("shows one canonical row when persisted versions duplicate the same run range", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 700, version_index: 7, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
+      versions: [
+        version({ id: 500, version_index: 5, base_sha: "old-base", head_sha: "old-head", label: "Run-scoped range", run_id: 321 }),
+        version({ id: 600, version_index: 6, base_sha: "old-base", head_sha: "old-head", label: "Run-scoped range", run_id: 321 }),
+        version({ id: 700, version_index: 7, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } })
+      ]
+    }))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 700))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+
+    expect(within(listbox).getByRole("button", { name: "v5 RUN-321" })).toBeInTheDocument()
+    expect(within(listbox).queryByRole("button", { name: "v6 RUN-321" })).not.toBeInTheDocument()
+  })
+
+  it("clamps From endpoint selections so From cannot be newer than To", async () => {
+    const versions = orderedRangeVersions()
+    const initial = sourceDiffPayload({
+      version: versions[4],
+      versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/all_changes.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+all-changes"
+      }]
+    })
+    const firstRange = sourceDiffPayload({
+      version: version({ id: 600, version_index: 6, base_sha: "branch-base", head_sha: "second-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/first_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+first-range"
+      }]
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(firstRange)
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...versions[3],
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/fourth_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+fourth-range"
+      }]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 500))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    fireEvent.click(selector)
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "To v2 RUN-22" }))
+    expect(await screen.findByTitle("app/models/first_range.rb")).toBeInTheDocument()
+    expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=branch-base&head=second-head")
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "From v4 RUN-44" }))
+
+    expect(await screen.findByTitle("app/models/fourth_range.rb")).toBeInTheDocument()
+    expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 400)
+    expect(fetchJobSourceDiff).not.toHaveBeenLastCalledWith("42", "?base=third-head&head=second-head")
+  })
+
+  it("clamps To endpoint selections so To cannot be older than From", async () => {
+    const versions = orderedRangeVersions()
+    const initial = sourceDiffPayload({
+      version: versions[4],
+      versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/all_changes.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+all-changes"
+      }]
+    })
+    const firstRange = sourceDiffPayload({
+      version: version({ id: 600, version_index: 6, base_sha: "second-head", head_sha: "fourth-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/first_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+first-range"
+      }]
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(firstRange)
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...versions[1],
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/second_range.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+second-range"
+      }]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 500))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Version")
+    fireEvent.click(selector)
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "From v3 RUN-33" }))
+    expect(await screen.findByTitle("app/models/first_range.rb")).toBeInTheDocument()
+    expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=second-head&head=fourth-head")
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "To v2 RUN-22" }))
+
+    expect(await screen.findByTitle("app/models/second_range.rb")).toBeInTheDocument()
+    expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 200)
+    expect(fetchJobSourceDiff).not.toHaveBeenLastCalledWith("42", "?base=second-head&head=second-head")
+  })
+
   it("does not keep the previous explicit range visible while a new range loads", async () => {
     const initial = sourceDiffPayload({
       version: version({ id: 500, version_index: 5, base_sha: "branch-base", head_sha: "fourth-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
@@ -906,6 +1168,8 @@ function sourceDiffPayload(overrides: Partial<JobSourceDiffPayload> = {}): JobSo
     job_id: 42,
     base_ref: "base-sha",
     head_ref: "head-sha",
+    base_sha: "base-sha",
+    head_sha: "head-sha",
     merge_base_sha: "base-sha",
     default_ref: "main",
     branch_commits: [],
@@ -947,6 +1211,16 @@ function sourceDiffPayload(overrides: Partial<JobSourceDiffPayload> = {}): JobSo
     ],
     ...overrides
   }
+}
+
+function orderedRangeVersions(): NonNullable<JobSourceDiffPayload["version"]>[] {
+  return [
+    version({ id: 100, version_index: 1, base_sha: "branch-base", head_sha: "first-head", label: "Initial implementation", run_id: 11 }),
+    version({ id: 200, version_index: 2, base_sha: "first-head", head_sha: "second-head", label: "Repair", run_id: 22 }),
+    version({ id: 300, version_index: 3, base_sha: "second-head", head_sha: "third-head", label: "Follow-up", run_id: 33 }),
+    version({ id: 400, version_index: 4, base_sha: "third-head", head_sha: "fourth-head", label: "Final", run_id: 44 }),
+    version({ id: 500, version_index: 5, base_sha: "branch-base", head_sha: "fourth-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } })
+  ]
 }
 
 function version(overrides: Partial<NonNullable<JobSourceDiffPayload["version"]>> = {}): NonNullable<JobSourceDiffPayload["version"]> {

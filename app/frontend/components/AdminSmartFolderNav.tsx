@@ -27,8 +27,9 @@ export function AdminSmartFolderNav({
   subjectType
 }: {
   activeFolderId?: number | null
-  allLabel: string
-  allPath: string
+  /** Omit both allLabel and allPath to skip the generic unfiltered "All" link -- for a subject whose own smart folders already include an unfiltered one. */
+  allLabel?: string
+  allPath?: string
   allowSaveWithoutActiveFolder?: boolean
   appliedFilter?: Record<string, unknown> | null
   ariaLabel: string
@@ -101,11 +102,11 @@ export function AdminSmartFolderNav({
     <aside className="space-y-2">
       <SmartFolderNavigation
         actionLabel={(folder) => `Manage ${folder.name}`}
-        allLink={{
+        allLink={allLabel && allPath ? {
           active: activeFolderId == null,
           label: allLabel,
           path: allPath
-        }}
+        } : null}
         ariaLabel={ariaLabel}
         emptySavedMessage={t("smart_folder.no_saved_folders")}
         folders={folders}

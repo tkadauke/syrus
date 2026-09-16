@@ -127,3 +127,16 @@ feed use `smart_folder_id=` as an explicit no-folder escape hatch. The operator
 page exposes the folders through the normal app sidebar, while the admin page
 renders the same folders in an in-page `AdminSmartFolderNav` column because
 admin plugin pages do not have a nested sidebar hook.
+
+`AgentActivity::SidebarPages` sets `smart_folder_all_link: false` on the
+`agent_activity.mine` registration: since `AgentActivity::SmartFolders::BUILTINS`
+already registers its own unfiltered `All` folder, the sidebar's generic "All
+&lt;label&gt;" catch-all link (`SidebarPluginSmartFolderNav` in `AppChromeV2.tsx`,
+which every other `sidebar_page` gets by default) would just duplicate it --
+and its bare, param-less path silently fell back to the default `Running`
+folder server-side instead of actually showing everything
+(`AgentActivityController#default_smart_folder` only skips the default when
+`smart_folder_id` or `q` is present -- exactly the params the generic link's
+plain `/agent_activity` path omits). A subject with no built-in unfiltered
+folder of its own (Design Docs, for example) still gets the generic link by
+default.

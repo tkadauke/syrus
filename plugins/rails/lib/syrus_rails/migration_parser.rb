@@ -56,15 +56,48 @@ module SyrusRails
       { table_name: table[:name], columns: table[:columns] }
     end
 
+    # Idiomatic Syrus migrations use separate up/down methods with inline
+    # column_exists? guards (see CLAUDE.md), not a single `change` method.
+    # A naive line scan would match `add_column` in `up` AND the mirrored
+    # `remove_column` in `down`, recording the same column as both added
+    # and removed -- which then cancel out in build_after_state/
+    # build_before_state, leaving before/after identical (both missing the
+    # column) instead of showing the real diff. Skip the body of `down`
+    # (or `self.down`) so only the forward change is counted.
     def extract_changes
       changes = []
+      depth = 0
+      down_depth = nil
+
       @migration_content.each_line do |raw|
         line = raw.strip
         next if line.start_with?("#")
 
+        if down_depth
+          depth += 1 if opens_block?(line)
+          depth -= 1 if line == "end"
+          down_depth = nil if depth < down_depth
+          next
+        end
+
+        if line.match?(/\Adef\s+(self\.)?down\b/)
+          depth += 1
+          down_depth = depth
+          next
+        end
+
+        depth += 1 if opens_block?(line)
+        depth -= 1 if line == "end"
         changes.concat(parse_line(line))
       end
       changes
+    end
+
+    # Only treats a leading if/unless/case/while/until as a block opener --
+    # a trailing postfix modifier (`add_column ... unless column_exists?`)
+    # has no matching `end` and must not shift the depth count.
+    def opens_block?(line)
+      line.match?(/\A(def|class|module|begin|while|until|if|unless|case)\b/) || line.match?(/\bdo(\s*\|[^|]*\|)?\z/)
     end
 
     def parse_line(line)
@@ -122,7 +155,12 @@ module SyrusRails
         case c.kind
         when :add_column
           table_map[c.table] ||= empty_table(c.table)
-          table_map[c.table][:columns] << col_from_change(c)
+          # db/schema.rb reflects the fully-migrated state, so a migration
+          # already applied to it has its added column present there too --
+          # append only when it's genuinely missing to avoid listing it twice.
+          unless table_map[c.table][:columns].any? { |col| col[:name] == c.column.to_s }
+            table_map[c.table][:columns] << col_from_change(c)
+          end
         when :remove_column
           if table_map[c.table]
             table_map[c.table][:columns].reject! { |col| col[:name] == c.column.to_s }

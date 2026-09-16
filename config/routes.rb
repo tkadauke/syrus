@@ -96,6 +96,7 @@ Rails.application.routes.draw do
         post "jobs", to: "direct_jobs#create"
         get "jobs/:id/source", to: "jobs#source", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_diff", to: "jobs#source_diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/source_image", to: "jobs#source_image", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/target_graph", to: "target_graphs#job", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/diff_review_versions", to: "diff_review_versions#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/diff_review_versions/:id", to: "diff_review_versions#show", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }

@@ -53,7 +53,30 @@ RSpec.describe App::DiffReviewVersionsPayload do
       status: "modified",
       additions: 4,
       deletions: 1,
-      patch: "@@ -1 +1 @@\n-old\n+new"
+      patch: "@@ -1 +1 @@\n-old\n+new",
+      is_image: false
+    )
+  end
+
+  it "flags a stored patch-less file as an image by extension" do
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "aabbccdd1234567",
+      head_sha: "deadbeef12345678",
+      files: [
+        { path: "app/assets/images/logo.png", status: "added", additions: 0, deletions: 0, patch: nil }
+      ]
+    )
+
+    show = described_class.show(version: version)
+
+    expect(show[:files]).to contain_exactly(
+      path: "app/assets/images/logo.png",
+      status: "added",
+      additions: 0,
+      deletions: 0,
+      patch: nil,
+      is_image: true
     )
   end
 

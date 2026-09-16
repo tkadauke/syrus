@@ -32,10 +32,17 @@ export function DiffReviewVersionSelector({
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const optionRefs = useRef<Array<HTMLDivElement | null>>([])
   const [open, setOpen] = useState(false)
-  const ordered = useMemo(() => [...versions].sort(compareVersions), [versions])
-  const selected = ordered.find((version) => version.id === selectedVersionId) || (selectedRange ? null : ordered[0]) || null
+  const ordered = useMemo(() => canonicalReviewVersions(versions).sort(compareVersions), [versions])
+  const payloadSelected = versions.find((version) => version.id === selectedVersionId) || null
+  const selected =
+    ordered.find((version) => version.id === selectedVersionId) ||
+    (payloadSelected ? findMatchingVersion(ordered, payloadSelected.base_sha, payloadSelected.head_sha) : null) ||
+    (selectedRange ? null : ordered[0]) ||
+    null
   const rangeBaseSha = selectedRange?.baseSha || selected?.base_sha || ordered[0]?.base_sha || ""
   const rangeHeadSha = selectedRange?.headSha || selected?.head_sha || ordered[ordered.length - 1]?.head_sha || ""
+  const fromEndpointVersion = findEndpointVersion(ordered, "from", rangeBaseSha)
+  const toEndpointVersion = findEndpointVersion(ordered, "to", rangeHeadSha)
   const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha) : selected ? collapsedLabel(t, selected) : t("review_version_label")
   const selectedIndex = Math.max(0, ordered.findIndex((version) => version.id === selected?.id || version.base_sha === rangeBaseSha || version.head_sha === rangeHeadSha))
   const [activeIndex, setActiveIndex] = useState(selectedIndex)
@@ -76,8 +83,16 @@ export function DiffReviewVersionSelector({
   }
 
   function selectEndpoint(version: DiffReviewVersion, endpoint: "from" | "to") {
-    const nextBaseSha = endpoint === "from" ? version.base_sha : rangeBaseSha
-    const nextHeadSha = endpoint === "to" ? version.head_sha : rangeHeadSha
+    const nextEndpoints = orderedEndpointRange({
+      endpoint,
+      fromVersion: fromEndpointVersion,
+      selectedVersion: version,
+      toVersion: toEndpointVersion,
+      fallbackBaseSha: rangeBaseSha,
+      fallbackHeadSha: rangeHeadSha
+    })
+    const nextBaseSha = nextEndpoints.baseSha
+    const nextHeadSha = nextEndpoints.headSha
     const matchingVersion = findMatchingVersion(ordered, nextBaseSha, nextHeadSha)
     if (matchingVersion) {
       selectVersion(matchingVersion)
@@ -151,8 +166,8 @@ export function DiffReviewVersionSelector({
         >
           {ordered.map((version, index) => {
             const selectedOption = version.id === selected?.id || (version.base_sha === rangeBaseSha && version.head_sha === rangeHeadSha)
-            const fromSelected = version.base_sha === rangeBaseSha
-            const toSelected = version.head_sha === rangeHeadSha
+            const fromSelected = version.id === fromEndpointVersion?.id
+            const toSelected = version.id === toEndpointVersion?.id
             const allChanges = isAllChangesVersion(version)
             return (
               <div
@@ -207,6 +222,61 @@ function compareVersions(a: DiffReviewVersion, b: DiffReviewVersion) {
   if (isAllChangesVersion(a) && !isAllChangesVersion(b)) return -1
   if (!isAllChangesVersion(a) && isAllChangesVersion(b)) return 1
   return a.version_index - b.version_index || a.id - b.id
+}
+
+function canonicalReviewVersions(versions: DiffReviewVersion[]) {
+  const canonicalByRunRange = new Map<string, DiffReviewVersion>()
+  const canonical = new Set<DiffReviewVersion>()
+  for (const version of versions) {
+    const key = runRangeKey(version)
+    if (!key) {
+      canonical.add(version)
+      continue
+    }
+
+    const existing = canonicalByRunRange.get(key)
+    if (!existing || compareVersions(version, existing) < 0) {
+      if (existing) canonical.delete(existing)
+      canonicalByRunRange.set(key, version)
+      canonical.add(version)
+    }
+  }
+  return [...canonical]
+}
+
+function runRangeKey(version: DiffReviewVersion) {
+  if (!version.run_id) return null
+  return [version.run_id, version.base_sha, version.head_sha].join(":")
+}
+
+function orderedEndpointRange({
+  endpoint,
+  fallbackBaseSha,
+  fallbackHeadSha,
+  fromVersion,
+  selectedVersion,
+  toVersion
+}: {
+  endpoint: "from" | "to"
+  fallbackBaseSha: string
+  fallbackHeadSha: string
+  fromVersion: DiffReviewVersion | null
+  selectedVersion: DiffReviewVersion
+  toVersion: DiffReviewVersion | null
+}) {
+  if (endpoint === "from") {
+    const mustClampTo = toVersion && selectedVersion.version_index > toVersion.version_index
+    return {
+      baseSha: selectedVersion.base_sha,
+      headSha: mustClampTo ? selectedVersion.head_sha : fallbackHeadSha
+    }
+  }
+
+  const mustClampFrom = fromVersion && selectedVersion.version_index < fromVersion.version_index
+  return {
+    baseSha: mustClampFrom ? selectedVersion.base_sha : fallbackBaseSha,
+    headSha: selectedVersion.head_sha
+  }
 }
 
 function RangeRow({
@@ -362,6 +432,10 @@ function optionAccessibleName(t: TFunction<"jobs">, version: DiffReviewVersion) 
 
 function findMatchingVersion(versions: DiffReviewVersion[], baseSha: string, headSha: string) {
   return versions.find((version) => version.base_sha === baseSha && version.head_sha === headSha) || null
+}
+
+function findEndpointVersion(versions: DiffReviewVersion[], endpoint: "from" | "to", sha: string) {
+  return versions.find((version) => !isAllChangesVersion(version) && (endpoint === "from" ? version.base_sha === sha : version.head_sha === sha)) || null
 }
 
 function filesLabel(t: TFunction<"jobs">, count: number) {

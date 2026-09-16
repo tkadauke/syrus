@@ -34,6 +34,8 @@ RSpec.describe App::JobSourceDiffPayload do
       job_id: job.id,
       base_ref: "aabbccdd1234567",
       head_ref: "deadbeef12345678",
+      base_sha: "aabbccdd1234567",
+      head_sha: "deadbeef12345678",
       merge_base_sha: "aabbccdd1234567",
       default_ref: "main",
       truncated: false,
@@ -50,7 +52,8 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 4,
       deletions: 1,
-      patch: "@@ -1 +1 @@\n-old\n+new"
+      patch: "@@ -1 +1 @@\n-old\n+new",
+      is_image: false
     )
     expect(payload[:version]).to include(
       version_index: 1,
@@ -77,6 +80,62 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(payload[:files]).to eq([])
     expect(payload[:truncated]).to eq(false)
     expect(payload[:diff_error]).to eq("GitHub unavailable")
+  end
+
+  it "flags patch-less image files by extension and leaves other patch-less files unflagged" do
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(
+        commits: [
+          { sha: "deadbeef12345678", short_sha: "deadbee", message: "Add screenshot", date: Time.zone.parse("2026-05-01T12:00:00Z") }
+        ],
+        merge_base_sha: "aabbccdd1234567"
+      )
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "aabbccdd1234567", "deadbeef12345678")
+      .and_return(
+        files: [
+          { path: "app/assets/images/logo.png", status: "modified", additions: 0, deletions: 0, patch: nil },
+          { path: "app/assets/images/UPPER.PNG", status: "added", additions: 0, deletions: 0, patch: nil },
+          { path: "vendor/some.bin", status: "modified", additions: 0, deletions: 0, patch: nil },
+          { path: "app/models/user.rb", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" }
+        ],
+        truncated: false
+      )
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload[:files]).to contain_exactly(
+      { path: "app/assets/images/logo.png", status: "modified", additions: 0, deletions: 0, patch: nil, is_image: true },
+      { path: "app/assets/images/UPPER.PNG", status: "added", additions: 0, deletions: 0, patch: nil, is_image: true },
+      { path: "vendor/some.bin", status: "modified", additions: 0, deletions: 0, patch: nil, is_image: false },
+      { path: "app/models/user.rb", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new", is_image: false }
+    )
+  end
+
+  it "does not flag an image-extension file as binary when GitHub did return a patch" do
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "old-base", "old-head")
+      .and_return(
+        files: [
+          { path: "app/assets/images/diagram.svg", status: "modified", additions: 3, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" }
+        ],
+        truncated: false
+      )
+
+    payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+
+    expect(payload[:files]).to contain_exactly(
+      path: "app/assets/images/diagram.svg",
+      status: "modified",
+      additions: 3,
+      deletions: 1,
+      patch: "@@ -1 +1 @@\n-old\n+new",
+      is_image: false
+    )
   end
 
   it "diffs a stacked Epic child Job against its parent Job's branch, not the repository default branch" do
@@ -114,7 +173,8 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 2,
       deletions: 0,
-      patch: "@@ -1 +1,2 @@\n+new"
+      patch: "@@ -1 +1,2 @@\n+new",
+      is_image: false
     )
   end
 
@@ -184,6 +244,23 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(job.diff_review_versions.count).to eq(1)
   end
 
+  it "reuses the same explicit SHA pair across repeated source diff payload fetches" do
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "old-base", "old-head")
+      .and_return(files: [
+        { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+new" }
+      ], truncated: false)
+
+    first_payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+    second_payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+
+    expect(second_payload.dig(:version, :id)).to eq(first_payload.dig(:version, :id))
+    expect(job.diff_review_versions.pluck(:base_sha, :head_sha)).to eq([ [ "old-base", "old-head" ] ])
+  end
+
   it "defaults to the full branch range when the latest implement repair step changed fewer files" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
     step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
@@ -249,20 +326,23 @@ RSpec.describe App::JobSourceDiffPayload do
         status: "modified",
         additions: 10,
         deletions: 0,
-        patch: "@@ -1 +1,2 @@\n+ui"
+        patch: "@@ -1 +1,2 @@\n+ui",
+        is_image: false
       },
       {
         path: "db/migrate/20260910113000_add_reusable_input_index_to_target_health_records.rb",
         status: "added",
         additions: 6,
         deletions: 0,
-        patch: "@@ -0,0 +1,6 @@\n+class AddReusableInputIndex"
+        patch: "@@ -0,0 +1,6 @@\n+class AddReusableInputIndex",
+        is_image: false
       },
       path: "app/services/step_dispatcher.rb",
       status: "modified",
       additions: 2,
       deletions: 0,
-      patch: "@@ -1 +1,2 @@\n+backend"
+      patch: "@@ -1 +1,2 @@\n+backend",
+      is_image: false
     )
     expect(payload[:versions].map { |version| version[:id] }).to include(repair_step.id, payload.dig(:version, :id))
   end
@@ -304,7 +384,8 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 2,
       deletions: 0,
-      patch: "@@ -1 +1,2 @@\n+implemented"
+      patch: "@@ -1 +1,2 @@\n+implemented",
+      is_image: false
     )
     expect(job.diff_review_versions.count).to eq(1)
   end
@@ -341,7 +422,8 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 2,
       deletions: 0,
-      patch: "@@ -1 +1,2 @@\n+implemented"
+      patch: "@@ -1 +1,2 @@\n+implemented",
+      is_image: false
     )
   end
 
@@ -465,7 +547,8 @@ RSpec.describe App::JobSourceDiffPayload do
         status: "modified",
         additions: 4,
         deletions: 1,
-        patch: "@@ -1 +1 @@\n-old\n+new"
+        patch: "@@ -1 +1 @@\n-old\n+new",
+        is_image: false
       )
       expect(payload[:version]).to include(
         version_index: 1,

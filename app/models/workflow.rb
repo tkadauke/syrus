@@ -515,16 +515,32 @@ class Workflow < ApplicationRecord
 
   # Shared replace-on-type write for the 'typed_artifacts' array, used by
   # both SyrusMcp::SubmitArtifactTool and SyrusMcp::SubmitVisualArtifactTool
-  # so the idempotent-replace semantics live in one place.
-  def set_typed_artifact!(type:, title:, payload:, original_type: nil, renderer_type: nil)
+  # so the idempotent-replace semantics live in one place. Replace-on-type is
+  # scoped to THIS workflow's own array; App::JobDetailPayload#typed_artifacts_json
+  # is what decides whether same-type entries from other workflows (other
+  # review rounds) are collapsed or kept side by side with provenance.
+  #
+  # workflow_id/trigger_kind are always known (this workflow); run_id,
+  # step_id, base_sha, head_sha, and diff_review_version_id are caller-supplied
+  # best-effort provenance and are only recorded when present, so an entry
+  # written without them is honestly presentable as "unversioned" downstream.
+  def set_typed_artifact!(type:, title:, payload:, original_type: nil, renderer_type: nil,
+                           run_id: nil, step_id: nil, base_sha: nil, head_sha: nil, diff_review_version_id: nil)
     entry = {
-      "type"       => type,
-      "title"      => title,
-      "payload"    => payload,
-      "created_at" => Time.current.iso8601
+      "type"         => type,
+      "title"        => title,
+      "payload"      => payload,
+      "created_at"   => Time.current.iso8601,
+      "workflow_id"  => id,
+      "trigger_kind" => trigger_kind
     }
     entry["original_type"] = original_type if original_type.present?
     entry["renderer_type"] = renderer_type.to_s if renderer_type.present?
+    entry["run_id"] = run_id if run_id.present?
+    entry["step_id"] = step_id if step_id.present?
+    entry["base_sha"] = base_sha if base_sha.present?
+    entry["head_sha"] = head_sha if head_sha.present?
+    entry["diff_review_version_id"] = diff_review_version_id if diff_review_version_id.present?
     updated = Array(artifact("typed_artifacts")).reject { |e| e["type"] == type }
     updated << entry
     set_artifact!("typed_artifacts", updated)

@@ -170,11 +170,12 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     icon: item.icon,
     smartFolderApiPath: item.smartFolderApiPath,
     smartFolderSubject: item.smartFolderSubject,
+    smartFolderAllLink: item.smartFolderAllLink,
     ...(navBadges[item.id] === undefined ? {} : { badge: navBadges[item.id] })
   })), [mergedSidebarNavItems, navBadges, normalizedPath, prefix])
   const navItems: SidebarNavItem[] = useMemo(() => (
     user ? [
-      ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, rawTo: "/onboarding", active: normalizedPath === "/onboarding", icon: <SetupIcon />, smartFolderApiPath: null, smartFolderSubject: null }] : []),
+      ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, rawTo: "/onboarding", active: normalizedPath === "/onboarding", icon: <SetupIcon />, smartFolderApiPath: null, smartFolderSubject: null, smartFolderAllLink: undefined }] : []),
       ...(tabsHidden ? [] : (() => {
         const items = [...primaryNavItems]
         if (legacyEpicsVisible) {
@@ -187,7 +188,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             active: normalizedPath.startsWith("/dashboard/epics"),
             icon: <EpicIcon />,
             smartFolderApiPath: null,
-            smartFolderSubject: null
+            smartFolderSubject: null,
+            smartFolderAllLink: undefined
           })
         }
         return items
@@ -1063,6 +1065,7 @@ type SidebarNavItem = {
   badge?: number
   smartFolderApiPath?: string | null
   smartFolderSubject?: string | null
+  smartFolderAllLink?: boolean
 }
 
 function itemHasSubnav(item: SidebarNavItem, dashboardSubnavEnabled = true) {
@@ -1362,8 +1365,10 @@ function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boo
         <div className="space-y-3 pl-7 pt-1">
           <AdminSmartFolderNav
             activeFolderId={payload.data.active_smart_folder_id}
-            allLabel={t("nav:sidebar_smart_folders_all", { label: item.label.toLowerCase() })}
-            allPath={item.rawTo}
+            {...(item.smartFolderAllLink === false ? {} : {
+              allLabel: t("nav:sidebar_smart_folders_all", { label: item.label.toLowerCase() }),
+              allPath: item.rawTo
+            })}
             allowSaveWithoutActiveFolder
             ariaLabel={t("nav:sidebar_smart_folders_aria", { label: item.label })}
             currentFilter={payload.data.filter}

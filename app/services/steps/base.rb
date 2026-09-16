@@ -282,6 +282,8 @@ module Steps
           error: tool_result_error == true
         )
       end
+    rescue StandardError => e
+      Rails.logger.warn("[McpToolUsageRecorder] workflow transcript usage record skipped: #{e.class}: #{e.message}")
     end
 
     def mcp_tool_name?(tool_name)

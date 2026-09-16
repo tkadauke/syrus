@@ -10,11 +10,18 @@ export function TypedArtifactPanel({ artifacts }: { artifacts: TypedArtifact[] }
 
   return (
     <div className="min-w-0 space-y-4">
-      {artifacts.map((artifact) => (
-        <ArtifactCard key={artifact.type} artifact={artifact} />
+      {artifacts.map((artifact, index) => (
+        <ArtifactCard key={artifactKey(artifact, index)} artifact={artifact} />
       ))}
     </div>
   )
+}
+
+// Same `type` can now appear more than once (one entry per review round —
+// see App::JobDetailPayload#typed_artifacts_json), so `type` alone is no
+// longer a safe React key.
+function artifactKey(artifact: TypedArtifact, index: number) {
+  return [ artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index ].join("-")
 }
 
 function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {

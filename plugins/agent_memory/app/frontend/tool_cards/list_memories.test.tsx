@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listMemoriesToolCard from "./list_memories"
@@ -71,11 +71,41 @@ describe("list_memories tool card", () => {
     expect(screen.getByText("No memories match this scope.")).toBeInTheDocument()
   })
 
-  it("truncates long content behind a disclosure", () => {
+  it("does not show a show-more button for short content", () => {
+    render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [globalMemory] } }))}</>)
+
+    expect(screen.queryByText("Show more")).not.toBeInTheDocument()
+  })
+
+  it("shows a show-more button for long content that opens a markdown-rendered modal", () => {
     const longContent = Array.from({ length: 10 }, (_, i) => `line ${i}`).join("\n")
     render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [{ ...globalMemory, content: longContent }] } }))}</>)
 
-    expect(screen.getByText("Show full content (10 lines)")).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText("Show more"))
+
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toBeInTheDocument()
+    expect(dialog).toHaveTextContent("line 0")
+    expect(dialog).toHaveTextContent("line 9")
+  })
+
+  it("also shows the show-more button for a single long wrapped paragraph with no line breaks", () => {
+    const longParagraph = "word ".repeat(80).trim()
+    render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [{ ...globalMemory, content: longParagraph }] } }))}</>)
+
+    expect(screen.getByText("Show more")).toBeInTheDocument()
+  })
+
+  it("shows the show-more button in the narrow list column for a moderate one-line paragraph that would still wrap past 3 lines there", () => {
+    // ~240 chars, no literal newlines: comfortably 3 lines or fewer against a
+    // wide/full-card estimate, but wraps to well over 3 real lines in the
+    // list table's narrow content column -- the exact case the "too much
+    // text shown by default" bug report was about.
+    const moderateParagraph = "word ".repeat(48).trim()
+    render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [{ ...globalMemory, content: moderateParagraph }] } }))}</>)
+
+    expect(screen.getByText("Show more")).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload", () => {
