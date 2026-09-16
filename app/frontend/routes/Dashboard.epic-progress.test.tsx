@@ -39,7 +39,8 @@ function epicItem(overrides: Partial<DashboardEpicItem> = {}): DashboardEpicItem
     repository: {
       id: 1,
       slug: "owner/repo",
-      repository_path: "/repositories/1"
+      repository_path: "/repositories/1",
+      multiple_members: false
     },
     paths: {
       epic_path: "/epics/1",
