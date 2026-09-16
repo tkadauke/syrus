@@ -2,32 +2,10 @@ import { useQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 
 import { chatPreviewPanelFileUrl, fetchChatPreviewPanelFile } from "@app/api/chats"
-import { postJson } from "@app/api/client"
 import { Select } from "@app/components/Select"
 import { Notice, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import type { MockupPanel } from "../api/mockups"
-
-// An html panel is served from its own preview-panel-<id> origin, and a
-// private one needs a short-lived token before that origin will answer. Same
-// contract the chat sidebar uses; the panel routes are just not chat-scoped.
-function usePanelAccessToken(panel: MockupPanel | null, enabled: boolean) {
-  return useQuery({
-    queryKey: ["mockup_panel_token", panel?.id],
-    queryFn: () => postJson<{ token: string }>(panel!.app_token_path),
-    enabled: enabled && !!panel && panel.visibility !== "public",
-    staleTime: 60_000,
-    retry: false
-  })
-}
-
-function versionedUrl(panel: MockupPanel, versionId: number | null, token: string | null) {
-  const params = new URLSearchParams()
-  if (versionId) params.set("v", String(versionId))
-  if (token) params.set("t", token)
-  const query = params.toString()
-  return `${panel.url}${query ? `?${query}` : ""}`
-}
 
 export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
   const { t } = useT("mockups")
@@ -41,16 +19,13 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
   const isHtml = viewerKind === "html"
   const rawUrl = chatPreviewPanelFileUrl(panel.app_file_base_path, entryPath, versionId, true)
 
-  const accessToken = usePanelAccessToken(panel, isHtml)
-  const token = panel.visibility === "public" ? null : accessToken.data?.token ?? null
-  const canRender = !isHtml || panel.visibility === "public" || !!token
-
-  // Markdown and anything unrecognised render as text, which is also how an
-  // unknown plugin-registered viewer kind degrades.
+  // The mockups gallery runs inside the main app shell, so render HTML through
+  // the authenticated file endpoint instead of depending on the isolated
+  // preview-panel origin being reachable from this viewport.
   const textQuery = useQuery({
     queryKey: ["mockup_panel_file", panel.id, versionId, entryPath],
     queryFn: () => fetchChatPreviewPanelFile(panel.app_file_base_path, entryPath, versionId),
-    enabled: viewerKind === "markdown" || viewerKind === "unsupported",
+    enabled: viewerKind === "html" || viewerKind === "markdown" || viewerKind === "unsupported",
     staleTime: Infinity,
     retry: false
   })
@@ -82,16 +57,20 @@ export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
         </a>
       </div>
 
-      {!canRender ? (
-        <Notice className="m-3">{t("preview_access_pending")}</Notice>
-      ) : isHtml ? (
-        <iframe
-          className="h-full w-full min-h-0 flex-1 border-0"
-          referrerPolicy="no-referrer"
-          sandbox="allow-scripts"
-          src={versionedUrl(panel, versionId, token)}
-          title={panel.title}
-        />
+      {isHtml ? (
+        textQuery.isPending ? (
+          <Notice className="m-3">{t("loading")}</Notice>
+        ) : textQuery.isError ? (
+          <Notice className="m-3" tone="error">{t("preview_unavailable")}</Notice>
+        ) : (
+          <iframe
+            className="h-full w-full min-h-0 flex-1 border-0 bg-white"
+            referrerPolicy="no-referrer"
+            sandbox="allow-scripts"
+            srcDoc={textQuery.data?.content ?? ""}
+            title={panel.title}
+          />
+        )
       ) : viewerKind === "pdf" ? (
         <iframe className="h-full w-full min-h-0 flex-1 border-0 bg-white" src={rawUrl} title={entryPath} />
       ) : viewerKind === "image" ? (
