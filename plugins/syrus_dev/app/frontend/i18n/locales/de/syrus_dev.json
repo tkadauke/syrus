@@ -31,7 +31,24 @@
     "viewport_tablet": "Tablet ({{width}}px)",
     "viewport_desktop": "Desktop ({{width}}px)",
     "viewport_wide": "Breiter Desktop ({{width}}px)",
-    "viewport_frame_aria": "Kartenvorschau begrenzt auf {{width}}px"
+    "viewport_frame_aria": "Kartenvorschau begrenzt auf {{width}}px",
+    "discuss": {
+      "trigger": "Diese Karte besprechen",
+      "modal_aria": "{{tool}} besprechen",
+      "heading": "{{tool}} besprechen",
+      "close": "Schließen",
+      "capturing": "Screenshot wird erstellt...",
+      "capture_failed": "Screenshot dieser Karte konnte nicht erstellt werden. Der Chat kann trotzdem ohne Screenshot gestartet werden — die Metadaten unten sind weiterhin enthalten.",
+      "screenshot_alt": "Screenshot der Karte {{tool}}",
+      "annotate": "Screenshot annotieren",
+      "prompt_label": "Was sollte der Assistent wissen?",
+      "prompt_placeholder": "Beschreibe, was falsch aussieht oder was geändert werden soll...",
+      "metadata_summary": "Rohdaten der Nutzlast",
+      "chat_failed": "Der neue Chat konnte nicht gestartet werden. Bitte erneut versuchen.",
+      "cancel": "Abbrechen",
+      "submit": "Chat öffnen",
+      "starting": "Chat wird gestartet..."
+    }
   },
   "performance": {
     "heading": "Performance",

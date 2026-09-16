@@ -31,7 +31,24 @@
     "viewport_tablet": "Tabella ({{width}}px)",
     "viewport_desktop": "Scrinium ({{width}}px)",
     "viewport_wide": "Scrinium latum ({{width}}px)",
-    "viewport_frame_aria": "Prospectus chartae ad {{width}}px coartatus"
+    "viewport_frame_aria": "Prospectus chartae ad {{width}}px coartatus",
+    "discuss": {
+      "trigger": "De hac charta disserere",
+      "modal_aria": "De {{tool}} disserere",
+      "heading": "De {{tool}} disserere",
+      "close": "Claudere",
+      "capturing": "Effigies capitur...",
+      "capture_failed": "Effigies huius chartae capi non potuit. Colloquium tamen sine effigie incipi potest — notitiae infra adhuc insunt.",
+      "screenshot_alt": "Effigies chartae {{tool}}",
+      "annotate": "Effigiem adnotare",
+      "prompt_label": "Quid administer scire debet?",
+      "prompt_placeholder": "Describe quid perperam appareat aut quid mutari velis...",
+      "metadata_summary": "Notitiae crudae oneris",
+      "chat_failed": "Novum colloquium incipi non potuit. Iterum conare.",
+      "cancel": "Cancellare",
+      "submit": "Colloquium aperire",
+      "starting": "Colloquium incipitur..."
+    }
   },
   "performance": {
     "heading": "Celeritas",

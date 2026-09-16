@@ -31,7 +31,24 @@
     "viewport_tablet": "Tablet ({{width}}px)",
     "viewport_desktop": "Desktop ({{width}}px)",
     "viewport_wide": "Wide desktop ({{width}}px)",
-    "viewport_frame_aria": "Card preview constrained to {{width}}px"
+    "viewport_frame_aria": "Card preview constrained to {{width}}px",
+    "discuss": {
+      "trigger": "Discuss this card",
+      "modal_aria": "Discuss {{tool}}",
+      "heading": "Discuss {{tool}}",
+      "close": "Close",
+      "capturing": "Capturing screenshot...",
+      "capture_failed": "Couldn't capture a screenshot of this card. You can still start the chat without one — the metadata below is still included.",
+      "screenshot_alt": "Screenshot of the {{tool}} card",
+      "annotate": "Annotate screenshot",
+      "prompt_label": "What should the assistant know?",
+      "prompt_placeholder": "Describe what looks wrong or what you'd like changed...",
+      "metadata_summary": "Raw payload metadata",
+      "chat_failed": "Couldn't start a new chat. Please try again.",
+      "cancel": "Cancel",
+      "submit": "Open chat",
+      "starting": "Starting chat..."
+    }
   },
   "performance": {
     "heading": "Performance",
