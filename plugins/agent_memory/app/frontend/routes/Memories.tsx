@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { SectionHeading } from "@app/components/Heading"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import type { FormEvent } from "react"
 import { useEffect, useState } from "react"
@@ -28,8 +28,17 @@ import { NoticeToast } from "@app/components/NoticeToast"
 import { Select } from "@app/components/Select"
 import { Markdown } from "@app/lib/Markdown"
 import { useConfirm } from "@app/hooks/useConfirm"
-import { Button } from "@app/components/Button"
-import { PILL_TONE_CLASSES } from "@app/components/StatusPill"
+import { Button, buttonClasses } from "@app/components/Button"
+import { PILL_TONE_CLASSES, TonePill } from "@app/components/StatusPill"
+import {
+  DataTable,
+  Form,
+  Notice,
+  Page,
+  PageHeading,
+  Section,
+  Text
+} from "@app/components/ui"
 
 const kindKeys: Record<string, string> = {
   user_pref: "kind_user_pref",
@@ -59,17 +68,17 @@ export function MemoriesRoute() {
   })
 
   return (
-    <main aria-label={t("aria_memories")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header>
+    <Page.Root aria-label={t("aria_memories")} size="wide">
+      <Page.Header>
         <PageHeading>{t('heading')}</PageHeading>
-        <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t('description')}</p>
-      </header>
+        <Page.Description className="max-w-2xl">{t('description')}</Page.Description>
+      </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {memories.isPending ? <PanelMessage>{t('loading')}</PanelMessage> : null}
+      {memories.isPending ? <Notice>{t('loading')}</Notice> : null}
       {memories.isError ? <MemoriesError error={memories.error} /> : null}
       {memories.isSuccess ? <MemoriesView onNotice={setNotice} payload={memories.data} /> : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -90,7 +99,7 @@ function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotic
 
   return (
     <>
-      <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <Section.Root>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <FilterBar
             filter={payload.filter}
@@ -111,7 +120,7 @@ function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotic
             )}
           </div>
         </div>
-      </section>
+      </Section.Root>
       <MemoriesTable onNotice={onNotice} payload={payload} showDeleted={showDeleted} />
       <MemoryPagination pagination={payload.pagination} />
       {creating ? <MemoryModal mode="create" onClose={() => setCreating(false)} onNotice={onNotice} payload={payload} /> : null}
@@ -125,28 +134,28 @@ function MemoriesTable({ payload, onNotice, showDeleted }: { payload: MemoriesPa
   const columnCount = showOwner ? 7 : 6
 
   return (
-    <section className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t('col_kind')}</th>
-            <th className="px-4 py-2">{t('col_scope')}</th>
-            {showOwner ? <th className="px-4 py-2">{t('col_owner')}</th> : null}
-            <th className="px-4 py-2">{t('col_content')}</th>
-            <th className="px-4 py-2">{showDeleted ? t('col_deleted') : t('col_published')}</th>
-            <th className="px-4 py-2">{t('col_created')}</th>
-            <th className="px-4 py-2"><span className="sr-only">{t('col_actions')}</span></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
+    <Section.Root className="overflow-hidden p-0">
+      <DataTable.Root wrapperClassName="rounded-none border-0">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t('col_kind')}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t('col_scope')}</DataTable.HeadCell>
+            {showOwner ? <DataTable.HeadCell>{t('col_owner')}</DataTable.HeadCell> : null}
+            <DataTable.HeadCell>{t('col_content')}</DataTable.HeadCell>
+            <DataTable.HeadCell>{showDeleted ? t('col_deleted') : t('col_published')}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t('col_created')}</DataTable.HeadCell>
+            <DataTable.HeadCell><span className="sr-only">{t('col_actions')}</span></DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {payload.memories.length === 0 ? (
-            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={columnCount}>{showDeleted ? t('no_deleted_results') : t('no_results')}</td></tr>
+            <DataTable.Row><DataTable.Cell className="py-6 text-center text-text-muted" colSpan={columnCount}>{showDeleted ? t('no_deleted_results') : t('no_results')}</DataTable.Cell></DataTable.Row>
           ) : payload.memories.map((memory) => (
             <MemoryRowView key={memory.id} memory={memory} onNotice={onNotice} payload={payload} showDeleted={showDeleted} showOwner={showOwner} />
           ))}
-        </tbody>
-      </table>
-    </section>
+        </DataTable.Body>
+      </DataTable.Root>
+    </Section.Root>
   )
 }
 
@@ -173,41 +182,37 @@ function MemoryRowView({ memory, payload, showOwner, showDeleted, onNotice }: { 
   })
 
   return (
-    <tr className="align-top">
-      <td className="px-4 py-3"><KindBadge kind={memory.kind} /></td>
-      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.scope === "global" ? t('scope_global') : memory.repository_name || `${t('scope_repository')} #${memory.scope_id}`}</td>
-      {showOwner ? <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.owner.name}</td> : null}
-      <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
-        <Markdown className="chat-prose line-clamp-2 text-sm text-gray-800 break-words dark:text-gray-200" text={memory.content} />
+    <DataTable.Row className="align-top">
+      <DataTable.Cell><KindBadge kind={memory.kind} /></DataTable.Cell>
+      <DataTable.Cell className="text-text-secondary">{memory.scope === "global" ? t('scope_global') : memory.repository_name || `${t('scope_repository')} #${memory.scope_id}`}</DataTable.Cell>
+      {showOwner ? <DataTable.Cell className="text-text-secondary">{memory.owner.name}</DataTable.Cell> : null}
+      <DataTable.Cell className="max-w-2xl text-text-primary">
+        <Markdown className="chat-prose line-clamp-2 text-sm text-text-primary break-words" text={memory.content} />
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <button className="text-xs text-brand-emphasis underline hover:no-underline" onClick={() => setViewing(true)} type="button">
             {t('see_more')}
           </button>
           {memory.changed && memory.permissions.can_manage ? (
-            <button
-              className="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800"
-              onClick={() => setViewingHistory(true)}
-              type="button"
-            >
-              {t('changed_badge')}
+            <button className="contents" onClick={() => setViewingHistory(true)} type="button">
+              <TonePill tone="amber">{t('changed_badge')}</TonePill>
             </button>
           ) : null}
         </div>
-      </td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell>
         {showDeleted ? (
-          <span className="text-gray-600 dark:text-gray-400">
+          <Text as="span">
             {memory.deleted_by
               ? t('deleted_by', { name: memory.deleted_by.name })
               : t('deleted_by_unknown')}
             {memory.deleted_at ? <><br /><RelativeTimestamp value={memory.deleted_at} /></> : null}
-          </span>
+          </Text>
         ) : (
-          <span className={memory.published ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}>{memory.published ? t('published_label') : t('unpublished_label')}</span>
+          <TonePill tone={memory.published ? "green" : "gray"}>{memory.published ? t('published_label') : t('unpublished_label')}</TonePill>
         )}
-      </td>
-      <td className="px-4 py-3 text-gray-600 dark:text-gray-400"><RelativeTimestamp value={memory.created_at} /></td>
-      <td className="px-4 py-3">
+      </DataTable.Cell>
+      <DataTable.Cell className="text-text-secondary"><RelativeTimestamp value={memory.created_at} /></DataTable.Cell>
+      <DataTable.Cell>
         <div className="flex justify-end gap-2">
           {memory.permissions.can_manage ? (
             <Button onClick={() => setViewingHistory(true)} size="sm" variant="secondary">
@@ -225,8 +230,9 @@ function MemoryRowView({ memory, payload, showOwner, showDeleted, onNotice }: { 
             </Button>
           ) : null}
           {!showDeleted && memory.permissions.can_manage ? (
-            <button
-              className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
+            <Button
+              variant="danger"
+              size="sm"
               disabled={destroy.isPending}
               onClick={async () => {
                 if (await confirm({ message: t('confirm_delete'), destructive: true })) {
@@ -234,20 +240,19 @@ function MemoryRowView({ memory, payload, showOwner, showDeleted, onNotice }: { 
                   destroy.mutate()
                 }
               }}
-              type="button"
             >
               {destroy.isPending ? t('deleting') : t('delete')}
-            </button>
+            </Button>
           ) : null}
         </div>
-        {publish.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(publish.error, "Unable to change publish state.")}</p> : null}
-        {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete memory.")}</p> : null}
+        {publish.isError ? <Text as="p" className="mt-2 font-medium" role="alert" variant="caption" tone="danger">{errorMessage(publish.error, "Unable to change publish state.")}</Text> : null}
+        {destroy.isError ? <Text as="p" className="mt-2 font-medium" role="alert" variant="caption" tone="danger">{errorMessage(destroy.error, "Unable to delete memory.")}</Text> : null}
         {viewing ? <MemoryContentModal memory={memory} onClose={() => setViewing(false)} /> : null}
         {editing ? <MemoryModal memory={memory} mode="edit" onClose={() => setEditing(false)} onNotice={onNotice} payload={payload} /> : null}
         {viewingHistory ? <MemoryHistoryModal memory={memory} onClose={() => setViewingHistory(false)} /> : null}
         {dialog}
-      </td>
-    </tr>
+      </DataTable.Cell>
+    </DataTable.Row>
   )
 }
 
@@ -325,8 +330,8 @@ function MemoryHistoryModal({ memory, onClose }: { memory: MemoryRow; onClose: (
               <CloseIcon className="h-7 w-7" />
             </button>
           </div>
-          {query.isPending ? <p className="text-sm text-gray-600 dark:text-gray-400">{t('history_loading')}</p> : null}
-          {query.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(query.error, "Unable to load memory history.")}</p> : null}
+          {query.isPending ? <Notice>{t('history_loading')}</Notice> : null}
+          {query.isError ? <Notice tone="danger" role="alert">{errorMessage(query.error, "Unable to load memory history.")}</Notice> : null}
           {query.isSuccess ? (
             <ol className="space-y-3">
               {query.data.audit_events.map((event) => <AuditEventRow key={event.id} event={event} />)}
@@ -342,9 +347,9 @@ function AuditEventRow({ event }: { event: MemoryAuditEvent }) {
   const { t } = useT("agent_memory")
 
   return (
-    <li className="rounded border border-gray-200 p-3 dark:border-gray-700">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
-        <span className="font-medium text-gray-700 dark:text-gray-300">{eventTypeLabel(event.event_type, t)}</span>
+    <li className="rounded border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
+        <span className="font-medium text-text-secondary">{eventTypeLabel(event.event_type, t)}</span>
         <span>{actorLabel(event.actor, t)}</span>
         <RelativeTimestamp value={event.created_at} />
       </div>
@@ -367,12 +372,12 @@ function AuditEventSnapshot({ label, snapshot }: { label: string | null; snapsho
 
   return (
     <div>
-      {label ? <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</p> : null}
-      <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{snapshot.content}</p>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      {label ? <Text className="font-medium uppercase" variant="caption" tone="muted">{label}</Text> : null}
+      <Text className="mt-1 whitespace-pre-wrap" tone="muted">{snapshot.content}</Text>
+      <Text className="mt-1" variant="caption" tone="muted">
         {snapshot.kind ? kindLabel(snapshot.kind, t) : null}
         {snapshot.confidence != null ? ` · ${t('history_confidence', { value: snapshot.confidence })}` : null}
-      </p>
+      </Text>
     </div>
   )
 }
@@ -470,23 +475,23 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className={labelClass()} htmlFor="memory-kind">
-              {t('modal_kind')}
+            <Form.Field>
+              <Form.Label htmlFor="memory-kind">{t('modal_kind')}</Form.Label>
               <Select className="mt-1" id="memory-kind" onChange={(event) => setKind(event.target.value as MemoryKind)} value={kind}>
                 {payload.kinds.map((option) => <option key={option} value={option}>{kindLabel(option, t)}</option>)}
               </Select>
-            </label>
-            <label className={labelClass()} htmlFor="memory-scope">
-              {t('modal_scope')}
+            </Form.Field>
+            <Form.Field>
+              <Form.Label htmlFor="memory-scope">{t('modal_scope')}</Form.Label>
               <Select className="mt-1" id="memory-scope" onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
                 {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? t('scope_global') : t('scope_repository')}</option>)}
               </Select>
-            </label>
+            </Form.Field>
           </div>
 
           {scope === "repository" ? (
-            <label className={labelClass()} htmlFor="memory-repository">
-              {t('modal_repository')}
+            <Form.Field>
+              <Form.Label htmlFor="memory-repository">{t('modal_repository')}</Form.Label>
               <Select
                 className="mt-1"
                 disabled={payload.repositories.length === 0}
@@ -498,31 +503,31 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
                 {payload.repositories.length === 0 ? <option value="">{t('no_repositories')}</option> : null}
                 {payload.repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.name}</option>)}
               </Select>
-            </label>
+            </Form.Field>
           ) : null}
 
-          <label className={labelClass()} htmlFor="memory-content">
-            {t('modal_content_label')}
+          <Form.Field>
+            <Form.Label htmlFor="memory-content">{t('modal_content_label')}</Form.Label>
             <textarea
               id="memory-content"
-              className={`${fieldClass()} min-h-40`}
+              className="mt-1 block min-h-40 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm text-text-primary disabled:bg-surface-raised disabled:text-text-muted"
               maxLength={2000}
               onChange={(event) => setContent(event.target.value)}
               required
               value={content}
             />
-          </label>
+          </Form.Field>
 
-          {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, mode === "create" ? "Unable to create memory." : "Unable to update memory.")}</p> : null}
+          {error ? <Text as="p" className="font-medium" role="alert" variant="caption" tone="danger">{errorMessage(error, mode === "create" ? "Unable to create memory." : "Unable to update memory.")}</Text> : null}
 
-          <div className="flex justify-end gap-2">
+          <Form.Actions>
             <Button onClick={onClose} variant="secondary">
               {t('cancel')}
             </Button>
             <Button disabled={pending} type="submit" variant="primary">
               {pending ? t('saving') : t('save')}
             </Button>
-          </div>
+          </Form.Actions>
         </form>
       </section>
     </div>
@@ -549,11 +554,11 @@ function MemoryPagination({ pagination }: { pagination: MemoriesPayload["paginat
       <span>{t('showing', { first: firstItem, last: lastItem, total: pagination.total })}</span>
       <div className="flex gap-2">
         {pagination.page > 1 ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => go(pagination.page - 1)} type="button">{t('previous')}</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t('previous')}</span>}
+          <Button onClick={() => go(pagination.page - 1)} size="sm" variant="secondary">{t('previous')}</Button>
+        ) : <span className={buttonClasses("secondary", "sm", "opacity-50")}>{t('previous')}</span>}
         {pagination.page < pagination.total_pages ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => go(pagination.page + 1)} type="button">{t('next')}</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{t('next')}</span>}
+          <Button onClick={() => go(pagination.page + 1)} size="sm" variant="secondary">{t('next')}</Button>
+        ) : <span className={buttonClasses("secondary", "sm", "opacity-50")}>{t('next')}</span>}
       </div>
     </div>
   )
@@ -569,22 +574,9 @@ function kindLabel(kind: string, t: (key: string) => string) {
   return key ? t(key) : kind
 }
 
-function labelClass() {
-  return "block text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
-}
-
-function fieldClass() {
-  return "mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 disabled:bg-gray-100 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:disabled:bg-gray-800"
-}
-
-function PanelMessage({ children }: { children: string }) {
-  const { t } = useT("agent_memory")
-  return <section className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{children}</section>
-}
-
 function MemoriesError({ error }: { error: unknown }) {
   const { t } = useT("agent_memory")
-  return <section className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{errorMessage(error, "Unable to load memories.")}</section>
+  return <Notice tone="danger">{errorMessage(error, "Unable to load memories.")}</Notice>
 }
 
 function errorMessage(error: unknown, fallback: string) {

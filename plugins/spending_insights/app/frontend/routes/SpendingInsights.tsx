@@ -1,6 +1,7 @@
 import { withRoutePrefix } from "@app/lib/routing"
 import { formatCurrency } from "@app/lib/format"
 import { FilterBar } from "@app/components/FilterBar"
+import { Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
@@ -21,12 +22,18 @@ export function SpendingInsightsRoute() {
     queryFn: () => fetchSpending(location.search)
   })
 
-  if (spending.isPending) return <main aria-label={t("aria_insights")} className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("common:loading")}</main>
+  if (spending.isPending) {
+    return (
+      <Page.Root aria-label={t("aria_insights")} size="wide">
+        <Notice>{t("common:loading")}</Notice>
+      </Page.Root>
+    )
+  }
   if (spending.isError) {
     return (
-      <main aria-label={t("aria_insights")} className="p-6">
-        <p className="text-sm text-red-700 dark:text-red-300">{t("unable_to_load")}</p>
-      </main>
+      <Page.Root aria-label={t("aria_insights")} size="wide">
+        <Notice tone="danger">{t("unable_to_load")}</Notice>
+      </Page.Root>
     )
   }
 
@@ -38,14 +45,14 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
   const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
 
   return (
-    <main aria-label={t("aria_insights")} className="mx-auto max-w-[96rem] space-y-5 p-6">
-      <header className="flex flex-col gap-4 border-b border-gray-200 dark:border-gray-700 pb-4 lg:flex-row lg:items-end lg:justify-between">
+    <Page.Root aria-label={t("aria_insights")} className="space-y-5" size="wide">
+      <Page.Header className="flex flex-col gap-4 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("eyebrow")}</p>
-          <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{t("title")}</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("scope_range", { scope: payload.scope.admin ? t("scope_all_users") : payload.scope.label, start: payload.filters.start_date, end: payload.filters.end_date })}</p>
+          <Text className="font-medium uppercase" variant="caption" tone="muted">{t("eyebrow")}</Text>
+          <PageHeading>{t("title")}</PageHeading>
+          <Page.Description>{t("scope_range", { scope: payload.scope.admin ? t("scope_all_users") : payload.scope.label, start: payload.filters.start_date, end: payload.filters.end_date })}</Page.Description>
         </div>
-      </header>
+      </Page.Header>
 
       <FilterBar
         filter={payload.filter}
@@ -63,13 +70,13 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
         <Metric title={t("metric_avg_merged_pr")} value={formatSpendingCurrency(payload.totals.average_merged_pr_30d_usd)} context={t("context_last_30_days")} />
       </section>
 
-      <section aria-label={t("trend_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <Section.Root aria-label={t("trend_aria")}>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("trend")}</h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{t("trend_days", { count: payload.trend.length })}</span>
+          <SectionHeading>{t("trend")}</SectionHeading>
+          <Text as="span" variant="caption" tone="muted">{t("trend_days", { count: payload.trend.length })}</Text>
         </div>
         <TrendChart points={payload.trend} />
-      </section>
+      </Section.Root>
 
       <div className="grid gap-5 xl:grid-cols-2">
         <BreakdownTable title={t("by_epic")} entityLabel={t("entity_epic")} rows={payload.breakdowns.epics} prefix={prefix} columns="standard" emptyLabel={t("empty_epic")} />
@@ -79,7 +86,7 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
       </div>
 
       <TopRunsTable payload={payload} prefix={prefix} />
-    </main>
+    </Page.Root>
   )
 }
 
@@ -87,11 +94,11 @@ const legacyFilterKeys = ["start_date", "end_date", "repository_id", "epic_id", 
 
 function Metric({ title, value, context }: { title: string; value: string; context: string }) {
   return (
-    <article className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</h2>
-      <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
-      <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{context}</p>
-    </article>
+    <Section.Root>
+      <Text className="font-medium" tone="muted">{title}</Text>
+      <Text className="mt-2 text-3xl font-semibold" tone="default">{value}</Text>
+      <Text className="mt-1 truncate" variant="caption" tone="muted">{context}</Text>
+    </Section.Root>
   )
 }
 
@@ -135,7 +142,7 @@ function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel 
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
 
   return (
-    <section aria-label={title} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+    <Section.Root aria-label={title} className="overflow-hidden p-0">
       <TableHeader title={title} />
       {rows.length === 0 ? <EmptyTable label={emptyLabel} /> : (
         <div className="overflow-x-auto">
@@ -171,7 +178,7 @@ function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel 
           </table>
         </div>
       )}
-    </section>
+    </Section.Root>
   )
 }
 
@@ -181,7 +188,7 @@ function TriggerTable({ rows }: { rows: SpendingTriggerRow[] }) {
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
 
   return (
-    <section aria-label={t("trigger_aria")} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+    <Section.Root aria-label={t("trigger_aria")} className="overflow-hidden p-0">
       <TableHeader title={t("by_trigger_kind")} />
       {rows.length === 0 ? <EmptyTable label={t("empty_trigger")} /> : (
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -205,14 +212,14 @@ function TriggerTable({ rows }: { rows: SpendingTriggerRow[] }) {
           </tbody>
         </table>
       )}
-    </section>
+    </Section.Root>
   )
 }
 
 function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: string }) {
   const { t } = useT("spending")
   return (
-    <section aria-label={t("top_runs_aria")} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+    <Section.Root aria-label={t("top_runs_aria")} className="overflow-hidden p-0">
       <TableHeader title={t("top_runs")} />
       {payload.top_runs.length === 0 ? <EmptyTable label={t("empty_top_runs")} /> : (
         <div className="overflow-x-auto">
@@ -252,12 +259,12 @@ function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: s
           </table>
         </div>
       )}
-    </section>
+    </Section.Root>
   )
 }
 
 function TableHeader({ title }: { title: string }) {
-  return <h2 className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+  return <SectionHeading className="border-b border-border px-4 py-3">{title}</SectionHeading>
 }
 
 function EmptyTable({ label }: { label: string }) {

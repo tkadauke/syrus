@@ -1,5 +1,17 @@
-require "<%= file_name %>/version"
-require "<%= file_name %>/engine"
-
 module <%= module_name %>
+  extend Syrus::PluginApi
+
+  syrus_plugin "<%= file_name %>" do
+    display_name "<%= display_name %>"
+    category     "tooling"
+    author       ""
+    description  "Syrus plugin: <%= display_name %>."
+<% if frontend? -%>
+
+    provides admin_page: "<%= module_name %>::AdminPages"
+
+    frontend routes: { "<%= file_name %>/AdminExample" => "app/frontend/routes/AdminExample.tsx" },
+             i18n: [ "app/frontend/i18n/locales/*/<%= file_name %>.json" ]
+<% end -%>
+  end
 end

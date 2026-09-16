@@ -3,10 +3,9 @@ import { useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { FilterBar } from "@app/components/FilterBar"
-import { PageHeading } from "@app/components/Heading"
-import { PanelMessage } from "@app/components/PanelMessage"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { CloseIcon } from "@app/components/CloseIcon"
+import { Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { withRoutePrefix } from "@app/lib/routing"
@@ -45,7 +44,7 @@ export default function MockupsPage() {
     navigate({ pathname: withRoutePrefix("/mockups", ""), search: location.search })
 
   return (
-    <main aria-label={t("title")} className="flex h-full min-h-0 flex-col gap-3 p-4">
+    <Page.Root aria-label={t("title")} className="flex h-full min-h-0 flex-col gap-3 p-4" size="full">
       <PageHeading>{t("title")}</PageHeading>
 
       <FilterBar
@@ -55,14 +54,14 @@ export default function MockupsPage() {
         search={location.search}
       />
 
-      <div className="flex min-h-0 flex-1 gap-3">
-        <div className="min-h-0 flex-1 overflow-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
+        <Section.Root className="min-h-[14rem] flex-1 overflow-auto p-0 lg:min-h-0">
           {listQuery.isPending ? (
-            <PanelMessage>{t("loading")}</PanelMessage>
+            <Notice className="m-3">{t("loading")}</Notice>
           ) : listQuery.isError ? (
-            <PanelMessage>{t("load_failed")}</PanelMessage>
+            <Notice className="m-3" tone="danger">{t("load_failed")}</Notice>
           ) : listQuery.data.mockups.length === 0 ? (
-            <PanelMessage>{t("empty")}</PanelMessage>
+            <Notice className="m-3">{t("empty")}</Notice>
           ) : (
             <ul>
               {listQuery.data.mockups.map((mockup) => {
@@ -71,15 +70,15 @@ export default function MockupsPage() {
                   <li key={mockup.id}>
                     <button
                       aria-current={selected ? "true" : undefined}
-                      className={`flex w-full items-center gap-3 border-b border-gray-100 px-3 py-2 text-left hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800 ${selected ? "bg-gray-50 dark:bg-gray-800" : ""}`}
+                      className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2 text-left hover:bg-surface-raised sm:flex-nowrap ${selected ? "bg-surface-raised" : ""}`}
                       onClick={() => select(mockup)}
                       type="button"
                     >
-                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{mockup.slug}</span>
-                      <span className="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-100">{mockup.title}</span>
-                      <span className="text-xs text-gray-400">{t("file_count", { count: mockup.file_count })}</span>
+                      <Text as="span" className="font-mono" variant="caption" tone="muted">{mockup.slug}</Text>
+                      <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="default">{mockup.title}</Text>
+                      <Text as="span" className="shrink-0" variant="caption" tone="muted">{t("file_count", { count: mockup.file_count })}</Text>
                       {mockup.updated_at ? (
-                        <RelativeTimestamp className="text-xs text-gray-400" value={mockup.updated_at} />
+                        <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={mockup.updated_at} />
                       ) : null}
                     </button>
                   </li>
@@ -87,17 +86,17 @@ export default function MockupsPage() {
               })}
             </ul>
           )}
-        </div>
+        </Section.Root>
 
         {selectedRef ? (
           <aside
             aria-label={t("preview_aria")}
-            className="flex min-h-0 w-1/2 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+            className="flex min-h-[28rem] flex-col rounded border border-border bg-surface lg:min-h-0 lg:w-1/2"
           >
-            <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+              <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="default">
                 {detailQuery.data?.mockup.title ?? selectedRef}
-              </span>
+              </Text>
               {detailQuery.data?.mockup.chat_path ? (
                 <Link
                   className="shrink-0 rounded px-2 py-1 text-xs font-medium text-brand hover:bg-brand/10 dark:text-brand-emphasis"
@@ -121,9 +120,9 @@ export default function MockupsPage() {
               </p>
             ) : null}
             {detailQuery.isPending ? (
-              <PanelMessage>{t("loading")}</PanelMessage>
+              <Notice className="m-3">{t("loading")}</Notice>
             ) : detailQuery.isError ? (
-              <PanelMessage>{t("preview_unavailable")}</PanelMessage>
+              <Notice className="m-3" tone="danger">{t("preview_unavailable")}</Notice>
             ) : (
               <MockupPreviewPanel
                 onNotice={setNotice}
@@ -137,6 +136,6 @@ export default function MockupsPage() {
           </aside>
         ) : null}
       </div>
-    </main>
+    </Page.Root>
   )
 }

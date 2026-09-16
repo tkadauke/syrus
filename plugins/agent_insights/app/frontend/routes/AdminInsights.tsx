@@ -1,8 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { Button, buttonClasses } from "@app/components/Button"
+import { PILL_TONE_CLASSES, TonePill } from "@app/components/StatusPill"
+import {
+  DataTable,
+  Notice,
+  Page,
+  PageHeading,
+  Section,
+  SectionHeading,
+  Text,
+  Toolbar
+} from "@app/components/ui"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Button } from "@app/components/Button"
 import { withRoutePrefix } from "@app/lib/routing"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
@@ -24,19 +34,19 @@ export function AdminInsightsRoute() {
 
   if (query.isPending) {
     return (
-      <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
         <AdminInsightsHeader />
-        <p className="text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p>
-      </main>
+        <Notice>{t("loading")}</Notice>
+      </Page.Root>
     )
   }
 
   if (query.isError) {
     return (
-      <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
         <AdminInsightsHeader />
-        <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(query.error, t("load_error"))}</p>
-      </main>
+        <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice>
+      </Page.Root>
     )
   }
 
@@ -55,11 +65,11 @@ export function AdminInsightsRoute() {
 function AdminInsightsHeader() {
   const { t } = useT("agent_insights")
   return (
-    <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-      <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin_eyebrow")}</p>
-      <PageHeading className="mt-1">{t("admin_title")}</PageHeading>
-      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("admin_subtitle")}</p>
-    </header>
+    <Page.Header className="border-b border-border pb-4">
+      <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin_eyebrow")}</Text>
+      <PageHeading>{t("admin_title")}</PageHeading>
+      <Page.Description>{t("admin_subtitle")}</Page.Description>
+    </Page.Header>
   )
 }
 
@@ -98,10 +108,10 @@ function AdminInsightsList({
   const lastItem = Math.min(page * meta.per_page, meta.total)
 
   return (
-    <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <Page.Root aria-label={t("aria_admin_insights")} size="wide">
       <AdminInsightsHeader />
 
-      <div className="flex items-center justify-between gap-4">
+      <Toolbar className="justify-between gap-4">
         <SectionHeading>
           {t("suggestions_heading")}
         </SectionHeading>
@@ -114,39 +124,39 @@ function AdminInsightsList({
               variant={stateFilter === tab.key ? "primary" : "secondary"}
             >
               {tab.label}
-              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${stateFilter === tab.key ? "bg-white/20 text-current" : PILL_TONE_CLASSES.gray}`}>
                 {tab.count}
               </span>
             </Button>
           ))}
         </nav>
-      </div>
+      </Toolbar>
 
       {suggestions.length === 0 ? (
-        <div className="rounded border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+        <Notice className="p-8 text-center">
           {t("empty")}
-        </div>
+        </Notice>
       ) : (
-        <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_title")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_repository")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_user")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_severity")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_confidence")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_state")}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("col_actions")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
+        <Section.Root className="overflow-hidden p-0">
+          <DataTable.Root wrapperClassName="rounded-none border-0">
+            <DataTable.Header>
+              <DataTable.Row>
+                <DataTable.HeadCell>{t("col_title")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_repository")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_user")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_severity")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_confidence")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_state")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_actions")}</DataTable.HeadCell>
+              </DataTable.Row>
+            </DataTable.Header>
+            <DataTable.Body>
               {suggestions.map((suggestion) => (
                 <AdminSuggestionRow key={suggestion.id} prefix={prefix} suggestion={suggestion} />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </DataTable.Body>
+          </DataTable.Root>
+        </Section.Root>
       )}
 
       {meta.total_pages > 1 && (
@@ -154,35 +164,27 @@ function AdminInsightsList({
           <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: meta.total })}</span>
           <div className="flex gap-2">
             {page > 1 ? (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page - 1)}
-                type="button"
-              >
+              <Button onClick={() => onPageChange(page - 1)} size="sm" variant="secondary">
                 {t("pagination_previous")}
-              </button>
+              </Button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
+              <span className={buttonClasses("secondary", "sm", "opacity-50")}>
                 {t("pagination_previous")}
               </span>
             )}
             {page < meta.total_pages ? (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-                onClick={() => onPageChange(page + 1)}
-                type="button"
-              >
+              <Button onClick={() => onPageChange(page + 1)} size="sm" variant="secondary">
                 {t("pagination_next")}
-              </button>
+              </Button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
+              <span className={buttonClasses("secondary", "sm", "opacity-50")}>
                 {t("pagination_next")}
               </span>
             )}
           </div>
         </div>
       )}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -215,45 +217,41 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
 
   return (
     <>
-      <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-        <td className="px-4 py-3">
+      <DataTable.Row className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+        <DataTable.Cell>
           <div className="max-w-sm">
             <button
-              className="text-left text-sm font-medium text-gray-900 underline-offset-2 hover:underline dark:text-gray-100"
+              className="text-left text-sm font-medium text-text-primary underline-offset-2 hover:underline"
               onClick={() => setExpanded((v) => !v)}
               type="button"
             >
               {suggestion.title}
             </button>
-            <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-              {suggestion.category}
-            </span>
-            <span className={`ml-2 rounded px-1.5 py-0.5 text-xs ${suggestion.proposal_type === "remove_memory" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
-              {t(`proposal_${suggestion.proposal_type}`)}
-            </span>
+            <span className="ml-2"><TonePill tone="gray">{suggestion.category}</TonePill></span>
+            <span className="ml-2"><TonePill tone={suggestion.proposal_type === "remove_memory" ? "red" : "gray"}>{t(`proposal_${suggestion.proposal_type}`)}</TonePill></span>
           </div>
-        </td>
-        <td className="px-4 py-3">
+        </DataTable.Cell>
+        <DataTable.Cell>
           <Link
             className="text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
             to={withRoutePrefix(suggestion.repository.insights_path, prefix)}
           >
             {suggestion.repository.slug}
           </Link>
-        </td>
-        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+        </DataTable.Cell>
+        <DataTable.Cell className="text-xs text-text-secondary">
           {suggestion.user.display_name}
-        </td>
-        <td className="px-4 py-3">
+        </DataTable.Cell>
+        <DataTable.Cell>
           <SeverityPill severity={suggestion.severity} />
-        </td>
-        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+        </DataTable.Cell>
+        <DataTable.Cell className="text-xs text-text-secondary">
           {Math.round(suggestion.confidence * 100)}%
-        </td>
-        <td className="px-4 py-3">
+        </DataTable.Cell>
+        <DataTable.Cell>
           <StatePill state={suggestion.state} />
-        </td>
-        <td className="px-4 py-3">
+        </DataTable.Cell>
+        <DataTable.Cell>
           <div className="flex items-center gap-2">
             <Link
               className="text-xs text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
@@ -272,20 +270,20 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               </Button>
             )}
             {suggestion.state === "pending" && suggestion.proposal_type === "remove_memory" && (
-              <button
-                className="rounded border border-red-300 px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
+              <Button
+                size="sm"
+                variant="danger"
                 disabled={acceptRemoveMemoryMutation.isPending}
                 onClick={() => acceptRemoveMemoryMutation.mutate()}
-                type="button"
               >
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
-              </button>
+              </Button>
             )}
           </div>
-        </td>
-      </tr>
+        </DataTable.Cell>
+      </DataTable.Row>
       {expanded && (
-        <tr className="bg-gray-50 dark:bg-gray-800/50">
+        <DataTable.Row className="bg-gray-50 dark:bg-gray-800/50">
           <td className="px-4 pb-4 pt-0" colSpan={7}>
             {notice && <p className="mb-2 text-xs text-green-700 dark:text-green-400">{notice}</p>}
             {error && <p className="mb-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
@@ -335,7 +333,7 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               </div>
             )}
           </td>
-        </tr>
+        </DataTable.Row>
       )}
     </>
   )
@@ -343,34 +341,14 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
 
 function SeverityPill({ severity }: { severity: string }) {
   const { t } = useT("agent_insights")
-  const classes =
-    severity === "high"
-      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-      : severity === "medium"
-        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`severity_${severity}`)}
-    </span>
-  )
+  const tone = severity === "high" ? "red" : severity === "medium" ? "amber" : "gray"
+  return <TonePill tone={tone}>{t(`severity_${severity}`)}</TonePill>
 }
 
 function StatePill({ state }: { state: string }) {
   const { t } = useT("agent_insights")
-  const classes =
-    state === "accepted"
-      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-      : state === "dismissed"
-        ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-        : state === "retired"
-          ? "bg-gray-200 text-gray-500 dark:bg-gray-800/60 dark:text-gray-500"
-          : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {t(`state_${state}`)}
-    </span>
-  )
+  const tone = state === "accepted" ? "green" : state === "pending" ? "amber" : "gray"
+  return <TonePill tone={tone}>{t(`state_${state}`)}</TonePill>
 }
 
 // Default export is what the plugin component loaders require
