@@ -89,6 +89,57 @@ describe("AdminToolCards", () => {
     const region = screen.getByRole("region", { name: "Bash" })
     expect(within(region).getByRole("tab", { name: "Error: command failed", selected: true })).toBeInTheDocument()
   })
+
+  it("defaults the preview viewport to desktop and lets an operator switch presets", () => {
+    renderRoute("/admin/tool_cards?tool_name=Bash")
+
+    const switcher = screen.getByRole("tablist", { name: "Preview viewport" })
+    expect(within(switcher).getByRole("tab", { name: "Desktop (1280px)", selected: true })).toBeInTheDocument()
+
+    const region = screen.getByRole("region", { name: "Bash" })
+    expandToolGroup(region)
+    expect(within(region).getByText("Bash(ls)")).toBeInTheDocument()
+
+    fireEvent.click(within(switcher).getByRole("tab", { name: "Phone (390px)" }))
+
+    expect(within(switcher).getByRole("tab", { name: "Phone (390px)", selected: true })).toBeInTheDocument()
+    expect(within(region).getByText("Bash(ls)")).toBeInTheDocument()
+  })
+
+  it("applies each preset's width as an explicit inline width, not a max-width, on the preview frame", () => {
+    renderRoute("/admin/tool_cards?tool_name=Bash")
+
+    const region = screen.getByRole("region", { name: "Bash" })
+    const frame = () => within(region).getByLabelText(/Card preview constrained to/)
+
+    // Explicit `width` (not `max-width`) is required so a preset wider than
+    // the ambient page content -- e.g. "wide desktop" at 1600px under the
+    // page's max-w-[96rem]/1536px cap -- still applies its full requested
+    // width and overflows into a scrollbar, instead of silently collapsing
+    // to whatever width the surrounding container happens to have.
+    expect(frame().style.width).toBe("1280px")
+    expect(frame().style.maxWidth).toBe("")
+
+    fireEvent.click(screen.getByRole("tab", { name: "Wide desktop (1600px)" }))
+    expect(frame().style.width).toBe("1600px")
+    expect(frame().style.maxWidth).toBe("")
+
+    fireEvent.click(screen.getByRole("tab", { name: "Phone (390px)" }))
+    expect(frame().style.width).toBe("390px")
+  })
+
+  it("reads the initial viewport preset from the URL and keeps it in the deep-link query params", () => {
+    renderRoute("/admin/tool_cards?tool_name=Bash&viewport=wide")
+
+    const switcher = screen.getByRole("tablist", { name: "Preview viewport" })
+    expect(within(switcher).getByRole("tab", { name: "Wide desktop (1600px)", selected: true })).toBeInTheDocument()
+
+    const wideTab = within(switcher).getByRole("tab", { name: "Wide desktop (1600px)" })
+    expect(wideTab).toHaveAttribute("href", expect.stringContaining("viewport=wide"))
+
+    const phoneTab = within(switcher).getByRole("tab", { name: "Phone (390px)" })
+    expect(phoneTab).toHaveAttribute("href", expect.stringContaining("tool_name=Bash"))
+  })
 })
 
 function renderRoute(initialEntry = "/admin/tool_cards") {

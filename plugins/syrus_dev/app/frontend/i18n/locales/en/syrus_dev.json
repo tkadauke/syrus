@@ -25,7 +25,13 @@
     "side_effecting": "Side-effecting",
     "example_selector_aria": "Examples for {{tool}}",
     "copy_link": "Copy link",
-    "link_copied": "Copied!"
+    "link_copied": "Copied!",
+    "viewport_switcher_aria": "Preview viewport",
+    "viewport_phone": "Phone ({{width}}px)",
+    "viewport_tablet": "Tablet ({{width}}px)",
+    "viewport_desktop": "Desktop ({{width}}px)",
+    "viewport_wide": "Wide desktop ({{width}}px)",
+    "viewport_frame_aria": "Card preview constrained to {{width}}px"
   },
   "performance": {
     "heading": "Performance",

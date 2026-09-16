@@ -25,7 +25,13 @@
     "side_effecting": "Effectus habens",
     "example_selector_aria": "Exempla pro {{tool}}",
     "copy_link": "Nexum transcribere",
-    "link_copied": "Transcriptum!"
+    "link_copied": "Transcriptum!",
+    "viewport_switcher_aria": "Fenestella prospectus",
+    "viewport_phone": "Telephonum ({{width}}px)",
+    "viewport_tablet": "Tabella ({{width}}px)",
+    "viewport_desktop": "Scrinium ({{width}}px)",
+    "viewport_wide": "Scrinium latum ({{width}}px)",
+    "viewport_frame_aria": "Prospectus chartae ad {{width}}px coartatus"
   },
   "performance": {
     "heading": "Celeritas",
