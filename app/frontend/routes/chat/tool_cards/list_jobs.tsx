@@ -32,3 +32,18 @@ const listJobsToolCard: ToolCardRenderer = {
 }
 
 export default listJobsToolCard
+
+// Reviewable sample payload for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    label: "Two open Jobs",
+    input: { state: "open" },
+    resultBody: JSON.stringify({
+      jobs: [
+        { id: 101, title: "Fix flaky test", state: "running" },
+        { id: 102, title: "Add dark mode toggle", state: "approved" }
+      ]
+    })
+  }
+]
