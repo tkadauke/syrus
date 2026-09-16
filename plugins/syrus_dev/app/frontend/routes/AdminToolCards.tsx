@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import type { ChatToolGroupCall, ChatToolGroupItem } from "@app/api/chats"
 import { FilterBar, type FilterLinkBuilder, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
 import { Badge, Page, PanelMessage, Section, Text, type SemanticTone } from "@app/components/ui"
@@ -62,6 +62,36 @@ const COVERAGE_STATUS_OPTIONS = [
   { value: "has_examples", label: "Has examples" },
   { value: "no_examples", label: "No examples" }
 ]
+
+// Viewport review presets. Widths are the same rough breakpoints Syrus's own
+// visual_review agent step targets, not exact device dimensions. Each preset
+// sets an explicit `width` (not `max-width`) on the preview frame below, so a
+// preset wider than the ambient page content actually overflows into a
+// horizontal scrollbar instead of silently collapsing to the container's
+// natural width -- otherwise "desktop" and "wide desktop" could render
+// visually identical whenever the admin page happens to be narrower than
+// 1600px.
+type ViewportPresetId = "phone" | "tablet" | "desktop" | "wide"
+
+const VIEWPORT_PRESETS: ReadonlyArray<{ id: ViewportPresetId; width: number; labelKey: string }> = [
+  { id: "phone", width: 390, labelKey: "tool_cards.viewport_phone" },
+  { id: "tablet", width: 768, labelKey: "tool_cards.viewport_tablet" },
+  { id: "desktop", width: 1280, labelKey: "tool_cards.viewport_desktop" },
+  { id: "wide", width: 1600, labelKey: "tool_cards.viewport_wide" }
+]
+
+const DEFAULT_VIEWPORT: ViewportPresetId = "desktop"
+
+function viewportPresetFromSearch(search: string): (typeof VIEWPORT_PRESETS)[number] {
+  const value = new URLSearchParams(search).get("viewport")
+  return VIEWPORT_PRESETS.find((preset) => preset.id === value) ?? VIEWPORT_PRESETS.find((preset) => preset.id === DEFAULT_VIEWPORT)!
+}
+
+function viewportLink(pathname: string, search: string, presetId: ViewportPresetId) {
+  const params = new URLSearchParams(search)
+  params.set("viewport", presetId)
+  return `${pathname}?${params.toString()}`
+}
 
 function rendererTypeFor(entry: ToolPresentationEntry): RendererType {
   return entry.renderer ? "custom_card" : "generic_fallback"
@@ -211,6 +241,7 @@ export function AdminToolCards() {
 
   const filters = useMemo(() => filtersFromSearch(search), [search])
   const filterTree = useMemo(() => filterTreeFromSearch(search), [search])
+  const selectedViewport = useMemo(() => viewportPresetFromSearch(search), [search])
 
   const filteredEntries = useMemo(
     () => allEntries.filter((entry) => matchesFilters(entry, filters)).sort((left, right) => left.toolName.localeCompare(right.toolName)),
@@ -242,7 +273,26 @@ export function AdminToolCards() {
 
       <FilterBar buildLink={catalogFilterLink} filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={search} />
 
-      <Text muted variant="caption">{t("tool_cards.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Text muted variant="caption">{t("tool_cards.showing", { count: filteredEntries.length, total: allEntries.length })}</Text>
+        <div aria-label={t("tool_cards.viewport_switcher_aria")} className="flex flex-wrap gap-1.5" role="tablist">
+          {VIEWPORT_PRESETS.map((preset) => (
+            <Link
+              aria-selected={preset.id === selectedViewport.id}
+              className={
+                preset.id === selectedViewport.id
+                  ? "rounded-[var(--radius-control)] border border-brand bg-brand px-2 py-1 text-xs font-medium text-on-brand"
+                  : "rounded-[var(--radius-control)] border border-border bg-surface px-2 py-1 text-xs font-medium text-text-secondary hover:bg-surface-raised"
+              }
+              key={preset.id}
+              role="tab"
+              to={viewportLink(location.pathname, search, preset.id)}
+            >
+              {t(preset.labelKey, { width: preset.width })}
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {filteredEntries.length === 0 ? (
         <PanelMessage>{t("tool_cards.no_match")}</PanelMessage>
@@ -253,6 +303,7 @@ export function AdminToolCards() {
               entry={entry}
               initialExampleId={entry.toolName === deepLinkTool ? deepLinkExample : null}
               key={entry.toolName}
+              previewWidth={selectedViewport.width}
             />
           ))}
         </div>
@@ -263,7 +314,7 @@ export function AdminToolCards() {
 
 export default AdminToolCards
 
-function ToolCatalogEntry({ entry, initialExampleId }: { entry: ToolPresentationEntry; initialExampleId?: string | null }) {
+function ToolCatalogEntry({ entry, initialExampleId, previewWidth }: { entry: ToolPresentationEntry; initialExampleId?: string | null; previewWidth: number }) {
   const { t } = useT("syrus_dev")
   const { copied, copy } = useCopyToClipboard()
   const hasInitialMatch = Boolean(initialExampleId && entry.examples.some((example) => example.id === initialExampleId))
@@ -343,7 +394,23 @@ function ToolCatalogEntry({ entry, initialExampleId }: { entry: ToolPresentation
               </button>
             </div>
 
-            {group ? <ToolGroup item={group} /> : null}
+            {group ? (
+              <div className="overflow-x-auto">
+                {/* Explicit `width`, not `max-width`: a block element with only
+                    `max-width` never grows past its parent's actual available
+                    width, so a preset wider than the ambient page content
+                    (e.g. "wide desktop" under the page's max-w-[96rem] cap)
+                    would silently collapse to the container's natural width
+                    instead of applying the chosen width and scrolling. */}
+                <div
+                  aria-label={t("tool_cards.viewport_frame_aria", { width: previewWidth })}
+                  className="mx-auto rounded-[var(--radius-control)] border border-dashed border-border bg-surface p-3"
+                  style={{ width: `${previewWidth}px` }}
+                >
+                  <ToolGroup item={group} />
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </Section.Body>
