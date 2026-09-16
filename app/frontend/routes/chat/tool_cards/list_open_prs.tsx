@@ -62,23 +62,37 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">PR</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Title</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Refs</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Draft</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Mergeability</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              PR
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Title
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Refs
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Draft
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Mergeability
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {rows.map((row) => (
             <tr key={row.key}>
               <td className="whitespace-nowrap px-2 py-1 font-mono font-medium text-gray-900 dark:text-gray-100">#{row.number}</td>
-              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={row.title}>{row.title}</td>
+              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={row.title}>
+                {row.title}
+              </td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">
                 {row.headRef || "?"} → {row.baseRef || "?"}
               </td>
               <td className="whitespace-nowrap px-2 py-1">{row.draft ? <Badge>draft</Badge> : "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1"><MergeabilityBadge mergeable={row.mergeable} /></td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <MergeabilityBadge mergeable={row.mergeable} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -103,9 +117,9 @@ export const examples = [
     label: "Mixed mergeability and draft state",
     parsedResult: {
       pull_requests: [
-        { number: 5041, title: "Add example fixtures for core and plugin tool presentations", head_ref: "syrus/direct-5035", base_ref: "main", mergeable: true, draft: false },
-        { number: 5038, title: "WIP: rework landing queue heuristics", head_ref: "syrus/direct-5010", base_ref: "main", mergeable: null, draft: true },
-        { number: 5022, title: "Fix flaky worker health sample", head_ref: "syrus/direct-4998", base_ref: "main", mergeable: false, draft: false }
+        { number: 41, title: "Add dark mode toggle to the settings page", head_ref: "syrus/issue-71", base_ref: "main", mergeable: true, draft: false },
+        { number: 38, title: "WIP: rework pagination heuristics", head_ref: "syrus/issue-64", base_ref: "main", mergeable: null, draft: true },
+        { number: 22, title: "Fix flaky sidebar collapse test", head_ref: "syrus/issue-58", base_ref: "main", mergeable: false, draft: false }
       ]
     }
   },

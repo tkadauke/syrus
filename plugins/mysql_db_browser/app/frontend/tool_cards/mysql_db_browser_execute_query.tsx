@@ -17,7 +17,16 @@ import { formatMs, MysqlErrorNotice, parseMysqlError, TableShell, TruncatedNotic
 type QueryOutcome =
   | { kind: "error"; statement: string | null; error: MysqlError | null; durationMs: number | null }
   | { kind: "write"; statement: string | null; readOnly: boolean; affectedRows: number; durationMs: number | null }
-  | { kind: "select"; statement: string | null; readOnly: boolean; columns: string[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean; durationMs: number | null }
+  | {
+      kind: "select"
+      statement: string | null
+      readOnly: boolean
+      columns: string[]
+      rows: Record<string, unknown>[]
+      rowCount: number
+      truncated: boolean
+      durationMs: number | null
+    }
 
 function parseOutcome(context: ToolCardContext): QueryOutcome | null {
   const parsed = context.parsedResult
@@ -109,7 +118,9 @@ function renderExpanded(context: ToolCardContext) {
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
               {outcome.columns.map((column) => (
-                <th className="whitespace-nowrap px-2 py-1 font-semibold" key={column} scope="col">{column}</th>
+                <th className="whitespace-nowrap px-2 py-1 font-semibold" key={column} scope="col">
+                  {column}
+                </th>
               ))}
             </tr>
           </thead>
@@ -117,7 +128,9 @@ function renderExpanded(context: ToolCardContext) {
             {outcome.rows.map((row, index) => (
               <tr key={index}>
                 {outcome.columns.map((column) => (
-                  <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-700 dark:text-gray-300" key={column}>{cellText(row[column])}</td>
+                  <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-700 dark:text-gray-300" key={column}>
+                    {cellText(row[column])}
+                  </td>
                 ))}
               </tr>
             ))}
@@ -156,9 +169,9 @@ export const examples = [
       statement: "SELECT id, state, priority FROM jobs WHERE state = 'running' LIMIT 3",
       columns: ["id", "state", "priority"],
       rows: [
-        { id: 5035, state: "running", priority: "medium" },
-        { id: 5033, state: "running", priority: "medium" },
-        { id: 5010, state: "running", priority: "high" }
+        { id: 71, state: "running", priority: "medium" },
+        { id: 68, state: "running", priority: "medium" },
+        { id: 64, state: "running", priority: "high" }
       ],
       row_count: 3,
       truncated: false,
@@ -184,11 +197,11 @@ export const examples = [
   {
     id: "write_affected_rows",
     label: "UPDATE with affected rows",
-    input: { sql: "UPDATE jobs SET priority = 'high' WHERE id = 5035" },
+    input: { sql: "UPDATE jobs SET priority = 'high' WHERE id = 71" },
     parsedResult: {
       available: true,
       read_only: false,
-      statement: "UPDATE jobs SET priority = 'high' WHERE id = 5035",
+      statement: "UPDATE jobs SET priority = 'high' WHERE id = 71",
       affected_rows: 1,
       duration_ms: 1.9
     }
@@ -202,7 +215,11 @@ export const examples = [
     parsedResult: {
       available: false,
       statement: "SELECT nonexistent_column FROM jobs",
-      error: { class: "Mysql2::Error", message: "Unknown column 'nonexistent_column' in 'field list'", hint: "Check the column exists with describe_table before querying it." }
+      error: {
+        class: "Mysql2::Error",
+        message: "Unknown column 'nonexistent_column' in 'field list'",
+        hint: "Check the column exists with describe_table before querying it."
+      }
     }
   }
 ]
