@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it } from "vitest"
 import { AdminToolCards } from "./AdminToolCards"
@@ -41,6 +42,26 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("provider · claude")).toBeInTheDocument()
     expect(within(region).getByText("Generic fallback")).toBeInTheDocument()
     expect(within(region).getByText("No example fixtures registered for this tool yet.")).toBeInTheDocument()
+  })
+
+  it("places a 'Discuss this card' button next to the rendered preview, scoped to the selected example", () => {
+    renderRoute("/admin/tool_cards?tool_name=Bash")
+
+    const region = screen.getByRole("region", { name: "Bash" })
+    const discussButton = within(region).getByRole("button", { name: "Discuss this card" })
+    const preview = within(region).getByLabelText(/Card preview constrained to/)
+
+    // The button and the preview it captures share the same region -- it is
+    // scoped to this tool's card, not a page-level action.
+    expect(region).toContainElement(discussButton)
+    expect(region).toContainElement(preview)
+  })
+
+  it("omits the 'Discuss this card' button for an example-less, fallback-only tool", () => {
+    renderRoute("/admin/tool_cards?tool_name=NotebookEdit")
+
+    const region = screen.getByRole("region", { name: "NotebookEdit" })
+    expect(within(region).queryByRole("button", { name: "Discuss this card" })).not.toBeInTheDocument()
   })
 
   it("renders a provider built-in's examples and lets an operator switch between them", () => {
@@ -143,12 +164,15 @@ describe("AdminToolCards", () => {
 })
 
 function renderRoute(initialEntry = "/admin/tool_cards") {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <Routes>
-        <Route element={<AdminToolCards />} path="/admin/tool_cards" />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route element={<AdminToolCards />} path="/admin/tool_cards" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 

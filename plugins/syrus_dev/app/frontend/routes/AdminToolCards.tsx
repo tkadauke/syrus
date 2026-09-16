@@ -15,6 +15,8 @@ import {
   type ToolPresentationEntry,
   type ToolPresentationExample
 } from "@app/toolPresentationRegistry"
+import { ToolCardDiscussButton } from "../components/ToolCardDiscussDialog"
+import { rendererTypeFor, type ViewportPresetId } from "../toolCardCatalogTypes"
 
 // The Tool Card Catalog: every registered tool presentation (core/plugin MCP
 // cards, provider built-ins, Local Mode tools, and chat-surface components --
@@ -33,7 +35,6 @@ import {
 // mirroring the pattern ChatSearch.tsx already uses for its own
 // entirely-client-evaluated flat filters.
 
-type RendererType = "custom_card" | "generic_fallback"
 type CoverageStatus = "has_examples" | "no_examples"
 
 const FILTER_FIELDS = ["tool_name", "owner_type", "owner_name", "source_type", "renderer_type", "coverage_status"] as const
@@ -71,8 +72,6 @@ const COVERAGE_STATUS_OPTIONS = [
 // natural width -- otherwise "desktop" and "wide desktop" could render
 // visually identical whenever the admin page happens to be narrower than
 // 1600px.
-type ViewportPresetId = "phone" | "tablet" | "desktop" | "wide"
-
 const VIEWPORT_PRESETS: ReadonlyArray<{ id: ViewportPresetId; width: number; labelKey: string }> = [
   { id: "phone", width: 390, labelKey: "tool_cards.viewport_phone" },
   { id: "tablet", width: 768, labelKey: "tool_cards.viewport_tablet" },
@@ -91,10 +90,6 @@ function viewportLink(pathname: string, search: string, presetId: ViewportPreset
   const params = new URLSearchParams(search)
   params.set("viewport", presetId)
   return `${pathname}?${params.toString()}`
-}
-
-function rendererTypeFor(entry: ToolPresentationEntry): RendererType {
-  return entry.renderer ? "custom_card" : "generic_fallback"
 }
 
 function coverageStatusFor(entry: ToolPresentationEntry): CoverageStatus {
@@ -304,6 +299,7 @@ export function AdminToolCards() {
               initialExampleId={entry.toolName === deepLinkTool ? deepLinkExample : null}
               key={entry.toolName}
               previewWidth={selectedViewport.width}
+              viewportPresetId={selectedViewport.id}
             />
           ))}
         </div>
@@ -314,13 +310,24 @@ export function AdminToolCards() {
 
 export default AdminToolCards
 
-function ToolCatalogEntry({ entry, initialExampleId, previewWidth }: { entry: ToolPresentationEntry; initialExampleId?: string | null; previewWidth: number }) {
+function ToolCatalogEntry({
+  entry,
+  initialExampleId,
+  previewWidth,
+  viewportPresetId
+}: {
+  entry: ToolPresentationEntry
+  initialExampleId?: string | null
+  previewWidth: number
+  viewportPresetId: ViewportPresetId
+}) {
   const { t } = useT("syrus_dev")
   const { copied, copy } = useCopyToClipboard()
   const hasInitialMatch = Boolean(initialExampleId && entry.examples.some((example) => example.id === initialExampleId))
   const [selectedId, setSelectedId] = useState<string | null>(hasInitialMatch ? (initialExampleId as string) : entry.examples[0]?.id ?? null)
   const id = anchorId(entry.toolName)
   const headingId = `${id}-heading`
+  const previewFrameRef = useRef<HTMLDivElement | null>(null)
 
   const selectedExample = entry.examples.find((example) => example.id === selectedId) ?? entry.examples[0] ?? null
   const group: ChatToolGroupItem | null = selectedExample
@@ -384,7 +391,16 @@ function ToolCatalogEntry({ entry, initialExampleId, previewWidth }: { entry: To
 
             {selectedExample?.description ? <Text tone="muted" variant="caption">{selectedExample.description}</Text> : null}
 
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between gap-2">
+              {selectedExample ? (
+                <ToolCardDiscussButton
+                  deepLink={deepLinkFor(selectedExample.id)}
+                  entry={entry}
+                  example={selectedExample}
+                  previewRef={previewFrameRef}
+                  viewportPresetId={viewportPresetId}
+                />
+              ) : <span />}
               <button
                 className="text-xs text-brand underline hover:no-underline"
                 onClick={() => selectedExample && copy(deepLinkFor(selectedExample.id))}
@@ -405,6 +421,7 @@ function ToolCatalogEntry({ entry, initialExampleId, previewWidth }: { entry: To
                 <div
                   aria-label={t("tool_cards.viewport_frame_aria", { width: previewWidth })}
                   className="mx-auto rounded-[var(--radius-control)] border border-dashed border-border bg-surface p-3"
+                  ref={previewFrameRef}
                   style={{ width: `${previewWidth}px` }}
                 >
                   <ToolGroup item={group} />
