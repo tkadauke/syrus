@@ -97,7 +97,11 @@ RSpec.describe Metrics::MaintenanceSampler do
 
   describe "#sample!" do
     it "reports how long ago a recurring job last succeeded" do
-      t0 = Time.current
+      # travel_to truncates the mocked "now" to whole seconds, but a bare
+      # Time.current keeps sub-second precision -- floor it first so `at` and
+      # the frozen `now` disagree by exactly 0, not by a random sub-second
+      # fraction that occasionally rounds the elapsed seconds down by one.
+      t0 = Time.current.floor
       queue_source.recurring_job_last_success = { "prune_provider_sessions" => t0 - 600 }
 
       travel_to(t0) do
@@ -281,7 +285,9 @@ RSpec.describe Metrics::MaintenanceSampler do
     end
 
     it "degrades the auto-retry reading without losing the recurring-job or provider_sessions gauges" do
-      t0 = Time.current
+      # See the floor() note above -- travel_to's mocked "now" is truncated
+      # to whole seconds, so t0 needs to start there too.
+      t0 = Time.current.floor
       travel_to(t0) { sample! } # bootstrap the cursor with a healthy source
 
       source = FakeMaintenanceSource.new

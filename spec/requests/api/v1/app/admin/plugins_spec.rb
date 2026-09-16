@@ -437,6 +437,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
   describe "GET /api/v1/app/admin/plugins/:name" do
     it "returns one plugin with docs, links, metrics, routes, config, and enabled state" do
+      original_metrics_registry = Syrus::Metrics.registry
       sign_in_as(admin)
       Syrus::PluginRegistry.reset!
       Syrus::Metrics.reset!
@@ -493,7 +494,14 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       )
       expect(plugin.fetch("docs")).to eq([])
     ensure
-      Syrus::Metrics.reset!
+      # A bare Metrics.reset! here would leave the process-wide registry
+      # permanently empty for every later spec in this worker -- core
+      # metrics like syrus_admission_decisions_total are declared once, at
+      # class-load time, and nothing re-declares them on demand (see
+      # Syrus::Metrics::Registry#reset! and config/initializers/metrics.rb).
+      # Restore the pre-test registry instead, the same pattern every other
+      # Metrics.reset!-using spec follows (see spec/lib/syrus/metrics_spec.rb).
+      Syrus::Metrics.instance_variable_set(:@registry, original_metrics_registry)
     end
 
     it "returns plugin-owned docs for bundled plugins without moving them into core docs" do
