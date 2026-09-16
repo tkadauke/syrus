@@ -42,6 +42,7 @@ module Syrus
         kind
         provider
         mode
+        credential_mode
         feature
         tool
         plugin
