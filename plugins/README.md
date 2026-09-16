@@ -121,7 +121,7 @@ Plugin frontend code should import host frontend APIs through `@app/*`, e.g.
 `@app/components/ui`:
 
 ```tsx
-import { Button, Card, FormField, Input, Page, PageHeading, PanelMessage } from "@app/components/ui"
+import { Button, Card, Form, Input, Page, PageHeading, PanelMessage } from "@app/components/ui"
 ```
 
 Use shared primitives for page shells, surfaces, text, tables, forms, notices,

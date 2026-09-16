@@ -12,17 +12,11 @@ import { useT } from "@app/hooks/useT"
 import type { TFunction } from "i18next"
 import {
   DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeader,
-  FormField,
-  FormLabel,
+  Form,
   Notice,
   PageHeading,
   Section,
   SectionHeading,
-  TableSurface,
   Text
 } from "@app/components/ui"
 import { TonePill } from "@app/components/StatusPill"
@@ -64,12 +58,12 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
       tabs={shell?.tabs ?? []}
     >
       {tests.isPending && !shell ? <Notice>{t("repo_loading_tests")}</Notice> : null}
-      {tests.isError && !tests.data ? <Notice tone="error">{errorMessage(tests.error, t("repo_error_load_tests"))}</Notice> : null}
+      {tests.isError && !tests.data ? <Notice tone="danger">{errorMessage(tests.error, t("repo_error_load_tests"))}</Notice> : null}
       {shell ? (
         <section className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
-            <FormField className="min-w-[18rem] flex-1">
-              <FormLabel htmlFor="test-search">{t("repo_search_tests")}</FormLabel>
+            <Form.Field className="min-w-[18rem] flex-1">
+              <Form.Label htmlFor="test-search">{t("repo_search_tests")}</Form.Label>
               <Input
                 id="test-search"
                 className="mt-1"
@@ -77,7 +71,7 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
                 placeholder={t("repo_search_placeholder")}
                 value={query}
               />
-            </FormField>
+            </Form.Field>
             {selectedTestId ? (
               <Button
                 onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))}
@@ -106,26 +100,26 @@ function TestList({ error, isError, isFetching, payload, prefix, query, t }: { e
   }
 
   return (
-    <TableSurface className="overflow-hidden">
+    <Section.Root className="overflow-hidden p-0">
       <div className="flex items-center justify-between border-b border-border px-4 py-2 text-xs text-text-muted">
         <span>{query ? t("repo_search_results") : t("repo_interesting_tests")}</span>
         {isFetching ? <span>{t("repo_updating_results")}</span> : null}
         {isError ? <span className="text-danger">{errorMessage(error, t("repo_error_refresh_results"))}</span> : null}
       </div>
-      <DataTable>
-        <DataTableHead>
-          <tr>
-            <DataTableHeader>{t("repo_col_test")}</DataTableHeader>
-            <DataTableHeader className="hidden md:table-cell">{t("repo_col_suite")}</DataTableHeader>
-            <DataTableHeader>{t("repo_col_recent_failures")}</DataTableHeader>
-            <DataTableHeader className="hidden sm:table-cell">{t("repo_col_duration")}</DataTableHeader>
-            <DataTableHeader className="hidden sm:table-cell">{t("repo_col_last_seen")}</DataTableHeader>
-          </tr>
-        </DataTableHead>
-        <DataTableBody>
+      <DataTable.Root wrapperClassName="rounded-none border-0">
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("repo_col_test")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="hidden md:table-cell">{t("repo_col_suite")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("repo_col_recent_failures")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="hidden sm:table-cell">{t("repo_col_duration")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="hidden sm:table-cell">{t("repo_col_last_seen")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
           {payload.tests.map((test) => (
-            <tr className="text-text-secondary" key={test.id}>
-              <DataTableCell className="max-w-md">
+            <DataTable.Row key={test.id}>
+              <DataTable.Cell className="max-w-md">
                 <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}>
                   {test.name}
                 </Link>
@@ -134,19 +128,19 @@ function TestList({ error, isError, isFetching, payload, prefix, query, t }: { e
                     {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} reason={reason} />)}
                   </div>
                 ) : null}
-                {test.file_path ? <Text className="mt-1 truncate" size="xs" tone="muted">{test.file_path}</Text> : null}
-              </DataTableCell>
-              <DataTableCell className="hidden max-w-xs truncate text-text-muted md:table-cell" title={test.suite_name}>{test.suite_name}</DataTableCell>
-              <DataTableCell className="whitespace-nowrap">
+                {test.file_path ? <Text className="mt-1 truncate" variant="caption" tone="muted">{test.file_path}</Text> : null}
+              </DataTable.Cell>
+              <DataTable.Cell className="hidden max-w-xs truncate text-text-muted md:table-cell" title={test.suite_name}>{test.suite_name}</DataTable.Cell>
+              <DataTable.Cell className="whitespace-nowrap">
                 <TonePill tone={test.failed_count > 0 ? "red" : "gray"}>{test.failed_count}/{test.total_count}</TonePill>
-              </DataTableCell>
-              <DataTableCell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{formatDuration(test.avg_duration_ms)}</DataTableCell>
-              <DataTableCell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}</DataTableCell>
-            </tr>
+              </DataTable.Cell>
+              <DataTable.Cell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{formatDuration(test.avg_duration_ms)}</DataTable.Cell>
+              <DataTable.Cell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}</DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </DataTableBody>
-      </DataTable>
-    </TableSurface>
+        </DataTable.Body>
+      </DataTable.Root>
+    </Section.Root>
   )
 }
 
@@ -162,40 +156,40 @@ function ReasonBadge({ reason }: { reason: string }) {
 
 function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix, t }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string; t: TFunction<"test_insights"> }) {
   if (isPending) return <Notice>{t("repo_loading_history")}</Notice>
-  if (isError) return <Notice tone="error">{errorMessage(error, t("repo_error_load_history"))}</Notice>
+  if (isError) return <Notice tone="danger">{errorMessage(error, t("repo_error_load_history"))}</Notice>
   if (!detail) return null
 
   return (
     <div className="space-y-4">
-      <Section>
+      <Section.Root>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <SectionHeading>{detail.test.name}</SectionHeading>
             <Text className="mt-1" tone="muted">{detail.test.suite_name}</Text>
-            {detail.test.file_path ? <Text className="mt-1 font-mono" size="xs" tone="muted">{detail.test.file_path}</Text> : null}
+            {detail.test.file_path ? <Text className="mt-1 font-mono" variant="caption" tone="muted">{detail.test.file_path}</Text> : null}
           </div>
           <TonePill tone="gray">{detail.test.fingerprint.slice(0, 12)}</TonePill>
         </div>
         <DurationChart history={detail.history} points={detail.duration_points} prefix={prefix} t={t} />
-      </Section>
+      </Section.Root>
 
-      <TableSurface className="overflow-hidden">
-        <DataTable>
-          <DataTableHead>
-            <tr>
-              <DataTableHeader>{t("repo_col_time")}</DataTableHeader>
-              <DataTableHeader>{t("repo_col_status")}</DataTableHeader>
-              <DataTableHeader className="hidden sm:table-cell">{t("repo_col_duration")}</DataTableHeader>
-              <DataTableHeader>{t("repo_col_run")}</DataTableHeader>
-              <DataTableHeader className="hidden lg:table-cell">{t("repo_col_failure")}</DataTableHeader>
-            </tr>
-          </DataTableHead>
-          <DataTableBody>
+      <Section.Root className="overflow-hidden p-0">
+        <DataTable.Root wrapperClassName="rounded-none border-0">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("repo_col_time")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("repo_col_status")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="hidden sm:table-cell">{t("repo_col_duration")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("repo_col_run")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="hidden lg:table-cell">{t("repo_col_failure")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
             {detail.history.map((item) => <HistoryRow item={item} key={item.id} prefix={prefix} />)}
-          </DataTableBody>
-        </DataTable>
+          </DataTable.Body>
+        </DataTable.Root>
         <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} t={t} />
-      </TableSurface>
+      </Section.Root>
     </div>
   )
 }
@@ -223,16 +217,16 @@ function HistoryPagination({ onPageChange, pagination, t }: { onPageChange: (pag
 
 function HistoryRow({ item, prefix }: { item: RepositoryTestHistoryItem; prefix: string }) {
   return (
-    <tr className="text-text-secondary">
-      <DataTableCell className="whitespace-nowrap">{item.created_at ? <RelativeTimestamp value={item.created_at} /> : "—"}</DataTableCell>
-      <DataTableCell><StatusBadge status={item.status} /></DataTableCell>
-      <DataTableCell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{formatDuration(item.duration_ms)}</DataTableCell>
-      <DataTableCell>
+    <DataTable.Row>
+      <DataTable.Cell className="whitespace-nowrap">{item.created_at ? <RelativeTimestamp value={item.created_at} /> : "—"}</DataTable.Cell>
+      <DataTable.Cell><StatusBadge status={item.status} /></DataTable.Cell>
+      <DataTable.Cell className="hidden whitespace-nowrap text-text-muted sm:table-cell">{formatDuration(item.duration_ms)}</DataTable.Cell>
+      <DataTable.Cell>
         <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(item.run.path, prefix)}>{item.run.slug}</Link>
-        <Text className="mt-1" size="xs" tone="muted">{item.job.slug} · {item.grader_name}</Text>
-      </DataTableCell>
-      <DataTableCell className="hidden max-w-md truncate text-text-muted lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</DataTableCell>
-    </tr>
+        <Text className="mt-1" variant="caption" tone="muted">{item.job.slug} · {item.grader_name}</Text>
+      </DataTable.Cell>
+      <DataTable.Cell className="hidden max-w-md truncate text-text-muted lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</DataTable.Cell>
+    </DataTable.Row>
   )
 }
 

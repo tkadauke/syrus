@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import { DescriptionList, DescriptionRow, Notice, Section, SectionHeading, Text } from "@app/components/ui"
+import { DescriptionList, Notice, Section, SectionHeading, Text } from "@app/components/ui"
 import { TonePill } from "@app/components/StatusPill"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useT } from "@app/hooks/useT"
@@ -35,7 +35,7 @@ function RepositoryThroughputPanel({ repositoryId }: { repositoryId: number }) {
     return (
       <section>
         <SectionHeading className="mb-3">{t("heading")}</SectionHeading>
-        <Notice tone="error">{errorMessage(metrics.error, t("load_error"))}</Notice>
+        <Notice tone="danger">{errorMessage(metrics.error, t("load_error"))}</Notice>
       </section>
     )
   }
@@ -72,7 +72,7 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
           ))}
         </div>
       </div>
-      <Section className="overflow-hidden p-0">
+      <Section.Root className="overflow-hidden p-0">
         <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
           <ThroughputMetric title={t("metric_pr_creation")} value={`${formatRate(window.pr_creation)}/h`} detail={t("detail_pr_creation", { authored: window.pr_creation.count, observed: window.pr_creation.total_observed_count })} confidence={window.pr_creation.confidence} sampleCount={window.pr_creation.sample_count} />
           <ThroughputMetric title={t("metric_output")} value={`${formatRate(window.output.commits)}/h`} detail={t("detail_output", { net: formatSignedNumber(window.output.loc.net), additions: window.output.loc.additions, deletions: window.output.loc.deletions })} confidence={window.output.commits.confidence} sampleCount={window.output.commits.sample_count} />
@@ -84,7 +84,7 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
           <ThroughputBottlenecks window={window} />
           <ThroughputLatency window={window} />
         </div>
-      </Section>
+      </Section.Root>
     </section>
   )
 }
@@ -97,8 +97,8 @@ function ThroughputMetric({ title, value, detail, confidence, sampleCount }: { t
         <ConfidencePill confidence={confidence} />
       </div>
       <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
-      <Text className="mt-1" size="xs" tone="muted">{detail}</Text>
-      <Text className="mt-2" size="xs" tone="muted">n={sampleCount}</Text>
+      <Text className="mt-1" variant="caption" tone="muted">{detail}</Text>
+      <Text className="mt-2" variant="caption" tone="muted">n={sampleCount}</Text>
     </article>
   )
 }
@@ -112,13 +112,13 @@ function ThroughputFunnel({ window }: { window: RepositoryThroughputWindow }) {
   return (
     <div>
       <SectionHeading as="h3">{t("section_approval_funnel")}</SectionHeading>
-      <DescriptionList className="mt-3">
+      <DescriptionList.Root className="mt-3">
         <MetricRow label={t("row_prs_opened")} value={funnel.pr_opened_count} />
         <MetricRow label={t("row_feedback_jobs")} value={`${funnel.jobs_with_pr_feedback}${feedbackRate == null ? "" : ` (${formatPercent(feedbackRate)})`}`} />
         <MetricRow label={t("row_feedback_rounds")} value={funnel.feedback_rounds} />
         <MetricRow label={t("row_approvals")} value={t("value_approvals", { jobs: funnel.approval_count, votes: funnel.approval_vote_count })} />
         <MetricRow label={t("row_approved_without_feedback")} value={`${funnel.jobs_approved_immediately_without_feedback}${approvedWithoutFeedbackRate == null ? "" : ` (${formatPercent(approvedWithoutFeedbackRate)})`}`} />
-      </DescriptionList>
+      </DescriptionList.Root>
     </div>
   )
 }
@@ -131,13 +131,13 @@ function ThroughputBottlenecks({ window }: { window: RepositoryThroughputWindow 
   return (
     <div>
       <SectionHeading as="h3">{t("section_bottlenecks")}</SectionHeading>
-      <DescriptionList className="mt-3">
+      <DescriptionList.Root className="mt-3">
         <MetricRow label={t("row_landing_occupied")} value={formatDurationSeconds(landing.landing_start_to_closed_latency_seconds.average)} detail={sampleLabel(landing.landing_start_to_closed_latency_seconds)} />
         <MetricRow label={t("row_failed_landing_waste")} value={formatDurationSeconds(waste.failed_or_cancelled_landing_workflow_seconds)} detail={t("detail_workflows", { count: waste.failed_or_cancelled_landing_workflow_count })} />
         <MetricRow label={t("row_rebase_churn")} value={formatDurationSeconds(waste.rebase_churn_seconds)} detail={t("detail_workflows", { count: waste.rebase_churn_workflow_count })} />
         <MetricRow label={t("row_blocking_rebases")} value={waste.landing_blocking_rebase_count} />
         <MetricRow label={t("row_base_moved_regrades")} value={landing.base_moved_regrade_count} />
-      </DescriptionList>
+      </DescriptionList.Root>
     </div>
   )
 }
@@ -150,26 +150,23 @@ function ThroughputLatency({ window }: { window: RepositoryThroughputWindow }) {
   return (
     <div>
       <SectionHeading as="h3">{t("section_latency_capacity")}</SectionHeading>
-      <DescriptionList className="mt-3">
+      <DescriptionList.Root className="mt-3">
         <MetricRow label={t("row_approval_latency")} value={formatDurationSeconds(funnel.approval_latency_seconds.average)} detail={sampleLabel(funnel.approval_latency_seconds)} />
         <MetricRow label={t("row_feedback_addressed")} value={formatDurationSeconds(funnel.feedback_to_addressed_seconds.average)} detail={sampleLabel(funnel.feedback_to_addressed_seconds)} />
         <MetricRow label={t("row_approval_to_landing")} value={formatDurationSeconds(funnel.approval_to_landing_latency_seconds.average)} detail={sampleLabel(funnel.approval_to_landing_latency_seconds)} />
         <MetricRow label={t("row_optimistic_capacity")} value={`${formatNumber(capacity.estimated_landing_units_per_hour)}/h`} detail={t("detail_optimistic_capacity", { jobs: formatNumber(capacity.estimated_jobs_landed_per_hour), count: capacity.sample_count, confidence: capacity.confidence })} />
         <MetricRow label={t("row_samples")} value={t("detail_jobs", { count: window.samples.jobs_seen })} detail={t("detail_feedback_comments", { count: window.samples.feedback_comments })} />
-      </DescriptionList>
+      </DescriptionList.Root>
     </div>
   )
 }
 
 function MetricRow({ label, value, detail }: { label: string; value: number | string; detail?: string }) {
   return (
-    <DescriptionRow>
-      <Text as="dt" tone="muted">{label}</Text>
-      <Text as="dd" className="text-right font-medium" tone="primary">
-        <span>{value}</span>
-        {detail ? <Text as="span" className="block font-normal" size="xs" tone="muted">{detail}</Text> : null}
-      </Text>
-    </DescriptionRow>
+    <DescriptionList.Item descriptionClassName="text-right font-medium" label={label}>
+      <span>{value}</span>
+      {detail ? <Text as="span" className="block font-normal" variant="caption" tone="muted">{detail}</Text> : null}
+    </DescriptionList.Item>
   )
 }
 

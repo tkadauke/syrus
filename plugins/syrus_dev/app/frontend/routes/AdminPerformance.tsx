@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
-import { Button, Notice, Page, PageHeader, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
+import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
 import { explainSql, fetchAdminPerformance, type AdminPerformancePayload, type BrowserTraceSummary, type PerformanceComparison, type PerformanceEvent, type SlowJobSummary, type SlowPhaseSummary, type SlowRequestSummary, type SqlExplainResult, type SqlFingerprintSummary } from "../api/adminPerformance"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -26,10 +26,10 @@ export function AdminPerformance() {
   })
 
   return (
-    <Page aria-label={t("performance.aria")} size="wide">
-      <PageHeader className="flex items-end justify-between gap-4 border-b border-border pb-4">
+    <Page.Root aria-label={t("performance.aria")} size="wide">
+      <Page.Header className="flex items-end justify-between gap-4 border-b border-border pb-4">
         <div>
-          <Text className="font-medium uppercase" size="xs" tone="muted">{t("section_label")}</Text>
+          <Text className="font-medium uppercase" variant="caption" tone="muted">{t("section_label")}</Text>
           <PageHeading>{t("performance.heading")}</PageHeading>
         </div>
         <Toolbar className="shrink-0">
@@ -41,12 +41,12 @@ export function AdminPerformance() {
             {performance.isFetching ? t("performance.refreshing") : t("performance.refresh")}
           </Button>
         </Toolbar>
-      </PageHeader>
+      </Page.Header>
 
       {performance.isPending ? <PanelMessage>{t("performance.loading")}</PanelMessage> : null}
       {performance.isError ? <PanelMessage tone="error">{errorMessage(performance.error, t("performance.error_load"))}</PanelMessage> : null}
       {performance.isSuccess ? <PerformanceView payload={performance.data} /> : null}
-    </Page>
+    </Page.Root>
   )
 }
 
@@ -949,13 +949,13 @@ function tabButtonClass(active: boolean) {
 
 function TableSection({ children, empty, rowCount, title }: { children: ReactNode; empty: string; rowCount: number; title: string }) {
   return (
-    <Section className="overflow-hidden p-0">
+    <Section.Root className="overflow-hidden p-0">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <SectionHeading>{title}</SectionHeading>
-        <Text as="span" size="xs" tone="muted">{rowCount}</Text>
+        <Text as="span" variant="caption" tone="muted">{rowCount}</Text>
       </div>
       {rowCount > 0 ? <div className="overflow-x-auto">{children}</div> : <PanelMessage>{empty}</PanelMessage>}
-    </Section>
+    </Section.Root>
   )
 }
 
@@ -985,14 +985,14 @@ function Metric({ context, title, tone = "idle", value }: { context?: string; ti
     : tone === "warn"
       ? "border-warning/30 bg-warning/10"
       : ""
-  const valueTone = tone === "ok" ? "success" : tone === "warn" ? "warning" : "primary"
+  const valueTone = tone === "ok" ? "success" : tone === "warn" ? "warning" : "default"
 
   return (
-    <Section as="article" className={toneClass}>
-      <Text className="font-medium uppercase" size="xs" tone="muted">{title}</Text>
-      <Text className="mt-2 text-2xl font-semibold" size="base" tone={valueTone}>{value}</Text>
-      {context ? <Text className="mt-1" size="xs" tone="muted">{context}</Text> : null}
-    </Section>
+    <Section.Root className={toneClass}>
+      <Text className="font-medium uppercase" variant="caption" tone="muted">{title}</Text>
+      <Text className="mt-2 text-2xl font-semibold" tone={valueTone}>{value}</Text>
+      {context ? <Text className="mt-1" variant="caption" tone="muted">{context}</Text> : null}
+    </Section.Root>
   )
 }
 
@@ -1009,7 +1009,7 @@ function PerformanceDataTable({ children }: { children: ReactNode }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <Notice tone={tone === "error" ? "error" : "muted"}>{children}</Notice>
+  return <Notice tone={tone === "error" ? "danger" : "neutral"}>{children}</Notice>
 }
 
 function formatMs(value: number | null | undefined) {

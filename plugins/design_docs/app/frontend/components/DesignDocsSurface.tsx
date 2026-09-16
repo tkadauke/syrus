@@ -8,7 +8,7 @@ import { CopyableSlug } from "@app/components/CopyableSlug"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
-import { Notice, PageDescription, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
 import { TonePill } from "@app/components/StatusPill"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
@@ -189,9 +189,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
             {compact ? <SectionHeading>{t("title")}</SectionHeading> : <PageHeading>{t("title")}</PageHeading>}
-            <PageDescription>
+            <Page.Description>
               {mode === "repository" ? t("repository_description") : t("index_description")}
-            </PageDescription>
+            </Page.Description>
           </div>
           <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
             {t("new_doc")}
@@ -1022,13 +1022,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         <Notice>
           <div className="flex flex-wrap items-center gap-2">
             <StatusLabel value="archived" />
-            <Text tone="primary">{t("archived_read_only")}</Text>
+            <Text tone="default">{t("archived_read_only")}</Text>
           </div>
         </Notice>
       ) : null}
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
-        <Section className="overflow-visible p-0">
+        <Section.Root className="overflow-visible p-0">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
             {summaryVisible ? <Input aria-label={t("aria_change_summary")} className="min-w-[12rem] flex-1" placeholder={t("optional_change_summary")} value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
@@ -1111,7 +1111,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             }}
           />
           </div>
-        </Section>
+        </Section.Root>
       </section>
       <aside className="space-y-4">
           <ThreadPanel
@@ -1221,11 +1221,11 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
   }
 
   return (
-    <Section aria-label={t("aria_title_bar")} className="p-3" ref={titleBarRef}>
+    <section aria-label={t("aria_title_bar")} className="rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface p-3 text-text-primary" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
           <Input aria-label={t("aria_title_input")} disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
-          <Text className="mt-1 flex items-center gap-1" size="xs" tone="muted">
+          <Text className="mt-1 flex items-center gap-1" variant="caption" tone="muted">
             <CopyableSlug className="text-xs font-medium" slug={doc.display_id} />
             <span>{t("saved_prefix")} <RelativeTimestamp value={doc.updated_at} /></span>
           </Text>
@@ -1234,7 +1234,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
         <StatusLabel value={doc.state} />
         <div className="relative min-w-0">
           <div className="flex max-w-full flex-wrap items-center gap-1.5">
-            {selectedRepositories.length === 0 ? <Text as="span" size="xs" tone="muted">{t("no_repositories")}</Text> : null}
+            {selectedRepositories.length === 0 ? <Text as="span" variant="caption" tone="muted">{t("no_repositories")}</Text> : null}
             {selectedRepositories.map((repository) => (
               <span className="max-w-[11rem] truncate rounded border border-border px-2 py-1 text-xs text-text-secondary" key={repository.id}>
                 {repository.slug}
@@ -1285,7 +1285,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
                 {t("explicit_collaborators")}
                 <Input aria-label={t("aria_collaborator_user_ids")} className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
               </label>
-              <Text className="mt-3" size="xs" tone="muted">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</Text>
+              <Text className="mt-3" variant="caption" tone="muted">{t("owner", { name: doc.owner?.name || doc.owner?.email_address || t("unknown_owner") })}</Text>
               <div className="mt-3 flex justify-end">
                 <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("save_sharing")}</Button>
               </div>
@@ -1312,7 +1312,7 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
           ))}
         </Select>
       </div>
-    </Section>
+    </section>
   )
 }
 
@@ -2066,9 +2066,9 @@ function fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }: {
 }
 
 function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
-  if (tone === "error") return <Notice className={className} tone="error">{children}</Notice>
+  if (tone === "error") return <Notice className={className} tone="danger">{children}</Notice>
 
-  return <Section className={className}>{children}</Section>
+  return <Section.Root className={className}>{children}</Section.Root>
 }
 
 function StatusLabel({ value }: { value: string }) {

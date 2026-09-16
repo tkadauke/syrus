@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react"
-import { Button, Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "@app/api/client"
 import {
@@ -26,17 +26,17 @@ export function AdminBuildCache() {
   const query = useQuery({ queryKey: QUERY_KEY, queryFn: fetchAdminBuildCache })
 
   return (
-    <Page aria-label={t("build_cache.aria_main")}>
-      <PageHeader className="border-b border-border pb-4">
-        <Text className="font-medium uppercase" size="xs" tone="muted">{t("admin:section_label")}</Text>
+    <Page.Root aria-label={t("build_cache.aria_main")}>
+      <Page.Header className="border-b border-border pb-4">
+        <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
         <PageHeading>{t("build_cache.heading")}</PageHeading>
-        <PageDescription>{t("build_cache.description")}</PageDescription>
-      </PageHeader>
+        <Page.Description>{t("build_cache.description")}</Page.Description>
+      </Page.Header>
 
       {query.isPending ? <Notice>{t("build_cache.loading")}</Notice> : null}
-      {query.isError ? <Notice tone="error">{query.error instanceof ApiError ? query.error.message : t("build_cache.error_load")}</Notice> : null}
+      {query.isError ? <Notice tone="danger">{query.error instanceof ApiError ? query.error.message : t("build_cache.error_load")}</Notice> : null}
       {query.isSuccess ? <BuildCacheContent payload={query.data} /> : null}
-    </Page>
+    </Page.Root>
   )
 }
 
@@ -65,7 +65,7 @@ function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
   const stats = payload.stats
 
   return (
-    <Section data-testid="build-cache-stats">
+    <Section.Root data-testid="build-cache-stats">
       <SectionHeading>{t("build_cache.stats_heading")}</SectionHeading>
 
       {payload.stats_error ? (
@@ -85,13 +85,13 @@ function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
             />
           </dl>
           {stats.truncated ? (
-            <Text className="mt-3" size="xs" tone="warning">{t("build_cache.stats_truncated")}</Text>
+            <Text className="mt-3" variant="caption" tone="warning">{t("build_cache.stats_truncated")}</Text>
           ) : null}
         </>
       ) : (
         <Text className="mt-2" tone="muted">{t("build_cache.stats_unavailable")}</Text>
       )}
-    </Section>
+    </Section.Root>
   )
 }
 
@@ -130,54 +130,56 @@ function ClearRequestForm() {
   }
 
   return (
-    <Section as="form" className="space-y-4" onSubmit={submit} data-testid="build-cache-clear-form">
-      <SectionHeading>{t("build_cache.request_heading")}</SectionHeading>
+    <Section.Root>
+      <form className="space-y-4" onSubmit={submit} data-testid="build-cache-clear-form">
+        <SectionHeading>{t("build_cache.request_heading")}</SectionHeading>
 
-      <fieldset className="space-y-2">
-        <label className="flex items-center gap-2 text-sm text-text-primary">
-          <input checked={scope === "full"} className="h-4 w-4 accent-brand" name="scope" onChange={() => setScope("full")} type="radio" value="full" />
-          {t("build_cache.scope_full")}
-        </label>
-        <div className="flex items-center gap-2 text-sm text-text-primary">
-          <label className="flex items-center gap-2">
-            <input checked={scope === "partial"} className="h-4 w-4 accent-brand" name="scope" onChange={() => setScope("partial")} type="radio" value="partial" />
-            {t("build_cache.scope_partial")}
+        <fieldset className="space-y-2">
+          <label className="flex items-center gap-2 text-sm text-text-primary">
+            <input checked={scope === "full"} className="h-4 w-4 accent-brand" name="scope" onChange={() => setScope("full")} type="radio" value="full" />
+            {t("build_cache.scope_full")}
           </label>
-          <Form.Field controlId="build-cache-older-than-days">
-            <Form.Label className="sr-only">{t("build_cache.scope_partial")}</Form.Label>
-            <Form.Input
-              className="w-20"
-              disabled={scope !== "partial"}
-              fullWidth={false}
-              min={1}
-              onChange={(event) => setOlderThanDays(event.target.value)}
-              type="number"
-              value={olderThanDays}
-            />
-          </Form.Field>
-          {t("build_cache.scope_partial_suffix")}
-        </div>
-      </fieldset>
+          <div className="flex items-center gap-2 text-sm text-text-primary">
+            <label className="flex items-center gap-2">
+              <input checked={scope === "partial"} className="h-4 w-4 accent-brand" name="scope" onChange={() => setScope("partial")} type="radio" value="partial" />
+              {t("build_cache.scope_partial")}
+            </label>
+            <Form.Field controlId="build-cache-older-than-days">
+              <Form.Label className="sr-only">{t("build_cache.scope_partial")}</Form.Label>
+              <Form.Input
+                className="w-20"
+                disabled={scope !== "partial"}
+                fullWidth={false}
+                min={1}
+                onChange={(event) => setOlderThanDays(event.target.value)}
+                type="number"
+                value={olderThanDays}
+              />
+            </Form.Field>
+            {t("build_cache.scope_partial_suffix")}
+          </div>
+        </fieldset>
 
-      <Form.Field controlId="build-cache-clear-reason">
-        <Form.Label>{t("build_cache.reason_label")}</Form.Label>
-        <Form.Textarea
-          onChange={(event) => setReason(event.target.value)}
-          placeholder={t("build_cache.reason_placeholder")}
-          required
-          rows={2}
-          value={reason}
-        />
-      </Form.Field>
+        <Form.Field controlId="build-cache-clear-reason">
+          <Form.Label>{t("build_cache.reason_label")}</Form.Label>
+          <Form.Textarea
+            onChange={(event) => setReason(event.target.value)}
+            placeholder={t("build_cache.reason_placeholder")}
+            required
+            rows={2}
+            value={reason}
+          />
+        </Form.Field>
 
-      {create.isError ? (
-        <Text role="alert" tone="danger">{create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}</Text>
-      ) : null}
+        {create.isError ? (
+          <Text role="alert" tone="danger">{create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}</Text>
+        ) : null}
 
-      <Button disabled={create.isPending || !reason.trim()} type="submit" variant="primary">
-        {create.isPending ? t("build_cache.requesting") : t("build_cache.request_button")}
-      </Button>
-    </Section>
+        <Button disabled={create.isPending || !reason.trim()} type="submit" variant="primary">
+          {create.isPending ? t("build_cache.requesting") : t("build_cache.request_button")}
+        </Button>
+      </form>
+    </Section.Root>
   )
 }
 
@@ -205,7 +207,7 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
   }
 
   return (
-    <Section className="border-warning/30 bg-warning/10 text-warning" data-testid="build-cache-pending-request">
+    <Section.Root className="border-warning/30 bg-warning/10 text-warning" data-testid="build-cache-pending-request">
       {dialog}
       <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">{t("build_cache.pending_heading")}</h2>
       <dl className="mt-2 grid grid-cols-1 gap-y-1 text-sm text-amber-900 dark:text-amber-100 sm:grid-cols-[8rem_1fr]">
@@ -229,7 +231,7 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
           {t("build_cache.cancel_button")}
         </Button>
       </div>
-    </Section>
+    </Section.Root>
   )
 }
 
@@ -238,7 +240,7 @@ function RecentRequestsCard({ requests }: { requests: BuildCacheClearRequest[] }
   if (requests.length === 0) return null
 
   return (
-    <Section className="overflow-hidden p-0" data-testid="build-cache-recent-requests">
+    <Section.Root className="overflow-hidden p-0" data-testid="build-cache-recent-requests">
       <div className="border-b border-border px-4 py-3 text-sm font-semibold text-text-primary">
         {t("build_cache.recent_heading")}
       </div>
@@ -263,7 +265,7 @@ function RecentRequestsCard({ requests }: { requests: BuildCacheClearRequest[] }
           </li>
         ))}
       </ul>
-    </Section>
+    </Section.Root>
   )
 }
 

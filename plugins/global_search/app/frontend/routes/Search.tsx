@@ -11,7 +11,7 @@ import { FilterBar, type FilterLinkBuilder } from "@app/components/FilterBar"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { TonePill } from "@app/components/StatusPill"
-import { Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Skeleton, Text } from "@app/components/ui"
+import { Notice, Page, PageHeading, Section, SectionHeading, Skeleton, Text } from "@app/components/ui"
 
 type SearchFilter = string | "all"
 
@@ -68,11 +68,11 @@ export function SearchRoute() {
   const filters = [{ type: "all", label: "All" }, ...typeFilters]
 
   return (
-    <Page aria-label={t("search_aria")} className="max-w-[72rem]">
-      <PageHeader className="space-y-4">
+    <Page.Root aria-label={t("search_aria")} className="max-w-[72rem]">
+      <Page.Header className="space-y-4">
         <div>
           <PageHeading>{t('search.heading')}</PageHeading>
-          <PageDescription>{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</PageDescription>
+          <Page.Description>{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</Page.Description>
         </div>
         <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
           {filters.map((filter) => (
@@ -82,7 +82,7 @@ export function SearchRoute() {
           ))}
         </nav>
         {search.data ? (
-          <Section>
+          <Section.Root>
             <FilterBar
               buildLink={searchFilterLink}
               filter={search.data.filter}
@@ -91,9 +91,9 @@ export function SearchRoute() {
               search={location.search}
               suggestionSearch={activeFilter === "job" || activeFilter === "epic" ? { surface: "dashboard", subject: activeFilter } : undefined}
             />
-          </Section>
+          </Section.Root>
         ) : null}
-      </PageHeader>
+      </Page.Header>
 
       {query.length === 0 ? (
         <Notice>{t('search.use_sidebar')}</Notice>
@@ -102,15 +102,15 @@ export function SearchRoute() {
       ) : search.isPending ? (
         <SearchSkeleton />
       ) : search.isError ? (
-        <Notice tone="error">{t('search.error')}</Notice>
+        <Notice tone="danger">{t('search.error')}</Notice>
       ) : results.length === 0 ? (
         <Notice>{t('search.no_results')}</Notice>
       ) : (
-        <Section className="divide-y divide-border overflow-hidden p-0">
+        <Section.Root className="divide-y divide-border overflow-hidden p-0">
           {results.map((result) => <SearchResultRow key={`${result.type}-${result.id}`} result={result} />)}
-        </Section>
+        </Section.Root>
       )}
-    </Page>
+    </Page.Root>
   )
 }
 
@@ -132,8 +132,8 @@ function SearchResultRow({ result }: { result: SearchResult }) {
                 <CopyableSlug slug={result.slug} />
               </SlugHoverCard>
             ) : null}
-            {result.repository_slug ? <Text as="span" size="xs" tone="muted">{result.repository_slug}</Text> : null}
-            {result.state ? <Text as="span" className="capitalize" size="xs" tone="muted">{result.state.replace(/_/g, " ")}</Text> : null}
+            {result.repository_slug ? <Text as="span" variant="caption" tone="muted">{result.repository_slug}</Text> : null}
+            {result.state ? <Text as="span" className="capitalize" variant="caption" tone="muted">{result.state.replace(/_/g, " ")}</Text> : null}
           </div>
           <SectionHeading className="mt-2">
             <Link className="break-words hover:text-brand hover:underline dark:hover:text-brand-emphasis" to={withRoutePrefix(result.path, prefix)}>
@@ -173,7 +173,7 @@ function TestCaseDetails({ result }: { result: TestCaseSearchResult }) {
   if (parts.length === 0) return null
 
   return (
-    <Text className="mt-1" size="xs" tone="muted">
+    <Text className="mt-1" variant="caption" tone="muted">
       {parts.join(" · ")}
     </Text>
   )
@@ -197,7 +197,7 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
         <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
         {expanded ? t('search.hide') : t('search.show')} {groupedMatches.length} {groupedMatches.length === 1 ? t('search.match_more') : t('search.matches_more')}
       </button>
-      {!expanded ? <Text as="span" className="ml-2" size="xs" tone="muted">{hiddenMatchCount} {t('search.more')} {matchLabel} {t('search.in_this_chat')}</Text> : null}
+      {!expanded ? <Text as="span" className="ml-2" variant="caption" tone="muted">{hiddenMatchCount} {t('search.more')} {matchLabel} {t('search.in_this_chat')}</Text> : null}
       {expanded ? (
         <div className="mt-3 divide-y divide-border border-t border-border">
           {groupedMatches.map((match) => (
@@ -206,7 +206,7 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
               {match.created_at ? <RelativeTimestamp className="mt-1 block text-xs text-text-muted" value={match.created_at} /> : null}
             </Link>
           ))}
-          {result.has_more_matches ? <Text className="py-3" size="xs" tone="muted">{t('search.top_matches_shown', { count: groupedMatches.length })}</Text> : null}
+          {result.has_more_matches ? <Text className="py-3" variant="caption" tone="muted">{t('search.top_matches_shown', { count: groupedMatches.length })}</Text> : null}
         </div>
       ) : null}
     </div>
@@ -228,12 +228,12 @@ function SearchSkeleton() {
   return (
     <section aria-label={t("loading_search_aria")} className="space-y-3">
       {[0, 1, 2, 3].map((index) => (
-        <Section className="animate-pulse" key={index}>
+        <Section.Root className="animate-pulse" key={index}>
           <Skeleton className="h-4 w-20" />
           <Skeleton className="mt-3 h-5 w-2/3" />
           <Skeleton className="mt-3 h-4 w-full" />
           <Skeleton className="mt-2 h-4 w-5/6" />
-        </Section>
+        </Section.Root>
       ))}
     </section>
   )

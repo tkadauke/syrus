@@ -44,7 +44,7 @@ export default function MockupsPage() {
     navigate({ pathname: withRoutePrefix("/mockups", ""), search: location.search })
 
   return (
-    <Page aria-label={t("title")} className="flex h-full min-h-0 flex-col gap-3 p-4" size="full">
+    <Page.Root aria-label={t("title")} className="flex h-full min-h-0 flex-col gap-3 p-4" size="full">
       <PageHeading>{t("title")}</PageHeading>
 
       <FilterBar
@@ -55,11 +55,11 @@ export default function MockupsPage() {
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
-        <Section className="min-h-[14rem] flex-1 overflow-auto p-0 lg:min-h-0">
+        <Section.Root className="min-h-[14rem] flex-1 overflow-auto p-0 lg:min-h-0">
           {listQuery.isPending ? (
             <Notice className="m-3">{t("loading")}</Notice>
           ) : listQuery.isError ? (
-            <Notice className="m-3" tone="error">{t("load_failed")}</Notice>
+            <Notice className="m-3" tone="danger">{t("load_failed")}</Notice>
           ) : listQuery.data.mockups.length === 0 ? (
             <Notice className="m-3">{t("empty")}</Notice>
           ) : (
@@ -74,9 +74,9 @@ export default function MockupsPage() {
                       onClick={() => select(mockup)}
                       type="button"
                     >
-                      <Text as="span" className="font-mono" size="xs" tone="muted">{mockup.slug}</Text>
-                      <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="primary">{mockup.title}</Text>
-                      <Text as="span" className="shrink-0" size="xs" tone="muted">{t("file_count", { count: mockup.file_count })}</Text>
+                      <Text as="span" className="font-mono" variant="caption" tone="muted">{mockup.slug}</Text>
+                      <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="default">{mockup.title}</Text>
+                      <Text as="span" className="shrink-0" variant="caption" tone="muted">{t("file_count", { count: mockup.file_count })}</Text>
                       {mockup.updated_at ? (
                         <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={mockup.updated_at} />
                       ) : null}
@@ -86,7 +86,7 @@ export default function MockupsPage() {
               })}
             </ul>
           )}
-        </Section>
+        </Section.Root>
 
         {selectedRef ? (
           <aside
@@ -94,7 +94,7 @@ export default function MockupsPage() {
             className="flex min-h-[28rem] flex-col rounded border border-border bg-surface lg:min-h-0 lg:w-1/2"
           >
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-              <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="primary">
+              <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="default">
                 {detailQuery.data?.mockup.title ?? selectedRef}
               </Text>
               {detailQuery.data?.mockup.chat_path ? (
@@ -122,7 +122,7 @@ export default function MockupsPage() {
             {detailQuery.isPending ? (
               <Notice className="m-3">{t("loading")}</Notice>
             ) : detailQuery.isError ? (
-              <Notice className="m-3" tone="error">{t("preview_unavailable")}</Notice>
+              <Notice className="m-3" tone="danger">{t("preview_unavailable")}</Notice>
             ) : (
               <MockupPreviewPanel
                 onNotice={setNotice}
@@ -136,6 +136,6 @@ export default function MockupsPage() {
           </aside>
         ) : null}
       </div>
-    </Page>
+    </Page.Root>
   )
 }

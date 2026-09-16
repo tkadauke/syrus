@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
 import { Checkbox } from "@app/components/Checkbox"
-import { Button, Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
+import { Button, Notice, Page, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
@@ -37,15 +37,15 @@ export function AdminMysql() {
   }
 
   return (
-    <Page aria-label={t("aria_page")} size="wide">
+    <Page.Root aria-label={t("aria_page")} size="wide">
       {dialog}
-      <PageHeader className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
+      <Page.Header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
         <div>
-          <Text className="font-medium uppercase" size="xs" tone="muted">{t("admin:section_label")}</Text>
+          <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin:section_label")}</Text>
           <PageHeading>{t("heading")}</PageHeading>
-          <PageDescription className="max-w-3xl">
+          <Page.Description className="max-w-3xl">
             {t("description")}
-          </PageDescription>
+          </Page.Description>
         </div>
         <Toolbar>
           <label className="text-sm font-medium text-text-primary" htmlFor="mysql-limit">{t("rows")}</label>
@@ -61,12 +61,12 @@ export function AdminMysql() {
             {t("refresh")}
           </Button>
         </Toolbar>
-      </PageHeader>
+      </Page.Header>
 
       {mysql.isPending ? <Notice>{t("loading")}</Notice> : null}
-      {mysql.isError ? <Notice tone="error">{mysql.error instanceof Error ? mysql.error.message : t("error_load")}</Notice> : null}
-      {killQuery.isError ? <Notice tone="error">{killQuery.error instanceof Error ? killQuery.error.message : t("error_kill")}</Notice> : null}
-      {killQuery.data && !killQuery.data.killed ? <Notice tone="error">{killQuery.data.error?.message || t("kill_refused")}</Notice> : null}
+      {mysql.isError ? <Notice tone="danger">{mysql.error instanceof Error ? mysql.error.message : t("error_load")}</Notice> : null}
+      {killQuery.isError ? <Notice tone="danger">{killQuery.error instanceof Error ? killQuery.error.message : t("error_kill")}</Notice> : null}
+      {killQuery.data && !killQuery.data.killed ? <Notice tone="danger">{killQuery.data.error?.message || t("kill_refused")}</Notice> : null}
       {killQuery.data?.killed ? <Notice tone="success">{t("killed_query", { id: killQuery.data.thread_id })}</Notice> : null}
 
       {mysql.data ? (
@@ -81,7 +81,7 @@ export function AdminMysql() {
           t={t}
         />
       ) : null}
-    </Page>
+    </Page.Root>
   )
 }
 
@@ -151,7 +151,7 @@ function MysqlDashboard({
         />
       </section>
 
-      <Section className="overflow-hidden p-0">
+      <Section.Root className="overflow-hidden p-0">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <SectionHeading>{t("process_list")}</SectionHeading>
           <div className="flex flex-wrap items-center gap-3">
@@ -209,7 +209,7 @@ function MysqlDashboard({
             </tbody>
           </table>
         </div>
-      </Section>
+      </Section.Root>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <StatementDigestPanel payload={payload} t={t} />
@@ -221,10 +221,10 @@ function MysqlDashboard({
 
 function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: ReturnType<typeof useT>["t"] }) {
   return (
-    <Section className="min-w-0 overflow-hidden p-0">
+    <Section.Root className="min-w-0 overflow-hidden p-0">
       <div className="border-b border-border px-4 py-3">
         <SectionHeading>{t("statement_digests")}</SectionHeading>
-        <Text size="xs" tone="muted">{t("statement_digests_description")}</Text>
+        <Text variant="caption" tone="muted">{t("statement_digests_description")}</Text>
       </div>
       {!payload.statement_digests.available ? (
         <UnavailablePanel
@@ -255,17 +255,17 @@ function StatementDigestPanel({ payload, t }: { payload: MysqlSnapshot; t: Retur
           </table>
         </div>
       )}
-    </Section>
+    </Section.Root>
   )
 }
 
 function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload, t }: { includeSlowLog: boolean; onToggleSlowLog: () => void; payload: MysqlSnapshot; t: ReturnType<typeof useT>["t"] }) {
   return (
-    <Section className="min-w-0 overflow-hidden p-0">
+    <Section.Root className="min-w-0 overflow-hidden p-0">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <SectionHeading>{t("slow_log")}</SectionHeading>
-          <Text size="xs" tone="muted">
+          <Text variant="caption" tone="muted">
             slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")} · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
           </Text>
         </div>
@@ -303,7 +303,7 @@ function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload, t }: { include
           </table>
         </div>
       )}
-    </Section>
+    </Section.Root>
   )
 }
 
@@ -327,7 +327,7 @@ function UnavailablePanel({ error, fallback }: { error?: { message: string; hint
 
 function KeyValuePanel({ title, values }: { title: string; values: Record<string, unknown> }) {
   return (
-    <Section className="overflow-hidden p-0">
+    <Section.Root className="overflow-hidden p-0">
       <SectionHeading className="border-b border-border px-4 py-3">{title}</SectionHeading>
       <dl className="grid grid-cols-1 gap-px bg-gray-100 text-sm dark:bg-gray-800 sm:grid-cols-2">
         {Object.entries(values).map(([key, value]) => (
@@ -337,17 +337,17 @@ function KeyValuePanel({ title, values }: { title: string; values: Record<string
           </div>
         ))}
       </dl>
-    </Section>
+    </Section.Root>
   )
 }
 
 function MetricCard({ detail, label, value }: { detail: string; label: string; value: string }) {
   return (
-    <Section>
-      <Text className="font-semibold uppercase" size="xs" tone="muted">{label}</Text>
-      <Text className="mt-2 text-2xl font-semibold" size="base" tone="primary">{value}</Text>
-      <Text className="mt-1" size="xs" tone="muted">{detail}</Text>
-    </Section>
+    <Section.Root>
+      <Text className="font-semibold uppercase" variant="caption" tone="muted">{label}</Text>
+      <Text className="mt-2 text-2xl font-semibold" tone="default">{value}</Text>
+      <Text className="mt-1" variant="caption" tone="muted">{detail}</Text>
+    </Section.Root>
   )
 }
 

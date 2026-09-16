@@ -111,7 +111,7 @@ function TestRunSection({ testRun }: { testRun: JobTestRun }) {
   const allPassing = testRun.failed_count === 0 && testRun.error_count === 0
 
   return (
-    <Section className="p-0">
+    <Section.Root className="p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4">
         <SectionHeading>{testRun.grader_name}</SectionHeading>
         <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -119,8 +119,8 @@ function TestRunSection({ testRun }: { testRun: JobTestRun }) {
           {testRun.failed_count > 0 ? <TonePill tone="red">{testRun.failed_count} failed</TonePill> : null}
           {testRun.error_count > 0 ? <TonePill tone="red">{testRun.error_count} error</TonePill> : null}
           {testRun.skipped_count > 0 ? <TonePill tone="gray">{testRun.skipped_count} skipped</TonePill> : null}
-          {testRun.duration_ms != null ? <Text as="span" size="xs" tone="muted">{formatTestDuration(testRun.duration_ms)}</Text> : null}
-          <Text as="span" size="xs" tone="muted">{testRun.total_count} total</Text>
+          {testRun.duration_ms != null ? <Text as="span" variant="caption" tone="muted">{formatTestDuration(testRun.duration_ms)}</Text> : null}
+          <Text as="span" variant="caption" tone="muted">{testRun.total_count} total</Text>
         </div>
       </div>
       {allPassing ? (
@@ -130,7 +130,7 @@ function TestRunSection({ testRun }: { testRun: JobTestRun }) {
           {testRun.suites.map((suite) => <SuiteGroup key={suite.suite_name} suite={suite} />)}
         </div>
       )}
-    </Section>
+    </Section.Root>
   )
 }
 
@@ -142,7 +142,7 @@ function TestsPanel({ jobId }: { jobId: number }) {
   })
 
   if (isPending) return <Notice>{t("common:loading")}</Notice>
-  if (isError) return <Notice tone="error">{t("tests_load_error")}</Notice>
+  if (isError) return <Notice tone="danger">{t("tests_load_error")}</Notice>
   if (!data || data.test_runs.length === 0) return <Notice>{t("tests_empty")}</Notice>
 
   return (

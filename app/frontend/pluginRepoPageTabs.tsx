@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { useLocation, useParams } from "react-router-dom"
 import { fetchRepoPluginTabs } from "./api/repoPluginTabs"
-import { Notice, Page, PageHeader, PageHeading, Text } from "./components/ui"
+import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {
@@ -58,9 +58,9 @@ export function PluginRepoPageTabRoute() {
 
   if (tabs.isPending) {
     return (
-      <Page size="narrow">
+      <Page.Root size="narrow">
         <Notice>{t("common:loading")}</Notice>
-      </Page>
+      </Page.Root>
     )
   }
 
@@ -69,17 +69,17 @@ export function PluginRepoPageTabRoute() {
 
   if (!tab || !Component) {
     return (
-      <Page size="narrow">
-        <PageHeader>
+      <Page.Root size="narrow">
+        <Page.Header>
           <PageHeading>{t("plugin_repo_tabs.unavailable_heading")}</PageHeading>
           <Text>{t("plugin_repo_tabs.unavailable_body")}</Text>
-        </PageHeader>
-      </Page>
+        </Page.Header>
+      </Page.Root>
     )
   }
 
   return (
-    <Suspense fallback={<Page size="narrow"><Notice>{t("common:loading")}</Notice></Page>}>
+    <Suspense fallback={<Page.Root size="narrow"><Notice>{t("common:loading")}</Notice></Page.Root>}>
       <Component />
     </Suspense>
   )

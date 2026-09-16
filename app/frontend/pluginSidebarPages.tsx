@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { matchPath, useLocation } from "react-router-dom"
 import { fetchSidebarPluginPages } from "./api/sidebarPages"
-import { Notice, Page, PageHeader, PageHeading, Text } from "./components/ui"
+import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {
@@ -89,25 +89,25 @@ export function PluginSidebarPageRoute() {
 
   if (isPending) {
     return (
-      <Page size="narrow">
+      <Page.Root size="narrow">
         <Notice>{t("sidebar_pages.loading")}</Notice>
-      </Page>
+      </Page.Root>
     )
   }
 
   if (!page || !Component) {
     return (
-      <Page size="narrow">
-        <PageHeader>
+      <Page.Root size="narrow">
+        <Page.Header>
           <PageHeading>{t("sidebar_pages.unavailable_heading")}</PageHeading>
           <Text>{t("sidebar_pages.unavailable_body")}</Text>
-        </PageHeader>
-      </Page>
+        </Page.Header>
+      </Page.Root>
     )
   }
 
   return (
-    <Suspense fallback={<Page size="narrow"><Notice>{t("sidebar_pages.loading")}</Notice></Page>}>
+    <Suspense fallback={<Page.Root size="narrow"><Notice>{t("sidebar_pages.loading")}</Notice></Page.Root>}>
       <Component />
     </Suspense>
   )

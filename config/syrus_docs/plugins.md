@@ -2686,7 +2686,7 @@ anything else would be a lie its own tools then act on.
 Plugin frontend code should start from the same semantic UI surface core uses:
 
 ```tsx
-import { Button, Card, FormField, Input, Page, PageHeading, PanelMessage } from "@app/components/ui"
+import { Button, Card, Form, Input, Page, PageHeading, PanelMessage } from "@app/components/ui"
 ```
 
 Use those shared primitives for routine Syrus structure: page shells,

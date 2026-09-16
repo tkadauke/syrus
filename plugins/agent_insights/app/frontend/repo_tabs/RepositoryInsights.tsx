@@ -25,7 +25,7 @@ import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { FilterBar } from "@app/components/FilterBar"
 import { CopyableSlug } from "@app/components/CopyableSlug"
-import { Notice, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { Notice, PageHeading, Section, SectionHeading, surfaceClasses, Text } from "@app/components/ui"
 import { TonePill } from "@app/components/StatusPill"
 
 export function RepositoryInsightsRoute() {
@@ -61,7 +61,7 @@ export function RepositoryInsightsRoute() {
       tabs={payload?.tabs ?? []}
     >
       {query.isPending ? <Notice>{t("loading")}</Notice> : null}
-      {query.isError ? <Notice tone="error">{errorMessage(query.error, t("load_error"))}</Notice> : null}
+      {query.isError ? <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice> : null}
       {payload ? (
         <InsightSuggestionsList
           repositoryId={repositoryId}
@@ -265,7 +265,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
   }
 
   return (
-    <Section as="article" className="cursor-pointer p-0" onClick={handleCardClick}>
+    <article className={surfaceClasses("panel", "none", "cursor-pointer")} onClick={handleCardClick}>
       {confirmDialog}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -275,7 +275,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
               <SeverityPill severity={suggestion.severity} />
               <ProposalPill proposalType={suggestion.proposal_type} />
               <TonePill tone="gray">{suggestion.category}</TonePill>
-              <Text as="span" size="xs" tone="muted">
+              <Text as="span" variant="caption" tone="muted">
                 {t("confidence", { pct: Math.round(suggestion.confidence * 100) })}
                 <span aria-hidden="true"> · </span>
                 <span className="sr-only">{t("age_label")} </span>
@@ -477,7 +477,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
           suggestion={suggestion}
         />
       )}
-    </Section>
+    </article>
   )
 }
 

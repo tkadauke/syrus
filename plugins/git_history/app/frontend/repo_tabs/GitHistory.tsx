@@ -58,7 +58,7 @@ export function GitHistory() {
       tabs={firstPage?.tabs ?? []}
     >
       {history.isPending ? <Notice>{t("loading")}</Notice> : null}
-      {history.isError ? <Notice tone="error">{t("error")}</Notice> : null}
+      {history.isError ? <Notice tone="danger">{t("error")}</Notice> : null}
 
       {firstPage ? (
         !available ? (
@@ -67,9 +67,11 @@ export function GitHistory() {
           <EmptyPanel label={t("empty")} />
         ) : (
           <>
-            <Section as="ul" className="divide-y divide-border overflow-hidden p-0">
-              {groups.map((group) => <CommitGroupRow group={group} key={commitGroupKey(group)} />)}
-            </Section>
+            <Section.Root className="overflow-hidden p-0">
+              <ul className="divide-y divide-border">
+                {groups.map((group) => <CommitGroupRow group={group} key={commitGroupKey(group)} />)}
+              </ul>
+            </Section.Root>
 
             {history.hasNextPage ? (
               <div className="flex justify-center">

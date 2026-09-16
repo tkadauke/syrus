@@ -3,14 +3,8 @@ import { Button, buttonClasses } from "@app/components/Button"
 import { PILL_TONE_CLASSES, TonePill } from "@app/components/StatusPill"
 import {
   DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeader,
   Notice,
   Page,
-  PageDescription,
-  PageHeader,
   PageHeading,
   Section,
   SectionHeading,
@@ -40,19 +34,19 @@ export function AdminInsightsRoute() {
 
   if (query.isPending) {
     return (
-      <Page aria-label={t("aria_admin_insights")} size="wide">
+      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
         <AdminInsightsHeader />
         <Notice>{t("loading")}</Notice>
-      </Page>
+      </Page.Root>
     )
   }
 
   if (query.isError) {
     return (
-      <Page aria-label={t("aria_admin_insights")} size="wide">
+      <Page.Root aria-label={t("aria_admin_insights")} size="wide">
         <AdminInsightsHeader />
-        <Notice tone="error">{errorMessage(query.error, t("load_error"))}</Notice>
-      </Page>
+        <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice>
+      </Page.Root>
     )
   }
 
@@ -71,11 +65,11 @@ export function AdminInsightsRoute() {
 function AdminInsightsHeader() {
   const { t } = useT("agent_insights")
   return (
-    <PageHeader className="border-b border-border pb-4">
-      <Text className="font-medium uppercase" size="xs" tone="muted">{t("admin_eyebrow")}</Text>
+    <Page.Header className="border-b border-border pb-4">
+      <Text className="font-medium uppercase" variant="caption" tone="muted">{t("admin_eyebrow")}</Text>
       <PageHeading>{t("admin_title")}</PageHeading>
-      <PageDescription>{t("admin_subtitle")}</PageDescription>
-    </PageHeader>
+      <Page.Description>{t("admin_subtitle")}</Page.Description>
+    </Page.Header>
   )
 }
 
@@ -114,7 +108,7 @@ function AdminInsightsList({
   const lastItem = Math.min(page * meta.per_page, meta.total)
 
   return (
-    <Page aria-label={t("aria_admin_insights")} size="wide">
+    <Page.Root aria-label={t("aria_admin_insights")} size="wide">
       <AdminInsightsHeader />
 
       <Toolbar className="justify-between gap-4">
@@ -143,26 +137,26 @@ function AdminInsightsList({
           {t("empty")}
         </Notice>
       ) : (
-        <Section className="overflow-hidden p-0">
-          <DataTable>
-            <DataTableHead>
-              <tr>
-                <DataTableHeader>{t("col_title")}</DataTableHeader>
-                <DataTableHeader>{t("col_repository")}</DataTableHeader>
-                <DataTableHeader>{t("col_user")}</DataTableHeader>
-                <DataTableHeader>{t("col_severity")}</DataTableHeader>
-                <DataTableHeader>{t("col_confidence")}</DataTableHeader>
-                <DataTableHeader>{t("col_state")}</DataTableHeader>
-                <DataTableHeader>{t("col_actions")}</DataTableHeader>
-              </tr>
-            </DataTableHead>
-            <DataTableBody>
+        <Section.Root className="overflow-hidden p-0">
+          <DataTable.Root wrapperClassName="rounded-none border-0">
+            <DataTable.Header>
+              <DataTable.Row>
+                <DataTable.HeadCell>{t("col_title")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_repository")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_user")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_severity")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_confidence")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_state")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("col_actions")}</DataTable.HeadCell>
+              </DataTable.Row>
+            </DataTable.Header>
+            <DataTable.Body>
               {suggestions.map((suggestion) => (
                 <AdminSuggestionRow key={suggestion.id} prefix={prefix} suggestion={suggestion} />
               ))}
-            </DataTableBody>
-          </DataTable>
-        </Section>
+            </DataTable.Body>
+          </DataTable.Root>
+        </Section.Root>
       )}
 
       {meta.total_pages > 1 && (
@@ -190,7 +184,7 @@ function AdminInsightsList({
           </div>
         </div>
       )}
-    </Page>
+    </Page.Root>
   )
 }
 
@@ -223,8 +217,8 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
 
   return (
     <>
-      <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-        <DataTableCell>
+      <DataTable.Row className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+        <DataTable.Cell>
           <div className="max-w-sm">
             <button
               className="text-left text-sm font-medium text-text-primary underline-offset-2 hover:underline"
@@ -236,28 +230,28 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
             <span className="ml-2"><TonePill tone="gray">{suggestion.category}</TonePill></span>
             <span className="ml-2"><TonePill tone={suggestion.proposal_type === "remove_memory" ? "red" : "gray"}>{t(`proposal_${suggestion.proposal_type}`)}</TonePill></span>
           </div>
-        </DataTableCell>
-        <DataTableCell>
+        </DataTable.Cell>
+        <DataTable.Cell>
           <Link
             className="text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
             to={withRoutePrefix(suggestion.repository.insights_path, prefix)}
           >
             {suggestion.repository.slug}
           </Link>
-        </DataTableCell>
-        <DataTableCell className="text-xs text-text-secondary">
+        </DataTable.Cell>
+        <DataTable.Cell className="text-xs text-text-secondary">
           {suggestion.user.display_name}
-        </DataTableCell>
-        <DataTableCell>
+        </DataTable.Cell>
+        <DataTable.Cell>
           <SeverityPill severity={suggestion.severity} />
-        </DataTableCell>
-        <DataTableCell className="text-xs text-text-secondary">
+        </DataTable.Cell>
+        <DataTable.Cell className="text-xs text-text-secondary">
           {Math.round(suggestion.confidence * 100)}%
-        </DataTableCell>
-        <DataTableCell>
+        </DataTable.Cell>
+        <DataTable.Cell>
           <StatePill state={suggestion.state} />
-        </DataTableCell>
-        <DataTableCell>
+        </DataTable.Cell>
+        <DataTable.Cell>
           <div className="flex items-center gap-2">
             <Link
               className="text-xs text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
@@ -286,10 +280,10 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               </Button>
             )}
           </div>
-        </DataTableCell>
-      </tr>
+        </DataTable.Cell>
+      </DataTable.Row>
       {expanded && (
-        <tr className="bg-gray-50 dark:bg-gray-800/50">
+        <DataTable.Row className="bg-gray-50 dark:bg-gray-800/50">
           <td className="px-4 pb-4 pt-0" colSpan={7}>
             {notice && <p className="mb-2 text-xs text-green-700 dark:text-green-400">{notice}</p>}
             {error && <p className="mb-2 text-xs text-red-700 dark:text-red-400">{error}</p>}
@@ -339,7 +333,7 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               </div>
             )}
           </td>
-        </tr>
+        </DataTable.Row>
       )}
     </>
   )
