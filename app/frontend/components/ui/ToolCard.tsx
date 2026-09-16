@@ -61,10 +61,7 @@ function Body({ className = "", ...props }: ToolCardBodyProps) {
 
 function Footer({ className = "", ...props }: ToolCardFooterProps) {
   return (
-    <div
-      className={classes("mt-2 flex flex-wrap items-center gap-2 border-t border-[length:var(--border-width)] border-border pt-2 pl-1", className)}
-      {...props}
-    />
+    <div className={classes("mt-2 flex flex-wrap items-center gap-2 border-t-[length:var(--border-width)] border-border pt-2 pl-1", className)} {...props} />
   )
 }
 

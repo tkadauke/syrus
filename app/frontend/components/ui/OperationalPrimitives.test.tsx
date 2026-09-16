@@ -8,12 +8,7 @@ describe("operational UI primitives", () => {
     Object.assign(navigator, { clipboard: { writeText } })
 
     render(
-      <CodeSurface
-        aria-label="Checkout command"
-        code="syrus checkout JOB-12 --with-a-very-long-branch-name"
-        data-testid="command-surface"
-        mode="command"
-      />
+      <CodeSurface aria-label="Checkout command" code="syrus checkout JOB-12 --with-a-very-long-branch-name" data-testid="command-surface" mode="command" />
     )
 
     const surface = screen.getByLabelText("Checkout command")
@@ -27,12 +22,7 @@ describe("operational UI primitives", () => {
 
   it("renders multiline code surfaces with custom copy slot and contrast-safe token styling", () => {
     render(
-      <CodeSurface
-        code={"first line\nsecond line"}
-        copySlot={<button type="button">Copy transcript</button>}
-        maxHeightClassName="max-h-24"
-        mode="multiline"
-      />
+      <CodeSurface code={"first line\nsecond line"} copySlot={<button type="button">Copy transcript</button>} maxHeightClassName="max-h-24" mode="multiline" />
     )
 
     const pre = screen.getByText(/first line/).closest("pre")
@@ -148,6 +138,11 @@ describe("operational UI primitives", () => {
     expect(screen.getByText("Job loaded").className).toContain("text-[length:var(--text-body)]")
     expect(screen.getByText("JOB-12").className).toContain("text-text-muted")
     expect(screen.getByText("Status: running").className).toContain("custom-body")
-    expect(screen.getByTestId("tool-footer").className).toContain("border-t")
+    const footerClassName = screen.getByTestId("tool-footer").className
+    expect(footerClassName).toContain("border-t-[length:var(--border-width)]")
+    // Regression guard: an unscoped border-[length:...] alongside border-t
+    // would add a visible border-width to the right/bottom/left edges too,
+    // turning the intended top-only divider into a full box border.
+    expect(footerClassName).not.toMatch(/\bborder-\[length:var\(--border-width\)\]/)
   })
 })
