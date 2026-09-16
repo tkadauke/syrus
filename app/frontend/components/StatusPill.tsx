@@ -53,7 +53,7 @@ const STATE_LATIN: Record<string, string> = {
   mergeable:   "Concordia — Harmony",
 }
 
-export function StatusPill({ state }: { state: string }) {
+export function StatusPill({ state, wrap = false }: { state: string; wrap?: boolean }) {
   const { t } = useT()
   const normalized = state.toLowerCase()
   const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
@@ -65,7 +65,7 @@ export function StatusPill({ state }: { state: string }) {
   const label = t(`status.${normalized}`, { defaultValue: state.replaceAll("_", " ") })
 
   return (
-    <TonePill active={normalized === "running"} tone={tone} title={STATE_LATIN[normalized]}>
+    <TonePill active={normalized === "running"} tone={tone} title={STATE_LATIN[normalized]} wrap={wrap}>
       {label}
     </TonePill>
   )
