@@ -24,10 +24,14 @@ RSpec.describe Filters::Schema do
       schema = described_class.chip_for("agent_provider")
       expect(schema["bucket"]).to eq("enum")
       expect(schema["operators"]).to include("is", "is_one_of", "is_set")
-      expect(schema["values"]).to eq([
+      # Values are plugin-registry driven (User.agent_providers), so the
+      # exact set grows as bundled agent-provider plugins are added; assert
+      # the humanized shape and known defaults rather than a closed list.
+      expect(schema["values"]).to include(
         { "value" => "claude", "label" => "Claude" },
         { "value" => "codex",  "label" => "Codex" }
-      ])
+      )
+      expect(schema["values"].map { |v| v["value"] }).to match_array(User.agent_providers)
     end
 
     it "inherits string operators from StringColumn base" do

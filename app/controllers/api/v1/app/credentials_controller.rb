@@ -338,7 +338,7 @@ module Api
         end
 
         def testable_credentials
-          %w[ github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key muse_api_key ].select do |credential|
+          %w[ github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key muse_api_key agy ].select do |credential|
             CredentialProbe.probe_handler_for(credential)
           end
         end

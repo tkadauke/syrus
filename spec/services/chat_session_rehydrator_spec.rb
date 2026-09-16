@@ -18,6 +18,10 @@ RSpec.describe ChatSessionRehydrator do
       expect(described_class.for("muse")).to eq(ChatSessionRehydrator::Muse)
     end
 
+    it "returns the Antigravity rehydrator class for 'agy'" do
+      expect(described_class.for("agy")).to eq(ChatSessionRehydrator::Agy)
+    end
+
     it "returns nil for an unknown provider" do
       expect(described_class.for("oracle")).to be_nil
     end

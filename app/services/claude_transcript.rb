@@ -22,6 +22,9 @@ class ClaudeTranscript
   if (events = "MuseAgent::TranscriptEvents".safe_constantize)
     include events
   end
+  if (events = "AgyAgent::TranscriptEvents".safe_constantize)
+    include events
+  end
 
   Event = Data.define(:kind, :timestamp, :data)
   # `kind` is one of:
@@ -67,6 +70,8 @@ class ClaudeTranscript
     return [] if line.empty?
     parsed = JSON.parse(line)
     return [] unless parsed.is_a?(Hash)
+
+    return agy_events(parsed) if parsed["event"].present? && respond_to?(:agy_events, true)
 
     case parsed["type"].presence || parsed["record_type"].presence
     when "system"      then [ system_event(parsed) ].compact

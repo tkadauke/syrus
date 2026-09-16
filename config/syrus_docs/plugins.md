@@ -257,7 +257,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | Key | Label | Bundled plugins |
 |---|---|---|
 | `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
-| `agent_provider` | Agent provider | `claude_agent`, `codex_agent`, `muse_agent` |
+| `agent_provider` | Agent provider | `agy_agent`, `claude_agent`, `codex_agent`, `muse_agent` |
 | `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory` |
 | `input_source` | Input source | `github_source`, `linear_source` |
 | `platform_delivery` | Platform delivery | `discord` |
@@ -2701,6 +2701,21 @@ no teardown, which is exactly why it is not an effect.
 
 Bundled plugins:
 
+- `agy_agent` — default-enabled Antigravity workflow and chat provider. It writes
+  the Syrus sidecar into Antigravity's isolated
+  `~/.gemini/config/mcp_config.json` and reads `SYRUS_AGY_MODEL` /
+  `SYRUS_AGY_EFFORT` as provider configuration. Workflow and chat invocations
+  require the operator's saved Gemini API key (`User#gemini_api_key`); Syrus
+  passes that key through the Antigravity process environment (`GEMINI_API_KEY`
+  / `GOOGLE_API_KEY`), not argv or MCP sidecar args. Workflow runs use the
+  workflow-scoped `WorkflowWorkspace.agent_home_for` home, while chat turns use
+  `ChatWorkspace.agent_home_for`. Both restore captured Antigravity JSONL before
+  `--conversation` resume and persist conversation JSONL through
+  `ProviderSession` for later resumes. Chat turns read the normal
+  `syrus-chat-sidecar` / `syrus-chat-deferred-sidecar` MCP config, preserving
+  essential and deferred tool tiers. Antigravity conversation ids are accepted
+  only when they are path-safe; invalid ids start a fresh session and log a
+  diagnostic instead of being used in a path or command argument.
 - `claude_agent` / `codex_agent` — default-enabled workflow and chat providers.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not

@@ -91,13 +91,16 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
         <ol className="divide-y divide-gray-200 dark:divide-gray-700">
           {steps.map((step) => {
             const current = activeStep?.key === step.key
+            const showDetail = current || (step.key === "agent" && step.complete)
             return (
               <li className={checklistItemClass(current)} key={step.key}>
                 <div className={checklistContentClass(current)}>
                   <span className={statusMarkerClass(step.complete, current)}>{step.complete ? "OK" : current ? ">" : ""}</span>
                   <div className={current ? "min-w-0 text-center" : "min-w-0"}>
                     <h2 className="text-sm font-medium text-gray-900 dark:text-gray-100">{step.title}</h2>
-                    {current ? <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">{step.detail}</p> : null}
+                    {showDetail ? (
+                      <p className={current ? "mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400" : "mt-1 text-xs text-gray-500 dark:text-gray-400"}>{step.detail}</p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
@@ -261,6 +264,10 @@ function githubStepDetail(setup: SetupStatus) {
 }
 
 function providerLabel(provider: SetupStatus["credential_status"]["active_agent_provider"]) {
+  if (provider === "agy") return "Antigravity"
+  if (provider === "codex") return "Codex"
+  if (provider === "claude") return "Claude"
+
   return provider.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 

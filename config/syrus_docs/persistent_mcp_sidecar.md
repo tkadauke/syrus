@@ -132,10 +132,13 @@ transport before invoking. The decision is a `transport` (`:persistent` or
   `PersistentMcpDaemon::CAPABILITIES` is still empty (see above).
 - `provider_unsupported: ...` — provider-specific. Codex's MCP config
   (`config.toml`) has no verified remote/HTTP transport wiring in this
-  codebase, and Muse reads MCP servers from `~/.config/muse/settings.json`
-  without persistent HTTP wiring, so those providers downgrade any
-  `:persistent` decision to `:stdio` with this reason before they build
-  config, regardless of daemon health/compatibility.
+  codebase; Muse reads MCP servers from `~/.config/muse/settings.json`
+  without persistent HTTP wiring; and Antigravity's MCP config
+  (`~/.gemini/config/mcp_config.json`) also models the Syrus MCP sidecar as
+  stdio today. `AgentProviders::Codex`, `AgentProviders::Muse`, and
+  `AgentProviders::Agy` all downgrade any `:persistent` decision to `:stdio`
+  with this reason before they build config, regardless of daemon
+  health/compatibility.
 - `nil` (persistent, no fallback) — feature on, daemon healthy, compatible,
   and (Claude only) transport wiring exists. `AgentProviders::Claude` then
   builds an `http`-type `mcpServers` entry pointing at

@@ -14,13 +14,14 @@ RSpec.describe ChatProviders do
   end
 
   it "resolves configured chat provider adapters" do
+    expect(described_class.for("agy")).to eq(ChatProviders::Agy)
     expect(described_class.for("claude")).to eq(ChatProviders::Claude)
     expect(described_class.for("codex")).to eq(ChatProviders::Codex)
     expect(described_class.for("muse")).to eq(ChatProviders::Muse)
   end
 
   it "lists chat provider keys from enabled plugins" do
-    expect(described_class.provider_keys).to eq(%w[claude codex muse])
+    expect(described_class.provider_keys).to match_array(%w[agy claude codex muse])
   end
 
   it "raises for unknown chat providers" do
