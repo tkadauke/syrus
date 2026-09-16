@@ -16,14 +16,11 @@ module Admin
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
     TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["']\)/
     EXPLICIT_CARD_STATUSES = {
-      "admin_maintenance_tasks" => "generic",
       "analyze_walkthrough_segment" => "deferred",
       "assign_job_to_epic" => "generic",
-      "complete_implement_step" => "hidden",
       "delete_design_doc" => "generic",
       "force_fail_job" => "generic",
       "force_rebase" => "generic",
-      "force_state_transition" => "generic",
       "get_spending" => "deferred",
       "get_walkthrough_analysis" => "deferred",
       "manual_agentic_run" => "generic",
@@ -31,10 +28,7 @@ module Admin
       "read_walkthrough_frame" => "deferred",
       "refresh_pr_checks" => "generic",
       "reset_workspace" => "hidden",
-      "restack_epic" => "generic",
-      "set_bookmark" => "hidden",
-      "submit_chat_feedback" => "hidden",
-      "submit_coding_changes" => "hidden"
+      "restack_epic" => "generic"
     }.freeze
 
     class << self

@@ -845,12 +845,13 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("1 bookmark")).toBeInTheDocument()
     expect(screen.getByText("1 Job")).toBeInTheDocument()
-    expect(screen.queryByText("Bookmark added: Launch notes")).not.toBeInTheDocument()
+    expect(screen.queryByText("topic")).not.toBeInTheDocument()
     expect(screen.queryByText("Typed renderers")).not.toBeInTheDocument()
 
     expandToolGroup("Actions")
 
-    expect(screen.getByText("Bookmark added: Launch notes")).toBeInTheDocument()
+    expect(screen.getByText("Launch notes")).toBeInTheDocument()
+    expect(screen.getByText("topic")).toBeInTheDocument()
     expect(screen.getByText("JOB-4048")).toBeInTheDocument()
     expect(screen.getByText("Typed renderers")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()

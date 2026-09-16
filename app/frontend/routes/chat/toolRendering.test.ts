@@ -261,13 +261,6 @@ describe("normalizedToolCardParsedResult", () => {
 })
 
 describe("typedToolResult", () => {
-  it("renders set_bookmark as a concise success outcome", () => {
-    expect(typedToolResult("set_bookmark", JSON.stringify({ id: 12, label: "Launch notes", kind: "topic" }))).toEqual({
-      type: "success_row",
-      label: "Bookmark added: Launch notes"
-    })
-  })
-
   it("no longer special-cases read_job/read_epic (superseded by their tool_cards/ renderers)", () => {
     expect(typedToolResult("read_job", JSON.stringify({ job: { id: 4048, state: "running" } }))).toBeNull()
     expect(typedToolResult("read_epic", JSON.stringify({ epic: { id: 285, state: "running" } }))).toBeNull()
@@ -278,6 +271,10 @@ describe("typedToolResult", () => {
     expect(typedToolResult("propose_epic", JSON.stringify({ slug: "fix-epic", title: "Fix epic", kind: "epic", state: "proposed" }))).toBeNull()
     expect(typedToolResult("propose_epic_with_jobs", JSON.stringify({ slug: "fix-epic", state: "proposed" }))).toBeNull()
     expect(typedToolResult("check_job_mergeability", JSON.stringify({ pending_action_id: 201, state: "pending", message: "Check mergeability for JOB-851?" }))).toBeNull()
+  })
+
+  it("no longer special-cases set_bookmark (superseded by its tool_cards/ renderer)", () => {
+    expect(typedToolResult("set_bookmark", JSON.stringify({ id: 12, label: "Launch notes", kind: "topic" }))).toBeNull()
   })
 
   it("returns null for unknown tools and malformed typed payloads", () => {
