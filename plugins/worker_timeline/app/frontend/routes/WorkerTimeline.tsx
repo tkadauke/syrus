@@ -7,6 +7,7 @@ import { errorMessage } from "@app/lib/errorMessage"
 import { FilterBar } from "@app/components/FilterBar"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
+import { Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
 import { fetchWorkerTimelineMacro, fetchWorkerTimelineWorkflow, recordWorkerTimelineFilterUsage, type WorkerTimelineMacroPayload } from "../api/workerTimeline"
 import { TimelineLanes } from "../components/TimelineLanes"
 import { WorkflowWaterfall } from "../components/WorkflowWaterfall"
@@ -36,12 +37,12 @@ export function WorkerTimelineMacroView() {
   }
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto max-w-[96rem] space-y-4 p-6">
-      <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("eyebrow")}</p>
-        <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{t("heading")}</h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("description")}</p>
-      </header>
+    <Page aria-label={t("aria_page")} size="wide">
+      <PageHeader className="border-b border-border pb-4">
+        <Text className="font-medium uppercase" size="xs" tone="muted">{t("eyebrow")}</Text>
+        <PageHeading>{t("heading")}</PageHeading>
+        <PageDescription>{t("description")}</PageDescription>
+      </PageHeader>
 
       <FilterBar
         filter={macro.data?.filter ?? null}
@@ -54,12 +55,12 @@ export function WorkerTimelineMacroView() {
         suggestionSearch={{ surface: "worker_timeline", subject: "worker_timeline" }}
       />
 
-      {macro.isPending ? <p className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p> : null}
-      {macro.isError ? <p className="p-6 text-sm text-red-700 dark:text-red-300">{errorMessage(macro.error, t("error_loading"))}</p> : null}
+      {macro.isPending ? <Notice>{t("loading")}</Notice> : null}
+      {macro.isError ? <Notice tone="error">{errorMessage(macro.error, t("error_loading"))}</Notice> : null}
       {macro.data ? <TimelineLanes onSelectWorkflow={handleSelectWorkflow} payload={macro.data} /> : null}
 
       {macro.data ? <PendingList pending={macro.data.pending} prefix={prefix} /> : null}
-    </main>
+    </Page>
   )
 }
 
@@ -74,9 +75,9 @@ function PendingList({
   if (pending.length === 0) return null
 
   return (
-    <section aria-label={t("pending_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("pending_heading")}</h2>
-      <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+    <Section aria-label={t("pending_aria")}>
+      <SectionHeading>{t("pending_heading")}</SectionHeading>
+      <ul className="mt-2 divide-y divide-border text-sm">
         {pending.map((entry) => {
           const label = pendingLabelParts(entry)
 
@@ -91,14 +92,14 @@ function PendingList({
                   {label.triggerKind}
                 </Link>
               </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <Text as="span" size="xs" tone="muted">
                 {entry.blocked.available ? t("blocked_reason_line", { reason: entry.blocked.blocked_reason }) : t("no_blocker_data")}
-              </span>
+              </Text>
             </li>
           )
         })}
       </ul>
-    </section>
+    </Section>
   )
 }
 
@@ -126,17 +127,17 @@ function WorkerTimelineWorkflowDetail() {
   })
 
   return (
-    <main aria-label={t("detail_aria")} className="mx-auto max-w-5xl space-y-4 p-6">
+    <Page aria-label={t("detail_aria")}>
       <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix("/worker_timeline", prefix)}>
         {t("back_to_timeline")}
       </Link>
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("detail_heading")}</h1>
+      <PageHeading>{t("detail_heading")}</PageHeading>
 
-      {!workflowId ? <p className="text-sm text-gray-600 dark:text-gray-400">{t("detail_placeholder_no_workflow")}</p> : null}
-      {detail.isPending && workflowId ? <p className="text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p> : null}
-      {detail.isError ? <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(detail.error, t("error_loading"))}</p> : null}
+      {!workflowId ? <Notice>{t("detail_placeholder_no_workflow")}</Notice> : null}
+      {detail.isPending && workflowId ? <Notice>{t("loading")}</Notice> : null}
+      {detail.isError ? <Notice tone="error">{errorMessage(detail.error, t("error_loading"))}</Notice> : null}
       {detail.data ? <WorkflowWaterfall payload={detail.data} prefix={prefix} /> : null}
-    </main>
+    </Page>
   )
 }
 
