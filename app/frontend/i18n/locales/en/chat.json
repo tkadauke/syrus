@@ -345,6 +345,8 @@
   "proposal_route_backlog": "Backlog",
   "proposal_route_implement": "Implement",
   "proposal_route_start_normally": "Start normally",
+  "proposal_investigation_label": "Investigation",
+  "proposal_investigation_value": "Read-only, no PR expected",
   "aria_confirm_proposal_to_backlog": "Confirm proposal to backlog",
   "aria_confirm_proposal_and_implement": "Confirm proposal and implement",
   "dependencies": "Dependencies",

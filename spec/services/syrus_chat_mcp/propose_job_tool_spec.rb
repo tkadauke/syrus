@@ -448,6 +448,34 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(payload[:initial_job_state]).to eq("backlog")
   end
 
+  it "stores investigation intent and returns it in the proposal payload" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Check on the flaky deploy job",
+      description: "Look into why deploys keep failing and report back.",
+      investigation: true
+    )
+
+    expect(response[:result]).to be_present
+    proposal = chat_session.proposals.find_by!(title: "Check on the flaky deploy job")
+    payload = response_payload(response)
+    expect(proposal.investigation).to be(true)
+    expect(payload[:investigation]).to be(true)
+  end
+
+  it "defaults investigation to false" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Normal implementation job",
+      description: "Ship the fix."
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Normal implementation job")
+    payload = response_payload(response)
+    expect(proposal.investigation).to be(false)
+    expect(payload[:investigation]).to be(false)
+  end
+
   it "stores an empty media_ids array when media is omitted" do
     response = call_tool(
       repo: repository.slug,

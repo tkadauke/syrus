@@ -19,6 +19,7 @@ module Skills
 
     ENTRIES = [
       Entry.new(name: "investigate", klass: "Investigate"),
+      Entry.new(name: "investigate-and-report", klass: "InvestigateAndReport"),
       Entry.new(name: "onboard-to-syrus", klass: "OnboardToSyrus"),
       Entry.new(name: "debug", klass: "Debug"),
       Entry.new(name: "rebase-conflict-resolver", klass: "RebaseConflictResolver"),
