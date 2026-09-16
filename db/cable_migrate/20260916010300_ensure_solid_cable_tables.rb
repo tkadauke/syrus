@@ -1,6 +1,8 @@
-class CreateSolidCableTables < ActiveRecord::Migration[8.1]
-  def change
-    create_table :solid_cable_messages, if_not_exists: true do |t|
+class EnsureSolidCableTables < ActiveRecord::Migration[8.1]
+  def up
+    return if table_exists?(:solid_cable_messages)
+
+    create_table :solid_cable_messages do |t|
       t.binary :channel, limit: 1024, null: false
       t.integer :channel_hash, limit: 8, null: false
       t.datetime :created_at, null: false
@@ -10,5 +12,9 @@ class CreateSolidCableTables < ActiveRecord::Migration[8.1]
       t.index :channel_hash, name: "index_solid_cable_messages_on_channel_hash"
       t.index :created_at, name: "index_solid_cable_messages_on_created_at"
     end
+  end
+
+  def down
+    drop_table :solid_cable_messages if table_exists?(:solid_cable_messages)
   end
 end
