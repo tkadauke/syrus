@@ -8,16 +8,20 @@ import { fetchMetricsDashboard } from "../api/metricsDashboard"
 import { MetricsChart } from "./MetricsChart"
 
 const DEFAULT_WINDOW = "6h"
+const TAB_PARAM = "tab"
 
 export function MetricsDashboardRoute() {
   const { t } = useT("metrics_dashboard")
   usePageTitle(t("heading"))
   const [ searchParams, setSearchParams ] = useSearchParams()
   const window = searchParams.get("window") || DEFAULT_WINDOW
+  const requestedTab = searchParams.get(TAB_PARAM)
 
   // Lifted to the page, not held per chart: hovering one chart has to move the
   // crosshair in all of them, which is the whole point of serving every panel
-  // on one bucket grid. Index i is the same instant everywhere.
+  // on one bucket grid. Index i is the same instant everywhere. The window
+  // selector lives at the page level for the same reason -- both must keep
+  // working the same way regardless of which tab is active.
   const [ hoverIndex, setHoverIndex ] = useState<number | null>(null)
 
   const dashboard = useQuery({
@@ -27,6 +31,17 @@ export function MetricsDashboardRoute() {
     refetchInterval: 60_000
   })
 
+  // Merges into whatever is already in the URL rather than replacing it, so
+  // switching the window doesn't drop the active tab and switching the tab
+  // doesn't drop the window.
+  function updateParam(key: string, value: string) {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous)
+      next.set(key, value)
+      return next
+    })
+  }
+
   if (dashboard.isPending) {
     return <main className="p-6 text-sm text-gray-500">{t("loading")}</main>
   }
@@ -35,6 +50,16 @@ export function MetricsDashboardRoute() {
   }
 
   const payload = dashboard.data
+  // Core tabs translate their label from this plugin's own i18n namespace by
+  // id; a plugin tab ships its label as a literal string, since it cannot
+  // resolve against a namespace this plugin doesn't own. Concatenated once so
+  // the rest of the page treats every tab the same way.
+  const tabs = [
+    ...payload.categories.map((id) => ({ id, label: t(`tabs.${id}`) })),
+    ...payload.plugin_tabs
+  ]
+  const activeTab = requestedTab && tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0]?.id
+  const visiblePanels = payload.panels.filter((panel) => panel.category === activeTab)
 
   return (
     <main aria-label={t("aria_page")} className="mx-auto max-w-[100rem] space-y-5 p-6">
@@ -57,7 +82,7 @@ export function MetricsDashboardRoute() {
               key={option}
               onClick={() => {
                 setHoverIndex(null)
-                setSearchParams({ window: option })
+                updateParam("window", option)
               }}
               type="button"
             >
@@ -69,8 +94,30 @@ export function MetricsDashboardRoute() {
 
       <RecordingNotice lastRecordedAt={payload.last_recorded_at} recording={payload.recording} />
 
-      <div className="grid gap-5 2xl:grid-cols-2">
-        {payload.panels.map((panel) => (
+      <nav aria-label={t("tabs_aria")} className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700" role="tablist">
+        {tabs.map((tab) => (
+          <button
+            aria-selected={tab.id === activeTab}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+              tab.id === activeTab
+                ? "border-brand text-brand dark:text-brand-emphasis"
+                : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-100"
+            }`}
+            key={tab.id}
+            onClick={() => {
+              setHoverIndex(null)
+              updateParam(TAB_PARAM, tab.id)
+            }}
+            role="tab"
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="grid gap-5 2xl:grid-cols-2" role="tabpanel">
+        {visiblePanels.map((panel) => (
           <MetricsChart
             bucketSeconds={payload.bucket_seconds}
             buckets={payload.buckets}
@@ -78,7 +125,7 @@ export function MetricsDashboardRoute() {
             key={panel.key}
             onHover={setHoverIndex}
             panel={panel}
-            title={t(`panels.${panel.key}`)}
+            title={panel.label ?? t(`panels.${panel.key}`)}
           />
         ))}
       </div>
