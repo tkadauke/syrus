@@ -9,6 +9,8 @@ describe("pluginUiSlots", () => {
   })
 
   it("exposes discovered plugin ui_slot component keys as plugin/Component", () => {
+    expect(pluginUiSlotComponentKeys()).toContain("test_insights/JobTests")
+
     for (const key of pluginUiSlotComponentKeys()) {
       expect(key).toMatch(/^[^/]+\/[^/]+$/)
     }
