@@ -1526,7 +1526,12 @@ module Api
           enqueued = Rails.cache.write(cache_key, true, unless_exist: true, expires_in: 15.seconds)
           return unless enqueued
 
-          ChatCodingRelayRefreshJob.perform_later(chat_session.id)
+          storage_key = chat_session.workspace_storage_key
+          if storage_key.present?
+            ChatCodingRelayRefreshJob.set(queue: "resume-#{storage_key}").perform_later(chat_session.id)
+          else
+            ChatCodingRelayRefreshJob.perform_later(chat_session.id)
+          end
         rescue StandardError => e
           Rails.logger.warn("[ChatsController] could not enqueue coding relay refresh for chat #{chat_session.id}: #{e.class}: #{e.message}")
         end

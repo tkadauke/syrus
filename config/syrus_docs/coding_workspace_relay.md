@@ -58,6 +58,40 @@ present.
 - The chat payload exposes `coding_relay_ready: true` once the relay address is
   recorded, so the UI can show a loading state while the relay warms up.
 
+## Relay refresh routing (`workspace_storage_key`)
+
+`chat_sessions.coding_relay_address`/`coding_relay_token` are opportunistic:
+they only get written by whichever worker most recently confirmed the
+checkout on local disk (`ChatWorkspace#write_relay_credentials!`, called from
+`ensure_root!`, `attach_repository!`, `ensure_coding_checkout!`, and
+`refresh_relay_credentials!`), and `ChatsController` clears both columns on any
+transient relay connection failure (worker restart, pod reschedule, a brief
+network blip — not just an actually-missing checkout). `ChatCodingRelayRefreshJob`
+is the repair path for that cleared state.
+
+That same `write_relay_credentials!` call also stamps
+`chat_sessions.workspace_storage_key` with `WorkerStorageIdentity.key` — the
+identity of the worker whose local disk holds the checkout. When
+`ChatsController#schedule_coding_relay_refresh!` enqueues the refresh job, it
+routes it onto that worker's own `resume-<workspace_storage_key>` queue
+(the same storage-affinity mechanism `RunJob` uses for retry-from-failed-step)
+instead of the plain `chat` queue, so the refresh lands on the worker that can
+actually see the checkout. A chat session with no `workspace_storage_key` yet
+(no checkout has ever been confirmed anywhere) falls back to the plain `chat`
+queue — there is nothing to route to.
+
+`ChatCodingRelayRefreshJob` and `ChatWorkspace#refresh_relay_credentials!`
+never re-clone: the checkout may hold uncommitted agent work, and a silent
+re-clone would destroy it. If the job is correctly routed to the worker that
+recorded the checkout and the checkout is still missing there (genuinely
+lost — wiped disk, evicted PVC), it logs an error identifying the chat session
+and worker, clears the (already-stale) relay credentials, and stamps
+`coding_checkout_prepare_status: "workspace_lost"` with a `coding_checkout_prepare_failure`
+message instead of silently no-opping. A chat landing on a worker other than
+the one recorded in `workspace_storage_key` (should not happen given the
+routing above, but is not treated as proof of loss) logs a warning and leaves
+the session untouched.
+
 ## Pre-turn checkout and prep visibility
 
 `ChatTurnJob` calls `ChatWorkspace.ensure_coding_checkout!` before building the
@@ -98,4 +132,9 @@ waking the agent into a half-prepared checkout.
 The chat queue must run on exactly one worker pod. Chat workspaces are on local
 disk and the relay address recorded in the DB points to that pod. Do not put the
 `chat` queue on multiple pods or scale it past one replica. See `multi_worker.md`
-for the full constraint.
+for the full constraint. `workspace_storage_key` routing (above) makes relay
+*refresh* resilient to that constraint being violated — a scaled-out `chat`
+queue no longer strands the refresh on a pod without the checkout — but it does
+not make the rest of Coding Mode (checkout creation, prep, `ChatTurnJob`) safe
+to run across more than one `chat`-queue replica; the single-pod requirement
+still applies there.

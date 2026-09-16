@@ -245,6 +245,32 @@ RSpec.describe ChatWorkspace, :ci_only do
         expect(chat_session.coding_checkout_branch).to be_nil
       end
     end
+
+    context "workspace_storage_key" do
+      it "stamps workspace_storage_key from WorkerStorageIdentity.key on first write" do
+        described_class.attach_repository!(chat_session, repository)
+
+        expect(chat_session.reload.workspace_storage_key).to eq(WorkerStorageIdentity.key)
+      end
+
+      it "does not clobber workspace_storage_key when it already matches this worker" do
+        described_class.attach_repository!(chat_session, repository)
+        key = chat_session.reload.workspace_storage_key
+
+        described_class.attach_repository!(chat_session, repository)
+
+        expect(chat_session.reload.workspace_storage_key).to eq(key)
+      end
+
+      it "updates workspace_storage_key when it points at a different worker" do
+        chat_session.update_columns(workspace_storage_key: "some-other-worker-key")
+
+        described_class.attach_repository!(chat_session, repository)
+
+        expect(chat_session.reload.workspace_storage_key).to eq(WorkerStorageIdentity.key)
+        expect(chat_session.workspace_storage_key).not_to eq("some-other-worker-key")
+      end
+    end
   end
 
   describe ".ensure_job_branch_checkout!" do
