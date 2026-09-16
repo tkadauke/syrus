@@ -3,12 +3,32 @@ require Rails.root.join("plugins/whiteboard/db/migrate/20260702011906_backfill_s
 
 RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
   let(:migration) { described_class.new }
-  let(:user) { Factories.user }
-  let(:repository) { Factories.repository(user: user) }
-  let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+  let(:connection) { ActiveRecord::Base.connection }
+  let(:whiteboard_records) do
+    Class.new(ActiveRecord::Base) do
+      self.table_name = "whiteboards"
+    end
+  end
+
+  before do
+    connection.drop_table(:whiteboards, if_exists: true)
+    connection.create_table(:whiteboards) do |t|
+      t.bigint :chat_session_id
+      t.json :scene_json, null: false
+      t.integer :version, null: false, default: 0
+      t.datetime :last_edited_at
+      t.timestamps
+    end
+
+    whiteboard_records.reset_column_information
+  end
+
+  after do
+    connection.drop_table(:whiteboards, if_exists: true)
+  end
 
   it "remaps sticky elements to rectangles with yellow styling" do
-    whiteboard = Whiteboard::Board.create!(chat_session: chat_session,
+    whiteboard = whiteboard_records.create!(
       scene_json: {
         "elements" => [
           { "id" => "s1", "type" => "sticky", "x" => 0, "y" => 0, "width" => 100, "height" => 80 },
@@ -21,7 +41,7 @@ RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
 
     migration.up
 
-    elements = whiteboard.reload.elements
+    elements = whiteboard.reload.scene_json["elements"]
     sticky = elements.find { |el| el["id"] == "s1" }
     rect = elements.find { |el| el["id"] == "r1" }
 
@@ -30,7 +50,7 @@ RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
   end
 
   it "preserves an explicit backgroundColor set on a sticky element" do
-    whiteboard = Whiteboard::Board.create!(chat_session: chat_session,
+    whiteboard = whiteboard_records.create!(
       scene_json: {
         "elements" => [
           { "id" => "s1", "type" => "sticky", "backgroundColor" => "#bbf7d0", "x" => 0, "y" => 0, "width" => 100, "height" => 80 }
@@ -42,12 +62,12 @@ RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
 
     migration.up
 
-    element = whiteboard.reload.elements.first
+    element = whiteboard.reload.scene_json["elements"].first
     expect(element).to include("type" => "rectangle", "backgroundColor" => "#bbf7d0", "strokeColor" => "#854d0e")
   end
 
   it "is idempotent — re-running leaves no sticky elements" do
-    whiteboard = Whiteboard::Board.create!(chat_session: chat_session,
+    whiteboard = whiteboard_records.create!(
       scene_json: {
         "elements" => [ { "id" => "s1", "type" => "sticky", "x" => 0, "y" => 0, "width" => 100, "height" => 80 } ],
         "appState" => {},
@@ -58,13 +78,13 @@ RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
     migration.up
     migration.up
 
-    elements = whiteboard.reload.elements
+    elements = whiteboard.reload.scene_json["elements"]
     expect(elements.map { |el| el["type"] }).not_to include("sticky")
     expect(elements.first).to include("type" => "rectangle")
   end
 
   it "skips whiteboards with no sticky elements" do
-    whiteboard = Whiteboard::Board.create!(chat_session: chat_session,
+    whiteboard = whiteboard_records.create!(
       scene_json: {
         "elements" => [ { "id" => "r1", "type" => "rectangle", "x" => 0, "y" => 0, "width" => 100, "height" => 80 } ],
         "appState" => {},

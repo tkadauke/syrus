@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Verify that a fresh production-style database can be prepared from scratch.
+#
+# This runs production with SYRUS_SQLITE=1 so it exercises the deploy-time
+# database layout (primary/cache/queue/cable/search plus plugin migrations)
+# without requiring a local MySQL server. It catches historical migrations that
+# accidentally reference current app models/tables instead of migration-local
+# classes, which only fail on fresh installs or staging rebuilds.
+set -euo pipefail
+
+if [ ! -x bin/rails ]; then
+  echo "[check-fresh-production-db-prepare] no bin/rails - skipping"
+  exit 0
+fi
+
+root="$(pwd)"
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/syrus-fresh-db-prepare.XXXXXX")"
+cleanup() {
+  rm -rf "$tmpdir"
+}
+trap cleanup EXIT
+
+mkdir -p "$tmpdir/db" "$tmpdir/search"
+
+env \
+  SYRUS_SQLITE=1 \
+  RAILS_ENV=production \
+  RAILS_MASTER_KEY="${RAILS_MASTER_KEY:-8c3f538bb0a369f25d62cf5fa7e9be09}" \
+  SECRET_KEY_BASE="${SECRET_KEY_BASE:-fresh-db-prepare-local-secret}" \
+  DB_HOST="${DB_HOST:-127.0.0.1}" \
+  SYRUS_DATABASE_PASSWORD="${SYRUS_DATABASE_PASSWORD:-fresh-db-prepare}" \
+  SYRUS_DATA_ROOT="$tmpdir" \
+  SEARCH_DATABASE_PATH="$tmpdir/search/search.sqlite3" \
+  SYRUS_APP_HOST="${SYRUS_APP_HOST:-localhost}" \
+  SYRUS_PREVIEW_BASE_DOMAIN="${SYRUS_PREVIEW_BASE_DOMAIN:-localhost}" \
+  "$root/bin/rails" db:prepare
+
+echo "[check-fresh-production-db-prepare] ok"

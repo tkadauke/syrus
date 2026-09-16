@@ -274,6 +274,17 @@ grade:
     phases: [review, landing, ci]
     timeout_minutes: 3
 
+  - name: fresh-production-db-prepare
+    description: |
+      Runs `db:prepare` into an empty production-style SQLite data root,
+      including primary, cache, queue, cable, search, and plugin migrations.
+      This catches deploy crashloops from historical migrations that reference
+      current app models or renamed tables, which normal already-migrated test
+      databases do not exercise.
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-fresh-production-db-prepare
+    phases: [review, landing, ci]
+    timeout_minutes: 5
+
   - name: cli-go-workspace-backstop
     description: |
       Runs the full Go workspace for cross-project CLI integration changes:
