@@ -2550,6 +2550,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(chat.coding_relay_token).to be_nil
     end
 
+    it "queues the relay refresh on the worker's own resume queue when workspace_storage_key is set" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        workspace_storage_key: "worker-abc123")
+      enable_coding_mode!
+
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_files"
+      }.to have_enqueued_job(ChatCodingRelayRefreshJob).with(chat.id).on_queue("resume-worker-abc123")
+
+      expect(response).to have_http_status(:service_unavailable)
+    end
+
     it "throttles duplicate relay refresh jobs during the client backoff window" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")

@@ -36,8 +36,14 @@ default: &default
       polling_interval: 0.1
     # User-facing chat turns and chat workspace maintenance get a
     # separate low-concurrency pool. They may invoke agents too, but
-    # must not sit behind saturated multi-hour RunJobs.
-    - queues: "chat"
+    # must not sit behind saturated multi-hour RunJobs. Also consumes this
+    # worker's own storage-affinity `resume-<worker-storage-key>` queue so a
+    # chat coding-relay refresh routed to the worker holding the checkout
+    # (see ChatSession#workspace_storage_key) is picked up here rather than
+    # landing on an arbitrary pod that no-ops for lack of the local checkout.
+    - queues:
+        - "<%= WorkerStorageIdentity.queue_name %>"
+        - "chat"
       threads: <%= ENV.fetch("CHAT_CONCURRENCY", 2) %>
       processes: 1
       polling_interval: 0.1
@@ -109,7 +115,9 @@ development:
       threads: <%= ENV.fetch("DEV_MERGE_CONCURRENCY", 1) %>
       processes: 1
       polling_interval: 0.5
-    - queues: "chat"
+    - queues:
+        - "<%= WorkerStorageIdentity.queue_name %>"
+        - "chat"
       threads: <%= ENV.fetch("DEV_CHAT_CONCURRENCY", 1) %>
       processes: 1
       polling_interval: 0.5
