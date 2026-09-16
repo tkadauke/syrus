@@ -19,6 +19,18 @@ module SpendingInsights
         },
         i18n: [ "app/frontend/i18n/locales/*/spending.json" ]
 
+    # MetricsSampler needs cursor-based cumulative logic (see its class doc),
+    # not a plain aggregate value -- the `sampler` escape hatch registers it
+    # into the same Syrus::Metrics sampler registry a declarative `gauge`
+    # block uses, so it samples on the shared control-plane tick with no
+    # plugin-owned tick_interval/on_tick of its own.
+    metrics do
+      counter :run_cost_usd_total, tags: %i[provider trigger_kind],
+              comment: "Cumulative Run#cost_usd, so a cost blowup is alertable instead of only visible on " \
+                       "/insights/spending"
+      sampler MetricsSampler
+    end
+
     while_enabled do |scope|
       scope.effect("filter subjects") do
         Filters.register_subject(

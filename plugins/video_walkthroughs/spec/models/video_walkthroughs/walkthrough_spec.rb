@@ -140,4 +140,41 @@ RSpec.describe VideoWalkthroughs::Walkthrough do
       expect(walkthrough.analysis_open_questions).to eq([ "Is the coupon field intentional?" ])
     end
   end
+
+  # .total_stored_bytes backs the storage_bytes gauge's sample block (see
+  # lib/video_walkthroughs.rb) -- the same total PruneJob's size sweep uses
+  # to decide whether to evict.
+  describe ".total_stored_bytes" do
+    def settled(byte_size:, state: "analyzed")
+      walkthrough = build_walkthrough(byte_size: byte_size, analysis: { "summary" => "s" })
+      walkthrough.save!
+      walkthrough.update_columns(state: state, byte_size: byte_size)
+      walkthrough.reload
+    end
+
+    it "sums the byte_size of settled rows whose blob is still attached" do
+      settled(byte_size: 1_000)
+      settled(byte_size: 2_500, state: "failed")
+
+      expect(described_class.total_stored_bytes).to eq(3_500)
+    end
+
+    it "excludes rows still in flight" do
+      settled(byte_size: 1_000)
+      build_walkthrough(byte_size: 5_000, state: "analyzing", analysis: nil).save!
+
+      expect(described_class.total_stored_bytes).to eq(1_000)
+    end
+
+    it "excludes a settled row whose blob has already been purged" do
+      purged = settled(byte_size: 1_000)
+      purged.file.purge
+
+      expect(described_class.total_stored_bytes).to eq(0)
+    end
+
+    it "is zero when nothing is stored" do
+      expect(described_class.total_stored_bytes).to eq(0)
+    end
+  end
 end

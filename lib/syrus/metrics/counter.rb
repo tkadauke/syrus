@@ -23,6 +23,25 @@ module Syrus
         key = key_for(tags)
         @mutex.synchronize { @values[key] ||= 0 }
       end
+
+      # Overwrites the tracked value for one tag combination to an externally
+      # computed absolute total, for a counter whose true source of truth is a
+      # periodic aggregate sample cached outside this process rather than an
+      # event this process witnessed directly (see Metrics::LandingSampler,
+      # which counts events -- like a Run finishing -- that happen on a
+      # worker process but must still render from the web process that serves
+      # /metrics). Idempotent: calling this repeatedly with the same total is
+      # a no-op, and the monotonic invariant still holds because the tracked
+      # value never moves backward -- a stale or reset upstream total simply
+      # does not apply rather than making the series appear to shrink.
+      #
+      # Compared and stored as floats (not `.to_i`) so a fractional cumulative
+      # total -- e.g. summed dollar cost -- is not silently floored to the
+      # nearest whole unit on every tick.
+      def reconcile!(total, tags: {})
+        key = key_for(tags)
+        @mutex.synchronize { @values[key] = total if total.to_f > (@values[key] || 0).to_f }
+      end
     end
   end
 end

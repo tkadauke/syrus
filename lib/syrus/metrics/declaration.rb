@@ -13,29 +13,48 @@ module Syrus
     class Declaration
       PREFIX = "syrus_".freeze
 
-      attr_reader :definitions
+      attr_reader :definitions, :samplers
 
       def initialize(owner:, prefix: nil)
         @owner = owner
         @plugin_prefix = prefix
         @definitions = []
+        @samplers = []
       end
 
       def counter(name, tags: [], comment: nil, share: false)
         add(name, :counter, tags: tags, comment: comment, share: share)
       end
 
-      def gauge(name, tags: [], comment: nil, share: false)
-        add(name, :gauge, tags: tags, comment: comment, share: share)
+      # A block turns this into a *sampled* gauge: the framework calls it on
+      # the shared control-plane tick (Syrus::Metrics.samplers, driven by
+      # SampleGlobalMetricsJob), caches the result, and sets the live gauge
+      # from that cache on every /metrics scrape -- no tick_interval, on_tick,
+      # or hand-written sampler class needed for the common case of "read one
+      # aggregate value on a timer". Untagged only, since the block returns a
+      # single scalar; for several gauges off one query pass, or a counter/
+      # histogram that needs cursor-based cumulative logic, declare a full
+      # sampler class with `sampler` instead (see Metrics::QueueSampler).
+      def gauge(name, tags: [], comment: nil, share: false, &sample_block)
+        add(name, :gauge, tags: tags, comment: comment, share: share, sample_block: sample_block)
       end
 
       def histogram(name, buckets:, tags: [], comment: nil, share: false)
         add(name, :histogram, tags: tags, comment: comment, share: share, buckets: buckets)
       end
 
+      # The escape hatch: klass must implement `.sample!` and
+      # `.refresh_gauges!` (see Metrics::QueueSampler). Registered into the
+      # same sampler registry a sampled `gauge` block uses, so
+      # SampleGlobalMetricsJob and MetricsController need no plugin-specific
+      # wiring either way.
+      def sampler(klass)
+        @samplers << klass
+      end
+
       private
 
-      def add(name, type, tags:, comment:, share:, buckets: nil)
+      def add(name, type, tags:, comment:, share:, buckets: nil, sample_block: nil)
         @definitions << Definition.new(
           name: :"#{PREFIX}#{@plugin_prefix}#{name}",
           type: type,
@@ -43,7 +62,8 @@ module Syrus
           comment: comment,
           owner: @owner,
           share: share,
-          buckets: buckets
+          buckets: buckets,
+          sample_block: sample_block
         )
       end
     end

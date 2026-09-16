@@ -92,6 +92,16 @@ Fires once at a future datetime (`fire_at`). After firing, the task moves to `fi
 
 When `consecutive_failure_count` reaches `AppSetting.max_job_failures` (default: 3), the task transitions to `auto_paused`. The operator must unpause the task (via admin UI or Rails console: `task.update!(state: 'scheduled', consecutive_failure_count: 0)`) to re-enable it.
 
+An auto-paused task stops firing silently -- nothing about it looks different from a task nobody has touched
+in a while, which is exactly what makes it easy to miss. While enabled, the plugin exports
+`syrus_scheduled_tasks_autopaused_total` (a gauge) to `/metrics` (see `config/syrus_docs/metrics.md`): the
+count of tasks currently in the `auto_paused` state, so a silently-stopped cron task shows up on a dashboard
+the same way a stalled queue does. It uses the declarative sample-block form of the manifest `metrics` DSL
+(`gauge :autopaused_total do ... end`, see `Syrus::PluginApi::Definition#metrics`), so it is sampled once a
+minute on the shared control-plane tick (`SampleGlobalMetricsJob`, the same tick core samplers use) rather
+than on `ScheduledTasks::Callbacks#on_tick`'s own poll cadence or on the `/metrics` scrape path. Like every
+plugin metric, disabling the plugin removes the series entirely rather than freezing it at its last value.
+
 ## The "no changes" happy path
 
 Cron tasks should be written so the agent can succeed even if there's nothing to do. The canonical pattern: the agent surveys the repo state, calls the available `submit_summary` MCP tool name with a one-line note like "No changes needed," and the Job closes with reason `no_changes`. This is counted as a success and does not increment `consecutive_failure_count`.

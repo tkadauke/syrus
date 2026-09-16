@@ -54,5 +54,70 @@ module Metrics
                        :scheduled_execution, :blocked_execution)
         .count
     end
+
+    # Table-level companion to orphaned_rows: every row in solid_queue_jobs,
+    # regardless of state. A pruner silently stopping shows up here as
+    # unbounded growth before it shows up anywhere else.
+    def table_rows
+      SolidQueue::Job.count
+    end
+
+    # Jobs that finished in `[after, through)`, for syrus_queue_completed_total
+    # -- the numerator of the "queue starved" alert
+    # (rate(syrus_queue_completed_total[5m]) == 0 and syrus_queue_ready_count > 0).
+    # Windowed rather than a running total because finished rows are pruned by
+    # clear_solid_queue_finished_jobs, so there is no stable all-time count to
+    # read back.
+    def completed_count(after:, through:)
+      SolidQueue::Job.where(finished_at: after...through).count
+    end
+
+    # The most recent successful completion of each configured recurring job
+    # in `config/recurring.yml`, keyed by that file's job key rather than its
+    # Solid Queue class name (so two keys sharing a class, unlikely today, not
+    # impossible, would each get their own reading). A job that has never
+    # finished -- or already had every successful row pruned by
+    # `clear_solid_queue_finished_jobs` -- is omitted rather than reported as
+    # "never"; Metrics::MaintenanceSampler keeps its own durable high-water
+    # mark across ticks specifically so that pruning cannot make a genuinely
+    # stale job look merely unobserved (see that class for why: Solid Queue's
+    # default `clear_finished_jobs_after` of 1 day is far shorter than the
+    # staleness this metric exists to catch).
+    def recurring_job_last_success_at
+      classes = recurring_job_classes
+      return {} if classes.empty?
+
+      last_finished_by_class = SolidQueue::Job
+                                  .where(class_name: classes.values.uniq)
+                                  .where.not(finished_at: nil)
+                                  .group(:class_name)
+                                  .maximum(:finished_at)
+
+      classes.filter_map { |key, class_name|
+        [ key, last_finished_by_class[class_name] ] if last_finished_by_class[class_name]
+      }.to_h
+    end
+
+    private
+
+    RECURRING_SCHEDULE_PATH = Rails.root.join("config/recurring.yml")
+
+    # `{ recurring.yml key => Solid Queue class name }`, for every entry that
+    # names a `class:` (as opposed to a raw `command:`, which has no
+    # `class_name` to look up in `solid_queue_jobs`). Read fresh every call
+    # rather than memoized: this runs once a minute from a sampler, not on a
+    # hot path, and a memoized copy would survive a `config/recurring.yml`
+    # edit until the next process restart.
+    def recurring_job_classes
+      recurring_config.filter_map { |key, options|
+        class_name = options["class"]
+        [ key.to_s, class_name ] if class_name.present?
+      }.to_h
+    end
+
+    def recurring_config
+      raw = ActiveSupport::ConfigurationFile.parse(RECURRING_SCHEDULE_PATH)
+      Hash(raw[Rails.env] || raw["default"])
+    end
   end
 end

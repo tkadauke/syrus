@@ -17,7 +17,13 @@ are computed at read time with `rate()`.
 
 | Metric | Type | Labels | Shared | Description |
 |---|---|---|---|---|
+| `syrus_active_agent_runs` | gauge | — | no | Currently running agentic Runs, subject to the global concurrency cap (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_admission_decisions_total` | counter | `decision` | no | Workflow- and host-level admission decisions, tagged by the action taken (per-process -- aggregate normally with sum) |
+| `syrus_attention_items_open_total` | gauge | `problem_code` | no | Currently open, unexpired AttentionItems by problem code (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_auto_retry_attempts_total` | counter | `skip_reason` | no | Auto-retry attempts by settled outcome -- "none" means the retry was performed, any other value is a bounded AutoRetryAttempt skip-reason category (see AutoRetryAttempt.skip_reason_category) |
+| `syrus_escalations_per_landing_ratio` | gauge | — | no | Escalations opened per landing over the trailing window -- the Workflow Engine V3 "one metric," trending down (GLOBAL -- aggregate with max by, never sum). Omitted when no landings occurred in the window rather than reporting a misleading 0 or a stale prior ratio. |
 | `syrus_feature_used_total` | counter | `feature` | no | Feature invocations, counted at the request that asked for them |
+| `syrus_github_rate_limit_remaining` | gauge | `credential_mode` | no | Lowest observed GitHub API rate-limit remaining, by credential mode (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_global_plugin_enabled` | gauge | `plugin` | no | 1 when an installed plugin is enabled, 0 when it is off (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_blocked_count` | gauge | — | no | Executions blocked on a concurrency limit (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_claimed_count` | gauge | `queue` | no | Jobs currently claimed by a worker (GLOBAL -- aggregate with max by) |
@@ -26,4 +32,23 @@ are computed at read time with `rate()`.
 | `syrus_global_queue_orphaned_rows` | gauge | — | no | Unfinished job rows with no execution row -- unreachable by work and by the finished-job pruner (GLOBAL -- aggregate with max by) |
 | `syrus_global_queue_ready_count` | gauge | `queue` | no | Jobs ready to be claimed (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_global_queue_sample_age_seconds` | gauge | — | no | Age of the cached queue sample; large means the sampler has stopped |
+| `syrus_instance_versions` | gauge | `role`, `version` | no | Live pods by role and git SHA -- two versions during a rollout is expected (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_job_state` | gauge | `state` | no | Jobs grouped by state (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_jobs_landed_total` | counter | — | no | Jobs whose PR reached the base branch |
+| `syrus_landing_queue_depth` | gauge | `blocked_reason` | no | Approved/landing Jobs by why they are not landing yet, "none" meaning eligible (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_max_concurrent_agent_runs` | gauge | — | no | Configured ceiling on concurrent agent Runs, 0 meaning unlimited, so the dashboard panel shows capacity alongside utilization (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_provider_circuit_state` | gauge | `provider` | no | Circuit state per configured agent provider: 0=closed, 1=open, 2=open (usage limit exhausted) (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_provider_sessions_bytes` | gauge | — | no | Total transcript_jsonl bytes across all provider_sessions rows (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_provider_sessions_rows` | gauge | — | no | Total provider_sessions row count (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_queue_completed_total` | counter | — | no | Solid Queue executions that finished -- pairs with syrus_global_queue_ready_count for the queue-starved alert |
+| `syrus_queue_table_rows` | gauge | — | no | Total Solid Queue row count across every table, the table-level companion to syrus_global_queue_orphaned_rows (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_recurring_job_last_success_seconds` | gauge | `job` | no | Seconds since a config/recurring.yml job last completed successfully -- a job that stops succeeding grows this instead of vanishing (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_repositories_main_branch_broken_count` | gauge | — | no | Repositories whose default branch health is currently broken -- StepDispatcher pauses every workflow instance-wide, including landing, while this is nonzero (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_run_duration_seconds` | histogram | `step_kind` | no | Run wall clock by step kind |
+| `syrus_runs_total` | counter | `state`, `trigger_kind` | no | Runs by terminal state |
 | `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |
+| `syrus_spawned_processes` | gauge | `kind`, `state` | no | Spawned subprocesses running or recently finished, by kind and state (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_time_to_land_seconds` | histogram | — | no | Wall clock from Job creation to landing |
+| `syrus_worker_cpu_percent` | gauge | `hostname` | no | Worker host CPU utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_worker_memory_percent` | gauge | `hostname` | no | Worker host memory utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_workflow_step_duration_seconds` | histogram | `kind` | no | Step wall clock from start to finish, spanning every Run attempt within the Step |

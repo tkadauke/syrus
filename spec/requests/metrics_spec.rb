@@ -60,4 +60,71 @@ RSpec.describe "GET /metrics", type: :request do
 
     expect(response).to have_http_status(:ok)
   end
+
+  # Core cannot hardcode a plugin sampler by name (see CLAUDE.md, "Core specs
+  # must not enumerate plugin-provided things"), so this exercises the generic
+  # path instead: any registered :callbacks provider gets asked to refresh its
+  # own cache-mediated gauges on every scrape.
+  describe "plugin metrics refresh" do
+    let(:callbacks_provider) { Class.new { include Syrus::Plugin::Callbacks } }
+
+    # Registers alongside the real bundled plugins (restored fresh before
+    # every example by spec/support/bundled_plugins.rb) rather than resetting
+    # the whole registry, which would also drop the agent-provider plugins
+    # `let!(:admin)` above depends on.
+    before do
+      Syrus::PluginRegistry.register(
+        name: "probe_metrics_plugin", version: "1.0.0", provides: { callbacks: callbacks_provider }
+      )
+    end
+
+    it "calls on_metrics_scrape for every enabled plugin's callbacks provider" do
+      allow(callbacks_provider).to receive(:on_metrics_scrape)
+
+      get "/metrics", headers: { "Authorization" => "Bearer #{admin_token}" }
+
+      expect(callbacks_provider).to have_received(:on_metrics_scrape)
+    end
+
+    it "does not let one plugin's refresh failure blank the rest of the scrape" do
+      allow(callbacks_provider).to receive(:on_metrics_scrape).and_raise(StandardError, "boom")
+
+      get "/metrics", headers: { "Authorization" => "Bearer #{admin_token}" }
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  # The acceptance test for "SampleGlobalMetricsJob and MetricsController need
+  # zero changes to pick up a new sampler": register a spec-local class the
+  # controller has never heard of and prove it gets refreshed on a scrape.
+  describe "sampler refresh" do
+    it "refreshes any sampler registered with Syrus::Metrics, core or plugin, with no controller change" do
+      MetricsController.last_refresh_at = nil
+      probe = Class.new do
+        class << self
+          attr_accessor :refreshed
+        end
+
+        def self.refresh_gauges! = self.refreshed = true
+      end
+      Syrus::Metrics.register_sampler(probe)
+
+      get "/metrics", headers: { "Authorization" => "Bearer #{admin_token}" }
+
+      expect(probe.refreshed).to be(true)
+      Syrus::Metrics.unregister_sampler(probe)
+    end
+
+    it "does not let one sampler's refresh failure blank the rest of the scrape" do
+      MetricsController.last_refresh_at = nil
+      failing = Class.new { def self.refresh_gauges! = raise("boom") }
+      Syrus::Metrics.register_sampler(failing)
+
+      get "/metrics", headers: { "Authorization" => "Bearer #{admin_token}" }
+
+      expect(response).to have_http_status(:ok)
+      Syrus::Metrics.unregister_sampler(failing)
+    end
+  end
 end

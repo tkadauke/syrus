@@ -19,5 +19,20 @@ module Throughput
 
     frontend ui_slots: { "throughput/ThroughputPanel" => "app/frontend/ui_slots/ThroughputPanel.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/throughput.json" ]
+
+    # NOT Throughput::MetricContract (see MetricsSampler's doc) -- that's a
+    # per-repository, request-computed API contract. These are global,
+    # cache-mediated counters. MetricsSampler needs cursor-based cumulative
+    # logic (see its class doc), so it registers as a full sampler class via
+    # `sampler` -- the same Syrus::Metrics sampler registry a declarative
+    # `gauge` block uses, sampled on the shared control-plane tick with no
+    # plugin-owned tick_interval/on_tick.
+    metrics do
+      counter :landing_units_total, tags: %i[unit_type],
+              comment: "Successful landing attempts (one auto_merge Workflow or one merge_train counts as one unit)"
+      counter :jobs_landed_total,
+              comment: "Jobs landed via a successful landing attempt (a merge_train counts every member Job)"
+      sampler MetricsSampler
+    end
   end
 end

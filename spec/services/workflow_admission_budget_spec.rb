@@ -111,6 +111,10 @@ RSpec.describe WorkflowAdmissionBudget do
     end
   end
 
+  def admission_decisions_total(decision)
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h[{ decision: decision }].to_i
+  end
+
   before do
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
@@ -128,6 +132,19 @@ RSpec.describe WorkflowAdmissionBudget do
     # The decision is now made by measuring the host, not by predicting what
     # the workflow will cost, so there is no prediction source to report.
     expect(decision.details).to include("decision_basis" => "measured_host_pressure")
+  end
+
+  # syrus_admission_decisions_total is per-process and lives in the real,
+  # process-global registry (see config/syrus_docs/metrics.md), so this reads
+  # the count before/after rather than asserting an absolute value -- other
+  # examples in this run may have already incremented the same tag.
+  it "increments syrus_admission_decisions_total for the action taken" do
+    workflow = workflow_for
+    before_count = admission_decisions_total("admit_now")
+
+    described_class.call(workflow: workflow)
+
+    expect(admission_decisions_total("admit_now")).to eq(before_count + 1)
   end
 
   it "uses an indexable worker role predicate for host telemetry" do

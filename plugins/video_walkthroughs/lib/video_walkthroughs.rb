@@ -46,6 +46,18 @@ module VideoWalkthroughs
       scope.effect("gemini credential probe") { ::CredentialProbe.register_probe("gemini_api_key", VideoWalkthroughs::CredentialProbe) }
     end
 
+    # A plain aggregate value on a timer -- the declarative sample-block form
+    # (see Syrus::PluginApi::Definition#metrics) samples this on the shared
+    # control-plane tick, independent of Callbacks#on_tick's own daily
+    # retention cadence.
+    metrics do
+      gauge :storage_bytes,
+            comment: "Total bytes of stored video blobs, weighed against AppSetting.video_storage_budget_bytes " \
+                     "before PruneJob's LRU eviction runs" do
+        VideoWalkthroughs::Walkthrough.total_stored_bytes
+      end
+    end
+
     # Retention is enforced on the plugin's own tick rather than the host's
     # recurring.yml, so removing the plugin removes the schedule with it.
     tick_interval 1.day

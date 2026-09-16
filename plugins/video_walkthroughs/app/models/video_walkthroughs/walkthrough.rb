@@ -47,8 +47,23 @@ class VideoWalkthroughs::Walkthrough < ApplicationRecord
 
   scope :newest_first, -> { order(created_at: :desc, id: :desc) }
 
+  # Settled rows whose blob has not yet been purged -- PruneJob's LRU
+  # eviction candidates, and the storage_bytes gauge's total. Table-qualified
+  # because joining to the blob brings its own id/byte_size columns along.
+  scope :settled_with_blob, -> {
+    where(state: %w[analyzed failed]).joins(file_attachment: :blob)
+  }
+
   STATES.each do |name|
     define_method("#{name}?") { state == name }
+  end
+
+  # The storage_bytes gauge's sample value (see lib/video_walkthroughs.rb) --
+  # the same total PruneJob's size sweep computes to decide whether to evict,
+  # queried independently here rather than reused from that sweep since the
+  # gauge samples on its own shared control-plane tick.
+  def self.total_stored_bytes
+    settled_with_blob.sum("#{quoted_table_name}.byte_size")
   end
 
   def analysis_summary

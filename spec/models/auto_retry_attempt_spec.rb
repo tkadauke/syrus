@@ -155,6 +155,43 @@ RSpec.describe AutoRetryAttempt, type: :model do
     end
   end
 
+  describe ".skip_reason_category" do
+    it "categorizes a nil skipped_reason as none" do
+      expect(described_class.skip_reason_category(nil)).to eq("none")
+      expect(described_class.skip_reason_category("")).to eq("none")
+    end
+
+    it "categorizes a not-retryable skip separately from the budget-exempt categories" do
+      reason = "#{described_class::NOT_RETRYABLE_SKIP_PREFIX}: worker_died_under_resource_pressure"
+
+      expect(described_class.skip_reason_category(reason)).to eq("not_retryable")
+    end
+
+    it "categorizes every budget-exempt prefix into its own bounded slug" do
+      expect(described_class.skip_reason_category("That agent is not available for retry.")).to eq("that_agent_is_not_available")
+      expect(described_class.skip_reason_category("job is terminal")).to eq("job_is_terminal")
+    end
+
+    it "categorizes an unrecognized skipped_reason as other" do
+      expect(described_class.skip_reason_category("retry budget exhausted for claude/worker_died")).to eq("other")
+    end
+
+    # The regression this metric exists to guard: "failure classification
+    # changed" was written for a verdict that had not actually changed, and
+    # -- because that exact string sat in BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES
+    # -- every skip categorized here into "failure_classification_changed"
+    # rather than counting against the retry budget, producing ~460,000
+    # attempts at two per second before anyone noticed (see
+    # CLAUDE.md "Failure resilience"). A rate spike on this exact category is
+    # the direct instrument for that regression recurring.
+    it "categorizes the historically-buggy 'failure classification changed' skip into its own budget-exempt category" do
+      reason = "failure classification changed from turn_failed to worker_died before retry"
+
+      expect(described_class.skip_reason_category(reason)).to eq("failure_classification_changed")
+      expect(AutoRetryAttempt::BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES).to include(a_string_starting_with("failure classification changed"))
+    end
+  end
+
   describe ".retry_workflow_scheduled_for?" do
     it "treats performed retry_workflow attempts as scheduled ownership for the source workflow" do
       attempt = described_class.create!(
