@@ -92,6 +92,58 @@ describe("toolPresentationRegistry", () => {
       expect(mcpPrefixed.toolName).toBe(direct.toolName)
       expect(sidecarPrefixed.toolName).toBe(direct.toolName)
     })
+
+    describe("Claude and Codex built-in shell execution resolve to one canonical entry", () => {
+      // Claude-shaped: a tool_use message with raw tool_name "Bash".
+      const claudeToolUse = { toolName: "Bash", input: { command: "bin/rspec spec/models/job_spec.rb" } }
+      // Codex-shaped (chat): CodexInvocation persists the shell tool_use with
+      // raw tool_name "bash" (see plugins/codex_agent/app/services/codex_invocation.rb).
+      const codexChatToolUse = { toolName: "bash", input: { command: "bin/rspec spec/models/job_spec.rb" } }
+      // Codex-shaped (workflow Run transcript): CodexAgent::TranscriptEvents
+      // emits the item type name "command_execution" as the tool_use name.
+      const codexTranscriptToolUse = { toolName: "command_execution", input: { command: "bin/rspec spec/models/job_spec.rb" } }
+
+      it("resolves the Codex chat raw name to the canonical Bash entry", () => {
+        const canonical = toolPresentationEntryFor(claudeToolUse.toolName)
+        const codex = toolPresentationEntryFor(codexChatToolUse.toolName)
+
+        expect(codex.toolName).toBe(canonical.toolName)
+        expect(codex).toEqual(canonical)
+      })
+
+      it("resolves the Codex transcript raw name to the canonical Bash entry", () => {
+        const canonical = toolPresentationEntryFor(claudeToolUse.toolName)
+        const codex = toolPresentationEntryFor(codexTranscriptToolUse.toolName)
+
+        expect(codex.toolName).toBe(canonical.toolName)
+        expect(codex).toEqual(canonical)
+      })
+
+      it("gives every raw name the same source type, ownership, and read-only classification", () => {
+        for (const rawName of [claudeToolUse.toolName, codexChatToolUse.toolName, codexTranscriptToolUse.toolName]) {
+          const entry = toolPresentationEntryFor(rawName)
+          expect(entry.sourceType).toBe("provider_builtin")
+          expect(entry.ownerType).toBe("provider")
+          expect(entry.readOnly).toBe(false)
+          expect(entry.renderer).toBeNull()
+        }
+      })
+
+      it("produces the same display label, progress label, and argument summary for every raw name's tool-use payload", () => {
+        for (const toolUse of [claudeToolUse, codexChatToolUse, codexTranscriptToolUse]) {
+          const entry = toolPresentationEntryFor(toolUse.toolName)
+          expect(entry.displayLabel).toBe("Bash")
+          expect(entry.progressLabel).toBeTruthy()
+          expect(entry.argumentSummary(toolUse.input)).toBe("bin/rspec spec/models/job_spec.rb")
+        }
+      })
+
+      it("does not list the Codex aliases as their own top-level entries", () => {
+        const names = allToolPresentationEntries().map((entry) => entry.toolName)
+        expect(names).not.toContain("bash")
+        expect(names).not.toContain("command_execution")
+      })
+    })
   })
 
   describe("plugin/core discovery", () => {
