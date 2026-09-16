@@ -168,7 +168,15 @@ export function FilterBar({
 
   function applyTree(tree = draftTree) {
     const normalized = normalizedFilterTree(tree)
-    const nextQ = topFilterChildren(normalized).length > 0 ? encodeFilterTree(normalized) : null
+    const hasChips = topFilterChildren(normalized).length > 0
+    // Once a SmartFolder is selected, an emptied chip bar must still send q=
+    // explicitly (an encoded empty tree) rather than omitting it, so the
+    // backend can tell "the chip bar was just cleared" apart from "the chip
+    // bar was never touched" -- both leave q absent otherwise, and the
+    // SmartFolder's own saved filter would silently reapply. See
+    // Filters::BaseFilter.smart_folder_floor.
+    const smartFolderActive = params.has("smart_folder_id")
+    const nextQ = hasChips || smartFolderActive ? encodeFilterTree(normalized) : null
     const updates: FilterLinkUpdates = {
       q: nextQ,
       page: null
@@ -177,7 +185,7 @@ export function FilterBar({
     for (const key of legacyFilterKeys) updates[key] = null
 
     navigate(buildLink(pathname, search, updates))
-    if (nextQ) onFilterApplied?.(normalized)
+    if (hasChips) onFilterApplied?.(normalized)
   }
 
   function openAddMenu() {

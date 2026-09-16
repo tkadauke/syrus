@@ -729,6 +729,49 @@ describe("FilterBar", () => {
     )
   })
 
+  it("sends an explicit empty q= (rather than omitting it) when the last chip is removed while a SmartFolder is selected", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs?smart_folder_id=7"]}>
+        <FilterBar
+          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search="?smart_folder_id=7"
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove State filter" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent(/[?&]q=/)
+    })
+    expect(screen.getByTestId("location")).toHaveTextContent("smart_folder_id=7")
+    expect(decodedFilterFromLocation()).toEqual({ and: [] })
+  })
+
+  it("omits q= entirely when the last chip is removed with no SmartFolder selected", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove State filter" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/jobs")
+    })
+    expect(screen.getByTestId("location")).not.toHaveTextContent("q=")
+  })
+
   it("opens the filter menu before adding OR alternatives", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard/jobs"]}>

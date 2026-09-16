@@ -95,6 +95,18 @@ RSpec.describe "Mcp::Tools access control" do
     expect_not_authorized(response)
   end
 
+  it "cannot list artifacts on another user's workflow" do
+    response = call_tool(Mcp::Tools::ListArtifactsTool, "list_artifacts", workflow_id: other_user_job.latest_workflow.id)
+
+    expect_not_authorized(response)
+  end
+
+  it "cannot read an artifact on another user's workflow" do
+    response = call_tool(Mcp::Tools::ReadArtifactTool, "read_artifact", workflow_id: other_user_job.latest_workflow.id, type: "visual_review_screenshot")
+
+    expect_not_authorized(response)
+  end
+
   it "cannot read another user's job diff" do
     response = call_tool(Mcp::Tools::GetJobDiffTool, "get_job_diff", job_id: other_user_job.id)
 

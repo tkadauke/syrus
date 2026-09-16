@@ -228,25 +228,37 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(body["suggestions"].map { |s| s["id"] }).not_to include(recent_pending.id)
     end
 
-    it "combines smart folder selection with additional filters" do
+    # FilterBar seeds its draft chip list from the server's already-merged
+    # `filter`, so adding a chip via the chip bar resends the SmartFolder's
+    # own chip alongside it -- q is never "just the new chip" once a
+    # SmartFolder is active. See AgentInsights::Filter and
+    # Filters::BaseFilter.smart_folder_floor.
+    it "adds a chip via the FilterBar without duplicating the active SmartFolder's own chip" do
       high_pending = create_suggestion(title: "High pending", severity: "high")
       create_suggestion(title: "Low pending", severity: "low")
       accepted = create_suggestion(title: "High accepted", severity: "high")
       accepted.accept!
       SmartFolder.ensure_builtins_for_subject!(AgentInsights::SmartFolders::SUBJECT)
       pending_folder = SmartFolder.builtins(AgentInsights::SmartFolders::SUBJECT).find_by!(name: "Pending")
-      q = Filters::QueryParam.encode("and" => [ { "field" => "severity", "op" => "is", "value" => "high" } ])
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "field" => "state", "op" => "is", "value" => "pending" },
+          { "field" => "severity", "op" => "is", "value" => "high" }
+        ]
+      )
 
       get "/api/v1/app/repositories/#{repository.id}/insight_suggestions",
           params: { smart_folder_id: pending_folder.id, q: q }
 
       body = parse_body
-      expect(body["suggestions"].map { |s| s["id"] }).to eq([ high_pending.id ])
-      expect(body.dig("meta", "counts")).to include(
-        "pending"  => 1,
-        "accepted" => 1,
-        "all"      => 2
+      expect(body["filter"]).to eq(
+        "and" => [
+          { "field" => "state", "op" => "is", "value" => "pending" },
+          { "field" => "severity", "op" => "is", "value" => "high" }
+        ]
       )
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ high_pending.id ])
+      expect(body["suggestions"].map { |s| s["id"] }).not_to include(accepted.id)
     end
 
     it "excludes retired suggestions from the pending state filter and includes them in retired/all" do

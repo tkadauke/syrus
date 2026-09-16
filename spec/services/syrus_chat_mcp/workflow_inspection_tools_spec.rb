@@ -1,4 +1,5 @@
 require "rails_helper"
+require "base64"
 
 RSpec.describe "Mcp::Tools workflow inspection tools" do
   let(:user) { Factories.user }
@@ -11,7 +12,9 @@ RSpec.describe "Mcp::Tools workflow inspection tools" do
       tools: [
         Mcp::Tools::ListJobWorkflowsTool,
         Mcp::Tools::ReadWorkflowTool,
-        Mcp::Tools::ReadRunTranscriptTool
+        Mcp::Tools::ReadRunTranscriptTool,
+        Mcp::Tools::ListArtifactsTool,
+        Mcp::Tools::ReadArtifactTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -165,6 +168,68 @@ RSpec.describe "Mcp::Tools workflow inspection tools" do
       payload = response_payload(response)
 
       expect(payload).to include(page: 1, per: 200)
+    end
+  end
+
+  describe "list_artifacts and read_artifact" do
+    let(:png_bytes) { "\x89PNG\r\n\x1a\n".b }
+    let(:png_base64) { Base64.strict_encode64(png_bytes) }
+
+    def submit_screenshot(run, type: "visual_review_screenshot", title: "Homepage after fix")
+      SyrusMcp::SubmitVisualArtifactTool.call(
+        type: type, title: title, image_base64: png_base64, server_context: { run: run }
+      )
+      run.workflow.reload.artifact("typed_artifacts").first["type"]
+    end
+
+    it "lists a visual artifact submitted by a workflow run" do
+      job = Factories.job(repository: repository)
+      run = job.initial_run
+      submit_screenshot(run)
+
+      response = call_tool("list_artifacts", workflow_id: run.workflow_id)
+      payload = response_payload(response)
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(payload[:artifacts].size).to eq(1)
+      expect(payload[:artifacts].first).to include(title: "Homepage after fix", content_type: "image/png")
+    end
+
+    it "reads a visual artifact back as image content" do
+      job = Factories.job(repository: repository)
+      run = job.initial_run
+      stored_type = submit_screenshot(run)
+
+      response = call_tool("read_artifact", workflow_id: run.workflow_id, type: stored_type)
+
+      expect(response[:result][:isError]).to be_falsey
+      content = response[:result][:content].first
+      expect(content[:type]).to eq("image")
+      expect(content[:mimeType]).to eq("image/png")
+      expect(Base64.strict_decode64(content[:data])).to eq(png_bytes)
+    end
+
+    it "lists and reads artifacts on workflows outside the chat repository when they belong to the chat user" do
+      other_job = Factories.job(repository: Factories.repository(user: user))
+      other_run = other_job.initial_run
+      stored_type = submit_screenshot(other_run)
+
+      list_response = call_tool("list_artifacts", workflow_id: other_run.workflow_id)
+      expect(list_response[:result][:isError]).to be_falsey
+      expect(response_payload(list_response)[:artifacts].size).to eq(1)
+
+      read_response = call_tool("read_artifact", workflow_id: other_run.workflow_id, type: stored_type)
+      expect(read_response[:result][:isError]).to be_falsey
+    end
+
+    it "returns an error for an artifact type that was never submitted" do
+      job = Factories.job(repository: repository)
+      run = job.initial_run
+
+      response = call_tool("read_artifact", workflow_id: run.workflow_id, type: "no_such_type")
+
+      expect(response[:result][:isError]).to be(true)
+      expect(response.dig(:result, :content, 0, :text)).to include("no image artifact found")
     end
   end
 end

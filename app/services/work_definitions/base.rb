@@ -100,7 +100,7 @@ module WorkDefinitions
       )
     end
 
-    def intent_gates = [ WorkIntents::Gates::Dependency ]
+    def intent_gates = [ WorkIntents::Gates::Dependency, WorkIntents::Gates::RunawayProtection ]
     def unit_gates
       [
         WorkUnits::Gates::ActiveWorkLock,

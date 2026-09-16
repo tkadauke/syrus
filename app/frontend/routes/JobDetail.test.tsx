@@ -2791,6 +2791,69 @@ describe("Job detail navigation", () => {
     expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toBeInTheDocument()
   })
 
+  it("shows each job's status under its slug in the jump list", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    expect(screen.getByRole("option", { name: "1. JOB-1 — First snapshot title" })).toHaveTextContent("running")
+    expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toHaveTextContent("implemented")
+    expect(screen.getByRole("option", { name: "3. JOB-3 — Third snapshot title" })).toHaveTextContent("queued")
+  })
+
+  it("does not show a trailing index number in the jump list", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    const option = screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })
+    expect(within(option).queryByText("2", { exact: true })).not.toBeInTheDocument()
+  })
+
+  it("shows the owner badge and relative update time under the slug when provided", () => {
+    storeJobNavigationContext(jobNavigationContext({
+      currentJobId: 2,
+      items: [
+        { id: 1, slug: "JOB-1", path: "/jobs/1", title: "First snapshot title", repository: "acme/widgets", state: "running" },
+        { id: 2, slug: "JOB-2", path: "/jobs/2", title: "Second snapshot title", repository: "acme/widgets", state: "implemented", ownerBadge: { label: "jane@example.com", kind: "other_user" }, updatedAt: "2026-09-11T11:00:00Z" },
+        { id: 3, slug: "JOB-3", path: "/jobs/3", title: "Third snapshot title", repository: "acme/widgets", state: "queued" }
+      ]
+    }))
+
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    const option = screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })
+    expect(within(option).getByText("jane@example.com")).toBeInTheDocument()
+
+    const singleUserOption = screen.getByRole("option", { name: "1. JOB-1 — First snapshot title" })
+    expect(within(singleUserOption).queryByText("jane@example.com")).not.toBeInTheDocument()
+  })
+
+  it("adds horizontal and vertical gaps between metadata chips so separators don't glue to text", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    const option = screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })
+    const metadataLine = within(option).getByText("JOB-2").closest("div")
+    expect(metadataLine).toHaveClass("gap-x-1.5", "gap-y-1")
+  })
+
   it("uses the captured snapshot for previous and next navigation", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {

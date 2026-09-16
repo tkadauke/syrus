@@ -48,6 +48,7 @@ import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWork
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
 import { Notice, Section } from "../components/ui"
 import { jobNavigationHref, navigationIndex, readJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
+import { MetadataLine, OwnerBadge } from "./dashboard/components"
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
@@ -478,10 +479,14 @@ function JobNavigationControl({ context, currentJobId, prefix }: { context: JobN
               role="option"
               type="button"
             >
-              <span className="flex items-start gap-2">
-                <span className="shrink-0 font-mono text-xs font-semibold text-gray-500 dark:text-gray-400">{item.slug}</span>
-                <span className="min-w-0 flex-1 break-words leading-snug">{item.title}</span>
-                <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{index + 1}</span>
+              <span className="flex flex-col gap-1">
+                <span className="min-w-0 break-words leading-snug">{item.title}</span>
+                <MetadataLine className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                  {item.state ? <StatusPill state={item.state} wrap /> : null}
+                  <span className="font-mono font-semibold text-gray-500 dark:text-gray-400">{item.slug}</span>
+                  {item.ownerBadge ? <OwnerBadge badge={item.ownerBadge} /> : null}
+                  {item.updatedAt ? <RelativeTimestamp value={item.updatedAt} /> : null}
+                </MetadataLine>
               </span>
             </button>
           ))}
