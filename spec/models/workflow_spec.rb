@@ -1510,6 +1510,29 @@ RSpec.describe Workflow, :ci_only do
 
       expect(wf.reload.artifact("typed_artifacts").map { |e| e["type"] }).to contain_exactly("rails_schema_erd", "rails_migration_diff")
     end
+
+    it "always stamps workflow_id and trigger_kind provenance" do
+      entry = wf.set_typed_artifact!(type: "rails_schema_erd", title: "Schema ERD", payload: {})
+
+      expect(entry).to include("workflow_id" => wf.id, "trigger_kind" => "initial")
+    end
+
+    it "records optional run/step/diff-review provenance when supplied" do
+      entry = wf.set_typed_artifact!(
+        type: "rails_schema_erd", title: "Schema ERD", payload: {},
+        run_id: 42, step_id: 99, base_sha: "aaa", head_sha: "bbb", diff_review_version_id: 7
+      )
+
+      expect(entry).to include(
+        "run_id" => 42, "step_id" => 99, "base_sha" => "aaa", "head_sha" => "bbb", "diff_review_version_id" => 7
+      )
+    end
+
+    it "omits optional provenance keys entirely when not supplied" do
+      entry = wf.set_typed_artifact!(type: "rails_schema_erd", title: "Schema ERD", payload: {})
+
+      expect(entry.keys).not_to include("run_id", "step_id", "base_sha", "head_sha", "diff_review_version_id")
+    end
   end
 
   describe "visual artifact blob helpers" do

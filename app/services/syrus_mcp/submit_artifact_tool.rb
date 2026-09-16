@@ -46,7 +46,12 @@ module SyrusMcp
         return Mcp::Tools.invalid("title is required")          if artifact_title.empty?
         return Mcp::Tools.invalid("payload must be an object")  unless payload.is_a?(Hash)
 
-        run.workflow.set_typed_artifact!(type: artifact_type, title: artifact_title, payload: payload)
+        run.workflow.set_typed_artifact!(
+          type: artifact_type,
+          title: artifact_title,
+          payload: payload,
+          **TypedArtifactProvenance.for_run(run)
+        )
         Mcp::Tools.write_log(run, "[mcp] submit_artifact: #{artifact_type.inspect} — #{artifact_title.truncate(60)}")
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])

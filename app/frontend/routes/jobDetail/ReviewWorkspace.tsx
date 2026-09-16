@@ -2,7 +2,8 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "../../components/Button"
 import { SectionHeading } from "../../components/Heading"
-import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
+import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
+import type { TypedArtifact } from "../../api/artifacts"
 import { Markdown } from "../../lib/Markdown"
 import { errorMessage } from "../../lib/errorMessage"
 import { measureAsync, useMarkedRender } from "../../lib/performanceMarkers"
@@ -201,7 +202,13 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           {payload.summary ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
         </Section.Root>
 
-        <ReviewArtifactsPanel payload={payload} reviewArtifacts={reviewArtifacts} />
+        <ReviewArtifactsPanel
+          payload={payload}
+          reviewArtifacts={reviewArtifacts}
+          selectedRange={selectedRange}
+          selectedVersion={selectedVersion}
+          versions={versions}
+        />
 
         <Section.Root className="overflow-hidden" padding="none">
           <ReviewableDiff
@@ -251,7 +258,19 @@ function isAllChangesVersion(version: DiffReviewVersion) {
   return version.reason === "source_diff" || version.metadata?.range_kind === "all_changes"
 }
 
-function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetailPayload; reviewArtifacts: string[] }) {
+function ReviewArtifactsPanel({
+  payload,
+  reviewArtifacts,
+  selectedRange,
+  selectedVersion,
+  versions
+}: {
+  payload: JobDetailPayload
+  reviewArtifacts: string[]
+  selectedRange: { baseSha: string; headSha: string } | null
+  selectedVersion: DiffReviewVersion | null
+  versions: DiffReviewVersion[]
+}) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
   const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || payload.typed_artifacts.length > 0
@@ -286,11 +305,123 @@ function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetail
               ))}
             </div>
           ) : null}
-          <TypedArtifactPanel artifacts={payload.typed_artifacts} />
+          <VersionedArtifactsList
+            artifacts={payload.typed_artifacts}
+            selectedRange={selectedRange}
+            selectedVersion={selectedVersion}
+            versions={versions}
+          />
         </div>
       ) : null}
     </Section.Root>
   )
+}
+
+// An artifact has usable provenance when it can be compared against the
+// selected diff review version/range at all — either a direct
+// diff_review_version_id match, or a head_sha to compare against the
+// version/range's own head_sha. Artifacts submitted before this provenance
+// existed (or from a step that never resolved a diff review version) have
+// neither, and must never be silently hidden — they're always shown, just
+// under an honest "unversioned" label instead of pretending they belong to
+// whatever version happens to be selected.
+function hasArtifactProvenance(artifact: TypedArtifact) {
+  return artifact.diff_review_version_id != null || Boolean(artifact.head_sha)
+}
+
+function artifactMatchesSelection(
+  artifact: TypedArtifact,
+  selectedVersion: DiffReviewVersion | null,
+  selectedRange: { baseSha: string; headSha: string } | null
+) {
+  if (selectedRange) return artifact.head_sha === selectedRange.headSha
+  if (!selectedVersion) return true
+  if (artifact.diff_review_version_id != null) return artifact.diff_review_version_id === selectedVersion.id
+  return artifact.head_sha === selectedVersion.head_sha
+}
+
+function VersionedArtifactsList({
+  artifacts,
+  selectedRange,
+  selectedVersion,
+  versions
+}: {
+  artifacts: TypedArtifact[]
+  selectedRange: { baseSha: string; headSha: string } | null
+  selectedVersion: DiffReviewVersion | null
+  versions: DiffReviewVersion[]
+}) {
+  const { t } = useT("jobs")
+  if (artifacts.length === 0) return null
+
+  const matching: TypedArtifact[] = []
+  const unversioned: TypedArtifact[] = []
+  for (const artifact of artifacts) {
+    if (!hasArtifactProvenance(artifact)) {
+      unversioned.push(artifact)
+    } else if (artifactMatchesSelection(artifact, selectedVersion, selectedRange)) {
+      matching.push(artifact)
+    }
+  }
+  const displayed = [ ...matching, ...unversioned ]
+
+  if (displayed.length === 0) return <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_artifacts_no_version_match")}</p>
+
+  return (
+    <div className="min-w-0 space-y-4">
+      {displayed.map((artifact, index) => (
+        <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" key={artifactKey(artifact, index)}>
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-gray-100 px-4 py-2 dark:border-gray-800">
+            <span className="min-w-0 break-words font-semibold text-gray-800 dark:text-gray-100">{artifact.title}</span>
+            <span className="min-w-0 break-all text-xs text-gray-400">{artifact.type}</span>
+          </div>
+          <div className="border-b border-gray-100 px-4 py-1.5 dark:border-gray-800">
+            <ArtifactProvenance artifact={artifact} versions={versions} />
+          </div>
+          <div className="overflow-x-auto p-4">
+            <ArtifactBody artifact={artifact} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function artifactKey(artifact: TypedArtifact, index: number) {
+  return [ artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index ].join("-")
+}
+
+function ArtifactProvenance({ artifact, versions }: { artifact: TypedArtifact; versions: DiffReviewVersion[] }) {
+  const { t } = useT("jobs")
+
+  if (!hasArtifactProvenance(artifact)) {
+    return <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{t("review_artifacts_unversioned")}</span>
+  }
+
+  const version = artifact.diff_review_version_id != null ? versions.find((candidate) => candidate.id === artifact.diff_review_version_id) : null
+  const iteration = artifactIteration(artifact)
+  const parts = [
+    version ? version.label || t("review_version_prefix", { version: version.version_index }) : null,
+    artifact.workflow_id != null ? t("review_version_workflow", { id: artifact.workflow_id }) : null,
+    artifact.run_id != null ? t("review_version_run", { id: artifact.run_id }) : null,
+    artifact.trigger_kind || null,
+    iteration != null ? t("review_artifacts_iteration", { number: iteration }) : null,
+    artifact.base_sha && artifact.head_sha ? `${shortSha(artifact.base_sha)} → ${shortSha(artifact.head_sha)}` : null
+  ].filter((part): part is string => Boolean(part))
+
+  return <span className="text-xs text-gray-500 dark:text-gray-400">{parts.join(" · ")}</span>
+}
+
+function artifactIteration(artifact: TypedArtifact) {
+  const payload = artifact.payload
+  if (!payload || typeof payload !== "object" || !("iteration" in payload)) return null
+
+  const value = (payload as Record<string, unknown>).iteration
+  return typeof value === "number" ? value : null
+}
+
+function shortSha(sha: string) {
+  return sha.slice(0, 7)
 }
 
 function ReviewStatePill({ label, tone }: { label: string; tone: "pending" | "submitted" | "handled" }) {
