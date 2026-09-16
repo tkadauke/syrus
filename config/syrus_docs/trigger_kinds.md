@@ -92,6 +92,17 @@ failed `investigate`/`submit_report` step leaves the Job on the normal
 `:failed` → Retry path instead of always closing, since investigation Jobs
 are operator-facing, not infrastructure.
 
+**Job detail rendering:** since an investigation Job never reaches `pr_open`,
+its Job detail page swaps the PR-shaped Summary tab for a **Report** tab
+(`app/frontend/routes/jobDetail/Report.tsx`) whenever `Job#investigation` is
+true (`App::JobDetailPayload#report_json`, gated the same way). The Report
+tab renders the submitted `investigation_report` narrative (markdown) and
+findings, plus any referenced artifacts/screenshots resolved against
+`Workflow#artifacts["typed_artifacts"]` and rendered with the same
+`ArtifactBody` renderer the Artifacts tab uses. The PR-only Review tab is
+hidden entirely for investigation Jobs; other tabs (Workflows, Agent
+Conversation, Timeline, Artifacts, Source, etc.) are unaffected.
+
 ## pr_comment
 
 **When it fires:** New non-Syrus-bot review comments appear on the Job's PR since the last addressed comment.
