@@ -52,6 +52,27 @@ RSpec.describe ThemeCssGenerator do
       expect(css).not_to include("--shiki-token-keyword:")
     end
 
+    it "emits every extended (non-color) token in both the light and dark scoped blocks, defaulted from Theme::DEFAULT_EXTENDED_TOKENS" do
+      theme = unsaved_theme(Seeds::Themes::DEFINITIONS.first)
+      css = described_class.css_for([ theme ])
+
+      Theme::DEFAULT_EXTENDED_TOKENS.each_value do |group_tokens|
+        group_tokens.each do |key, value|
+          expect(css.scan(/--#{Regexp.escape(key)}: #{Regexp.escape(value)};/).length).to eq(2)
+        end
+      end
+    end
+
+    it "reflects a theme's stored extended token group overrides instead of the default" do
+      definition = Seeds::Themes::DEFINITIONS.first
+      theme = unsaved_theme(definition.merge(tokens: definition.fetch(:tokens).merge("shape" => { "radius-panel" => "1rem" })))
+
+      css = described_class.css_for([ theme ])
+
+      expect(css.scan(/--radius-panel: 1rem;/).length).to eq(2)
+      expect(css).not_to include("--radius-panel: 0.5rem;")
+    end
+
     it "includes a do-not-edit generated file header" do
       css = described_class.css_for([])
       expect(css).to include("GENERATED FILE. Do not edit by hand.")
