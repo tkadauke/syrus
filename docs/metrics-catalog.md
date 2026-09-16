@@ -19,7 +19,9 @@ are computed at read time with `rate()`.
 |---|---|---|---|---|
 | `syrus_active_agent_runs` | gauge | — | no | Currently running agentic Runs, subject to the global concurrency cap (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_admission_decisions_total` | counter | `decision` | no | Workflow- and host-level admission decisions, tagged by the action taken (per-process -- aggregate normally with sum) |
+| `syrus_attention_items_open_total` | gauge | `problem_code` | no | Currently open, unexpired AttentionItems by problem code (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_auto_retry_attempts_total` | counter | `skip_reason` | no | Auto-retry attempts by settled outcome -- "none" means the retry was performed, any other value is a bounded AutoRetryAttempt skip-reason category (see AutoRetryAttempt.skip_reason_category) |
+| `syrus_escalations_per_landing_ratio` | gauge | — | no | Escalations opened per landing over the trailing window -- the Workflow Engine V3 "one metric," trending down (GLOBAL -- aggregate with max by, never sum). Omitted when no landings occurred in the window rather than reporting a misleading 0 or a stale prior ratio. |
 | `syrus_feature_used_total` | counter | `feature` | no | Feature invocations, counted at the request that asked for them |
 | `syrus_github_rate_limit_remaining` | gauge | `credential_mode` | no | Lowest observed GitHub API rate-limit remaining, by credential mode (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_global_plugin_enabled` | gauge | `plugin` | no | 1 when an installed plugin is enabled, 0 when it is off (GLOBAL -- aggregate with max by) |
