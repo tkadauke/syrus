@@ -29,3 +29,11 @@ process's counter to that cached total.
 **Disabled means absent, not zero.** Like every plugin metric, this follows `while_enabled` semantics: a
 disabled Spending Insights plugin declares no metric at all, so the series disappears from `/metrics` rather
 than freezing at its last value or reporting `0`.
+
+### Metrics Dashboard tab
+
+When the `metrics_dashboard` plugin is also enabled, Spending Insights contributes its own "Spending
+Insights" tab there (`SpendingInsights::MetricsDashboardTabs`, registered under metrics_dashboard's hosted
+`"metrics_dashboard:tab"` point -- see `plugins/metrics_dashboard/docs/syrus_docs/metrics_dashboard.md`), with
+one panel per breakdown of the cost counter above: `run_cost_by_provider` and `run_cost_by_trigger_kind`. The
+tab is absent, not empty, whenever either plugin is disabled.

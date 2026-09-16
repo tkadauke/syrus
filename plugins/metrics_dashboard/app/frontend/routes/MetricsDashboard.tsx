@@ -50,7 +50,15 @@ export function MetricsDashboardRoute() {
   }
 
   const payload = dashboard.data
-  const activeTab = requestedTab && payload.categories.includes(requestedTab) ? requestedTab : payload.categories[0]
+  // Core tabs translate their label from this plugin's own i18n namespace by
+  // id; a plugin tab ships its label as a literal string, since it cannot
+  // resolve against a namespace this plugin doesn't own. Concatenated once so
+  // the rest of the page treats every tab the same way.
+  const tabs = [
+    ...payload.categories.map((id) => ({ id, label: t(`tabs.${id}`) })),
+    ...payload.plugin_tabs
+  ]
+  const activeTab = requestedTab && tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0]?.id
   const visiblePanels = payload.panels.filter((panel) => panel.category === activeTab)
 
   return (
@@ -87,23 +95,23 @@ export function MetricsDashboardRoute() {
       <RecordingNotice lastRecordedAt={payload.last_recorded_at} recording={payload.recording} />
 
       <nav aria-label={t("tabs_aria")} className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700" role="tablist">
-        {payload.categories.map((category) => (
+        {tabs.map((tab) => (
           <button
-            aria-selected={category === activeTab}
+            aria-selected={tab.id === activeTab}
             className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-              category === activeTab
+              tab.id === activeTab
                 ? "border-brand text-brand dark:text-brand-emphasis"
                 : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-100"
             }`}
-            key={category}
+            key={tab.id}
             onClick={() => {
               setHoverIndex(null)
-              updateParam(TAB_PARAM, category)
+              updateParam(TAB_PARAM, tab.id)
             }}
             role="tab"
             type="button"
           >
-            {t(`tabs.${category}`)}
+            {tab.label}
           </button>
         ))}
       </nav>
@@ -117,7 +125,7 @@ export function MetricsDashboardRoute() {
             key={panel.key}
             onHover={setHoverIndex}
             panel={panel}
-            title={t(`panels.${panel.key}`)}
+            title={panel.label ?? t(`panels.${panel.key}`)}
           />
         ))}
       </div>

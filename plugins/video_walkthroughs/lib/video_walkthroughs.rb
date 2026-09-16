@@ -18,11 +18,13 @@ module VideoWalkthroughs
     # concurrency queue in core precisely so they could not pin default
     # threads, and the plugin keeps it.
     home_queue :videos
+    optionally_depends_on [ "metrics_dashboard" ]
 
     provides chat_mcp_tool_set: "VideoWalkthroughs::ChatToolSet",
              chat_payload_contributor: "VideoWalkthroughs::PayloadContributor",
              chat_turn_orientation: "VideoWalkthroughs::TurnOrientation",
-             callbacks: "VideoWalkthroughs::Callbacks"
+             callbacks: "VideoWalkthroughs::Callbacks",
+             "metrics_dashboard:tab" => "VideoWalkthroughs::MetricsDashboardTabs"
 
     route :post, "/api/v1/app/chats/:chat_id/video_walkthroughs", to: "api/v1/app/video_walkthroughs#create"
     route :post, "/api/v1/app/video_walkthroughs/:id/retry", to: "api/v1/app/video_walkthroughs#retry"

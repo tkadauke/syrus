@@ -74,6 +74,11 @@ independently on the shared control-plane tick (`SampleGlobalMetricsJob`, the sa
 rather than piggybacking on `PruneJob`'s own daily schedule. Like every plugin metric, disabling the plugin
 removes the series entirely rather than freezing it at its last value.
 
+When the `metrics_dashboard` plugin is also enabled, Walkthrough Videos contributes its own "Walkthrough
+Videos" tab there (`VideoWalkthroughs::MetricsDashboardTabs`, registered under metrics_dashboard's hosted
+`"metrics_dashboard:tab"` point -- see `plugins/metrics_dashboard/docs/syrus_docs/metrics_dashboard.md`),
+charting `storage_bytes`. The tab is absent, not empty, whenever either plugin is disabled.
+
 ## Desktop app recording
 
 The desktop app's screen recorder (`+` → "Record a walkthrough"):
