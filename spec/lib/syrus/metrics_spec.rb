@@ -65,6 +65,29 @@ RSpec.describe Syrus::Metrics do
 
       expect(gauge.samples).to eq([ [ { queue: "polling" }, 3 ] ])
     end
+
+    # A gauge is sometimes not applicable at all (e.g. no landings in a
+    # window), and `set`ting anything, including 0, would misread as a real
+    # observation. #clear removes the series outright so a render omits it,
+    # rather than showing a stale or misleading value.
+    it "removes a series entirely rather than setting it to a value" do
+      gauge = described_class.gauge(:syrus_test_depth)
+      gauge.set(5, tags: { queue: "polling" })
+
+      gauge.clear(tags: { queue: "polling" })
+
+      expect(gauge.samples).to eq([])
+    end
+
+    it "clearing one series leaves the others alone" do
+      gauge = described_class.gauge(:syrus_test_depth)
+      gauge.set(5, tags: { queue: "polling" })
+      gauge.set(9, tags: { queue: "chat" })
+
+      gauge.clear(tags: { queue: "polling" })
+
+      expect(gauge.samples).to eq([ [ { queue: "chat" }, 9 ] ])
+    end
   end
 
   describe "histograms" do
