@@ -37,13 +37,16 @@ module TestInsights
     def self.ensure_for_cases!(repository:, cases:)
       attrs_by_fingerprint = {}
       cases.each do |test_case|
+        # Fingerprint on the untruncated suite_name/name -- the stored name is
+        # truncated to fit the column below, but the identity key must not
+        # depend on where that truncation happens to cut the string.
         fingerprint = fingerprint_for(suite_name: test_case.suite_name, name: test_case.name)
         attrs_by_fingerprint[fingerprint] ||= {
           repository_id: repository.id,
           fingerprint: fingerprint,
-          suite_name: test_case.suite_name,
-          name: test_case.name,
-          file_path: test_case.file_path,
+          suite_name: TestCase.truncate_string_column(test_case.suite_name),
+          name: TestCase.truncate_string_column(test_case.name),
+          file_path: TestCase.truncate_string_column(test_case.file_path),
           created_at: Time.current,
           updated_at: Time.current
         }

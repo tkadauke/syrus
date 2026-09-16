@@ -91,6 +91,8 @@ module TestInsights
       @parsed_run.cases.each_slice(500) do |slice|
         identities = TestIdentity.ensure_for_cases!(repository: @repository, cases: slice)
         rows = slice.map do |c|
+          # Fingerprint on the untruncated suite_name/name so identity keys
+          # stay stable regardless of column-width truncation below.
           fingerprint = TestIdentity.fingerprint_for(suite_name: c.suite_name, name: c.name)
           test_identity = identities.fetch(fingerprint)
           touched_identity_ids << test_identity.id
@@ -99,9 +101,9 @@ module TestInsights
             test_run_id: test_run.id,
             repository_id: @repository.id,
             test_identity_id: test_identity.id,
-            name: c.name,
-            suite_name: c.suite_name,
-            file_path: c.file_path,
+            name: TestCase.truncate_string_column(c.name),
+            suite_name: TestCase.truncate_string_column(c.suite_name),
+            file_path: TestCase.truncate_string_column(c.file_path),
             status: c.status,
             duration_ms: c.duration_ms,
             output: c.output,
@@ -112,11 +114,60 @@ module TestInsights
           }
         end
 
-        TestCase.insert_all!(rows) if rows.present?
+        insert_rows(rows, test_run: test_run)
         heartbeat!
       end
 
       touched_identity_ids
+    end
+
+    # Truncation above should make every row fit its column, but insert_all!
+    # batches 500 rows in one statement -- any other unforeseen per-row error
+    # (encoding, an unexpectedly nil required column, etc.) would otherwise
+    # roll back and silently drop every sibling row in the slice. Fall back to
+    # inserting row-by-row so a single bad row is isolated and reported
+    # instead of discarding the whole batch.
+    def insert_rows(rows, test_run:)
+      return if rows.blank?
+
+      TestCase.insert_all!(rows)
+    rescue ActiveRecord::ActiveRecordError => e
+      report_ingestion_failure(
+        "batch insert of #{rows.size} test case(s) failed, retrying row-by-row",
+        error: e,
+        test_run: test_run
+      )
+      insert_rows_individually(rows, test_run: test_run)
+    end
+
+    def insert_rows_individually(rows, test_run:)
+      rows.each do |row|
+        TestCase.insert_all!([ row ])
+      rescue ActiveRecord::ActiveRecordError => e
+        report_ingestion_failure(
+          "dropped test case #{row[:suite_name]} #{row[:name]}".strip,
+          error: e,
+          test_run: test_run
+        )
+      end
+    end
+
+    def report_ingestion_failure(message, error:, test_run:)
+      full_message = "[TestInsights::Ingester] #{message} for Run #{@run.id} grader #{@grader_name}: #{error.class}: #{error.message}"
+      Rails.logger.error(full_message)
+      OperationalLogging.ingest(
+        level: "error",
+        source: "test_insights_ingester",
+        message: full_message,
+        context: {
+          run_id: @run.id,
+          repository_id: @repository.id,
+          grader_name: @grader_name,
+          test_run_id: test_run&.id
+        }
+      )
+    rescue StandardError
+      nil
     end
 
     def heartbeat!
