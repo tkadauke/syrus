@@ -48,7 +48,7 @@ import {
   Section,
   TableSurface,
   Text
-} from "@app/components/ui"
+} from "@app/components/pluginUi"
 
 const kindKeys: Record<string, string> = {
   user_pref: "kind_user_pref",

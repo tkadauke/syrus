@@ -1,7 +1,7 @@
 import { withRoutePrefix } from "@app/lib/routing"
 import { formatCurrency } from "@app/lib/format"
 import { FilterBar } from "@app/components/FilterBar"
-import { Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { Notice, Page, PageDescription, PageHeader, PageHeading, Section, SectionHeading, Text } from "@app/components/pluginUi"
 import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"

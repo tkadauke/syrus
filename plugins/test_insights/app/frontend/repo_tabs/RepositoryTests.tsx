@@ -24,7 +24,7 @@ import {
   SectionHeading,
   TableSurface,
   Text
-} from "@app/components/ui"
+} from "@app/components/pluginUi"
 import { TonePill } from "@app/components/StatusPill"
 
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {

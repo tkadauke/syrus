@@ -35,7 +35,7 @@ RSpec.describe Syrus::Plugin::PluginGenerator do
     expect(read("plugins/sample_plugin/app/frontend/i18n/locales/en/sample_plugin.json")).to include('"title": "Sample plugin"')
     expect(read("plugins/sample_plugin/app/frontend/i18n/locales/de/sample_plugin.json")).to include('"title": "Sample plugin"')
     expect(read("plugins/sample_plugin/app/frontend/i18n/locales/la/sample_plugin.json")).to include('"title": "Sample plugin"')
-    expect(component).to include('from "@app/components/ui"')
+    expect(component).to include('from "@app/components/pluginUi"')
     expect(component).to include("<PageHeading>Sample plugin</PageHeading>")
     expect(component).to include("<Page ")
     expect(component).to include("<Card>")

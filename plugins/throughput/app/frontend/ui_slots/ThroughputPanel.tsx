@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import { DescriptionList, DescriptionRow, Notice, Section, SectionHeading, Text } from "@app/components/ui"
+import { DescriptionList, DescriptionRow, Notice, Section, SectionHeading, Text } from "@app/components/pluginUi"
 import { TonePill } from "@app/components/StatusPill"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useT } from "@app/hooks/useT"

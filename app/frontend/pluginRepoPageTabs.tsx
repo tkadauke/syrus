@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { useLocation, useParams } from "react-router-dom"
 import { fetchRepoPluginTabs } from "./api/repoPluginTabs"
-import { Notice, Page, PageHeader, PageHeading, Text } from "./components/ui"
+import { Notice, Page, PageHeader, PageHeading, Text } from "./components/pluginUi"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {

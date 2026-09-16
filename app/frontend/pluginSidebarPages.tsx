@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { matchPath, useLocation } from "react-router-dom"
 import { fetchSidebarPluginPages } from "./api/sidebarPages"
-import { Notice, Page, PageHeader, PageHeading, Text } from "./components/ui"
+import { Notice, Page, PageHeader, PageHeading, Text } from "./components/pluginUi"
 import { useT } from "./hooks/useT"
 
 type PluginModule = {

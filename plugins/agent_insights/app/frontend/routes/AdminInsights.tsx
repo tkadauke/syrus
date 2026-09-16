@@ -16,7 +16,7 @@ import {
   SectionHeading,
   Text,
   Toolbar
-} from "@app/components/ui"
+} from "@app/components/pluginUi"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { withRoutePrefix } from "@app/lib/routing"

@@ -2478,7 +2478,7 @@ Admin-page plugins should declare:
   plugin-route dispatcher after concrete core routes, so plugin controllers
   can live inside the plugin engine without adding one-off host routes.
 - frontend components that import shared Syrus primitives from
-  `@app/components/ui` for page structure, surfaces, headings/text, forms,
+  `@app/components/pluginUi` for page structure, surfaces, headings/text, forms,
   notices, tables, tool-result cards, and code/log areas instead of copying
   core page-shell, panel, button, input, table-cell, or log-surface Tailwind
   class strings into the plugin.
@@ -2505,7 +2505,7 @@ Sidebar-page plugins should declare:
 - install-time `frontend.routes` metadata mapping component keys to plugin
   frontend files, the same way `admin_page` does.
 - install-time `frontend.i18n` metadata listing plugin locale files.
-- frontend components that use `@app/components/ui` for shared layout,
+- frontend components that use `@app/components/pluginUi` for shared layout,
   surface, text, form, table, notice, tool-card, and code/log semantics.
 
 `App::SidebarPagesPayload` (served over `GET /api/v1/app/sidebar_pages`) is
@@ -2591,7 +2591,7 @@ Repo-page-tab plugins should declare:
 - install-time `routes` metadata for its API route(s) only (served the same
   way as admin-page plugin API routes).
 - repository-tab components that import shared UI primitives from
-  `@app/components/ui` rather than restyling the host repository shell, tab
+  `@app/components/pluginUi` rather than restyling the host repository shell, tab
   surfaces, forms, tables, notices, or log/code blocks from raw Tailwind
   utilities.
 
@@ -2682,20 +2682,24 @@ anything else would be a lie its own tools then act on.
 
 ### Frontend UI primitives
 
-Plugin frontend code should start from the same semantic UI surface core uses:
+Plugin frontend code should start from `@app/components/pluginUi`, a set of
+lightweight scaffold primitives kept separate from the richer, compound-API
+DOC-27 design system core itself uses (`@app/components/ui`, the `ui/`
+directory: `Page.Root`/`Page.Header`, `Section.Root`/`Section.Header`,
+`Form.Field`/`Form.Label`, `DataTable.Root`, `Notice`, `ToolCard`,
+`CodeSurface`, etc.):
 
 ```tsx
-import { Button, Card, FormField, Input, Page, PageHeading, PanelMessage } from "@app/components/ui"
+import { Button, Card, FormField, Input, Page, PageHeading, PanelMessage } from "@app/components/pluginUi"
 ```
 
 Use those shared primitives for routine Syrus structure: page shells,
 surfaces, headings, muted text, forms, tables, notices, tool-result cards, and
-code or log surfaces. As DOC-27 adds richer primitives such as `Page`,
-`Section`, `Surface`, `Text`, `DataTable`, `Form`, `Notice`, `ToolCard`, and
-`CodeSurface`, plugin pages should adopt them through this import path instead
-of copying host Tailwind recipes like `rounded border bg-white
-dark:bg-gray-900`, custom button class strings, or hand-rolled table header
-styles.
+code or log surfaces, instead of copying host Tailwind recipes like `rounded
+border bg-white dark:bg-gray-900`, custom button class strings, or hand-rolled
+table header styles. A plugin page that needs one of the richer DOC-27
+primitives not covered here (`DataTable`, compound `Form`, `ToolCard`,
+`CodeSurface`, etc.) can import it directly from `@app/components/ui` instead.
 
 Plugin-specific visuals remain plugin-owned. A plugin should still render its
 own icon, logo, domain-specific chart, graph, preview canvas, editor affordance,
@@ -2706,7 +2710,7 @@ from core primitives; the plugin supplies the domain content inside them.
 
 `rails generate syrus:plugin NAME --frontend` creates a small admin-page
 example wired through `frontend.routes`, an `admin_page` provider, and a React
-component importing `@app/components/ui`. Ruby-only plugins can omit
+component importing `@app/components/pluginUi`. Ruby-only plugins can omit
 `--frontend` and get only the manifest skeleton.
 
 ### Effects, and the two lifetimes

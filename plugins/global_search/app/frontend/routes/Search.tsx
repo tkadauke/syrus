@@ -12,7 +12,7 @@ import { FilterBar, type FilterLinkBuilder } from "@app/components/FilterBar"
 import { CopyableSlug } from "@app/components/CopyableSlug"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { PILL_TONE_CLASSES, TonePill } from "@app/components/StatusPill"
-import { Notice, Page, PageDescription, PageHeader, PageHeading, Section, Skeleton, Text } from "@app/components/ui"
+import { Notice, Page, PageDescription, PageHeader, PageHeading, Section, Skeleton, Text } from "@app/components/pluginUi"
 
 type SearchFilter = string | "all"
 

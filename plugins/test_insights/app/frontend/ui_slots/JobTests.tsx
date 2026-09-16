@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { Notice, Section, SectionHeading, Text } from "@app/components/ui"
+import { Notice, Section, SectionHeading, Text } from "@app/components/pluginUi"
 import { TonePill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
 import { fetchJobTestResults, type JobTestCase, type JobTestRun, type JobTestSuite } from "../api/jobTests"

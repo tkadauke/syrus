@@ -1,4 +1,4 @@
-import { Button, Card, FormActions, FormField, FormLabel, Input, Page, PageDescription, PageHeader, PageHeading, PanelMessage, SectionHeading, Select } from "@app/components/ui"
+import { Button, Card, FormActions, FormField, FormLabel, Input, Page, PageDescription, PageHeader, PageHeading, PanelMessage, SectionHeading, Select } from "@app/components/pluginUi"
 
 export default function AdminExample() {
   return (

@@ -118,10 +118,10 @@ React component and is addressed as `<plugin>/<ComponentName>`.
 
 Plugin frontend code should import host frontend APIs through `@app/*`, e.g.
 `@app/hooks/useT`, instead of long relative paths. For UI, start from
-`@app/components/ui`:
+`@app/components/pluginUi`:
 
 ```tsx
-import { Button, Card, FormField, Input, Page, PageHeading, PanelMessage } from "@app/components/ui"
+import { Button, Card, FormField, Input, Page, PageHeading, PanelMessage } from "@app/components/pluginUi"
 ```
 
 Use shared primitives for page shells, surfaces, text, tables, forms, notices,

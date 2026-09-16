@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
-import { Button, Notice, Page, PageHeader, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/ui"
+import { Button, Notice, Page, PageHeader, PageHeading, Section, SectionHeading, Text, Toolbar } from "@app/components/pluginUi"
 import { explainSql, fetchAdminPerformance, type AdminPerformancePayload, type BrowserTraceSummary, type PerformanceComparison, type PerformanceEvent, type SlowJobSummary, type SlowPhaseSummary, type SlowRequestSummary, type SqlExplainResult, type SqlFingerprintSummary } from "../api/adminPerformance"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"

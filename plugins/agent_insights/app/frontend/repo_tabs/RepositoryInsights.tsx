@@ -24,7 +24,7 @@ import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { FilterBar } from "@app/components/FilterBar"
 import { CopyableSlug } from "@app/components/CopyableSlug"
-import { Notice, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
+import { Notice, PageHeading, Section, SectionHeading, Text } from "@app/components/pluginUi"
 import { TonePill } from "@app/components/StatusPill"
 
 export function RepositoryInsightsRoute() {
