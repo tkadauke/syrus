@@ -124,6 +124,16 @@ export function codingFilesTabVisible(payload: ChatPayload): boolean {
   )
 }
 
+// Read-only counterpart for planning-mode chats: the coding_files/coding_file
+// controller actions work for any attached repository regardless of mode
+// (see chats_controller.rb), so a chat that never became a writable Coding
+// Mode checkout can still browse its attached repository's tree/content. Not
+// gated on coding_mode_enabled -- that flag only controls the writable
+// Coding Mode experience (commits, diff, handoff), not read-only browsing.
+export function readOnlyFilesTabVisible(payload: ChatPayload): boolean {
+  return Boolean(payload.chat.repository) && payload.chat.mode !== "coding" && payload.chat.mode !== "local"
+}
+
 export function localDiffTabVisible(payload: ChatPayload): boolean {
   return Boolean(
     payload.local_mode_enabled &&

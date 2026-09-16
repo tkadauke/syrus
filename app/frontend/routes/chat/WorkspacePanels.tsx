@@ -22,7 +22,7 @@ import { SourceCodeTable } from "../../components/FilePreviewModal"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
-import { chatDisplayTitle, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
+import { chatDisplayTitle, codingFilesTabVisible, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
 import { PinIcon } from "../../components/PinIcon"
@@ -183,7 +183,7 @@ export function ChatWorkspacePanel({
         {activeTab === "context" && !simpleMode ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "media" ? <MediaGallery payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
-        {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
+        {activeTab === "files" ? <CodingFilesPanel payload={payload} readOnly={!codingFilesTabVisible(payload)} /> : null}
         {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel chatId={payload.chat.id} /> : null}
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
         {activeTab === "runtime" ? <RuntimePanel chatId={payload.chat.id} /> : null}
@@ -1366,7 +1366,7 @@ function FileTreeEntry({
   )
 }
 
-function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
+function CodingFilesPanel({ payload, readOnly = false }: { payload: ChatPayload; readOnly?: boolean }) {
   const { t } = useT("chat")
   const [view, setView] = useState<"files" | "diff">("files")
   const [diffMode, setDiffMode] = useState<"cumulative" | "turn">("cumulative")
@@ -1412,7 +1412,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
   const commits = useQuery({
     queryKey: ["coding_commits", commitsPath],
     queryFn: () => fetchCodingCommits(commitsPath!).catch(recordRelayUnavailable),
-    enabled: !!commitsPath && !relayBackoffActive,
+    enabled: !!commitsPath && !relayBackoffActive && !readOnly,
     refetchInterval,
     retry: codingQueryRetry
   })
@@ -1428,7 +1428,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
   const diffResult = useQuery({
     queryKey: ["coding_diff", diffPath, diffMode, selectedRef],
     queryFn: () => fetchCodingDiff(diffPath!, diffMode, selectedRef || null).catch(recordRelayUnavailable),
-    enabled: !!diffPath && view === "diff" && !relayBackoffActive,
+    enabled: !!diffPath && view === "diff" && !relayBackoffActive && !readOnly,
     refetchInterval,
     retry: codingQueryRetry
   })
@@ -1461,62 +1461,66 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-        <button
-          className={`rounded px-2 py-1 text-xs font-medium ${view === "files" ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
-          onClick={() => setView("files")}
-          type="button"
-        >
-          {t("view_files")}
-        </button>
-        <button
-          className={`rounded px-2 py-1 text-xs font-medium ${view === "diff" ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
-          onClick={() => setView("diff")}
-          type="button"
-        >
-          {t("view_diff")}
-        </button>
-        {view === "diff" && !selectedRef ? (
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              className={`rounded px-2 py-1 text-xs ${diffMode === "cumulative" ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
-              onClick={() => setDiffMode("cumulative")}
-              type="button"
-            >
-              {t("diff_tab_cumulative")}
-            </button>
-            <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
-            <button
-              className={`rounded px-2 py-1 text-xs ${diffMode === "turn" ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
-              onClick={() => setDiffMode("turn")}
-              type="button"
-            >
-              {t("diff_tab_turn")}
-            </button>
-          </div>
-        ) : null}
-      </div>
-      <div className="shrink-0 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-        <Select
-          aria-label={t("commit_selector_label")}
-          className="font-mono text-xs"
-          onChange={(event) => {
-            setSelectedRef(event.target.value)
-            setSelectedFile(null)
-            setSelectedDiffFile(null)
-          }}
-          value={selectedRef}
-        >
-          <option value="">{t("commit_selector_head")}</option>
-          {commitOptions.map((commit) => (
-            <option key={commit.sha} value={commit.sha}>
-              {commit.sha.slice(0, 7)} · {commit.date.slice(0, 16)} · {truncateCommitMessage(commit.message)}
-            </option>
-          ))}
-        </Select>
-      </div>
+      {readOnly ? null : (
+        <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+          <button
+            className={`rounded px-2 py-1 text-xs font-medium ${view === "files" ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+            onClick={() => setView("files")}
+            type="button"
+          >
+            {t("view_files")}
+          </button>
+          <button
+            className={`rounded px-2 py-1 text-xs font-medium ${view === "diff" ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+            onClick={() => setView("diff")}
+            type="button"
+          >
+            {t("view_diff")}
+          </button>
+          {view === "diff" && !selectedRef ? (
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                className={`rounded px-2 py-1 text-xs ${diffMode === "cumulative" ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
+                onClick={() => setDiffMode("cumulative")}
+                type="button"
+              >
+                {t("diff_tab_cumulative")}
+              </button>
+              <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
+              <button
+                className={`rounded px-2 py-1 text-xs ${diffMode === "turn" ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
+                onClick={() => setDiffMode("turn")}
+                type="button"
+              >
+                {t("diff_tab_turn")}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
+      {readOnly ? null : (
+        <div className="shrink-0 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+          <Select
+            aria-label={t("commit_selector_label")}
+            className="font-mono text-xs"
+            onChange={(event) => {
+              setSelectedRef(event.target.value)
+              setSelectedFile(null)
+              setSelectedDiffFile(null)
+            }}
+            value={selectedRef}
+          >
+            <option value="">{t("commit_selector_head")}</option>
+            {commitOptions.map((commit) => (
+              <option key={commit.sha} value={commit.sha}>
+                {commit.sha.slice(0, 7)} · {commit.date.slice(0, 16)} · {truncateCommitMessage(commit.message)}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
 
-      {view === "files" ? (
+      {readOnly || view === "files" ? (
         <div className="flex min-h-0 flex-1">
           <div className="w-48 shrink-0 overflow-y-auto border-r border-gray-200 py-1 dark:border-gray-700">
             {fileTree.isPending ? (
