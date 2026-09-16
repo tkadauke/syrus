@@ -67,11 +67,12 @@ The analysis report and extracted screenshots persist indefinitely. Only the raw
 While enabled, exports `syrus_video_walkthroughs_storage_bytes` (a gauge) to `/metrics` (see
 `config/syrus_docs/metrics.md`): the total stored video bytes `PruneJob`'s size sweep is weighing against
 `AppSetting.video_storage_budget_bytes`, so the budget is visible before it starts evicting rather than only
-after the fact. `PruneJob`'s daily tick already computes this exact total to decide whether to evict, so it
-also records it here (`VideoWalkthroughs::MetricsSampler.record_storage_bytes!`) rather than a second query
-on its own schedule -- meaning the gauge is only as fresh as the last prune run, which matches how often
-eviction itself can happen. Like every plugin metric, disabling the plugin removes the series entirely
-rather than freezing it at its last value.
+after the fact. It uses the declarative sample-block form of the manifest `metrics` DSL
+(`gauge :storage_bytes do ... end`, see `Syrus::PluginApi::Definition#metrics`), calling
+`VideoWalkthroughs::Walkthrough.total_stored_bytes` -- the same query shape `PruneJob`'s size sweep uses --
+independently on the shared control-plane tick (`SampleGlobalMetricsJob`, the same tick core samplers use)
+rather than piggybacking on `PruneJob`'s own daily schedule. Like every plugin metric, disabling the plugin
+removes the series entirely rather than freezing it at its last value.
 
 ## Desktop app recording
 

@@ -94,4 +94,37 @@ RSpec.describe "GET /metrics", type: :request do
       expect(response).to have_http_status(:ok)
     end
   end
+
+  # The acceptance test for "SampleGlobalMetricsJob and MetricsController need
+  # zero changes to pick up a new sampler": register a spec-local class the
+  # controller has never heard of and prove it gets refreshed on a scrape.
+  describe "sampler refresh" do
+    it "refreshes any sampler registered with Syrus::Metrics, core or plugin, with no controller change" do
+      MetricsController.last_refresh_at = nil
+      probe = Class.new do
+        class << self
+          attr_accessor :refreshed
+        end
+
+        def self.refresh_gauges! = self.refreshed = true
+      end
+      Syrus::Metrics.register_sampler(probe)
+
+      get "/metrics", headers: { "Authorization" => "Bearer #{admin_token}" }
+
+      expect(probe.refreshed).to be(true)
+      Syrus::Metrics.unregister_sampler(probe)
+    end
+
+    it "does not let one sampler's refresh failure blank the rest of the scrape" do
+      MetricsController.last_refresh_at = nil
+      failing = Class.new { def self.refresh_gauges! = raise("boom") }
+      Syrus::Metrics.register_sampler(failing)
+
+      get "/metrics", headers: { "Authorization" => "Bearer #{admin_token}" }
+
+      expect(response).to have_http_status(:ok)
+      Syrus::Metrics.unregister_sampler(failing)
+    end
+  end
 end

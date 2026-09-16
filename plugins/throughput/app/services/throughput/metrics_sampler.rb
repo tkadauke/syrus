@@ -6,12 +6,16 @@ module Throughput
   # docs/syrus_docs/repository_throughput_metrics.md, "Query shape") --
   # exactly the kind of request-time aggregate /metrics must not run (see
   # config/syrus_docs/metrics.md). This class instead follows
-  # Metrics::LandingSampler's shape: sample on the plugin's own tick, fold
-  # newly-finished landing attempts into a cumulative, cache-mediated total
-  # (a cursor over `finished_at`, set exactly once and never revised), and
-  # reconcile this process's counters to that total from the /metrics scrape
-  # path (Callbacks#on_metrics_scrape) -- because a Workflow or MergeTrain
-  # finishes on a worker process, and /metrics is served by web only.
+  # Metrics::LandingSampler's shape: registers via the manifest's
+  # `metrics do ... sampler MetricsSampler end` (see
+  # Syrus::PluginApi::Definition#metrics) rather than a plugin-owned
+  # tick_interval/on_tick, so #sample! runs on the shared control-plane tick
+  # and folds newly-finished landing attempts into a cumulative,
+  # cache-mediated total (a cursor over `finished_at`, set exactly once and
+  # never revised); #refresh_gauges!, called from that same shared registry
+  # on the /metrics scrape path, reconciles this process's counters to that
+  # total -- because a Workflow or MergeTrain finishes on a worker process,
+  # and /metrics is served by web only.
   #
   # "Landing unit" mirrors MetricContract's own vocabulary: one auto_merge
   # Workflow lands one Job, one merge_train lands every member Job in it.

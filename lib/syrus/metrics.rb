@@ -45,6 +45,18 @@ module Syrus
 
       def undeclare(names) = registry.undeclare(names)
 
+      # The sampling registry: anything sampled on the shared control-plane
+      # tick (SampleGlobalMetricsJob) and refreshed on the /metrics scrape
+      # path (MetricsController). Core samplers register themselves at
+      # class-body-eval time; plugin samplers register through the manifest
+      # `metrics do ... end` DSL (see Syrus::PluginApi::Definition#metrics) --
+      # either a declarative `gauge :name do ... end` sample block, or a full
+      # sampler class via `sampler SomeClass`. Either way, adding one requires
+      # no change to SampleGlobalMetricsJob or MetricsController.
+      def register_sampler(sampler) = registry.register_sampler(sampler)
+      def unregister_sampler(sampler) = registry.unregister_sampler(sampler)
+      def samplers = registry.samplers
+
       def counter(name) = registry.fetch(name, :counter)
       def gauge(name) = registry.fetch(name, :gauge)
       def histogram(name) = registry.fetch(name, :histogram)

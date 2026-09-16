@@ -11,6 +11,7 @@ module Syrus
         @mutex = Mutex.new
         @definitions = {}
         @instruments = {}
+        @samplers = {}
       end
 
       # Evaluates a declaration block and registers everything in it. Returns
@@ -60,6 +61,28 @@ module Syrus
       def definitions = @mutex.synchronize { @definitions.values.sort_by(&:name) }
       def declared?(name) = @mutex.synchronize { @definitions.key?(name.to_sym) }
 
+      # Anything sampled on the shared control-plane tick and refreshed on the
+      # /metrics scrape path -- a core sampler class (Metrics::QueueSampler and
+      # friends, self-registering at class-body-eval time) or a plugin's
+      # sample-block gauge / full sampler class (Syrus::PluginApi::Definition
+      # #metrics, registered and torn down alongside its declaration). Keyed
+      # by #sampler_key (falling back to #to_s) so a class re-registering
+      # itself on a dev reload -- or a plugin re-declaring on re-enable --
+      # replaces its own prior entry instead of accumulating a duplicate.
+      #
+      # This is what lets SampleGlobalMetricsJob and MetricsController stay
+      # ignorant of who is registered: adding a new sampler, core or plugin,
+      # never touches either file.
+      def register_sampler(sampler)
+        @mutex.synchronize { @samplers[sampler_key(sampler)] = sampler }
+      end
+
+      def unregister_sampler(sampler)
+        @mutex.synchronize { @samplers.delete(sampler_key(sampler)) }
+      end
+
+      def samplers = @mutex.synchronize { @samplers.values }
+
       def fetch(name, expected_type)
         name = name.to_sym
         instrument = @mutex.synchronize { @instruments[name] }
@@ -91,6 +114,10 @@ module Syrus
         when :gauge then Gauge.new(definition)
         when :histogram then Histogram.new(definition)
         end
+      end
+
+      def sampler_key(sampler)
+        sampler.respond_to?(:sampler_key) ? sampler.sampler_key : sampler.to_s
       end
 
       def same_declaration?(a, b)

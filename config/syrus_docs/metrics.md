@@ -554,27 +554,80 @@ plugin enabled or disabled since this process's last sync renders the correct
 metric set on the very next scrape, instead of waiting for some other
 subsystem's unrelated read to happen to trigger the sync first.
 
+### Sampling: the shared registry
+
+`Syrus::Metrics.samplers` is the sampling registry. Anything registered here
+gets `#sample!` called once a minute by `SampleGlobalMetricsJob` (the shared
+control-plane tick every core sampler already uses) and `#refresh_gauges!`
+called from the `/metrics` scrape path (`MetricsController#refresh_global_gauges`).
+Both of those call sites iterate the registry generically — **adding a new
+sampler, core or plugin, requires no change to either file.** Core samplers
+(`Metrics::QueueSampler` and friends) call `Syrus::Metrics.register_sampler(self)`
+once, at class-body-eval time, right after `declare_metrics!`.
+
 **A global metric that a worker-side event feeds still needs a sampler.**
 `/metrics` is served by the web role only (see *Scope* above), so a plugin
 whose event happens on a worker — a Run finishing, a landing attempt
 completing, a nightly prune job computing a total — cannot just call
 `increment`/`set` at the event site; that mutation would sit invisible in the
 worker's own in-process registry forever, exactly like the core samplers
-above. The fix is the same shape those use, just plugin-owned: sample on the
-plugin's own tick (`tick_interval` + `Callbacks#on_tick`) into a
-cache-mediated cumulative total, and override
-`Syrus::Plugin::Callbacks#on_metrics_scrape` — called for every enabled,
-healthy plugin's `:callbacks` provider from the `/metrics` scrape path — to
-reconcile this process's instrument to that cached total. Core cannot name a
-plugin's sampler directly (that would make the plugin undeletable), so
-`MetricsController` asks generically instead: every registered `:callbacks`
-provider gets `on_metrics_scrape` called, and one plugin's failure there does
-not blank another plugin's metrics. The `spending_insights` and `throughput`
-plugins' own docs work through the counter case (a cursor over a
-`finished_at`-style column, folded into a cumulative total exactly once per
-event); `video_walkthroughs`' docs work through the simpler gauge case (a job
-that already computes the number for its own purposes just also caches it
-here).
+above. A plugin has two ways to register into the same shared sampling
+registry, both declared inside the manifest's `metrics do ... end` block and
+both registered/torn down alongside the metric declaration itself (no
+separate `tick_interval` + `Callbacks#on_tick` + hand-written sampler class
+needed for either):
+
+**The default: a declarative sampled gauge.** For the common case — read one
+aggregate value on a timer — give `gauge` a block instead of hand-writing a
+sampler class:
+
+```ruby
+syrus_plugin "git_history" do
+  metrics do
+    gauge :relay_queue_depth, comment: "Pending bare-clone reads" do
+      GitHistory::RelayQueue.depth
+    end
+  end
+end
+```
+
+The framework wraps the block in a `Syrus::Metrics::SampledGauge`, registers
+it, and handles sampling/caching/refreshing — the plugin author writes one
+block and nothing else. This form is untagged (the block returns a single
+scalar) and gauge-only (a counter or histogram cannot simply be "set" to a
+timer-read value — see "Counters never reset" below); reach for the escape
+hatch below when either of those doesn't fit.
+
+**The escape hatch: a full sampler class**, for several gauges computed off
+one query pass (`Metrics::QueueSampler#collect` is the canonical core
+example — six gauges, one query) or a counter/histogram that needs
+cursor-based cumulative logic (the `spending_insights` and `throughput`
+plugins' own docs work through that case: a cursor over a `finished_at`-style
+column, folded into a cumulative total exactly once per event). The class
+must implement `.sample!` and `.refresh_gauges!`, the same interface a core
+sampler implements, and registers with `sampler`:
+
+```ruby
+metrics do
+  counter :relay_requests_total, tags: %i[outcome], comment: "Bare-clone reads served"
+  sampler GitHistory::MetricsSampler
+end
+```
+
+Both forms register through the same `Syrus::Metrics.register_sampler`/
+`unregister_sampler` calls, made from the manifest `metrics` block's own
+`while_enabled` effect (see `Syrus::PluginApi::Definition#metrics`) — so a
+disabled plugin's sampler stops sampling and its gauge goes absent on the
+next scrape, the same `while_enabled` semantics every other plugin metric
+follows, not stale or frozen at its last value.
+
+`Syrus::Plugin::Callbacks#on_metrics_scrape` (called for every enabled,
+healthy plugin's `:callbacks` provider from the `/metrics` scrape path,
+independent of the sampler registry above) still exists as a lower-level
+escape hatch for the rare case that doesn't fit "sample on a timer, refresh
+on scrape" at all — but no bundled plugin uses it for metrics anymore, and
+reaching for `sampler`/a sampled `gauge` block should be the default over
+hand-rolling `tick_interval` + `on_tick` + `on_metrics_scrape` yourself.
 
 Three instrument types, and no Summary: client-side quantiles cannot be
 aggregated across processes, since there is no function of two pods' p99 values

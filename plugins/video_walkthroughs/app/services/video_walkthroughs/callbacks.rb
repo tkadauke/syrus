@@ -8,9 +8,5 @@ module VideoWalkthroughs
       PruneJob.perform_later
       nil
     end
-
-    def self.on_metrics_scrape
-      MetricsSampler.refresh_gauges!
-    end
   end
 end

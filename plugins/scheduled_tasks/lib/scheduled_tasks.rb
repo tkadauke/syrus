@@ -62,9 +62,14 @@ module ScheduledTasks
     route :get,    "/api/v1/admin/cron_templates", to: "api/v1/admin/cron_templates#index"
     route :get,    "/api/v1/admin/cron_templates/:id", to: "api/v1/admin/cron_templates#show"
 
+    # A plain aggregate value on a timer -- the declarative sample-block form
+    # (see Syrus::PluginApi::Definition#metrics) samples this on the shared
+    # control-plane tick, independent of Callbacks#on_tick's own poll cadence.
     metrics do
       gauge :autopaused_total,
-            comment: "Tasks currently auto-paused after hitting AppSetting.max_job_failures"
+            comment: "Tasks currently auto-paused after hitting AppSetting.max_job_failures" do
+        Task.alive.where(state: "auto_paused").count
+      end
     end
 
     frontend routes: { "scheduled_tasks/ScheduledTasksPage" => "app/frontend/routes/ScheduledTasksPage.tsx" },
