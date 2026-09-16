@@ -51,6 +51,7 @@ module Syrus
         job
         skip_reason
         problem_code
+        unit_type
       ].freeze
 
       # Named explicitly so the error message can say *why*, rather than just

@@ -11,13 +11,23 @@ module SpendingInsights
     category "observability"
     default_enabled true
     disableable true
+    # Sample cadence for MetricsSampler -- same order of magnitude as core's
+    # own SampleGlobalMetricsJob tick.
+    tick_interval 1.minute
     provides sidebar_page: "SpendingInsights::SidebarPages",
-             chat_mcp_tool_set: "SpendingInsights::ChatToolSet"
+             chat_mcp_tool_set: "SpendingInsights::ChatToolSet",
+             callbacks: "SpendingInsights::Callbacks"
     route :get, "/api/v1/app/insights/spending", to: "api/v1/app/insights/spending#show"
     frontend routes: {
           "spending_insights/SpendingInsights" => "app/frontend/routes/SpendingInsights.tsx"
         },
         i18n: [ "app/frontend/i18n/locales/*/spending.json" ]
+
+    metrics do
+      counter :run_cost_usd_total, tags: %i[provider trigger_kind],
+              comment: "Cumulative Run#cost_usd, so a cost blowup is alertable instead of only visible on " \
+                       "/insights/spending"
+    end
 
     while_enabled do |scope|
       scope.effect("filter subjects") do

@@ -10,6 +10,18 @@ module ScheduledTasks
 
     def self.on_tick
       PollScheduledTasksJob.perform_later
+      sample_metrics
     end
+
+    def self.on_metrics_scrape
+      MetricsSampler.refresh_gauges!
+    end
+
+    def self.sample_metrics
+      MetricsSampler.sample!
+    rescue StandardError => e
+      Rails.logger.warn("[ScheduledTasks] metrics sample failed: #{e.class}: #{e.message}")
+    end
+    private_class_method :sample_metrics
   end
 end

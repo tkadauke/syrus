@@ -55,9 +55,6 @@ class VideoWalkthroughs::PruneJob < ApplicationJob
   end
 
   def size_sweep
-    budget = AppSetting.video_storage_budget_bytes
-    return if budget.zero?
-
     # Oldest-updated first — LRU that keeps the freshest videos retriable. NOTE:
     # find_each can't do this — it ignores a non-primary-key .order and forces
     # batch-by-id, which is NOT updated_at order once a row is re-touched (a
@@ -69,6 +66,13 @@ class VideoWalkthroughs::PruneJob < ApplicationJob
       .order(Arel.sql("#{table}.updated_at ASC, #{table}.id ASC"))
       .pluck("#{table}.id", "#{table}.byte_size")
     total = candidates.sum { |(_id, bytes)| bytes.to_i }
+    # Recorded unconditionally (even at an unlimited budget) since this same
+    # daily tick is also this metric's only sample point -- see
+    # VideoWalkthroughs::MetricsSampler.
+    VideoWalkthroughs::MetricsSampler.record_storage_bytes!(total)
+
+    budget = AppSetting.video_storage_budget_bytes
+    return if budget.zero?
     return if total <= budget
 
     evict = []

@@ -12,6 +12,7 @@ RSpec.describe Syrus::Plugin::Callbacks do
       expect(concrete_class.on_enable).to be_nil
       expect(concrete_class.on_disable).to be_nil
       expect(concrete_class.on_tick).to be_nil
+      expect(concrete_class.on_metrics_scrape).to be_nil
     end
   end
 
