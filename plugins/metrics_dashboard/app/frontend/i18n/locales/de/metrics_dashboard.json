@@ -7,6 +7,8 @@
   "panel_empty": "In diesem Zeitraum wurden noch keine Daten aufgezeichnet.",
   "no_data_notice": "Es wurde noch nichts aufgezeichnet. Die Aufzeichnung beginnt eine Minute nach Aktivierung des Plugins.",
   "stale_notice": "Die Aufzeichnung scheint gestoppt zu sein. Letzte Messung: {{at}}.",
+  "hide_series": "Serie {{name}} ausblenden",
+  "show_series": "Serie {{name}} einblenden",
   "panels": {
     "queue_oldest_age": "Ältester wartender Job, nach Queue",
     "queue_ready": "Wartende Jobs, nach Queue",

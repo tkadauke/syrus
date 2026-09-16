@@ -1,4 +1,4 @@
-import { useId } from "react"
+import { useId, useState } from "react"
 import { useT } from "@app/hooks/useT"
 import type { MetricsPanel } from "../api/metricsDashboard"
 import {
@@ -24,6 +24,35 @@ const PLOT_HEIGHT = 168
 const PLOT_WIDTH = 1000
 const AXIS_GUTTER = 46
 
+const HIDDEN_SERIES_STORAGE_PREFIX = "metrics_dashboard.hidden_series"
+
+function hiddenSeriesStorageKey(panelKey: string, seriesName: string) {
+  return `${HIDDEN_SERIES_STORAGE_PREFIX}.${panelKey}.${seriesName}`
+}
+
+/** Reads which of a panel's series were hidden in an earlier session. Fails open (nothing hidden) if storage is unavailable. */
+function loadHiddenSeries(panelKey: string, seriesNames: string[]): Set<string> {
+  const hidden = new Set<string>()
+  try {
+    for (const name of seriesNames) {
+      if (window.localStorage.getItem(hiddenSeriesStorageKey(panelKey, name)) === "1") hidden.add(name)
+    }
+  } catch {
+    // Private browsing / disabled storage: proceed with nothing hidden.
+  }
+  return hidden
+}
+
+function persistSeriesHidden(panelKey: string, seriesName: string, isHidden: boolean) {
+  try {
+    const key = hiddenSeriesStorageKey(panelKey, seriesName)
+    if (isHidden) window.localStorage.setItem(key, "1")
+    else window.localStorage.removeItem(key)
+  } catch {
+    // Toggle still works for the current session even if it can't persist.
+  }
+}
+
 export function MetricsChart({
   panel,
   buckets,
@@ -41,9 +70,23 @@ export function MetricsChart({
 }) {
   const { t } = useT("metrics_dashboard")
   const clipId = useId()
-  const scale = panelScale(panel.series)
+  const [ hidden, setHidden ] = useState<Set<string>>(() =>
+    loadHiddenSeries(panel.key, panel.series.map((series) => series.name))
+  )
+  const scale = panelScale(panel.series, hidden)
   const ticks = tickIndexes(buckets.length)
   const gridLines = [ 0, 0.25, 0.5, 0.75, 1 ]
+
+  function toggleSeries(name: string) {
+    setHidden((previous) => {
+      const next = new Set(previous)
+      const isHidden = !next.has(name)
+      if (isHidden) next.add(name)
+      else next.delete(name)
+      persistSeriesHidden(panel.key, name, isHidden)
+      return next
+    })
+  }
 
   // The index the pointer is over, mapped from where it landed in the plot.
   // Rounded rather than floored so the crosshair snaps to the nearest bucket
@@ -129,18 +172,21 @@ export function MetricsChart({
         })}
 
         <g clipPath={`url(#${clipId})`}>
-          {panel.series.map((series, index) => (
-            <path
-              d={linePath(series.values, scale, PLOT_WIDTH, PLOT_HEIGHT, AXIS_GUTTER)}
-              fill="none"
-              key={series.name}
-              stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.75"
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
+          {panel.series.map((series, index) => {
+            if (hidden.has(series.name)) return null
+            return (
+              <path
+                d={linePath(series.values, scale, PLOT_WIDTH, PLOT_HEIGHT, AXIS_GUTTER)}
+                fill="none"
+                key={series.name}
+                stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.75"
+                vectorEffect="non-scaling-stroke"
+              />
+            )
+          })}
         </g>
 
         {hoverIndex !== null && (
@@ -156,6 +202,7 @@ export function MetricsChart({
               y2={PLOT_HEIGHT}
             />
             {panel.series.map((series, index) => {
+              if (hidden.has(series.name)) return null
               const value = series.values[hoverIndex]
               if (value === null || value === undefined) return null
               return (
@@ -186,23 +233,35 @@ export function MetricsChart({
       )}
 
       <ul className="mt-3 grid gap-x-4 gap-y-1 sm:grid-cols-2">
-        {panel.series.map((series, index) => (
-          <li className="flex items-center justify-between gap-2 text-xs" key={series.name}>
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: SERIES_COLORS[index % SERIES_COLORS.length] }}
-              />
-              <span className="truncate font-mono text-gray-600 dark:text-gray-300" title={series.name}>
-                {series.name}
+        {panel.series.map((series, index) => {
+          const isHidden = hidden.has(series.name)
+          return (
+            <li className="flex items-center justify-between gap-2 text-xs" key={series.name}>
+              <button
+                aria-label={isHidden ? t("show_series", { name: series.name }) : t("hide_series", { name: series.name })}
+                aria-pressed={isHidden}
+                className={`flex min-w-0 items-center gap-1.5 ${isHidden ? "opacity-40" : ""}`}
+                onClick={() => toggleSeries(series.name)}
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: SERIES_COLORS[index % SERIES_COLORS.length] }}
+                />
+                <span
+                  className={`truncate font-mono text-gray-600 dark:text-gray-300 ${isHidden ? "line-through" : ""}`}
+                  title={series.name}
+                >
+                  {series.name}
+                </span>
+              </button>
+              <span className="shrink-0 font-mono tabular-nums text-gray-900 dark:text-gray-100">
+                {formatWithUnit(isHidden ? null : series.values[activeIndex] ?? null, panel.unit)}
               </span>
-            </span>
-            <span className="shrink-0 font-mono tabular-nums text-gray-900 dark:text-gray-100">
-              {formatWithUnit(series.values[activeIndex] ?? null, panel.unit)}
-            </span>
-          </li>
-        ))}
+            </li>
+          )
+        })}
       </ul>
     </section>
   )
@@ -218,4 +277,4 @@ export function lastPopulatedIndex(panel: MetricsPanel, bucketCount: number) {
   return bucketCount - 1
 }
 
-export { SERIES_COLORS, formatValue }
+export { SERIES_COLORS, formatValue, hiddenSeriesStorageKey, loadHiddenSeries, persistSeriesHidden }

@@ -7,6 +7,8 @@
   "panel_empty": "No data recorded in this window yet.",
   "no_data_notice": "Nothing has been recorded yet. Recording starts a minute after the plugin is enabled.",
   "stale_notice": "Recording appears to have stopped. Last sample: {{at}}.",
+  "hide_series": "Hide {{name}} series",
+  "show_series": "Show {{name}} series",
   "panels": {
     "queue_oldest_age": "Oldest waiting job, by queue",
     "queue_ready": "Jobs waiting, by queue",
