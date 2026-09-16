@@ -24,5 +24,10 @@ class TestInsightsPruneJob < ApplicationJob
 
     runs_deleted = TestInsights::TestRun.prunable.delete_all
     Rails.logger.info("[TestInsightsPruneJob] deleted #{runs_deleted} test_insight_runs") if runs_deleted > 0
+
+    isolated_repro_attempts_deleted = TestInsights::IsolatedReproAttempt.prunable.delete_all
+    if isolated_repro_attempts_deleted > 0
+      Rails.logger.info("[TestInsightsPruneJob] deleted #{isolated_repro_attempts_deleted} test_insight_isolated_repro_attempts")
+    end
   end
 end

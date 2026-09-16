@@ -41,12 +41,31 @@ RSpec.describe TestInsightsPruneJob do
     expect(TestInsights::TestRun.exists?(fresh.id)).to be true
   end
 
+  def create_isolated_repro_attempt(**attrs)
+    TestInsights::IsolatedReproAttempt.create!(
+      { repository: repo, grader_name: "rspec", suite_name: "MySpec", name: "it does the thing",
+        sha: "c" * 40, reproduced: false, command: "bundle exec rspec", output: "ok" }.merge(attrs)
+    )
+  end
+
+  it "deletes TestInsights::IsolatedReproAttempt rows older than RETAIN_AFTER" do
+    old   = create_isolated_repro_attempt
+    fresh = create_isolated_repro_attempt(name: "a fresh example")
+    old.update_columns(created_at: (TestInsights::IsolatedReproAttempt::RETAIN_AFTER + 1.day).ago)
+
+    expect { described_class.perform_now }.to change { TestInsights::IsolatedReproAttempt.count }.by(-1)
+    expect(TestInsights::IsolatedReproAttempt.exists?(old.id)).to be false
+    expect(TestInsights::IsolatedReproAttempt.exists?(fresh.id)).to be true
+  end
+
   it "logs a count consistent with RunDiagnosticPruneJob's style" do
     test_run = create_test_run
     old_case = create_case(test_run)
     old_case.update_columns(created_at: (TestInsights::TestCase::RETAIN_AFTER + 1.day).ago)
     old_run = create_test_run(grader_name: "rspec-old-run")
     old_run.update_columns(created_at: (TestInsights::TestRun::RETAIN_AFTER + 1.day).ago)
+    old_attempt = create_isolated_repro_attempt
+    old_attempt.update_columns(created_at: (TestInsights::IsolatedReproAttempt::RETAIN_AFTER + 1.day).ago)
 
     messages = []
     allow(Rails.logger).to receive(:info) { |message| messages << message }
@@ -55,13 +74,16 @@ RSpec.describe TestInsightsPruneJob do
 
     expect(messages).to include("[TestInsightsPruneJob] deleted 1 test_insight_cases")
     expect(messages).to include("[TestInsightsPruneJob] deleted 1 test_insight_runs")
+    expect(messages).to include("[TestInsightsPruneJob] deleted 1 test_insight_isolated_repro_attempts")
   end
 
   it "is a no-op when nothing is prunable" do
     test_run = create_test_run
     create_case(test_run)
+    create_isolated_repro_attempt
 
     expect { described_class.perform_now }.not_to change { TestInsights::TestCase.count }
     expect { described_class.perform_now }.not_to change { TestInsights::TestRun.count }
+    expect { described_class.perform_now }.not_to change { TestInsights::IsolatedReproAttempt.count }
   end
 end

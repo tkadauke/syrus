@@ -197,6 +197,53 @@ deliberately rather than paying that cost by default.
 `Repository#new_test_flakiness_gate_repeats` overrides the default repeat
 count.
 
+## isolated_repro_dismissal_enabled
+
+`KnownFlakyFailure`'s `flakiness_score` needs accumulated cross-run history
+to say anything -- a test that has only ever failed once, or whose history
+was lost to an ingestion bug, gives it nothing to work with. An agent
+investigating a required-grader failure during `landing_fix` (or another
+repair step) often already does the obvious thing: run the exact failing
+example in isolation, against the exact failing commit, before touching any
+code, to see whether it reproduces. That is a different, better-grounded
+signal than either `flakiness_score`'s accumulated history or an agent's
+unverifiable opinion that a test "looks flaky" (rejected elsewhere as
+correlated with each Job's incentive to get its own PR unblocked, not
+independent) -- it's a verifiable *action*, with a command and its raw
+output, that speaks to this one occurrence immediately.
+
+The `record_isolated_repro` MCP tool lets an agent record that fact as
+structured evidence -- the exact command, its raw output, and whether it
+reproduced -- via a `:test_evidence` provider's `record_isolated_repro!`/
+`isolated_repro_evidence` capability (`TestInsights::IsolatedReproAttempt`,
+stored in its own table, never mixed into `TestCase`'s `scored` pool that
+`flakiness_score` reads). `IsolatedReproRecorder` validates the call before
+it is ever stored: it reads the workspace's actual `git rev-parse HEAD`
+rather than trusting an agent-supplied SHA, and requires it to still equal
+the exact commit the last grading iteration failed at -- which rejects both
+a repro run against the wrong commit and one recorded after the agent's own
+fix commits exist (either moves HEAD away from the graded commit) -- and
+requires the named test to be among what the grader Step actually reported
+failing, not merely asserted by the agent.
+
+`Adjudicators::IsolatedReproDismissal` closes the loop at rung 0: when every
+failing test in a required grader Step has a same-SHA, pre-fix "did not
+reproduce" record, the failure is dismissed instead of blocking landing or
+spending another repair turn. Off by default, opted in per repository via
+`Repository#isolated_repro_dismissal_enabled` (same shape as
+`known_flaky_failure_dismissal_enabled` above). A dismissal is recorded as an
+`isolated_repro_grader_failure` workflow artifact (the dismissed grader
+names, the non-reproducing tests, and the SHA) and logged on the
+`grader_collect` Step, the same visibility `record_known_flaky_failure!`
+gives a flakiness-history dismissal.
+
+A same-workflow `retry_until` re-run of the whole grader is a different
+thing entirely and is not what this records: that is a normal grading
+execution and already belongs in `TestCase`'s `scored` pool (excluded from
+it only via `TestCase.wip_repair_failures` when it's the workflow's own
+in-loop self-repair). `record_isolated_repro` is for a single, deliberately
+targeted example run outside the normal grading loop.
+
 ## Stopping a landing attempt
 
 While a Job is `landing` -- solo (`auto_merge`/`external_pr_merge`) or as part

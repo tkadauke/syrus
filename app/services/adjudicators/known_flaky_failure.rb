@@ -29,7 +29,7 @@ module Adjudicators
       repository = workflow.job&.repository
       return Adjudication.inconclusive(adjudicator: name, reason: "not_enabled") unless repository&.known_flaky_failure_dismissal_enabled?
 
-      steps = Array(step || failed_grader_steps(workflow)).select { |candidate| candidate.respond_to?(:details) }
+      steps = Array(step || TestEvidenceLookup.failed_grader_steps(workflow)).select { |candidate| candidate.respond_to?(:details) }
       return Adjudication.inconclusive(adjudicator: name) if steps.empty?
 
       min_score = repository.known_flaky_failure_min_score || DEFAULT_MIN_SCORE
@@ -57,7 +57,7 @@ module Adjudicators
       run = grader_step.runs.order(:created_at).last
       return nil unless run
 
-      failing_tests = failed_test_cases_for(run, grader_name)
+      failing_tests = TestEvidenceLookup.failed_test_cases_for(run, grader_name)
       return nil if failing_tests.empty?
 
       failing_tests.map do |test_case|
@@ -73,36 +73,14 @@ module Adjudicators
       end
     end
 
-    def self.failed_test_cases_for(run, grader_name)
-      test_evidence_providers.flat_map do |provider|
-        next [] unless provider.respond_to?(:failed_test_cases)
-
-        Array(provider.failed_test_cases(run: run, grader_name: grader_name))
-      end.map { |test_case| test_case.to_h.stringify_keys }.uniq { |test_case| [ test_case["suite_name"], test_case["name"] ] }
-    end
-
     def self.flakiness_score_for(repository, test_case)
-      test_evidence_providers.each do |provider|
+      TestEvidenceLookup.test_evidence_providers.each do |provider|
         next unless provider.respond_to?(:flakiness_score)
 
         score = provider.flakiness_score(repository: repository, suite_name: test_case["suite_name"], name: test_case["name"])
         return score if score
       end
       nil
-    end
-
-    def self.failed_grader_steps(workflow)
-      workflow.steps.select { |candidate| candidate.kind == "grader" && candidate.state == "failed" }
-    end
-
-    # Asked of :test_evidence providers rather than read from a model: test
-    # result storage and flakiness scoring are not core's. With no provider
-    # this adjudicator can never confirm anything, which is exactly the
-    # "inconclusive, not a guess" posture the ladder requires.
-    def self.test_evidence_providers
-      Syrus::PluginRegistry.providers_for(:test_evidence)
-    rescue StandardError
-      []
     end
 
     def self.name = "known_flaky_failure"

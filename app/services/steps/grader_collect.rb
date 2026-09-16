@@ -80,17 +80,17 @@ module Steps
     # Rung 0 of the attention ladder: free, deterministic adjudication before
     # the failure costs anyone anything.
     #
-    # Only `inherited_grader_failure` and `known_flaky_failure` are
-    # pre-authorized here. Other adjudicators still run and their verdicts are
-    # still recorded, but acting on one would be a behavior change in when
-    # graders are treated as authoritative -- the plan's "an adjudication
-    # never applies itself" guardrail.
+    # Only `inherited_grader_failure`, `known_flaky_failure`, and
+    # `isolated_repro_dismissal` are pre-authorized here. Other adjudicators
+    # still run and their verdicts are still recorded, but acting on one
+    # would be a behavior change in when graders are treated as authoritative
+    # -- the plan's "an adjudication never applies itself" guardrail.
     def dismissed_by_rung_zero?(failed_required)
       verdict = Adjudicators.call(
         problem: Problem[:grader_failure, evidence: { grader_names: grader_names(failed_required) }],
         workflow: workflow,
         step: failed_required,
-        authorized: %w[inherited_grader_failure known_flaky_failure]
+        authorized: %w[inherited_grader_failure known_flaky_failure isolated_repro_dismissal]
       )
       workflow.set_artifact!("rung_zero_adjudication", verdict.to_h.merge("adjudicated_at" => Time.current.iso8601))
       return false unless verdict.dismiss?
@@ -100,6 +100,8 @@ module Steps
         record_inherited_main_failure!(failed_required, verdict.evidence)
       when Adjudicators::KnownFlakyFailure.name
         record_known_flaky_failure!(failed_required, verdict.evidence)
+      when Adjudicators::IsolatedReproDismissal.name
+        record_isolated_repro_dismissal!(failed_required, verdict.evidence)
       end
       true
     end
@@ -145,6 +147,27 @@ module Steps
       log(
         "[grader_collect] required grader failures match confirmed-flaky test history; " \
         "treating as known-flaky: #{test_names.join(', ')}"
+      )
+    end
+
+    # Surfaces an Adjudicators::IsolatedReproDismissal dismissal the same way
+    # record_known_flaky_failure! surfaces one -- an operator looking at why
+    # a red required grader did not block landing must be able to see this,
+    # including the exact SHA the repro ran against.
+    def record_isolated_repro_dismissal!(failed_required, verdict_evidence)
+      verdict_evidence = verdict_evidence.to_h
+      tests = (verdict_evidence[:tests] || verdict_evidence["tests"] || []).map(&:to_h)
+      sha = verdict_evidence[:sha] || verdict_evidence["sha"]
+      workflow.set_artifact!("isolated_repro_grader_failure", {
+        "grader_names" => grader_names(failed_required),
+        "tests" => tests,
+        "sha" => sha,
+        "classified_at" => Time.current.iso8601
+      })
+      test_names = tests.map { |test| "#{test[:suite_name] || test['suite_name']}##{test[:name] || test['name']}" }
+      log(
+        "[grader_collect] required grader failures did not reproduce in agent-run isolated repro attempts " \
+        "at #{sha.to_s.first(9)}; treating as flaky: #{test_names.join(', ')}"
       )
     end
 

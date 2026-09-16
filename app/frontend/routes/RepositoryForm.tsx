@@ -481,6 +481,11 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               <Form.HelpText>{t('repository_form.new_test_flakiness_gate_repeats_hint')}</Form.HelpText>
             </Field>
           ) : null}
+          <Checkbox
+            label={t('repository_form.check_isolated_repro_dismissal')}
+            onChange={(checked) => setValues({ ...values, isolated_repro_dismissal_enabled: checked })}
+            value={values.isolated_repro_dismissal_enabled}
+          />
           <Checkbox label={t('repository_form.check_main_health')} onChange={(checked) => setValues({
             ...values,
             main_branch_health_enabled: checked,
@@ -833,6 +838,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     known_flaky_failure_min_score: payload.repository.known_flaky_failure_min_score,
     new_test_flakiness_gate_enabled: payload.repository.new_test_flakiness_gate_enabled,
     new_test_flakiness_gate_repeats: payload.repository.new_test_flakiness_gate_repeats,
+    isolated_repro_dismissal_enabled: payload.repository.isolated_repro_dismissal_enabled,
     main_branch_health_enabled: mainBranchHealthEnabled,
     main_branch_repair_enabled: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled,
     main_branch_repair_blocks_work: mainBranchHealthEnabled && payload.repository.main_branch_repair_blocks_work,

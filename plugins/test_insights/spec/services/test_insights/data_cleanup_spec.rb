@@ -36,6 +36,15 @@ RSpec.describe TestInsights::DataCleanup do
     expect { repository.destroy! }.to change(TestInsights::TestIdentity, :count).by(-1)
   end
 
+  it "removes a repository's isolated repro attempts when the repository is destroyed" do
+    TestInsights::IsolatedReproAttempt.create!(
+      repository: repository, grader_name: "rspec", suite_name: "spec/foo_spec.rb", name: "does the thing",
+      sha: "c" * 40, reproduced: false, command: "bundle exec rspec", output: "ok"
+    )
+
+    expect { repository.destroy! }.to change(TestInsights::IsolatedReproAttempt, :count).by(-1)
+  end
+
   it "no longer declares associations on core models" do
     expect(Repository.reflect_on_association(:test_identities)).to be_nil
     expect(Run.reflect_on_association(:test_runs)).to be_nil
