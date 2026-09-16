@@ -2161,6 +2161,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
     t.bigint "github_repository_id"
     t.string "grader_health", default: "unknown", null: false
     t.integer "installation_id"
+    t.boolean "known_flaky_failure_dismissal_enabled", default: false, null: false
+    t.float "known_flaky_failure_min_score"
     t.boolean "land_on_inherited_check_failure", default: false, null: false
     t.boolean "landing_paused", default: false, null: false
     t.string "last_ci_evaluated_sha"
@@ -3335,5 +3337,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end

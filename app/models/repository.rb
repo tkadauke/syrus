@@ -32,6 +32,13 @@ class Repository < ApplicationRecord
   # and red on a PR for specs A *and* B -- so how safe this is depends on how
   # granular a repository's check names are. See PrCheckAttribution.
   attribute :land_on_inherited_check_failure, :boolean, default: false
+  # Opt-in: dismiss a required-grader failure at rung 0 (Adjudicators::KnownFlakyFailure)
+  # when every one of its failing tests already has a confirmed-flaky history in
+  # Test Insights. Off by default -- same shape as trust_clean_rebase_grade and
+  # land_on_inherited_check_failure -- since acting on it silently lets a red
+  # required grader land. known_flaky_failure_min_score overrides the adjudicator's
+  # default minimum flakiness score floor; nil means use that default.
+  attribute :known_flaky_failure_dismissal_enabled, :boolean, default: false
   attribute :feedback_policy, :string, default: "confirm"
   attribute :epic_dependency_policy, :string, default: "linear"
   attribute :fork_pr_grace_period_hours, :integer, default: 24

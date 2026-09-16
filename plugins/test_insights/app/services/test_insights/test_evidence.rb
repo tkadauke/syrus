@@ -47,5 +47,15 @@ module TestInsights
               .uniq
               .sort_by { |test_case| test_case.fetch("identity") }
     end
+
+    # Backs Adjudicators::KnownFlakyFailure. Delegates entirely to
+    # TestCase.flakiness_score, which already excludes a workflow's own
+    # in-loop retry_until repair failures (`.scored`) -- this must not
+    # reimplement that filtering.
+    def self.flakiness_score(repository:, suite_name:, name:)
+      return nil if repository.nil? || suite_name.blank? || name.blank?
+
+      TestCase.flakiness_score(repository: repository, suite_name: suite_name, name: name)
+    end
   end
 end
