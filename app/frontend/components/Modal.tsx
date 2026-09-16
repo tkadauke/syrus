@@ -19,7 +19,7 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 const DEFAULT_BACKDROP_CLASSES = "fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-const DEFAULT_PANEL_CLASSES = "w-full max-w-sm rounded-lg bg-surface p-5 shadow-xl"
+const DEFAULT_PANEL_CLASSES = "w-full max-w-sm rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
 
 // Shared modal/dialog primitive: portal, backdrop, escape-key close,
 // backdrop-click close, and a basic focus trap in one place instead of

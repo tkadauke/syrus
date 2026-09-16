@@ -20,7 +20,7 @@ const NOTICE_TONE_CLASSES: Record<NoticeTone, string> = {
 
 function Root({ children, className = "", contentClassName = "", title, tone = "neutral", ...props }: NoticeProps) {
   return (
-    <div className={classes("rounded-[var(--radius-panel)] border border-[length:var(--border-width)] p-[var(--space-section)] text-sm", NOTICE_TONE_CLASSES[tone], className)} {...props}>
+    <div className={classes("rounded-[var(--radius-panel)] border border-[length:var(--border-width)] p-[var(--space-section)] text-[length:var(--text-body)]", NOTICE_TONE_CLASSES[tone], className)} {...props}>
       {title ? <Text as="p" className="font-semibold" tone={tone === "neutral" ? "neutral" : tone} variant="heading-sm">{title}</Text> : null}
       {children ? <div className={classes(title ? "mt-1" : "", "leading-5", contentClassName)}>{children}</div> : null}
     </div>

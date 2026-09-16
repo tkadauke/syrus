@@ -39,6 +39,12 @@ describe("Checkbox", () => {
     expect(screen.getByRole("checkbox", { name: "Enable feature" })).toBeDisabled()
   })
 
+  it("renders border width from the shape token and label text from the typography token", () => {
+    render(<Checkbox label="Enable feature" />)
+    expect(screen.getByRole("checkbox", { name: "Enable feature" }).className).toContain("border-[length:var(--border-width)]")
+    expect(screen.getByText("Enable feature").closest("label")?.className).toContain("text-[length:var(--text-body)]")
+  })
+
   it("forwards a ref to the underlying input element even without a label", () => {
     const ref = createRef<HTMLInputElement>()
     render(<Checkbox aria-label="Enabled" ref={ref} />)

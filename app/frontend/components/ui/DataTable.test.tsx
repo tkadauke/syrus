@@ -25,6 +25,8 @@ describe("DataTable", () => {
     expect(table).toHaveAttribute("data-testid", "jobs-table")
     expect(table.parentElement).toHaveAttribute("data-data-table-overflow-wrapper", "true")
     expect(table.parentElement?.className).toContain("overflow-x-auto")
+    expect(table.parentElement?.className).toContain("border-[length:var(--border-width)]")
+    expect(table.className).toContain("text-[length:var(--text-body)]")
     expect(screen.getByRole("columnheader", { name: "Job" })).toHaveAttribute("scope", "col")
     expect(screen.getByRole("cell", { name: "Running" }).className).toContain("text-text-primary")
   })
@@ -48,7 +50,7 @@ describe("DataTable", () => {
     expect(screen.getByRole("row", { name: "Blocked" })).toHaveAttribute("data-data-table-group-header", "true")
     expect(screen.getByTestId("job-row")).toHaveAttribute("data-data-table-interactive", "true")
     expect(screen.getByLabelText("Select JOB-1").closest("td")?.className).toContain("w-10")
-    expect(screen.getByRole("cell", { name: "JOB-1" }).className).toContain("text-xs")
+    expect(screen.getByRole("cell", { name: "JOB-1" }).className).toContain("text-[length:var(--text-caption)]")
   })
 
   it("renders sortable header affordances with aria-sort and click passthrough", () => {

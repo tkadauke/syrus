@@ -20,7 +20,7 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(function Toggle
     <button
       aria-checked={checked}
       aria-invalid={invalid || undefined}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-gray-950 ${
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-[var(--radius-pill)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-gray-950 ${
         checked ? "bg-brand" : "bg-border"
       } ${invalid ? "ring-1 ring-danger focus-visible:ring-danger" : "focus-visible:ring-brand"} ${className}`.trim()}
       disabled={disabled}
@@ -32,7 +32,7 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(function Toggle
     >
       <span
         aria-hidden="true"
-        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`}
+        className={`inline-block h-4 w-4 transform rounded-[var(--radius-pill)] bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`}
       />
     </button>
   )
@@ -40,7 +40,7 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(function Toggle
   if (!label) return button
 
   return (
-    <label className="flex items-center gap-2 text-sm text-text-primary">
+    <label className="flex items-center gap-2 text-[length:var(--text-body)] text-text-primary">
       <span>{label}</span>
       {button}
     </label>

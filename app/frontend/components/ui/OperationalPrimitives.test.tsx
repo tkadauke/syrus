@@ -44,6 +44,11 @@ describe("operational UI primitives", () => {
     expect(screen.getByRole("button", { name: "Copy transcript" })).toBeInTheDocument()
   })
 
+  it("renders code text size from the typography token", () => {
+    render(<CodeSurface code="bin/rspec" mode="command" />)
+    expect(screen.getByText("bin/rspec").closest("pre")?.className).toContain("text-[length:var(--text-caption)]")
+  })
+
   it("renders custom code content while copying the raw code string", () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText } })
@@ -76,6 +81,7 @@ describe("operational UI primitives", () => {
 
     expect(screen.getByTestId("metric-group").className).toContain("lg:grid-cols-3")
     expect(screen.getByText("Queued").className).toContain("uppercase")
+    expect(screen.getByText("Queued").className).toContain("text-[length:var(--text-caption)]")
     expect(screen.getByText("12").className).toContain("text-warning-text")
     expect(screen.getByText("87%").className).toContain("text-success-text")
     expect(screen.getByText("Open")).toBeInTheDocument()
@@ -100,6 +106,7 @@ describe("operational UI primitives", () => {
     expect(screen.getByRole("list", { name: "Workflow events" })).toHaveClass("space-y-3")
     expect(screen.getByTestId("activity-row")).toHaveAttribute("data-testid", "activity-row")
     expect(screen.getByText("Migration lint failed").className).toContain("truncate")
+    expect(screen.getByText("Migration lint failed").className).toContain("text-[length:var(--text-body)]")
     expect(screen.getByText("RUN-7").className).toContain("truncate")
     expect(screen.getByText("2m ago").className).toContain("whitespace-nowrap")
     expect(screen.getByText("bin/check-migrations")).toBeInTheDocument()
@@ -138,6 +145,7 @@ describe("operational UI primitives", () => {
     expect(screen.getByRole("region", { name: "Read job result" }).className).toContain("before:bg-info-border")
     expect(screen.getByText("read_job").className).toContain("uppercase")
     expect(screen.getByText("Job loaded").className).toContain("text-text-primary")
+    expect(screen.getByText("Job loaded").className).toContain("text-[length:var(--text-body)]")
     expect(screen.getByText("JOB-12").className).toContain("text-text-muted")
     expect(screen.getByText("Status: running").className).toContain("custom-body")
     expect(screen.getByTestId("tool-footer").className).toContain("border-t")
