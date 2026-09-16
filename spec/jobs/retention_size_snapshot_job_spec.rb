@@ -115,6 +115,32 @@ RSpec.describe RetentionSizeSnapshotJob do
       expect(snapshot.available_bytes).to be_nil
     end
 
+    it "reflects a freshly-set manual override immediately, without waiting for the job to rerun" do
+      AppSetting.current.update!(retention_available_space_override_gb: 500)
+
+      snapshot = described_class.available_space
+
+      expect(snapshot.source).to eq(:manual)
+      expect(snapshot.available_bytes).to eq(500.gigabytes)
+    end
+
+    it "prefers a freshly-set manual override over a stale cached snapshot computed before the override existed" do
+      AppSetting.current.update!(retention_available_space_override_gb: 0)
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("SYRUS_SQLITE").and_return(nil)
+      allow(connection).to receive(:adapter_name).and_return("Mysql2")
+      allow(connection).to receive(:select_value).with("SELECT @@datadir").and_return("/var/lib/mysql")
+      allow(File).to receive(:directory?).with("/var/lib/mysql").and_return(false)
+      described_class.perform_now
+      expect(described_class.available_space.source).to eq(:unknown)
+
+      AppSetting.current.update!(retention_available_space_override_gb: 500)
+
+      snapshot = described_class.available_space
+      expect(snapshot.source).to eq(:manual)
+      expect(snapshot.available_bytes).to eq(500.gigabytes)
+    end
+
     it "measures a locally-readable MySQL datadir's filesystem when no override is set" do
       AppSetting.current.update!(retention_available_space_override_gb: 0)
       allow(ENV).to receive(:[]).and_call_original

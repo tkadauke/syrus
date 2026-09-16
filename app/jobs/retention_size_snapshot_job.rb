@@ -54,7 +54,15 @@ class RetentionSizeSnapshotJob < ApplicationJob
       Rails.cache.read(table_cache_key(key))
     end
 
+    # The manual override always wins over whatever the hourly job last
+    # cached (mirrors #build_available_space_snapshot's own priority) and is
+    # cheap enough (a single AppSetting read) to check on every request, so
+    # an operator who just set an override sees the comparison populate
+    # immediately instead of waiting up to CACHE_TTL for the job to rerun.
     def available_space
+      override_bytes = AppSetting.retention_available_space_override_bytes
+      return AvailableSpace.new(available_bytes: override_bytes, source: :manual, computed_at: Time.current) if override_bytes
+
       Rails.cache.read(AVAILABLE_SPACE_CACHE_KEY)
     end
 
