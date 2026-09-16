@@ -795,7 +795,7 @@ function CodexChatGptSection({
   )
 }
 
-// ---------- Gemini ----------
+// ---------- Muse ----------
 
 export function MuseCredentialCard({ payload, onNotice }: CardProps) {
   const { t } = useT("settings")
