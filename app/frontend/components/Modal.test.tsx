@@ -25,6 +25,17 @@ describe("Modal", () => {
     expect(screen.getByText("Content")).toBeInTheDocument()
   })
 
+  it("renders the panel radius and shadow from the shape and shadow tokens by default", () => {
+    render(
+      <Modal label="Example" onClose={vi.fn()} open>
+        <p>Content</p>
+      </Modal>
+    )
+    const className = screen.getByRole("dialog", { name: "Example" }).className
+    expect(className).toContain("rounded-[var(--radius-panel)]")
+    expect(className).toContain("shadow-[var(--shadow-panel)]")
+  })
+
   it("prefers aria-labelledby over label when both are given", () => {
     render(
       <Modal label="Fallback" labelledBy="heading" onClose={vi.fn()} open>
