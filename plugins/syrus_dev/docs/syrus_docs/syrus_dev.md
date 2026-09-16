@@ -83,7 +83,25 @@ registry:
   multiple examples gets an inline example selector; each entry has a stable
   `#tool-<name>` anchor and a "Copy link" action that adds `?tool=<name>&
   example=<id>` so operators can reference one exact example when giving
-  feedback.
+  feedback. A viewport switcher (phone/tablet/desktop/wide desktop) renders
+  the selected example inside a constrained-width frame using the same
+  rendering path, so reviewers can check responsive behavior without
+  resizing the browser; the preset is reflected in the deep link too.
+  Each entry's preview also carries a "Discuss this card" action
+  (`ToolCardDiscussDialog.tsx`) scoped to the currently selected tool,
+  example, and viewport: it captures a screenshot of the rendered preview
+  with `html2canvas-pro`, lets the operator annotate it with the same
+  `ImageAnnotationModal` shared with in-app bug reports, and collects a
+  free-text prompt. Submitting opens a brand new chat (`createChat`, no
+  repository attached) whose initial message carries the annotated
+  screenshot as an attachment, a human-readable summary, and the full
+  structured payload (canonical tool name, owner/plugin/provider, renderer
+  type, selected example id and viewport preset, input/result payload, the
+  result's error flag, and the catalog deep link) as a fenced JSON block —
+  so the assistant on the other end has everything it needs without the
+  operator hand-pasting JSON. A failed screenshot capture shows an inline
+  error but never blocks the chat from starting; the raw metadata stays
+  visible (and still gets sent) either way.
 
 The performance and operational-log APIs are mirrored at `/api/v1/admin/performance`,
 `/api/v1/admin/performance/explain`, and `/api/v1/admin/operational_logs`

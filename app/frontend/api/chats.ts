@@ -561,7 +561,11 @@ export type WhiteboardSnapshotsPayload = {
 }
 
 export type CreateChatInput = {
-  repositoryId: string
+  // Optional: a chat created from a repository-agnostic context (e.g. the
+  // Tool Card Catalog's "Discuss this card" flow) omits this entirely, the
+  // same way createEmptyChat already treats a missing repository as valid
+  // -- the backend's repository_from_params returns nil when absent.
+  repositoryId?: string
   text: string
   attachments?: ChatMessageAttachmentInput[]
 }
@@ -1020,7 +1024,7 @@ export async function patchChatWhiteboard(path: string, input: ChatWhiteboardSce
 
 export function createChat(values: CreateChatInput) {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", {
-    repository_id: values.repositoryId,
+    ...(values.repositoryId ? { repository_id: values.repositoryId } : {}),
     ...chatMessagePayload(values.text, values.attachments || [])
   })
 }
