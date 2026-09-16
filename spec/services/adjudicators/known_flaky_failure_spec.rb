@@ -60,6 +60,19 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
     )
   end
 
+  it "derives the failed grader steps from the workflow when step: is not given" do
+    grader_step.update!(kind: "grader", state: "failed")
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "spec/foo_spec.rb", "name" => "does the thing" } ],
+      scores: { [ "spec/foo_spec.rb", "does the thing" ] => { score: 0.4, flaky: true } }
+    ))
+
+    verdict = described_class.adjudicate(problem: Problem[:grader_failure], workflow: workflow)
+
+    expect(verdict).to be_dismiss
+    expect(verdict.reason).to eq("known_flaky_failure")
+  end
+
   it "declines when only some failing tests are confirmed flaky" do
     stub_provider(fake_provider(
       failed_test_cases: [

@@ -23,6 +23,8 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       auto_merge_enabled: false,
       trust_clean_rebase_grade: false,
       land_on_inherited_check_failure: false,
+      known_flaky_failure_dismissal_enabled: false,
+      known_flaky_failure_min_score: null,
       main_branch_health_enabled: false,
       main_branch_repair_enabled: false,
       main_branch_repair_blocks_work: true,
@@ -356,6 +358,8 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           auto_merge_enabled: false,
           trust_clean_rebase_grade: false,
           land_on_inherited_check_failure: true,
+          known_flaky_failure_dismissal_enabled: false,
+          known_flaky_failure_min_score: null,
           main_branch_health_enabled: false,
           main_branch_repair_enabled: false,
           main_branch_repair_blocks_work: false,
@@ -373,6 +377,24 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           github_repository_id: ""
         }
       })
+    })
+  })
+
+  it("enables known-flaky dismissal and submits the configured minimum score", async () => {
+    const fetchSpy = mockFetch()
+    renderRoute()
+
+    await screen.findByRole("heading", { name: "Linear" })
+
+    fireEvent.click(screen.getByLabelText("Dismiss required-grader failures that are already confirmed flaky"))
+    fireEvent.change(screen.getByLabelText("Minimum flakiness score to treat as confirmed"), { target: { value: "0.25" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save Repository" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find((call) => call[0] === "/api/v1/app/repositories/1" && call[1]?.method === "PATCH")
+      const body = JSON.parse(String(patchCall?.[1]?.body))
+      expect(body.repository.known_flaky_failure_dismissal_enabled).toBe(true)
+      expect(body.repository.known_flaky_failure_min_score).toBe(0.25)
     })
   })
 

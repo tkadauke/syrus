@@ -322,7 +322,7 @@ Test Insights is the `test_insights` plugin. It owns the four primary tables
 the `test_identity_fts` search index, the query and comparison services, the
 five MCP tools, the repository Tests tab, and the Job detail Tests tab.
 
-Core keeps three things:
+Core keeps four things:
 
 - **`JunitXmlParser`**, because `ParsedRun` is the contract of the
   `:test_result_parser` extension point. A language plugin's framework-native
@@ -335,5 +335,11 @@ Core keeps three things:
   which tests failed rather than reading a model. With the plugin disabled the
   counts are zero and it falls back to its coarser pass/fail comparison --
   exactly what a repository with no test data already got.
+- **`Adjudicators::KnownFlakyFailure`**, a rung-0 adjudicator (see
+  `plugins.md`'s `adjudicator` extension point) that asks `:test_evidence`
+  providers for failing test cases and their flakiness scores rather than
+  reading `TestInsights::TestCase` directly. With the plugin disabled there is
+  no provider, so it always declines with `no_flakiness_history` -- the same
+  "cannot tell" posture the ladder requires from a rung-0 check with no data.
 
 Disabling the plugin stops ingestion and hides the UI; recorded history stays.
