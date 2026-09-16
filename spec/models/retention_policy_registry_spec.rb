@@ -1,16 +1,21 @@
 require "rails_helper"
 
 RSpec.describe RetentionPolicyRegistry do
-  it "resolves every declared model to a real, loadable class" do
-    described_class.definitions.each do |definition|
+  # Scoped to CORE_DEFINITIONS, not the merged .definitions: a core spec
+  # must not depend on which plugins happen to be installed, or a bundled
+  # plugin that contributes a :retention_policy provider (see
+  # plugins/metrics_dashboard) becomes undeletable in practice. See
+  # config/syrus_docs/plugins.md and CLAUDE.md's plugin-boundary rule.
+  it "resolves every core-declared model to a real, loadable class" do
+    described_class::CORE_DEFINITIONS.each do |definition|
       expect(definition.model_class).to be_a(Class)
     end
   end
 
-  it "matches current AppSetting defaults for every setting_key" do
+  it "matches current AppSetting defaults for every core setting_key" do
     setting = AppSetting.new
 
-    described_class.definitions.each do |definition|
+    described_class::CORE_DEFINITIONS.each do |definition|
       expect(setting.public_send(definition.setting_key)).to eq(definition.default_value)
     end
   end
@@ -26,8 +31,8 @@ RSpec.describe RetentionPolicyRegistry do
     expect { described_class.fetch(:nonexistent) }.to raise_error(KeyError)
   end
 
-  it "keeps unit-appropriate setting_key suffixes" do
-    described_class.definitions.each do |definition|
+  it "keeps unit-appropriate setting_key suffixes for core definitions" do
+    described_class::CORE_DEFINITIONS.each do |definition|
       suffix = definition.unit == :hours ? "_retention_hours" : "_retention_days"
       expect(definition.setting_key.to_s).to end_with(suffix)
     end
@@ -52,5 +57,54 @@ RSpec.describe RetentionPolicyRegistry do
     expect(app_setting_definition.type).to eq(:integer)
     expect(app_setting_definition.admin_editable).to be true
     expect(app_setting_definition.min).to eq(0)
+  end
+
+  describe "plugin-contributed definitions" do
+    let(:fake_provider) do
+      Class.new do
+        include Syrus::Plugin::RetentionPolicy
+
+        def self.retention_definitions
+          [
+            RetentionPolicyRegistry::Definition.new(
+              key: :fake_plugin_table,
+              model: "FakePluginModel",
+              table_name: "fake_plugin_rows",
+              age_column: :created_at,
+              scope_name: :prunable,
+              setting_key: :fake_plugin_table_retention_days,
+              default_value: 5,
+              unit: :days,
+              job_class: "FakePluginPruneJob",
+              description: "A fake plugin-owned table, for testing the merge.",
+              category: "Plugins"
+            )
+          ]
+        end
+      end
+    end
+
+    before do
+      Syrus::PluginRegistry.register(
+        name: "fake-retention-plugin",
+        version: "1.0.0",
+        provides: { retention_policy: fake_provider }
+      )
+    end
+
+    it "merges a plugin's contributed definitions into .definitions" do
+      expect(described_class.definitions.map(&:key)).to include(:fake_plugin_table)
+      expect(described_class::CORE_DEFINITIONS.map(&:key)).not_to include(:fake_plugin_table)
+    end
+
+    it "is fetchable once merged" do
+      expect(described_class.fetch(:fake_plugin_table).model).to eq("FakePluginModel")
+    end
+
+    it "is not filtered by whether the contributing plugin is enabled" do
+      PluginRecord.find_or_create_by!(name: "fake-retention-plugin") { |r| r.enabled = false }
+
+      expect(described_class.definitions.map(&:key)).to include(:fake_plugin_table)
+    end
   end
 end

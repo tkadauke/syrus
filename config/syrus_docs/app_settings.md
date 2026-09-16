@@ -224,7 +224,7 @@ Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a wri
 
 Per-table DB row retention windows are declared in `RetentionPolicyRegistry`
 (`app/models/retention_policy_registry.rb`), not hand-listed here or in
-`AppSettingRegistry` — `AppSettingRegistry::DEFINITIONS` folds each entry in
+`AppSettingRegistry` — `AppSettingRegistry.definitions` folds each entry in
 as an admin-editable integer setting (`RetentionPolicyRegistry::Definition#as_app_setting_definition`),
 so validations and admin metadata stay in sync automatically. Every setting
 follows the same `0` = infinite retention convention as
@@ -232,8 +232,23 @@ follows the same `0` = infinite retention convention as
 `.none` and the PruneJob is a no-op. Models include the shared
 `HasConfigurableRetention` concern and declare `configurable_retention
 setting_key:, unit:` once; the concern exposes `retention_window` (nil when
-infinite) and `retention_cutoff` (a `Time`, nil when infinite) as class
-methods.
+infinite), `retention_cutoff` (a `Time`, nil when infinite), and
+`retention_floor(now:)` (a `Time`, the epoch when infinite — used to clamp
+"since"/"floor" query defaults rather than assuming data exists arbitrarily
+far back) as class methods.
+
+`RetentionPolicyRegistry.definitions` recomputes on every call, merging
+`CORE_DEFINITIONS` with whatever any installed plugin contributes via the
+`:retention_policy` extension point (`Syrus::Plugin::RetentionPolicy`,
+`Syrus::PluginRegistry.all_plugins` — unfiltered by enabled state, since the
+AppSetting column and its validation/admin metadata must exist regardless of
+whether the plugin happens to be enabled). A plugin that owns a prunable
+table (e.g. `metrics_dashboard`) must never be hand-listed in core's
+`CORE_DEFINITIONS` — a core file naming a plugin's model/job class by string
+would make that plugin undeletable in practice (see CLAUDE.md's "core specs
+must not enumerate plugin-provided things" rule). See
+`plugins/metrics_dashboard/app/services/metrics_dashboard/retention_policy.rb`
+for the reference implementation.
 
 Scope is limited to DB-table row retention (MySQL/SQLite). Disk/blob-based
 retention (`WorkflowWorkspacePruneJob`'s workspace-directory constants,
@@ -257,7 +272,7 @@ stays fixed or on its own settings.
 | `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` |
 | `workflow_step_resource_profile_input_retention_days` | 180 | days | (lookback only — see below) | none |
 
-Two entries are worth calling out:
+Three entries are worth calling out:
 
 - **`operational_log_event_retention_hours`** is Syrus's own operational log
   index — a high-volume, short-lived table — so its unit is hours, not days.
@@ -275,3 +290,12 @@ Two entries are worth calling out:
   scope (already pruned inline by `WorkflowStepResourceProfileRefreshJob`;
   `WorkflowStepResourceProfilePruneJob` is an independently schedulable
   safety net on top of that).
+- **`metrics_dashboard_sample_retention_days`** is the one plugin-owned
+  entry in the table above. It is contributed by the `metrics_dashboard`
+  plugin via the `:retention_policy` extension point rather than hand-listed
+  in `RetentionPolicyRegistry::CORE_DEFINITIONS`, so the plugin stays
+  physically removable (`bin/plugin-boundary-audit metrics_dashboard`). The
+  column itself is still added by a core migration and validated/exposed in
+  admin settings unconditionally, the same as other plugin-owned settings
+  like `discord_bot_token` — only the model's `.prunable` scope and PruneJob
+  go inert while the plugin is disabled.

@@ -15,15 +15,6 @@ class WorkerHostHealthSample < ApplicationRecord
     cutoff ? where("observed_at < ?", cutoff) : none
   }
 
-  # Samples older than the retention window are guaranteed gone, so callers
-  # correlating other data (Runs, command spans) against sample history clamp
-  # to this floor instead of querying earlier than what could possibly exist.
-  # Infinite retention (window nil) means no clamp is needed.
-  def self.retention_floor(now: Time.current)
-    window = retention_window
-    window ? now - window : Time.at(0)
-  end
-
   private
 
   def default_raw_metrics

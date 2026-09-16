@@ -519,16 +519,19 @@ class AppSettingRegistry
   # per-table retention windows; folding its entries in here means the
   # numericality validation and admin-editable metadata below apply to
   # every retention setting automatically instead of being hand-listed.
-  DEFINITIONS = (BASE_DEFINITIONS + RetentionPolicyRegistry.definitions.map(&:as_app_setting_definition)).freeze
-
-  BY_KEY = DEFINITIONS.index_by(&:key).freeze
-
+  #
+  # Recomputed on every call (RetentionPolicyRegistry.definitions itself
+  # recomputes, merging in plugin-contributed entries) rather than frozen
+  # once, so a plugin's retention setting is picked up whenever its
+  # `:retention_policy` provider is registered instead of only if that
+  # happened to already be true the one time this constant would otherwise
+  # have been evaluated.
   def self.definitions
-    DEFINITIONS
+    BASE_DEFINITIONS + RetentionPolicyRegistry.definitions.map(&:as_app_setting_definition)
   end
 
   def self.fetch(key)
-    BY_KEY.fetch(key.to_sym)
+    definitions.index_by(&:key).fetch(key.to_sym)
   end
 
   def self.admin_editable_keys
@@ -536,7 +539,7 @@ class AppSettingRegistry
   end
 
   def self.boolean_key?(key)
-    BY_KEY[key.to_sym]&.boolean? || false
+    definitions.index_by(&:key)[key.to_sym]&.boolean? || false
   end
 
   def self.metadata_for(keys = definitions.map(&:key))
