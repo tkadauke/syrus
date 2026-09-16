@@ -69,6 +69,15 @@ RSpec.describe Metrics::LandingSampler do
     described_class.sample!(**{ queue_source: queue_source }.merge(source ? { source: source } : {}))
   end
 
+  # Stands in for a *separate scrape-path process* reading the cache #sample!
+  # (running on a worker) wrote to. Never assume this is the same instrument
+  # state #sample! touched -- in production it genuinely isn't (see
+  # config/syrus_docs/metrics.md: /metrics is web-only, #sample! runs from a
+  # worker's control_plane queue).
+  def refresh!
+    described_class.refresh_gauges!(queue_source: queue_source)
+  end
+
   describe "#sample!" do
     it "bootstraps the cursor on the first tick without instrumenting existing history" do
       t0 = Time.current
@@ -79,11 +88,18 @@ RSpec.describe Metrics::LandingSampler do
       end
 
       travel_to(t0) { sample! }
+      refresh!
 
       expect(Syrus::Metrics.render).not_to include("syrus_runs_total{")
     end
 
-    it "instruments a Run that finishes after the first tick into runs_total and run_duration_seconds" do
+    # The bug this whole class exists to avoid: #sample! runs on a worker
+    # (SampleGlobalMetricsJob, control_plane queue), while /metrics is served
+    # by a web process with a completely separate in-process registry. If
+    # #sample! mutated the counter/histogram directly, that mutation would be
+    # invisible to every real scrape. Only #refresh_gauges!, called from the
+    # scrape path, may touch the live instruments -- and only from the cache.
+    it "does not mutate the live counter or histogram directly -- only refresh_gauges! may" do
       t0 = Time.current
       travel_to(t0) { sample! } # bootstrap
 
@@ -97,12 +113,31 @@ RSpec.describe Metrics::LandingSampler do
       travel_to(t0 + 2.minutes) { sample! }
 
       rendered = Syrus::Metrics.render
+      expect(rendered).not_to include("syrus_runs_total{")
+      expect(rendered).not_to include("syrus_run_duration_seconds_count{")
+    end
+
+    it "instruments a Run that finishes after the first tick into runs_total and run_duration_seconds once refresh_gauges! runs" do
+      t0 = Time.current
+      travel_to(t0) { sample! } # bootstrap
+
+      travel_to(t0 + 1.minute) do
+        job_with_run(
+          run_attrs: { state: "succeeded", trigger_kind: "initial", started_at: Time.current - 30, finished_at: Time.current },
+          step_attrs: { kind: "implement" }
+        )
+      end
+
+      travel_to(t0 + 2.minutes) { sample! }
+      refresh!
+
+      rendered = Syrus::Metrics.render
       expect(rendered).to include('syrus_runs_total{state="succeeded",trigger_kind="initial"} 1')
       expect(rendered).to include('syrus_run_duration_seconds_bucket{step_kind="implement",le="60"} 1')
       expect(rendered).to include('syrus_run_duration_seconds_count{step_kind="implement"} 1')
     end
 
-    it "does not double-count a Run already instrumented on a prior tick" do
+    it "does not double-count a Run already instrumented on a prior tick, even across repeated refreshes" do
       t0 = Time.current
       travel_to(t0) { sample! }
       travel_to(t0 + 1.minute) do
@@ -111,7 +146,42 @@ RSpec.describe Metrics::LandingSampler do
       travel_to(t0 + 2.minutes) { sample! }
       travel_to(t0 + 3.minutes) { sample! }
 
+      refresh!
+      refresh!
+
       expect(Syrus::Metrics.render).to include('syrus_runs_total{state="failed",trigger_kind="pr_comment"} 1')
+    end
+
+    # This is the property that makes cache-mediated counters/histograms
+    # correct rather than merely "eventually correct": a scrape-path process
+    # that never witnessed either individual tick must still see the full
+    # accumulated total the first time it looks, not just whatever the most
+    # recent tick contributed.
+    it "accumulates across ticks so a single refresh_gauges! reflects the full total, not just the latest tick's delta" do
+      t0 = Time.current
+      travel_to(t0) { sample! }
+
+      travel_to(t0 + 1.minute) do
+        job_with_run(
+          run_attrs: { state: "succeeded", trigger_kind: "initial", started_at: Time.current - 2, finished_at: Time.current },
+          step_attrs: { kind: "implement" }
+        )
+      end
+      travel_to(t0 + 2.minutes) { sample! } # first tick's delta: 1
+
+      travel_to(t0 + 3.minutes) do
+        job_with_run(
+          run_attrs: { state: "succeeded", trigger_kind: "initial", started_at: Time.current - 2, finished_at: Time.current },
+          step_attrs: { kind: "implement" }
+        )
+      end
+      travel_to(t0 + 4.minutes) { sample! } # second tick's delta: 1
+
+      refresh! # a single scrape that never ran during either tick
+
+      rendered = Syrus::Metrics.render
+      expect(rendered).to include('syrus_runs_total{state="succeeded",trigger_kind="initial"} 2')
+      expect(rendered).to include('syrus_run_duration_seconds_count{step_kind="implement"} 2')
     end
 
     it "counts a Run with no Step toward runs_total without a duration observation" do
@@ -125,6 +195,7 @@ RSpec.describe Metrics::LandingSampler do
       job.current_run.update_columns(step_id: nil)
 
       travel_to(t0 + 2.minutes) { sample! }
+      refresh!
 
       rendered = Syrus::Metrics.render
       expect(rendered).to include('syrus_runs_total{state="cancelled",trigger_kind="initial"} 1')
@@ -140,6 +211,7 @@ RSpec.describe Metrics::LandingSampler do
       end
 
       travel_to(t0 + 2.minutes) { sample! }
+      refresh!
 
       rendered = Syrus::Metrics.render
       expect(rendered).to include("syrus_jobs_landed_total 1")
@@ -155,6 +227,7 @@ RSpec.describe Metrics::LandingSampler do
       end
 
       travel_to(t0 + 2.minutes) { sample! }
+      refresh!
 
       expect(Syrus::Metrics.render).not_to include("syrus_jobs_landed_total")
     end
@@ -165,6 +238,7 @@ RSpec.describe Metrics::LandingSampler do
 
       queue_source.completed_count_value = 7
       travel_to(t0 + 1.minute) { sample! }
+      refresh!
 
       expect(Syrus::Metrics.render).to include("syrus_queue_completed_total 7")
     end
@@ -175,8 +249,8 @@ RSpec.describe Metrics::LandingSampler do
       queue_source.table_rows = 12_345
 
       sample!
+      refresh!
 
-      expect(described_class.refresh_gauges!(queue_source: queue_source)).to be(true)
       rendered = Syrus::Metrics.render
       expect(rendered).to include('syrus_job_state{state="approved"} 1')
       expect(rendered).to include('syrus_job_state{state="running"} 1')
@@ -190,7 +264,7 @@ RSpec.describe Metrics::LandingSampler do
       eligible.update_columns(landing_queue_blocked_reason: nil)
 
       sample!
-      described_class.refresh_gauges!(queue_source: queue_source)
+      refresh!
 
       rendered = Syrus::Metrics.render
       expect(rendered).to include('syrus_landing_queue_depth{blocked_reason="waiting_github_mergeability"} 1')
@@ -206,7 +280,7 @@ RSpec.describe Metrics::LandingSampler do
       queue_source.table_rows = 99
 
       expect { sample!(source: source) }.not_to raise_error
-      described_class.refresh_gauges!(queue_source: queue_source)
+      refresh!
 
       expect(Syrus::Metrics.render).to include("syrus_queue_table_rows 99")
     end
@@ -214,7 +288,7 @@ RSpec.describe Metrics::LandingSampler do
 
   describe "#refresh_gauges!" do
     it "reports nothing rather than zeroes when no sample has been taken" do
-      expect(described_class.refresh_gauges!(queue_source: queue_source)).to be(false)
+      expect(refresh!).to be(false)
       expect(Syrus::Metrics.render).not_to include("syrus_job_state{")
     end
   end
