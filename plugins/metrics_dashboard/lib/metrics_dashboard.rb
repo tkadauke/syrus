@@ -1,3 +1,5 @@
+require "metrics_dashboard/tab"
+
 module MetricsDashboard
   extend Syrus::PluginApi
 
@@ -18,6 +20,15 @@ module MetricsDashboard
     category "observability"
     default_enabled false
     disableable true
+
+    # Other plugins contribute their own dashboard tab through this point
+    # (see lib/metrics_dashboard/tab.rb) without metrics_dashboard ever
+    # naming them -- the same reverse-registration shape as core's ui_slot,
+    # but hosted here rather than in core's own EXTENSION_POINTS/
+    # INTERFACE_FOR, because the consumer (this plugin, off by default) is
+    # itself optional. See docs/syrus_docs/plugins.md's "Hosting a point
+    # for other plugins".
+    hosts [ :tab ]
 
     provides sidebar_page: "MetricsDashboard::SidebarPages",
              callbacks: "MetricsDashboard::Callbacks"

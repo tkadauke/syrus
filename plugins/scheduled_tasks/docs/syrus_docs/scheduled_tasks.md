@@ -102,6 +102,11 @@ minute on the shared control-plane tick (`SampleGlobalMetricsJob`, the same tick
 than on `ScheduledTasks::Callbacks#on_tick`'s own poll cadence or on the `/metrics` scrape path. Like every
 plugin metric, disabling the plugin removes the series entirely rather than freezing it at its last value.
 
+When the `metrics_dashboard` plugin is also enabled, Scheduled Tasks contributes its own "Scheduled Tasks" tab
+there (`ScheduledTasks::MetricsDashboardTabs`, registered under metrics_dashboard's hosted
+`"metrics_dashboard:tab"` point -- see `plugins/metrics_dashboard/docs/syrus_docs/metrics_dashboard.md`),
+charting `autopaused`. The tab is absent, not empty, whenever either plugin is disabled.
+
 ## The "no changes" happy path
 
 Cron tasks should be written so the agent can succeed even if there's nothing to do. The canonical pattern: the agent surveys the repo state, calls the available `submit_summary` MCP tool name with a one-line note like "No changes needed," and the Job closes with reason `no_changes`. This is counted as a success and does not increment `consecutive_failure_count`.

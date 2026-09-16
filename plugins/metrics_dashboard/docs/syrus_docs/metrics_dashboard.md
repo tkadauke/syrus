@@ -171,6 +171,65 @@ remember the rule.
 The header warns when recording has stopped or has never run, because "no data"
 has two very different causes and an empty chart does not distinguish them.
 
+## Plugin tabs
+
+Core panels are not the whole page. Any other plugin that declares its own Prometheus metrics (via the
+manifest's `metrics do ... end` block, see `config/syrus_docs/metrics.md`) can contribute a tab of its own,
+without this plugin ever naming it -- the same reason a contributing plugin staying independently deletable
+matters (`bin/plugin-boundary-audit`) applies between this plugin and its contributors, not just between a
+plugin and core.
+
+This plugin **hosts** a `:tab` extension point (`hosts [ :tab ]` in the manifest), giving the qualified point
+`"metrics_dashboard:tab"` (see `config/syrus_docs/plugins.md`'s "Hosting a point for other plugins" -- the same
+mechanism `test_insights` uses for its own `"test_insights:parser"` point). This is deliberately *not* a
+top-level `EXTENSION_POINTS` entry the way core's `ui_slot` is: core's own points are for surfaces core itself
+consumes, and the consumer here is this plugin, which is off by default and fully uninstallable. A hosted
+point keeps that consumer/interface coupling inside this plugin's own `lib/`, not core's.
+
+A contributor declares, alongside its own `metrics do ... end` block:
+
+```ruby
+optionally_depends_on [ "metrics_dashboard" ]
+provides "metrics_dashboard:tab" => "MyPlugin::MetricsDashboardTabs"
+```
+
+```ruby
+module MyPlugin
+  class MetricsDashboardTabs
+    def self.metrics_dashboard_tabs
+      [
+        {
+          id: "my_plugin",
+          label: "My Plugin",           # typically the plugin's own display_name
+          panels: [
+            { key: "widgets_total", metric: "syrus_my_plugin_widgets_total",
+              group_by: "kind", mode: :rate, unit: "widgets", label: "Widgets processed, by kind" }
+          ]
+        }
+      ]
+    end
+  end
+end
+```
+
+The contract is documented, not enforced by `include` -- see `MetricsDashboard::Tab` for why (the same reason
+`TestInsights::Parser` is duck-typed: including it would turn an optional hook into a hard load-time
+dependency on this plugin). Each panel is the same shape `DashboardPayload::PANELS` entries use (`key`,
+`metric`, `group_by`, `mode`, `unit`), plus a `label` a core panel does not need: a contributor cannot resolve
+a chart title against this plugin's own `panels.<key>` i18n namespace, so it ships the title as a literal
+string instead. `metric` must name a series the contributor's own `metrics do ... end` block declares --
+`MetricsDashboard::Recorder` already captures every series `/metrics` exposes, core or plugin, with no wiring
+needed here.
+
+`MetricsDashboard::PluginTabs` resolves contributors through `Syrus::PluginRegistry.providers_for` at request
+time, so a tab is present only while **both** this plugin and the contributor are currently enabled and
+healthy -- consistent with the `while_enabled` semantics the contributor's own metric declaration already
+follows (see "What it is for" above). `DashboardPayload#build` folds each tab's panels into the same `panels`
+array core panels use, tagged with the tab's `id` as their `category`, and publishes the tabs themselves under
+a separate top-level `plugin_tabs` key (not merged into `categories`, since a core category's label is
+resolved client-side from this plugin's own i18n namespace by id, while a plugin tab's label is the literal
+string it shipped).
+
 ## Access
 
 Admin only. These are instance-wide operational numbers, not anything scoped to
