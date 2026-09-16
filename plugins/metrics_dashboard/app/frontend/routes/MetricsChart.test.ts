@@ -10,6 +10,7 @@ function panel(series: (number | null)[][]): MetricsPanel {
     metric: "m",
     unit: "jobs",
     mode: "value",
+    category: "queue_throughput",
     series: series.map((values, index) => ({ name: `s${index}`, values }))
   }
 }

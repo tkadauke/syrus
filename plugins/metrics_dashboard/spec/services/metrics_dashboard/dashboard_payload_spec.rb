@@ -184,6 +184,47 @@ RSpec.describe MetricsDashboard::DashboardPayload do
     expect(global.map { |p| p[:aggregate] }.uniq).to eq([ :max ])
   end
 
+  describe "panel categories" do
+    # A panel EPIC-359 named slightly differently than guessed ahead of time is
+    # exactly the drift this guards against: every real panel must declare a
+    # real category, not quietly ride the "other" fallback.
+    it "assigns every panel a real category, not the fallback" do
+      described_class::PANELS.each do |panel|
+        expect(described_class::CATEGORIES).to include(panel[:category]),
+          "#{panel[:key]} has no real category (#{panel[:category].inspect})"
+      end
+    end
+
+    it "publishes each panel's category in the built payload" do
+      payload = described_class.build(window: "6h")
+
+      by_key = payload[:panels].index_by { |p| p[:key] }
+      expect(by_key["queue_ready"][:category]).to eq(described_class::CATEGORY_QUEUE_THROUGHPUT)
+      expect(by_key["worker_cpu"][:category]).to eq(described_class::CATEGORY_WORKERS_FLEET)
+      expect(by_key["feature_usage"][:category]).to eq(described_class::CATEGORY_RESILIENCE_PRODUCT)
+    end
+
+    it "publishes the canonical category order without 'other' when nothing fell back to it" do
+      expect(described_class.build(window: "6h")[:categories]).to eq(described_class::CATEGORIES)
+    end
+
+    # A panel that forgets `category:` must not silently disappear -- it lands
+    # on a clearly-labeled "Other" tab instead of vanishing from the dashboard.
+    it "falls a panel with no declared category back to 'other' instead of dropping it" do
+      uncategorized_panel = { key: "mystery", metric: "syrus_does_not_exist", group_by: nil, mode: :value, unit: "x" }
+
+      expect(described_class.category_for(uncategorized_panel)).to eq(described_class::CATEGORY_OTHER)
+    end
+
+    it "appends 'other' to the published category order only when a panel actually falls back to it" do
+      stub_const("MetricsDashboard::DashboardPayload::PANELS",
+                 described_class::PANELS + [ { key: "mystery", metric: "syrus_does_not_exist",
+                                                group_by: nil, mode: :value, unit: "x" } ])
+
+      expect(described_class.build(window: "6h")[:categories]).to eq(described_class::CATEGORIES + [ described_class::CATEGORY_OTHER ])
+    end
+  end
+
   # "No data" has two very different causes -- never recorded, or recording
   # stopped -- and an empty chart does not distinguish them.
   it "reports whether recording is current" do
