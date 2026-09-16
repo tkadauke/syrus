@@ -227,6 +227,7 @@ module App
         target_epic_label: proposal.target_epic&.slug,
         route_to_backlog: proposal.route_to_backlog?,
         route_label: proposal.route_to_backlog? ? "Backlog" : "Start normally",
+        investigation: proposal.investigation?,
         goal_provenance: App::GoalProvenancePayload.for(proposal),
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/confirm",
