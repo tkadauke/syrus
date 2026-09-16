@@ -135,4 +135,59 @@ RSpec.describe SyrusRails::MigrationParser do
     expect(result[:after]).to eq(table_name: "", columns: [])
     expect(result[:changes]).to eq([])
   end
+
+  # Regression: Syrus's own idempotent-migration convention (CLAUDE.md) writes
+  # separate up/down methods with inline column_exists? guards instead of a
+  # single `change` method. A naive line scan matched add_column in `up` AND
+  # the mirrored remove_column in `down`, recording the column as both added
+  # and removed. Those changes cancelled out, leaving before/after identical
+  # (both missing the new column) and a nonsensical changes list showing the
+  # same column as "added" and "removed" -- the "card renders as if this is
+  # the before, not the after" bug.
+  it "only counts the up-method change for an idempotent up/down migration, ignoring the mirrored down guard" do
+    result = parse(<<~RUBY)
+      class AddNameToUsers < ActiveRecord::Migration[8.1]
+        def up
+          add_column :users, :name, :string unless column_exists?(:users, :name)
+        end
+
+        def down
+          remove_column :users, :name if column_exists?(:users, :name)
+        end
+      end
+    RUBY
+
+    before_names = result[:before][:columns].map { |c| c[:name] }
+    after_names  = result[:after][:columns].map { |c| c[:name] }
+    expect(before_names).not_to include("name")
+    expect(after_names).to include("name")
+    expect(result[:changes]).to eq([{ type: "added", column: { name: "name", type: "string" } }])
+  end
+
+  # Regression: db/schema.rb reflects the fully-migrated state, so a migration
+  # already applied to it has its added column present there too. The old
+  # code unconditionally appended the added column a second time, so `after`
+  # listed it twice.
+  it "does not duplicate an added column that is already present in the current schema" do
+    schema_with_name = <<~RUBY
+      ActiveRecord::Schema[8.1].define(version: 2024_01_01_000000) do
+        create_table "users", force: :cascade do |t|
+          t.string "email", null: false
+          t.integer "age"
+          t.string "name"
+        end
+      end
+    RUBY
+    result = described_class.new(<<~RUBY, schema_content: schema_with_name).parse
+      class AddNameToUsers < ActiveRecord::Migration[8.1]
+        def change
+          add_column :users, :name, :string
+        end
+      end
+    RUBY
+
+    after_names = result[:after][:columns].map { |c| c[:name] }
+    expect(after_names.count("name")).to eq(1)
+    expect(result[:before][:columns].map { |c| c[:name] }).not_to include("name")
+  end
 end
