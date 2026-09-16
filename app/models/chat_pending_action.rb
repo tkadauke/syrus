@@ -311,6 +311,8 @@ class ChatPendingAction < ApplicationRecord
 
   def self.pending_action_id_from_tool_result(tool_result_content)
     parsed = pending_action_tool_result_hash(tool_result_content)
+    return unless parsed.is_a?(Hash)
+
     parsed&.fetch("pending_action_id", nil) ||
       parsed&.fetch(:pending_action_id, nil) ||
       parsed&.fetch("pending_confirmation_id", nil) ||

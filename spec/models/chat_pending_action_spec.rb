@@ -157,6 +157,12 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(action.errors[:payload]).to include("closure_reason must be one of pr_merged, external_pr_merged, pr_approved, no_changes, promotion_landed, hotfix_sync_landed")
   end
 
+  it "ignores scalar JSON tool results when looking for pending action ids" do
+    expect {
+      expect(described_class.pending_action_id_from_tool_result("9")).to be_nil
+    }.not_to raise_error
+  end
+
   it "confirms a cancel_job action by closing the Job and cancelling active Runs" do
     job = Factories.job(repository: repository)
     run = job.current_run
