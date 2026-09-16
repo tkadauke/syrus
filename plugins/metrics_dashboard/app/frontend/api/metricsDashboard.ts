@@ -12,6 +12,8 @@ export type MetricsPanel = {
   unit: string
   /** "value" for a gauge, "rate" for the change per bucket of a counter. */
   mode: "value" | "rate" | string
+  /** Which tab this panel belongs in. "other" is the fallback for a panel with no real category. */
+  category: string
   series: MetricsSeries[]
 }
 
@@ -23,6 +25,8 @@ export type MetricsDashboardPayload = {
   bucket_seconds: number
   recording: boolean
   last_recorded_at: string | null
+  /** Canonical tab display order. Includes "other" only when some panel actually fell back to it. */
+  categories: string[]
   panels: MetricsPanel[]
 }
 
