@@ -48,6 +48,45 @@ resolved path/class are recorded on the Run so a repo-local skill silently
 shadowing a built-in one of the same name is never a debugging trap — see the
 Run detail payload and `Admin::JobStateSerializer`.
 
+## investigation
+
+**When it fires:** A `direct` Job is created with `investigation: true` set
+(`InvestigationJobs::Creator`), rather than a free-form implementation
+prompt. `Job#investigation_launch?` (`direct? && investigation?`) is what
+`Job#create_initial_run` checks to dispatch this chain instead of
+`Workflows::Initial`.
+
+**Step chain:** `prepare → investigate → submit_report → auto_close`
+
+Investigation Jobs are for read-only exploration — QA walkthroughs, audits,
+"why is X slow" questions — where no PR is ever expected and no code change
+is the normal, successful outcome. `investigate` invokes the agent with
+`Prompts::Investigation` (the operator's prompt plus the standard
+safety/context blocks) but, unlike `implement`/`run_skill`, never commits,
+captures a diff, or calls `raise_no_changes_produced!` — it is read-only, the
+same as `AgentInsights::RunStep`. `submit_report` then resumes the
+`investigate` session and asks the agent to call the `submit_report` MCP tool
+with a narrative report (`title`, `narrative`, optional `findings`), stored
+on `Workflow#artifacts["investigation_report"]`; the step raises
+`Steps::Base::StepFailed` if the agent never calls it, the same
+required-tool-call pattern `test_plan`/`summarize` use. Success is always
+defined by a submitted report, never by a diff, so this chain always reaches
+a narrative-producing step instead of dead-ending in the generic
+`no_changes` closure with nothing captured.
+
+`auto_close` then closes the Job as part of normal step progression, the
+same non-agentic terminal step `agent_insight` uses — but with
+`closure_reason: "investigation_reported"` instead of the Job's own `kind`
+(always `"direct"` for an investigation Job, which would collapse into the
+same generic reason any other direct Job's PR-less no-op could produce).
+`investigation_reported` is a `Job::SUCCESSFUL_CLOSURE_REASONS` entry, so a
+completed investigation satisfies dependency gates and counts as a
+successful outcome like `no_changes` or `pr_merged` do. Unlike
+`agent_insight`, this trigger kind does not set `owns_job_lifecycle`: a
+failed `investigate`/`submit_report` step leaves the Job on the normal
+`:failed` → Retry path instead of always closing, since investigation Jobs
+are operator-facing, not infrastructure.
+
 ## pr_comment
 
 **When it fires:** New non-Syrus-bot review comments appear on the Job's PR since the last addressed comment.
