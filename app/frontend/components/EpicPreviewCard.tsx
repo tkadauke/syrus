@@ -59,7 +59,7 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
     <Card compact={compact} variant="preview">
       <div className="mb-2 flex items-center gap-2">
         <CopyableSlug className="text-xs" slug={epic.display_number} />
-        <StatusPill state={epic.state} />
+        <StatusPill state={epic.landing ? "landing" : epic.state} />
       </div>
       <Link className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`} to={`/epics/${id}`}>
         {epic.title}

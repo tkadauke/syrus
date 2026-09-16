@@ -396,6 +396,11 @@ SHAs, and grader details stay suppressed for those child Jobs.
 An Epic has a board state: `backlog`, `ready`, `in_progress`, `done`, or
 `archived`. Child Jobs can be blocked until the Epic starts, and Epics can
 depend on other Epics or Jobs. Jobs can also wait on an Epic to complete.
+Landing is not a board state of its own — it's a Job-level state — but while
+at least one child Job is landing (typically all of them are, though not
+always), the dashboard and Epic detail page show `landing` as the Epic's
+apparent status in place of its underlying `in_progress` state, so an Epic
+about to merge doesn't look indistinguishable from one still mid-implementation.
 An Epic that has been created or approved does not run work by itself — a
 **Start implementing** action on the Epic detail page (and a
 **Create Epic & Start Implementing** button on the new-Epic form and chat

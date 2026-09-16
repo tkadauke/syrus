@@ -88,6 +88,7 @@ export type EpicDetailRecord = {
   description: string
   state: string
   simple_status?: string
+  landing: boolean
   stuck: boolean
   startable: boolean
   start_blocked_on: string[]

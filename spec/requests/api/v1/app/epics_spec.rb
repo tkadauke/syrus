@@ -453,6 +453,30 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(body.dig("summary", "review_summary")).to eq("Settings now save correctly.")
   end
 
+  it "reports landing as an apparent status when a child Job is landing" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Ship it", state: "in_progress")
+    Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 12, state: "landing")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("epic", "state")).to eq("in_progress")
+    expect(body.dig("epic", "landing")).to eq(true)
+  end
+
+  it "reports landing false when no child Job is landing" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Ship it", state: "in_progress")
+    Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 12, state: "approved")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "landing")).to eq(false)
+  end
+
   describe "simple-mode review actions" do
     around do |example|
       setting = AppSetting.current

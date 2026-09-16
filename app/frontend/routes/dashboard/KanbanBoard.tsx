@@ -1,4 +1,4 @@
-import { EpicProgressBar, EpicStuckBadge, ExternalMetadataLink, ExternalPrBadge, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, workflowLabel } from "./components"
+import { epicApparentState, EpicProgressBar, EpicStuckBadge, ExternalMetadataLink, ExternalPrBadge, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, workflowLabel } from "./components"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { TonePill } from "../../components/StatusPill"
 import { PrHoverCard } from "../../components/PrHoverCard"
@@ -260,7 +260,7 @@ function KanbanCard({ item, laneItems, onDragEnd, onDragStart, prefix }: { item:
           <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
-          <NeutralStatePill state={item.state} />
+          <NeutralStatePill state={epicApparentState(item)} />
           <EpicStuckBadge stuck={item.stuck} />
           <OwnerBadge badge={item.owner_badge} />
           <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />

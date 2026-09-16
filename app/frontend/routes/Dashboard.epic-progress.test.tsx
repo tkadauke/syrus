@@ -18,6 +18,7 @@ function epicItem(overrides: Partial<DashboardEpicItem> = {}): DashboardEpicItem
     title: "Test Epic",
     description: "",
     state: "in_progress",
+    landing: false,
     stuck: false,
     all_jobs_closed: false,
     owner: null,
@@ -104,6 +105,30 @@ describe("EpicProgressBar", () => {
   })
 })
 
+describe("EpicsTable apparent landing status", () => {
+  afterEach(() => {
+    if (originalMatchMedia) {
+      Object.defineProperty(window, "matchMedia", originalMatchMedia)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
+  it("shows the epic's own in_progress state when no child Job is landing", () => {
+    stubDesktopMatchMedia()
+    renderEpicsTable(epicItem({ landing: false }))
+    expect(screen.getByText("in progress")).toBeInTheDocument()
+    expect(screen.queryByText("landing")).not.toBeInTheDocument()
+  })
+
+  it("shows landing as the apparent status when a child Job is landing", () => {
+    stubDesktopMatchMedia()
+    renderEpicsTable(epicItem({ landing: true }))
+    expect(screen.getByText("landing")).toBeInTheDocument()
+    expect(screen.queryByText("in progress")).not.toBeInTheDocument()
+  })
+})
+
 describe("EpicsTable progress placement", () => {
   afterEach(() => {
     if (originalMatchMedia) {
@@ -150,20 +175,31 @@ describe("EpicsTable progress placement", () => {
   })
 })
 
-function renderEpicsTable() {
+function renderEpicsTable(item: DashboardEpicItem = epicItem({ max_commits_behind_base: 9, job_state_counts: { implemented: 1 } })) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <EpicsTable
           columns={["checkbox", "state", "epic"]}
-          items={[epicItem({ max_commits_behind_base: 9, job_state_counts: { implemented: 1 } })]}
+          items={[item]}
           prefix=""
           sortState={sortState()}
         />
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function stubDesktopMatchMedia() {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: () => ({
+      matches: true,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined
+    })
+  })
 }
 
 function sortState(): DashboardSortState {
