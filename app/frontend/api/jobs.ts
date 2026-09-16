@@ -73,6 +73,7 @@ export type JobDeliveryStatus =
 export type JobRecord = {
   id: number
   kind: string
+  investigation: boolean
   state: string
   summary_state: string
   priority: string
@@ -447,6 +448,28 @@ export type JobTestPlan = {
   workflow_id: number
   steps: string[]
   notes: string | null
+}
+
+// A reference from an investigation Job's report to an artifact already
+// captured this run (see submit_report's `references`). `artifact` is the
+// resolved typed_artifacts entry (nil if the referenced type no longer
+// resolves), so the Report view can reuse ArtifactBody without a second
+// fetch.
+export type JobInvestigationReportReference = {
+  type: string
+  caption: string | null
+  artifact: TypedArtifact | null
+}
+
+// The submit_report deliverable for an investigation Job (Job#investigation
+// true) -- there is no PR, so this is the Job's primary output. See
+// App::JobDetailPayload#report_json.
+export type JobInvestigationReport = {
+  workflow_id: number
+  title: string
+  narrative: string
+  findings: string[]
+  references: JobInvestigationReportReference[]
 }
 
 export type JobAdversarialReviewIteration = {
@@ -973,6 +996,7 @@ export type JobDetailPayload = {
   coverage: { workflow_id: number; coverage: CoverageArtifact } | null
   summary: JobSummary | null
   test_plan: JobTestPlan | null
+  report: JobInvestigationReport | null
   feedback_history: JobFeedbackHistoryEntry[]
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null

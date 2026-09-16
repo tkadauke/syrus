@@ -41,6 +41,7 @@ import { AgentConversationTab } from "./jobDetail/AgentConversation"
 import { TimelineTab } from "./jobDetail/Timeline"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { ReviewWorkspace } from "./jobDetail/ReviewWorkspace"
+import { ReportTab } from "./jobDetail/Report"
 import { JobTargetGraphPanel } from "./RepositoryTargetGraph"
 import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
 import { useBugReportTrigger } from "../lib/bugReportContext"
@@ -354,10 +355,10 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
         />
       ) : null}
 
-      <TabNav active={activeTab} artifactsCount={(payload.typed_artifacts ?? []).length} attachmentsCount={(payload.attachments ?? []).length} workflowsCount={payload.job.workflows_count} pluginTabs={payload.ui_tabs} onSelect={onSelectTab} />
+      <TabNav active={activeTab} artifactsCount={(payload.typed_artifacts ?? []).length} attachmentsCount={(payload.attachments ?? []).length} investigation={payload.job.investigation} workflowsCount={payload.job.workflows_count} pluginTabs={payload.ui_tabs} onSelect={onSelectTab} />
 
-      {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} /> : null}
-      {activeTab === "review" ? <ReviewWorkspace payload={payload} /> : null}
+      {activeTab === "summary" ? (payload.job.investigation ? <ReportTab payload={payload} /> : <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} />) : null}
+      {activeTab === "review" && !payload.job.investigation ? <ReviewWorkspace payload={payload} /> : null}
       {activeTab === "workflows" ? <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} /> : null}
       {activeTab === "conversation" ? <AgentConversationTab jobId={payload.job.id} prUrl={payload.job.pr_url} /> : null}
       {activeTab === "timeline" ? <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} /> : null}
@@ -510,11 +511,16 @@ function navigationShortcutBlocked(target: EventTarget | null) {
   return false
 }
 
-function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, pluginTabs, onSelect }: { active: JobTab; workflowsCount: number; attachmentsCount: number; artifactsCount: number; pluginTabs?: UiSlotPanel[]; onSelect: (tab: JobTab) => void }) {
+function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, investigation = false, pluginTabs, onSelect }: { active: JobTab; workflowsCount: number; attachmentsCount: number; artifactsCount: number; investigation?: boolean; pluginTabs?: UiSlotPanel[]; onSelect: (tab: JobTab) => void }) {
   const { t } = useT("jobs")
+  // Investigation Jobs never reach pr_open, so there is no PR to review --
+  // the "review" tab (PR diff + review comments) is hidden entirely rather
+  // than rendered empty. The "summary" tab id is kept (its content swaps to
+  // the Report view in JobDetailView), just relabeled as the Job's primary
+  // deliverable.
   const tabs: Array<{ id: JobTab; label: string }> = [
-    { id: "summary", label: t("tab_summary") },
-    { id: "review", label: t("tab_review") },
+    { id: "summary", label: investigation ? t("tab_report") : t("tab_summary") },
+    ...(investigation ? [] : [ { id: "review" as JobTab, label: t("tab_review") } ]),
     { id: "workflows", label: t("tab_workflows", { count: workflowsCount }) },
     { id: "conversation", label: t("tab_conversation") },
     { id: "timeline", label: t("tab_timeline") },
