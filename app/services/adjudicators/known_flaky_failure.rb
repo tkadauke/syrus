@@ -95,7 +95,6 @@ module Adjudicators
       workflow.steps.select { |candidate| candidate.kind == "grader" && candidate.state == "failed" }
     end
 
-
     # Asked of :test_evidence providers rather than read from a model: test
     # result storage and flakiness scoring are not core's. With no provider
     # this adjudicator can never confirm anything, which is exactly the

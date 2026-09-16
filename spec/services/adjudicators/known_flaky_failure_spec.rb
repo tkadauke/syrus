@@ -73,7 +73,6 @@ RSpec.describe Adjudicators::KnownFlakyFailure do
     expect(verdict.reason).to eq("known_flaky_failure")
   end
 
-
   it "declines when only some failing tests are confirmed flaky" do
     stub_provider(fake_provider(
       failed_test_cases: [
