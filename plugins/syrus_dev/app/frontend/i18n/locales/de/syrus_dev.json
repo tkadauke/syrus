@@ -25,7 +25,13 @@
     "side_effecting": "Mit Nebenwirkungen",
     "example_selector_aria": "Beispiele für {{tool}}",
     "copy_link": "Link kopieren",
-    "link_copied": "Kopiert!"
+    "link_copied": "Kopiert!",
+    "viewport_switcher_aria": "Vorschau-Ansichtsfenster",
+    "viewport_phone": "Telefon ({{width}}px)",
+    "viewport_tablet": "Tablet ({{width}}px)",
+    "viewport_desktop": "Desktop ({{width}}px)",
+    "viewport_wide": "Breiter Desktop ({{width}}px)",
+    "viewport_frame_aria": "Kartenvorschau begrenzt auf {{width}}px"
   },
   "performance": {
     "heading": "Performance",
