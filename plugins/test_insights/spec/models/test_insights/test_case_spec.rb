@@ -494,4 +494,33 @@ RSpec.describe TestInsights::TestCase do
       expect(described_class.history_scope_for(repository: repo, suite_name: "MySpec", name: "it does the thing").count).to eq(2)
     end
   end
+
+  describe ".prunable" do
+    it "matches rows older than RETAIN_AFTER" do
+      old = create_case
+      old.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      fresh = create_case
+
+      expect(described_class.prunable).to include(old)
+      expect(described_class.prunable).not_to include(fresh)
+    end
+  end
+
+  describe "pruning older-than-window rows" do
+    it "does not affect flakiness_score/history_scope_for for a test with recent activity inside the window" do
+      stale_failure = create_case(status: "failed")
+      stale_failure.update_columns(created_at: (described_class::RETAIN_AFTER + 1.day).ago)
+      create_case(status: "passed")
+      create_case(status: "passed")
+
+      described_class.prunable.delete_all
+
+      result = described_class.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result[:total_count]).to eq(2)
+      expect(result[:failed_count]).to eq(0)
+      expect(result[:flaky]).to be(false)
+      expect(described_class.history_scope_for(repository: repo, suite_name: "MySpec", name: "it does the thing").count).to eq(2)
+    end
+  end
 end
