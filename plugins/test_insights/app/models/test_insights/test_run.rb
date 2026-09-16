@@ -21,6 +21,17 @@ module TestInsights
 
     has_many :test_cases, class_name: "TestInsights::TestCase", dependent: :destroy
 
+    # Pruned by its own age, independently of TestCase::RETAIN_AFTER, rather
+    # than only emptying out as a side effect of its cases being deleted --
+    # there's no DB foreign key between the two tables (see db/schema.rb), and
+    # a run row is written in the same ingest batch as its cases, so in
+    # practice both age out together. Same window as TestCase for that reason.
+    RETAIN_AFTER = TestCase::RETAIN_AFTER
+
+    scope :prunable, -> {
+      where("created_at < ?", RETAIN_AFTER.ago)
+    }
+
     validates :grader_name, presence: true
     validates :total_count, :passed_count, :failed_count, :skipped_count, :error_count,
               numericality: { only_integer: true, greater_than_or_equal_to: 0 }
