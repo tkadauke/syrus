@@ -1431,6 +1431,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_130128) do
     t.integer "input_source_id"
     t.json "invalidation_evidence", null: false
     t.text "invalidation_reason"
+    t.boolean "investigation", default: false, null: false
     t.text "issue_body"
     t.integer "issue_number"
     t.string "issue_title"
