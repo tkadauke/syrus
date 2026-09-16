@@ -61,6 +61,7 @@ module App
           coverage: PerformanceLogging.phase("job_detail.coverage", job_id: @job.id) { latest_coverage_json },
           summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },
           test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
+          report: @job.investigation? ? PerformanceLogging.phase("job_detail.report", job_id: @job.id) { report_json } : nil,
           ui_panels: ::App::UiSlotsPayload.panels_for(slot: "job.detail", context: { job: @job, user: Current.user }),
           ui_tabs: ::App::UiSlotsPayload.panels_for(slot: "job.detail.tab", context: { job: @job, user: Current.user }),
           ui_workflow_actions: ::App::UiSlotsPayload.panels_for(slot: "job.workflow.actions", context: { job: @job, user: Current.user }),
@@ -185,6 +186,7 @@ module App
         id: @job.id,
         slug: @job.slug,
         kind: @job.kind,
+        investigation: @job.investigation?,
         state: @job.state,
         summary_state: summary_state(@job),
         priority: @job.priority,
@@ -692,6 +694,48 @@ module App
         text: run.agent_summary,
         finished_at: iso8601(run.finished_at)
       }
+    end
+
+    # The investigation Job deliverable: a narrative report submitted via the
+    # submit_report MCP tool, with no PR to fall back on. Only ever present on
+    # `Job#investigation?` Jobs (Workflows::Investigation's submit_report step
+    # is the only writer of the "investigation_report" artifact key).
+    def report_json
+      artifact_workflows_matching("investigation_report", order: { created_at: :desc, id: :desc }).each do |workflow|
+        report = workflow.artifact("investigation_report")
+        next unless report.is_a?(Hash)
+
+        return {
+          workflow_id: workflow.id,
+          title: report["title"],
+          narrative: report["narrative"],
+          findings: Array(report["findings"]),
+          references: report_references_json(report["references"])
+        }
+      end
+
+      nil
+    end
+
+    # Resolves each reference (an artifact `type` plus an optional caption)
+    # against the same typed_artifacts the Artifacts tab already renders, so
+    # the Report view can inline screenshots/artifacts by reusing
+    # ArtifactBody instead of duplicating their payloads.
+    def report_references_json(references)
+      artifacts_by_type = typed_artifacts_json.index_by { |artifact| artifact[:type] }
+
+      Array(references).filter_map do |reference|
+        next unless reference.is_a?(Hash)
+
+        type = reference["type"]
+        next if type.blank?
+
+        {
+          type: type,
+          caption: reference["caption"].presence,
+          artifact: artifacts_by_type[type]
+        }
+      end
     end
 
     def test_plan_json
