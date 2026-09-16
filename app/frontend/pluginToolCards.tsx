@@ -42,7 +42,33 @@ export type ToolCardRenderer = {
   renderExpanded: (context: ToolCardContext) => ReactNode | null
 }
 
-type ToolCardModule = { default?: ToolCardRenderer }
+// A named, reviewable sample payload for a card — the Tool Card Catalog (a
+// later Job) renders these so an operator can see every presentation without
+// digging up a real transcript. A card module opts in by exporting a named
+// `examples` array next to its default renderer; this stays entirely
+// optional and additive, so existing cards with no `examples` export keep
+// working unchanged (see discoveredToolCardEntries below, which defaults to
+// an empty array).
+export type ToolCardExample = {
+  label: string
+  input?: Record<string, unknown>
+  resultBody?: string
+  resultError?: boolean
+}
+
+type ToolCardModule = { default?: ToolCardRenderer; examples?: ToolCardExample[] }
+
+// Owner attribution for a discovered card, derived from its directory
+// convention alone (see PLUGIN_CARD_PATH_PATTERN below) — never from a
+// hand-maintained list, so a new plugin's cards are correctly attributed
+// without touching this file. Consumed by toolPresentationRegistry.ts,
+// which needs to know whether a discovered card belongs to core or to a
+// specific plugin without re-globbing the filesystem itself.
+export type ToolCardOwner = { ownerType: "core" | "plugin"; ownerName: string }
+
+export type DiscoveredToolCardEntry = { renderer: ToolCardRenderer; owner: ToolCardOwner; examples: ToolCardExample[]; path: string }
+
+const PLUGIN_CARD_PATH_PATTERN = /\/plugins\/([^/]+)\/app\/frontend\/tool_cards\//
 
 const cardModules = import.meta.glob<ToolCardModule>(
   [
@@ -58,15 +84,22 @@ function isValidRenderer(renderer: ToolCardRenderer | undefined): renderer is To
   return !!renderer && typeof renderer.toolName === "string" && renderer.toolName.length > 0 && typeof renderer.renderExpanded === "function"
 }
 
-const registeredToolCardRenderers: ToolCardRenderer[] = Object.entries(cardModules).flatMap(([path, mod]) => {
+function ownerForCardPath(path: string): ToolCardOwner {
+  const pluginMatch = path.match(PLUGIN_CARD_PATH_PATTERN)
+  return pluginMatch ? { ownerType: "plugin", ownerName: pluginMatch[1] } : { ownerType: "core", ownerName: "core" }
+}
+
+export const discoveredToolCardEntries: DiscoveredToolCardEntry[] = Object.entries(cardModules).flatMap(([path, mod]) => {
   const renderer = mod.default
   if (!isValidRenderer(renderer)) {
     console.warn(`[pluginToolCards] Skipping ${path}: default export is not a valid ToolCardRenderer`)
     return []
   }
 
-  return [renderer]
+  return [{ renderer, owner: ownerForCardPath(path), examples: mod.examples ?? [], path }]
 })
+
+const registeredToolCardRenderers: ToolCardRenderer[] = discoveredToolCardEntries.map((entry) => entry.renderer)
 
 export function pluginToolCardRendererFor(toolName: string): ToolCardRenderer | null {
   return registeredToolCardRenderers.find((renderer) => renderer.toolName === toolName) ?? null
