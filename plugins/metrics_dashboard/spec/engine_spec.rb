@@ -42,4 +42,12 @@ RSpec.describe MetricsDashboard::Engine do
   it "owns a table the purge machinery can find" do
     expect(MetricsDashboard::Sample.table_name).to start_with("metrics_dashboard")
   end
+
+  # Other plugins contribute their own dashboard tab through this hosted
+  # point (see MetricsDashboard::PluginTabs) without this plugin ever naming
+  # them -- deliberately not a top-level EXTENSION_POINTS entry, since the
+  # consumer is this optional plugin, not core.
+  it "hosts the tab point contributing plugins register under" do
+    expect(manifest.hosted_extension_points).to include("metrics_dashboard:tab")
+  end
 end

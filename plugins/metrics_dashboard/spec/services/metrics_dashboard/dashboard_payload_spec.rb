@@ -225,6 +225,65 @@ RSpec.describe MetricsDashboard::DashboardPayload do
     end
   end
 
+  describe "plugin-contributed tabs" do
+    # A fake, non-existent plugin name throughout -- metrics_dashboard core
+    # specs must not enumerate the plugins that actually contribute
+    # (spending_insights, throughput, ...), mirroring
+    # sidecar_registry_tool_names's approach in
+    # spec/services/mcp_tool_registry_spec.rb. See
+    # MetricsDashboard::PluginTabs's own spec for the collection mechanism;
+    # this covers only how DashboardPayload folds the result in.
+    #
+    # Real bundled plugins already contribute their own tabs unconditionally
+    # once this plugin is enabled, so `:plugin_tabs` is never empty by
+    # default here -- examples below assert against the fake contribution
+    # specifically (find/include), never a bare `eq([])`.
+    def register_tab(panels:, name: "widget_metrics", id: "widgets", label: "Widgets")
+      provider = Class.new do
+        define_singleton_method(:metrics_dashboard_tabs) { [ { id: id, label: label, panels: panels } ] }
+      end
+      Syrus::PluginRegistry.register(name: name, version: "1.0.0", provides: { "metrics_dashboard:tab" => provider })
+      PluginRecord.find_or_create_by!(name: name).update!(enabled: true, disableable: true)
+    end
+
+    before { PluginRecord.find_or_create_by!(name: "metrics_dashboard").update!(enabled: true, disableable: true) }
+
+    it "publishes a contributed tab's id and label alongside the core categories" do
+      register_tab(panels: [])
+
+      expect(described_class.build(window: "6h")[:plugin_tabs]).to include({ id: "widgets", label: "Widgets" })
+      expect(described_class.build(window: "6h")[:categories]).to eq(described_class::CATEGORIES)
+    end
+
+    it "queries a contributed panel the same way as a core one, tagged with the tab's id as its category" do
+      now = Time.current.change(sec: 0)
+      sample(metric: "syrus_widget_metrics_widgets_total", labels: {}, value: 5, at: now - 1.minute)
+      register_tab(panels: [
+        { key: "widgets_total", metric: "syrus_widget_metrics_widgets_total", group_by: nil, mode: :value, unit: "widgets", label: "Widgets" }
+      ])
+
+      contributed = panel(described_class.build(window: "6h"), "widgets_total")
+
+      expect(contributed[:category]).to eq("widgets")
+      expect(contributed[:label]).to eq("Widgets")
+      expect(contributed[:series].sole[:values].compact.max).to eq(5)
+    end
+
+    it "omits a core panel's label, so the frontend keeps translating it by key" do
+      expect(panel(described_class.build(window: "6h"), "queue_ready")).not_to have_key(:label)
+    end
+
+    it "contributes no tab or panel while the contributing plugin is disabled" do
+      register_tab(panels: [ { key: "widgets_total", metric: "syrus_widget_metrics_widgets_total", group_by: nil, mode: :value, unit: "widgets", label: "Widgets" } ])
+      PluginRecord.find_by!(name: "widget_metrics").update!(enabled: false)
+
+      payload = described_class.build(window: "6h")
+
+      expect(payload[:plugin_tabs].map { |tab| tab[:id] }).not_to include("widgets")
+      expect(payload[:panels].map { |p| p[:key] }).not_to include("widgets_total")
+    end
+  end
+
   # "No data" has two very different causes -- never recorded, or recording
   # stopped -- and an empty chart does not distinguish them.
   it "reports whether recording is current" do

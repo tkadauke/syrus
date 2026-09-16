@@ -143,6 +143,11 @@ module MetricsDashboard
 
     def build
       panels = PANELS.map { |panel| panel_for(panel) }
+      plugin_tabs = PluginTabs.build
+      plugin_panels = plugin_tabs.flat_map do |tab|
+        tab[:panels].map { |panel| panel_for(panel.merge(category: tab[:id])) }
+      end
+
       {
         window: @window,
         windows: WINDOWS.keys,
@@ -154,7 +159,13 @@ module MetricsDashboard
         # actually fell back to it -- so the frontend never has to guess at
         # ordering or invent a tab nobody needs.
         categories: CATEGORIES + (panels.any? { |p| p[:category] == CATEGORY_OTHER } ? [ CATEGORY_OTHER ] : []),
-        panels: panels
+        # One entry per currently enabled plugin that contributes a tab
+        # (see PluginTabs). Kept separate from `categories` rather than
+        # merged into it: a core category's label comes from this plugin's
+        # own i18n namespace via `tabs.<id>`, but a plugin's label is a
+        # literal string this plugin cannot own a translation for.
+        plugin_tabs: plugin_tabs.map { |tab| { id: tab[:id], label: tab[:label] } },
+        panels: panels + plugin_panels
       }
     end
 
@@ -216,8 +227,13 @@ module MetricsDashboard
         unit: panel[:unit],
         mode: panel[:mode].to_s,
         category: self.class.category_for(panel),
+        # Only a plugin-contributed panel sets this: its title has to be a
+        # literal string handed over the wire, since it cannot resolve
+        # against this plugin's own `panels.<key>` i18n namespace. Omitted
+        # (not blank) for a core panel, which keeps translating by key.
+        label: panel[:label].presence,
         series: prune(series, panel).sort_by { |entry| entry[:name].to_s }
-      }
+      }.compact
     end
 
     def series_for(name, points, panel)

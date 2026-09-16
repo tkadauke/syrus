@@ -11,8 +11,10 @@ module SpendingInsights
     category "observability"
     default_enabled true
     disableable true
+    optionally_depends_on [ "metrics_dashboard" ]
     provides sidebar_page: "SpendingInsights::SidebarPages",
-             chat_mcp_tool_set: "SpendingInsights::ChatToolSet"
+             chat_mcp_tool_set: "SpendingInsights::ChatToolSet",
+             "metrics_dashboard:tab" => "SpendingInsights::MetricsDashboardTabs"
     route :get, "/api/v1/app/insights/spending", to: "api/v1/app/insights/spending#show"
     frontend routes: {
           "spending_insights/SpendingInsights" => "app/frontend/routes/SpendingInsights.tsx"

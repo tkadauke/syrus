@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "@app/testSupport"
 import { MetricsDashboardRoute } from "./MetricsDashboard"
-import type { MetricsDashboardPayload, MetricsPanel } from "../api/metricsDashboard"
+import type { MetricsDashboardPayload, MetricsPanel, MetricsPluginTab } from "../api/metricsDashboard"
 
 function panel(key: string, category: string, overrides: Partial<MetricsPanel> = {}): MetricsPanel {
   return {
@@ -27,6 +27,7 @@ function payload(overrides: Partial<MetricsDashboardPayload> = {}): MetricsDashb
     recording: true,
     last_recorded_at: "2026-01-01T00:10:00Z",
     categories: [ "queue_throughput", "workers_fleet", "resilience_product" ],
+    plugin_tabs: [],
     panels: [
       panel("queue_ready", "queue_throughput"),
       panel("worker_cpu", "workers_fleet"),
@@ -137,5 +138,56 @@ describe("MetricsDashboardRoute tabs", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Other" }))
 
     await waitFor(() => expect(screen.getByRole("tab", { name: "Other" })).toHaveAttribute("aria-selected", "true"))
+  })
+})
+
+describe("MetricsDashboardRoute plugin tabs", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  function pluginTab(id: string, label: string): MetricsPluginTab {
+    return { id, label }
+  }
+
+  it("renders a tab per contributing plugin, after the core tabs, using its literal label", async () => {
+    renderRoute(
+      payload({
+        plugin_tabs: [ pluginTab("throughput", "Throughput") ],
+        panels: [
+          panel("queue_ready", "queue_throughput"),
+          panel("landing_units", "throughput", { label: "Landing units, by type" })
+        ]
+      })
+    )
+
+    expect(await screen.findByRole("tab", { name: "Queue & Throughput" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Throughput" })).toBeInTheDocument()
+    expect(screen.queryByText("Landing units, by type")).not.toBeInTheDocument()
+  })
+
+  it("shows a plugin panel's literal title, and its own panels, once its tab is selected", async () => {
+    renderRoute(
+      payload({
+        plugin_tabs: [ pluginTab("throughput", "Throughput") ],
+        panels: [
+          panel("queue_ready", "queue_throughput"),
+          panel("landing_units", "throughput", { label: "Landing units, by type" })
+        ]
+      })
+    )
+    await screen.findByText("Jobs waiting, by queue")
+
+    fireEvent.click(screen.getByRole("tab", { name: "Throughput" }))
+
+    expect(await screen.findByText("Landing units, by type")).toBeInTheDocument()
+    expect(screen.queryByText("Jobs waiting, by queue")).not.toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Throughput" })).toHaveAttribute("aria-selected", "true")
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toContain("tab=throughput"))
+  })
+
+  it("contributes no tab when no plugin declares one", async () => {
+    renderRoute(payload({ plugin_tabs: [] }))
+
+    await screen.findByRole("tab", { name: "Queue & Throughput" })
+    expect(screen.queryByRole("tab", { name: "Throughput" })).not.toBeInTheDocument()
   })
 })
