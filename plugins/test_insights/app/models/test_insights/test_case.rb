@@ -154,7 +154,15 @@ module TestInsights
       )
       return identity.test_cases.order(created_at: :desc, id: :desc) if identity
 
-      where(repository_id: repository.id, suite_name: suite_name, name: name).order(created_at: :desc, id: :desc)
+      # No TestIdentity matches this fingerprint, so there is nothing for
+      # identity.test_cases above to have covered. Only fall back to matching
+      # by raw suite_name/name among rows that were never linked to any
+      # identity at all (pre-TestIdentity legacy rows) -- name is truncated to
+      # fit VARCHAR(255), so matching it against rows that *do* have a linked
+      # identity could silently merge two distinct long tests that share the
+      # same 255-byte prefix.
+      where(repository_id: repository.id, suite_name: suite_name, name: name, test_identity_id: nil)
+        .order(created_at: :desc, id: :desc)
     end
 
     def self.batch_flakiness_by_identity(cases, lookback:)

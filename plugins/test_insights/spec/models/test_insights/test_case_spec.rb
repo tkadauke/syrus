@@ -222,6 +222,21 @@ RSpec.describe TestInsights::TestCase do
       expect(result).to be_nil
     end
 
+    it "does not merge history from rows linked to an unrelated TestIdentity via the raw-name fallback" do
+      # `name` is truncated to fit VARCHAR(255), so two distinct long tests can share
+      # the same truncated suite_name/name while their fingerprints (computed on the
+      # untruncated name) stay distinct. The row below belongs to a different test
+      # (linked to `identity`, whose fingerprint doesn't match the query below) but
+      # coincidentally has the same raw suite_name/name -- it must never be picked up
+      # by the legacy raw-name fallback now that it's tied to a TestIdentity.
+      identity = create_identity(suite_name: "MySpec", name: "it does the full untruncated thing with far more detail")
+      create_case(test_identity: identity, name: "it does the thing", suite_name: "MySpec", status: "failed")
+
+      result = TestInsights::TestCase.flakiness_score(repository: repo, suite_name: "MySpec", name: "it does the thing")
+
+      expect(result).to be_nil
+    end
+
     it "excludes self-repaired grader loop failures from scored history" do
       identity = create_identity
       workflow = run.workflow
