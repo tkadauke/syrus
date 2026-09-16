@@ -1,16 +1,19 @@
 require "mcp"
 
 module ThemingTools
-  # Renames and/or adjusts token values on one of the current user's own
-  # custom themes. Re-runs the same contrast check install_theme uses --
-  # editing a theme back into illegibility is rejected the same way
-  # installing one for the first time would be.
+  # Renames and/or adjusts token values (color and non-color, see
+  # ExtendedTokenSchema) on one of the current user's own custom themes.
+  # Re-runs the same contrast check install_theme uses -- editing a theme
+  # back into illegibility is rejected the same way installing one for the
+  # first time would be.
   class UpdateUserThemeTool < MCP::Tool
     tool_name "update_user_theme"
 
-    description "Rename and/or adjust token values on one of the current user's own custom themes. Any token " \
-      "you omit from light/dark keeps its current value. Re-runs the WCAG AA contrast check and rejects with a " \
-      "specific message if the update would make the theme illegible."
+    description "Rename and/or adjust token values on one of the current user's own custom themes. Any color " \
+      "token you omit from light/dark, and any non-color group or key you omit from " \
+      "shape/shadow/spacing/density/typography, keeps its current value (falling back to Syrus's built-in " \
+      "default for a non-color key the theme never set). Re-runs the WCAG AA contrast check (color tokens " \
+      "only) and rejects with a specific message if the update would make the theme illegible."
 
     TOKEN_PROPERTIES = Theme::TOKEN_KEYS.index_with do |_key|
       { type: "string", description: "CSS color value, e.g. a hex code." }
@@ -20,23 +23,25 @@ module ThemingTools
       properties: {
         theme_id: { type: "integer", description: "Id of one of your own custom themes." },
         name: { type: "string", description: "New display name (optional)." },
-        light: { type: "object", description: "Light-mode token overrides (optional; merged with existing values).", properties: TOKEN_PROPERTIES },
-        dark: { type: "object", description: "Dark-mode token overrides (optional; merged with existing values).", properties: TOKEN_PROPERTIES }
+        light: { type: "object", description: "Light-mode color token overrides (optional; merged with existing values).", properties: TOKEN_PROPERTIES },
+        dark: { type: "object", description: "Dark-mode color token overrides (optional; merged with existing values).", properties: TOKEN_PROPERTIES },
+        **ExtendedTokenSchema::GROUP_PROPERTIES
       },
       required: [ "theme_id" ]
     )
 
     class << self
-      def call(theme_id:, server_context:, name: nil, light: nil, dark: nil)
+      def call(theme_id:, server_context:, name: nil, light: nil, dark: nil, shape: nil, shadow: nil, spacing: nil, density: nil, typography: nil)
         user = server_context.fetch(:chat_session).user
         theme = Theme.where(owner_user: user, built_in: false).find_by(id: theme_id)
         return Mcp::Tools.invalid("No custom theme with id #{theme_id} owned by you was found.") unless theme
 
+        baseline = theme.tokens
         theme.name = name if name.present?
         theme.tokens = {
-          "light" => merged_tokens(theme.tokens["light"], light),
-          "dark" => merged_tokens(theme.tokens["dark"], dark)
-        }
+          "light" => merged_tokens(baseline["light"], light),
+          "dark" => merged_tokens(baseline["dark"], dark)
+        }.merge(ExtendedTokenSchema.merge_groups(baseline, shape: shape, shadow: shadow, spacing: spacing, density: density, typography: typography))
 
         issues = theme.contrast_issues
         return Mcp::Tools.invalid(rejection_message(issues)) if issues.any?
