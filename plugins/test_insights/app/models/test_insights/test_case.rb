@@ -21,6 +21,19 @@ module TestInsights
       value.nil? ? nil : value.to_s.safe_byteslice(0, max_bytes)
     end
 
+    # FLAKINESS_LOOKBACK/HISTORY_LIMIT (TestIdentity) are about *count* of
+    # executions, not calendar time, so an actively-run test's most recent
+    # history stays well inside this window in practice. 90 days is generous
+    # enough for that, while still keeping the table (the plugin's highest-
+    # volume by far -- one row per test example per grader run) from growing
+    # unbounded. A genuinely dormant test's older rows age out, which is fine:
+    # a test nobody has run isn't contributing to any live flakiness decision.
+    RETAIN_AFTER = 90.days
+
+    scope :prunable, -> {
+      where("created_at < ?", RETAIN_AFTER.ago)
+    }
+
     belongs_to :test_run
     belongs_to :repository
     belongs_to :test_identity, optional: true
