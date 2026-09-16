@@ -168,6 +168,23 @@ RSpec.describe Epic, :ci_only do
     end
   end
 
+  describe "#landing?" do
+    it "is true while any child Job is landing, even though it is not a real Epic state" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      child_job(epic: epic, number: 10, closure_reason: "pr_merged")
+      Factories.job_record(user: user, repository: repository, issue_number: 11, epic: epic, state: "landing")
+
+      expect(epic.reload).to be_landing
+    end
+
+    it "is false when no child Job is landing" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      child_job(epic: epic, number: 10, closure_reason: "pr_merged")
+
+      expect(epic.reload).not_to be_landing
+    end
+  end
+
   describe "#simple_status" do
     around do |example|
       setting = AppSetting.current

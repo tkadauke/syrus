@@ -389,6 +389,7 @@ module App
           description: epic.description.to_s,
           state: epic.state,
           simple_status: simple_epic_status(epic, child_jobs, stats),
+          landing: epic_landing?(child_jobs, stats),
           stuck: epic_stuck?(epic, child_jobs, stats),
           all_jobs_closed: all_epic_jobs_closed?(child_jobs, stats),
           owner: owner_json(epic.owner),
@@ -455,6 +456,12 @@ module App
         return stats.fetch(:max_commits_behind_base) if stats
 
         child_jobs.select { |job| job.parent_job_id.nil? }.filter_map(&:commits_behind_base).max
+      end
+
+      def epic_landing?(child_jobs, stats = nil)
+        return stats.fetch(:job_state_counts).fetch("landing", 0).positive? if stats
+
+        child_jobs.any?(&:landing?)
       end
 
       def simple_epic_status(epic, child_jobs, stats = nil)

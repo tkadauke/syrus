@@ -22,6 +22,7 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       description: "",
       state: "ready",
       simple_status: "working_on_it",
+      landing: false,
       stuck: false,
       startable: true,
       start_blocked_on: [],
@@ -158,6 +159,20 @@ describe("EpicDetail advanced mode", () => {
     renderDetail(detailPayload({ title: "Checkout polish" }))
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  })
+
+  it("shows the Epic's own state when no child Job is landing", () => {
+    renderDetail(detailPayload({ state: "in_progress", landing: false }))
+
+    expect(screen.getByText("In Progress")).toBeInTheDocument()
+    expect(screen.queryByText("Landing")).not.toBeInTheDocument()
+  })
+
+  it("shows landing as the apparent status when a child Job is landing", () => {
+    renderDetail(detailPayload({ state: "in_progress", landing: true }))
+
+    expect(screen.getByText("Landing")).toBeInTheDocument()
+    expect(screen.queryByText("In Progress")).not.toBeInTheDocument()
   })
 })
 
