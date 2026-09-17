@@ -81,6 +81,16 @@ Exact retention can vary by deployment and log stream. The admin UI should be
 treated as a live incident tool; copy durable conclusions into Jobs, PRs, or
 docs when they matter long term.
 
+Admin Retention Settings lets an operator configure how long each prunable
+table's rows are kept (per table, in days or hours; zero means unlimited) and
+see current and estimated size against available disk. For tables where
+historical data has forensic value (diagnostics, audit trails, agent session
+transcripts), an "archive before delete" toggle serializes each pruned batch
+to a compressed file before it's removed, instead of discarding it outright.
+Past sweeps for an archiving-enabled table can be browsed and downloaded from
+the same page — this is a download-only history: there is no built-in way to
+restore an archived batch back into the live table.
+
 ## Practical Debug Paths
 
 For a slow page:

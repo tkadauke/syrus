@@ -10,6 +10,11 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
   # (plugin-extendable) registry list core specs must not enumerate.
   let(:definition) { RetentionPolicyRegistry.fetch(:notification) }
 
+  # A real archivable entry, for the archive-before-delete toggle paths.
+  # `let!` so this resolves against the real (unstubbed) registry before the
+  # `before` block below narrows `.definitions` down to just `definition`.
+  let!(:archivable_definition) { RetentionPolicyRegistry.fetch(:run_diagnostic) }
+
   def parse_body
     JSON.parse(response.body)
   end
@@ -130,6 +135,57 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
       "available_bytes" => 500.gigabytes,
       "source" => "manual"
     )
+  end
+
+  it "includes archive-before-delete fields for an archivable table, and omits the toggle for a non-archivable one" do
+    allow(RetentionPolicyRegistry).to receive(:definitions).and_return([ definition, archivable_definition ])
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/retention_settings"
+
+    expect(response).to have_http_status(:ok)
+    archivable_row = parse_body["tables"].find { |t| t["key"] == archivable_definition.key.to_s }
+    expect(archivable_row).to include(
+      "archivable" => true,
+      "archive_setting_key" => archivable_definition.archive_setting_key.to_s,
+      "archive_before_delete" => false
+    )
+
+    non_archivable_row = parse_body["tables"].find { |t| t["key"] == "notification" }
+    expect(non_archivable_row).to include(
+      "archivable" => false,
+      "archive_setting_key" => nil,
+      "archive_before_delete" => false
+    )
+  end
+
+  it "enables archive-before-delete for a table" do
+    allow(RetentionPolicyRegistry).to receive(:definitions).and_return([ definition, archivable_definition ])
+    sign_in_as(admin)
+
+    patch "/api/v1/app/admin/retention_settings", params: {
+      retention_settings: { archivable_definition.archive_setting_key => true }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.public_send(archivable_definition.archive_setting_key)).to eq(true)
+    row = parse_body["tables"].find { |t| t["key"] == archivable_definition.key.to_s }
+    expect(row["archive_before_delete"]).to eq(true)
+  end
+
+  it "disables archive-before-delete for a table (false is not treated as a blank/absent value)" do
+    allow(RetentionPolicyRegistry).to receive(:definitions).and_return([ definition, archivable_definition ])
+    sign_in_as(admin)
+    AppSetting.current.update!(archivable_definition.archive_setting_key => true)
+
+    patch "/api/v1/app/admin/retention_settings", params: {
+      retention_settings: { archivable_definition.archive_setting_key => false }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.public_send(archivable_definition.archive_setting_key)).to eq(false)
+    row = parse_body["tables"].find { |t| t["key"] == archivable_definition.key.to_s }
+    expect(row["archive_before_delete"]).to eq(false)
   end
 
   it "ignores unregistered keys" do
