@@ -9,7 +9,8 @@ module Steps
     def call
       perform_agentic_change_step(
         log_message: "invoking agent for landing_fix step (#{workflow.slug}, auto_merge)",
-        commit_message: "Syrus pre-merge fix"
+        commit_message: "Syrus pre-merge fix",
+        require_step_diff: true
       ) do
         run.update!(prompt: compose_prompt) if run.prompt.blank?
       end

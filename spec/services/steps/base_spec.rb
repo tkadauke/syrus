@@ -450,6 +450,24 @@ RSpec.describe Steps::Base, :ci_only do
       expect(run.step_agent_diff).to be_nil
       expect(job.diff_review_versions).to be_empty
     end
+
+    it "can require the current step to produce its own diff" do
+      allow(handler).to receive(:diff_against_default).and_return("diff --git a/existing.rb b/existing.rb\n+already changed")
+      allow(handler).to receive(:diff_against_sha).with("abc123").and_return("")
+
+      expect {
+        handler.perform_agentic_change_step(
+          log_message: "invoking shared path",
+          commit_message: "shared commit message",
+          require_step_diff: true
+        )
+      }.to raise_error(Steps::Base::NoChangesProduced, "agent produced no changes")
+
+      expect(run.reload.agent_diff).to be_nil
+      expect(run.head_sha).to be_nil
+      expect(run.base_sha).to be_nil
+      expect(run.step_agent_diff).to be_nil
+    end
   end
 
   describe "#buffered_log_sink" do

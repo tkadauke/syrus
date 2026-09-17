@@ -179,6 +179,14 @@ class RunFailureClassifier
   end
 
   def timeout?
+    if %w[grader preflight_grader].include?(run.step&.kind.to_s)
+      return true if run.agent_outcome.to_s.match?(/timeout|timed_out/)
+      return true if diagnostic&.error_class.to_s.match?(/Timeout/)
+      return true if spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
+
+      return GraderFailureSignal.timeout_like_step?(run.step)
+    end
+
     run.agent_outcome.to_s.match?(/timeout|timed_out/) ||
     diagnostic&.error_class.to_s.match?(/Timeout/) ||
       text_match?(/timed out|timeout|execution expired/i) ||

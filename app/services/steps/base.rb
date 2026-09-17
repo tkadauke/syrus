@@ -549,7 +549,7 @@ module Steps
     # the repository: prepare the workspace, compose/persist any prompt
     # state supplied by the concrete step, invoke the agent, commit its
     # edits, verify git history, and capture the GitHub-style diff.
-    def perform_agentic_change_step(log_message:, commit_message:)
+    def perform_agentic_change_step(log_message:, commit_message:, require_step_diff: false)
       workspace.setup
       yield if block_given?
 
@@ -569,6 +569,8 @@ module Steps
       raise_no_changes_produced! if diff.blank?
 
       step_diff = diff_against_sha(base_sha)
+      raise_no_changes_produced! if require_step_diff && step_diff.blank?
+
       current_head_sha = head_sha
       run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)
       persist_diff_review_version!(base_sha: base_sha, head_sha: current_head_sha, diff: step_diff)

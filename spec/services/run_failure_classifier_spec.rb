@@ -656,6 +656,46 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  it "does not classify a failed grader as timeout just because output mentions timeout" do
+    run.step.update!(
+      kind: "grader",
+      details: {
+        "name" => "work-engine-simulations",
+        "exit_code" => 1,
+        "timed_out" => false,
+        "output" => "auto retry timeout budget scenario failed for a semantic reason"
+      }
+    )
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "grader work-engine-simulations failed (exit 1)")
+    JobLog.append!(run: run, chunk: "timeout appears in a scenario name, not as the process outcome", kind: "grade_log")
+    process("failed")
+
+    result = classification
+
+    expect(result.classification).to eq("grader_failure")
+    expect(result.retryable).to eq(false)
+  end
+
+  it "still classifies grader process timeouts as timeout" do
+    run.step.update!(
+      kind: "grader",
+      details: {
+        "name" => "work-engine-simulations",
+        "exit_code" => 124,
+        "timed_out" => true,
+        "output" => "[timed out after 15 minutes]"
+      }
+    )
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "grader work-engine-simulations failed (exit 124)")
+
+    result = classification
+
+    expect(result.classification).to eq("timeout")
+    expect(result.retryable).to eq(true)
+  end
+
   it "does not classify an orphaned subprocess as worker death when a concrete app error is present" do
     run.update!(state: "failed")
     diagnostic(
