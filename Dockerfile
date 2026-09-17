@@ -499,6 +499,10 @@ ARG PLAYWRIGHT_MCP_VERSION=0.0.79
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eu; \
+    cleanup_apt_cache() { rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; }; \
+    cleanup_apt_cache; \
+    trap cleanup_apt_cache EXIT; \
     npm install -g "playwright@${PLAYWRIGHT_VERSION}" "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" && \
     npx --yes "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium && \
     mkdir -p /opt/syrus-browser && \
@@ -508,8 +512,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}" && \
     chmod a+rx /opt/syrus-browser/chromium && \
     chmod a+rx /opt/google/chrome/chrome && \
-    npm cache clean --force && \
-    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+    npm cache clean --force
 
 # ============================================================================
 # Worker dev stage — `worker-deps` plus the same rails code + bundle
