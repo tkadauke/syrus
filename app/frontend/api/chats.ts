@@ -322,6 +322,15 @@ export type ChatToolResultKind = "empty" | "text" | "json" | "list" | "record" |
 
 export type ChatToolSummaryMetadata = Record<string, string | number | boolean | null>
 
+export type ChatCrossChatBridgeDirection = "outbound" | "inbound" | "closed"
+
+export type ChatCrossChatBridge = {
+  thread_id: number
+  direction: ChatCrossChatBridgeDirection
+  counterpart_chat_session_id: number
+  counterpart_chat_title: string | null
+}
+
 export type ChatMessageItem = {
   type: "message"
   id: number
@@ -340,6 +349,7 @@ export type ChatMessageItem = {
   sender_user?: { id: number; name: string } | null
   sidechain?: boolean
   parent_tool_use_id?: string | null
+  cross_chat_bridge?: ChatCrossChatBridge | null
 }
 
 export type ChatPendingActionInline = {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import type { ChatMessageItem, ChatRenderItem } from "../../api/chats"
+import type { ChatCrossChatBridge, ChatMessageItem, ChatRenderItem } from "../../api/chats"
 import { isLowPrioritySystemMessage } from "./messageDisplay"
-import { goalContinuationFromContent, skillInvocationFromContent, systemMessage } from "./systemMessages"
+import { crossChatBridgeSystemMessage, goalContinuationFromContent, skillInvocationFromContent, systemMessage } from "./systemMessages"
 
 function systemText(text: string): ChatMessageItem {
   return {
@@ -85,6 +85,68 @@ describe("goalContinuationFromContent", () => {
       label: "Goal",
       body: "Goal continuation started."
     })
+  })
+})
+
+describe("crossChatBridgeSystemMessage", () => {
+  function bridge(overrides: Partial<ChatCrossChatBridge> = {}): ChatCrossChatBridge {
+    return {
+      thread_id: 7,
+      direction: "outbound",
+      counterpart_chat_session_id: 42,
+      counterpart_chat_title: "Debugging session",
+      ...overrides
+    }
+  }
+
+  it("renders the outbound message with a linking cta to the target chat", () => {
+    const result = crossChatBridgeSystemMessage({ ...systemMessageItem(), cross_chat_bridge: bridge() }, "Sent to chat #42: check on JOB-1")
+
+    expect(result).toEqual({
+      tone: "neutral",
+      label: "Cross-chat",
+      body: "Sent to chat #42: check on JOB-1",
+      cta: { label: "via Chat #42: Debugging session", path: "/chats/42" }
+    })
+  })
+
+  it("falls back to a bare chat id in the link label when the counterpart has no title", () => {
+    const result = crossChatBridgeSystemMessage(
+      { ...systemMessageItem(), cross_chat_bridge: bridge({ counterpart_chat_title: null }) },
+      "Sent to chat #42: check on JOB-1"
+    )
+
+    expect(result?.cta).toEqual({ label: "via Chat #42", path: "/chats/42" })
+  })
+
+  it("renders the hop-limit closure notice with a warning tone and no cta", () => {
+    const result = crossChatBridgeSystemMessage(
+      { ...systemMessageItem(), cross_chat_bridge: bridge({ direction: "closed" }) },
+      "Cross-chat thread #7 reached its hop limit (6) and has been closed."
+    )
+
+    expect(result).toEqual({
+      tone: "warning",
+      label: "Cross-chat",
+      body: "Cross-chat thread #7 reached its hop limit (6) and has been closed."
+    })
+  })
+
+  it("returns null for the inbound direction, which renders as a normal user bubble instead", () => {
+    const result = crossChatBridgeSystemMessage({ ...systemMessageItem(), cross_chat_bridge: bridge({ direction: "inbound" }) }, "check on JOB-1")
+
+    expect(result).toBeNull()
+  })
+
+  it("returns null when the message carries no cross_chat_bridge data", () => {
+    expect(crossChatBridgeSystemMessage(systemMessageItem(), "hello")).toBeNull()
+  })
+
+  it("is not filtered by isLowPrioritySystemMessage despite its neutral tone", () => {
+    const message = { ...systemMessageItem(), cross_chat_bridge: bridge() }
+    const renderItem: ChatRenderItem = { ...message, system: systemMessage(message) ?? undefined }
+
+    expect(isLowPrioritySystemMessage(renderItem)).toBe(false)
   })
 })
 

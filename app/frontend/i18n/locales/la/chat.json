@@ -17,6 +17,7 @@
   "view_only": "Inspicere tantum",
   "no_shared_chat_messages": "Hoc colloquium commune nullos nuntios habet.",
   "chat_settings": "Optiones Colloquii",
+  "cross_chat_bridge_link": "per Colloquium #{{id}}: {{title}}",
   "mode_label": "Modus",
   "mode_planning": "Consiliatio",
   "mode_coding": "Programmatisatio",
