@@ -395,7 +395,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
 
 type OlderMessageRequester = (options: { preserveScroll: boolean }) => boolean
 
-function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlderChange, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlderChange, payload, prefix, queryKey, onNotice, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectWorkspaceTab?: () => void }) {
   const location = useLocation()
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -646,6 +646,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
             retrying={retryTurn.isPending}
             onNotice={onNotice}
             onRetry={(text) => retryTurn.mutate(text)}
+            onSelectWorkspaceTab={onSelectWorkspaceTab}
           />
         ))}
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
@@ -794,6 +795,12 @@ function ChatWorkspace({
     selectTab("pinned")
   }
 
+  function openJobsTab() {
+    setPanelCollapsed(false)
+    setActiveMobileTab("jobs")
+    selectTab("jobs")
+  }
+
   function selectBookmark(messageId: number) {
     setActiveMobileTab("chat")
     bookmarkRequestIdRef.current += 1
@@ -829,7 +836,7 @@ function ChatWorkspace({
         </nav>
         <div className="flex min-h-0 w-full flex-1">
           {activeMobileTab === "chat" ? (
-            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} />
+            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={openJobsTab} />
           ) : (
             <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
               <ChatWorkspacePanel
@@ -866,7 +873,7 @@ function ChatWorkspace({
         transition: "grid-template-columns 150ms ease"
       }}
     >
-      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} />
+      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={openJobsTab} />
       {panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
@@ -1071,7 +1078,7 @@ export function ChatTour() {
   return <SyrusTour steps={steps} run={run} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice, onOpenPinnedMessages, onSelectMessage }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void }) {
+function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice, onOpenPinnedMessages, onSelectMessage, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void; onSelectWorkspaceTab: () => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
@@ -1151,7 +1158,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       {!landing ? <AttachedCodingJobStrip payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
       <div className={`relative min-h-0 overflow-hidden rounded-t border border-b-0 border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
-        <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} />
+        <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
         <UsageOverlay payload={payload} />
         {!landing ? <Compose key={chatId} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} /> : null}
       </div>

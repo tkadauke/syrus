@@ -1,7 +1,7 @@
 import { jsonResponse } from "../../testSupport"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { MemoryRouter, useLocation } from "react-router-dom"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { PendingActionCard, PendingActionGroupCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
 import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatProposal } from "../../api/chats"
@@ -239,26 +239,21 @@ const mediaPayload: ChatMediaPayload = {
   whiteboard_has_unsaved_content: false
 }
 
-function LocationProbe() {
-  const location = useLocation()
-  return <div data-testid="location">{location.pathname}</div>
-}
-
 function renderProposalCard(
   p: ChatProposal,
   onNotice = vi.fn(),
-  options: { currentUser?: Record<string, unknown>; withLocation?: boolean } = {}
+  options: { currentUser?: Record<string, unknown>; onSelectWorkspaceTab?: () => void; chatOverrides?: Record<string, unknown> } = {}
 ) {
   const queryKey: ChatQueryKey = ["chats", "122", ""]
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(queryKey, payloadFor(queryKey, p))
+  const payload = payloadFor(queryKey, p)
+  client.setQueryData(queryKey, options.chatOverrides ? { ...payload, chat: { ...payload.chat, ...options.chatOverrides } } : payload)
   client.setQueryData(["bootstrap"], { current_user: { id: 1, role: "developer", admin: true, ...options.currentUser } })
   client.setQueryData(["chat_media", "122"], mediaPayload)
   render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        {options.withLocation ? <LocationProbe /> : null}
-        <ProposalCard onNotice={onNotice} prefix="" proposal={p} queryKey={queryKey} />
+        <ProposalCard onNotice={onNotice} prefix="" proposal={p} queryKey={queryKey} onSelectWorkspaceTab={options.onSelectWorkspaceTab} />
       </QueryClientProvider>
     </MemoryRouter>
   )
@@ -521,49 +516,52 @@ describe("ProposalCard routing", () => {
   })
 })
 
-describe("ProposalCard first-run dashboard tour navigation", () => {
+describe("ProposalCard first-run jobs sidebar tab navigation", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("navigates to the dashboard Jobs tab after confirming a Job proposal when the tour hasn't been seen", async () => {
+  it("selects the jobs sidebar tab after confirming a Job proposal when it isn't visible yet", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
 
       return Promise.resolve(jsonResponse({}))
     })
 
-    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), vi.fn(), { currentUser: { seen_tours: [] }, withLocation: true })
+    const onSelectWorkspaceTab = vi.fn()
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), vi.fn(), { onSelectWorkspaceTab })
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/jobs"))
+    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
   })
 
-  it("navigates to the dashboard Jobs tab after confirming an Epic proposal when the tour hasn't been seen", async () => {
+  it("selects the jobs sidebar tab after confirming an Epic proposal when it isn't visible yet", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "epic", epic_bundle: true, state: "confirmed", proposed: false }) }))
 
       return Promise.resolve(jsonResponse({}))
     })
 
-    renderProposalCard(proposal({ kind: "epic", kind_label: "Epic", epic_bundle: true }), vi.fn(), { currentUser: { seen_tours: ["some_other_tour"] }, withLocation: true })
+    const onSelectWorkspaceTab = vi.fn()
+    renderProposalCard(proposal({ kind: "epic", kind_label: "Epic", epic_bundle: true }), vi.fn(), { onSelectWorkspaceTab })
     fireEvent.click(screen.getByRole("button", { name: "Confirm Epic" }))
 
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/jobs"))
+    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
   })
 
-  it("navigates to the dashboard Jobs tab after confirming a syrus_issue proposal when the tour hasn't been seen", async () => {
+  it("selects the jobs sidebar tab after confirming a syrus_issue proposal when it isn't visible yet", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "syrus_issue", state: "confirmed", proposed: false }) }))
 
       return Promise.resolve(jsonResponse({}))
     })
 
-    renderProposalCard(proposal({ kind: "syrus_issue", kind_label: "Syrus issue" }), vi.fn(), { currentUser: { seen_tours: [] }, withLocation: true })
+    const onSelectWorkspaceTab = vi.fn()
+    renderProposalCard(proposal({ kind: "syrus_issue", kind_label: "Syrus issue" }), vi.fn(), { onSelectWorkspaceTab })
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/jobs"))
+    await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
   })
 
-  it("does not navigate after confirming a github_issue proposal", async () => {
+  it("does not select the jobs sidebar tab after confirming a github_issue proposal", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "github_issue", state: "confirmed", proposed: false }) }))
 
@@ -571,14 +569,15 @@ describe("ProposalCard first-run dashboard tour navigation", () => {
     })
 
     const onNotice = vi.fn()
-    renderProposalCard(proposal({ kind: "github_issue", kind_label: "GitHub issue" }), onNotice, { currentUser: { seen_tours: [] }, withLocation: true })
+    const onSelectWorkspaceTab = vi.fn()
+    renderProposalCard(proposal({ kind: "github_issue", kind_label: "GitHub issue" }), onNotice, { onSelectWorkspaceTab })
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Proposal confirmed."))
-    expect(screen.getByTestId("location")).toHaveTextContent("/")
+    expect(onSelectWorkspaceTab).not.toHaveBeenCalled()
   })
 
-  it("does not navigate when the dashboard tour has already been seen", async () => {
+  it("does not select the jobs sidebar tab when it is already visible", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
 
@@ -586,14 +585,15 @@ describe("ProposalCard first-run dashboard tour navigation", () => {
     })
 
     const onNotice = vi.fn()
-    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), onNotice, { currentUser: { seen_tours: ["dashboard"] }, withLocation: true })
+    const onSelectWorkspaceTab = vi.fn()
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), onNotice, { onSelectWorkspaceTab, chatOverrides: { confirmed_proposal_count: 1 } })
     fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Proposal confirmed."))
-    expect(screen.getByTestId("location")).toHaveTextContent("/")
+    expect(onSelectWorkspaceTab).not.toHaveBeenCalled()
   })
 
-  it("does not navigate when rejecting a proposal, even with the tour unseen", async () => {
+  it("does not select the jobs sidebar tab when rejecting a proposal", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal rejected.", proposal: proposal({ kind: "job", state: "rejected", proposed: false, resolved: true }) }))
 
@@ -601,11 +601,12 @@ describe("ProposalCard first-run dashboard tour navigation", () => {
     })
 
     const onNotice = vi.fn()
-    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), onNotice, { currentUser: { seen_tours: [] }, withLocation: true })
+    const onSelectWorkspaceTab = vi.fn()
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), onNotice, { onSelectWorkspaceTab })
     fireEvent.click(screen.getByRole("button", { name: "Reject proposal" }))
 
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Proposal rejected."))
-    expect(screen.getByTestId("location")).toHaveTextContent("/")
+    expect(onSelectWorkspaceTab).not.toHaveBeenCalled()
   })
 })
 
