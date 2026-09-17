@@ -492,7 +492,6 @@ module WorkEngine
       end
 
       def reconcile!(tick)
-        @workspace_missing_workflow_ids = []
         if global_reconcile?
           reconcile_result!(tick, WorkEngine::Reconciler.call(source: "simulation:#{scenario}:tick#{tick}", execute_repairs: true))
         else
@@ -529,7 +528,7 @@ module WorkEngine
 
           events << "tick #{tick}: reconciler #{issue.kind}"
           if issue.kind == "workspace_missing"
-            @workspace_missing_workflow_ids.concat(Array(issue.affected_ids[:workflow_ids]))
+            @workspace_missing_workflow_ids |= Array(issue.affected_ids[:workflow_ids])
           end
         end
         result.repair_executions.each do |execution|
