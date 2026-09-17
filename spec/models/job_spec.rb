@@ -1955,6 +1955,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(Job::SEARCH_TEXT_COLUMNS + Job::SEARCH_NUMBER_COLUMNS).not_to include("pr_title")
       end
 
+
       it "returns no matches for an unrelated query" do
         Job.create!(user: user, repository: repository, issue_number: 5, issue_title: "Unrelated title")
         expect(Job.search("nonexistent-term-xyz")).to be_empty
