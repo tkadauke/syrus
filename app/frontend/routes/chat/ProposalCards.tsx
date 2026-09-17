@@ -525,13 +525,24 @@ export function ProposalCard({
       return input.action === "confirm" ? confirmChatProposal(path, { start: input.start, route_to_backlog: input.routeToBacklog }) : rejectChatProposal(path)
     },
     onSuccess: (updated, variables) => {
-      const jobsTabAlreadyVisible = payload ? jobsTabVisible(payload) : false
-      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated, queryKey[1]))
+      const isConfirmingJobCreatingProposal = variables.action === "confirm" && (proposalCreatesJob(proposal) || proposal.kind === "epic")
+      let shouldSelectJobsTab = false
+
+      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => {
+        const next = applyProposalActionResult(current, updated, queryKey[1])
+        if (!next || !isConfirmingJobCreatingProposal || jobsTabVisible(next)) return next
+
+        // The confirm-proposal response doesn't include updated chat counts (the
+        // real value arrives later via the chat-updated app event), so without this
+        // optimistic bump the sidebar's "jobs" tab wouldn't be in
+        // availableWorkspaceTabs yet, and ChatWorkspace would have to wait for that
+        // later event before it could honor the tab-select request below.
+        shouldSelectJobsTab = true
+        return { ...next, chat: { ...next.chat, confirmed_proposal_count: (next.chat.confirmed_proposal_count ?? 0) + 1 } }
+      })
       onNotice(updated.message || null)
 
-      if (variables.action === "confirm" && (proposalCreatesJob(proposal) || proposal.kind === "epic") && !jobsTabAlreadyVisible) {
-        onSelectWorkspaceTab?.()
-      }
+      if (shouldSelectJobsTab) onSelectWorkspaceTab?.()
     }
   })
 

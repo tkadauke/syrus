@@ -735,6 +735,7 @@ function ChatWorkspace({
   const [panelCollapsed, setPanelCollapsed] = useState(storedWorkspaceCollapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
+  const [pendingJobsTabRequest, setPendingJobsTabRequest] = useState(false)
   const bookmarkRequestIdRef = useRef(0)
   // Wider than AppChromeV2's own sidebar breakpoint — see CHAT_WORKSPACE_SPLIT_MIN_WIDTH.
   const isDesktop = useMediaQuery(`(min-width: ${CHAT_WORKSPACE_SPLIT_MIN_WIDTH}px)`, true)
@@ -747,6 +748,22 @@ function ChatWorkspace({
     if (!availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload, simpleMode))
     if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
   }, [activeMobileTab, activeTab, availableTabs, payload, simpleMode])
+
+  // Confirming a job/epic proposal requests the Jobs tab before the chat
+  // payload's confirmed_proposal_count/linked_direct_job_count actually
+  // reflects it (the confirm response doesn't include updated counts; the
+  // authoritative refresh arrives later via the chat-updated app event).
+  // Selecting "jobs" immediately would just get reverted by the guard
+  // effect above on the very next render, since availableTabs wouldn't
+  // include it yet. Defer the actual selection until it does.
+  useEffect(() => {
+    if (!pendingJobsTabRequest || !availableTabs.includes("jobs")) return
+
+    setPanelCollapsed(false)
+    setActiveMobileTab("jobs")
+    setActiveTab("jobs")
+    setPendingJobsTabRequest(false)
+  }, [availableTabs, pendingJobsTabRequest])
 
   useEffect(() => {
     storeWorkspacePreference(CHAT_WORKSPACE_TAB_KEY, activeTab)
@@ -796,9 +813,7 @@ function ChatWorkspace({
   }
 
   function openJobsTab() {
-    setPanelCollapsed(false)
-    setActiveMobileTab("jobs")
-    selectTab("jobs")
+    setPendingJobsTabRequest(true)
   }
 
   function selectBookmark(messageId: number) {

@@ -3084,6 +3084,43 @@ describe("chat jobs tab", () => {
 
     expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
   })
+
+  it("switches to the Jobs sidebar tab after confirming a job proposal, even though the confirm response doesn't update the chat's proposal counts", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          message: "Proposal confirmed. JOB-99 was created.",
+          proposal: proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }),
+          messages: [],
+          pending_proposal_count: 0
+        }))
+      }
+      if (path === "/api/v1/app/chats/8/job_status") {
+        return Promise.resolve(jsonResponse([]))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal())]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByRole("button", { name: "Confirm proposal and implement" })
+    expect(screen.queryByRole("button", { name: "Jobs" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    // If the Jobs tab selection got reverted by ChatWorkspace's availableTabs
+    // guard effect (because the confirm response left confirmed_proposal_count
+    // stale at 0), this panel would never mount and the job_status fetch above
+    // would never resolve into view.
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+  })
 })
 
 describe("chat pinned tab", () => {
