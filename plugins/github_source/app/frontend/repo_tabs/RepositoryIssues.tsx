@@ -1,4 +1,6 @@
-import { PanelMessage, StatusPill, stateFilterClass, buttonClass } from "@app/routes/repositoryDetail/shared"
+import { stateFilterClass, buttonClass } from "@app/routes/repositoryDetail/shared"
+import { PanelMessage } from "@app/components/PanelMessage"
+import { TonePill } from "@app/components/StatusPill"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { withRoutePrefix } from "@app/lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -73,7 +75,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
           {t('repository.trigger_label_prefix')} <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{payload.repository.trigger_label}</code>
         </span>
         <span>
-          {t('repository.showing_prefix')} <StatusPill tone={payload.state === "open" ? "green" : "gray"}>{payload.state}</StatusPill>
+          {t('repository.showing_prefix')} <TonePill tone={payload.state === "open" ? "green" : "gray"}>{payload.state}</TonePill>
         </span>
         <span><strong>{payload.issue_count}</strong> {payload.issue_count === 1 ? "issue" : "issues"}</span>
         {payload.repository.github_rate_limit ? (

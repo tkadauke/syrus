@@ -1,6 +1,8 @@
-import { appendSearch, buttonClass, PanelMessage, StatusPill, type RepositoryDetailQueryKey } from "./shared"
+import { appendSearch, buttonClass, type RepositoryDetailQueryKey } from "./shared"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { CopyableSlug } from "../../components/CopyableSlug"
+import { PanelMessage } from "../../components/PanelMessage"
+import { TonePill } from "../../components/StatusPill"
 import { DataTable } from "../../components/ui"
 import { withRoutePrefix } from "../../lib/routing"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -205,7 +207,7 @@ function HealthBadge({ label, health }: { label: string; health: string }) {
   return (
     <div className="flex items-center gap-2">
       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
-      <StatusPill tone={tone}>{healthLabel(health, t)}</StatusPill>
+      <TonePill tone={tone}>{healthLabel(health, t)}</TonePill>
     </div>
   )
 }
@@ -283,7 +285,7 @@ function HealthHistoryRow({ prefix, record, t }: { prefix: string; record: Repos
     ...record.ci_failed_checks.map((c) => c.name),
     ...record.grader_failed_names
   ]
-  const graderPill = <StatusPill tone={healthTone(record.grader_health)}>{healthLabel(record.grader_health, t)}</StatusPill>
+  const graderPill = <TonePill tone={healthTone(record.grader_health)}>{healthLabel(record.grader_health, t)}</TonePill>
   return (
     <DataTable.Row>
       <DataTable.Cell className="whitespace-nowrap text-gray-500 dark:text-gray-400"><RelativeTimestamp value={record.checked_at} /></DataTable.Cell>
@@ -292,7 +294,7 @@ function HealthHistoryRow({ prefix, record, t }: { prefix: string; record: Repos
           {record.sha}
         </a>
       </DataTable.Cell>
-      <DataTable.Cell><StatusPill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</StatusPill></DataTable.Cell>
+      <DataTable.Cell><TonePill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</TonePill></DataTable.Cell>
       <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
           {record.workflow_path ? (

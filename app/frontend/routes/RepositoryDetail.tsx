@@ -1,4 +1,5 @@
-import { type RepositoryDetailQueryKey, appendSearch, buttonClass, PanelMessage, StatusPill } from "./repositoryDetail/shared"
+import { type RepositoryDetailQueryKey, appendSearch, buttonClass } from "./repositoryDetail/shared"
+import { PanelMessage } from "../components/PanelMessage"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { DataTable, DescriptionList } from "../components/ui"
@@ -120,14 +121,14 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-      <StatusPill tone={repository.polling_enabled ? "green" : "gray"}>{repository.polling_enabled ? t("repository.polling_enabled") : t("repository.polling_paused")}</StatusPill>
+      <TonePill tone={repository.polling_enabled ? "green" : "gray"}>{repository.polling_enabled ? t("repository.polling_enabled") : t("repository.polling_paused")}</TonePill>
       <span>{payload.credential_status.label}</span>
       <span className="text-gray-300 dark:text-gray-600">·</span>
       <span>
         {t('repository.agent_prefix')} {repository.agent_provider_label || t("repository.user_default_agent", { provider: repository.effective_agent_provider_label })}
       </span>
       {nonzeroCounts.map((count) => (
-        <StatusPill key={count.label} tone={count.tone}>{count.value} {count.label}</StatusPill>
+        <TonePill key={count.label} tone={count.tone}>{count.value} {count.label}</TonePill>
       ))}
     </div>
   )

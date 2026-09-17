@@ -1,6 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { PageHeading } from "../components/Heading"
-import { inputClass } from "../lib/formClasses"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, MouseEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
@@ -16,8 +15,8 @@ import {
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
-import { Input } from "../components/Input"
-import { Select } from "../components/Select"
+import { PanelMessage } from "../components/PanelMessage"
+import { Form } from "../components/ui"
 
 export function EpicFormRoute({ mode }: { mode: "new" | "edit" }) {
   const { t } = useT("epics")
@@ -84,7 +83,7 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
 
       <form className="space-y-5" onSubmit={submit}>
         <Field label={t("form_title")}>
-          <Input
+          <Form.Input
             onChange={(event) => setValues({ ...values, title: event.target.value })}
             required
             type="text"
@@ -93,8 +92,7 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
         </Field>
 
         <Field label={t("description")}>
-          <textarea
-            className={inputClass()}
+          <Form.Textarea
             onChange={(event) => setValues({ ...values, description: event.target.value })}
             rows={8}
             value={values.description}
@@ -102,7 +100,7 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
         </Field>
 
         <Field label={t("form_repository")}>
-          <Select
+          <Form.Select
             onChange={(event) => setValues({ ...values, repository_id: event.target.value })}
             required
             value={values.repository_id}
@@ -111,11 +109,11 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
             {payload.repositories.map((repository) => (
               <option key={repository.id} value={repository.id}>{repository.slug}</option>
             ))}
-          </Select>
+          </Form.Select>
         </Field>
 
         <Field label={t("github_issue_url")}>
-          <Input
+          <Form.Input
             className="font-mono"
             onChange={(event) => setValues({ ...values, github_issue_url: event.target.value })}
             type="text"
@@ -159,17 +157,9 @@ function inputFromPayload(payload: EpicFormPayload): EpicInput {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-2">{children}</div>
-    </label>
+    <Form.Field>
+      <Form.Label>{label}</Form.Label>
+      {children}
+    </Form.Field>
   )
-}
-
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
