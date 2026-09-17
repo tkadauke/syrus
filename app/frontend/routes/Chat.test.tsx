@@ -3084,6 +3084,41 @@ describe("chat jobs tab", () => {
 
     expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
   })
+
+  it("switches to the Jobs sidebar tab after confirming the first job proposal", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/job_status") {
+        return Promise.resolve(jsonResponse([]))
+      }
+      if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          message: "Proposal confirmed. JOB-99 was created.",
+          proposal: proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }),
+          messages: [],
+          pending_proposal_count: 0
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        chat: { confirmed_proposal_count: 0 },
+        messages: [messageWithProposal(9, proposal())]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss proposal 9.")
+    expect(screen.queryByRole("button", { name: "Jobs" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("No confirmed proposals yet.")).toBeInTheDocument())
+  })
 })
 
 describe("chat pinned tab", () => {
