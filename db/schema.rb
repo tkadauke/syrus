@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_17_105538) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_154938) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2267,6 +2267,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_105538) do
     t.index ["repository_id", "user_id"], name: "index_repository_memberships_on_repository_id_and_user_id", unique: true
     t.index ["repository_id"], name: "index_repository_memberships_on_repository_id"
     t.index ["user_id"], name: "index_repository_memberships_on_user_id"
+  end
+
+  create_table "retention_archives", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.datetime "created_at", null: false
+    t.datetime "pruned_before", null: false
+    t.string "retention_key", null: false
+    t.integer "row_count", null: false
+    t.datetime "updated_at", null: false
+    t.index ["retention_key", "pruned_before"], name: "index_retention_archives_on_retention_key_and_pruned_before"
   end
 
   create_table "run_checkpoints", force: :cascade do |t|
