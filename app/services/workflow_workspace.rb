@@ -169,8 +169,8 @@ class WorkflowWorkspace
     !remote_live_worker_workspace?(workflow)
   end
 
-  def self.cleanup_for(workflow)
-    unless cleanable_here?(workflow)
+  def self.cleanup_for(workflow, force_local: false)
+    unless force_local || cleanable_here?(workflow)
       Rails.logger.debug("[WorkflowWorkspace] skip cleanup for Workflow ##{workflow.id}: storage_key=#{workflow.worker_storage_key} host=#{workflow.worker_hostname}")
       return
     end

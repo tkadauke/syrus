@@ -178,6 +178,11 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       next unless wf.terminal?
       next unless wf.finished_at
 
+      if wf.cleaned_up_at.present?
+        n += 1 if cleanup_workflow(wf, force_local: true)
+        next
+      end
+
       retention = if wf.succeeded? || wf.cancelled? || wf.infrastructure_workflow?
         RETAIN_AFTER_SUCCESS_OR_CANCEL
       elsif wf.failed?
@@ -194,7 +199,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       end
       next unless wf.finished_at < retention.ago
 
-      n += 1 if cleanup_workflow(wf)
+      n += 1 if cleanup_workflow(wf, force_local: true)
     rescue StandardError => e
       Rails.logger.warn("[WorkflowWorkspacePrune] filesystem_sweep error on #{child}: #{e.class}: #{e.message}")
     end
@@ -223,7 +228,11 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{orphans} orphaned chat directories") if orphans > 0
   end
 
-  def cleanup_workflow(workflow)
-    workflow.cleanup_workspace!
+  def cleanup_workflow(workflow, force_local: false)
+    if force_local
+      WorkflowWorkspace.cleanup_for(workflow, force_local: true)
+    else
+      workflow.cleanup_workspace!
+    end
   end
 end
