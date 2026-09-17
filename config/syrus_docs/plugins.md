@@ -2762,8 +2762,12 @@ no teardown, which is exactly why it is not an effect.
 
 Bundled plugins:
 
-- `agy_agent` — default-enabled Antigravity workflow and chat provider. It writes
-  the Syrus sidecar into Antigravity's isolated
+- `agy_agent` — **default-disabled** for new installs, same as `claude_agent`,
+  `codex_agent`, and `muse_agent`: an already-onboarded instance that had it
+  enabled keeps it enabled (`upsert_plugin_record!` only sets `enabled` from
+  `default_enabled` on a brand-new `PluginRecord` row), and an admin turns it
+  on for a fresh install from Admin -> Plugins. Antigravity workflow and chat
+  provider. It writes the Syrus sidecar into Antigravity's isolated
   `~/.gemini/config/mcp_config.json` and reads `SYRUS_AGY_MODEL` /
   `SYRUS_AGY_EFFORT` as provider configuration. Workflow and chat invocations
   require the operator's saved Gemini API key (`User#gemini_api_key`); Syrus
@@ -2777,7 +2781,12 @@ Bundled plugins:
   essential and deferred tool tiers. Antigravity conversation ids are accepted
   only when they are path-safe; invalid ids start a fresh session and log a
   diagnostic instead of being used in a path or command argument.
-- `claude_agent` / `codex_agent` — default-enabled workflow and chat providers.
+- `claude_agent` / `codex_agent` — **default-disabled** for new installs, same
+  as `agy_agent` above and `muse_agent` below; an admin turns either on from
+  Admin -> Plugins. Workflow and chat providers.
+- `muse_agent` — **default-disabled**. Workflow and chat provider for Muse
+  Code; see `config/syrus_docs/workflow_steps.md` for the CLI/credential
+  prerequisites an admin needs before enabling it from Admin -> Plugins.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.

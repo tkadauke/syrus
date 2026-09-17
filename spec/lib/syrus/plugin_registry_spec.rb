@@ -989,6 +989,36 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(PluginRecord.find_by!(name: "existing_plugin").enabled).to be(false)
     end
 
+    context "agent-provider plugins now default-enabled: false for new installs" do
+      # claude_agent, codex_agent, and agy_agent were flipped to
+      # default_enabled: false alongside muse_agent, which already shipped
+      # disabled. Pin the resulting PluginRecord upsert behavior by name so a
+      # future edit to any of these manifests that flips the default back to
+      # true (or that stops respecting an already-enabled row) fails here.
+      %w[claude_agent codex_agent agy_agent].each do |plugin_name|
+        it "creates a fresh #{plugin_name} PluginRecord disabled" do
+          # spec/support/agent_provider_plugins.rb keeps these plugins enabled
+          # for the rest of the suite (most specs assume Claude/Codex/Agy are
+          # already connected); clear that row here so this example genuinely
+          # exercises the new_record? branch of upsert_plugin_record!.
+          PluginRecord.where(name: plugin_name).delete_all
+
+          expect {
+            described_class.register(name: plugin_name, version: "1.0.0", default_enabled: false)
+          }.to change { PluginRecord.where(name: plugin_name, enabled: false, default_enabled: false).count }.by(1)
+        end
+
+        it "leaves an already-enabled #{plugin_name} PluginRecord enabled across re-registration" do
+          PluginRecord.where(name: plugin_name).delete_all
+          PluginRecord.create!(name: plugin_name, enabled: true, default_enabled: true)
+
+          described_class.register(name: plugin_name, version: "1.0.0", default_enabled: false)
+
+          expect(PluginRecord.find_by!(name: plugin_name)).to have_attributes(enabled: true, default_enabled: false)
+        end
+      end
+    end
+
     it "forces non-disableable plugin records enabled" do
       described_class.register(name: "required_plugin", version: "1.0.0", default_enabled: false, disableable: false)
 
