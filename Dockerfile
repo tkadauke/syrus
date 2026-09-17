@@ -497,9 +497,10 @@ ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
 ARG PLAYWRIGHT_VERSION=1.57.0
 ARG PLAYWRIGHT_MCP_VERSION=0.0.79
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    set -eu; \
+# Do not use BuildKit apt cache mounts here. Playwright's `install --with-deps`
+# drives apt internally, and a full/stale cache mount makes apt fail with
+# "No space left on device" before it can refresh package lists.
+RUN set -eu; \
     cleanup_apt_cache() { rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; }; \
     cleanup_apt_cache; \
     trap cleanup_apt_cache EXIT; \
