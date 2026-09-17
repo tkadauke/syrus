@@ -13,6 +13,9 @@ export type RetentionTableRow = {
   byte_size_estimate?: number | null
   estimated_max_byte_size?: number | null
   computed_at?: string | null
+  archivable: boolean
+  archive_setting_key: string | null
+  archive_before_delete: boolean
 }
 
 export type RetentionAvailableSpace = {
@@ -28,7 +31,7 @@ export type RetentionSettingsPayload = {
   message?: string
 }
 
-export type RetentionSettingsUpdate = Record<string, number>
+export type RetentionSettingsUpdate = Record<string, number | boolean>
 
 export function fetchRetentionSettings() {
   return getJson<RetentionSettingsPayload>("/api/v1/app/admin/retention_settings")

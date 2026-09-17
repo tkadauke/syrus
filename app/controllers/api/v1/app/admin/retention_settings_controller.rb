@@ -46,18 +46,22 @@ module Api
               row_count_estimate: snapshot&.row_count_estimate,
               byte_size_estimate: snapshot&.byte_size_estimate,
               estimated_max_byte_size: snapshot&.estimated_max_byte_size,
-              computed_at: snapshot&.computed_at&.iso8601
+              computed_at: snapshot&.computed_at&.iso8601,
+              archivable: definition.archivable,
+              archive_setting_key: definition.archivable ? definition.archive_setting_key : nil,
+              archive_before_delete: definition.archivable ? setting.public_send(definition.archive_setting_key) : false
             }
           end
 
           def update_params
             permitted_settings = (RetentionPolicyRegistry.definitions.map(&:setting_key) +
+                                 RetentionPolicyRegistry.archive_app_setting_definitions.map(&:key) +
                                  [ :retention_available_space_override_gb ]).uniq
 
             params
               .expect(retention_settings: permitted_settings)
               .to_h
-              .reject { |_key, value| value.blank? }
+              .reject { |_key, value| value.nil? || value == "" }
           end
         end
       end

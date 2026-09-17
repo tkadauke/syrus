@@ -432,6 +432,11 @@ Rails.application.routes.draw do
           post "settings/clear_secret", to: "settings#clear_secret"
           get "retention_settings", to: "retention_settings#show"
           patch "retention_settings", to: "retention_settings#update"
+          resources :retention_archives, only: %i[ index ] do
+            member do
+              get :download
+            end
+          end
           post "platform_polling/start", to: "platform_polling#start"
         end
         match "*plugin_route", to: "plugin_routes#show", via: :all, constraints: lambda { |request|
