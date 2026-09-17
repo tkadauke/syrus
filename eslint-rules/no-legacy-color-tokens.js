@@ -1,6 +1,14 @@
 "use strict"
 
-const { relativePath, allowedCount, isTestFile, endsWithAny, collectStringLiterals, classNameCandidates } = require("./rule-utils")
+const {
+  relativePath,
+  allowedCount,
+  isTestFile,
+  endsWithAny,
+  collectStringLiterals,
+  classNameCandidates,
+  reportBeyondBaseline
+} = require("./rule-utils")
 
 const RULE_KEY = "no-legacy-color-tokens"
 
@@ -115,9 +123,7 @@ module.exports = {
         }
       },
       "Program:exit"() {
-        for (const { node, token } of matches.slice(allowed)) {
-          context.report({ node, messageId: "forbidden", data: { token } })
-        }
+        reportBeyondBaseline(context, matches, allowed, "forbidden")
       }
     }
   }
