@@ -28,7 +28,13 @@ export type JobNavigationContext = {
 }
 
 const STORAGE_PREFIX = "syrus.jobNavigationContext."
+const KNOWN_STATE_PREFIX = "syrus.jobNavigationKnownState."
 const MAX_ITEMS = 50
+
+type JobNavigationKnownState = {
+  state: string | null
+  updatedAt: string | null
+}
 
 type DashboardNavigationSource = {
   id: number
@@ -98,10 +104,81 @@ export function readJobNavigationContext(token: string | null | undefined): JobN
   try {
     const raw = window.sessionStorage.getItem(storageKey(token))
     if (!raw) return null
-    return parseJobNavigationContext(JSON.parse(raw), token)
+    const context = parseJobNavigationContext(JSON.parse(raw), token)
+    if (!context) return null
+    return { ...context, items: context.items.map(overlayKnownJobState) }
   } catch {
     return null
   }
+}
+
+// A captured navigation context is a point-in-time snapshot, so its `state`
+// goes stale as soon as the job changes elsewhere. Every JobDetailView mount
+// records the live state for the job it's actually displaying, and both this
+// overlay and `patchJobNavigationContextItem` pull from that per-job record
+// so previously-visited (or currently-visited) jobs stay accurate for as
+// long as the snapshot itself lives in sessionStorage.
+export function recordJobNavigationKnownState(id: number, state: string | null | undefined, updatedAt?: string | null) {
+  if (!storageAvailable()) return
+
+  try {
+    window.sessionStorage.setItem(knownStateKey(id), JSON.stringify({
+      state: state ?? null,
+      updatedAt: updatedAt ?? null
+    }))
+  } catch {
+    // Storage can be unavailable (quota, private browsing); the switcher
+    // simply keeps showing its last captured state.
+  }
+}
+
+export function patchJobNavigationContextItem(context: JobNavigationContext | null, id: number, state: string | null | undefined, updatedAt?: string | null): JobNavigationContext | null {
+  if (!context) return context
+
+  let changed = false
+  const items = context.items.map((item) => {
+    if (item.id !== id) return item
+
+    const nextState = state ?? null
+    const nextUpdatedAt = updatedAt ?? item.updatedAt ?? null
+    if (item.state === nextState && item.updatedAt === nextUpdatedAt) return item
+
+    changed = true
+    return { ...item, state: nextState, updatedAt: nextUpdatedAt }
+  })
+
+  return changed ? { ...context, items } : context
+}
+
+function overlayKnownJobState(item: JobNavigationItem): JobNavigationItem {
+  const known = readJobNavigationKnownState(item.id)
+  if (!known) return item
+  if (known.state === item.state && known.updatedAt === item.updatedAt) return item
+
+  return { ...item, state: known.state, updatedAt: known.updatedAt ?? item.updatedAt }
+}
+
+function readJobNavigationKnownState(id: number): JobNavigationKnownState | null {
+  if (!storageAvailable()) return null
+
+  try {
+    const raw = window.sessionStorage.getItem(knownStateKey(id))
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw) as Partial<JobNavigationKnownState>
+    if (!parsed || typeof parsed !== "object") return null
+
+    return {
+      state: typeof parsed.state === "string" ? parsed.state : null,
+      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null
+    }
+  } catch {
+    return null
+  }
+}
+
+function knownStateKey(id: number) {
+  return `${KNOWN_STATE_PREFIX}${id}`
 }
 
 export function jobNavigationHref(path: string, prefix: string, token: string | null, currentSearch = "", currentPathname = "") {

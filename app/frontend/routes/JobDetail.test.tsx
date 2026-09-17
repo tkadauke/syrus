@@ -2846,6 +2846,9 @@ describe("Job detail navigation", () => {
   it("shows each job's status under its slug in the jump list", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
 
+    // JOB-2's captured snapshot state ("implemented") is stale by the time this
+    // renders: baseJob()'s live summary_state is "running", so the currently
+    // viewed job's own entry should reflect that instead of the frozen value.
     renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
       initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
     })
@@ -2853,8 +2856,41 @@ describe("Job detail navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
 
     expect(screen.getByRole("option", { name: "1. JOB-1 — First snapshot title" })).toHaveTextContent("running")
-    expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toHaveTextContent("implemented")
+    expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toHaveTextContent("running")
     expect(screen.getByRole("option", { name: "3. JOB-3 — Third snapshot title" })).toHaveTextContent("queued")
+  })
+
+  it("keeps the switcher's status for the currently viewed job in sync with its live state", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    function renderWithPayload(payload: JobDetailPayload) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          <ShortcutsProvider>
+            <MemoryRouter initialEntries={["/app-shell/jobs/2?job_nav=nav-token"]}>
+              <JobDetailView
+                activeTab="summary"
+                onSelectTab={() => {}}
+                payload={payload}
+                prefix="/app-shell"
+                queryKey={["jobs", "2", "detail", ""]}
+              />
+            </MemoryRouter>
+          </ShortcutsProvider>
+        </QueryClientProvider>
+      )
+    }
+
+    const { rerender } = render(renderWithPayload(jobPayload({ job: { ...baseJob(), id: 2, summary_state: "implemented" } })))
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+    expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toHaveTextContent("implemented")
+
+    rerender(renderWithPayload(jobPayload({ job: { ...baseJob(), id: 2, summary_state: "approved" } })))
+    expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toHaveTextContent("approved")
   })
 
   it("does not show a trailing index number in the jump list", () => {

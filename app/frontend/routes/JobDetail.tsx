@@ -48,7 +48,7 @@ import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
 import { Notice, Section } from "../components/ui"
-import { jobNavigationHref, navigationIndex, readJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
+import { jobNavigationHref, navigationIndex, patchJobNavigationContextItem, readJobNavigationContext, recordJobNavigationKnownState, storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
 
 export function JobDetailRoute() {
@@ -219,6 +219,19 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       setNavigationContext(null)
     }
   }, [navigationToken, payload.job.id])
+
+  useEffect(() => {
+    // The switcher's job list is a point-in-time snapshot; keep the entry for
+    // the job actually on screen in sync with its live (query-refetched)
+    // status instead of showing whatever state it had when the list was
+    // captured.
+    recordJobNavigationKnownState(payload.job.id, payload.job.summary_state, payload.job.updated_at)
+    setNavigationContext((current) => {
+      const patched = patchJobNavigationContextItem(current, payload.job.id, payload.job.summary_state, payload.job.updated_at)
+      if (patched && patched !== current) storeJobNavigationContext(patched)
+      return patched
+    })
+  }, [payload.job.id, payload.job.summary_state, payload.job.updated_at])
 
   useEffect(() => {
     const attachment = jobWorkflowContextBugReportAttachment(payload)

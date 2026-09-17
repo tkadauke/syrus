@@ -3,7 +3,9 @@ import {
   createDashboardJobNavigationContext,
   createEpicJobNavigationContext,
   jobNavigationHref,
+  patchJobNavigationContextItem,
   readJobNavigationContext,
+  recordJobNavigationKnownState,
   storeJobNavigationContext
 } from "./jobNavigationContext"
 
@@ -80,6 +82,51 @@ describe("job navigation context", () => {
 
     expect(context?.kind).toBe("epic")
     expect(context?.items.map((item) => item.slug)).toEqual(["JOB-11", "JOB-12", "JOB-13"])
+  })
+
+  it("patches a stored context's item state and persists the change", () => {
+    const context = createDashboardJobNavigationContext({
+      currentJobId: 2,
+      label: "Dashboard",
+      items: [dashboardJob(1), dashboardJob(2), dashboardJob(3)]
+    })
+    const token = storeJobNavigationContext(context)
+
+    const patched = patchJobNavigationContextItem(readJobNavigationContext(token), 2, "implemented", "2026-09-17T12:00:00Z")
+    expect(patched?.items.find((item) => item.id === 2)).toMatchObject({ state: "implemented", updatedAt: "2026-09-17T12:00:00Z" })
+    storeJobNavigationContext(patched)
+
+    expect(readJobNavigationContext(token)?.items.find((item) => item.id === 2)).toMatchObject({ state: "implemented", updatedAt: "2026-09-17T12:00:00Z" })
+    // Unrelated items are untouched, and the same object is returned when nothing changes.
+    expect(readJobNavigationContext(token)?.items.find((item) => item.id === 1)).toMatchObject({ state: "running" })
+    const unchanged = readJobNavigationContext(token)
+    expect(patchJobNavigationContextItem(unchanged, 2, "implemented", "2026-09-17T12:00:00Z")).toBe(unchanged)
+  })
+
+  it("returns null unchanged when patching a null context", () => {
+    expect(patchJobNavigationContextItem(null, 1, "implemented")).toBeNull()
+  })
+
+  it("overlays a job's live recorded state onto every stored context that references it", () => {
+    const firstContext = createDashboardJobNavigationContext({
+      currentJobId: 1,
+      label: "Dashboard",
+      items: [dashboardJob(1), dashboardJob(2)]
+    })
+    const secondContext = createEpicJobNavigationContext({
+      currentJobId: 2,
+      label: "Epic Jobs",
+      items: [epicJob(2), epicJob(3)]
+    })
+    const firstToken = storeJobNavigationContext(firstContext)
+    const secondToken = storeJobNavigationContext(secondContext)
+
+    recordJobNavigationKnownState(2, "approved", "2026-09-17T13:00:00Z")
+
+    expect(readJobNavigationContext(firstToken)?.items.find((item) => item.id === 2)).toMatchObject({ state: "approved", updatedAt: "2026-09-17T13:00:00Z" })
+    expect(readJobNavigationContext(secondToken)?.items.find((item) => item.id === 2)).toMatchObject({ state: "approved", updatedAt: "2026-09-17T13:00:00Z" })
+    // Job 1 was never recorded, so its snapshot state is untouched.
+    expect(readJobNavigationContext(firstToken)?.items.find((item) => item.id === 1)).toMatchObject({ state: "running" })
   })
 
   it("carries Job Detail tab state but drops source-specific diff params", () => {
