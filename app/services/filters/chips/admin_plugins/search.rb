@@ -10,6 +10,7 @@ module Filters
         label "Search"
         bucket :string
         operators :contains
+        free_text_search true
 
         def apply
           case op

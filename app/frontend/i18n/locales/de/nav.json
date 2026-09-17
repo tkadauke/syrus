@@ -146,6 +146,7 @@
     "clear_filters": "Filter löschen",
     "search_placeholder": "Filter suchen...",
     "suggested": "Vorgeschlagen",
+    "search_for": "Suche nach {{query}}",
     "no_matching_filters": "Keine passenden Filter",
     "operator": "Operator",
     "or_alternative": "+ ODER Alternative",
