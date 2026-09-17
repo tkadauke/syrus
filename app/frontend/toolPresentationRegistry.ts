@@ -306,8 +306,7 @@ function fallbackEntryFor(toolName: string): ToolPresentationEntry {
 }
 
 // A Local Mode tool's classification must hold even when no card renderer
-// was ever registered for it (complete_implement_step, submit_coding_changes,
-// and reset_workspace are all explicitly cardless — see
+// was ever registered for it (reset_workspace is explicitly cardless — see
 // Admin::McpToolCardCoverage::EXPLICIT_CARD_STATUSES on the backend), so this
 // runs as its own pass rather than as an inline branch inside
 // mcpToolEntryFor, which only ever sees names a renderer was discovered for.

@@ -38,7 +38,7 @@ export const examples = [
           confidence: 0.72,
           state: "pending",
           proposal_type: "create_job",
-          evidence: [{ job_id: "5019", run_id: "28550", kind: "run_transcript" }],
+          evidence: [{ job_id: "71", run_id: "201", kind: "run_transcript" }],
           repository: { id: "42", slug: "tkadauke/syrus" },
           created_at: "2026-09-15T08:00:00Z"
         },
@@ -51,7 +51,7 @@ export const examples = [
           state: "accepted",
           proposal_type: "informational",
           evidence: [],
-          job: { id: "5002" },
+          job: { id: "68" },
           created_at: "2026-09-10T11:30:00Z"
         }
       ]

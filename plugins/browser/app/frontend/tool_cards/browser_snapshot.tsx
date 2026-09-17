@@ -31,7 +31,7 @@ export const examples = [
       "  - main [ref=e6]",
       "    - heading \"Jobs\" level=1 [ref=e7]",
       "    - table [ref=e8]",
-      ...Array.from({ length: 20 }, (_, index) => `      - row \"JOB-${5000 + index} · running\" [ref=e${9 + index}]`)
+      ...Array.from({ length: 20 }, (_, index) => `      - row \"JOB-${100 + index} · running\" [ref=e${9 + index}]`)
     ].join("\n")
   },
   {

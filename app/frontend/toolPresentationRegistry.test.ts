@@ -57,9 +57,9 @@ describe("toolPresentationRegistry", () => {
     })
 
     it("classifies a Local Mode management tool distinctly, even with no registered card", () => {
-      const complete = toolPresentationEntryFor("complete_implement_step")
-      expect(complete.sourceType).toBe("local_mode_tool")
-      expect(complete.renderer).toBeNull()
+      const reset = toolPresentationEntryFor("reset_workspace")
+      expect(reset.sourceType).toBe("local_mode_tool")
+      expect(reset.renderer).toBeNull()
 
       const openInLocalMode = toolPresentationEntryFor("open_in_local_mode")
       expect(openInLocalMode.sourceType).toBe("local_mode_tool")

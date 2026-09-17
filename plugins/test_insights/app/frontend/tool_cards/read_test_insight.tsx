@@ -169,14 +169,14 @@ export const examples = [
   {
     id: "flaky_test_with_history",
     label: "Flaky test with recent history",
-    input: { test_identity_id: 4821 },
+    input: { test_identity_id: 812 },
     parsedResult: {
       test: {
-        id: "4821",
+        id: "812",
         name: "keeps the landing queue unblocked after a transient GitHub 500",
         suite_name: "LandingQueueProcessor",
         file_path: "spec/services/landing_queue_processor_spec.rb",
-        links: { app_path: "/test_insights/identities/4821" },
+        links: { app_path: "/test_insights/identities/812" },
         last_status: "flaky",
         failure_rate: 0.18,
         avg_duration_ms: 842,
@@ -190,15 +190,15 @@ export const examples = [
         {
           test_case: { id: 1, status: "failed", duration_ms: 950, created_at: "2026-09-15T10:02:00Z" },
           test_run: { grader_name: "rspec" },
-          run: { slug: "RUN-28601", path: "/admin/runs/28601", title: "RUN-28601" },
-          job: { slug: "JOB-5031", path: "/jobs/5031", title: "JOB-5031" },
+          run: { slug: "RUN-201", path: "/admin/runs/201", title: "RUN-201" },
+          job: { slug: "JOB-71", path: "/jobs/71", title: "JOB-71" },
           failure: { message: "expected 1 retryable job, got 0", backtrace: "spec/services/landing_queue_processor_spec.rb:112:in 'block'" }
         },
         {
           test_case: { id: 2, status: "passed", duration_ms: 780, created_at: "2026-09-14T09:41:00Z" },
           test_run: { grader_name: "rspec" },
-          run: { slug: "RUN-28590", path: "/admin/runs/28590", title: "RUN-28590" },
-          job: { slug: "JOB-5028", path: "/jobs/5028", title: "JOB-5028" }
+          run: { slug: "RUN-198", path: "/admin/runs/198", title: "RUN-198" },
+          job: { slug: "JOB-68", path: "/jobs/68", title: "JOB-68" }
         }
       ]
     }
