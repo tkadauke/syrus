@@ -22,7 +22,16 @@ export function isLowPrioritySystemMessage(item: ChatRenderItem) {
     item.role === "system" &&
     !isProposalOutcomeSystemMessage(item) &&
     !isGoalContinuationSystemMessage(item) &&
+    !isCrossChatBridgeSystemMessage(item) &&
     ["neutral", "success"].includes(item.system?.tone || "neutral")
+}
+
+// The sender-side outbound message and the hop-limit closure notice are
+// operator-relevant content (something was sent to/received from another
+// chat), not internal orchestration noise -- keep them visible by default
+// even though their tone would otherwise classify as low priority.
+export function isCrossChatBridgeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
+  return Boolean(item.cross_chat_bridge)
 }
 
 export function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {

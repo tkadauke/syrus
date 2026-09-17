@@ -18,12 +18,15 @@ module App
       @documents_by_id = {}
       @repositories_by_user_and_id = {}
       @chat_shell_commands_by_id = {}
+      @bridge_threads_by_id = {}
+      @chat_titles_by_id = {}
     end
 
     def messages(messages)
       records = messages.to_a
       preload_message_associations(records)
       preload_chat_shell_commands(records)
+      preload_cross_chat_bridges(records)
       records.map { |message| message_json(message) }
     end
 
@@ -74,6 +77,23 @@ module App
       @chat_shell_commands_by_id = ChatShellCommand.where(id: ids).index_by(&:id)
     end
 
+    # Cross-chat bridge messages (ChatSession::CrossChatMessage's outbound and
+    # closure-notice writes, plus ChatSession::WakeupTurn's inbound write) have
+    # no dedicated FK -- the thread id and counterpart chat id live entirely in
+    # the free-form `content` JSON. Batch-resolve both here so message_json can
+    # attach a display-only `cross_chat_bridge` block (thread id, direction,
+    # counterpart chat id + title) without a query per message.
+    def preload_cross_chat_bridges(messages)
+      bridge_messages = messages.select { |message| bridge_thread_id(message) }
+      return if bridge_messages.empty?
+
+      thread_ids = bridge_messages.filter_map { |message| bridge_thread_id(message) if closure_notice?(message) }.uniq
+      @bridge_threads_by_id = thread_ids.any? ? ChatBridgeThread.where(id: thread_ids).index_by(&:id) : {}
+
+      counterpart_ids = bridge_messages.filter_map { |message| counterpart_chat_session_id(message) }.uniq
+      @chat_titles_by_id = counterpart_ids.any? ? ChatSession.where(id: counterpart_ids).pluck(:id, :title).to_h : {}
+    end
+
     def message_json(message)
       text = text_from_content(message)
       payload = {
@@ -99,6 +119,8 @@ module App
       payload[:parent_tool_use_id] = message.parent_tool_use_id if message.parent_tool_use_id.present?
       payload[:proposal] = proposal_json(message.proposal, chat_session: message.chat_session) if message.proposal_id.present?
       payload[:pending_action] = pending_action_json(message.pending_action, chat_session: message.chat_session) if message.pending_action_id.present?
+      bridge = cross_chat_bridge_json(message)
+      payload[:cross_chat_bridge] = bridge if bridge
 
       payload
     end
@@ -124,6 +146,55 @@ module App
         exit_status: shell_command.exit_status,
         started_at: shell_command.started_at&.iso8601,
         finished_at: shell_command.finished_at&.iso8601
+      }
+    end
+
+    def bridge_thread_id(message)
+      return nil unless message.content.is_a?(Hash)
+
+      message.content["bridge_thread_id"] || message.content["thread_id"]
+    end
+
+    # An outbound message and the inbound wakeup-delivered message both carry
+    # their own counterpart id directly; only the hop-limit closure notice
+    # (posted identically to both sides of the thread) needs the thread record
+    # to work out which side is "the other chat" relative to this message.
+    def closure_notice?(message)
+      content = message.content
+      content.is_a?(Hash) && content["cross_chat_bridge"] != "outbound" && content["requested_by"] != "cross_chat"
+    end
+
+    def counterpart_chat_session_id(message)
+      content = message.content
+      return content["target_chat_session_id"] if content["cross_chat_bridge"] == "outbound"
+      return content["origin_chat_session_id"] if content["requested_by"] == "cross_chat"
+
+      thread = @bridge_threads_by_id[bridge_thread_id(message)]
+      return nil unless thread
+
+      thread.origin_chat_session_id == message.chat_session_id ? thread.target_chat_session_id : thread.origin_chat_session_id
+    end
+
+    def cross_chat_bridge_json(message)
+      thread_id = bridge_thread_id(message)
+      return nil unless thread_id
+
+      counterpart_id = counterpart_chat_session_id(message)
+      return nil unless counterpart_id
+
+      direction = if message.content["cross_chat_bridge"] == "outbound"
+        "outbound"
+      elsif message.content["requested_by"] == "cross_chat"
+        "inbound"
+      else
+        "closed"
+      end
+
+      {
+        thread_id: thread_id,
+        direction: direction,
+        counterpart_chat_session_id: counterpart_id,
+        counterpart_chat_title: @chat_titles_by_id[counterpart_id]
       }
     end
 

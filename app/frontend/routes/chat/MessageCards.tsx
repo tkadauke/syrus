@@ -70,6 +70,14 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
               <span>{t("walkthrough_shared_chip")}</span>
             </div>
           ) : null}
+          {item.cross_chat_bridge && item.cross_chat_bridge.direction === "inbound" ? (
+            <div className="flex items-center justify-end gap-2 text-xs text-gray-500 dark:text-gray-400" data-testid="cross-chat-bridge-chip">
+              <span aria-hidden="true">🔗</span>
+              <Link className="underline hover:no-underline" to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}>
+                {t("cross_chat_bridge_link", { id: item.cross_chat_bridge.counterpart_chat_session_id, title: item.cross_chat_bridge.counterpart_chat_title || t("new_title") })}
+              </Link>
+            </div>
+          ) : null}
           {item.chat_shell_command ? <ShellCommandCard shellCommand={item.chat_shell_command} /> : null}
           {item.text.trim().length > 0 ? (
             <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />

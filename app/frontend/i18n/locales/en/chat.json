@@ -17,6 +17,7 @@
   "view_only": "View only",
   "no_shared_chat_messages": "This shared chat has no messages.",
   "chat_settings": "Chat settings",
+  "cross_chat_bridge_link": "via Chat #{{id}}: {{title}}",
   "mode_label": "Mode",
   "mode_planning": "Planning",
   "mode_coding": "Coding",

@@ -777,6 +777,78 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:media_ids)).to eq([])
   end
 
+  describe "cross_chat_bridge" do
+    let(:origin_chat) { ChatSession.create!(user: user, title: "Origin planning") }
+    let(:target_chat) { ChatSession.create!(user: user, title: "Target debugging") }
+    let(:thread) do
+      ChatBridgeThread.create!(
+        origin_chat_session: origin_chat,
+        target_chat_session: target_chat,
+        opened_by_user: user,
+        max_hops: 6
+      )
+    end
+
+    it "marks the outbound message with the target chat's id and title" do
+      result = ChatSession::CrossChatMessage.new(thread: thread, text: "check on JOB-1").deliver!
+
+      payload = described_class.messages([ result.fetch(:outbound_message) ], repository: nil).first
+
+      expect(payload.fetch(:cross_chat_bridge)).to eq(
+        thread_id: thread.id,
+        direction: "outbound",
+        counterpart_chat_session_id: target_chat.id,
+        counterpart_chat_title: "Target debugging"
+      )
+    end
+
+    it "marks the inbound wakeup-delivered message with the origin chat's id and title" do
+      ChatSession::CrossChatMessage.new(thread: thread, text: "check on JOB-1").deliver!
+      inbound_message = ChatSession::WakeupTurn.new(ChatWakeup.last).run
+
+      payload = described_class.messages([ inbound_message ], repository: nil).first
+
+      expect(payload.fetch(:cross_chat_bridge)).to eq(
+        thread_id: thread.id,
+        direction: "inbound",
+        counterpart_chat_session_id: origin_chat.id,
+        counterpart_chat_title: "Origin planning"
+      )
+    end
+
+    it "resolves the counterpart chat on both sides of an auto-closed thread's closure notice" do
+      thread.update!(max_hops: 1)
+      ChatSession::CrossChatMessage.new(thread: thread, text: "final hop").deliver!
+
+      origin_notice = origin_chat.messages.order(:id).last
+      target_notice = target_chat.messages.order(:id).last
+
+      origin_payload = described_class.messages([ origin_notice ], repository: nil).first
+      target_payload = described_class.messages([ target_notice ], repository: nil).first
+
+      expect(origin_payload.fetch(:cross_chat_bridge)).to eq(
+        thread_id: thread.id,
+        direction: "closed",
+        counterpart_chat_session_id: target_chat.id,
+        counterpart_chat_title: "Target debugging"
+      )
+      expect(target_payload.fetch(:cross_chat_bridge)).to eq(
+        thread_id: thread.id,
+        direction: "closed",
+        counterpart_chat_session_id: origin_chat.id,
+        counterpart_chat_title: "Origin planning"
+      )
+    end
+
+    it "omits cross_chat_bridge for an ordinary message" do
+      message = chat.messages.create!(role: "user", content: { "text" => "Hello." })
+
+      payload = described_class.messages([ message ], repository: repository).first
+
+      expect(payload).not_to have_key(:cross_chat_bridge)
+    end
+  end
+
   def capture_sql
     queries = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
