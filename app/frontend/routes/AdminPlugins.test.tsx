@@ -704,6 +704,141 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("No routes declared.")).toBeInTheDocument()
   })
 
+  it("reloads the page after disabling a plugin from the detail page", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/disable") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ plugins: [] }))
+      }
+      return Promise.resolve(jsonResponse({
+        plugin: {
+          name: "terminal",
+          display_name: "Terminal",
+          disable_blockers: [],
+          disableable: true,
+          version: "1.0.0",
+          enabled: true,
+          default_enabled: false,
+          description: null,
+          docs: [],
+          metrics: [],
+          routes: [],
+          config_schema: [],
+          extension_points: []
+        }
+      }))
+    })
+
+    renderDetailRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disable" }))
+
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled())
+  })
+
+  it("reloads the page after enabling a plugin from the detail page", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/enable") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ plugins: [] }))
+      }
+      return Promise.resolve(jsonResponse({
+        plugin: {
+          name: "terminal",
+          display_name: "Terminal",
+          disable_blockers: [],
+          disableable: true,
+          version: "1.0.0",
+          enabled: false,
+          default_enabled: false,
+          description: null,
+          docs: [],
+          metrics: [],
+          routes: [],
+          config_schema: [],
+          extension_points: []
+        }
+      }))
+    })
+
+    renderDetailRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Enable" }))
+
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled())
+  })
+
+  it("shows a cascade confirmation on the detail page instead of reloading when the plugin has enabled dependents", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/disable") && init?.method === "POST") {
+        const body = init?.body ? JSON.parse(String(init.body)) : {}
+        if (body.confirm_cascade) {
+          return Promise.resolve(jsonResponse({ plugins: [] }))
+        }
+        return Promise.resolve(jsonResponse({
+          requires_confirmation: true,
+          plugin_name: "ruby",
+          dependents: [ "rails" ]
+        }))
+      }
+      return Promise.resolve(jsonResponse({
+        plugin: {
+          name: "ruby",
+          display_name: "Ruby",
+          disable_blockers: [],
+          disableable: true,
+          version: "1.0.0",
+          enabled: true,
+          default_enabled: true,
+          description: null,
+          docs: [],
+          metrics: [],
+          routes: [],
+          config_schema: [],
+          extension_points: []
+        }
+      }))
+    })
+
+    renderDetailRoute("/admin/plugins/ruby")
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disable" }))
+
+    expect(await screen.findByText("Other enabled plugins depend on this one")).toBeInTheDocument()
+    expect(screen.getByText("rails")).toBeInTheDocument()
+    expect(reloadMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Disable all" }))
+
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled())
+  })
+
+  it("disables the detail page's disable button with a tooltip when the plugin is in use", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugin: {
+        name: "claude_agent",
+        display_name: "Claude Agent",
+        disable_blockers: [{ kind: "open_jobs", label: "Open jobs use Claude Code", count: 27 }],
+        disableable: true,
+        version: "0.1.0",
+        enabled: true,
+        default_enabled: true,
+        description: null,
+        docs: [],
+        metrics: [],
+        routes: [],
+        config_schema: [],
+        extension_points: []
+      }
+    }))
+
+    renderDetailRoute("/admin/plugins/claude_agent")
+
+    await screen.findByRole("heading", { name: "Claude Agent" })
+    const tooltipWrapper = screen.getByTitle("Open jobs use Claude Code: 27")
+    expect(within(tooltipWrapper).getByRole("button", { name: "Disable" })).toBeDisabled()
+    expect(screen.getByText("Usage")).toBeInTheDocument()
+    expect(screen.getByText("Open jobs use Claude Code: 27")).toBeInTheDocument()
+  })
+
   it("shows why a disabled plugin is worth enabling, with the evidence behind it", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
