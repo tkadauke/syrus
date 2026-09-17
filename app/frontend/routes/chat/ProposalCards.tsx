@@ -2,7 +2,7 @@ import type { ChatQueryKey } from "./constants"
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
 import type { FormEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react"
 import { useCallback, useEffect, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
 import {
@@ -46,7 +46,7 @@ import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
-import { appendSearch, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
+import { appendSearch, jobsTabVisible, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
 import {
   pendingActionBadgeLabel,
   pendingActionGroupTerminalLabel,
@@ -495,16 +495,17 @@ export function ProposalCard({
   proposal,
   prefix,
   queryKey,
-  onNotice
+  onNotice,
+  onSelectWorkspaceTab
 }: {
   proposal: ChatProposal
   prefix: string
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
+  onSelectWorkspaceTab?: () => void
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const search = queryKey[2]
   const [editingProposal, setEditingProposal] = useState<EditableProposal | null>(null)
   const childJobCount = proposal.children?.length || 0
@@ -524,15 +525,21 @@ export function ProposalCard({
       return input.action === "confirm" ? confirmChatProposal(path, { start: input.start, route_to_backlog: input.routeToBacklog }) : rejectChatProposal(path)
     },
     onSuccess: (updated, variables) => {
-      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated, queryKey[1]))
+      const jobsTabAlreadyVisible = payload ? jobsTabVisible(payload) : false
+      const shouldSelectJobsTab = variables.action === "confirm" && (proposalCreatesJob(proposal) || proposal.kind === "epic") && !jobsTabAlreadyVisible
+
+      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => {
+        const next = applyProposalActionResult(current, updated, queryKey[1])
+        // The confirm response doesn't carry updated chat.confirmed_proposal_count
+        // (the real count only arrives via a later, separate refetch), so without
+        // this the "jobs" tab wouldn't be in availableTabs yet and ChatWorkspace's
+        // own guard effect would immediately revert the tab switch below.
+        if (!next || !shouldSelectJobsTab) return next
+        return { ...next, chat: { ...next.chat, confirmed_proposal_count: (next.chat.confirmed_proposal_count ?? 0) + 1 } }
+      })
       onNotice(updated.message || null)
 
-      if (variables.action === "confirm" && (proposalCreatesJob(proposal) || proposal.kind === "epic")) {
-        const seenTours = currentUser?.seen_tours
-        if (Array.isArray(seenTours) && !seenTours.includes("dashboard")) {
-          navigate(withRoutePrefix("/dashboard/jobs", prefix))
-        }
-      }
+      if (shouldSelectJobsTab) onSelectWorkspaceTab?.()
     }
   })
 
