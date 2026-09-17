@@ -310,3 +310,20 @@ RSpec.describe Metrics::MaintenanceSampler do
     end
   end
 end
+
+RSpec.describe Metrics::MaintenanceSource do
+  describe "#provider_sessions_bytes" do
+    it "uses MySQL table metadata instead of scanning transcript text" do
+      connection = instance_double(
+        ActiveRecord::ConnectionAdapters::AbstractAdapter,
+        adapter_name: "Mysql2"
+      )
+
+      allow(ProviderSession).to receive(:connection).and_return(connection)
+      allow(ProviderSession).to receive(:sum).and_raise("should not scan provider_sessions transcripts")
+      expect(connection).to receive(:select_value).with(/information_schema\.TABLES/).and_return(12_345)
+
+      expect(described_class.new.provider_sessions_bytes).to eq(12_345)
+    end
+  end
+end

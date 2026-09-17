@@ -57,8 +57,7 @@ module Metrics
                        "that stops succeeding grows this instead of vanishing (GLOBAL -- aggregate with " \
                        "max by, never sum)"
         gauge :provider_sessions_bytes,
-              comment: "Total transcript_jsonl bytes across all provider_sessions rows (GLOBAL -- " \
-                       "aggregate with max by, never sum)"
+              comment: "Approximate provider_sessions storage bytes (GLOBAL -- aggregate with max by, never sum)"
         gauge :provider_sessions_rows,
               comment: "Total provider_sessions row count (GLOBAL -- aggregate with max by, never sum)"
         counter :auto_retry_attempts_total, tags: %i[skip_reason],
