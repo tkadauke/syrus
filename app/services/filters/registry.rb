@@ -78,6 +78,7 @@ module Filters
       "parent_job_id"                 => "Filters::Chips::Jobs::ParentJobId",
 
       # Strings (free-text)
+      "search"                        => "Filters::Chips::Jobs::Search",
       "title"                         => "Filters::Chips::Jobs::Title",
       "description"                   => "Filters::Chips::Jobs::Description",
       "branch_name"                   => "Filters::Chips::Jobs::BranchName",
