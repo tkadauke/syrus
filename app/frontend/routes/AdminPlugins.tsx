@@ -105,36 +105,16 @@ function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFilter
 function PluginCard({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
   const navigate = useNavigate()
-  const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
-  const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation, unknown, boolean | undefined>({
-    mutationFn: (confirmCascade) => (plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name)),
-    onSuccess: (data) => {
-      if ("requires_confirmation" in data && data.requires_confirmation) {
-        setPendingCascade(data)
-        return
-      }
-      if (!plugin.enabled) {
-        navigate(`/admin/plugins/${encodeURIComponent(plugin.name)}`)
-        return
-      }
+  const dependsOn = plugin.depends_on || []
+  const dependents = plugin.dependents || []
+  const toggleState = usePluginToggle(plugin, (nowEnabled) => {
+    if (nowEnabled) {
+      navigate(`/admin/plugins/${encodeURIComponent(plugin.name)}`)
+    } else {
       pageReload.reloadPage()
     }
   })
-  const disableBlockers = plugin.disable_blockers || []
-  const disableBlocked = plugin.enabled && disableBlockers.length > 0
-  const dependsOn = plugin.depends_on || []
-  const dependents = plugin.dependents || []
-
-  let disableTooltip: string | undefined
-  if (plugin.enabled && !plugin.disableable) {
-    disableTooltip = t("plugins.required")
-  } else if (disableBlocked) {
-    if (disableBlockers.length === 1) {
-      disableTooltip = `${disableBlockers[0].label}: ${disableBlockers[0].count}`
-    } else {
-      disableTooltip = t("plugins.disable_blocked_tooltip_many")
-    }
-  }
+  const { disableBlocked, disableBlockers } = toggleState
 
   return (
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -181,41 +161,14 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
               <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
             </p>
           ) : null}
-          {toggle.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(toggle.error, t("plugins.error_toggle"))}</p> : null}
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
           <Link className={buttonClasses("secondary")} to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>{t("plugins.details")}</Link>
-          <span title={disableTooltip}>
-            <Button
-              disabled={toggle.isPending || (plugin.enabled && (!plugin.disableable || disableBlocked))}
-              onClick={() => toggle.mutate(undefined)}
-              variant="secondary"
-            >
-              {toggle.isPending ? t("plugins.saving") : plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
-            </Button>
-          </span>
+          <PluginToggleButton plugin={plugin} state={toggleState} />
         </div>
       </div>
 
-      {pendingCascade ? (
-        <div className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950">
-          <p className="font-medium text-amber-900 dark:text-amber-200">{t("plugins.cascade_confirm_heading")}</p>
-          <p className="mt-1 text-amber-800 dark:text-amber-300">{t("plugins.cascade_confirm_body")}</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-800 dark:text-amber-300">
-            {pendingCascade.dependents.map((name) => (
-              <li key={name}>{name}</li>
-            ))}
-          </ul>
-          <div className="mt-3 flex gap-2">
-            <Button disabled={toggle.isPending} onClick={() => toggle.mutate(true)} variant="danger">
-              {toggle.isPending ? t("plugins.saving") : t("plugins.cascade_confirm_cta")}
-            </Button>
-            <Button disabled={toggle.isPending} onClick={() => setPendingCascade(null)} variant="secondary">
-              {t("plugins.cascade_cancel")}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      <PluginCascadeConfirmation state={toggleState} />
 
       {disableBlocked ? (
         <details className="mt-4">
@@ -233,6 +186,82 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
       ) : null}
 
     </article>
+  )
+}
+
+function usePluginToggle(plugin: AdminPlugin, onToggled: (nowEnabled: boolean) => void) {
+  const { t } = useT("admin")
+  const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
+  const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation, unknown, boolean | undefined>({
+    mutationFn: (confirmCascade) => (plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name)),
+    onSuccess: (data) => {
+      if ("requires_confirmation" in data && data.requires_confirmation) {
+        setPendingCascade(data)
+        return
+      }
+      onToggled(!plugin.enabled)
+    }
+  })
+  const disableBlockers = plugin.disable_blockers || []
+  const disableBlocked = plugin.enabled && disableBlockers.length > 0
+
+  let disableTooltip: string | undefined
+  if (plugin.enabled && !plugin.disableable) {
+    disableTooltip = t("plugins.required")
+  } else if (disableBlocked) {
+    disableTooltip = disableBlockers.length === 1
+      ? `${disableBlockers[0].label}: ${disableBlockers[0].count}`
+      : t("plugins.disable_blocked_tooltip_many")
+  }
+
+  return { toggle, pendingCascade, setPendingCascade, disableTooltip, disableBlocked, disableBlockers }
+}
+
+type PluginToggleState = ReturnType<typeof usePluginToggle>
+
+function PluginToggleButton({ plugin, state }: { plugin: AdminPlugin; state: PluginToggleState }) {
+  const { t } = useT("admin")
+  const { toggle, disableTooltip, disableBlocked } = state
+
+  return (
+    <div>
+      <span title={disableTooltip}>
+        <Button
+          disabled={toggle.isPending || (plugin.enabled && (!plugin.disableable || disableBlocked))}
+          onClick={() => toggle.mutate(undefined)}
+          variant="secondary"
+        >
+          {toggle.isPending ? t("plugins.saving") : plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
+        </Button>
+      </span>
+      {toggle.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(toggle.error, t("plugins.error_toggle"))}</p> : null}
+    </div>
+  )
+}
+
+function PluginCascadeConfirmation({ state }: { state: PluginToggleState }) {
+  const { t } = useT("admin")
+  const { pendingCascade, setPendingCascade, toggle } = state
+  if (!pendingCascade) return null
+
+  return (
+    <div className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950">
+      <p className="font-medium text-amber-900 dark:text-amber-200">{t("plugins.cascade_confirm_heading")}</p>
+      <p className="mt-1 text-amber-800 dark:text-amber-300">{t("plugins.cascade_confirm_body")}</p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-800 dark:text-amber-300">
+        {pendingCascade.dependents.map((name) => (
+          <li key={name}>{name}</li>
+        ))}
+      </ul>
+      <div className="mt-3 flex gap-2">
+        <Button disabled={toggle.isPending} onClick={() => toggle.mutate(true)} variant="danger">
+          {toggle.isPending ? t("plugins.saving") : t("plugins.cascade_confirm_cta")}
+        </Button>
+        <Button disabled={toggle.isPending} onClick={() => setPendingCascade(null)} variant="secondary">
+          {t("plugins.cascade_cancel")}
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -259,6 +288,9 @@ function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
 function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
   const visibleLinks = (plugin.links || []).filter((link) => plugin.enabled || link.enabled_only === false)
+  const disableBlockers = plugin.disable_blockers || []
+  const disableBlocked = plugin.enabled && disableBlockers.length > 0
+  const toggleState = usePluginToggle(plugin, () => pageReload.reloadPage())
 
   return (
     <>
@@ -285,8 +317,26 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
               </p>
             ) : null}
           </div>
-          <PluginMetadata plugin={plugin} />
+          <div className="flex shrink-0 flex-col items-start gap-3 md:items-end">
+            <PluginToggleButton plugin={plugin} state={toggleState} />
+            <PluginMetadata plugin={plugin} />
+          </div>
         </div>
+        <PluginCascadeConfirmation state={toggleState} />
+        {disableBlocked ? (
+          <details className="mt-4">
+            <summary className="cursor-pointer select-none text-xs font-medium uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+              {t("plugins.usage_heading")}
+            </summary>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-700 dark:text-amber-300">
+              {disableBlockers.map((blocker) => (
+                <li key={`${blocker.kind}-${blocker.label}`}>
+                  {blocker.label}: {blocker.count}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
         {visibleLinks.length > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {visibleLinks.map((link) => (
