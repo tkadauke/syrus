@@ -1,6 +1,6 @@
 "use strict"
 
-const { relativePath, allowedCount, isTestFile, endsWithAny } = require("./rule-utils")
+const { relativePath, allowedCount, isTestFile, endsWithAny, reportBeyondBaseline } = require("./rule-utils")
 
 const RULE_KEY = "no-raw-form-elements"
 const EXEMPT_BASENAMES = ["Input.tsx", "Select.tsx", "Checkbox.tsx", "Toggle.tsx"]
@@ -27,16 +27,10 @@ module.exports = {
     return {
       JSXOpeningElement(node) {
         const tag = node.name.type === "JSXIdentifier" ? node.name.name : null
-        if (tag && FORBIDDEN_TAGS.has(tag)) matches.push({ node, tag })
+        if (tag && FORBIDDEN_TAGS.has(tag)) matches.push({ node, tag, primitive: tag === "input" ? "Input" : "Select" })
       },
       "Program:exit"() {
-        for (const { node, tag } of matches.slice(allowed)) {
-          context.report({
-            node,
-            messageId: "forbidden",
-            data: { tag, primitive: tag === "input" ? "Input" : "Select" }
-          })
-        }
+        reportBeyondBaseline(context, matches, allowed, "forbidden")
       }
     }
   }

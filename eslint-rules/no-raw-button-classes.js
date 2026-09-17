@@ -1,6 +1,6 @@
 "use strict"
 
-const { relativePath, allowedCount, isTestFile, endsWithAny, classNameCandidates } = require("./rule-utils")
+const { relativePath, allowedCount, isTestFile, endsWithAny, classNameCandidates, reportBeyondBaseline } = require("./rule-utils")
 
 const RULE_KEY = "no-raw-button-classes"
 const EXEMPT_BASENAMES = ["Button.tsx"]
@@ -60,9 +60,7 @@ module.exports = {
         }
       },
       "Program:exit"() {
-        for (const { node, tag, variant } of matches.slice(allowed)) {
-          context.report({ node, messageId: "forbidden", data: { tag, variant } })
-        }
+        reportBeyondBaseline(context, matches, allowed, "forbidden")
       }
     }
   }

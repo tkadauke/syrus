@@ -1,9 +1,9 @@
 "use strict"
 
-// Design-system lint ratchet (the design-system lint ratchet). This config intentionally does not
-// pull in eslint:recommended or any framework preset -- it exists solely to
-// run the three local design-system rules under eslint-rules/. Broader
-// linting is a separate concern for a future job.
+// Design-system lint ratchet. This config intentionally does not pull in
+// eslint:recommended or any framework preset -- it exists solely to run the
+// local design-system rules under eslint-rules/. Broader linting is a
+// separate concern for a future job.
 const tsParser = require("@typescript-eslint/parser")
 const tsPlugin = require("@typescript-eslint/eslint-plugin")
 const reactHooksPlugin = require("eslint-plugin-react-hooks")
@@ -31,14 +31,22 @@ const basePlugins = {
 
 module.exports = [
   {
-    // Rules 1 & 2 (raw form elements, duplicated button classes) apply
-    // across all first-party and plugin frontend code, per the issue scope.
+    // Broadly-scoped rules apply across all first-party and plugin frontend
+    // code: raw form elements, duplicated button classes (original ratchet
+    // scope), plus raw gray/status colors, repeated panel shells, raw table
+    // cell/header markup, and excessive class strings (graduated from the
+    // report-only style_debt/ rules by the DOC-27 ratchet-extension job --
+    // see config/syrus_docs/style_debt_report.md).
     files: ["app/frontend/**/*.{ts,tsx}", "plugins/*/app/frontend/**/*.{ts,tsx}"],
     languageOptions: jsxLanguageOptions,
     plugins: basePlugins,
     rules: {
       "design-system/no-raw-form-elements": "error",
-      "design-system/no-raw-button-classes": "error"
+      "design-system/no-raw-button-classes": "error",
+      "design-system/no-raw-status-colors": "error",
+      "design-system/no-panel-shell-repeats": "error",
+      "design-system/no-raw-table-classes": "error",
+      "design-system/no-long-class-strings": "error"
     }
   },
   {
