@@ -17,7 +17,8 @@ module.exports = {
     },
     schema: [],
     messages: {
-      forbidden: "className is {{length}} characters long ({{threshold}}+ usually means several design decisions are being restated on one DOM node) -- consider composing a primitive instead."
+      forbidden:
+        "className is {{length}} characters long ({{threshold}}+ usually means several design decisions are being restated on one DOM node) -- consider composing a primitive instead."
     }
   },
   create(context) {

@@ -39,7 +39,8 @@ module.exports = {
     },
     schema: [],
     messages: {
-      forbidden: "Use the <Button variant=\"{{variant}}\"> primitive from app/frontend/components/Button.tsx instead of hand-rolling this {{variant}}-button className on <{{tag}}>."
+      forbidden:
+        'Use the <Button variant="{{variant}}"> primitive from app/frontend/components/Button.tsx instead of hand-rolling this {{variant}}-button className on <{{tag}}>.'
     }
   },
   create(context) {
@@ -54,7 +55,7 @@ module.exports = {
         const tag = node.name.type === "JSXIdentifier" ? node.name.name : null
         if (!tag || !FORBIDDEN_TAGS.has(tag)) return
         const candidates = classNameCandidates(node)
-        const matched = BUTTON_PATTERNS.find(({ pattern }) => candidates.some(candidate => pattern.test(candidate)))
+        const matched = BUTTON_PATTERNS.find(({ pattern }) => candidates.some((candidate) => pattern.test(candidate)))
         if (matched) {
           matches.push({ node, tag, variant: matched.variant })
         }

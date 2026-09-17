@@ -47,7 +47,7 @@ function isTestFile(relative) {
 }
 
 function endsWithAny(relative, basenames) {
-  return basenames.some(basename => relative.endsWith(`/${basename}`) || relative === basename)
+  return basenames.some((basename) => relative.endsWith(`/${basename}`) || relative === basename)
 }
 
 function isGeneratedFile(relative) {
@@ -77,11 +77,7 @@ const DESIGN_SYSTEM_BASENAMES = [
 // Documented exceptions called out in the epic scan: these render
 // user-facing color *pickers*, where a raw color utility is a literal color
 // choice being offered to the user, not a design-system styling decision.
-const DOCUMENTED_EXCEPTIONS = [
-  "app/frontend/components/ImageAnnotationModal.tsx",
-  "app/frontend/lib/syntaxHighlight.tsx",
-  "app/frontend/routes/Tags.tsx"
-]
+const DOCUMENTED_EXCEPTIONS = ["app/frontend/components/ImageAnnotationModal.tsx", "app/frontend/lib/syntaxHighlight.tsx", "app/frontend/routes/Tags.tsx"]
 
 function isDesignSystemFile(relative) {
   return relative.startsWith(DESIGN_SYSTEM_DIR_PREFIX) || endsWithAny(relative, DESIGN_SYSTEM_BASENAMES)
@@ -138,7 +134,7 @@ function collectStringLiterals(node, out = []) {
 
 function classNameCandidates(jsxOpeningElement) {
   const attribute = jsxOpeningElement.attributes.find(
-    attr => attr.type === "JSXAttribute" && attr.name && (attr.name.name === "className" || attr.name.name === "class")
+    (attr) => attr.type === "JSXAttribute" && attr.name && (attr.name.name === "className" || attr.name.name === "class")
   )
   if (!attribute || !attribute.value) return []
   if (attribute.value.type === "Literal" && typeof attribute.value.value === "string") return [attribute.value.value]
