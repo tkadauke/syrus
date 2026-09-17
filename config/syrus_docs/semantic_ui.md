@@ -79,9 +79,12 @@ validation pass:
   `test_insights`, `git_history`, `agent_activity`, `mysql_db_browser`,
   `theming_tools`, `k8s_cluster`, and others).
 - The enforced ESLint ratchet (see below) blocks *new* raw form elements,
-  hand-rolled button classes, legacy `blue-*`/`terracotta-*` tokens, raw
-  gray/status colors, repeated panel shells, raw table markup, and long
-  class strings, everywhere in `app/frontend` and `plugins/*/app/frontend`.
+  hand-rolled button classes, raw gray/status colors, repeated panel
+  shells, raw table markup, and long class strings everywhere in
+  `app/frontend` and `plugins/*/app/frontend`; a seventh rule blocks new
+  legacy `blue-*`/`terracotta-*` tokens, scoped to the `lib`, `routes`, and
+  `components` subdirectories (and their plugin equivalents) rather than
+  every file.
 - Remaining, tracked-but-not-yet-enforced debt: `bin/style-debt-report`'s
   one still-open category, `plugin-ui-imports` (a plugin file rendering 8+
   JSX elements with no `@app/components/ui` import), currently flags 30
@@ -220,7 +223,7 @@ Concretely, as validated by this pass:
   globally through the same primitives, with no call-site changes.
 - **The ratchet prevents regression** — `frontend-lint` (wired into
   review/landing/CI) fails on any new violation beyond each file's
-  checked-in baseline, across six enforced rules.
+  checked-in baseline, across seven enforced rules.
 
 Remaining low-level styling is either grandfathered pre-existing debt
 tracked by the baseline (shrinking as later migrations touch those files)
