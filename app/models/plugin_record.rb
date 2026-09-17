@@ -17,17 +17,34 @@ class PluginRecord < ApplicationRecord
   # db/migrate/20260814142224_add_search_fields_to_plugin_records.rb);
   # sqlite (dev/test) falls back to a LIKE scan since it has no FULLTEXT
   # index type.
+  #
+  # BOOLEAN MODE with a trailing wildcard per word, rather than the default
+  # natural-language mode, because plugin `name`s are underscore_separated
+  # (a word character to MySQL's built-in parser, so "video_walkthroughs" is
+  # ONE indexed token) and `display_name`s use plain-English surface forms
+  # ("Walkthrough Videos"). Natural-language mode only matches whole tokens,
+  # so searching "video" matched neither the "video_walkthroughs" token nor
+  # the plural "videos" token. A trailing "*" makes each word a prefix match
+  # instead, so "video*" matches both.
   def self.search(query)
     query = query.to_s.strip
     return all if query.blank?
 
     if connection.adapter_name.downcase.include?("mysql")
-      where("MATCH(#{SEARCH_COLUMNS.join(', ')}) AGAINST (?)", query)
+      boolean_query = boolean_prefix_query(query)
+      return none if boolean_query.blank?
+
+      where("MATCH(#{SEARCH_COLUMNS.join(', ')}) AGAINST (? IN BOOLEAN MODE)", boolean_query)
     else
       like = "%#{sanitize_sql_like(query)}%"
       where(SEARCH_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }.join(" OR "), *[ like ] * SEARCH_COLUMNS.size)
     end
   end
+
+  def self.boolean_prefix_query(query)
+    query.scan(/[[:alnum:]_]+/).map { |word| "+#{word}*" }.join(" ")
+  end
+  private_class_method :boolean_prefix_query
 
   # Installation means the gem's engine registered during this boot. Enabling and
   # disabling installed plugins takes effect for new requests because registry
