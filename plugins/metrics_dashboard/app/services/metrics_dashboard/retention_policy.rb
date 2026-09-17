@@ -18,7 +18,8 @@ module MetricsDashboard
           unit: :days,
           job_class: "MetricsDashboard::PruneJob",
           description: "One-minute-resolution metric series samples backing the Metrics Dashboard plugin.",
-          category: "Plugins"
+          category: "Plugins",
+          archivable: false
         )
       ]
     end

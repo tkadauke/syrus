@@ -9,7 +9,9 @@ class RunDiagnosticPruneJob < ApplicationJob
   # retention is plenty for triaging an incident a couple days
   # later but doesn't let the table balloon unbounded.
   def perform
-    n = RunDiagnostic.prunable.delete_all
+    scope = RunDiagnostic.prunable
+    RetentionArchiver.call(retention_key: :run_diagnostic, scope: scope, cutoff: RunDiagnostic.retention_cutoff)
+    n = scope.delete_all
     Rails.logger.info("[RunDiagnosticPruneJob] deleted #{n} run_diagnostics") if n > 0
   end
 end

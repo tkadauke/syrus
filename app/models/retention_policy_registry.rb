@@ -27,10 +27,17 @@ class RetentionPolicyRegistry
     :unit,
     :job_class,
     :description,
-    :category
+    :category,
+    :archivable
   ) do
     def model_class
       model.constantize
+    end
+
+    # AppSetting column/accessor name for this entry's archive-before-delete
+    # opt-in. Only meaningful when `archivable` is true.
+    def archive_setting_key
+      :"#{key}_archive_before_delete"
     end
 
     def as_json(*)
@@ -45,7 +52,8 @@ class RetentionPolicyRegistry
         unit: unit.to_s,
         job_class: job_class,
         description: description,
-        category: category
+        category: category,
+        archivable: archivable
       }
     end
 
@@ -66,6 +74,27 @@ class RetentionPolicyRegistry
         secret: false
       )
     end
+
+    # Folds the archive-before-delete boolean into AppSettingRegistry.definitions
+    # the same way as_app_setting_definition folds the retention window in.
+    # nil for a non-archivable entry, so RetentionArchiver has nothing to opt
+    # into and no AppSetting column is expected to exist for it.
+    def as_archive_app_setting_definition
+      return nil unless archivable
+
+      AppSettingRegistry::Definition.new(
+        key: archive_setting_key,
+        type: :boolean,
+        default: false,
+        category: "Data retention",
+        operational_meaning: "When enabled, #{table_name} rows are serialized and archived to Active Storage before #{job_class} deletes them.",
+        min: nil,
+        max: nil,
+        zero_means: nil,
+        admin_editable: true,
+        secret: false
+      )
+    end
   end
 
   CORE_DEFINITIONS = [
@@ -80,7 +109,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "RunDiagnosticPruneJob",
       description: "Per-failed-Run diagnostic snapshots (exception backtrace, git/environment snapshot) used for incident triage.",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: true
     ),
     Definition.new(
       key: :run_resource_summary,
@@ -93,7 +123,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "RunResourceSummaryPruneJob",
       description: "Per-Run resource/pressure summaries used for admission control and worker health correlation.",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: false
     ),
     Definition.new(
       key: :worker_host_health_sample,
@@ -106,7 +137,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "WorkerHostHealthSamplePruneJob",
       description: "Per-host CPU/memory/disk/pressure samples used for live and historical worker health.",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: false
     ),
     Definition.new(
       key: :work_engine_reconciler_activity,
@@ -119,7 +151,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "WorkEngineReconcilerActivityPruneJob",
       description: "Append-only WorkEngine::Reconciler activity log (repair detection/planning/execution events).",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: true
     ),
     Definition.new(
       key: :provider_session,
@@ -132,7 +165,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "ProviderSessionPruneJob",
       description: "Captured agent provider sessions for terminal Runs, kept for diagnostics and resume rehydration.",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: true
     ),
     Definition.new(
       key: :spawned_process,
@@ -145,7 +179,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "SpawnedProcessPruneJob",
       description: "Subprocess inventory (agent CLIs, graders, git, prepare) used for the admin Processes list.",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: false
     ),
     Definition.new(
       key: :notification,
@@ -158,7 +193,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "PruneOldNotificationsJob",
       description: "In-app user notifications (Job failed/implemented/merged, Epic status, etc).",
-      category: "Product"
+      category: "Product",
+      archivable: false
     ),
     Definition.new(
       key: :operational_log_event,
@@ -171,7 +207,8 @@ class RetentionPolicyRegistry
       unit: :hours,
       job_class: "PruneOperationalLogsJob",
       description: "Syrus's own operational log index (Rails app logs ingested for self-diagnosis).",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: false
     ),
     Definition.new(
       key: :run_health_snapshot,
@@ -184,7 +221,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "RunHealthSnapshotPruneJob",
       description: "Point-in-time health snapshots recorded during a Run for operator diagnostics.",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: true
     ),
     Definition.new(
       key: :main_branch_health_check,
@@ -197,7 +235,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "MainBranchHealthCheckPruneJob",
       description: "Recorded CI/grader health checks per repository SHA, used for main-branch breakage detection.",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: true
     ),
     Definition.new(
       key: :workflow_step_resource_profile,
@@ -210,7 +249,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: "WorkflowStepResourceProfilePruneJob",
       description: "Per-step-key resource prediction profiles used for admission control; stale profiles are dropped rather than trusted.",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: false
     ),
     Definition.new(
       key: :workflow_step_resource_profile_input,
@@ -223,7 +263,8 @@ class RetentionPolicyRegistry
       unit: :days,
       job_class: nil,
       description: "How far back RunResourceSummary rows are considered as input when rebuilding resource profiles (a lookback window, not a row deletion).",
-      category: "Diagnostics"
+      category: "Diagnostics",
+      archivable: false
     )
   ].freeze
 
@@ -237,6 +278,13 @@ class RetentionPolicyRegistry
 
   def self.fetch(key)
     definitions.index_by(&:key).fetch(key.to_sym)
+  end
+
+  # Every archivable entry's archive-before-delete AppSetting definition,
+  # folded into AppSettingRegistry.definitions alongside the retention-window
+  # ones. Non-archivable entries contribute nothing here.
+  def self.archive_app_setting_definitions
+    definitions.filter_map(&:as_archive_app_setting_definition)
   end
 
   # Syrus::PluginRegistry.all_plugins (not the enabled-filtered

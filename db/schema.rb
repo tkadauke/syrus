@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_17_154938) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_161055) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -180,6 +180,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_154938) do
     t.string "github_app_slug"
     t.integer "grade_max_iterations", default: 5, null: false
     t.string "main_branch_breakage_policy", default: "strict", null: false
+    t.boolean "main_branch_health_check_archive_before_delete", default: false, null: false
     t.integer "main_branch_health_check_retention_days", default: 7, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_concurrent_agent_runs", default: 0, null: false
@@ -193,11 +194,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_154938) do
     t.integer "operational_log_event_retention_hours", default: 6, null: false
     t.boolean "polling_paused", default: false, null: false
     t.integer "proactive_rebase_commit_threshold", default: 20, null: false
+    t.boolean "provider_session_archive_before_delete", default: false, null: false
     t.integer "provider_session_retention_days", default: 14, null: false
     t.integer "rebase_failure_cooldown_minutes", default: 60, null: false
     t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
     t.integer "retention_available_space_override_gb", default: 0, null: false
+    t.boolean "run_diagnostic_archive_before_delete", default: false, null: false
     t.integer "run_diagnostic_retention_days", default: 30, null: false
+    t.boolean "run_health_snapshot_archive_before_delete", default: false, null: false
     t.integer "run_health_snapshot_retention_days", default: 7, null: false
     t.integer "run_resource_summary_retention_days", default: 30, null: false
     t.boolean "runs_paused", default: false, null: false
@@ -211,6 +215,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_154938) do
     t.integer "user_daily_spend_budget_usd", default: 0, null: false
     t.integer "video_retention_days", default: 7, null: false
     t.integer "video_storage_budget_mb", default: 2048, null: false
+    t.boolean "work_engine_reconciler_activity_archive_before_delete", default: false, null: false
     t.integer "work_engine_reconciler_activity_retention_days", default: 7, null: false
     t.integer "worker_host_health_sample_retention_days", default: 7, null: false
     t.datetime "workflow_admission_control_changed_at"
