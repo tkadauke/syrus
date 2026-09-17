@@ -38,7 +38,7 @@ are computed at read time with `rate()`.
 | `syrus_landing_queue_depth` | gauge | `blocked_reason` | no | Approved/landing Jobs by why they are not landing yet, "none" meaning eligible (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_max_concurrent_agent_runs` | gauge | — | no | Configured ceiling on concurrent agent Runs, 0 meaning unlimited, so the dashboard panel shows capacity alongside utilization (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_provider_circuit_state` | gauge | `provider` | no | Circuit state per configured agent provider: 0=closed, 1=open, 2=open (usage limit exhausted) (GLOBAL -- aggregate with max by, never sum) |
-| `syrus_provider_sessions_bytes` | gauge | — | no | Total transcript_jsonl bytes across all provider_sessions rows (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_provider_sessions_bytes` | gauge | — | no | Approximate provider_sessions storage bytes (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_provider_sessions_rows` | gauge | — | no | Total provider_sessions row count (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_queue_completed_total` | counter | — | no | Solid Queue executions that finished -- pairs with syrus_global_queue_ready_count for the queue-starved alert |
 | `syrus_queue_table_rows` | gauge | — | no | Total Solid Queue row count across every table, the table-level companion to syrus_global_queue_orphaned_rows (GLOBAL -- aggregate with max by, never sum) |

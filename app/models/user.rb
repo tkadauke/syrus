@@ -178,8 +178,30 @@ class User < ApplicationRecord
   # same ciphertext under deterministic mode.
   encrypts :api_token, deterministic: true
 
+  # Muse stores its credentials in a JSON document (the ai.meta.dev.credentials
+  # macOS Keychain entry) carrying both the API key and an OAuth access token.
+  # That whole document is what an operator recovering a lost subscription key
+  # has in hand, so accept it and keep only the key -- the access token has no
+  # use here, and pasting the document verbatim is otherwise saved as the key
+  # and rejected by Meta at the first call.
+  normalizes :muse_api_key, with: ->(value) { User.muse_api_key_from(value) }
+
   normalizes :email_address, with: ->(e) { e.strip.downcase }
   normalizes :github_handle, with: ->(h) { h.to_s.delete_prefix("@").strip.presence }
+
+  # Accepts either a bare Muse API key or the JSON credential document, and
+  # answers the key either way. Anything unparseable is returned untouched so a
+  # malformed paste surfaces as a credential-probe failure the operator can read,
+  # rather than being silently blanked here.
+  def self.muse_api_key_from(value)
+    text = value.to_s.strip
+    return text unless text.start_with?("{")
+
+    key = JSON.parse(text)["api_key"]
+    key.is_a?(String) && key.strip.present? ? key.strip : text
+  rescue JSON::ParserError
+    text
+  end
   normalizes :avatar_url, with: ->(value) { value.to_s.strip.presence }
   normalizes :first_name, :last_name, :profile_location, :profile_company, :profile_website,
              with: ->(value) { value.to_s.strip.presence }

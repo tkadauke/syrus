@@ -342,7 +342,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Chat provider | Optional provider override for chat turns: `claude`, `codex`, or `muse`; when blank, chat follows the user's default agent provider |
 | Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; configured on `/credentials` |
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
-| Muse credential | Encrypted Muse API key, passed to Muse Code on stdin for probes and agent runs; configured on `/credentials` |
+| Muse credential | Encrypted Muse API key, passed to Muse Code on stdin for probes and agent runs; created at [ai.developer.meta.com](https://ai.developer.meta.com/) under API keys and configured on `/credentials` |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag; configured on `/settings/agent` |
 | Theme | Light or dark app chrome, toggled from the account area and persisted per user |
 | Scheduling paused | Skips scheduled task firing for that user; configured on `/settings/preferences` |
@@ -355,6 +355,14 @@ secret is saved. GitHub PAT tests call GitHub as the user and report the
 authenticated login plus token scopes. Claude, Codex, and Muse tests run short
 CLI auth probes through the same credential paths used by Jobs and chats, so
 expired or mis-shaped agent credentials surface before a downstream run fails.
+
+Muse keys begin with `LLM|` and are shown only once at creation, with no later
+reveal or rotation. If you signed in with a Muse subscription through `muse
+login` and no longer have the key, recover it from the CLI's own credential
+store -- on macOS that is Keychain Access, item `ai.meta.dev.credentials` -- and
+paste the whole JSON entry into the Muse field; Syrus keeps only the API key
+from it and discards the OAuth token stored alongside. The account login itself
+cannot be used for agent runs, which is why the key is required separately.
 
 For Claude Code, click **Authorize with Claude** in the credentials form,
 approve access in the Claude tab, then paste the short code Claude shows

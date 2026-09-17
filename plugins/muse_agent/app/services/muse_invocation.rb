@@ -8,6 +8,11 @@ class MuseInvocation
   DEFAULT_TRANSCRIPT_POLICY = :redacted_export
   TRANSCRIPT_POLICIES = %i[redacted_export raw_export exec_jsonl].freeze
   STARTUP_ERROR_MAX_BYTES = 4.kilobytes
+  # The image pins the launcher with MUSE_NO_AUTO_UPDATE (see Dockerfile), but
+  # AgentInvocation::ENV_FORWARD does not carry it, so every scrubbed invocation
+  # would otherwise re-enable the launcher's update check -- which stalls startup
+  # and fails writing its timestamp into the read-only /opt/muse/bin.
+  LAUNCHER_ENV = { "MUSE_NO_AUTO_UPDATE" => "1" }.freeze
 
   def initialize(workspace_path, prompt:, api_key:,
                  log_sink: ->(*, **) { },
@@ -166,7 +171,7 @@ class MuseInvocation
   def muse_env(workspace_path, muse_home: nil)
     env = ProcessRunner.forwarded_env(
       AgentInvocation::ENV_FORWARD,
-      extra: WorkspaceDependencyEnv.for(workspace_path)
+      extra: LAUNCHER_ENV.merge(WorkspaceDependencyEnv.for(workspace_path))
     )
     if muse_home.present?
       env["HOME"] = muse_home

@@ -64,7 +64,8 @@ export function CredentialCard({
   error,
   children,
   testId,
-  headingRef
+  headingRef,
+  testFailed
 }: {
   title: string
   connected: boolean
@@ -73,6 +74,9 @@ export function CredentialCard({
   children: ReactNode
   testId: string
   headingRef?: Ref<HTMLHeadingElement>
+  // A saved credential that just failed its probe is not "Connected" -- the pill
+  // said so while the card showed the failure right beneath it.
+  testFailed?: boolean
 }) {
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5" data-testid={testId}>
@@ -85,7 +89,7 @@ export function CredentialCard({
           </h2>
           {description ? <div className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{description}</div> : null}
         </div>
-        <ConnectionPill connected={connected} />
+        <ConnectionPill connected={connected} failed={testFailed} />
       </div>
       {error ? (
         <p className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">
@@ -94,6 +98,24 @@ export function CredentialCard({
       ) : null}
       <div className="mt-4">{children}</div>
     </section>
+  )
+}
+
+// A "?" next to a credential input. The native title carries the one-line form
+// for hover; clicking discloses the full text, which hover alone cannot reach on
+// touch devices or by keyboard.
+function FieldHelpToggle({ label, tooltip, open, onToggle }: { label: string; tooltip: string; open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      aria-expanded={open}
+      aria-label={label}
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-full border border-gray-300 text-xs font-semibold text-gray-500 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800"
+      onClick={onToggle}
+      title={tooltip}
+      type="button"
+    >
+      ?
+    </button>
   )
 }
 
@@ -106,8 +128,15 @@ function useCardFocus() {
   return { headingRef, focusHeading }
 }
 
-function ConnectionPill({ connected }: { connected: boolean }) {
+function ConnectionPill({ connected, failed }: { connected: boolean; failed?: boolean }) {
   const { t } = useT("settings")
+  if (connected && failed) {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-950/60 dark:text-red-300">
+        {t('credential_cards.check_failed')}
+      </span>
+    )
+  }
   return connected ? (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
       <svg aria-hidden="true" className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
@@ -803,6 +832,7 @@ export function MuseCredentialCard({ payload, onNotice }: CardProps) {
   const set = !!payload.credential_status.muse_api_key
   const [editing, setEditing] = useState(false)
   const [apiKey, setApiKey] = useState("")
+  const [helpOpen, setHelpOpen] = useState(false)
   const { headingRef, focusHeading } = useCardFocus()
   const actions = useCredentialActions(onNotice, focusHeading)
   const showEditor = editing || !set
@@ -824,9 +854,23 @@ export function MuseCredentialCard({ payload, onNotice }: CardProps) {
   return (
     <CredentialCard
       connected={set}
-      description={t('credential_cards.muse_description')}
+      description={
+        <>
+          {t('credential_cards.muse_description')}{" "}
+          <a
+            className="font-medium text-brand-emphasis underline hover:text-brand dark:text-brand-emphasis"
+            href="https://ai.developer.meta.com/"
+            rel="noreferrer"
+            target="_blank"
+          >
+            ai.developer.meta.com
+          </a>{" "}
+          {t('credential_cards.muse_description_suffix')}
+        </>
+      }
       error={actions.error}
       headingRef={headingRef}
+      testFailed={actions.testResult?.ok === false}
       testId="credential-card-muse"
       title={t('credential_cards.muse_title')}
     >
@@ -838,10 +882,16 @@ export function MuseCredentialCard({ payload, onNotice }: CardProps) {
               autoComplete="off"
               autoFocus={editing}
               onChange={(event) => setApiKey(event.target.value)}
-              placeholder="muse_..."
+              placeholder="LLM|…"
               spellCheck={false}
               type="password"
               value={apiKey}
+            />
+            <FieldHelpToggle
+              label={t('credential_cards.muse_api_key_help_label')}
+              onToggle={() => setHelpOpen((open) => !open)}
+              open={helpOpen}
+              tooltip={t('credential_cards.muse_api_key_help_tooltip')}
             />
             <button className={secondaryButtonClass()} disabled={apiKey.trim().length === 0 || save.isPending} onClick={() => save.mutate()} type="button">
               {save.isPending ? t('credential_cards.saving') : t('credential_cards.save')}
@@ -859,6 +909,11 @@ export function MuseCredentialCard({ payload, onNotice }: CardProps) {
               </button>
             ) : null}
           </div>
+          {helpOpen ? (
+            <p className="text-xs leading-5 text-gray-500 dark:text-gray-400" data-testid="muse-api-key-help">
+              {t('credential_cards.muse_api_key_help_body')}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-3">

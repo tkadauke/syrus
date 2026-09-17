@@ -27,6 +27,14 @@ Muse process invocation adapter:
 Muse appears as a selectable workflow or chat provider when the plugin is
 enabled and the user has a saved Muse API key.
 
+Keys are created at <https://ai.developer.meta.com/> under **API keys** and
+begin with `LLM|`. The value is shown once and cannot be revealed or rotated
+later; an operator who has lost one but signed in through `muse login` can
+recover it from the CLI's credential store (`ai.meta.dev.credentials` in macOS
+Keychain Access) and paste that JSON document straight into the credential
+field, which keeps only its `api_key`. See
+`docs/syrus_docs/muse_agent.md` for the full credential and billing notes.
+
 The credential probe verifies that `muse` is available and runs:
 
 ```sh
@@ -92,8 +100,9 @@ prompt because Muse does not currently expose a separate transcript import flag.
 
 Muse differs from Claude and Codex in three operator-visible ways:
 
-- Muse API credentials are pay-as-you-go API keys saved per Syrus user; CLI
-  availability and API credentials are separate requirements.
+- Muse API credentials are API keys saved per Syrus user, issued either by a
+  Muse subscription or pay-as-you-go; CLI availability and API credentials are
+  separate requirements.
 - Muse reads MCP servers from `~/.config/muse/settings.json`, so Syrus writes a
   per-workflow or per-chat Muse home and currently uses stdio sidecars rather
   than the persistent MCP HTTP transport.

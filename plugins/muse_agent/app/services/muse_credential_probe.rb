@@ -15,7 +15,7 @@ class MuseCredentialProbe
     Dir.mktmpdir("syrus-muse-probe-") do |workspace|
       output = +""
       result = ProcessRunner.new(
-        env: ProcessRunner.forwarded_env(AgentInvocation::ENV_FORWARD),
+        env: ProcessRunner.forwarded_env(AgentInvocation::ENV_FORWARD, extra: MuseInvocation::LAUNCHER_ENV),
         command: [
           "muse", "exec",
           "--json",

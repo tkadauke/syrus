@@ -161,6 +161,31 @@ RSpec.describe User do
       expect(reloaded.github_token).to eq("ghp_xyz")
     end
 
+    it "keeps only the API key when the Muse credential document is pasted whole" do
+      document = {
+        "secret_schema_version" => 1,
+        "api_key" => "LLM|1234|abcd",
+        "access_token" => "dca:should-not-be-stored"
+      }.to_json
+
+      user = User.create!(attrs.merge(muse_api_key: document))
+
+      expect(user.reload.muse_api_key).to eq("LLM|1234|abcd")
+      expect(user.muse_api_key).not_to include("dca:")
+    end
+
+    it "leaves a bare Muse API key untouched apart from surrounding whitespace" do
+      user = User.create!(attrs.merge(muse_api_key: "  LLM|1234|abcd\n"))
+
+      expect(user.reload.muse_api_key).to eq("LLM|1234|abcd")
+    end
+
+    it "keeps an unparseable Muse paste so the probe can report it" do
+      user = User.create!(attrs.merge(muse_api_key: "{not json"))
+
+      expect(user.reload.muse_api_key).to eq("{not json")
+    end
+
     it "stores ciphertext, not plaintext, in the column" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-secret"))
       row = User.connection.select_one("SELECT claude_oauth_token FROM users WHERE id = #{user.id}")

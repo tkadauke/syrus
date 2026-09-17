@@ -396,6 +396,23 @@ RSpec.describe MuseInvocation do
     end
   end
 
+  it "keeps the launcher pinned so the scrubbed env cannot re-enable its update check" do
+    captured = []
+    stub_process_runners(lines: fixture_lines, captured: captured)
+
+    Dir.mktmpdir("syrus-muse-home-") do |muse_home|
+      described_class.new(
+        Dir.pwd,
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        muse_home: muse_home
+      ).run
+    end
+
+    expect(captured.first[:env]).to include("MUSE_NO_AUTO_UPDATE" => "1")
+  end
+
   it "succeeds required MCP checks when Muse reports the required tool as available" do
     lines = completed_lines_with(
       {

@@ -51,6 +51,18 @@ RSpec.describe MuseCredentialProbe do
     expect(captured[:timeout]).to eq(30)
   end
 
+  it "keeps the launcher pinned so the scrubbed env cannot re-enable its update check" do
+    captured = nil
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      captured = kwargs
+      instance_double(ProcessRunner, run: runner_result)
+    end
+
+    CredentialProbe.call(user: user, credential: "muse_api_key")
+
+    expect(captured[:env]).to include("MUSE_NO_AUTO_UPDATE" => "1")
+  end
+
   it "redacts failed CLI output through the plugin secret extractor" do
     allow(ProcessRunner).to receive(:new) do |**kwargs|
       kwargs[:on_output_chunk].call("authentication failed for muse-secret\n")

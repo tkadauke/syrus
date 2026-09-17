@@ -101,7 +101,7 @@ function withoutMessage(payload: CredentialsPayload): CredentialsPayload {
 // follow-up GET must serve whatever state the last mutation produced.
 function mockRoutes(
   initialPayload: CredentialsPayload,
-  routes: { clear?: () => Response; patch?: () => Response } = {}
+  routes: { clear?: () => Response; patch?: () => Response; test?: () => Response } = {}
 ) {
   const state = { payload: initialPayload }
   const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
@@ -118,7 +118,7 @@ function mockRoutes(
       if (response.ok) state.payload = withoutMessage(JSON.parse(await response.clone().text()) as CredentialsPayload)
       return response
     }
-    if (url.endsWith("/test_credential")) return jsonResponse({ credential_test: { credential: "muse_api_key", ok: true, message: "Muse API key is valid.", details: {} }, message: "Muse API key is valid." })
+    if (url.endsWith("/test_credential")) return routes.test?.() ?? jsonResponse({ credential_test: { credential: "muse_api_key", ok: true, message: "Muse API key is valid.", details: {} }, message: "Muse API key is valid." })
     if (url.endsWith("/test_claude_cli")) return jsonResponse({ credential_test: { credential: "claude_oauth_token", ok: false, message: "Not yet.", details: {} } })
     if (url.endsWith("/codex_oauth_start")) return jsonResponse({ authorize_url: "https://auth.openai.com/oauth/authorize?state=abc", listener_started: true })
     if (url.endsWith("/codex_oauth_exchange")) return jsonResponse({ credential_test: { credential: "codex_auth_json", ok: true, message: "Codex ChatGPT auth.json is valid.", details: {} }, message: "Codex ChatGPT auth.json is valid." })
@@ -241,6 +241,40 @@ describe("CredentialsRoute (provider cards)", () => {
       )
     })
     expect(within(screen.getByTestId("credential-card-muse")).getByText("Muse API key is valid.")).toBeInTheDocument()
+  })
+
+  it("points at the Meta dashboard and discloses the Keychain fallback on the Muse card", async () => {
+    mockRoutes(makePayload({ credential_status: { muse_api_key: false } }))
+    renderCredentials()
+
+    const museCard = await screen.findByTestId("credential-card-muse")
+    expect(within(museCard).getByLabelText("Muse API key")).toHaveAttribute("placeholder", "LLM|…")
+    expect(within(museCard).getByRole("link", { name: "ai.developer.meta.com" })).toBeInTheDocument()
+    expect(within(museCard).queryByTestId("muse-api-key-help")).not.toBeInTheDocument()
+
+    fireEvent.click(within(museCard).getByRole("button", { name: "Where to find your Muse API key" }))
+
+    expect(within(screen.getByTestId("credential-card-muse")).getByTestId("muse-api-key-help"))
+      .toHaveTextContent("ai.meta.dev.credentials")
+  })
+
+  it("stops calling a saved Muse key Connected once its probe fails", async () => {
+    mockRoutes(makePayload({ credential_status: { muse_api_key: true } }), {
+      test: () => jsonResponse({
+        credential_test: { credential: "muse_api_key", ok: false, message: "Muse probe failed: stopped after no output.", details: {} }
+      })
+    })
+    renderCredentials()
+
+    const museCard = await screen.findByTestId("credential-card-muse")
+    expect(within(museCard).getByText("Connected")).toBeInTheDocument()
+
+    fireEvent.click(within(museCard).getByRole("button", { name: "Test" }))
+
+    await waitFor(() => {
+      expect(within(screen.getByTestId("credential-card-muse")).getByText("Check failed")).toBeInTheDocument()
+    })
+    expect(within(screen.getByTestId("credential-card-muse")).queryByText("Connected")).not.toBeInTheDocument()
   })
 
   it("saves the chat provider immediately per-change through a partial PATCH", async () => {
