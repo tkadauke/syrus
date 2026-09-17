@@ -1,5 +1,5 @@
-import { StatusPill } from "./shared"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
+import { TonePill } from "../../components/StatusPill"
 import { DataTable } from "../../components/ui"
 import { Link } from "react-router-dom"
 import { withRoutePrefix } from "../../lib/routing"
@@ -66,7 +66,7 @@ function DeliveryTracksTable({ tracks }: { tracks: RepositoryDeliveryTrack[] }) 
                 {track.review_grade_phase} / {track.landing_grade_phase} / {track.branch_health_grade_phase}
               </DataTable.Cell>
               <DataTable.Cell>
-                {track.health ? <StatusPill tone={healthTone(track.health)}>{track.health}</StatusPill> : <span className="text-xs text-gray-400 dark:text-gray-500">{t("delivery.health_not_tracked")}</span>}
+                {track.health ? <TonePill tone={healthTone(track.health)}>{track.health}</TonePill> : <span className="text-xs text-gray-400 dark:text-gray-500">{t("delivery.health_not_tracked")}</span>}
               </DataTable.Cell>
               <DataTable.Cell className="text-gray-700 dark:text-gray-300">{track.queue_length}</DataTable.Cell>
               <DataTable.Cell>
@@ -105,9 +105,9 @@ function RefMovementActionsList({ actions }: { actions: RepositoryDeliveryRefMov
         {actions.map((action) => (
           <li className="flex flex-wrap items-center gap-2 text-sm" key={action.name}>
             <span className="font-mono text-xs text-gray-700 dark:text-gray-300">{action.name}</span>
-            <StatusPill tone={action.available ? "green" : action.enabled ? "amber" : "gray"}>
+            <TonePill tone={action.available ? "green" : action.enabled ? "amber" : "gray"}>
               {action.available ? t("delivery.action_available") : action.enabled ? t("delivery.action_blocked") : t("delivery.action_disabled")}
-            </StatusPill>
+            </TonePill>
             {action.mode ? <span className="text-xs text-gray-500 dark:text-gray-400">{action.mode}</span> : null}
             {action.blocked_reason ? <span className="text-xs text-gray-500 dark:text-gray-400">{action.blocked_reason}</span> : null}
           </li>
@@ -145,7 +145,7 @@ function RecentRefMovementWorkflows({ workflows, prefix }: { workflows: Reposito
                   {workflow.source_ref} &rarr; {workflow.target_repository_slug ? `${workflow.target_repository_slug}:` : ""}{workflow.target_ref}
                   {workflow.pr_number ? <span className="ml-1 text-gray-400 dark:text-gray-500">PR #{workflow.pr_number}{workflow.pr_state ? ` (${workflow.pr_state})` : ""}</span> : null}
                 </DataTable.Cell>
-                <DataTable.Cell><StatusPill tone={workflowStateTone(workflow.state)}>{workflow.state}</StatusPill></DataTable.Cell>
+                <DataTable.Cell><TonePill tone={workflowStateTone(workflow.state)}>{workflow.state}</TonePill></DataTable.Cell>
                 <DataTable.Cell className="text-gray-500 dark:text-gray-400">
                   {workflow.finished_at ? <RelativeTimestamp value={workflow.finished_at} /> : workflow.created_at ? <RelativeTimestamp value={workflow.created_at} /> : null}
                 </DataTable.Cell>
@@ -188,7 +188,7 @@ function RecentPrIngestions({ ingestions, prefix }: { ingestions: RepositoryDeli
                   <Link className="text-brand hover:underline" to={withRoutePrefix(ingestion.job_path, prefix)}>{ingestion.job_slug}</Link>
                 </DataTable.Cell>
                 <DataTable.Cell>
-                  <StatusPill tone={ingestion.classification === "external_unknown" ? "gray" : "blue"}>{ingestion.classification}</StatusPill>
+                  <TonePill tone={ingestion.classification === "external_unknown" ? "gray" : "blue"}>{ingestion.classification}</TonePill>
                   {ingestion.source_repo_slug ? <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{ingestion.source_repo_slug}</span> : null}
                 </DataTable.Cell>
                 <DataTable.Cell className="text-gray-500 dark:text-gray-400">

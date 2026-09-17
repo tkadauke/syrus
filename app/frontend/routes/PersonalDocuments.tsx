@@ -1,4 +1,3 @@
-import { Input } from "../components/Input"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
@@ -14,6 +13,7 @@ import {
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { PanelMessage } from "../components/PanelMessage"
+import { Form } from "../components/ui"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
 import { useConfirm } from "../hooks/useConfirm"
@@ -146,14 +146,14 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
         {upload.isError ? <PanelMessage tone="error">{errorMessage(upload.error, "Unable to add document.")}</PanelMessage> : null}
         {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete document.")}</PanelMessage> : null}
         <Field label={t('personal_documents.upload_files')}>
-          <Input
+          <Form.Input
             multiple
             onChange={(event) => setFiles(Array.from(event.currentTarget.files || []))}
             type="file"
           />
         </Field>
         <Field label={t('personal_documents.google_doc_url')}>
-          <Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/d/..." type="url" value={googleDocUrl} />
+          <Form.Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/d/..." type="url" value={googleDocUrl} />
         </Field>
         <button className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400" disabled={upload.isPending} type="submit">
           {upload.isPending ? (
@@ -206,12 +206,11 @@ function DocumentSummary({ document }: { document: PersonalDocument }) {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  const { t } = useT("settings")
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-2">{children}</div>
-    </label>
+    <Form.Field>
+      <Form.Label>{label}</Form.Label>
+      {children}
+    </Form.Field>
   )
 }
 

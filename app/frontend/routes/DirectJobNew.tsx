@@ -1,6 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { PageHeading, SectionHeading } from "../components/Heading"
-import { inputClass } from "../lib/formClasses"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { DragEvent, FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -9,9 +8,10 @@ import { useT } from "../hooks/useT"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
 import { Input } from "../components/Input"
-import { Select } from "../components/Select"
+import { PanelMessage } from "../components/PanelMessage"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
+import { Form } from "../components/ui"
 import {
   createDirectJob,
   fetchDirectJobForm,
@@ -152,7 +152,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         <SectionHeading>{t("form_section_target")}</SectionHeading>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("form_repository_label")}>
-            <Select
+            <Form.Select
               name="repository_id"
               onChange={(event) => setValues({ ...values, repositoryId: event.target.value })}
               required
@@ -162,7 +162,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
               {payload.repositories.map((repository) => (
                 <option key={repository.id} value={repository.id}>{repository.slug}</option>
               ))}
-            </Select>
+            </Form.Select>
           </Field>
 
           {payload.configured_agent_providers.length > 1 ? (
@@ -171,7 +171,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                 {values.agentProvider || selectedRepository?.default_agent_provider ? (
                   <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(values.agentProvider || selectedRepository?.default_agent_provider || "")} />
                 ) : null}
-                <Select
+                <Form.Select
                   name="agent_provider"
                   onChange={(event) => setValues({ ...values, agentProvider: event.target.value })}
                   value={values.agentProvider}
@@ -180,7 +180,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                   {payload.configured_agent_providers.map((provider) => (
                     <option key={provider.value} value={provider.value}>{provider.label}</option>
                   ))}
-                </Select>
+                </Form.Select>
               </div>
             </Field>
           ) : null}
@@ -217,7 +217,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
         <SectionHeading>{t("form_section_prompt")}</SectionHeading>
         <Field label={t("form_title_label")}>
-          <Input
+          <Form.Input
             name="title"
             onChange={(event) => setValues({ ...values, title: event.target.value })}
             placeholder={t("form_title_placeholder")}
@@ -226,8 +226,8 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           />
         </Field>
         <Field label={t("form_section_prompt")}>
-          <textarea
-            className={`${inputClass()} font-mono`}
+          <Form.Textarea
+            className="font-mono"
             name="prompt"
             onChange={(event) => setValues({ ...values, prompt: event.target.value })}
             placeholder={t("form_prompt_placeholder")}
@@ -238,7 +238,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           />
         </Field>
         <Field label={t("form_priority_label")}>
-          <Select
+          <Form.Select
             name="priority"
             onChange={(event) => setValues({ ...values, priority: event.target.value })}
             value={values.priority}
@@ -248,7 +248,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                 {priority.label} {priority.description ? `- ${priority.description}` : ""}
               </option>
             ))}
-          </Select>
+          </Form.Select>
         </Field>
       </section>
 
@@ -291,7 +291,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         </div>
 
         <Field label={t("attachment_google_doc_label")}>
-          <Input
+          <Form.Input
             name="job_attachment_google_doc_url"
             onChange={(event) => setValues({ ...values, googleDocUrl: event.target.value })}
             placeholder={t("attachment_google_doc_placeholder")}
@@ -334,18 +334,9 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-1">{children}</div>
-    </label>
+    <Form.Field>
+      <Form.Label>{label}</Form.Label>
+      {children}
+    </Form.Field>
   )
-}
-
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
-    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/70 dark:bg-green-950/40 dark:text-green-200",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }

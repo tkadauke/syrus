@@ -1,26 +1,8 @@
-import type { ReactNode } from "react"
-import { useT } from "../../hooks/useT"
-import { TonePill } from "../../components/StatusPill"
-
-
 // Shared RepositoryDetail primitives extracted from RepositoryDetail.tsx:
-// the status pill, panel message, state-filter class helper, and relative-
-// time formatter reused across the overview, issues, and health sections.
-
-export function StatusPill({ children, tone }: { children: ReactNode; tone: "green" | "gray" | "blue" | "red" | "amber" }) {
-  const { t } = useT("settings")
-  return <TonePill tone={tone}>{children}</TonePill>
-}
-
-export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warning" }) {
-  const { t } = useT("settings")
-  const colors = {
-    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
-    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400",
-    warning: "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
-}
+// the state-filter class helper and relative-time formatter reused across
+// the overview, issues, and health sections. The status pill and panel
+// message that used to live here were bare pass-throughs to TonePill/
+// PanelMessage from the design system; callers now import those directly.
 
 export function stateFilterClass(active: boolean) {
   return `rounded border px-3 py-1.5 text-sm font-medium ${active ? "border-brand bg-brand text-on-brand" : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`
