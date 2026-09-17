@@ -1,0 +1,28 @@
+#!/usr/bin/env node
+"use strict"
+
+// DOC-27 migration-progress reporter. Counts raw gray/status color classes,
+// repeated panel shells, raw table cell/header classes, long class strings,
+// and plugin files rendering substantial UI without a @app/components
+// import -- the categories called out in DOC-27's "Rollout Guidance"
+// section and in the issue that introduced this script. Report-only: it
+// never fails CI on its own account. See config/syrus_docs/style_debt_report.md
+// and eslint-rules/style_debt/ for the rule implementations and tests --
+// this file is a thin CLI entry point over eslint-rules/style_debt/report.js.
+//
+// Usage:
+//   bin/style-debt-report                 human-readable report, incl. a
+//                                          diff against the checked-in
+//                                          baseline if one exists
+//   bin/style-debt-report --json           machine-readable report on stdout
+//   bin/style-debt-report --write-baseline recompute and overwrite
+//                                          eslint-rules/style_debt/baseline.json
+//   bin/style-debt-report --top 30         show more files per category
+//                                          (default 15)
+
+require("../eslint-rules/style_debt/report")
+  .main(process.argv.slice(2))
+  .catch((err) => {
+    console.error(err)
+    process.exitCode = 1
+  })
