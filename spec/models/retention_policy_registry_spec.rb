@@ -59,6 +59,51 @@ RSpec.describe RetentionPolicyRegistry do
     expect(app_setting_definition.min).to eq(0)
   end
 
+  it "computes the archive_setting_key convention for every core definition" do
+    described_class::CORE_DEFINITIONS.each do |definition|
+      expect(definition.archive_setting_key).to eq(:"#{definition.key}_archive_before_delete")
+    end
+  end
+
+  it "marks archivable: true only for tables where archiving before delete is meaningful" do
+    archivable_keys = described_class::CORE_DEFINITIONS.select(&:archivable).map(&:key)
+
+    expect(archivable_keys).to contain_exactly(
+      :run_diagnostic,
+      :work_engine_reconciler_activity,
+      :provider_session,
+      :run_health_snapshot,
+      :main_branch_health_check
+    )
+  end
+
+  it "leaves the lookback-only entry (no scope_name/job_class) non-archivable" do
+    definition = described_class.fetch(:workflow_step_resource_profile_input)
+
+    expect(definition.archivable).to be false
+    expect(definition.as_archive_app_setting_definition).to be_nil
+  end
+
+  it "converts an archivable definition to an admin-editable boolean AppSettingRegistry definition" do
+    app_setting_definition = described_class.fetch(:provider_session).as_archive_app_setting_definition
+
+    expect(app_setting_definition.key).to eq(:provider_session_archive_before_delete)
+    expect(app_setting_definition.type).to eq(:boolean)
+    expect(app_setting_definition.default).to eq(false)
+    expect(app_setting_definition.admin_editable).to be true
+  end
+
+  it "returns nil as_archive_app_setting_definition for a non-archivable definition" do
+    expect(described_class.fetch(:notification).as_archive_app_setting_definition).to be_nil
+  end
+
+  it "collects every archivable definition's setting into .archive_app_setting_definitions" do
+    keys = described_class.archive_app_setting_definitions.map(&:key)
+
+    expect(keys).to include(:provider_session_archive_before_delete, :run_diagnostic_archive_before_delete)
+    expect(keys).not_to include(:notification_archive_before_delete)
+  end
+
   describe "plugin-contributed definitions" do
     let(:fake_provider) do
       Class.new do
@@ -77,7 +122,8 @@ RSpec.describe RetentionPolicyRegistry do
               unit: :days,
               job_class: "FakePluginPruneJob",
               description: "A fake plugin-owned table, for testing the merge.",
-              category: "Plugins"
+              category: "Plugins",
+              archivable: false
             )
           ]
         end

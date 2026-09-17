@@ -42,4 +42,23 @@ RSpec.describe MainBranchHealthCheckPruneJob do
     expect { described_class.perform_now }.not_to change { MainBranchHealthCheck.count }
     expect(MainBranchHealthCheck.exists?(old.id)).to be true
   end
+
+  it "does not archive before deleting when archive_before_delete is off (default, matches JOB-5025 behavior)" do
+    old = check(checked_at: (MainBranchHealthCheck.retention_window + 1.day).ago)
+
+    expect { described_class.perform_now }.not_to change { RetentionArchive.count }
+    expect(MainBranchHealthCheck.exists?(old.id)).to be false
+  end
+
+  it "archives before deleting when archive_before_delete is on" do
+    AppSetting.current.update!(main_branch_health_check_archive_before_delete: true)
+    old = check(checked_at: (MainBranchHealthCheck.retention_window + 1.day).ago)
+
+    expect { described_class.perform_now }.to change { RetentionArchive.count }.by(1)
+
+    archive = RetentionArchive.last
+    expect(archive.retention_key).to eq("main_branch_health_check")
+    expect(archive.row_count).to eq(1)
+    expect(MainBranchHealthCheck.exists?(old.id)).to be false
+  end
 end

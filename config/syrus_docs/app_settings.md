@@ -256,21 +256,31 @@ retention (`WorkflowWorkspacePruneJob`'s workspace-directory constants,
 and the video walkthrough settings documented above) is out of scope and
 stays fixed or on its own settings.
 
-| Setting | Default | Unit | Table | PruneJob |
-| --- | --- | --- | --- | --- |
-| `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` |
-| `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` |
-| `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` |
-| `work_engine_reconciler_activity_retention_days` | 7 | days | `work_engine_reconciler_activity_events` | `WorkEngineReconcilerActivityPruneJob` |
-| `provider_session_retention_days` | 14 | days | `provider_sessions` | `ProviderSessionPruneJob` |
-| `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` |
-| `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` |
-| `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` |
-| `metrics_dashboard_sample_retention_days` | 30 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` |
-| `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` |
-| `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` |
-| `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` |
-| `workflow_step_resource_profile_input_retention_days` | 180 | days | (lookback only — see below) | none |
+| Setting | Default | Unit | Table | PruneJob | Archivable |
+| --- | --- | --- | --- | --- | --- |
+| `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` | yes |
+| `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` | no |
+| `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` | no |
+| `work_engine_reconciler_activity_retention_days` | 7 | days | `work_engine_reconciler_activity_events` | `WorkEngineReconcilerActivityPruneJob` | yes |
+| `provider_session_retention_days` | 14 | days | `provider_sessions` | `ProviderSessionPruneJob` | yes |
+| `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` | no |
+| `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` | no |
+| `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` | no |
+| `metrics_dashboard_sample_retention_days` | 30 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` | no |
+| `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` | yes |
+| `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` | yes |
+| `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` | no |
+| `workflow_step_resource_profile_input_retention_days` | 180 | days | (lookback only — see below) | none | no |
+
+"Archivable" means the entry's `RetentionPolicyRegistry::Definition#archivable`
+flag is `true` — see "Archive-before-delete storage" below for what that
+enables. It is reserved for tables with real forensic/audit value after
+deletion (exception diagnostics, agent session transcripts, automated-repair
+and CI-health audit trails); high-volume numeric telemetry and ops-noise
+tables (resource summaries, host health samples, spawned-process inventory,
+notifications, the operational log index, and the resource-prediction
+profile tables) are marked `archivable: false` since archiving them would
+mostly balloon storage for little later value.
 
 Three entries are worth calling out:
 
@@ -374,17 +384,61 @@ retention/budget settings documented above stay on `/settings/edit`.
 
 ### Archive-before-delete storage (`RetentionArchive`)
 
-Plumbing for an opt-in path where a table's PruneJob serializes and archives
-a pruned batch to Active Storage before deleting it, instead of hard-deleting
-it outright. `RetentionArchive` (`app/models/retention_archive.rb`,
+An opt-in path where a table's PruneJob serializes and archives a pruned
+batch to Active Storage before deleting it, instead of hard-deleting it
+outright. `RetentionArchive` (`app/models/retention_archive.rb`,
 `retention_archives` table) records one archived sweep: `retention_key`
 (must match a `RetentionPolicyRegistry` key), `pruned_before` (the cutoff
 used for that sweep), `row_count`, `byte_size`, and a `has_one_attached
-:archive_file` holding the serialized batch. Archiving itself (which
-PruneJobs opt in, and how a sweep is triggered) is out of scope here — this
-is just the storage destination and the row that records one archived sweep.
-v1 is download-only: archived blobs are kept forever and there is no
-automated restore path back into the live table.
+:archive_file` holding the serialized batch. v1 is download-only: archived
+blobs are kept forever and there is no automated restore path back into the
+live table.
+
+**Opt-in flag.** `RetentionPolicyRegistry::Definition#archivable` marks which
+entries archiving is meaningful for (see the table above). Every archivable
+entry gets a matching `<key>_archive_before_delete` boolean `AppSetting`
+column (`Definition#archive_setting_key`), folded into
+`AppSettingRegistry.definitions` via
+`RetentionPolicyRegistry.archive_app_setting_definitions` the same way
+`as_app_setting_definition` folds the retention-window integer settings in.
+Every one of these defaults to `false` — archiving is off for every table
+until an operator explicitly enables it — and a non-archivable entry has no
+such column at all.
+
+**`RetentionArchiver`** (`app/services/retention_archiver.rb`) is the shared
+service each archivable table's PruneJob calls immediately before its
+existing delete:
+
+```ruby
+scope = RunDiagnostic.prunable
+RetentionArchiver.call(retention_key: :run_diagnostic, scope: scope, cutoff: RunDiagnostic.retention_cutoff)
+n = scope.delete_all
+```
+
+`RetentionArchiver.call` no-ops (never touches `RetentionArchive` or Active
+Storage) when the table's `archive_before_delete` setting is off, the cutoff
+is `nil` (infinite retention), or the scope has no rows this sweep — so the
+flag-off path is byte-for-byte the original delete-only behavior. When
+archiving is on and there is something to archive, it serializes each row of
+`scope` via `#as_json` to gzip-compressed JSONL, streaming through
+`find_in_batches` (default batch size 1000) so the whole prunable set is
+never loaded into memory at once, then creates exactly one `RetentionArchive`
+row for the sweep (`row_count`, `byte_size`, `pruned_before: cutoff`) with the
+compressed file attached. The caller's `scope.delete_all` then runs
+unconditionally, whether or not archiving ran — the same `scope` object is
+reused for both, so the delete never picks up rows that weren't included in
+that archive. Passing a `retention_key` whose definition has
+`archivable: false` raises `ArgumentError`.
+
+Archiving tables as of this writing: `run_diagnostic`,
+`work_engine_reconciler_activity`, `provider_session`, `run_health_snapshot`,
+and `main_branch_health_check` — see their respective PruneJobs
+(`RunDiagnosticPruneJob`, `WorkEngineReconcilerActivityPruneJob`,
+`ProviderSessionPruneJob`, `RunHealthSnapshotPruneJob`,
+`MainBranchHealthCheckPruneJob`) for the exact call sites. A future admin
+page (JOB-5027) is expected to expose the `archive_before_delete` toggles the
+same way `/admin/retention_settings` already exposes the retention windows;
+this doc section only covers the flag and the archiving mechanism itself.
 
 `archive_file` is deliberately **not** stored on the app's primary
 `config.active_storage.service` — an operator archiving to keep MySQL/SQLite
