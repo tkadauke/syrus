@@ -8,7 +8,7 @@ module VideoWalkthroughs
     long_description "Walkthrough Videos turns a narrated screen recording into work. Drop a video into a chat and Gemini produces a timestamped transcript, topical sections, and grounded issue reports; the chat agent then pulls that report and crisp stills with its own tools and drives toward an Epic through the normal proposal machinery.\n\nGemini is the eyes and the chat agent stays the brain: every step is a real tool call you can trace. Requires a Gemini AI Studio API key per user. Stored videos are pruned on a retention window and an instance-wide storage budget; the analysis and screenshots always persist.\n\nThe desktop app's screen recorder and red-pen annotation overlay ship with the desktop app itself and stay available regardless of this plugin -- what this plugin owns is the intake, analysis, and chat handoff."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/video_walkthroughs.svg"
-    author "Thomas Kadauke"
+    author "Stephan Kadauke"
     category "agent_capability"
     # Was a Labs feature flag defaulting off, and a plugin is its own feature
     # flag: the flag is gone and this is what replaced it.
