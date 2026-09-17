@@ -58,7 +58,11 @@ export function FilterBar({
   const suggestionQuery = addQuery.trim()
   const usesRemoteSuggestions = Boolean(suggestionSearch && addMenuOpen && !addAlternativePath && suggestionQuery.length >= 2)
   const activeSuggestions = usesRemoteSuggestions ? searchedSuggestions : suggestions
+  const freeTextSearchField = useMemo(() => filterSchema.find((field) => field.free_text_search) || null, [filterSchema])
+  const showFreeTextSearchSuggestion = Boolean(freeTextSearchField) && !addAlternativePath && suggestionQuery.length >= 2
+  const pinnedSuggestionCount = showFreeTextSearchSuggestion ? 1 : 0
   const filteredSchema = filterSchema.filter((field) => {
+    if (field.free_text_search) return false
     const query = addQuery.trim().toLowerCase()
     return !query || field.field.toLowerCase().includes(query) || field.label.toLowerCase().includes(query)
   })
@@ -67,12 +71,17 @@ export function FilterBar({
     return !addAlternativePath && (!query || suggestion.label.toLowerCase().includes(query))
   })
   const addMenuNavigation = useListNavigation({
-    itemCount: filteredSuggestions.length + filteredSchema.length,
+    itemCount: pinnedSuggestionCount + filteredSuggestions.length + filteredSchema.length,
     onSelect: (index) => {
-      if (index < filteredSuggestions.length) {
-        addSuggestedFilter(filteredSuggestions[index])
+      if (showFreeTextSearchSuggestion && index === 0) {
+        addFreeTextSearchFilter(suggestionQuery)
+        return
+      }
+      const rest = index - pinnedSuggestionCount
+      if (rest < filteredSuggestions.length) {
+        addSuggestedFilter(filteredSuggestions[rest])
       } else {
-        addFilter(filteredSchema[index - filteredSuggestions.length])
+        addFilter(filteredSchema[rest - filteredSuggestions.length])
       }
     },
     resetKey: `${addMenuOpen}|${addQuery}`
@@ -221,6 +230,20 @@ export function FilterBar({
     applyTree(nextTree)
   }
 
+  function addFreeTextSearchFilter(query: string) {
+    if (!freeTextSearchField) return
+
+    const chip: FilterChip = { field: freeTextSearchField.field, op: freeTextSearchField.operators[0] || "contains", value: query }
+    const children = topFilterChildren(draftTree).slice()
+    children.push(chip)
+
+    const nextTree = { and: children }
+    updateTree(nextTree, null)
+    setAddMenuOpen(false)
+    setAddAlternativePath(null)
+    applyTree(nextTree)
+  }
+
   function addSuggestedFilter(suggestion: FilterSuggestion) {
     const node = suggestionFilterNode(suggestion)
     if (!node) return
@@ -310,16 +333,29 @@ export function FilterBar({
               value={addQuery}
             />
             <div className="max-h-72 overflow-y-auto py-1">
+              {showFreeTextSearchSuggestion ? (
+                <div className="border-b border-gray-100 pb-1 dark:border-gray-800">
+                  <button
+                    className={filterMenuItemClass("block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200", addMenuNavigation.highlightedIndex === 0)}
+                    onClick={() => addFreeTextSearchFilter(suggestionQuery)}
+                    onMouseEnter={() => addMenuNavigation.setHighlightedIndex(0)}
+                    ref={addMenuNavigation.registerItem(0)}
+                    type="button"
+                  >
+                    {t("filter_bar.search_for", { query: suggestionQuery })}
+                  </button>
+                </div>
+              ) : null}
               {filteredSuggestions.length > 0 ? (
                 <div className="border-b border-gray-100 pb-1 dark:border-gray-800">
                   <div className="px-3 py-1.5 text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">{t("filter_bar.suggested")}</div>
                   {filteredSuggestions.map((suggestion, suggestionIndex) => (
                     <button
-                      className={filterMenuItemClass("block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200", addMenuNavigation.highlightedIndex === suggestionIndex)}
+                      className={filterMenuItemClass("block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200", addMenuNavigation.highlightedIndex === pinnedSuggestionCount + suggestionIndex)}
                       key={suggestion.id}
                       onClick={() => addSuggestedFilter(suggestion)}
-                      onMouseEnter={() => addMenuNavigation.setHighlightedIndex(suggestionIndex)}
-                      ref={addMenuNavigation.registerItem(suggestionIndex)}
+                      onMouseEnter={() => addMenuNavigation.setHighlightedIndex(pinnedSuggestionCount + suggestionIndex)}
+                      ref={addMenuNavigation.registerItem(pinnedSuggestionCount + suggestionIndex)}
                       type="button"
                     >
                       {suggestion.label}
@@ -329,7 +365,7 @@ export function FilterBar({
               ) : null}
               {filteredSchema.map((field, schemaIndex) => {
                 const fieldLabel = t(`filter_fields.${field.field}`, { defaultValue: field.label })
-                const index = filteredSuggestions.length + schemaIndex
+                const index = pinnedSuggestionCount + filteredSuggestions.length + schemaIndex
                 return (
                   <button
                     aria-label={`${fieldLabel} ${translateBucket(field.bucket, t)}`}
@@ -345,7 +381,7 @@ export function FilterBar({
                   </button>
                 )
               })}
-              {filteredSchema.length === 0 && filteredSuggestions.length === 0 ? <div className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matching_filters")}</div> : null}
+              {filteredSchema.length === 0 && filteredSuggestions.length === 0 && !showFreeTextSearchSuggestion ? <div className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matching_filters")}</div> : null}
             </div>
           </div>
         ) : null}

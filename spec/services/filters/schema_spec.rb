@@ -161,5 +161,17 @@ RSpec.describe Filters::Schema do
       expect(schema["typeahead"]).to eq(true)
       expect(schema).not_to have_key("values")
     end
+
+    it "flags the Admin Plugins search chip as the subject's pinned free-text search field" do
+      schema = described_class.chip_for("search", subject: :admin_plugins)
+
+      expect(schema["free_text_search"]).to eq(true)
+    end
+
+    it "omits the free_text_search key for chips that don't declare it" do
+      schema = described_class.chip_for("enabled", subject: :admin_plugins)
+
+      expect(schema).not_to have_key("free_text_search")
+    end
   end
 end

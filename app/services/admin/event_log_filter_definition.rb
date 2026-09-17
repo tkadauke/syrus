@@ -11,6 +11,7 @@ module Admin
       :default,
       :placeholder,
       :input_mode,
+      :free_text_search,
       :apply_proc
     ) do
       def schema
@@ -21,6 +22,7 @@ module Admin
           "operators" => operators.map(&:to_s)
         }.tap do |hash|
           hash["values"] = values if values
+          hash["free_text_search"] = true if free_text_search
           expansions = {}
           expansions["placeholder"] = placeholder if placeholder.present?
           expansions["inputMode"] = input_mode if input_mode.present?
@@ -206,7 +208,7 @@ module Admin
 
       attr_reader :definition
 
-      def field(name, label:, bucket:, operators:, column: nil, columns: nil, values: nil, default: nil, placeholder: nil, input_mode: nil, &apply)
+      def field(name, label:, bucket:, operators:, column: nil, columns: nil, values: nil, default: nil, placeholder: nil, input_mode: nil, free_text_search: false, &apply)
         definition.add_field(
           Field.new(
             name: name.to_s,
@@ -219,6 +221,7 @@ module Admin
             default: default,
             placeholder: placeholder,
             input_mode: input_mode,
+            free_text_search: free_text_search,
             apply_proc: apply
           )
         )

@@ -43,7 +43,8 @@ RSpec.describe Admin::EventLogFilterDefinition do
       expect(query).to include(
         "label" => "Search",
         "bucket" => "text",
-        "operators" => %w[contains does_not_contain]
+        "operators" => %w[contains does_not_contain],
+        "free_text_search" => true
       )
     end
 
@@ -106,6 +107,23 @@ RSpec.describe Admin::EventLogFilterDefinition do
       q = Filters::QueryParam.encode("and" => [])
 
       expect(definition.filter_tree(q: q)).to eq("and" => [])
+    end
+  end
+
+  describe "free-text search marker" do
+    it "flags the query field on backend_exceptions" do
+      query = Admin::EventLogFilterDefinitions.backend_exceptions.schema.find { |field| field.fetch("field") == "query" }
+      expect(query["free_text_search"]).to eq(true)
+    end
+
+    it "flags the query field on operational_logs" do
+      query = Admin::EventLogFilterDefinitions.operational_logs.schema.find { |field| field.fetch("field") == "query" }
+      expect(query["free_text_search"]).to eq(true)
+    end
+
+    it "omits the marker for fields that aren't the free-text search field" do
+      path_field = Admin::EventLogFilterDefinitions.backend_exceptions.schema.find { |field| field.fetch("field") == "path" }
+      expect(path_field).not_to have_key("free_text_search")
     end
   end
 end

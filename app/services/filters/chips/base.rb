@@ -78,6 +78,16 @@ module Filters
           superclass.respond_to?(:full_text_suggestions) ? superclass.full_text_suggestions : false
         end
 
+        # Marks this chip as the subject's pinned free-text search field, so
+        # FilterBar can special-case it into a "Search for X" suggestion
+        # instead of the generic field/operator/value picker. At most one
+        # chip per subject should set this.
+        def free_text_search(enabled = nil)
+          @free_text_search = enabled unless enabled.nil?
+          return @free_text_search if defined?(@free_text_search)
+          superclass.respond_to?(:free_text_search) ? superclass.free_text_search : false
+        end
+
         def date_precision(value = nil)
           @date_precision = value.to_s if value
           return @date_precision if defined?(@date_precision)
