@@ -110,13 +110,13 @@ describe("crossChatBridgeSystemMessage", () => {
     })
   })
 
-  it("falls back to a bare chat id in the link label when the counterpart has no title", () => {
+  it("falls back to the new-chat label when the counterpart has no title, matching the inbound badge's fallback", () => {
     const result = crossChatBridgeSystemMessage(
       { ...systemMessageItem(), cross_chat_bridge: bridge({ counterpart_chat_title: null }) },
       "Sent to chat #42: check on JOB-1"
     )
 
-    expect(result?.cta).toEqual({ label: "via Chat #42", path: "/chats/42" })
+    expect(result?.cta).toEqual({ label: "via Chat #42: New chat", path: "/chats/42" })
   })
 
   it("renders the hop-limit closure notice with a warning tone and no cta", () => {

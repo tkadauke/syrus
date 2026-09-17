@@ -98,10 +98,12 @@ export function crossChatBridgeSystemMessage(message: ChatMessageItem, text: str
   }
 }
 
+// Mirrors the inbound badge's i18n `cross_chat_bridge_link` fallback
+// (MessageCards.tsx, `counterpart_chat_title || t("new_title")`) so an
+// untitled counterpart chat renders the same "New chat" label on both sides
+// of the bridge instead of silently dropping the title segment here.
 export function crossChatBridgeLinkLabel(bridge: ChatCrossChatBridge) {
-  return bridge.counterpart_chat_title
-    ? `via Chat #${bridge.counterpart_chat_session_id}: ${bridge.counterpart_chat_title}`
-    : `via Chat #${bridge.counterpart_chat_session_id}`
+  return `via Chat #${bridge.counterpart_chat_session_id}: ${bridge.counterpart_chat_title || "New chat"}`
 }
 
 export function goalContinuationFromContent(content: unknown, text: string): ChatSystemMessage | null {
