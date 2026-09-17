@@ -38,4 +38,23 @@ RSpec.describe RunHealthSnapshotPruneJob do
     expect { described_class.perform_now }.not_to change { RunHealthSnapshot.count }
     expect(RunHealthSnapshot.exists?(old.id)).to be true
   end
+
+  it "does not archive before deleting when archive_before_delete is off (default, matches JOB-5025 behavior)" do
+    old = snapshot(created_at: (RunHealthSnapshot.retention_window + 1.day).ago)
+
+    expect { described_class.perform_now }.not_to change { RetentionArchive.count }
+    expect(RunHealthSnapshot.exists?(old.id)).to be false
+  end
+
+  it "archives before deleting when archive_before_delete is on" do
+    AppSetting.current.update!(run_health_snapshot_archive_before_delete: true)
+    old = snapshot(created_at: (RunHealthSnapshot.retention_window + 1.day).ago)
+
+    expect { described_class.perform_now }.to change { RetentionArchive.count }.by(1)
+
+    archive = RetentionArchive.last
+    expect(archive.retention_key).to eq("run_health_snapshot")
+    expect(archive.row_count).to eq(1)
+    expect(RunHealthSnapshot.exists?(old.id)).to be false
+  end
 end
