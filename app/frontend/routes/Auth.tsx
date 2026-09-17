@@ -9,8 +9,9 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { NoticeToast } from "../components/NoticeToast"
-import { Input } from "../components/Input"
+import { PanelMessage } from "../components/PanelMessage"
 import { CapsLockHint, EmailValidityHint, PasswordMatchHint, PasswordStrengthMeter } from "../components/PasswordFeedback"
+import { Form } from "../components/ui"
 import {
   authenticateWithPasskey,
   fetchPasskeyAuthenticationOptions,
@@ -77,7 +78,7 @@ export function SignInRoute() {
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("sign_in.error"))}</PanelMessage> : null}
         <Field label={t("field.email")}>
-          <Input
+          <Form.Input
             autoComplete="username"
             autoFocus
             onChange={(event) => setEmailAddress(event.target.value)}
@@ -88,7 +89,7 @@ export function SignInRoute() {
           <EmailValidityHint email={emailAddress} />
         </Field>
         <Field label={t("field.password")}>
-          <Input
+          <Form.Input
             autoComplete="current-password"
             maxLength={72}
             onChange={(event) => setPassword(event.target.value)}
@@ -245,7 +246,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
       {payload.first_signup ? <PanelMessage>{t("sign_up.first_admin")}</PanelMessage> : null}
       {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("sign_up.error_create"))}</PanelMessage> : null}
       <Field label={t("field.email")}>
-        <Input
+        <Form.Input
           autoComplete="username"
           autoFocus
           onChange={(event) => setEmailAddress(event.target.value)}
@@ -256,7 +257,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
         <EmailValidityHint email={emailAddress} />
       </Field>
       <Field label={t("field.password")}>
-        <Input
+        <Form.Input
           autoComplete="new-password"
           maxLength={72}
           onChange={(event) => setPassword(event.target.value)}
@@ -267,7 +268,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
         <PasswordStrengthMeter password={password} />
       </Field>
       <Field label={t("field.confirm_password")}>
-        <Input
+        <Form.Input
           autoComplete="new-password"
           maxLength={72}
           onChange={(event) => setPasswordConfirmation(event.target.value)}
@@ -315,7 +316,7 @@ export function PasswordRequestRoute() {
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("password_request.error"))}</PanelMessage> : null}
         <Field label={t("field.email")}>
-          <Input
+          <Form.Input
             autoComplete="username"
             autoFocus
             onChange={(event) => setEmailAddress(event.target.value)}
@@ -363,7 +364,7 @@ export function PasswordResetRoute() {
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("password_reset.error"))}</PanelMessage> : null}
         <Field label={t("field.new_password")}>
-          <Input
+          <Form.Input
             autoComplete="new-password"
             autoFocus
             maxLength={72}
@@ -375,7 +376,7 @@ export function PasswordResetRoute() {
           <PasswordStrengthMeter password={password} />
         </Field>
         <Field label={t("field.confirm_password")}>
-          <Input
+          <Form.Input
             autoComplete="new-password"
             maxLength={72}
             onChange={(event) => setPasswordConfirmation(event.target.value)}
@@ -417,21 +418,11 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle?: st
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-2">{children}</div>
-    </label>
+    <Form.Field>
+      <Form.Label>{label}</Form.Label>
+      {children}
+    </Form.Field>
   )
-}
-
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const colors = {
-    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
-    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
-    muted: "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-  }
-
-  return <div className={`rounded border p-3 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 // The JSON auth endpoints return app-root paths ("/onboarding", "/dashboard");

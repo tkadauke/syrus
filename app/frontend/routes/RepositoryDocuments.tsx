@@ -1,4 +1,3 @@
-import { Input } from "../components/Input"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { routePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -18,6 +17,7 @@ import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
 import { PanelMessage } from "../components/PanelMessage"
+import { Form } from "../components/ui"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
 import { useConfirm } from "../hooks/useConfirm"
@@ -196,10 +196,10 @@ function DocumentForms({
           {t('repository_documents.upload_file')}
         </SectionHeading>
         <Field label="File title">
-          <Input onChange={(event) => setFileTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional_filename")} type="text" value={fileTitle} />
+          <Form.Input onChange={(event) => setFileTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional_filename")} type="text" value={fileTitle} />
         </Field>
         <Field label="File">
-          <Input accept={acceptedTypes.join(",")} onChange={(event) => setFile(event.currentTarget.files?.[0] || null)} required type="file" />
+          <Form.Input accept={acceptedTypes.join(",")} onChange={(event) => setFile(event.currentTarget.files?.[0] || null)} required type="file" />
         </Field>
         <button className={primaryButton()} disabled={save.isPending} type="submit">
           {save.isPending ? (
@@ -219,10 +219,10 @@ function DocumentForms({
           {t('repository_documents.link_google_doc')}
         </SectionHeading>
         <Field label="URL">
-          <Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." required type="url" value={googleDocUrl} />
+          <Form.Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." required type="url" value={googleDocUrl} />
         </Field>
         <Field label="Document title">
-          <Input onChange={(event) => setDocTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional")} type="text" value={docTitle} />
+          <Form.Input onChange={(event) => setDocTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional")} type="text" value={docTitle} />
         </Field>
         <button className={primaryButton()} disabled={save.isPending} type="submit">
           {save.isPending ? (
@@ -285,12 +285,11 @@ function DocumentSummary({ document }: { document: RepositoryDocument }) {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  const { t } = useT("settings")
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-1">{children}</div>
-    </label>
+    <Form.Field>
+      <Form.Label>{label}</Form.Label>
+      {children}
+    </Form.Field>
   )
 }
 
