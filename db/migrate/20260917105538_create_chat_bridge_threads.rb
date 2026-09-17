@@ -13,18 +13,6 @@ class CreateChatBridgeThreads < ActiveRecord::Migration[8.1]
       end
     end
 
-    unless foreign_key_exists?(:chat_bridge_threads, :chat_sessions, column: :origin_chat_session_id)
-      add_foreign_key :chat_bridge_threads, :chat_sessions, column: :origin_chat_session_id
-    end
-
-    unless foreign_key_exists?(:chat_bridge_threads, :chat_sessions, column: :target_chat_session_id)
-      add_foreign_key :chat_bridge_threads, :chat_sessions, column: :target_chat_session_id
-    end
-
-    unless foreign_key_exists?(:chat_bridge_threads, :users, column: :opened_by_user_id)
-      add_foreign_key :chat_bridge_threads, :users, column: :opened_by_user_id
-    end
-
     unless index_exists?(:chat_bridge_threads, [ :origin_chat_session_id, :state ], name: "idx_chat_bridge_threads_origin_state")
       add_index :chat_bridge_threads, [ :origin_chat_session_id, :state ], name: "idx_chat_bridge_threads_origin_state"
     end
