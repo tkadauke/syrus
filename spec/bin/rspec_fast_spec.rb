@@ -98,6 +98,61 @@ RSpec.describe "bin/rspec-fast", :ci_only do
     end
   end
 
+  it "prints failed examples from worker JSON when the parallel output is quiet" do
+    Dir.mktmpdir do |dir|
+      bin_dir = File.join(dir, "bin")
+      FileUtils.mkdir_p(bin_dir)
+      FileUtils.cp(script, File.join(bin_dir, "rspec-fast"))
+
+      write_stub(File.join(bin_dir, "rails"), "#!/usr/bin/env bash\nexit 0\n")
+      write_stub(File.join(bin_dir, "bundle"), <<~BASH)
+        #!/usr/bin/env bash
+        if [ "$2" = "parallel_rspec" ]; then
+          mkdir -p "$RSPEC_JSON_DIR"
+          cat > "$RSPEC_JSON_DIR/rspec-1.json" <<'JSON'
+        {
+          "summary": { "example_count": 2, "failure_count": 1, "pending_count": 0 },
+          "examples": [
+            {
+              "id": "./spec/services/widget_spec.rb[1:1]",
+              "status": "failed",
+              "file_path": "./spec/services/widget_spec.rb",
+              "line_number": 42,
+              "full_description": "Widget does the important thing",
+              "exception": { "message": "expected true, got false\\nsecond line" },
+              "run_time": 0.12
+            },
+            {
+              "status": "passed",
+              "file_path": "./spec/services/other_spec.rb",
+              "line_number": 7,
+              "run_time": 0.01
+            }
+          ]
+        }
+        JSON
+          exit 1
+        fi
+        exit 0
+      BASH
+
+      stdout, _stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        "bash",
+        File.join(bin_dir, "rspec-fast"),
+        "spec/services/widget_spec.rb",
+        chdir: dir,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stdout).to include("2 examples, 1 failures")
+      expect(stdout).to include("Failed examples:")
+      expect(stdout).to include("rspec spec/services/widget_spec.rb:42 # Widget does the important thing")
+      expect(stdout).to include("expected true, got false")
+    end
+  end
+
   it "forces RUN_CI_ONLY_SPECS=false even when the ambient environment sets CI=true" do
     Dir.mktmpdir do |dir|
       bin_dir = File.join(dir, "bin")

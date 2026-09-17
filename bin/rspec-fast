@@ -131,17 +131,38 @@ ruby -rjson -e '
   files = Dir[File.join(ARGV.fetch(0), "rspec-*.json")]
   exit if files.empty?
 
+  failed_examples = []
   totals = files.each_with_object(Hash.new(0)) do |path, memo|
-    summary = JSON.parse(File.read(path)).fetch("summary", {})
+    payload = JSON.parse(File.read(path))
+    summary = payload.fetch("summary", {})
     memo[:examples] += summary.fetch("example_count", 0).to_i
     memo[:failures] += summary.fetch("failure_count", 0).to_i
     memo[:pending] += summary.fetch("pending_count", 0).to_i
+
+    payload.fetch("examples", []).each do |example|
+      failed_examples << example if example["status"].to_s == "failed"
+    end
   end
 
   parts = ["#{totals[:examples]} examples", "#{totals[:failures]} failures"]
   parts << "#{totals[:pending]} pending" if totals[:pending].positive?
   puts
   puts parts.join(", ")
+  if failed_examples.any?
+    puts
+    puts "Failed examples:"
+    failed_examples.first(50).each do |example|
+      file = example["file_path"].to_s.sub(%r{\A\./}, "")
+      line = example["line_number"].to_s
+      location = [file, line].reject(&:empty?).join(":")
+      description = example["full_description"].to_s
+      message = example.fetch("exception", {}).fetch("message", "").to_s.lines.first.to_s.strip
+      puts "  rspec #{location} # #{description}".rstrip
+      puts "    #{message}" unless message.empty?
+    end
+    remaining = failed_examples.size - 50
+    puts "  ... #{remaining} more failed examples not shown" if remaining.positive?
+  end
 ' "$RSPEC_JSON_DIR"
 # Merge the per-worker JUnit documents into one. Each worker only ran its own
 # slice of the suite, so ingesting a single worker's file would silently record
