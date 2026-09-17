@@ -33,12 +33,14 @@ Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The index page is the scan-and-filter inventory: each card
 shows the plugin's name, version, enabled state, category, short description,
 dependency summary, usage blockers, and a Details link. Disableable installed
-plugins can be enabled or disabled live; successful enablement navigates to the
-canonical detail page (`/admin/plugins/:name`) so the operator lands on the
-surfaces, docs, and metadata for the plugin they just turned on. Disable still
-stays on the inventory flow so cascade confirmation remains clear. New requests
-and sidecars use the latest `PluginRecord` state through
-`PluginRegistry.providers_for`.
+plugins can be enabled or disabled live from either the index card or the
+canonical detail page (`/admin/plugins/:name`) — both share the same
+enable/disable control, disable-blocked tooltip, and cascade-confirmation UI.
+From the index, successful enablement navigates to the detail page so the
+operator lands on the surfaces, docs, and metadata for the plugin they just
+turned on; disabling reloads in place. From the detail page, both enabling and
+disabling reload in place. New requests and sidecars use the latest
+`PluginRecord` state through `PluginRegistry.providers_for`.
 
 The page filters plugins with the same chip-based `FilterBar` query builder
 used on `/admin/queue` and `/admin/users` (no smart-folder saved-filter nav).
@@ -79,11 +81,13 @@ index, then adds heavier detail-only fields:
   plugin is disabled or unhealthy).
 - `links`: plugin-provided operator destinations declared by the manifest.
 
-The React detail page renders overview/status/recommendation, a right-rail
-metadata summary, config schema/current values from the existing plugin config
-payload, extension points, declared routes, plugin-owned docs, declared
-metrics, and enabled plugin links. Empty docs/metrics/routes/config sections
-render explicit empty states; docs remain owned by the plugin and are not copied
+The React detail page renders overview/status/recommendation, the same
+enable/disable control the index card uses (disable-blocked tooltip, usage
+blockers, and cascade confirmation included), a right-rail metadata summary,
+config schema/current values from the existing plugin config payload,
+extension points, declared routes, plugin-owned docs, declared metrics, and
+enabled plugin links. Empty docs/metrics/routes/config sections render
+explicit empty states; docs remain owned by the plugin and are not copied
 into core docs.
 
 Plugins can declare operator links/surfaces with the manifest DSL:

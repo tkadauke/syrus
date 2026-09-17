@@ -259,6 +259,7 @@ export type DashboardEpicItem = {
   description: string
   state: string
   simple_status?: string
+  landing: boolean
   stuck: boolean
   all_jobs_closed: boolean
   owner: DashboardOwner | null

@@ -124,6 +124,7 @@ function epic(overrides: Partial<DashboardEpicItem> = {}): DashboardEpicItem {
     title: "Widget reliability",
     description: "Keep widgets steady",
     state: "open",
+    landing: false,
     stuck: false,
     all_jobs_closed: false,
     owner: null,

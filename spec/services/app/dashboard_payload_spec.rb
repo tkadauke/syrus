@@ -1790,6 +1790,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 201, state: "approved", commits_behind_base: 4)
       Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 202, state: "closed", closure_reason: "pr_merged")
       Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 203, state: "closed", closure_reason: "external_pr_closed")
+      Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 204, state: "landing")
 
       queries = []
       callback = lambda do |_name, _started, _finished, _id, payload|
@@ -1806,14 +1807,25 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       item = result[:items].find { |row| row[:id] == epic.id }
       expect(item).to include(
-        jobs_count: 3,
+        jobs_count: 4,
         landed_jobs_count: 1,
         max_commits_behind_base: 4,
         stuck: false,
-        all_jobs_closed: false
+        all_jobs_closed: false,
+        landing: true
       )
-      expect(item[:job_state_counts]).to include("approved" => 1, "preempted" => 1)
+      expect(item[:job_state_counts]).to include("approved" => 1, "preempted" => 1, "landing" => 1)
       expect(queries.grep(/SELECT ["`]?jobs["`]?\.\* FROM ["`]?jobs["`]?/i)).to be_empty
+    end
+
+    it "reports landing false when no child Job is landing" do
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 201, state: "approved")
+
+      result = call(subject: "epic", section: "rows")
+
+      item = result[:items].find { |row| row[:id] == epic.id }
+      expect(item[:landing]).to eq(false)
     end
   end
 

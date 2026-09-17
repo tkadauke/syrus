@@ -425,6 +425,7 @@ module Api
             description: epic.description.to_s,
             state: epic.state,
             simple_status: simple_epic_status(epic, jobs),
+            landing: epic.landing?(jobs: jobs),
             stuck: epic.stuck?,
             startable: epic.may_start_implementing?(actor: Current.user),
             # Names of unfinished dependencies keeping a backlog/ready Epic

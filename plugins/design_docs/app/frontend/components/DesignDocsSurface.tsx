@@ -193,9 +193,12 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
               {mode === "repository" ? t("repository_description") : t("index_description")}
             </Page.Description>
           </div>
-          <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
-            {t("new_doc")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <DesignDocsColumnsMenu controls={indexQuery.data?.controls ?? null} preferences={indexQuery.data?.preferences ?? null} />
+            <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
+              {t("new_doc")}
+            </Button>
+          </div>
         </header>
       ) : null}
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -275,11 +278,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   )
 }
 
-function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }: {
+function DesignDocsColumnsMenu({ controls, preferences }: {
   controls: RepositoryDesignDocsPayload["controls"] | null
-  docs: DesignDocSummary[]
-  loading: boolean
-  onSelect: (id: number) => void
   preferences: RepositoryDesignDocsPayload["preferences"] | null
 }) {
   const { t } = useT("design_docs")
@@ -318,54 +318,69 @@ function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }
     updatePreferences.mutate({ visible_columns: next })
   }
 
+  if (!isDesktop) return null
+
+  return (
+    <div className="relative" ref={columnsMenuRef}>
+      <Button
+        aria-label={t("columns.menu")}
+        aria-controls="design-docs-columns-menu"
+        aria-expanded={columnsOpen}
+        aria-haspopup="menu"
+        className="h-9 w-9"
+        onClick={() => setColumnsOpen((open) => !open)}
+        size="sm"
+        variant="secondary"
+      >
+        <ColumnsIcon />
+      </Button>
+      {columnsOpen ? (
+        <div className="absolute right-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="design-docs-columns-menu" role="menu">
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("columns.visible")}</legend>
+            {menuColumns.map((column) => {
+              const checked = columns.includes(column.key)
+              return (
+                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
+                  <label className="flex min-w-0 items-center gap-2">
+                    <Checkbox
+                      checked={checked}
+                      disabled={updatePreferences.isPending}
+                      onChange={(event) => updateColumn(column.key, event.target.checked)}
+                    />
+                    <span className="truncate">{column.title}</span>
+                  </label>
+                  <button aria-label={t("columns.move_up", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">{t("columns.up")}</button>
+                  <button aria-label={t("columns.move_down", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">{t("columns.down")}</button>
+                </div>
+              )
+            })}
+          </fieldset>
+          {updatePreferences.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("columns.error_update"))}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function DesignDocsIndexTable({ controls, docs, loading, onSelect, preferences }: {
+  controls: RepositoryDesignDocsPayload["controls"] | null
+  docs: DesignDocSummary[]
+  loading: boolean
+  onSelect: (id: number) => void
+  preferences: RepositoryDesignDocsPayload["preferences"] | null
+}) {
+  const { t } = useT("design_docs")
+  const isDesktop = useMediaQuery("(min-width: 768px)", true)
+  const requiredColumns = controls?.columns.required ?? [{ key: "title", title: t("columns.title") }]
+  const optionalColumns = controls?.columns.optional ?? defaultDesignDocOptionalColumns(t)
+  const columns = designDocVisibleColumns({ requiredColumns, optionalColumns, preferences })
+
   if (loading) return <Panel>{t("loading_docs")}</Panel>
   if (docs.length === 0) return <Panel>{t("empty_filtered")}</Panel>
 
   return (
     <section className="min-w-0 space-y-3" aria-label={t("index_aria")}>
-      {isDesktop ? (
-        <div className="flex justify-end">
-          <div className="relative" ref={columnsMenuRef}>
-            <Button
-              aria-label={t("columns.menu")}
-              aria-controls="design-docs-columns-menu"
-              aria-expanded={columnsOpen}
-              aria-haspopup="menu"
-              className="h-9 w-9"
-              onClick={() => setColumnsOpen((open) => !open)}
-              size="sm"
-              variant="secondary"
-            >
-              <ColumnsIcon />
-            </Button>
-            {columnsOpen ? (
-              <div className="absolute right-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="design-docs-columns-menu" role="menu">
-                <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("columns.visible")}</legend>
-                  {menuColumns.map((column) => {
-                    const checked = columns.includes(column.key)
-                    return (
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
-                        <label className="flex min-w-0 items-center gap-2">
-                          <Checkbox
-                            checked={checked}
-                            disabled={updatePreferences.isPending}
-                            onChange={(event) => updateColumn(column.key, event.target.checked)}
-                          />
-                          <span className="truncate">{column.title}</span>
-                        </label>
-                        <button aria-label={t("columns.move_up", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, -1)} type="button">{t("columns.up")}</button>
-                        <button aria-label={t("columns.move_down", { title: column.title })} className="rounded px-1 text-xs text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800" disabled={!checked || updatePreferences.isPending} onClick={() => moveColumn(column.key, 1)} type="button">{t("columns.down")}</button>
-                      </div>
-                    )
-                  })}
-                </fieldset>
-                {updatePreferences.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("columns.error_update"))}</p> : null}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
       {isDesktop ? (
         <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
           <table className="min-w-full table-fixed divide-y divide-gray-200 text-left text-sm dark:divide-gray-800" data-testid="design-docs-table">
@@ -597,6 +612,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const railStackRef = useRef<HTMLDivElement | null>(null)
+  const railContainerRef = useRef<HTMLDivElement | null>(null)
   const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
@@ -815,10 +831,18 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     }
 
     function recomputeNow() {
-      const stackEl = railStackRef.current
-      if (!stackEl) return
+      // Measure against railContainerRef (the clip wrapper), never against
+      // railStackRef itself: railStackRef is the element recomputeNow's own
+      // output gets applied to via translateY, so reading its rect would
+      // read a mid-transition value while a previous frame's transform is
+      // still animating/painting -- a read-modify-write feedback loop that
+      // made the rail card jitter between its anchor and the viewport top
+      // during fast scroll. The clip wrapper never receives the transform,
+      // so its top position is stable across recompute cycles.
+      const containerEl = railContainerRef.current
+      if (!containerEl) return
 
-      const containerTop = stackEl.getBoundingClientRect().top
+      const containerTop = containerEl.getBoundingClientRect().top
       const markerRoot = editorMode === "rich_text" ? wysiwygRef.current : markdownMirrorRef.current
       const measurements = railEntries.map((entry) => {
         const marker = markerRoot?.querySelector(
@@ -1128,6 +1152,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           canReviewSuggestions={canReviewSuggestions}
           railEntries={railEntries}
           railLayout={railLayout}
+          railContainerRef={railContainerRef}
           railStackRef={railStackRef}
           replyBodies={replyBodies}
           selection={selection}
@@ -1647,7 +1672,7 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   canComment: boolean
   canReviewSuggestions: boolean
   commentBody: string
@@ -1660,6 +1685,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
   focusedThreadId: number | null
   railEntries: RailEntry[]
   railLayout: RailLayout
+  railContainerRef: React.MutableRefObject<HTMLDivElement | null>
   railStackRef: React.MutableRefObject<HTMLDivElement | null>
   readOnly: boolean
   replyBodies: Record<number, string>
@@ -1729,6 +1755,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
         <div
           className="overflow-hidden max-xl:!pb-0"
           data-testid="design-doc-rail-clip"
+          ref={railContainerRef}
           style={railStackShift > 0 ? { paddingBottom: railStackShift } : undefined}
         >
           <div
