@@ -371,3 +371,40 @@ unrelated to each other. `update` validates against the same
 setting, so `0` is always accepted as the infinite sentinel. This page covers
 only the DB-table entries in the registry; the existing walkthrough-video
 retention/budget settings documented above stay on `/settings/edit`.
+
+### Archive-before-delete storage (`RetentionArchive`)
+
+Plumbing for an opt-in path where a table's PruneJob serializes and archives
+a pruned batch to Active Storage before deleting it, instead of hard-deleting
+it outright. `RetentionArchive` (`app/models/retention_archive.rb`,
+`retention_archives` table) records one archived sweep: `retention_key`
+(must match a `RetentionPolicyRegistry` key), `pruned_before` (the cutoff
+used for that sweep), `row_count`, `byte_size`, and a `has_one_attached
+:archive_file` holding the serialized batch. Archiving itself (which
+PruneJobs opt in, and how a sweep is triggered) is out of scope here — this
+is just the storage destination and the row that records one archived sweep.
+v1 is download-only: archived blobs are kept forever and there is no
+automated restore path back into the live table.
+
+`archive_file` is deliberately **not** stored on the app's primary
+`config.active_storage.service` — an operator archiving to keep MySQL/SQLite
+lean usually wants that data on cheap bulk storage (a dedicated large local
+disk, or a separate bucket), independent of wherever regular attachments
+(user uploads, coverage hit maps, etc.) live. Resolution:
+
+- `config/storage.yml` defines `retention_archive_disk` (Disk-backed, root
+  from `RETENTION_ARCHIVE_ROOT`, defaulting to `storage/retention_archives`
+  under the app root) and `retention_archive_s3` (S3-compatible, configured
+  via `RETENTION_ARCHIVE_S3_*` env vars, mirroring the primary `minio` block
+  but independently so archives can live in a different bucket/endpoint).
+- `Rails.application.config.retention_archive_storage_service` picks which
+  configured service is active, set per environment file via
+  `RetentionArchiveStorageConfig.resolve(config)` (`config/retention_archive_storage.rb`).
+  `RETENTION_ARCHIVE_STORAGE_SERVICE` overrides; unset falls back to the
+  primary `config.active_storage.service`, so a zero-config deployment
+  archives to the same place as its regular attachments until an operator
+  explicitly points archives elsewhere.
+- The model passes that resolved service to `has_one_attached
+  :archive_file, service: ...` (Active Storage's per-attachment `service:`
+  option), so `archive_file` blobs always land on the configured
+  retention-archive service even when it differs from the primary one.
