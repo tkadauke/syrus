@@ -268,9 +268,9 @@ function PluginCascadeConfirmation({ state }: { state: PluginToggleState }) {
 
 function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
-  const rows = [plugin.author ? [t("plugins.author"), plugin.author] : null, plugin.homepage ? [t("plugins.homepage"), plugin.homepage] : null].filter(
-    Boolean
-  ) as string[][]
+  const rows: [string, ReactNode][] = []
+  if (plugin.author) rows.push([t("plugins.author"), plugin.author])
+  if (plugin.homepage) rows.push([t("plugins.homepage"), <HomepageLink homepage={plugin.homepage} key="homepage" />])
 
   if (rows.length === 0) return null
 
@@ -283,6 +283,14 @@ function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
         </div>
       ))}
     </dl>
+  )
+}
+
+function HomepageLink({ homepage }: { homepage: string }) {
+  return (
+    <a className="text-info underline hover:no-underline" href={homepage} rel="noreferrer" target="_blank">
+      {homepage}
+    </a>
   )
 }
 
@@ -427,7 +435,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
               <KeyValueLine label={t("plugins.category")} value={plugin.category_label || plugin.category || "-"} />
               <KeyValueLine label={t("plugins.default_state")} value={plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")} />
               <KeyValueLine label={t("plugins.disableable")} value={plugin.disableable ? t("plugins.yes") : t("plugins.no")} />
-              <KeyValueLine label={t("plugins.homepage")} value={plugin.homepage || "-"} />
+              <KeyValueLine label={t("plugins.homepage")} value={plugin.homepage ? <HomepageLink homepage={plugin.homepage} /> : "-"} />
               <KeyValueLine label={t("plugins.source")} value={plugin.source || "-"} />
               <KeyValueLine label={t("plugins.depends_on")} value={(plugin.depends_on || []).join(", ") || "-"} />
               <KeyValueLine label={t("plugins.optional_depends_on")} value={(plugin.optionally_depends_on || []).join(", ") || "-"} />

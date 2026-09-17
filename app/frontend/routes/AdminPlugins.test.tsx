@@ -705,6 +705,14 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("GET /api/v1/app/terminal_sessions")).toBeInTheDocument()
     expect(screen.getByText("Terminal::SidebarPages")).toBeInTheDocument()
     expect(screen.getByText("/app/plugins/terminal")).toBeInTheDocument()
+
+    const homepageLinks = screen.getAllByRole("link", { name: "https://example.test/terminal" })
+    expect(homepageLinks.length).toBeGreaterThan(0)
+    homepageLinks.forEach((link) => {
+      expect(link).toHaveAttribute("href", "https://example.test/terminal")
+      expect(link).toHaveAttribute("target", "_blank")
+      expect(link).toHaveAttribute("rel", "noreferrer")
+    })
   })
 
   it("renders detail empty states and hides enabled-only links while disabled", async () => {
