@@ -648,7 +648,25 @@
     "available_space_manual": "Manu insertum",
     "available_space_override_label": "Spatium disponibile manu insertum (GB)",
     "available_space_override_help": "Adhibetur ad comparationem spatii adhibiti infra, cum Syrus spatium disponibile per se mensurare non potest (exempli gratia MySQL datadir procul administratum). Pone 0 ut deleatur.",
-    "available_space_override_placeholder": "exempli gratia 500"
+    "available_space_override_placeholder": "exempli gratia 500",
+    "archives": {
+      "archive_before_delete_label": "Ante deletionem archivare",
+      "show": "Archiva monstra",
+      "hide": "Archiva occulta",
+      "loading": "Archiva onerantur...",
+      "error_load": "Archiva retentionis onerari non potuerunt.",
+      "empty": "Nulla archiva adhuc.",
+      "col_pruned_before": "Purgatum ante",
+      "col_row_count": "Versus",
+      "col_byte_size": "Magnitudo",
+      "col_created_at": "Archivatum",
+      "col_download": "Deme",
+      "download": "Deme",
+      "no_file": "Nullum fasciculum",
+      "showing": "{{first}}-{{last}} de {{total}} monstrantur",
+      "previous": "Prior",
+      "next": "Proxima"
+    }
   },
   "github_app": {
     "register_title": "Inscriptio Applicamenti GitHub",

@@ -23,4 +23,25 @@ RSpec.describe RunDiagnosticPruneJob do
 
     expect { described_class.perform_now }.not_to change { RunDiagnostic.count }
   end
+
+  it "does not archive before deleting when archive_before_delete is off (default, matches JOB-5025 behavior)" do
+    old = RunDiagnostic.create!(run: Factories.run, error_class: "X")
+    old.update_columns(created_at: (RunDiagnostic.retention_window + 1.day).ago)
+
+    expect { described_class.perform_now }.not_to change { RetentionArchive.count }
+    expect(RunDiagnostic.exists?(old.id)).to be false
+  end
+
+  it "archives before deleting when archive_before_delete is on" do
+    AppSetting.current.update!(run_diagnostic_archive_before_delete: true)
+    old = RunDiagnostic.create!(run: Factories.run, error_class: "X")
+    old.update_columns(created_at: (RunDiagnostic.retention_window + 1.day).ago)
+
+    expect { described_class.perform_now }.to change { RetentionArchive.count }.by(1)
+
+    archive = RetentionArchive.last
+    expect(archive.retention_key).to eq("run_diagnostic")
+    expect(archive.row_count).to eq(1)
+    expect(RunDiagnostic.exists?(old.id)).to be false
+  end
 end

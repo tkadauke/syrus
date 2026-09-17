@@ -539,7 +539,8 @@ class AppSettingRegistry
   # happened to already be true the one time this constant would otherwise
   # have been evaluated.
   def self.definitions
-    BASE_DEFINITIONS + RetentionPolicyRegistry.definitions.map(&:as_app_setting_definition)
+    BASE_DEFINITIONS + RetentionPolicyRegistry.definitions.map(&:as_app_setting_definition) +
+      RetentionPolicyRegistry.archive_app_setting_definitions
   end
 
   def self.fetch(key)

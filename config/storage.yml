@@ -24,3 +24,27 @@ minio:
   bucket: <%= ENV["S3_BUCKET"] %>
   endpoint: <%= ENV["S3_ENDPOINT"] %>
   force_path_style: true
+
+# Dedicated storage for RetentionArchive attachments, independent of
+# whichever service backs the app's primary attachments above. Lets an
+# operator point archived (soon-to-be-pruned) rows at a large local disk
+# volume regardless of where regular attachments live. Resolved via
+# config.retention_archive_storage_service / RETENTION_ARCHIVE_STORAGE_SERVICE
+# (see config/retention_archive_storage.rb); unset falls back to the primary
+# active_storage.service, so this entry is only used when explicitly
+# selected.
+retention_archive_disk:
+  service: Disk
+  root: <%= ENV.fetch("RETENTION_ARCHIVE_ROOT", Rails.root.join("storage/retention_archives").to_s) %>
+
+# S3-compatible object storage for retention archives, mirroring #minio
+# above but configured independently so archives can live in a different
+# bucket/endpoint than the app's primary attachments.
+retention_archive_s3:
+  service: S3
+  access_key_id: <%= ENV["RETENTION_ARCHIVE_S3_ACCESS_KEY_ID"] %>
+  secret_access_key: <%= ENV["RETENTION_ARCHIVE_S3_SECRET_ACCESS_KEY"] %>
+  region: <%= ENV.fetch("RETENTION_ARCHIVE_S3_REGION", "us-east-1") %>
+  bucket: <%= ENV["RETENTION_ARCHIVE_S3_BUCKET"] %>
+  endpoint: <%= ENV["RETENTION_ARCHIVE_S3_ENDPOINT"] %>
+  force_path_style: true

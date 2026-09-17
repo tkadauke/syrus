@@ -792,7 +792,25 @@
     "available_space_manual": "Manually entered",
     "available_space_override_label": "Manual available space override (GB)",
     "available_space_override_help": "Used for the space-used comparison below when Syrus can't measure available space automatically (e.g. a managed/remote MySQL datadir). Set 0 to clear.",
-    "available_space_override_placeholder": "e.g. 500"
+    "available_space_override_placeholder": "e.g. 500",
+    "archives": {
+      "archive_before_delete_label": "Archive before delete",
+      "show": "View archives",
+      "hide": "Hide archives",
+      "loading": "Loading archives...",
+      "error_load": "Unable to load retention archives.",
+      "empty": "No archives yet.",
+      "col_pruned_before": "Pruned before",
+      "col_row_count": "Rows",
+      "col_byte_size": "Size",
+      "col_created_at": "Archived at",
+      "col_download": "Download",
+      "download": "Download",
+      "no_file": "No file",
+      "showing": "Showing {{first}}-{{last}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next"
+    }
   },
   "github_app": {
     "register_title": "GitHub App registration",

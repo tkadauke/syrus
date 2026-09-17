@@ -3,14 +3,14 @@ require "rails_helper"
 RSpec.describe IngestPolicy do
   let(:repository) { Factories.repository(trigger_label: "syrus") }
 
-  Issue = Struct.new(:number, :state, :labels, :pull_request, keyword_init: true) do
+  issue_struct = Struct.new(:number, :state, :labels, :pull_request, keyword_init: true) do
     def respond_to_missing?(_method, _ = false) = true
   end
 
-  Label = Struct.new(:name)
+  label_struct = Struct.new(:name)
 
-  def issue(state: "open", labels: %w[syrus], pull_request: nil)
-    Issue.new(number: 1, state: state, labels: labels.map { |n| Label.new(n) }, pull_request: pull_request)
+  define_method(:issue) do |state: "open", labels: %w[syrus], pull_request: nil|
+    issue_struct.new(number: 1, state: state, labels: labels.map { |n| label_struct.new(n) }, pull_request: pull_request)
   end
 
   it "allows an issue with the trigger label" do

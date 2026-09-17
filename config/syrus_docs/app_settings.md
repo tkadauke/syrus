@@ -256,21 +256,31 @@ retention (`WorkflowWorkspacePruneJob`'s workspace-directory constants,
 and the video walkthrough settings documented above) is out of scope and
 stays fixed or on its own settings.
 
-| Setting | Default | Unit | Table | PruneJob |
-| --- | --- | --- | --- | --- |
-| `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` |
-| `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` |
-| `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` |
-| `work_engine_reconciler_activity_retention_days` | 7 | days | `work_engine_reconciler_activity_events` | `WorkEngineReconcilerActivityPruneJob` |
-| `provider_session_retention_days` | 14 | days | `provider_sessions` | `ProviderSessionPruneJob` |
-| `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` |
-| `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` |
-| `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` |
-| `metrics_dashboard_sample_retention_days` | 30 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` |
-| `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` |
-| `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` |
-| `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` |
-| `workflow_step_resource_profile_input_retention_days` | 180 | days | (lookback only — see below) | none |
+| Setting | Default | Unit | Table | PruneJob | Archivable |
+| --- | --- | --- | --- | --- | --- |
+| `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | `RunDiagnosticPruneJob` | yes |
+| `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | `RunResourceSummaryPruneJob` | no |
+| `worker_host_health_sample_retention_days` | 7 | days | `worker_host_health_samples` | `WorkerHostHealthSamplePruneJob` | no |
+| `work_engine_reconciler_activity_retention_days` | 7 | days | `work_engine_reconciler_activity_events` | `WorkEngineReconcilerActivityPruneJob` | yes |
+| `provider_session_retention_days` | 14 | days | `provider_sessions` | `ProviderSessionPruneJob` | yes |
+| `spawned_process_retention_days` | 7 | days | `spawned_processes` | `SpawnedProcessPruneJob` | no |
+| `notification_retention_days` | 30 | days | `notifications` | `PruneOldNotificationsJob` | no |
+| `operational_log_event_retention_hours` | 6 | **hours** | `operational_log_events` | `PruneOperationalLogsJob` | no |
+| `metrics_dashboard_sample_retention_days` | 30 | days | `metrics_dashboard_samples` | `MetricsDashboard::PruneJob` | no |
+| `run_health_snapshot_retention_days` | 7 | days | `run_health_snapshots` | `RunHealthSnapshotPruneJob` | yes |
+| `main_branch_health_check_retention_days` | 7 | days | `main_branch_health_checks` | `MainBranchHealthCheckPruneJob` | yes |
+| `workflow_step_resource_profile_retention_days` | 180 | days | `workflow_step_resource_profiles` | `WorkflowStepResourceProfilePruneJob` | no |
+| `workflow_step_resource_profile_input_retention_days` | 180 | days | (lookback only — see below) | none | no |
+
+"Archivable" means the entry's `RetentionPolicyRegistry::Definition#archivable`
+flag is `true` — see "Archive-before-delete storage" below for what that
+enables. It is reserved for tables with real forensic/audit value after
+deletion (exception diagnostics, agent session transcripts, automated-repair
+and CI-health audit trails); high-volume numeric telemetry and ops-noise
+tables (resource summaries, host health samples, spawned-process inventory,
+notifications, the operational log index, and the resource-prediction
+profile tables) are marked `archivable: false` since archiving them would
+mostly balloon storage for little later value.
 
 Three entries are worth calling out:
 
@@ -371,3 +381,100 @@ unrelated to each other. `update` validates against the same
 setting, so `0` is always accepted as the infinite sentinel. This page covers
 only the DB-table entries in the registry; the existing walkthrough-video
 retention/budget settings documented above stay on `/settings/edit`.
+
+### Archive-before-delete storage (`RetentionArchive`)
+
+An opt-in path where a table's PruneJob serializes and archives a pruned
+batch to Active Storage before deleting it, instead of hard-deleting it
+outright. `RetentionArchive` (`app/models/retention_archive.rb`,
+`retention_archives` table) records one archived sweep: `retention_key`
+(must match a `RetentionPolicyRegistry` key), `pruned_before` (the cutoff
+used for that sweep), `row_count`, `byte_size`, and a `has_one_attached
+:archive_file` holding the serialized batch. v1 is download-only: archived
+blobs are kept forever and there is no automated restore path back into the
+live table.
+
+**Opt-in flag.** `RetentionPolicyRegistry::Definition#archivable` marks which
+entries archiving is meaningful for (see the table above). Every archivable
+entry gets a matching `<key>_archive_before_delete` boolean `AppSetting`
+column (`Definition#archive_setting_key`), folded into
+`AppSettingRegistry.definitions` via
+`RetentionPolicyRegistry.archive_app_setting_definitions` the same way
+`as_app_setting_definition` folds the retention-window integer settings in.
+Every one of these defaults to `false` — archiving is off for every table
+until an operator explicitly enables it — and a non-archivable entry has no
+such column at all.
+
+**`RetentionArchiver`** (`app/services/retention_archiver.rb`) is the shared
+service each archivable table's PruneJob calls immediately before its
+existing delete:
+
+```ruby
+scope = RunDiagnostic.prunable
+RetentionArchiver.call(retention_key: :run_diagnostic, scope: scope, cutoff: RunDiagnostic.retention_cutoff)
+n = scope.delete_all
+```
+
+`RetentionArchiver.call` no-ops (never touches `RetentionArchive` or Active
+Storage) when the table's `archive_before_delete` setting is off, the cutoff
+is `nil` (infinite retention), or the scope has no rows this sweep — so the
+flag-off path is byte-for-byte the original delete-only behavior. When
+archiving is on and there is something to archive, it serializes each row of
+`scope` via `#as_json` to gzip-compressed JSONL, streaming through
+`find_in_batches` (default batch size 1000) so the whole prunable set is
+never loaded into memory at once, then creates exactly one `RetentionArchive`
+row for the sweep (`row_count`, `byte_size`, `pruned_before: cutoff`) with the
+compressed file attached. The caller's `scope.delete_all` then runs
+unconditionally, whether or not archiving ran — the same `scope` object is
+reused for both, so the delete never picks up rows that weren't included in
+that archive. Passing a `retention_key` whose definition has
+`archivable: false` raises `ArgumentError`.
+
+Archiving tables as of this writing: `run_diagnostic`,
+`work_engine_reconciler_activity`, `provider_session`, `run_health_snapshot`,
+and `main_branch_health_check` — see their respective PruneJobs
+(`RunDiagnosticPruneJob`, `WorkEngineReconcilerActivityPruneJob`,
+`ProviderSessionPruneJob`, `RunHealthSnapshotPruneJob`,
+`MainBranchHealthCheckPruneJob`) for the exact call sites.
+
+**Admin UI.** `/admin/retention_settings` (`app/frontend/routes/RetentionSettings.tsx`)
+exposes an "Archive before delete" checkbox next to each archivable table's
+retention window, saved via the same `PATCH /api/v1/app/admin/retention_settings`
+endpoint as the retention window itself
+(`Api::V1::App::Admin::RetentionSettingsController#update_params` permits
+every `archive_setting_key` alongside the window `setting_key`s; unlike the
+integer settings, a `false` toggle must not be dropped as "blank", so this
+filter rejects only `nil`/`""`, not every Ruby-falsy value). Each archivable
+row also has a "View archives" toggle that expands a per-table history of
+past `RetentionArchive` sweeps (`pruned_before`, row count, size, archived-at,
+and a download link) via `GET /api/v1/app/admin/retention_archives?retention_key=<key>`
+(`Api::V1::App::Admin::RetentionArchivesController`, paginated 20/page). The
+download link (`GET .../retention_archives/:id/download`) is a plain
+admin-auth-gated redirect to Active Storage's own signed blob URL
+(`rails_blob_path(archive.archive_file, disposition: "attachment")`) rather
+than streaming the file through the Rails process itself. v1 is
+download-only — there is no restore action in this UI, matching
+`RetentionArchive`'s download-only v1 scope above.
+
+`archive_file` is deliberately **not** stored on the app's primary
+`config.active_storage.service` — an operator archiving to keep MySQL/SQLite
+lean usually wants that data on cheap bulk storage (a dedicated large local
+disk, or a separate bucket), independent of wherever regular attachments
+(user uploads, coverage hit maps, etc.) live. Resolution:
+
+- `config/storage.yml` defines `retention_archive_disk` (Disk-backed, root
+  from `RETENTION_ARCHIVE_ROOT`, defaulting to `storage/retention_archives`
+  under the app root) and `retention_archive_s3` (S3-compatible, configured
+  via `RETENTION_ARCHIVE_S3_*` env vars, mirroring the primary `minio` block
+  but independently so archives can live in a different bucket/endpoint).
+- `Rails.application.config.retention_archive_storage_service` picks which
+  configured service is active, set per environment file via
+  `RetentionArchiveStorageConfig.resolve(config)` (`config/retention_archive_storage.rb`).
+  `RETENTION_ARCHIVE_STORAGE_SERVICE` overrides; unset falls back to the
+  primary `config.active_storage.service`, so a zero-config deployment
+  archives to the same place as its regular attachments until an operator
+  explicitly points archives elsewhere.
+- The model passes that resolved service to `has_one_attached
+  :archive_file, service: ...` (Active Storage's per-attachment `service:`
+  option), so `archive_file` blobs always land on the configured
+  retention-archive service even when it differs from the primary one.

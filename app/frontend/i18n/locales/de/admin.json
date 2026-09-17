@@ -648,7 +648,25 @@
     "available_space_manual": "Manuell eingegeben",
     "available_space_override_label": "Manuelle Überschreibung des verfügbaren Speichers (GB)",
     "available_space_override_help": "Wird für den Vergleich des genutzten Speichers unten verwendet, wenn Syrus verfügbaren Speicher nicht automatisch messen kann (z. B. bei einem verwalteten/entfernten MySQL-Datenverzeichnis). Auf 0 setzen, um zurückzusetzen.",
-    "available_space_override_placeholder": "z. B. 500"
+    "available_space_override_placeholder": "z. B. 500",
+    "archives": {
+      "archive_before_delete_label": "Vor dem Löschen archivieren",
+      "show": "Archive anzeigen",
+      "hide": "Archive ausblenden",
+      "loading": "Archive werden geladen...",
+      "error_load": "Aufbewahrungsarchive konnten nicht geladen werden.",
+      "empty": "Noch keine Archive.",
+      "col_pruned_before": "Bereinigt vor",
+      "col_row_count": "Zeilen",
+      "col_byte_size": "Größe",
+      "col_created_at": "Archiviert am",
+      "col_download": "Download",
+      "download": "Herunterladen",
+      "no_file": "Keine Datei",
+      "showing": "{{first}}-{{last}} von {{total}} werden angezeigt",
+      "previous": "Zurück",
+      "next": "Weiter"
+    }
   },
   "github_app": {
     "register_title": "GitHub-App-Registrierung",
