@@ -39,6 +39,13 @@ class ChatBridgeThread < ApplicationRecord
     close! if at_max_hops?
   end
 
+  # The other side of this thread relative to `chat_session`, so either
+  # direction of delivery can find its recipient without duplicating the
+  # origin/target ternary at each call site.
+  def counterpart(chat_session)
+    chat_session.id == origin_chat_session_id ? target_chat_session : origin_chat_session
+  end
+
   private
 
   def chat_sessions_belong_to_same_user

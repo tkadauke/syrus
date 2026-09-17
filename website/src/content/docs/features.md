@@ -877,6 +877,17 @@ so the wakeup and any follow-up action remain part of the transcript. The
 agent can list pending wakeups for the current chat and cancel any that are
 no longer needed.
 
+The chat agent can also send a message to another one of the same operator's
+chat sessions, opening a bounded, visibly-marked message thread and waking the
+other chat's turn — useful for sharing context or coordinating work between
+chats running different repositories or different chat providers/models. A new
+thread can only be opened as a direct result of the operator's own message in
+the current chat, so an automated turn (a wakeup, a scheduled message, and so
+on) can never spontaneously start one on its own; once a thread is open, either
+side can reply until the exchange reaches a small hop cap, at which point
+Syrus auto-closes it and posts a visible notice to both chats. This is
+same-operator-only for now — a chat can only message another chat it owns.
+
 Operators can also schedule their own follow-up message directly from the
 composer with `/schedule [time] [message]`. When both arguments are present,
 Syrus stores the message immediately and sends it at the parsed time; otherwise
