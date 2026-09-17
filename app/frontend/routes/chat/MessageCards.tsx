@@ -70,6 +70,14 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
               <span>{t("walkthrough_shared_chip")}</span>
             </div>
           ) : null}
+          {item.cross_chat_bridge && item.cross_chat_bridge.direction === "inbound" ? (
+            <div className="flex items-center justify-end gap-2 text-xs text-gray-500 dark:text-gray-400" data-testid="cross-chat-bridge-chip">
+              <span aria-hidden="true">🔗</span>
+              <Link className="underline hover:no-underline" to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}>
+                {t("cross_chat_bridge_link", { id: item.cross_chat_bridge.counterpart_chat_session_id, title: item.cross_chat_bridge.counterpart_chat_title || t("new_title") })}
+              </Link>
+            </div>
+          ) : null}
           {item.chat_shell_command ? <ShellCommandCard shellCommand={item.chat_shell_command} /> : null}
           {item.text.trim().length > 0 ? (
             <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
@@ -807,9 +815,9 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
     <div className="flex flex-col items-center justify-center gap-1">
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${BANNER_TONE_CLASSES[item.tone]}`}>
         <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
-        <span className="min-w-0 truncate" data-testid="system-message-summary">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
+        <span className="min-w-0 flex-1 truncate" data-testid="system-message-summary">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
         {item.cta ? (
-          <Link className="shrink-0 font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
+          <Link className="min-w-0 max-w-[45%] shrink truncate font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
             {item.cta.label}
           </Link>
         ) : null}

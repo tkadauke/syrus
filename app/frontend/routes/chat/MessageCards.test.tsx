@@ -214,6 +214,62 @@ describe("sender attribution", () => {
   })
 })
 
+describe("cross-chat bridge rendering", () => {
+  it("renders a badge linking to the origin chat on an inbound bridge message", () => {
+    renderChatMessageItem(userMessage("check on JOB-1", {
+      cross_chat_bridge: {
+        thread_id: 7,
+        direction: "inbound",
+        counterpart_chat_session_id: 42,
+        counterpart_chat_title: "Debugging session"
+      }
+    }))
+
+    const chip = screen.getByTestId("cross-chat-bridge-chip")
+    expect(within(chip).getByText("via Chat #42: Debugging session")).toBeInTheDocument()
+    expect(within(chip).getByRole("link", { name: "via Chat #42: Debugging session" })).toHaveAttribute("href", "/chats/42")
+  })
+
+  it("falls back to the new-chat label when the origin chat has no title", () => {
+    renderChatMessageItem(userMessage("check on JOB-1", {
+      cross_chat_bridge: {
+        thread_id: 7,
+        direction: "inbound",
+        counterpart_chat_session_id: 42,
+        counterpart_chat_title: null
+      }
+    }))
+
+    expect(screen.getByText("via Chat #42: New chat")).toBeInTheDocument()
+  })
+
+  it("does not render the chip on an ordinary user message", () => {
+    renderChatMessageItem(userMessage("just a normal message"))
+
+    expect(screen.queryByTestId("cross-chat-bridge-chip")).not.toBeInTheDocument()
+  })
+
+  it("lets the outbound pill's cta share space with a truncating body instead of crowding it out at narrow widths", () => {
+    renderChatMessageItem(
+      systemMessageItem({
+        tone: "neutral",
+        label: "Cross-chat",
+        body: "Sent to chat #3: Can you check on JOB-1's status for me when you get a chance?",
+        cta: { label: "via Chat #3: A very long counterpart chat title indeed", path: "/chats/3" }
+      })
+    )
+
+    const summary = screen.getByTestId("system-message-summary")
+    expect(summary.className).toContain("truncate")
+    expect(summary.className).toContain("flex-1")
+
+    const cta = screen.getByRole("link", { name: "via Chat #3: A very long counterpart chat title indeed" })
+    expect(cta.className).toContain("truncate")
+    expect(cta.className).toContain("max-w-[45%]")
+    expect(cta.className).not.toContain("shrink-0")
+  })
+})
+
 describe("shell command rendering", () => {
   it("renders a completed `!` command distinctly from a normal chat bubble, with ANSI output resolved to colored text", () => {
     renderChatMessageItem(userMessage("", {

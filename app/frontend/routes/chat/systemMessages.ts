@@ -5,7 +5,7 @@
 // init/result/mcp system cards and the duration label. Pure functions over
 // the shared value utils + chat API types, so they move out of the 6k-line
 // Chat.tsx; renderMessage imports structuredTool/systemMessage back.
-import type { ChatMcpHealth, ChatMessageItem, ChatStructuredTool, ChatSystemMessage } from "../../api/chats"
+import type { ChatCrossChatBridge, ChatMcpHealth, ChatMessageItem, ChatStructuredTool, ChatSystemMessage } from "../../api/chats"
 import { contentRecord, formatCurrency, humanize, stringArray, stringValue } from "./utils"
 import { toolPresentation, toolResultPresentation } from "./toolRendering"
 
@@ -35,6 +35,9 @@ export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
 
 export function systemMessage(message: ChatMessageItem): ChatSystemMessage | null {
   const text = message.text || stringValue(contentRecord(message.content)?.text) || ""
+  const crossChatBridge = crossChatBridgeSystemMessage(message, text)
+  if (crossChatBridge) return crossChatBridge
+
   const providerError = providerErrorFromContent(message.content)
   if (providerError) return providerError
 
@@ -73,6 +76,34 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   }
 
   return { tone: "neutral", label: "System", body: text }
+}
+
+// The outbound (sender-side) and hop-limit closure-notice system messages
+// ChatSession::CrossChatMessage posts. The inbound (target-side) message is a
+// separate case -- it renders as a normal "user" bubble, since WakeupTurn
+// gives it role: "user" -- see the cross-chat badge in MessageCards.tsx.
+export function crossChatBridgeSystemMessage(message: ChatMessageItem, text: string): ChatSystemMessage | null {
+  const bridge = message.cross_chat_bridge
+  if (!bridge || bridge.direction === "inbound") return null
+
+  if (bridge.direction === "closed") {
+    return { tone: "warning", label: "Cross-chat", body: text }
+  }
+
+  return {
+    tone: "neutral",
+    label: "Cross-chat",
+    body: text,
+    cta: { label: crossChatBridgeLinkLabel(bridge), path: `/chats/${bridge.counterpart_chat_session_id}` }
+  }
+}
+
+// Mirrors the inbound badge's i18n `cross_chat_bridge_link` fallback
+// (MessageCards.tsx, `counterpart_chat_title || t("new_title")`) so an
+// untitled counterpart chat renders the same "New chat" label on both sides
+// of the bridge instead of silently dropping the title segment here.
+export function crossChatBridgeLinkLabel(bridge: ChatCrossChatBridge) {
+  return `via Chat #${bridge.counterpart_chat_session_id}: ${bridge.counterpart_chat_title || "New chat"}`
 }
 
 export function goalContinuationFromContent(content: unknown, text: string): ChatSystemMessage | null {

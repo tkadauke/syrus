@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_200854) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_105538) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -432,6 +432,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_200854) do
     t.datetime "updated_at", null: false
     t.index ["chat_message_id", "id"], name: "idx_chat_bookmarks_message_id_id"
     t.index ["chat_message_id"], name: "index_chat_bookmarks_on_chat_message_id"
+  end
+
+  create_table "chat_bridge_threads", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "hop_count", default: 0, null: false
+    t.integer "max_hops", default: 6, null: false
+    t.integer "opened_by_user_id", null: false
+    t.integer "origin_chat_session_id", null: false
+    t.string "state", default: "open", null: false
+    t.integer "target_chat_session_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["opened_by_user_id"], name: "index_chat_bridge_threads_on_opened_by_user_id"
+    t.index ["origin_chat_session_id", "state"], name: "idx_chat_bridge_threads_origin_state"
+    t.index ["origin_chat_session_id"], name: "index_chat_bridge_threads_on_origin_chat_session_id"
+    t.index ["target_chat_session_id", "state"], name: "idx_chat_bridge_threads_target_state"
+    t.index ["target_chat_session_id"], name: "index_chat_bridge_threads_on_target_chat_session_id"
   end
 
   create_table "chat_context_checkpoints", force: :cascade do |t|
