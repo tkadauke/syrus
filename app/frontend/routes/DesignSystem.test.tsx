@@ -22,6 +22,24 @@ function oceanThemePayload() {
   }
 }
 
+function consoleThemePayload() {
+  return {
+    theme: {
+      id: 9,
+      slug: "console",
+      name: "Console",
+      built_in: true,
+      tokens: {
+        light: { brand: "#166534", surface: "#ffffff" },
+        dark: { brand: "#4ade80", surface: "#09090b" },
+        shape: { "radius-control": "0px", "radius-panel": "0px" },
+        spacing: { "space-page-x": "1rem" },
+        typography: { "font-sans": "ui-monospace, SFMono-Regular, monospace" }
+      }
+    }
+  }
+}
+
 function renderRoute(path = "/design_system") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -85,6 +103,70 @@ describe("DesignSystemRoute", () => {
     expect(main.style.getPropertyValue("--color-info-surface")).toBe("color-mix(in srgb, var(--color-surface) 94%, var(--color-info))")
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("")
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false)
+  })
+
+  it("renders the expanded (non-color) token groups from the live theme", () => {
+    renderRoute()
+
+    expect(screen.getByText("Expanded tokens")).toBeInTheDocument()
+    expect(screen.getByText("Shape")).toBeInTheDocument()
+    expect(screen.getByText("Shadow")).toBeInTheDocument()
+    expect(screen.getByText("Spacing")).toBeInTheDocument()
+    expect(screen.getByText("Density")).toBeInTheDocument()
+    expect(screen.getByText("Typography")).toBeInTheDocument()
+    expect(screen.getByText("radius-control")).toBeInTheDocument()
+    expect(screen.getByText("font-sans")).toBeInTheDocument()
+  })
+
+  it("never lets a long typography value squeeze its label unreadable or overflow its card", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(consoleThemePayload()))
+
+    renderRoute("/design_system?theme_id=9")
+
+    await waitFor(() => {
+      expect(screen.getByText('Previewing "Console" — shown on this page only. The rest of the app keeps your active theme.')).toBeInTheDocument()
+    })
+
+    const label = screen.getByText("font-sans")
+    const value = screen.getByText("ui-monospace, SFMono-Regular, monospace")
+
+    // The label never shares the value's shrink/truncate treatment, so a long
+    // font-stack string can't crush it down to an illegible "f…".
+    expect(label.className).toContain("shrink-0")
+    expect(label.className).not.toContain("truncate")
+
+    // The value truncates on its own, inside a grid card constrained to
+    // min-w-0 -- so a long value ellipsizes within its card instead of
+    // forcing the card (and the page) wider than the viewport.
+    expect(value.className).toContain("min-w-0")
+    expect(value.className).toContain("truncate")
+    expect(value.getAttribute("title")).toBe("ui-monospace, SFMono-Regular, monospace")
+
+    const card = label.closest("div.rounded")
+    expect(card?.className).toContain("min-w-0")
+
+    const grid = card?.parentElement
+    expect(grid?.className).toContain("grid-cols-1")
+  })
+
+  it("scopes a non-color ?theme_id preview's shape/spacing/typography tokens to the page's own container", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(consoleThemePayload()))
+
+    renderRoute("/design_system?theme_id=9")
+
+    await waitFor(() => {
+      expect(screen.getByText('Previewing "Console" — shown on this page only. The rest of the app keeps your active theme.')).toBeInTheDocument()
+    })
+
+    const main = screen.getByRole("main")
+    expect(main.style.getPropertyValue("--radius-control")).toBe("0px")
+    expect(main.style.getPropertyValue("--radius-panel")).toBe("0px")
+    expect(main.style.getPropertyValue("--space-page-x")).toBe("1rem")
+    expect(main.style.getPropertyValue("--font-sans")).toBe("ui-monospace, SFMono-Regular, monospace")
+    // Untouched extended tokens still default (Theme#tokens_with_defaults is
+    // what fills these server-side; the client-side preview only ever sees
+    // whatever the API response actually included).
+    expect(document.documentElement.style.getPropertyValue("--radius-control")).toBe("")
   })
 
   it("shows non-blocking contrast warnings for a draft preview with issues", async () => {

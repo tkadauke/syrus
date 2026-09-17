@@ -14,13 +14,61 @@ self-contained Rails engine plugin, installed but disabled by default
 matching `mysql_db_browser`'s opt-in-experimental precedent. Enable it from
 **Admin → Plugins** (`/admin/plugins`).
 
-The `Theme` model and its 13-key token schema (`brand`, `brand-emphasis`,
+The `Theme` model and its 13-key color token schema (`brand`, `brand-emphasis`,
 `surface`, `surface-raised`, `border`, `text-primary`, `text-secondary`,
 `success`, `warning`, `danger`, `info`, `neutral`, `on-brand`, each with a
-`light` and `dark` value) live in the main app (`app/models/theme.rb`), not
-in this plugin — same "models stay in core" precedent `WhiteboardSnapshot`
-sets for `whiteboard`. This plugin only owns the tool surface and the
-broadcast that opens the preview.
+`light` and `dark` value), plus the non-color `Theme::EXTENDED_TOKEN_GROUPS`
+(`shape`, `shadow`, `spacing`, `density`, `typography` — see below) live in
+the main app (`app/models/theme.rb`), not in this plugin — same "models stay
+in core" precedent `WhiteboardSnapshot` sets for `whiteboard`. This plugin
+only owns the tool surface and the broadcast that opens the preview.
+
+## Non-color (extended) token groups
+
+`Theme::EXTENDED_TOKEN_GROUPS` layers shape, elevation, layout rhythm, and
+typography on top of the original color-only model, unlike `light`/`dark`
+these are not split by mode (a theme's radius/spacing/density/typography
+doesn't change between light and dark):
+
+- `shape` — `radius-control`, `radius-panel`, `radius-pill`, `border-width`
+- `shadow` — `shadow-panel`
+- `spacing` — `space-page-x`, `space-page-y`, `space-section`, `space-section-compact`
+- `density` — `control-height-sm`, `control-height-md`, `table-row-height`
+- `typography` — `font-sans`, `font-mono`, `text-page-title`, `text-section-title`, `text-body`, `text-caption`
+
+Every UI primitive (`Button`, `Surface`, `Page`, etc.) is styled from these
+as CSS custom properties (`var(--radius-control)`, `var(--space-page-x)`,
+...), same mechanism as the color tokens. A theme that omits a group
+entirely, or omits individual keys within a present group, falls back to
+`Theme::DEFAULT_EXTENDED_TOKENS` per key via `Theme#tokens_with_defaults` --
+so every color-only theme that predates this token expansion (all 18
+original built-ins) keeps rendering exactly as before with no data
+migration. `Theme#public_payload` always returns the fully-defaulted view,
+so every tool response below carries all five groups regardless of what the
+underlying theme actually stored.
+
+`ThemingTools::ExtendedTokenSchema`
+(`plugins/theming_tools/app/services/theming_tools/extended_token_schema.rb`)
+is the shared JSON-schema fragment (`GROUP_PROPERTIES`, one optional object
+property per group) and partial-override merge helper (`merge_groups`) that
+`preview_theme`, `install_theme`, and `update_user_theme` all build their
+`shape`/`shadow`/`spacing`/`density`/`typography` input-schema properties
+and merge behavior from, so the three tools can't drift out of sync with
+each other or with `Theme::EXTENDED_TOKEN_GROUPS`. `merge_groups` mirrors
+the existing `light`/`dark` partial-override merge: an omitted key keeps
+whatever the merge's baseline tokens hash had for it, and a group with
+neither a baseline value nor a supplied override is left out of the result
+entirely (rather than baking in the current defaults), so
+`Theme#tokens_with_defaults` still supplies it at read time.
+
+The built-in **Console** theme (`db/seeds/themes.rb`) exists specifically to
+prove this model outside of colors: sharp corners (`radius-*` near zero),
+no panel shadow, a tighter spacing/density scale, and an all-monospace
+typography stack, layered onto a color palette borrowed from Slate (already
+contrast-checked) so only the non-color tokens are actually novel. Selecting
+it from the account sidebar's color-theme picker (`nav:color_theme`,
+`AppChromeV2.tsx`'s `ColorThemePicker`) demonstrates every extended token
+group changing at once across the live app, not just a preview.
 
 ## Settings page
 
@@ -40,11 +88,15 @@ field.
 
 `ThemingTools::PreviewThemeTool`
 (`plugins/theming_tools/app/services/theming_tools/preview_theme_tool.rb`)
-accepts a `name` and any subset of the token keys under `light`/`dark`. Any
-token left unspecified defaults to the value from the calling user's
-currently active theme (`User#color_theme`, falling back to nothing if the
-user has none), so the agent can iterate on just a couple of tokens at a
-time instead of restating the full palette on every call.
+accepts a `name`, any subset of the color token keys under `light`/`dark`,
+and any subset of the non-color `shape`/`shadow`/`spacing`/`density`/
+`typography` groups (see above). Any color token left unspecified defaults
+to the value from the calling user's currently active theme (`User#color_theme`,
+falling back to nothing if the user has none); any non-color group/key left
+unspecified defaults to the active theme's own value, then to
+`Theme::DEFAULT_EXTENDED_TOKENS` — so the agent can iterate on just a couple
+of tokens (color or non-color) at a time instead of restating the full
+palette and token set on every call.
 
 The tool upserts one draft `Theme` row per user — found by a deterministic
 per-user slug (`preview-draft-<user_id>`), not by the theme's display name —
@@ -89,7 +141,7 @@ Tailwind-style shade scale to draw an exact "-50"/"-950" background from
 approximated by alpha-blending the tone color over the theme's own
 `surface` at a fixed 6% mix (`Theme::STATUS_TONE_BACKGROUND_TINT_ALPHA`) --
 a documented approximation, not a literal Tailwind-scale match, tuned so
-all 18 built-in themes (`db/seeds/themes.rb`) pass with margin. It
+all 19 built-in themes (`db/seeds/themes.rb`) pass with margin. It
 returns `[]` when every pairing passes (or when `tokens` isn't shaped
 correctly yet -- that's `#tokens_has_required_shape`'s job to flag), or an
 array of issue hashes (`mode`, `foreground`, `background`,
@@ -108,27 +160,34 @@ below) but only to surface warnings, never to block the save.
 persists a theme as the calling user's active `color_theme`. Accepts either
 `theme_id` (any theme the user can select --
 `Theme.selectable_by(user)`, covering both a prior `preview_theme` draft and
-any built-in/owned theme) or a full `name` + complete `light`/`dark` token
-payload to create a new theme. Either way, `Theme#contrast_issues` runs
-first; if it returns any issues the tool rejects with a specific message
-naming every failing pair, its actual ratio, and the required ratio (e.g.
-"light text-secondary (#9ca3af) on surface (#ffffff) has contrast 2.3:1,
-needs at least 4.5:1 for WCAG AA") instead of silently persisting an
-illegible theme. On success it sets `User#color_theme` to the resolved
-theme and returns its `public_payload`.
+any built-in/owned theme) or a full `name` + complete `light`/`dark` color
+token payload -- optionally plus any subset of the non-color `shape`/
+`shadow`/`spacing`/`density`/`typography` groups, each falling back to
+`Theme::DEFAULT_EXTENDED_TOKENS` -- to create a new theme. Either way,
+`Theme#contrast_issues` runs first (color tokens only); if it returns any
+issues the tool rejects with a specific message naming every failing pair,
+its actual ratio, and the required ratio (e.g. "light text-secondary
+(#9ca3af) on surface (#ffffff) has contrast 2.3:1, needs at least 4.5:1 for
+WCAG AA") instead of silently persisting an illegible theme. On success it
+sets `User#color_theme` to the resolved theme and returns its
+`public_payload`.
 
 ## `list_user_themes` / `update_user_theme` / `delete_user_theme`
 
 `ThemingTools::ListUserThemesTool` returns the calling user's own
-non-built-in themes (`public_payload` for each), never another user's
-themes or built-ins.
+non-built-in themes (`public_payload` for each, so every response already
+includes the fully-defaulted `shape`/`shadow`/`spacing`/`density`/
+`typography` groups alongside `light`/`dark`), never another user's themes
+or built-ins.
 
-`ThemingTools::UpdateUserThemeTool` renames and/or adjusts token values on
-one of the user's own custom themes -- omitted token keys keep their
-current value, mirroring `preview_theme`'s partial-override merge. It
-re-runs `Theme#contrast_issues` before saving and rejects (with the same
-specific per-pair message `install_theme` uses) rather than letting an edit
-make a previously-legible theme illegible; the theme is left unchanged on
+`ThemingTools::UpdateUserThemeTool` renames and/or adjusts color and
+non-color token values on one of the user's own custom themes -- omitted
+color keys keep their current value, and omitted non-color groups/keys keep
+their current value (or the built-in default if the theme never set them),
+mirroring `preview_theme`'s partial-override merge. It re-runs
+`Theme#contrast_issues` before saving and rejects (with the same specific
+per-pair message `install_theme` uses) rather than letting an edit make a
+previously-legible theme illegible; the theme is left unchanged on
 rejection. Refuses to touch built-in themes or another user's themes.
 
 `ThemingTools::DeleteUserThemeTool` deletes one of the user's own custom
@@ -164,3 +223,15 @@ containing an iframe pointed at the broadcast `path` (route-prefixed via
 System route itself already reads `?theme_id=` and layers that theme's
 tokens over its own root element only (never `document.documentElement`),
 so a draft preview can never leak into the surrounding app chrome.
+
+`DesignSystemRoute` (`app/frontend/routes/DesignSystem.tsx`) scopes both the
+color tokens (`--color-*`) and the non-color `--radius-*`/`--shadow-panel`/
+`--space-*`/`--control-height-*`/`--table-row-height`/`--font-*`/`--text-*`
+custom properties onto that same root element, so a `preview_theme` draft
+that only tweaks `shape`/`density`/`typography` visibly changes the gallery
+too -- tighter buttons, squared-off cards, a different type scale -- not
+just swatch colors. A dedicated "Expanded tokens" section below the color
+swatches lists every non-color group's resolved values (previewed theme's,
+or the page's own live theme when there's no `?theme_id=`) as plain text,
+since most of these tokens (font stacks, shadow values) aren't paintable
+swatches the way a color is.

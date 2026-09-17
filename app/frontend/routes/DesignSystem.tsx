@@ -34,6 +34,7 @@ import { useTheme } from "../contexts/ThemeContext"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useColorTokens } from "../lib/colorTokens"
+import { EXTENDED_TOKEN_GROUPS, extendedTokenProperties } from "../lib/extendedThemeTokens"
 import { semanticColorProperties } from "../lib/semanticColorTokens"
 
 const TOKEN_SPECS: { key: string; cssVar: string }[] = [
@@ -50,6 +51,32 @@ const TOKEN_SPECS: { key: string; cssVar: string }[] = [
   { key: "info", cssVar: "--color-info" },
   { key: "neutral", cssVar: "--color-neutral" },
   { key: "on-brand", cssVar: "--color-on-brand" }
+]
+
+// Mirrors Theme::EXTENDED_TOKEN_GROUPS (app/models/theme.rb): the non-color
+// token groups every primitive below (Button, Surface, Page, ...) is also
+// styled from, via the same `var(--token-name)` mechanism as the color
+// tokens above. Grouped for display since these read as plain CSS values
+// (lengths, font stacks, a shadow), not paintable swatches.
+const EXTENDED_TOKEN_GROUP_SPECS: { group: string; key: string; cssVar: string }[] = [
+  { group: "shape", key: "radius-control", cssVar: "--radius-control" },
+  { group: "shape", key: "radius-panel", cssVar: "--radius-panel" },
+  { group: "shape", key: "radius-pill", cssVar: "--radius-pill" },
+  { group: "shape", key: "border-width", cssVar: "--border-width" },
+  { group: "shadow", key: "shadow-panel", cssVar: "--shadow-panel" },
+  { group: "spacing", key: "space-page-x", cssVar: "--space-page-x" },
+  { group: "spacing", key: "space-page-y", cssVar: "--space-page-y" },
+  { group: "spacing", key: "space-section", cssVar: "--space-section" },
+  { group: "spacing", key: "space-section-compact", cssVar: "--space-section-compact" },
+  { group: "density", key: "control-height-sm", cssVar: "--control-height-sm" },
+  { group: "density", key: "control-height-md", cssVar: "--control-height-md" },
+  { group: "density", key: "table-row-height", cssVar: "--table-row-height" },
+  { group: "typography", key: "font-sans", cssVar: "--font-sans" },
+  { group: "typography", key: "font-mono", cssVar: "--font-mono" },
+  { group: "typography", key: "text-page-title", cssVar: "--text-page-title" },
+  { group: "typography", key: "text-section-title", cssVar: "--text-section-title" },
+  { group: "typography", key: "text-body", cssVar: "--text-body" },
+  { group: "typography", key: "text-caption", cssVar: "--text-caption" }
 ]
 
 const STATUS_PILL_EXAMPLE_STATES = ["queued", "running", "succeeded", "failed", "cancelled"]
@@ -73,16 +100,30 @@ export function DesignSystemRoute() {
   const contrastWarnings = previewQuery.data?.contrast_warnings ?? []
   // Applied on this page's own root <main> only (via inline style below) --
   // never on document.documentElement -- so a draft theme preview can never
-  // leak into the surrounding app chrome, sidebar, or other open tabs.
-  const previewTokens = previewTheme ? semanticColorProperties(previewTheme.tokens[resolvedTheme] ?? {}) : null
-  const previewStyle = previewTokens
-    ? (Object.fromEntries(Object.entries(previewTokens).map(([key, value]) => [`--color-${key}`, value])) as CSSProperties)
+  // leak into the surrounding app chrome, sidebar, or other open tabs. Both
+  // the color tokens (--color-*) and the non-color shape/shadow/spacing/
+  // density/typography tokens (--radius-*, --space-*, --font-*, ...) are
+  // scoped the same way, so a preview that only changes non-color tokens
+  // still visibly changes the gallery below (control height, corner
+  // radius, type scale) instead of just the swatch list.
+  const previewColorTokens = previewTheme ? semanticColorProperties(previewTheme.tokens[resolvedTheme] ?? {}) : null
+  const previewExtendedTokens = previewTheme ? extendedTokenProperties(previewTheme.tokens) : null
+  const previewStyle = previewColorTokens
+    ? (Object.fromEntries([
+        ...Object.entries(previewColorTokens).map(([key, value]) => [`--color-${key}`, value]),
+        ...Object.entries(previewExtendedTokens ?? {}).map(([key, value]) => [`--${key}`, value])
+      ]) as CSSProperties)
     : undefined
 
   const liveTokenValues = useColorTokens(TOKEN_SPECS.map((spec) => spec.cssVar))
-  const tokenValues = previewTokens
-    ? TOKEN_SPECS.map((spec) => previewTokens[spec.key] ?? "")
+  const tokenValues = previewColorTokens
+    ? TOKEN_SPECS.map((spec) => previewColorTokens[spec.key] ?? "")
     : liveTokenValues
+
+  const liveExtendedTokenValues = useColorTokens(EXTENDED_TOKEN_GROUP_SPECS.map((spec) => spec.cssVar))
+  const extendedTokenValues = previewExtendedTokens
+    ? EXTENDED_TOKEN_GROUP_SPECS.map((spec) => previewExtendedTokens[spec.key] ?? "")
+    : liveExtendedTokenValues
 
   const [checked, setChecked] = useState(true)
   const [toggleOn, setToggleOn] = useState(true)
@@ -115,6 +156,7 @@ export function DesignSystemRoute() {
       ) : null}
 
       <TokenSwatchesSection tokenValues={tokenValues} />
+      <ExtendedTokenSwatchesSection tokenValues={extendedTokenValues} />
       <ButtonsSection />
       <FormControlsSection checked={checked} onCheckedChange={setChecked} onToggleChange={setToggleOn} toggleOn={toggleOn} />
       <CardsSection />
@@ -145,6 +187,83 @@ function TokenSwatchesSection({ tokenValues }: { tokenValues: string[] }) {
         ))}
       </div>
     </section>
+  )
+}
+
+function ExtendedTokenSwatchesSection({ tokenValues }: { tokenValues: string[] }) {
+  const { t } = useT("settings")
+  const valueFor = (key: string) => {
+    const index = EXTENDED_TOKEN_GROUP_SPECS.findIndex((spec) => spec.key === key)
+    return index === -1 ? "" : tokenValues[index] || ""
+  }
+
+  return (
+    <section>
+      <SectionHeading>{t("design_system.extended_tokens.heading")}</SectionHeading>
+      <p className="mt-1 text-sm text-text-secondary">{t("design_system.extended_tokens.description")}</p>
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {EXTENDED_TOKEN_GROUPS.map((group) => (
+          // min-w-0 keeps this grid item sized to its track instead of growing to
+          // fit a long nowrap value below (e.g. a full font-stack string) -- without
+          // it, the card's own auto min-width is its max-content width, which can
+          // exceed the track/viewport and force the whole grid (and page) to
+          // overflow horizontally, especially at mobile widths.
+          <div className="min-w-0 rounded border border-border bg-surface p-3" key={group}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-text-primary">{t(`design_system.extended_tokens.groups.${group}`)}</span>
+              <ExtendedTokenGroupDemo group={group} valueFor={valueFor} />
+            </div>
+            <dl className="mt-2 space-y-1">
+              {EXTENDED_TOKEN_GROUP_SPECS.filter((spec) => spec.group === group).map((spec) => (
+                <div className="flex items-center justify-between gap-2" key={spec.key}>
+                  {/* shrink-0 (and no truncate) on the label: these are short, fixed
+                      key names that should never lose the shrink fight against a long
+                      value sharing the row -- only the value below truncates. */}
+                  <dt className="shrink-0 text-xs text-text-secondary">{spec.key}</dt>
+                  <dd className="min-w-0 truncate font-mono text-xs text-text-primary" title={valueFor(spec.key) || undefined}>
+                    {valueFor(spec.key) || "—"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// A small live visual per group so shape/shadow/density/typography changes
+// are seen, not just read as text -- the same values, rendered directly
+// from the resolved token values rather than relying on other sections'
+// primitives to pick up the cascade.
+function ExtendedTokenGroupDemo({ group, valueFor }: { group: string; valueFor: (key: string) => string }) {
+  if (group === "shape") {
+    return (
+      <span
+        aria-hidden="true"
+        className="h-8 w-12 shrink-0 border-border bg-surface-raised"
+        style={{ borderRadius: valueFor("radius-panel") || undefined, borderWidth: valueFor("border-width") || undefined, borderStyle: "solid" }}
+      />
+    )
+  }
+  if (group === "shadow") {
+    return <span aria-hidden="true" className="h-8 w-12 shrink-0 rounded bg-surface-raised" style={{ boxShadow: valueFor("shadow-panel") || undefined }} />
+  }
+  if (group === "density") {
+    return <span aria-hidden="true" className="w-12 shrink-0 rounded bg-brand" style={{ height: valueFor("control-height-sm") || undefined }} />
+  }
+  if (group === "typography") {
+    return (
+      <span aria-hidden="true" className="shrink-0 text-text-primary" style={{ fontFamily: valueFor("font-sans") || undefined, fontSize: valueFor("text-body") || undefined }}>
+        Aa
+      </span>
+    )
+  }
+  return (
+    <span aria-hidden="true" className="shrink-0 border border-dashed border-border bg-surface-raised" style={{ padding: valueFor("space-section-compact") || undefined }}>
+      <span className="block h-2 w-2 bg-brand" />
+    </span>
   )
 }
 

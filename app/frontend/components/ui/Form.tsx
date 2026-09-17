@@ -101,7 +101,7 @@ function Label({ children, className = "", htmlFor, required = false, ...props }
 
   return (
     <label
-      className={classes("block text-sm font-medium leading-5 text-text-primary", context.disabled && "cursor-not-allowed text-text-muted", className)}
+      className={classes("block text-[length:var(--text-body)] font-medium leading-5 text-text-primary", context.disabled && "cursor-not-allowed text-text-muted", className)}
       htmlFor={htmlFor ?? context.controlId}
       {...props}
     >
@@ -123,7 +123,7 @@ function HelpText({ children, className = "", id, ...props }: FormTextProps) {
   }, [context.setMountedHelpTextId, resolvedId])
 
   return (
-    <p className={classes("text-xs leading-4 text-text-muted", className)} id={resolvedId} {...props}>
+    <p className={classes("text-[length:var(--text-caption)] leading-4 text-text-muted", className)} id={resolvedId} {...props}>
       {children}
     </p>
   )
@@ -142,7 +142,7 @@ function ErrorText({ children, className = "", id, ...props }: FormTextProps) {
   if (!content) return null
 
   return (
-    <p className={classes("text-xs font-medium leading-4 text-danger-text", className)} id={resolvedId} role="alert" {...props}>
+    <p className={classes("text-[length:var(--text-caption)] font-medium leading-4 text-danger-text", className)} id={resolvedId} role="alert" {...props}>
       {content}
     </p>
   )

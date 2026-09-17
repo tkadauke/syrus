@@ -65,6 +65,38 @@ RSpec.describe Theme do
       expect(new_theme).to be_valid
       expect(Theme::SYNTAX_TOKEN_KEYS & theme_tokens["light"].keys).to be_empty
     end
+
+    it "is valid with a color-only tokens hash that predates the shape/density/typography/spacing/shadow expansion" do
+      # theme_tokens has no "shape"/"shadow"/"spacing"/"density"/"typography"
+      # keys at all -- the exact shape every stored theme had before this
+      # token expansion landed.
+      old_theme = new_theme(tokens: theme_tokens)
+      expect(old_theme).to be_valid
+      Theme::EXTENDED_TOKEN_GROUPS.each_key { |group| expect(theme_tokens).not_to have_key(group) }
+    end
+
+    it "is valid when an extended group is only partially specified" do
+      partial = theme_tokens.merge("typography" => { "font-sans" => "Custom, sans-serif" })
+      expect(new_theme(tokens: partial)).to be_valid
+    end
+
+    it "rejects an extended group that is not a hash" do
+      invalid = new_theme(tokens: theme_tokens.merge("shape" => "0.5rem"))
+      expect(invalid).not_to be_valid
+      expect(invalid.errors[:tokens].join).to include("shape must be a hash")
+    end
+
+    it "rejects an extended group with an unknown key" do
+      invalid = new_theme(tokens: theme_tokens.merge("shape" => { "radius-huge" => "2rem" }))
+      expect(invalid).not_to be_valid
+      expect(invalid.errors[:tokens].join).to include("shape has unknown keys: radius-huge")
+    end
+
+    it "rejects an extended group with a non-string value" do
+      invalid = new_theme(tokens: theme_tokens.merge("spacing" => { "space-section" => 16 }))
+      expect(invalid).not_to be_valid
+      expect(invalid.errors[:tokens].join).to include("spacing values must be strings: space-section")
+    end
   end
 
   describe ".terracotta" do
@@ -101,7 +133,7 @@ RSpec.describe Theme do
   end
 
   describe "#public_payload" do
-    it "returns id, slug, name, built_in, and tokens" do
+    it "returns id, slug, name, built_in, and tokens with extended defaults merged in" do
       t = theme(built_in: true)
 
       expect(t.public_payload).to eq(
@@ -110,8 +142,43 @@ RSpec.describe Theme do
         name: t.name,
         built_in: true,
         position: nil,
-        tokens: t.tokens
+        tokens: t.tokens_with_defaults
       )
+    end
+
+    it "backfills default shape/shadow/spacing/density/typography groups for a color-only stored theme" do
+      t = theme(tokens: theme_tokens)
+
+      payload_tokens = t.public_payload[:tokens]
+
+      expect(payload_tokens["light"]).to eq(theme_tokens["light"])
+      expect(payload_tokens["dark"]).to eq(theme_tokens["dark"])
+      Theme::EXTENDED_TOKEN_GROUPS.each do |group, keys|
+        expect(payload_tokens[group]).to eq(Theme::DEFAULT_EXTENDED_TOKENS.fetch(group))
+        expect(payload_tokens[group].keys).to match_array(keys)
+      end
+    end
+  end
+
+  describe "#tokens_with_defaults" do
+    it "returns tokens unchanged when tokens is not a hash" do
+      expect(new_theme(tokens: nil).tokens_with_defaults).to be_nil
+    end
+
+    it "fills in the default value for a group that is present but missing some keys" do
+      partial = theme_tokens.merge("shape" => { "radius-panel" => "1rem" })
+      resolved = new_theme(tokens: partial).tokens_with_defaults
+
+      expect(resolved["shape"]).to eq(
+        Theme::DEFAULT_EXTENDED_TOKENS.fetch("shape").merge("radius-panel" => "1rem")
+      )
+    end
+
+    it "leaves an explicitly overridden group's values untouched when fully specified" do
+      overrides = { "control-height-sm" => "1.75rem", "control-height-md" => "2.25rem", "table-row-height" => "2.5rem" }
+      custom = theme_tokens.merge("density" => overrides)
+
+      expect(new_theme(tokens: custom).tokens_with_defaults["density"]).to eq(overrides)
     end
   end
 

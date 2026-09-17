@@ -8,12 +8,7 @@ describe("operational UI primitives", () => {
     Object.assign(navigator, { clipboard: { writeText } })
 
     render(
-      <CodeSurface
-        aria-label="Checkout command"
-        code="syrus checkout JOB-12 --with-a-very-long-branch-name"
-        data-testid="command-surface"
-        mode="command"
-      />
+      <CodeSurface aria-label="Checkout command" code="syrus checkout JOB-12 --with-a-very-long-branch-name" data-testid="command-surface" mode="command" />
     )
 
     const surface = screen.getByLabelText("Checkout command")
@@ -27,12 +22,7 @@ describe("operational UI primitives", () => {
 
   it("renders multiline code surfaces with custom copy slot and contrast-safe token styling", () => {
     render(
-      <CodeSurface
-        code={"first line\nsecond line"}
-        copySlot={<button type="button">Copy transcript</button>}
-        maxHeightClassName="max-h-24"
-        mode="multiline"
-      />
+      <CodeSurface code={"first line\nsecond line"} copySlot={<button type="button">Copy transcript</button>} maxHeightClassName="max-h-24" mode="multiline" />
     )
 
     const pre = screen.getByText(/first line/).closest("pre")
@@ -42,6 +32,11 @@ describe("operational UI primitives", () => {
     expect(pre?.className).toContain("max-h-24")
     expect(pre?.className).toContain("[&_span]:contrast-more:!text-text-primary")
     expect(screen.getByRole("button", { name: "Copy transcript" })).toBeInTheDocument()
+  })
+
+  it("renders code text size from the typography token", () => {
+    render(<CodeSurface code="bin/rspec" mode="command" />)
+    expect(screen.getByText("bin/rspec").closest("pre")?.className).toContain("text-[length:var(--text-caption)]")
   })
 
   it("renders custom code content while copying the raw code string", () => {
@@ -76,6 +71,7 @@ describe("operational UI primitives", () => {
 
     expect(screen.getByTestId("metric-group").className).toContain("lg:grid-cols-3")
     expect(screen.getByText("Queued").className).toContain("uppercase")
+    expect(screen.getByText("Queued").className).toContain("text-[length:var(--text-caption)]")
     expect(screen.getByText("12").className).toContain("text-warning-text")
     expect(screen.getByText("87%").className).toContain("text-success-text")
     expect(screen.getByText("Open")).toBeInTheDocument()
@@ -100,6 +96,7 @@ describe("operational UI primitives", () => {
     expect(screen.getByRole("list", { name: "Workflow events" })).toHaveClass("space-y-3")
     expect(screen.getByTestId("activity-row")).toHaveAttribute("data-testid", "activity-row")
     expect(screen.getByText("Migration lint failed").className).toContain("truncate")
+    expect(screen.getByText("Migration lint failed").className).toContain("text-[length:var(--text-body)]")
     expect(screen.getByText("RUN-7").className).toContain("truncate")
     expect(screen.getByText("2m ago").className).toContain("whitespace-nowrap")
     expect(screen.getByText("bin/check-migrations")).toBeInTheDocument()
@@ -138,8 +135,14 @@ describe("operational UI primitives", () => {
     expect(screen.getByRole("region", { name: "Read job result" }).className).toContain("before:bg-info-border")
     expect(screen.getByText("read_job").className).toContain("uppercase")
     expect(screen.getByText("Job loaded").className).toContain("text-text-primary")
+    expect(screen.getByText("Job loaded").className).toContain("text-[length:var(--text-body)]")
     expect(screen.getByText("JOB-12").className).toContain("text-text-muted")
     expect(screen.getByText("Status: running").className).toContain("custom-body")
-    expect(screen.getByTestId("tool-footer").className).toContain("border-t")
+    const footerClassName = screen.getByTestId("tool-footer").className
+    expect(footerClassName).toContain("border-t-[length:var(--border-width)]")
+    // Regression guard: an unscoped border-[length:...] alongside border-t
+    // would add a visible border-width to the right/bottom/left edges too,
+    // turning the intended top-only divider into a full box border.
+    expect(footerClassName).not.toMatch(/\bborder-\[length:var\(--border-width\)\]/)
   })
 })

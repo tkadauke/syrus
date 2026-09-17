@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { type BootstrapPayload } from "../api/bootstrap"
 import { patchJson } from "../api/client"
 import { type ColorTheme } from "../api/themes"
+import { extendedTokenProperties } from "../lib/extendedThemeTokens"
 import { semanticColorProperties } from "../lib/semanticColorTokens"
 import { updateBootstrapColorTheme, updateBootstrapTheme } from "../routes/appChromeV2/helpers"
 
@@ -39,28 +40,34 @@ function applyResolvedTheme(resolvedTheme: ResolvedTheme) {
 
 // Built-in themes ship compiled `[data-theme="slug"]` CSS (no flash, no JS
 // needed beyond the attribute). Custom themes aren't known at build time, so
-// their token values are applied at runtime as inline custom properties on
-// the same property names — components consume `--color-*` either way and
-// don't need to know which path produced the value. `appliedCustomPropertyKeys`
-// tracks what we last set so switching away from a custom theme (to a
-// built-in theme, or to none) clears the inline overrides instead of letting
-// them keep winning the cascade over the newly-selected built-in CSS block.
-function applyColorTheme(colorTheme: ColorTheme | null, resolvedTheme: ResolvedTheme, appliedCustomPropertyKeys: Set<string>) {
+// every token group's values are applied at runtime as inline custom
+// properties on the same property names — components consume `--color-*`/
+// `--radius-*`/`--space-*`/etc either way and don't need to know which path
+// produced the value. `appliedCustomPropertyNames` tracks the full custom
+// property names (e.g. `--color-brand`, `--radius-panel`) we last set so
+// switching away from a custom theme (to a built-in theme, or to none)
+// clears every inline override instead of letting stale ones keep winning
+// the cascade over the newly-selected built-in CSS block.
+function applyColorTheme(colorTheme: ColorTheme | null, resolvedTheme: ResolvedTheme, appliedCustomPropertyNames: Set<string>) {
   const root = document.documentElement
   const isCustom = colorTheme != null && !colorTheme.built_in
-  const nextTokens = isCustom ? semanticColorProperties(colorTheme.tokens[resolvedTheme] ?? {}) : {}
-  const nextKeys = new Set(Object.keys(nextTokens))
+  const nextColorTokens = isCustom ? semanticColorProperties(colorTheme.tokens[resolvedTheme] ?? {}) : {}
+  const nextExtendedTokens = isCustom ? extendedTokenProperties(colorTheme.tokens) : {}
+  const nextProperties: Record<string, string> = {}
+  Object.entries(nextColorTokens).forEach(([key, value]) => { nextProperties[`--color-${key}`] = value })
+  Object.entries(nextExtendedTokens).forEach(([key, value]) => { nextProperties[`--${key}`] = value })
+  const nextNames = new Set(Object.keys(nextProperties))
 
-  appliedCustomPropertyKeys.forEach((key) => {
-    if (!nextKeys.has(key)) root.style.removeProperty(`--color-${key}`)
+  appliedCustomPropertyNames.forEach((name) => {
+    if (!nextNames.has(name)) root.style.removeProperty(name)
   })
 
-  Object.entries(nextTokens).forEach(([key, value]) => {
-    root.style.setProperty(`--color-${key}`, value)
+  Object.entries(nextProperties).forEach(([name, value]) => {
+    root.style.setProperty(name, value)
   })
 
-  appliedCustomPropertyKeys.clear()
-  nextKeys.forEach((key) => appliedCustomPropertyKeys.add(key))
+  appliedCustomPropertyNames.clear()
+  nextNames.forEach((name) => appliedCustomPropertyNames.add(name))
 
   if (colorTheme && colorTheme.built_in) {
     root.setAttribute("data-theme", colorTheme.slug)
@@ -76,7 +83,7 @@ function applyColorTheme(colorTheme: ColorTheme | null, resolvedTheme: ResolvedT
 export function ThemeProvider({ children, theme, colorTheme = null }: { children: ReactNode; theme: Theme; colorTheme?: ColorTheme | null }) {
   const queryClient = useQueryClient()
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(theme))
-  const appliedCustomPropertyKeys = useRef<Set<string>>(new Set())
+  const appliedCustomPropertyNames = useRef<Set<string>>(new Set())
 
   // Keep the applied theme in sync with the persisted preference, and — only
   // while "system" is in effect — with live OS color-scheme changes, so a
@@ -86,7 +93,7 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
     const next = resolveTheme(theme)
     setResolvedTheme(next)
     applyResolvedTheme(next)
-    applyColorTheme(colorTheme, next, appliedCustomPropertyKeys.current)
+    applyColorTheme(colorTheme, next, appliedCustomPropertyNames.current)
 
     if (theme !== "system" || typeof window === "undefined" || typeof window.matchMedia !== "function") return
 
@@ -95,7 +102,7 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
       const nextResolved = resolveTheme(theme)
       setResolvedTheme(nextResolved)
       applyResolvedTheme(nextResolved)
-      applyColorTheme(colorTheme, nextResolved, appliedCustomPropertyKeys.current)
+      applyColorTheme(colorTheme, nextResolved, appliedCustomPropertyNames.current)
     }
     media.addEventListener("change", onChange)
     return () => media.removeEventListener("change", onChange)
@@ -107,7 +114,7 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
     const optimisticResolved = resolveTheme(nextTheme)
 
     applyResolvedTheme(optimisticResolved)
-    applyColorTheme(colorTheme, optimisticResolved, appliedCustomPropertyKeys.current)
+    applyColorTheme(colorTheme, optimisticResolved, appliedCustomPropertyNames.current)
     setResolvedTheme(optimisticResolved)
     queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapTheme(current, nextTheme))
 
@@ -116,7 +123,7 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
       queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapTheme(current, payload.theme))
     } catch {
       applyResolvedTheme(previousResolved)
-      applyColorTheme(colorTheme, previousResolved, appliedCustomPropertyKeys.current)
+      applyColorTheme(colorTheme, previousResolved, appliedCustomPropertyNames.current)
       setResolvedTheme(previousResolved)
       queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapTheme(current, previousTheme))
     }
@@ -125,20 +132,20 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
   async function setColorTheme(nextColorTheme: ColorTheme) {
     const previousColorTheme = colorTheme
 
-    applyColorTheme(nextColorTheme, resolvedTheme, appliedCustomPropertyKeys.current)
+    applyColorTheme(nextColorTheme, resolvedTheme, appliedCustomPropertyNames.current)
     queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, nextColorTheme))
 
     try {
       const payload = await patchJson<{ color_theme: ColorTheme | null }>("/api/v1/app/theme", { color_theme_id: nextColorTheme.id })
       queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, payload.color_theme))
     } catch {
-      applyColorTheme(previousColorTheme, resolvedTheme, appliedCustomPropertyKeys.current)
+      applyColorTheme(previousColorTheme, resolvedTheme, appliedCustomPropertyNames.current)
       queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, previousColorTheme))
     }
   }
 
   function previewColorTheme(nextColorTheme: ColorTheme) {
-    applyColorTheme(nextColorTheme, resolvedTheme, appliedCustomPropertyKeys.current)
+    applyColorTheme(nextColorTheme, resolvedTheme, appliedCustomPropertyNames.current)
   }
 
   return <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, colorTheme, previewColorTheme, setColorTheme }}>{children}</ThemeContext.Provider>

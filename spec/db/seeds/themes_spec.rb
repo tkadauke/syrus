@@ -4,12 +4,12 @@ require Rails.root.join("db/seeds/themes")
 RSpec.describe Seeds::Themes do
   BUILT_IN_SLUGS = %w[
     terracotta ocean forest sunset lavender slate rose amber midnight
-    mint plum sand sky crimson moss coral steel violet
+    mint plum sand sky crimson moss coral steel violet console
   ].freeze
 
   describe ".seed!" do
-    it "creates the 18 built-in themes with valid token shapes" do
-      expect { described_class.seed! }.to change(Theme, :count).by(18)
+    it "creates the 19 built-in themes with valid token shapes" do
+      expect { described_class.seed! }.to change(Theme, :count).by(19)
 
       BUILT_IN_SLUGS.each do |slug|
         theme = Theme.find_by(slug: slug)
@@ -53,6 +53,32 @@ RSpec.describe Seeds::Themes do
       expect(terracotta.tokens["light"]["surface"]).to eq("#ffffff")
       expect(terracotta.tokens["dark"]["brand-emphasis"]).to eq("#dba28b")
       expect(terracotta.tokens["dark"]["neutral"]).to eq("#e5e7eb")
+    end
+
+    it "seeds Console with non-default extended (non-color) tokens, proving the model beyond color" do
+      described_class.seed!
+      console = Theme.find_by!(slug: "console")
+
+      Theme::EXTENDED_TOKEN_GROUPS.each_key do |group|
+        expect(console.tokens[group]).to be_present, "expected console to store an explicit '#{group}' override"
+        expect(console.tokens[group]).not_to eq(Theme::DEFAULT_EXTENDED_TOKENS.fetch(group))
+      end
+
+      expect(console.tokens_with_defaults["shape"]["radius-control"]).to eq("0px")
+      expect(console.tokens_with_defaults["typography"]["font-sans"]).to include("monospace")
+    end
+
+    it "carries a definition's extended token groups through unchanged alongside the syntax-token-augmented light/dark hashes" do
+      definition = described_class::DEFINITIONS.find { |d| d.fetch(:slug) == "console" }
+
+      expect(definition.fetch(:tokens)["shape"]).to eq(described_class::BASE_DEFINITIONS.find { |d| d.fetch(:slug) == "console" }.fetch(:tokens)["shape"])
+      expect(definition.fetch(:tokens)["light"]).to include("token-keyword" => definition.fetch(:tokens)["light"].fetch("brand-emphasis"))
+    end
+
+    it "does not add spurious extended token groups to a definition that never set any" do
+      terracotta = described_class::DEFINITIONS.find { |d| d.fetch(:slug) == "terracotta" }
+
+      expect(terracotta.fetch(:tokens).keys).to contain_exactly("light", "dark")
     end
   end
 end

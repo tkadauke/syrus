@@ -16,13 +16,21 @@ type TextOwnProps<T extends ElementType> = {
 export type TextProps<T extends ElementType = "p"> = TextOwnProps<T> &
   Omit<ComponentPropsWithoutRef<T>, keyof TextOwnProps<T>>
 
+// body/muted/caption/label/mono/heading-sm read their size from the
+// typography token group (app/assets/tailwind/application.css's
+// --text-body/--text-caption) instead of Tailwind's fixed text-sm/text-xs
+// scale, so a theme's typography choices flow through every call site that
+// uses these variants without touching the call site. heading-md keeps a
+// literal text-base -- no typography token models a size between
+// --text-body and --text-page-title, and its only consumer (Page.Title)
+// already overrides the size via className.
 const TEXT_VARIANT_CLASSES: Record<TextVariant, string> = {
-  body: "text-sm leading-5",
-  muted: "text-sm leading-5",
-  caption: "text-xs leading-4",
-  label: "text-xs font-medium uppercase leading-4 tracking-wide",
-  mono: "font-mono text-sm leading-5",
-  "heading-sm": "text-sm font-semibold leading-5",
+  body: "text-[length:var(--text-body)] leading-5",
+  muted: "text-[length:var(--text-body)] leading-5",
+  caption: "text-[length:var(--text-caption)] leading-4",
+  label: "text-[length:var(--text-caption)] font-medium uppercase leading-4 tracking-wide",
+  mono: "font-mono text-[length:var(--text-body)] leading-5",
+  "heading-sm": "text-[length:var(--text-body)] font-semibold leading-5",
   "heading-md": "text-base font-semibold leading-6"
 }
 

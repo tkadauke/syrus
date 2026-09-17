@@ -238,6 +238,17 @@
       "heading": "Color tokens",
       "description": "Semantic color custom properties every primitive below is styled from."
     },
+    "extended_tokens": {
+      "heading": "Expanded tokens",
+      "description": "Non-color shape, shadow, spacing, density, and typography custom properties every primitive below is also styled from.",
+      "groups": {
+        "shape": "Shape",
+        "shadow": "Shadow",
+        "spacing": "Spacing",
+        "density": "Density",
+        "typography": "Typography"
+      }
+    },
     "buttons": {
       "heading": "Buttons",
       "description": "Button variants and sizes.",

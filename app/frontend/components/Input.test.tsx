@@ -39,7 +39,16 @@ describe("Input", () => {
     render(<Input aria-label="Name" className="font-mono" />)
     const className = screen.getByLabelText("Name").className
     expect(className).toContain("font-mono")
-    expect(className).toContain("rounded-md")
+    expect(className).toContain("rounded-[var(--radius-control)]")
+  })
+
+  it("renders control height and shape from the density and shape tokens", () => {
+    render(<Input aria-label="Name" />)
+    const className = screen.getByLabelText("Name").className
+    expect(className).toContain("h-[var(--control-height-md)]")
+    expect(className).toContain("rounded-[var(--radius-control)]")
+    expect(className).toContain("border-[length:var(--border-width)]")
+    expect(className).toContain("text-[length:var(--text-body)]")
   })
 
   it("forwards a ref to the underlying input element", () => {

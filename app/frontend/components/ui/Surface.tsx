@@ -23,6 +23,9 @@ export const SURFACE_PADDING_CLASSES: Record<SurfacePadding, string> = {
   none: "p-0",
   sm: "p-[var(--space-section-compact)]",
   md: "p-[var(--space-section)]",
+  // "lg" stays a literal p-6: the spacing token group only models
+  // page/section rhythm (--space-page-*, --space-section*), not a third
+  // "large" step, so there's no token for this variant to consume yet.
   lg: "p-6"
 }
 

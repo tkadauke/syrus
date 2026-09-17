@@ -79,6 +79,35 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByText("light text-secondary on surface has contrast 3.2:1")).toBeInTheDocument()
   })
 
+  it("does not render the non-color extended token groups as color swatches", () => {
+    // Theme#public_payload always backfills shape/shadow/spacing/density/typography
+    // (Theme#tokens_with_defaults) alongside light/dark -- install_theme and
+    // update_user_theme return this full shape on every call, not just when a
+    // caller explicitly overrides a non-color group.
+    const tokensWithExtendedGroups = {
+      ...tokens,
+      shape: { "radius-control": "0.375rem", "radius-panel": "0.5rem" },
+      shadow: { "shadow-panel": "0 1px 2px rgb(0 0 0 / 0.06)" },
+      spacing: { "space-page-x": "1.5rem" },
+      density: { "control-height-sm": "2rem" },
+      typography: { "font-sans": "Inter, ui-sans-serif, system-ui, sans-serif" }
+    }
+    const cardContext = context({
+      toolName: "install_theme",
+      parsedResult: { ...theme, tokens: tokensWithExtendedGroups }
+    })
+
+    render(<>{installThemeToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("light")).toBeInTheDocument()
+    expect(screen.getByText("dark")).toBeInTheDocument();
+    ["shape", "shadow", "spacing", "density", "typography"].forEach((group) => {
+      expect(screen.queryByText(group)).not.toBeInTheDocument()
+    })
+    expect(screen.queryByLabelText(/radius-control/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/font-sans/)).not.toBeInTheDocument()
+  })
+
   it("renders install_theme as an installed theme with built-in/custom status and palette details", () => {
     const cardContext = context({ toolName: "install_theme", parsedResult: { ...theme, built_in: true } })
 

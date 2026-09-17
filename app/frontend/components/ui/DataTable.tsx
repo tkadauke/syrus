@@ -53,8 +53,8 @@ const ALIGN_CLASSES: Record<DataTableAlign, string> = {
 function Root({ children, className = "", density = "default", wrapperClassName = "", ...props }: DataTableRootProps) {
   return (
     <DataTableContext.Provider value={{ density }}>
-      <div className={classes("w-full overflow-x-auto rounded-[var(--radius-panel)] border border-border bg-surface", wrapperClassName)} data-data-table-overflow-wrapper="true">
-        <table className={classes("min-w-full divide-y divide-border text-sm text-text-primary", TABLE_DENSITY_CLASSES[density], className)} {...props}>
+      <div className={classes("w-full overflow-x-auto rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface", wrapperClassName)} data-data-table-overflow-wrapper="true">
+        <table className={classes("min-w-full divide-y divide-border text-[length:var(--text-body)] text-text-primary", TABLE_DENSITY_CLASSES[density], className)} {...props}>
           {children}
         </table>
       </div>
@@ -115,7 +115,7 @@ function HeadCell({
     <th
       aria-sort={isSortable ? sortDirection : props["aria-sort"]}
       className={classes(
-        "whitespace-nowrap px-4 py-[var(--data-table-cell-py)] text-xs font-medium uppercase tracking-wide text-text-muted",
+        "whitespace-nowrap px-4 py-[var(--data-table-cell-py)] text-[length:var(--text-caption)] font-medium uppercase tracking-wide text-text-muted",
         ALIGN_CLASSES[align],
         checkbox && "w-10 px-3",
         className
@@ -124,7 +124,7 @@ function HeadCell({
       {...props}
     >
       {onSort ? (
-        <button className={classes("w-full text-xs font-medium uppercase tracking-wide text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2", ALIGN_CLASSES[align])} onClick={onSort} type="button">
+        <button className={classes("w-full text-[length:var(--text-caption)] font-medium uppercase tracking-wide text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2", ALIGN_CLASSES[align])} onClick={onSort} type="button">
           {sortableContent}
         </button>
       ) : sortableContent}
@@ -137,8 +137,8 @@ function Cell({ align = "left", checkbox = false, className = "", ...props }: Da
   return (
     <td
       className={classes(
-        "px-4 py-[var(--data-table-cell-py)] text-sm text-text-primary",
-        density === "compact" && "text-xs",
+        "px-4 py-[var(--data-table-cell-py)] text-[length:var(--text-body)] text-text-primary",
+        density === "compact" && "text-[length:var(--text-caption)]",
         ALIGN_CLASSES[align],
         checkbox && "w-10 px-3",
         className
@@ -151,7 +151,7 @@ function Cell({ align = "left", checkbox = false, className = "", ...props }: Da
 function Empty({ children, className = "", colSpan = 1, ...props }: DataTableEmptyProps) {
   return (
     <tr>
-      <td className={classes("px-4 py-8 text-center text-sm text-text-muted", className)} colSpan={colSpan} {...props}>
+      <td className={classes("px-4 py-8 text-center text-[length:var(--text-body)] text-text-muted", className)} colSpan={colSpan} {...props}>
         {children}
       </td>
     </tr>

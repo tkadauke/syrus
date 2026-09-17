@@ -610,6 +610,14 @@ theme token key for both modes.
 }
 ```
 
+Beyond the `light`/`dark` color hashes, every theme payload also includes
+five non-color token groups — `shape` (control/panel radius, border width),
+`shadow` (panel elevation), `spacing` (page/section spacing), `density`
+(control heights, table row height), and `typography` (font families, text
+sizes). Every theme, including ones created before this token expansion,
+gets Syrus's built-in defaults for these groups; the create/update endpoints
+below do not yet accept overrides for them.
+
 `POST /api/v1/app/themes` creates a custom theme for the authenticated user.
 The request body must include `name` and a complete `tokens` object with
 `light` and `dark` token hashes covering the theme token schema.

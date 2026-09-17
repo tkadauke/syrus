@@ -54,6 +54,13 @@ describe("Toggle", () => {
     expect(screen.getByRole("switch", { name: "Auto-merge" })).toBeInTheDocument()
   })
 
+  it("renders the pill radius from the shape token on the track and thumb", () => {
+    render(<Toggle checked={false} label="Auto-merge" onChange={vi.fn()} />)
+    const track = screen.getByRole("switch", { name: "Auto-merge" })
+    expect(track.className).toContain("rounded-[var(--radius-pill)]")
+    expect(track.querySelector("span[aria-hidden='true']")?.className).toContain("rounded-[var(--radius-pill)]")
+  })
+
   it("forwards a ref to the underlying button element", () => {
     const ref = createRef<HTMLButtonElement>()
     render(<Toggle checked={false} label="Auto-merge" onChange={vi.fn()} ref={ref} />)

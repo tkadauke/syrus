@@ -44,7 +44,7 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
       "name" => "Mine",
       "built_in" => false,
       "position" => nil,
-      "tokens" => JSON.parse(mine.tokens.to_json)
+      "tokens" => JSON.parse(mine.tokens_with_defaults.to_json)
     )
   end
 
@@ -70,7 +70,7 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
         "name" => "Ocean",
         "built_in" => true,
         "position" => nil,
-        "tokens" => JSON.parse(ocean.tokens.to_json)
+        "tokens" => JSON.parse(ocean.tokens_with_defaults.to_json)
       )
     end
 
