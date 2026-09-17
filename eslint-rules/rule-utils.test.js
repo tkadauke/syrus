@@ -1,11 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import {
-  allowedCount,
-  isDesignSystemExcluded,
-  isDesignSystemFile,
-  isGeneratedFile,
-  reportBeyondBaseline
-} from "./rule-utils.js"
+import { allowedCount, isDesignSystemExcluded, isDesignSystemFile, isGeneratedFile, reportBeyondBaseline } from "./rule-utils.js"
 
 describe("rule-utils isGeneratedFile", () => {
   it("flags .generated. files and __generated__ directories", () => {
@@ -82,14 +76,21 @@ describe("rule-utils reportBeyondBaseline", () => {
 
   it("reports nothing when every match is within the allowance", () => {
     const context = fakeContext()
-    const matches = [{ node: "a", token: "x" }, { node: "b", token: "y" }]
+    const matches = [
+      { node: "a", token: "x" },
+      { node: "b", token: "y" }
+    ]
     reportBeyondBaseline(context, matches, 2, "forbidden")
     expect(context.report).not.toHaveBeenCalled()
   })
 
   it("reports only matches beyond the allowance, preserving their data", () => {
     const context = fakeContext()
-    const matches = [{ node: "a", token: "x" }, { node: "b", token: "y" }, { node: "c", token: "z" }]
+    const matches = [
+      { node: "a", token: "x" },
+      { node: "b", token: "y" },
+      { node: "c", token: "z" }
+    ]
     reportBeyondBaseline(context, matches, 1, "forbidden")
     expect(context.report).toHaveBeenCalledTimes(2)
     expect(context.report).toHaveBeenNthCalledWith(1, { node: "b", messageId: "forbidden", data: { token: "y" } })

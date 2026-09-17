@@ -29,7 +29,7 @@ module.exports = {
 
     return {
       JSXOpeningElement(node) {
-        const matched = classNameCandidates(node).some(candidate => PANEL_SHELL_PATTERN.test(candidate))
+        const matched = classNameCandidates(node).some((candidate) => PANEL_SHELL_PATTERN.test(candidate))
         if (matched) matches.push({ node })
       },
       "Program:exit"() {

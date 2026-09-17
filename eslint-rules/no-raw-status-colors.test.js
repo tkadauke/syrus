@@ -49,7 +49,7 @@ describe("no-raw-status-colors", () => {
   it("suppresses a matched occurrence with a disable-next-line comment", () => {
     const code = [
       "const x = () => (",
-      '  // eslint-disable-next-line design-system-test/r -- intentional one-off',
+      "  // eslint-disable-next-line design-system-test/r -- intentional one-off",
       '  <div className="text-gray-500">hi</div>',
       ")"
     ].join("\n")

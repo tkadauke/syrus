@@ -23,7 +23,8 @@ module.exports = {
     },
     schema: [],
     messages: {
-      forbidden: 'Raw color utility "{{token}}" outside the design system -- use a semantic token (e.g. text-text-secondary, border-border) or the StatusPill primitive for status colors.'
+      forbidden:
+        'Raw color utility "{{token}}" outside the design system -- use a semantic token (e.g. text-text-secondary, border-border) or the StatusPill primitive for status colors.'
     }
   },
   create(context) {
