@@ -1,7 +1,7 @@
 import { jsonResponse } from "../../testSupport"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { PendingActionCard, PendingActionGroupCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
 import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatProposal } from "../../api/chats"
@@ -239,15 +239,25 @@ const mediaPayload: ChatMediaPayload = {
   whiteboard_has_unsaved_content: false
 }
 
-function renderProposalCard(p: ChatProposal, onNotice = vi.fn()) {
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}</div>
+}
+
+function renderProposalCard(
+  p: ChatProposal,
+  onNotice = vi.fn(),
+  options: { currentUser?: Record<string, unknown>; withLocation?: boolean } = {}
+) {
   const queryKey: ChatQueryKey = ["chats", "122", ""]
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(queryKey, payloadFor(queryKey, p))
-  client.setQueryData(["bootstrap"], { current_user: { id: 1, role: "developer", admin: true } })
+  client.setQueryData(["bootstrap"], { current_user: { id: 1, role: "developer", admin: true, ...options.currentUser } })
   client.setQueryData(["chat_media", "122"], mediaPayload)
   render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
+        {options.withLocation ? <LocationProbe /> : null}
         <ProposalCard onNotice={onNotice} prefix="" proposal={p} queryKey={queryKey} />
       </QueryClientProvider>
     </MemoryRouter>
@@ -508,6 +518,66 @@ describe("ProposalCard routing", () => {
 
     expect(await screen.findByRole("dialog", { name: "Edit proposal" })).toBeInTheDocument()
     expect(screen.queryByRole("group", { name: "Route" })).not.toBeInTheDocument()
+  })
+})
+
+describe("ProposalCard first-run dashboard tour navigation", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("navigates to the dashboard Jobs tab after confirming a Job proposal when the tour hasn't been seen", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), vi.fn(), { currentUser: { seen_tours: [] }, withLocation: true })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/jobs"))
+  })
+
+  it("navigates to the dashboard Jobs tab after confirming an Epic proposal when the tour hasn't been seen", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "epic", epic_bundle: true, state: "confirmed", proposed: false }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderProposalCard(proposal({ kind: "epic", kind_label: "Epic", epic_bundle: true }), vi.fn(), { currentUser: { seen_tours: ["some_other_tour"] }, withLocation: true })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Epic" }))
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/jobs"))
+  })
+
+  it("does not navigate when the dashboard tour has already been seen", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const onNotice = vi.fn()
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), onNotice, { currentUser: { seen_tours: ["dashboard"] }, withLocation: true })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Proposal confirmed."))
+    expect(screen.getByTestId("location")).toHaveTextContent("/")
+  })
+
+  it("does not navigate when rejecting a proposal, even with the tour unseen", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal rejected.", proposal: proposal({ kind: "job", state: "rejected", proposed: false, resolved: true }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const onNotice = vi.fn()
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }), onNotice, { currentUser: { seen_tours: [] }, withLocation: true })
+    fireEvent.click(screen.getByRole("button", { name: "Reject proposal" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Proposal rejected."))
+    expect(screen.getByTestId("location")).toHaveTextContent("/")
   })
 })
 

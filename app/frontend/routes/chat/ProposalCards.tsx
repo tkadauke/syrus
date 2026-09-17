@@ -2,7 +2,7 @@ import type { ChatQueryKey } from "./constants"
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
 import type { FormEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react"
 import { useCallback, useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
 import {
@@ -497,6 +497,7 @@ export function ProposalCard({
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const search = queryKey[2]
   const [editingProposal, setEditingProposal] = useState<EditableProposal | null>(null)
   const childJobCount = proposal.children?.length || 0
@@ -515,9 +516,16 @@ export function ProposalCard({
       const path = appendSearch(input.path, search)
       return input.action === "confirm" ? confirmChatProposal(path, { start: input.start, route_to_backlog: input.routeToBacklog }) : rejectChatProposal(path)
     },
-    onSuccess: (updated) => {
+    onSuccess: (updated, variables) => {
       queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated, queryKey[1]))
       onNotice(updated.message || null)
+
+      if (variables.action === "confirm" && (proposal.kind === "job" || proposal.kind === "epic")) {
+        const seenTours = currentUser?.seen_tours
+        if (Array.isArray(seenTours) && !seenTours.includes("dashboard")) {
+          navigate(withRoutePrefix("/dashboard/jobs", prefix))
+        }
+      }
     }
   })
 
