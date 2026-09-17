@@ -65,6 +65,35 @@ RSpec.describe PluginRecord, :reset_plugin_registry do
     it "returns every record for a nil query" do
       expect(PluginRecord.search(nil).pluck(:name)).to include("weather-plugin", "ticket-plugin", "lifecycle_plugin")
     end
+
+    context "on MySQL" do
+      before do
+        allow(described_class.connection).to receive(:adapter_name).and_return("Mysql2")
+      end
+
+      # Regression for a real bug: an underscore is a word character to
+      # MySQL's built-in FULLTEXT parser, so a name like "video_walkthroughs"
+      # indexes as ONE token. Natural-language MATCH ... AGAINST only matches
+      # whole tokens, so searching "video" matched neither that token nor the
+      # plural "Walkthrough Videos" display_name. Boolean mode with a
+      # trailing wildcard makes each word a prefix match instead.
+      it "builds a boolean-mode prefix query so a bare word matches an underscore-joined name" do
+        sql = PluginRecord.search("video").to_sql
+
+        expect(sql).to include("IN BOOLEAN MODE")
+        expect(sql).to include("+video*")
+      end
+
+      it "extracts each word as its own prefix term, dropping punctuation" do
+        sql = PluginRecord.search("video, walkthroughs!").to_sql
+
+        expect(sql).to include("+video* +walkthroughs*")
+      end
+
+      it "returns no matches instead of erroring when the query has no matchable words" do
+        expect(PluginRecord.search("!!!")).to be_empty
+      end
+    end
   end
 
   describe "after_commit lifecycle job enqueue" do
