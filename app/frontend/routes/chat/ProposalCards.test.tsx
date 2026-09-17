@@ -550,6 +550,34 @@ describe("ProposalCard first-run dashboard tour navigation", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/jobs"))
   })
 
+  it("navigates to the dashboard Jobs tab after confirming a syrus_issue proposal when the tour hasn't been seen", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "syrus_issue", state: "confirmed", proposed: false }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderProposalCard(proposal({ kind: "syrus_issue", kind_label: "Syrus issue" }), vi.fn(), { currentUser: { seen_tours: [] }, withLocation: true })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/jobs"))
+  })
+
+  it("does not navigate after confirming a github_issue proposal", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "github_issue", state: "confirmed", proposed: false }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const onNotice = vi.fn()
+    renderProposalCard(proposal({ kind: "github_issue", kind_label: "GitHub issue" }), onNotice, { currentUser: { seen_tours: [] }, withLocation: true })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Proposal confirmed."))
+    expect(screen.getByTestId("location")).toHaveTextContent("/")
+  })
+
   it("does not navigate when the dashboard tour has already been seen", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))

@@ -378,8 +378,15 @@ function sameValues(first: string[], second: string[]) {
   return first.every((value, index) => value === second[index])
 }
 
+// "job" and "syrus_issue" proposals both materialize a direct Job on confirm
+// (ChatJobStatusQuery::JOB_PROPOSAL_KINDS mirrors this on the backend); only
+// "github_issue" files to GitHub instead of creating a Job immediately.
+function proposalCreatesJob(proposal: Pick<ChatProposal, "kind">) {
+  return proposal.kind === "job" || proposal.kind === "syrus_issue"
+}
+
 function proposalSupportsBacklogRoute(proposal: Pick<ChatProposal, "kind" | "epic_bundle"> | EditableProposal) {
-  return !proposal.epic_bundle && (proposal.kind === "job" || proposal.kind === "syrus_issue")
+  return !proposal.epic_bundle && proposalCreatesJob(proposal)
 }
 
 function DependencyPicker({
@@ -520,7 +527,7 @@ export function ProposalCard({
       queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated, queryKey[1]))
       onNotice(updated.message || null)
 
-      if (variables.action === "confirm" && (proposal.kind === "job" || proposal.kind === "epic")) {
+      if (variables.action === "confirm" && (proposalCreatesJob(proposal) || proposal.kind === "epic")) {
         const seenTours = currentUser?.seen_tours
         if (Array.isArray(seenTours) && !seenTours.includes("dashboard")) {
           navigate(withRoutePrefix("/dashboard/jobs", prefix))
