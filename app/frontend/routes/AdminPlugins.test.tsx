@@ -62,7 +62,8 @@ const pluginFilterSchema = [
     label: "Search",
     bucket: "string",
     operators: ["contains"],
-    values: []
+    values: [],
+    free_text_search: true
   }
 ]
 
@@ -348,7 +349,51 @@ describe("AdminPlugins", () => {
     expect(screen.getByRole("button", { name: "Author text" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Extension point list" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Category list" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Search text" })).toBeInTheDocument()
+    // The search chip is the pinned free-text search field: it no longer
+    // appears in the generic field/operator/value list, even with an
+    // empty query.
+    expect(screen.queryByRole("button", { name: "Search text" })).not.toBeInTheDocument()
+  })
+
+  it("pins the search chip as a free-text search suggestion once the operator types at least two characters", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      return Promise.resolve(jsonResponse({
+        plugins: [
+          {
+            name: "codex_agent",
+            display_name: "Codex Agent",
+            disable_blockers: [],
+            version: "1.2.3",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: "Codex agent provider",
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: []
+          }
+        ],
+        filter: url.includes("q=") ? { and: [{ field: "search", op: "contains", value: "codex" }] } : { and: [] },
+        controls: { filter_schema: pluginFilterSchema }
+      }))
+    })
+
+    renderRoute(<AdminPlugins />)
+
+    await screen.findByRole("region", { name: "Registered plugins" })
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    expect(screen.queryByText(/^Search for /)).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "codex" } })
+    expect(screen.getByText("Search for codex")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Search for codex"))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("q="), expect.anything()))
+    expect(await screen.findByRole("button", { name: "Search contains codex" })).toBeInTheDocument()
   })
 
   it("filters plugins by the category chip and shows a filtered empty state", async () => {
