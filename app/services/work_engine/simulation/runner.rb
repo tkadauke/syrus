@@ -41,6 +41,7 @@ module WorkEngine
         @events = []
         @run_attempts = Hash.new(0)
         @worker_index = 0
+        @workspace_missing_workflow_ids = []
       end
 
       def call
@@ -491,6 +492,7 @@ module WorkEngine
       end
 
       def reconcile!(tick)
+        @workspace_missing_workflow_ids = []
         if global_reconcile?
           reconcile_result!(tick, WorkEngine::Reconciler.call(source: "simulation:#{scenario}:tick#{tick}", execute_repairs: true))
         else
@@ -526,6 +528,9 @@ module WorkEngine
           next if ignored_reconciler_issue_kinds.include?(issue.kind)
 
           events << "tick #{tick}: reconciler #{issue.kind}"
+          if issue.kind == "workspace_missing"
+            @workspace_missing_workflow_ids.concat(Array(issue.affected_ids[:workflow_ids]))
+          end
         end
         result.repair_executions.each do |execution|
           next if execution.status == "success"
@@ -602,6 +607,11 @@ module WorkEngine
       end
 
       def execute_run!(run, tick)
+        if @workspace_missing_workflow_ids.include?(run.workflow_id)
+          events << "tick #{tick}: #{run.slug} #{run.step&.kind} -> blocked by workspace_missing"
+          return
+        end
+
         unless run.step&.dependencies_settled?
           events << "tick #{tick}: #{run.slug} #{run.step&.kind} -> deferred waiting for dependencies"
           return
