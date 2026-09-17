@@ -14,7 +14,7 @@ module WorkEngine
         @argv = Array(argv)
         @out = out
         @err = err
-        @max_ticks = DEFAULT_MAX_TICKS
+        @max_ticks = nil
       end
 
       def call

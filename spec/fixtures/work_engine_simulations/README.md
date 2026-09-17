@@ -23,6 +23,11 @@ as a grader. By default, `success` and declared-valid `waiting` outcomes pass.
 Use `expected_status: stuck` only for diagnostic fixtures that deliberately
 verify a stuck condition is detected.
 
+Scenarios can set `max_ticks:` to bound how long that fixture runs. Prefer a
+small value for intentional `stuck` diagnostics so the grader proves the
+condition without burning the global default tick budget. The CLI
+`--max-ticks` flag overrides per-scenario values.
+
 Use these fixtures for incidents that can be represented as persisted state:
 Jobs, Epics, WorkIntents, WorkUnits, Workflows, Steps, Runs, locks, and run
 diagnostics. For production bugs, copy the smallest relevant shape into a new

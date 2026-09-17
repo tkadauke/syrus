@@ -32,6 +32,14 @@ RSpec.configure do |config|
     FileUtils.mkdir_p(SPEC_DATA_ROOT)
   end
 
+  config.before do
+    ENV["SYRUS_DATA_ROOT"] ||= SPEC_DATA_ROOT.to_s
+  end
+
+  config.after do
+    ENV["SYRUS_DATA_ROOT"] ||= SPEC_DATA_ROOT.to_s
+  end
+
   config.after(:suite) do
     FileUtils.rm_rf(SPEC_DATA_ROOT)
   end

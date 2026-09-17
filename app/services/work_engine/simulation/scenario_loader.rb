@@ -5,7 +5,7 @@ require "digest/sha1"
 module WorkEngine
   module Simulation
     class ScenarioLoader
-      World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner, :runtime)
+      World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner, :runtime, :max_ticks)
       REPOSITORY_UPDATE_KEYS = %w[
         auto_merge_enabled main_branch_health_enabled main_branch_repair_enabled
         main_branch_repair_blocks_work landing_paused land_on_inherited_check_failure
@@ -66,7 +66,8 @@ module WorkEngine
             wait_states: data.fetch("wait_states", {}),
             reconciler: data.fetch("reconciler", {}),
             runner: data.fetch("runner", {}),
-            runtime: data.fetch("runtime", {})
+            runtime: data.fetch("runtime", {}),
+            max_ticks: data["max_ticks"]
           )
         end
       end

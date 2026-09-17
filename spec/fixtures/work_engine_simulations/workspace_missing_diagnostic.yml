@@ -1,5 +1,6 @@
 name: workspace missing diagnostic
 expected_status: stuck
+max_ticks: 5
 reconciler:
   ignored_issue_kinds: []
 repository:
@@ -25,6 +26,8 @@ jobs:
           state: queued
 outcomes:
   default: success
+  steps:
+    implement: pending
 success_states:
   missing_workspace:
     - implemented
