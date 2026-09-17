@@ -41,7 +41,7 @@ class AddInlineReviewStateToDesignDocs < ActiveRecord::Migration[8.1]
     unless column_exists?(:design_doc_suggestions, :change_type)
       add_column :design_doc_suggestions, :change_type, :string, null: false, default: "replace"
     end
-    add_column :design_doc_suggestions, :base_version_id, :integer unless column_exists?(:design_doc_suggestions, :base_version_id)
+    add_column :design_doc_suggestions, :base_version_id, :bigint unless column_exists?(:design_doc_suggestions, :base_version_id)
     add_column :design_doc_suggestions, :provenance, :json unless column_exists?(:design_doc_suggestions, :provenance)
     add_column :design_doc_suggestions, :conflict_reason, :text unless column_exists?(:design_doc_suggestions, :conflict_reason)
 
@@ -55,10 +55,6 @@ class AddInlineReviewStateToDesignDocs < ActiveRecord::Migration[8.1]
       end
     end
     change_column_null :design_doc_suggestions, :proposed_markdown, false
-
     add_index :design_doc_suggestions, :base_version_id unless index_exists?(:design_doc_suggestions, :base_version_id)
-    unless foreign_key_exists?(:design_doc_suggestions, :design_doc_versions, column: :base_version_id)
-      add_foreign_key :design_doc_suggestions, :design_doc_versions, column: :base_version_id
-    end
   end
 end

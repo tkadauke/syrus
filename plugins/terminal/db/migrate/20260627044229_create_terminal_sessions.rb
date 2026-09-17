@@ -23,13 +23,9 @@ class CreateTerminalSessions < ActiveRecord::Migration[8.1]
     add_index :terminal_sessions, :user_id unless index_exists?(:terminal_sessions, :user_id)
     add_index :terminal_sessions, :workflow_id unless index_exists?(:terminal_sessions, :workflow_id)
     add_index :terminal_sessions, :finished_at unless index_exists?(:terminal_sessions, :finished_at)
-    add_foreign_key :terminal_sessions, :users unless foreign_key_exists?(:terminal_sessions, :users)
-    add_foreign_key :terminal_sessions, :workflows unless foreign_key_exists?(:terminal_sessions, :workflows)
   end
 
   def down
-    remove_foreign_key :terminal_sessions, :workflows if foreign_key_exists?(:terminal_sessions, :workflows)
-    remove_foreign_key :terminal_sessions, :users if foreign_key_exists?(:terminal_sessions, :users)
     remove_index :terminal_sessions, :finished_at if index_exists?(:terminal_sessions, :finished_at)
     remove_index :terminal_sessions, :workflow_id if index_exists?(:terminal_sessions, :workflow_id)
     remove_index :terminal_sessions, :user_id if index_exists?(:terminal_sessions, :user_id)
@@ -40,8 +36,8 @@ class CreateTerminalSessions < ActiveRecord::Migration[8.1]
     remove_column :terminal_sessions, :relay_address if column_exists?(:terminal_sessions, :relay_address)
     remove_column :terminal_sessions, :working_directory if column_exists?(:terminal_sessions, :working_directory)
     remove_column :terminal_sessions, :name if column_exists?(:terminal_sessions, :name)
-    remove_reference :terminal_sessions, :workflow if column_exists?(:terminal_sessions, :workflow_id)
-    remove_reference :terminal_sessions, :user if column_exists?(:terminal_sessions, :user_id)
+    remove_column :terminal_sessions, :workflow_id if column_exists?(:terminal_sessions, :workflow_id)
+    remove_column :terminal_sessions, :user_id if column_exists?(:terminal_sessions, :user_id)
     drop_table :terminal_sessions, if_exists: true
   end
 
@@ -56,7 +52,7 @@ class CreateTerminalSessions < ActiveRecord::Migration[8.1]
       needs_nullability = column.null != null
       change_column table, column_name, :bigint, null: null if needs_bigint || needs_nullability
     else
-      add_reference table, reference, type: :bigint, null:, index: false
+      connection.add_column table, column_name, :bigint, null: null
     end
   end
 end
