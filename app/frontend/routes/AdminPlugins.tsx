@@ -122,7 +122,9 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-5 w-5 shrink-0" src={plugin.icon_url} /> : null}
-            <SectionHeading className="break-words">{plugin.display_name || plugin.name}</SectionHeading>
+            <SectionHeading className="break-words">
+              <Link className="hover:underline" to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>{plugin.display_name || plugin.name}</Link>
+            </SectionHeading>
             {plugin.display_name && plugin.display_name !== plugin.name ? (
               <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span>
             ) : null}
@@ -163,7 +165,6 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           ) : null}
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
-          <Link className={buttonClasses("secondary")} to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>{t("plugins.details")}</Link>
           <PluginToggleButton plugin={plugin} state={toggleState} />
         </div>
       </div>
