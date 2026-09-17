@@ -1424,6 +1424,33 @@ RSpec.describe Epic, :ci_only do
     end
   end
 
+  describe ".search" do
+    it "matches on title text" do
+      epic = described_class.create!(user: user, repository: repository, title: "Fix the flaky deploy spec")
+      expect(described_class.search("flaky deploy").pluck(:id)).to include(epic.id)
+    end
+
+    it "matches on description text" do
+      epic = described_class.create!(user: user, repository: repository, title: "Unrelated title", description: "The Kubernetes worker pods keep restarting.")
+      expect(described_class.search("Kubernetes worker").pluck(:id)).to include(epic.id)
+    end
+
+    it "returns no matches for an unrelated query" do
+      described_class.create!(user: user, repository: repository, title: "Unrelated title")
+      expect(described_class.search("nonexistent-term-xyz")).to be_empty
+    end
+
+    it "returns every record for a blank query" do
+      epic = described_class.create!(user: user, repository: repository, title: "Any title")
+      expect(described_class.search("").pluck(:id)).to include(epic.id)
+    end
+
+    it "returns every record for a nil query" do
+      epic = described_class.create!(user: user, repository: repository, title: "Any title")
+      expect(described_class.search(nil).pluck(:id)).to include(epic.id)
+    end
+  end
+
   describe "standalone reconciliation cleanup" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
