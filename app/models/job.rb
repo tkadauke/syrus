@@ -193,6 +193,15 @@ class Job < ApplicationRecord
   # and `pr_number` aren't text and can't join a FULLTEXT index, so they're
   # matched separately via a LIKE on their string representation and OR'd
   # in alongside the text match.
+  #
+  # Deliberately excludes `pr_title`: Job has no `pr_title` column or method
+  # (only Run#agent_pr_title exists, one hop away via the latest Run) --
+  # confirmed against db/schema.rb. Filters::Chips::Jobs::PrTitle already
+  # declares `column :pr_title` against that nonexistent column, so it's a
+  # pre-existing broken/dead chip predating this change, not a real field to
+  # mirror here. Wiring actual PR-title search would mean joining to the
+  # job's latest Run on every search query for a field this repo doesn't
+  # otherwise track on Job -- out of scope for this unified-search addition.
   SEARCH_TEXT_COLUMNS = %w[issue_title issue_body branch_name].freeze
   SEARCH_NUMBER_COLUMNS = %w[issue_number pr_number].freeze
 

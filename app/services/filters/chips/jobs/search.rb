@@ -4,6 +4,7 @@ module Filters
       # Free-text chip pinned by FilterBar into a "Search for X" suggestion.
       # Delegates to Job.search so the FULLTEXT/LIKE behavior stays defined
       # in exactly one place (mirrors Filters::Chips::AdminPlugins::Search).
+      # See Job::SEARCH_TEXT_COLUMNS for why `pr_title` isn't covered.
       class Search < Base
         filter_name "search"
         label "Search"
