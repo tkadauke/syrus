@@ -54,6 +54,9 @@ class User < ApplicationRecord
   ROLES = %w[ developer product_owner ].freeze
   LOCALES = %w[ en de la ].freeze
   EMAIL_LOCAL_PART_SEPARATORS = /[._+-]+/
+  # Mirrors Job::SEARCH_TEXT_COLUMNS / Job.search's MySQL FULLTEXT vs.
+  # cross-DB LIKE fallback (see AddSearchFulltextIndexToUsers).
+  SEARCH_TEXT_COLUMNS = %w[email_address name first_name last_name github_handle].freeze
   CLEARABLE_CREDENTIALS = {
     "github_token" => "GitHub token",
     "claude_oauth_token" => "Claude OAuth token",
@@ -609,6 +612,19 @@ class User < ApplicationRecord
 
   def self.agent_providers
     Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)
+  end
+
+  def self.search(query)
+    query = query.to_s.strip
+    return all if query.blank?
+
+    if connection.adapter_name.downcase.include?("mysql")
+      where("MATCH(#{SEARCH_TEXT_COLUMNS.join(', ')}) AGAINST (?)", query)
+    else
+      like = "%#{sanitize_sql_like(query)}%"
+      conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }
+      where(conditions.join(" OR "), *([ like ] * conditions.size))
+    end
   end
 
   def configured_agent_providers

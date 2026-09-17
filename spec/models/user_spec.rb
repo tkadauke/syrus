@@ -3,6 +3,48 @@ require "rails_helper"
 RSpec.describe User do
   let(:attrs) { { email_address: "user@example.com", password: "supersecret" } }
 
+  describe ".search" do
+    it "matches on email_address" do
+      user = Factories.user(email_address: "flaky-deploy-fixer@example.com")
+      expect(User.search("flaky-deploy-fixer").pluck(:id)).to include(user.id)
+    end
+
+    it "matches on name" do
+      user = Factories.user(name: "Grace Hopper")
+      expect(User.search("Grace Hopper").pluck(:id)).to include(user.id)
+    end
+
+    it "matches on first_name" do
+      user = Factories.user(first_name: "Ada", last_name: "Lovelace")
+      expect(User.search("Ada").pluck(:id)).to include(user.id)
+    end
+
+    it "matches on last_name" do
+      user = Factories.user(first_name: "Ada", last_name: "Lovelace")
+      expect(User.search("Lovelace").pluck(:id)).to include(user.id)
+    end
+
+    it "matches on github_handle" do
+      user = Factories.user(github_handle: "widget-repair-bot")
+      expect(User.search("widget-repair-bot").pluck(:id)).to include(user.id)
+    end
+
+    it "returns no matches for an unrelated query" do
+      Factories.user(name: "Unrelated Name")
+      expect(User.search("nonexistent-term-xyz")).to be_empty
+    end
+
+    it "returns every record for a blank query" do
+      user = Factories.user(name: "Any Name")
+      expect(User.search("").pluck(:id)).to include(user.id)
+    end
+
+    it "returns every record for a nil query" do
+      user = Factories.user(name: "Any Name")
+      expect(User.search(nil).pluck(:id)).to include(user.id)
+    end
+  end
+
   describe "first-signup admin rule" do
     it "promotes the very first user to admin" do
       user = User.create!(attrs)

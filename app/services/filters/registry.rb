@@ -198,6 +198,7 @@ module Filters
       name: :admin_user,
       model: User,
       chips: {
+        "search"           => "Filters::Chips::AdminUsers::Search",
         "email"            => "Filters::Chips::AdminUsers::Email",
         "admin"            => "Filters::Chips::AdminUsers::Admin",
         "has_github_token" => "Filters::Chips::AdminUsers::HasGithubToken",
