@@ -248,6 +248,26 @@ describe("cross-chat bridge rendering", () => {
 
     expect(screen.queryByTestId("cross-chat-bridge-chip")).not.toBeInTheDocument()
   })
+
+  it("lets the outbound pill's cta share space with a truncating body instead of crowding it out at narrow widths", () => {
+    renderChatMessageItem(
+      systemMessageItem({
+        tone: "neutral",
+        label: "Cross-chat",
+        body: "Sent to chat #3: Can you check on JOB-1's status for me when you get a chance?",
+        cta: { label: "via Chat #3: A very long counterpart chat title indeed", path: "/chats/3" }
+      })
+    )
+
+    const summary = screen.getByTestId("system-message-summary")
+    expect(summary.className).toContain("truncate")
+    expect(summary.className).toContain("flex-1")
+
+    const cta = screen.getByRole("link", { name: "via Chat #3: A very long counterpart chat title indeed" })
+    expect(cta.className).toContain("truncate")
+    expect(cta.className).toContain("max-w-[45%]")
+    expect(cta.className).not.toContain("shrink-0")
+  })
 })
 
 describe("shell command rendering", () => {

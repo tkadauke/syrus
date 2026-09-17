@@ -815,9 +815,9 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
     <div className="flex flex-col items-center justify-center gap-1">
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${BANNER_TONE_CLASSES[item.tone]}`}>
         <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
-        <span className="min-w-0 truncate" data-testid="system-message-summary">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
+        <span className="min-w-0 flex-1 truncate" data-testid="system-message-summary">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
         {item.cta ? (
-          <Link className="shrink-0 font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
+          <Link className="min-w-0 max-w-[45%] shrink truncate font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
             {item.cta.label}
           </Link>
         ) : null}
