@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Filters chip contract" do
   JOB_SPECIFIC_FIELDS = %w[
     state kind priority closure_reason triaging_reason validity pr_present
-    pr_mergeable pr_number pr_title branch_name issue_number title description
+    pr_mergeable pr_number pr_title branch_name issue_number title description search
     epic_id parent_job_id has_active_run has_unread_feedback has_child_jobs
     has_parent_job has_blocked_deps pinned_by_me latest_workflow_state
     latest_workflow_trigger_kind latest_run_state last_seen_comment_at finished_at

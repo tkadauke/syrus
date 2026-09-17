@@ -186,6 +186,35 @@ class Job < ApplicationRecord
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
 
+  # Unified free-text search, mirroring PluginRecord.search's FULLTEXT-in-
+  # production / LIKE-in-dev-test pattern: MySQL gets a real FULLTEXT
+  # MATCH ... AGAINST query over the text columns, sqlite (dev/test) falls
+  # back to a LIKE scan since it has no FULLTEXT index type. `issue_number`
+  # and `pr_number` aren't text and can't join a FULLTEXT index, so they're
+  # matched separately via a LIKE on their string representation and OR'd
+  # in alongside the text match.
+  SEARCH_TEXT_COLUMNS = %w[issue_title issue_body branch_name].freeze
+  SEARCH_NUMBER_COLUMNS = %w[issue_number pr_number].freeze
+
+  def self.search(query)
+    query = query.to_s.strip
+    return all if query.blank?
+
+    like = "%#{sanitize_sql_like(query)}%"
+    number_conditions = SEARCH_NUMBER_COLUMNS.map { |column| "CAST(#{column} AS CHAR) LIKE ? ESCAPE '\\'" }
+
+    if connection.adapter_name.downcase.include?("mysql")
+      where(
+        "MATCH(#{SEARCH_TEXT_COLUMNS.join(', ')}) AGAINST (?) OR #{number_conditions.join(' OR ')}",
+        query, *([ like ] * SEARCH_NUMBER_COLUMNS.size)
+      )
+    else
+      text_conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }
+      conditions = text_conditions + number_conditions
+      where(conditions.join(" OR "), *([ like ] * conditions.size))
+    end
+  end
+
   # Check-run names for the currently failing checks on `pr_checks_sha`, plus
   # the PR base SHA observed with those checks. The landing gate uses that pair
   # to tell a Job's own breakage from one inherited from its base (see
