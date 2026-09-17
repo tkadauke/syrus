@@ -1,6 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { PageHeading, SectionHeading } from "../components/Heading"
-import { inputClass } from "../lib/formClasses"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
@@ -17,7 +16,8 @@ import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
 import { Input } from "../components/Input"
-import { Select } from "../components/Select"
+import { PanelMessage } from "../components/PanelMessage"
+import { Form } from "../components/ui"
 
 export function RepositorySkillNewRoute() {
   const { t } = useT("jobs")
@@ -127,20 +127,20 @@ function SkillLaunchForm({
         <div className="grid gap-4 sm:grid-cols-2">
           {payload.configured_agent_providers.length > 1 ? (
             <Field label={t("skill_job_agent_label")}>
-              <Select onChange={(event) => setAgentProvider(event.target.value)} value={agentProvider}>
+              <Form.Select onChange={(event) => setAgentProvider(event.target.value)} value={agentProvider}>
                 <option value="">{t("skill_job_agent_repository_default")} ({payload.repository.default_agent_provider_label})</option>
                 {payload.configured_agent_providers.map((provider) => (
                   <option key={provider.value} value={provider.value}>{provider.label}</option>
                 ))}
-              </Select>
+              </Form.Select>
             </Field>
           ) : null}
           <Field label={t("skill_job_priority_label")}>
-            <Select onChange={(event) => setPriority(event.target.value)} value={priority}>
+            <Form.Select onChange={(event) => setPriority(event.target.value)} value={priority}>
               {payload.priorities.map((value) => (
                 <option key={value} value={value}>{value}</option>
               ))}
-            </Select>
+            </Form.Select>
           </Field>
         </div>
         <Button
@@ -222,7 +222,7 @@ export function SkillParameterInput({
   if (field.type === "select") {
     return (
       <Field label={field.label}>
-        <Select
+        <Form.Select
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
           value={typeof value === "string" ? value : ""}
@@ -231,7 +231,7 @@ export function SkillParameterInput({
           {(field.options || []).map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
-        </Select>
+        </Form.Select>
       </Field>
     )
   }
@@ -239,8 +239,7 @@ export function SkillParameterInput({
   if (field.type === "text") {
     return (
       <Field label={field.label}>
-        <textarea
-          className={inputClass()}
+        <Form.Textarea
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
           rows={4}
@@ -252,7 +251,7 @@ export function SkillParameterInput({
 
   return (
     <Field label={field.label}>
-      <Input
+      <Form.Input
         onChange={(event) => onChange(event.target.value)}
         required={field.required}
         type={field.type === "integer" ? "number" : "text"}
@@ -276,17 +275,9 @@ export function initialArgs(skill: SkillSummary | null): Record<string, string |
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-1">{children}</div>
-    </label>
+    <Form.Field>
+      <Form.Label>{label}</Form.Label>
+      {children}
+    </Form.Field>
   )
-}
-
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }

@@ -16,9 +16,8 @@ import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
-import { Input } from "./Input"
 import { Modal } from "./Modal"
-import { Select } from "./Select"
+import { Form } from "./ui"
 import { useT } from "../hooks/useT"
 
 type OwnerOption = { login: string; type: "user" | "org" }
@@ -361,10 +360,10 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                 ) : ownersLoading ? (
                   <Loading>{t('add_repository.loading_accounts')}</Loading>
                 ) : (
-                  <Select aria-label={t('add_repository.field_user_org')} className="font-mono" onChange={(event) => chooseOwner(event.target.value)} value={values.owner}>
+                  <Form.Select aria-label={t('add_repository.field_user_org')} className="font-mono" onChange={(event) => chooseOwner(event.target.value)} value={values.owner}>
                     <option value="">{t('add_repository.select_user_org')}</option>
                     {ownerOptions.map((o) => <option key={o.login} value={o.login}>{o.login}</option>)}
-                  </Select>
+                  </Form.Select>
                 )}
               </Field>
 
@@ -375,10 +374,10 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                   ) : reposNotice ? (
                     <Box tone="error">{reposNotice}</Box>
                   ) : (
-                    <Select aria-label={t('add_repository.field_repository')} className="font-mono" onChange={(event) => chooseRepo(event.target.value)} value={values.name}>
+                    <Form.Select aria-label={t('add_repository.field_repository')} className="font-mono" onChange={(event) => chooseRepo(event.target.value)} value={values.name}>
                       <option value="">{t('add_repository.select_repository')}</option>
                       {repoOptions.map((r) => <option key={r.name} value={r.name}>{r.name}</option>)}
-                    </Select>
+                    </Form.Select>
                   )}
                 </Field>
               ) : null}
@@ -388,9 +387,9 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                   {loadingBranches ? (
                     <Loading>{t('add_repository.loading_branches')}</Loading>
                   ) : (
-                    <Select aria-label={t('add_repository.field_default_branch')} className="font-mono" onChange={(event) => setValues((c) => (c ? { ...c, default_branch: event.target.value } : c))} value={values.default_branch}>
+                    <Form.Select aria-label={t('add_repository.field_default_branch')} className="font-mono" onChange={(event) => setValues((c) => (c ? { ...c, default_branch: event.target.value } : c))} value={values.default_branch}>
                       {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
-                    </Select>
+                    </Form.Select>
                   )}
                 </Field>
               ) : null}
@@ -402,7 +401,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                   ) : null}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field label={t('add_repository.field_upstream_owner')}>
-                      <Input
+                      <Form.Input
                         aria-label={t('add_repository.field_upstream_owner')}
                         className="font-mono"
                         onChange={(event) => updateUpstream("upstream_owner", event.target.value)}
@@ -411,7 +410,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                       />
                     </Field>
                     <Field label={t('add_repository.field_upstream_name')}>
-                      <Input
+                      <Form.Input
                         aria-label={t('add_repository.field_upstream_name')}
                         className="font-mono"
                         onChange={(event) => updateUpstream("upstream_name", event.target.value)}
@@ -421,7 +420,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                     </Field>
                   </div>
                   <Field label={t('add_repository.field_upstream_branch')}>
-                    <Input
+                    <Form.Input
                       aria-label={t('add_repository.field_upstream_branch')}
                       className="font-mono"
                       onChange={(event) => updateUpstream("upstream_default_branch", event.target.value)}
@@ -465,10 +464,10 @@ function suggestBranch(branches: string[], defaultBranch: string | undefined) {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {label}
-      <div className="mt-2">{children}</div>
-    </label>
+    <Form.Field>
+      <Form.Label>{label}</Form.Label>
+      {children}
+    </Form.Field>
   )
 }
 
