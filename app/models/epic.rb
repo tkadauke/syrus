@@ -17,6 +17,10 @@ class Epic < ApplicationRecord
   # despite the single current value.
   EPIC_DEPENDENCY_POLICIES = %w[ linear ].freeze
 
+  # Mirrors Job::SEARCH_TEXT_COLUMNS / Job.search's MySQL FULLTEXT vs.
+  # cross-DB LIKE fallback (see AddSearchFulltextIndexToEpics).
+  SEARCH_TEXT_COLUMNS = %w[title description].freeze
+
   attr_readonly :number
   attribute :epic_dependency_policy, :string, default: "linear"
 
@@ -77,6 +81,20 @@ class Epic < ApplicationRecord
     upstream_ids = Repository.where(id: member_repo_ids).where.not(upstream_repository_id: nil).select(:upstream_repository_id)
     where(repository_id: member_repo_ids).or(where(repository_id: upstream_ids))
   }
+
+  def self.search(query)
+    query = query.to_s.strip
+    return all if query.blank?
+
+    like = "%#{sanitize_sql_like(query)}%"
+
+    if connection.adapter_name.downcase.include?("mysql")
+      where("MATCH(#{SEARCH_TEXT_COLUMNS.join(', ')}) AGAINST (?)", query)
+    else
+      conditions = SEARCH_TEXT_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }
+      where(conditions.join(" OR "), *([ like ] * conditions.size))
+    end
+  end
 
   aasm column: :state, whiny_transitions: false do
     state :backlog, initial: true

@@ -159,6 +159,7 @@ module Filters
         "created_at"              => "Filters::Chips::CreatedAt",
         "updated_at"              => "Filters::Chips::UpdatedAt",
         "state"                   => "Filters::Chips::Epics::State",
+        "search"                  => "Filters::Chips::Epics::Search",
         "title"                   => "Filters::Chips::Epics::Title",
         "description"             => "Filters::Chips::Epics::Description",
         "done_at"                 => "Filters::Chips::Epics::DoneAt",
