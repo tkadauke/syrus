@@ -336,6 +336,8 @@
     "browse_changed_files": "Browse changed files",
     "large_file_hidden": "This file's diff is large (~{{rowCount}} rendered lines) and is hidden by default.",
     "load_file_diff": "Load diff for this file",
+    "collapse_file": "Collapse file",
+    "expand_file": "Expand file",
     "image_before": "Before",
     "image_after": "After",
     "image_no_previous_version": "No previous version (file added)",

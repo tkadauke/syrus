@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseE
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
+import { ChevronIcon } from "../ChevronIcon"
 import { CloseIcon } from "../CloseIcon"
 import { renderCodeLine } from "../CodeBlock"
 import { useT } from "../../hooks/useT"
@@ -132,13 +133,14 @@ const FILES_POPUP_MIN_HEIGHT = 200
 // mount/unmount cycles; only the whole diff changing (see `fileCache.current
 // = new Map()` below) clears it.
 type FileCacheEntry = {
+  collapsed: boolean
   contextState: FileContextState
   forceLoaded: boolean
   tokensByHunk: Map<number, ThemedToken[][]>
 }
 
 function createFileCacheEntry(): FileCacheEntry {
-  return { contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" }, forceLoaded: false, tokensByHunk: new Map() }
+  return { collapsed: false, contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" }, forceLoaded: false, tokensByHunk: new Map() }
 }
 
 // Mutates the shared cache entry in place and forces a re-render, rather
@@ -159,8 +161,9 @@ function useFileCacheEntry(cache: Map<string, FileCacheEntry>, path: string): [F
 // A pixel estimate used only until a file section actually mounts and
 // reports its real height (see `virtualizer.measureElement`). Close enough
 // that ordinary scrolling doesn't jump once the real measurement lands.
-function estimateFileSectionHeight(file: ReviewableDiffFile, { forceLoaded, largeFileRowThreshold, showHeader }: { forceLoaded: boolean; largeFileRowThreshold: number; showHeader: boolean }): number {
+function estimateFileSectionHeight(file: ReviewableDiffFile, { collapsed, forceLoaded, largeFileRowThreshold, showHeader }: { collapsed: boolean; forceLoaded: boolean; largeFileRowThreshold: number; showHeader: boolean }): number {
   const header = showHeader ? DEFAULT_FILE_HEADER_HEIGHT_PX : 0
+  if (collapsed) return header
   if (file.patch === null) return header + DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX
   const rowCount = countDiffRows(file.patch)
   if (rowCount > largeFileRowThreshold && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
@@ -242,7 +245,8 @@ export function ReviewableDiff({
   function estimateSize(index: number) {
     const file = visibleFiles[index]
     if (!file) return DEFAULT_FILE_HEADER_HEIGHT_PX
-    return estimateFileSectionHeight(file, { forceLoaded: fileCache.current.get(file.path)?.forceLoaded ?? false, largeFileRowThreshold, showHeader })
+    const cacheEntry = fileCache.current.get(file.path)
+    return estimateFileSectionHeight(file, { collapsed: cacheEntry?.collapsed ?? false, forceLoaded: cacheEntry?.forceLoaded ?? false, largeFileRowThreshold, showHeader })
   }
 
   function getItemKey(index: number) {
@@ -707,9 +711,13 @@ function DiffFileSection({
   const rowCount = lines.length
   const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path)
   const forceLoaded = cacheEntry.forceLoaded
+  const collapsed = cacheEntry.collapsed
   const contextState = cacheEntry.contextState
   function setForceLoaded(value: boolean) {
     updateCacheEntry({ forceLoaded: value })
+  }
+  function setCollapsed(value: boolean) {
+    updateCacheEntry({ collapsed: value })
   }
   function setContextState(updater: (prev: FileContextState) => FileContextState) {
     updateCacheEntry({ contextState: updater(cacheEntry.contextState) })
@@ -783,6 +791,20 @@ function DiffFileSection({
     }
   }) : []
 
+  if (collapsed) {
+    return showHeader ? (
+      <DiffFileHeader
+        collapsed
+        file={file}
+        onSelectFile={onSelectFile}
+        onToggleCollapsed={() => setCollapsed(false)}
+        onToggleFilesPopup={onToggleFilesPopup}
+        selected={selected}
+        showFilesPopupTrigger={showFilesPopupTrigger}
+      />
+    ) : null
+  }
+
   if (rowCount > largeFileRowThreshold && !forceLoaded) {
     return (
       <>
@@ -790,6 +812,7 @@ function DiffFileSection({
           <DiffFileHeader
             file={file}
             onSelectFile={onSelectFile}
+            onToggleCollapsed={() => setCollapsed(true)}
             onToggleFilesPopup={onToggleFilesPopup}
             selected={selected}
             showFilesPopupTrigger={showFilesPopupTrigger}
@@ -810,6 +833,7 @@ function DiffFileSection({
           loadWholeFileState={loadWholeFileState}
           onLoadWholeFile={contextExpansionEnabled ? loadWholeFile : undefined}
           onSelectFile={onSelectFile}
+          onToggleCollapsed={() => setCollapsed(true)}
           onToggleFilesPopup={onToggleFilesPopup}
           selected={selected}
           showFilesPopupTrigger={showFilesPopupTrigger}
@@ -1363,18 +1387,22 @@ function anchorKeyForLine(line: DiffLine, side: "old" | "new") {
 }
 
 function DiffFileHeader({
+  collapsed = false,
   file,
   loadWholeFileState,
   onLoadWholeFile,
   onSelectFile,
+  onToggleCollapsed,
   onToggleFilesPopup,
   selected,
   showFilesPopupTrigger
 }: {
+  collapsed?: boolean
   file: ReviewableDiffFile
   loadWholeFileState?: "error" | "idle" | "loaded" | "loading" | null
   onLoadWholeFile?: () => void
   onSelectFile?: (path: string) => void
+  onToggleCollapsed?: () => void
   onToggleFilesPopup?: (event: MouseEvent<HTMLButtonElement>) => void
   selected: boolean
   showFilesPopupTrigger?: boolean
@@ -1395,6 +1423,19 @@ function DiffFileHeader({
 
   return (
     <div className={className} title={file.path}>
+      {onToggleCollapsed ? (
+        // Collapsing frees up review space on wide diffs (e.g. large generated
+        // files); the viewport is too narrow on mobile to spare the control.
+        <button
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? t("diff_review.expand_file") : t("diff_review.collapse_file")}
+          className="flex h-4 w-4 shrink-0 items-center justify-center text-gray-500 hover:text-gray-700 max-md:hidden dark:text-gray-400 dark:hover:text-gray-200"
+          onClick={onToggleCollapsed}
+          type="button"
+        >
+          <ChevronIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} />
+        </button>
+      ) : null}
       {onSelectFile ? (
         <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onSelectFile(file.path)} type="button">
           {content}
