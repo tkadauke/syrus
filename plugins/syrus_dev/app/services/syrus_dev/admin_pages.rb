@@ -33,6 +33,16 @@ module SyrusDev
           component: "syrus_dev/AdminDesignSystem",
           group_id: "development",
           order: 90
+        },
+        {
+          id: "syrus_dev.tool_cards",
+          label: "Tool Cards",
+          label_key: "syrus_dev:nav_tool_cards",
+          path: "/admin/tool_cards",
+          paths: [ "/admin/tool_cards" ],
+          component: "syrus_dev/AdminToolCards",
+          group_id: "development",
+          order: 91
         }
       ]
 

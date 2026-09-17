@@ -74,3 +74,41 @@ const listScheduledTasksToolCard: ToolCardRenderer = {
 }
 
 export default listScheduledTasksToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "cron_and_one_shot",
+    label: "One cron task, one struggling one-shot",
+    parsedResult: {
+      tasks: [
+        {
+          id: "9",
+          label: "Nightly dependency audit",
+          state: "active",
+          kind: "cron",
+          repository_slug: "tkadauke/syrus",
+          cron_expression: "0 3 * * *",
+          next_fire_at: "2026-09-17T03:00:00Z",
+          consecutive_failure_count: 0
+        },
+        {
+          id: "14",
+          label: "One-shot: summarize last week's incidents",
+          state: "paused",
+          kind: "one_shot",
+          repository_slug: "tkadauke/syrus",
+          fire_at: "2026-09-16T18:00:00Z",
+          consecutive_failure_count: 3
+        }
+      ]
+    }
+  },
+  {
+    id: "no_scheduled_tasks",
+    label: "No scheduled tasks",
+    description: "Empty result set -- the card renders EmptyState instead of a bare table header.",
+    parsedResult: { tasks: [] }
+  }
+]

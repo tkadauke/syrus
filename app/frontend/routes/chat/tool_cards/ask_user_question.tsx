@@ -55,3 +55,29 @@ const askUserQuestionToolCard: ToolCardRenderer = {
 }
 
 export default askUserQuestionToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "question_recorded",
+    label: "Question recorded",
+    input: { questions: [{ text: "Which environment should this target?", options: ["staging", "production"] }] },
+    parsedResult: { question_id: "q_8f2c", message: "Waiting on the operator to answer in chat." }
+  },
+  {
+    id: "question_request_failed",
+    label: "Error: question request failed",
+    description: "result_error true -- renders through the shared ToolFailureSummaryCard instead of the waiting-state card.",
+    input: { questions: [{ text: "Which environment should this target?" }] },
+    resultError: true,
+    resultBody: "Chat session is not accepting new questions right now."
+  },
+  {
+    id: "malformed_missing_question_id",
+    label: "Malformed: missing question_id",
+    description: "A plain object with no `question_id` key -- falls back to the shared MalformedCard instead of throwing.",
+    input: { questions: [{ text: "Which environment should this target?" }] },
+    parsedResult: { ok: true }
+  }
+]

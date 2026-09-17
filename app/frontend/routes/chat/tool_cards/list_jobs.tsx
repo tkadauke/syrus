@@ -32,3 +32,33 @@ const listJobsToolCard: ToolCardRenderer = {
 }
 
 export default listJobsToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "two_open_jobs",
+    label: "Two open Jobs",
+    input: { state: "open" },
+    parsedResult: {
+      jobs: [
+        { id: 101, title: "Fix flaky test", state: "running" },
+        { id: 102, title: "Add dark mode toggle", state: "approved" }
+      ]
+    }
+  },
+  {
+    id: "no_matching_jobs",
+    label: "No matching Jobs",
+    description: "Empty result set -- the card renders its own empty-state row instead of a bare table header.",
+    input: { state: "open", user: "nobody" },
+    parsedResult: { jobs: [] }
+  },
+  {
+    id: "malformed_missing_jobs_key",
+    label: "Malformed: missing jobs key",
+    description: "Unexpected payload shape (no `jobs` array) -- renderExpanded/collapsedSummary both return null so the generic fallback body renders instead.",
+    input: { state: "open" },
+    parsedResult: { error: "unexpected upstream response" }
+  }
+]

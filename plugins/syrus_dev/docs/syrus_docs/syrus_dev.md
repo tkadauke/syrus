@@ -66,6 +66,42 @@ registry:
   for the gallery. The legacy `/design_system` path remains a hidden preview
   alias so theming tools can keep opening `?theme_id=<id>` against the same
   real components without requiring the normal admin navigation entry.
+- **Admin → Tool Cards** (`/admin/tool_cards`) — the Tool Card Catalog:
+  every entry the frontend `toolPresentationRegistry.ts` contract knows about
+  (core and plugin MCP cards, provider built-ins like Claude/Codex
+  Bash/Read/Grep/WebSearch, Local Mode tools, and chat-surface components
+  like proposal/pending-action cards), reviewable from its own registered
+  example fixtures. `FilterBar` filters by tool name, owner type
+  (core/plugin/provider), owner/plugin name, source type, renderer type
+  (custom card vs. generic fallback), and coverage status (has examples vs.
+  none) — entirely client-side against the compiled registry, since there is
+  no ActiveRecord-backed collection here for `Filters::Subject` to query.
+  Each example renders through the real `<ToolGroup>` chat component (the
+  same collapsed row, expanded body, raw-details disclosure, and redaction a
+  live transcript gets), so a tool with no registered card renders its actual
+  generic-fallback body instead of being hidden from the catalog. A tool with
+  multiple examples gets an inline example selector; each entry has a stable
+  `#tool-<name>` anchor and a "Copy link" action that adds `?tool=<name>&
+  example=<id>` so operators can reference one exact example when giving
+  feedback. A viewport switcher (phone/tablet/desktop/wide desktop) renders
+  the selected example inside a constrained-width frame using the same
+  rendering path, so reviewers can check responsive behavior without
+  resizing the browser; the preset is reflected in the deep link too.
+  Each entry's preview also carries a "Discuss this card" action
+  (`ToolCardDiscussDialog.tsx`) scoped to the currently selected tool,
+  example, and viewport: it captures a screenshot of the rendered preview
+  with `html2canvas-pro`, lets the operator annotate it with the same
+  `ImageAnnotationModal` shared with in-app bug reports, and collects a
+  free-text prompt. Submitting opens a brand new chat (`createChat`, no
+  repository attached) whose initial message carries the annotated
+  screenshot as an attachment, a human-readable summary, and the full
+  structured payload (canonical tool name, owner/plugin/provider, renderer
+  type, selected example id and viewport preset, input/result payload, the
+  result's error flag, and the catalog deep link) as a fenced JSON block —
+  so the assistant on the other end has everything it needs without the
+  operator hand-pasting JSON. A failed screenshot capture shows an inline
+  error but never blocks the chat from starting; the raw metadata stays
+  visible (and still gets sent) either way.
 
 The performance and operational-log APIs are mirrored at `/api/v1/admin/performance`,
 `/api/v1/admin/performance/explain`, and `/api/v1/admin/operational_logs`

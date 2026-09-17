@@ -109,7 +109,8 @@ function renderExpanded(context: ToolCardContext) {
                 className={`rounded-full px-2 py-0.5 text-2xs ${dependency.pending ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
                 key={dependency.key}
               >
-                {dependency.label}{dependency.state ? ` · ${dependency.state}` : ""}
+                {dependency.label}
+                {dependency.state ? ` · ${dependency.state}` : ""}
               </span>
             ))}
           </div>
@@ -121,10 +122,16 @@ function renderExpanded(context: ToolCardContext) {
           <div className="mt-1 flex flex-wrap items-center gap-1">
             {job.deploymentStages.map((stage, index) => (
               <span className="flex items-center gap-1" key={stage.name}>
-                <span className={`rounded-full px-2 py-0.5 text-2xs ${stage.reached ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-2xs ${stage.reached ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}
+                >
                   {stage.label}
                 </span>
-                {index < job.deploymentStages.length - 1 ? <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">→</span> : null}
+                {index < job.deploymentStages.length - 1 ? (
+                  <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">
+                    →
+                  </span>
+                ) : null}
               </span>
             ))}
           </div>
@@ -141,3 +148,42 @@ const readJobToolCard: ToolCardRenderer = {
 }
 
 export default readJobToolCard
+
+// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
+// pluginToolCards.tsx's ToolCardExample.
+export const examples = [
+  {
+    id: "running_job_with_dependencies",
+    label: "Running Job with dependencies and deployment stages",
+    input: { job_ref: "JOB-71" },
+    parsedResult: {
+      job: {
+        id: 71,
+        issue_title: "Add dark mode toggle to the settings page",
+        state: "running",
+        pr_number: null,
+        branch_name: "syrus/issue-71",
+        priority: "medium",
+        agent_provider: "claude",
+        dependencies: [
+          { id: 68, state: "approved" },
+          { epic_id: 12, display_number: "EPIC-12", state: "open" },
+          { pending: true, unresolved_ref: "#210", unresolved_ref_state: "open" }
+        ],
+        deployment_stages: [
+          { name: "merged", label: "Merged", reached: true },
+          { name: "staging", label: "Staging", reached: true },
+          { name: "production", label: "Production", reached: false }
+        ]
+      }
+    }
+  },
+  {
+    id: "malformed_missing_job_key",
+    label: "Malformed: missing job key",
+    description:
+      "Unexpected payload with no `job` object -- both collapsedSummary and renderExpanded return null so the generic fallback body renders instead of throwing.",
+    input: { job_ref: "JOB-999999" },
+    parsedResult: { error: "Job not found" }
+  }
+]
