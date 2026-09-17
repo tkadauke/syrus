@@ -597,6 +597,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const railStackRef = useRef<HTMLDivElement | null>(null)
+  const railContainerRef = useRef<HTMLDivElement | null>(null)
   const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
@@ -815,10 +816,18 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     }
 
     function recomputeNow() {
-      const stackEl = railStackRef.current
-      if (!stackEl) return
+      // Measure against railContainerRef (the clip wrapper), never against
+      // railStackRef itself: railStackRef is the element recomputeNow's own
+      // output gets applied to via translateY, so reading its rect would
+      // read a mid-transition value while a previous frame's transform is
+      // still animating/painting -- a read-modify-write feedback loop that
+      // made the rail card jitter between its anchor and the viewport top
+      // during fast scroll. The clip wrapper never receives the transform,
+      // so its top position is stable across recompute cycles.
+      const containerEl = railContainerRef.current
+      if (!containerEl) return
 
-      const containerTop = stackEl.getBoundingClientRect().top
+      const containerTop = containerEl.getBoundingClientRect().top
       const markerRoot = editorMode === "rich_text" ? wysiwygRef.current : markdownMirrorRef.current
       const measurements = railEntries.map((entry) => {
         const marker = markerRoot?.querySelector(
@@ -1128,6 +1137,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           canReviewSuggestions={canReviewSuggestions}
           railEntries={railEntries}
           railLayout={railLayout}
+          railContainerRef={railContainerRef}
           railStackRef={railStackRef}
           replyBodies={replyBodies}
           selection={selection}
@@ -1647,7 +1657,7 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railContainerRef, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   canComment: boolean
   canReviewSuggestions: boolean
   commentBody: string
@@ -1660,6 +1670,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
   focusedThreadId: number | null
   railEntries: RailEntry[]
   railLayout: RailLayout
+  railContainerRef: React.MutableRefObject<HTMLDivElement | null>
   railStackRef: React.MutableRefObject<HTMLDivElement | null>
   readOnly: boolean
   replyBodies: Record<number, string>
@@ -1729,6 +1740,7 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
         <div
           className="overflow-hidden max-xl:!pb-0"
           data-testid="design-doc-rail-clip"
+          ref={railContainerRef}
           style={railStackShift > 0 ? { paddingBottom: railStackShift } : undefined}
         >
           <div

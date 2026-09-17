@@ -1175,6 +1175,36 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("measures the rail's anchor offset against the stable clip wrapper, not the transformed stack it writes translateY to", async () => {
+    // Regression test: recomputeNow used to read its own containerTop from
+    // railStackRef -- the same element it writes `transform: translateY(...)`
+    // onto -- so a rapid scroll could read a mid-transition rect and jitter
+    // the card between its anchor and the viewport top. Here the (buggy)
+    // stack element's rect is deliberately different from the stable clip
+    // wrapper's rect; the resulting stackShift must follow the clip wrapper.
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    await screen.findByText("Needs evidence")
+
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      // A stale/mid-transition read of the transformed stack node -- must be ignored.
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: -500, bottom: -500, height: 0 } as DOMRect
+      if (this.dataset.testid === "design-doc-rail-clip") return { ...base, top: 40, bottom: 40, height: 0 } as DOMRect
+      if (this.dataset.threadId === "7") return { ...base, top: 160, bottom: 160, height: 0 } as DOMRect
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 40, height: 40 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+
+    fireEvent(window, new Event("resize"))
+
+    await waitFor(() => {
+      // 160 (marker top) - 40 (clip wrapper top) = 120, never the -500-derived value.
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(120px)" })
+    })
+  })
+
   it("pushes cards above the top edge, without overlap or reordering, to keep a clicked anchor aligned with its card", async () => {
     const markdown = "Alpha Bravo Charlie"
     const clusterDoc = {
