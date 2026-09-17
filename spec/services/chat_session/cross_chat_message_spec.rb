@@ -78,5 +78,32 @@ RSpec.describe ChatSession::CrossChatMessage do
 
       expect(ChatWakeup.count).to eq(0)
     end
+
+    it "delivers from the target chat back to the origin chat when from: is given" do
+      reply_thread = ChatBridgeThread.create!(
+        origin_chat_session: origin_chat,
+        target_chat_session: target_chat,
+        opened_by_user: user,
+        max_hops: 5
+      )
+      described_class.new(thread: reply_thread, text: "first hop", from: origin_chat).deliver!
+
+      described_class.new(thread: reply_thread, text: "reply hop", from: target_chat).deliver!
+
+      outbound = target_chat.messages.order(:id).last
+      expect(outbound.content).to include(
+        "cross_chat_bridge" => "outbound",
+        "bridge_thread_id" => reply_thread.id,
+        "target_chat_session_id" => origin_chat.id
+      )
+
+      wakeup = ChatWakeup.order(:id).last
+      expect(wakeup.chat_session).to eq(origin_chat)
+      expect(wakeup.metadata).to include(
+        "requested_by" => "cross_chat",
+        "origin_chat_session_id" => target_chat.id,
+        "thread_id" => reply_thread.id
+      )
+    end
   end
 end
