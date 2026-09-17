@@ -40,12 +40,22 @@ function stringTokens(value: unknown): ThemeTokens | null {
   return entries.length > 0 ? Object.fromEntries(entries) : null
 }
 
+// Theme#public_payload's `tokens` hash now always carries the non-color
+// shape/shadow/spacing/density/typography groups (Theme::EXTENDED_TOKEN_GROUPS)
+// alongside "light"/"dark" (Theme#tokens_with_defaults backfills every group on
+// every read). Those groups hold CSS lengths/shadows/font stacks, not colors --
+// iterating every top-level key here used to treat them as extra color "modes"
+// and render values like "0.375rem" as color swatch backgrounds. Restricting to
+// the actual color modes keeps this card showing only what it's designed to
+// show; rendering the extended groups is a separate, not-yet-built card.
+const COLOR_MODES = ["light", "dark"] as const
+
 function parseTokens(value: unknown): Record<string, ThemeTokens> {
   if (!isPlainObject(value)) return {}
 
   return Object.fromEntries(
-    Object.entries(value).flatMap(([mode, modeTokens]) => {
-      const tokens = stringTokens(modeTokens)
+    COLOR_MODES.flatMap((mode) => {
+      const tokens = stringTokens(value[mode])
       return tokens ? [[mode, tokens] as const] : []
     })
   )
