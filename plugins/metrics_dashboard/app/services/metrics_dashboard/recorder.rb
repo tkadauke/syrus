@@ -6,8 +6,11 @@ module MetricsDashboard
   # (see TextFormatParser).
   #
   # **What it can and cannot see, stated plainly.** The recorder runs inside one
-  # process and renders that process's registry, after refreshing the global
-  # gauges from the cache. So:
+  # process and renders that process's registry, after refreshing every
+  # registered sampler's global gauges from the cache (`Syrus::Metrics.samplers`
+  # -- the same registry MetricsController's scrape path refreshes, so adding a
+  # new core or plugin sampler needs no change here). Each sampler's refresh is
+  # rescued independently, so one broken sampler costs only its own gauges. So:
   #
   #   * `syrus_global_*` -- accurate. They are sampled cluster-wide into the
   #     cache by SampleGlobalMetricsJob and are the same everywhere.
@@ -70,8 +73,11 @@ module MetricsDashboard
     # rather than whatever this process last rendered -- otherwise a recorder
     # in a process that never serves /metrics would record zeroes forever.
     def exposition
-      Metrics::QueueSampler.refresh_gauges!
-      Metrics::PluginSampler.refresh_gauges!
+      Syrus::Metrics.samplers.each do |sampler|
+        sampler.refresh_gauges!
+      rescue StandardError => e
+        Rails.logger.warn("[MetricsDashboard::Recorder] could not refresh #{sampler}: #{e.class}: #{e.message}")
+      end
       Syrus::Metrics.render
     rescue StandardError => e
       Rails.logger.warn("[MetricsDashboard::Recorder] could not render metrics: #{e.class}: #{e.message}")

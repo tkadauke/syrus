@@ -59,10 +59,38 @@ RSpec.describe MetricsDashboard::Recorder do
   # A recorder that raises would fail the plugin tick and could retry into a
   # loop. Losing a minute of chart is the cheaper outcome by far.
   it "records nothing rather than raising when metrics cannot be rendered" do
-    allow(Metrics::QueueSampler).to receive(:refresh_gauges!).and_raise(ActiveRecord::StatementInvalid, "nope")
+    allow(Syrus::Metrics).to receive(:render).and_raise(ActiveRecord::StatementInvalid, "nope")
 
     expect { described_class.record! }.not_to raise_error
     expect(MetricsDashboard::Sample.count).to eq(0)
+  end
+
+  # Regression coverage for the bug where the recorder hardcoded a refresh of
+  # only two samplers (Metrics::QueueSampler, Metrics::PluginSampler) before
+  # rendering, so every other registered sampler's GLOBAL gauges -- including
+  # Metrics::WorkerSampler's -- were never populated in this process and so
+  # never appeared in the exposition text this recorder consumes. It must
+  # iterate the full sampler registry instead of naming samplers by hand.
+  #
+  # `max_concurrent_agent_runs` needs no live worker host data to have a
+  # value -- just AppSetting.max_concurrent_agent_runs -- so sampling it here
+  # populates the cache Metrics::WorkerSampler#refresh_gauges! reads from.
+  it "refreshes every registered sampler, not just a hardcoded pair" do
+    Metrics::WorkerSampler.sample!
+
+    described_class.record!
+
+    expect(MetricsDashboard::Sample.exists?(metric: "syrus_max_concurrent_agent_runs")).to be(true)
+  end
+
+  # One unreachable sampler must not blank every other sampler's metrics --
+  # the same isolation guarantee MetricsController's scrape path provides.
+  it "still records other samplers' metrics when one sampler's refresh raises" do
+    Metrics::WorkerSampler.sample!
+    allow(Metrics::QueueSampler).to receive(:refresh_gauges!).and_raise(ActiveRecord::StatementInvalid, "nope")
+
+    expect { described_class.record! }.not_to raise_error
+    expect(MetricsDashboard::Sample.exists?(metric: "syrus_max_concurrent_agent_runs")).to be(true)
   end
 
   # Histograms are exposed as _bucket/_sum/_count families. Charting a quantile
