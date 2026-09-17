@@ -1,5 +1,6 @@
 require "active_support/core_ext/integer/time"
 require_relative "../active_record_encryption"
+require_relative "../retention_archive_storage"
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -33,6 +34,12 @@ Rails.application.configure do
   # Single-host SQLite "local mode" stores attachments on the persisted data
   # volume instead of S3/MinIO.
   config.active_storage.service = ENV["SYRUS_SQLITE"].present? ? :local_volume : :minio
+
+  # Retention archives (RetentionArchive#archive_file) default to the
+  # primary attachment service above; RETENTION_ARCHIVE_STORAGE_SERVICE lets
+  # an operator point them at a dedicated large disk or bucket instead. See
+  # config/storage.yml's retention_archive_disk / retention_archive_s3.
+  config.retention_archive_storage_service = RetentionArchiveStorageConfig.resolve(config)
 
   # Production traffic is terminated by the cluster ingress before reaching Rails.
   # Keep generated URLs, redirects, HSTS, and secure cookies aligned with that
