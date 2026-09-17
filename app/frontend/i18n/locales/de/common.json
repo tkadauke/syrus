@@ -336,6 +336,8 @@
     "browse_changed_files": "Geänderte Dateien durchsuchen",
     "large_file_hidden": "Das Diff dieser Datei ist groß (~{{rowCount}} gerenderte Zeilen) und standardmäßig ausgeblendet.",
     "load_file_diff": "Diff für diese Datei laden",
+    "collapse_file": "Datei einklappen",
+    "expand_file": "Datei ausklappen",
     "image_before": "Vorher",
     "image_after": "Nachher",
     "image_no_previous_version": "Keine vorherige Version (Datei hinzugefügt)",

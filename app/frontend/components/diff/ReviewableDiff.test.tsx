@@ -611,6 +611,55 @@ describe("large-file gating", () => {
   })
 })
 
+describe("collapsing a file", () => {
+  it("hides a file's diff body without hiding its header when collapsed, and can expand it back", () => {
+    render(<ReviewableDiff files={[files[0]]} mode="continuous" showFileHeaders />)
+
+    expect(screen.getByText("new")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse file" }))
+
+    expect(screen.getByTitle("app/models/job.rb")).toBeInTheDocument()
+    expect(screen.queryByText("new")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand file" }))
+
+    expect(screen.getByText("new")).toBeInTheDocument()
+  })
+
+  it("collapses each file independently in continuous mode", () => {
+    render(<ReviewableDiff files={files} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Collapse file" })[0])
+
+    expect(screen.queryByText("new")).not.toBeInTheDocument()
+    expect(screen.getByText("added")).toBeInTheDocument()
+  })
+
+  it("collapses a not-yet-loaded large file's placeholder too", () => {
+    render(<ReviewableDiff files={[files[0]]} largeFileRowThreshold={1} mode="continuous" showFileHeaders />)
+
+    expect(screen.getByRole("button", { name: "Load diff for this file" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse file" }))
+
+    expect(screen.queryByRole("button", { name: "Load diff for this file" })).not.toBeInTheDocument()
+    expect(screen.getByTitle("app/models/job.rb")).toBeInTheDocument()
+  })
+
+  it("hides the collapse toggle on narrow viewports via CSS so mobile keeps the extra width", () => {
+    render(<ReviewableDiff files={[files[0]]} mode="continuous" showFileHeaders />)
+
+    expect(screen.getByRole("button", { name: "Collapse file" }).className).toMatch(/max-md:hidden/)
+  })
+
+  it("does not render a collapse toggle when file headers are hidden", () => {
+    render(<ReviewableDiff files={[files[0]]} mode="continuous" showFileHeaders={false} />)
+
+    expect(screen.queryByRole("button", { name: "Collapse file" })).not.toBeInTheDocument()
+  })
+})
+
 describe("changed-file count cap", () => {
   it("renders only the first maxVisibleFiles files by default, with a control to load the rest", () => {
     render(<ReviewableDiff files={manyFiles(5)} maxVisibleFiles={2} mode="continuous" showFileHeaders />)
