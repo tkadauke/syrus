@@ -9,15 +9,24 @@ described below.
 
 ## Relationship to the enforced ratchet
 
-`eslint-rules/` already enforces three narrow, already-tightened rules
-(`no-raw-form-elements`, `no-raw-button-classes`, `no-legacy-color-tokens`)
-against a per-file baseline in `eslint-rules/baseline.json` — new violations
-beyond that baseline fail `npx eslint`. This script measures a broader,
+`eslint-rules/` enforces a set of ratchet rules against a per-file baseline
+in `eslint-rules/baseline.json` — new violations beyond that baseline fail
+`npx eslint`, and (via the `frontend-lint` grader in `.syrus.yml`) fail the
+Syrus review/landing/CI grade. This script measures a broader,
 not-yet-enforced set of migration hot spots so future jobs can see where to
-migrate next and, eventually, decide which of these categories are ready to
-graduate into the enforced ratchet the same way the three existing rules did.
-Until that happens, this script only reports; it does not fail CI or block
-landing.
+migrate next and, eventually, decide which remaining categories are ready to
+graduate into the enforced ratchet.
+
+Four categories already graduated this way: `raw-status-colors`,
+`panel-shell-repeats`, `raw-table-classes`, and `long-class-strings` used to
+live here and now run as the enforced `no-raw-status-colors`,
+`no-panel-shell-repeats`, `no-raw-table-classes`, and `no-long-class-strings`
+rules under `eslint-rules/` — see
+`config/syrus_docs/design_system_eslint_ratchet.md` for the full enforced
+rule set, its baseline mechanics, and how to add a local exception. They were
+removed from this report so the same debt isn't counted twice. Until a
+remaining category graduates the same way, this script only reports it; it
+does not fail CI or block landing on its own account.
 
 ## Categories
 
@@ -28,15 +37,13 @@ code):
 
 | Category | Rule key | What it flags |
 |---|---|---|
-| Raw gray/status color classes | `raw-status-colors` | `bg-`/`text-`/`border-`/etc. utilities using `gray`, `slate`, `red`, `amber`, `emerald`, and other raw Tailwind hues on a JSX `className`. Excludes `blue`/`terracotta`, which the enforced `no-legacy-color-tokens` rule already tracks. |
-| Repeated panel shells | `panel-shell-repeats` | A `className` combining `rounded`, `border`, and `bg-white`/`bg-gray-50`/`bg-gray-100` — the hand-rolled shape `Surface`/`Card` already provide. |
-| Raw table cell/header classes | `raw-table-classes` | Raw `<td>`/`<th>` JSX elements outside the `DataTable` primitive. |
-| Long class strings | `long-class-strings` | A `className` string over 120 characters — usually several design decisions restated on one DOM node. |
 | Plugin UI without `@app/components` imports | `plugin-ui-imports` | A plugin frontend file (`plugins/*/app/frontend/**`) rendering 8+ JSX elements with no import from `@app/components/*`. |
 
 ## Exclusions
 
-Every rule skips, uniformly (`eslint-rules/style_debt/shared.js`):
+Every rule skips, uniformly (`eslint-rules/style_debt/shared.js`, sourced
+from `eslint-rules/rule-utils.js` so the enforced ratchet rules use the exact
+same exclusion set):
 
 - Test files (`*.test.tsx`/`*.test.ts`).
 - Generated files (`*.generated.*`, `__generated__/`).
@@ -82,9 +89,20 @@ is re-run after a migration job shrinks an enforced-rule baseline.
 ## Extending it
 
 To add a category, add a rule module under `eslint-rules/style_debt/`
-following the existing rules' shape (a report-only ESLint rule using
+following the existing rule's shape (a report-only ESLint rule using
 `shared.isExcluded` for the standard exclusions), register it in
 `eslint-rules/style_debt/index.js`'s `RULES` array, and add
 `eslint-rules/style_debt/<name>.test.js` using the `lintWithRule` helper in
 `eslint-rules/style_debt/test-helpers.js`. No changes to `bin/style-debt-report`
 or `report.js` are needed — both iterate `RULES`.
+
+To graduate a category into the enforced ratchet instead (once its remaining
+count is low enough, or its pattern specific enough, to block new occurrences
+without false-positiving on legitimate layout), move its matching logic into
+a new `no-<name>.js` rule under `eslint-rules/` following
+`no-raw-status-colors.js`'s shape (baseline-aware via
+`rule-utils.reportBeyondBaseline`), register it in `eslint-rules/index.js`
+and `eslint.config.js`, remove the old entry from this directory's `RULES`
+array and delete its files, then run `bin/generate-eslint-baseline` to
+capture the current count as the new rule's starting baseline. See
+`config/syrus_docs/design_system_eslint_ratchet.md`.
