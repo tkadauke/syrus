@@ -566,3 +566,51 @@ Job. The proposal edit modal shows the target Epic as a removable pill; an
 operator can clear it before confirming so the Job materializes without an
 Epic. There is no UI to assign or change the target Epic to a different one
 from the edit modal — only remove it.
+
+## Cross-chat messaging bridge
+
+`ChatBridgeThread` tracks a bounded exchange between two of the same
+operator's chat sessions: `origin_chat_session`, `target_chat_session`,
+`opened_by_user`, an open/closed `state`, and `hop_count`/`max_hops`
+(default `ChatBridgeThread::DEFAULT_MAX_HOPS`, 6). A model validation
+rejects a `target_chat_session` owned by a different user, since this
+feature is same-operator-only for now, any repository. `register_hop!`
+increments `hop_count` and auto-closes the thread once it reaches
+`max_hops`. `counterpart(chat_session)` returns the other side of the
+thread relative to whichever chat session is given, so both delivery and
+the MCP tool can find "the other chat" without duplicating the
+origin/target ternary.
+
+`ChatSession::CrossChatMessage.new(thread:, text:, from:).deliver!` is the
+delivery path: inside one transaction, it posts a `role: "system"`
+outbound-bridge message in the sending chat, creates the matching inbound
+turn in the other chat via a `ChatWakeup` (`metadata: { "requested_by" =>
+"cross_chat", ... }`, so it flows through the existing `ChatWakeup ->
+ChatWakeupFireJob -> ChatTurnJob` path and inherits that job's per-chat
+concurrency limiting), increments the thread's hop count, and posts a
+closure notice to both chats once the hop cap is reached. `from:` defaults
+to the thread's origin chat but accepts either side, since a reply can come
+from either chat once a thread is open. Delivery on an already-closed
+thread raises `ChatSession::CrossChatMessage::ClosedThreadError`.
+
+The chat MCP `send_chat_message` tool is the agent-facing entry point.
+Supply `target_chat_session_id` to open a brand-new thread, or `thread_id`
+to reply within one that is already open — exactly one of the two is
+required. Authorization for both the calling chat and the target chat
+reuses `find_chat_session!` (`AuthorizationSupport`, the same
+same-operator-owns-both-chats check `read_chat_messages` and `search_chats`
+use), and `ChatBridgeThread`'s own validation backs that up at the model
+layer. Opening a new thread additionally requires that the operator's own
+message in the calling chat is what triggered the current turn — checked
+via `server_context[:current_message]`, which must be a real `role: "user"`
+`ChatMessage` with no `requested_by` marker in its content (every automated
+origin -- a wakeup, a scheduled message, a goal continuation, another
+cross-chat delivery -- stamps one). This keeps an automated/system-
+originated turn, such as one a wakeup fired, from spontaneously opening a
+new bridge thread on its own initiative; replying within an already-open
+thread has no such restriction, since the second hop of any exchange is
+itself always delivered through a `cross_chat` wakeup. Opening a new thread
+and its first delivery run inside one transaction, so a failure partway
+through never leaves a stray open thread with no first message. The tool
+returns the thread's id, `state`, `hop_count`, `max_hops`,
+`hops_remaining`, and the recipient chat session id.

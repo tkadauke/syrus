@@ -264,6 +264,7 @@ class McpToolRegistry
         chat(Mcp::Tools::ListOpenPrsTool, tier: :deferred),
         chat(Mcp::Tools::SearchChatsTool, tier: :deferred),
         chat(Mcp::Tools::ReadChatMessagesTool, tier: :deferred),
+        chat(Mcp::Tools::SendChatMessageTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ListTagsTool, tier: :deferred),
         chat(Mcp::Tools::CreateTagTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::AddJobTagTool, tier: :deferred, mutation: true),

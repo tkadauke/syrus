@@ -57,4 +57,18 @@ RSpec.describe ChatBridgeThread do
       expect(thread).to be_closed
     end
   end
+
+  describe "#counterpart" do
+    it "returns the target chat when given the origin chat" do
+      thread = build_thread.tap(&:save!)
+
+      expect(thread.counterpart(origin_chat)).to eq(target_chat)
+    end
+
+    it "returns the origin chat when given the target chat" do
+      thread = build_thread.tap(&:save!)
+
+      expect(thread.counterpart(target_chat)).to eq(origin_chat)
+    end
+  end
 end
