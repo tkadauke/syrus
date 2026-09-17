@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
+import { fetchRetentionArchives, type RetentionArchiveRow } from "../api/retentionArchives"
 import {
   fetchRetentionSettings,
   updateRetentionSettings,
   type RetentionSettingsPayload,
   type RetentionTableRow
 } from "../api/retentionSettings"
+import { disabledPaginationClass, paginationLinkClass } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
 import { Input } from "../components/Input"
@@ -147,14 +149,20 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
   const isInfinite = table.retention_value === 0
   const [infinite, setInfinite] = useState(isInfinite)
   const [value, setValue] = useState(String(table.retention_value || table.default_value))
+  const [archiveBeforeDelete, setArchiveBeforeDelete] = useState(table.archive_before_delete)
+  const [showArchives, setShowArchives] = useState(false)
 
   useEffect(() => {
     setInfinite(table.retention_value === 0)
     setValue(String(table.retention_value || table.default_value))
-  }, [table.retention_value, table.default_value])
+    setArchiveBeforeDelete(table.archive_before_delete)
+  }, [table.retention_value, table.default_value, table.archive_before_delete])
 
   const save = useMutation({
-    mutationFn: () => updateRetentionSettings({ [table.setting_key]: infinite ? 0 : Number(value) }),
+    mutationFn: () => updateRetentionSettings({
+      [table.setting_key]: infinite ? 0 : Number(value),
+      ...(table.archive_setting_key ? { [table.archive_setting_key]: archiveBeforeDelete } : {})
+    }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || t("retention_settings.settings_updated"))
@@ -172,44 +180,158 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
     : null
 
   return (
-    <form className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between" onSubmit={submit}>
-      <div className="sm:w-56 sm:shrink-0">
-        <div className="text-sm font-medium text-text-primary">{table.table_name}</div>
-        <div className="mt-1 text-xs text-text-secondary">{table.description}</div>
-      </div>
-
-      <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label={t("retention_settings.current_size_label")} value={currentSizeText(t, table)} />
-        <Stat label={t("retention_settings.estimated_max_label")} value={estimatedMaxText(t, table)} />
-        <SpaceStat availableBytes={availableBytes} percent={percentOfAvailable} t={t} />
-      </div>
-
-      <div className="flex flex-col gap-2 sm:w-56 sm:shrink-0">
-        <div className="flex items-center gap-2">
-          <Input
-            aria-label={t("retention_settings.retention_value_label", { table: table.table_name })}
-            className="w-24"
-            disabled={infinite}
-            fullWidth={false}
-            id={`retention-value-${table.key}`}
-            min={0}
-            onChange={(event) => setValue(event.target.value)}
-            type="number"
-            value={infinite ? "" : value}
-          />
-          <span className="text-xs text-text-secondary">{t(`retention_settings.unit_${table.unit}`)}</span>
+    <div>
+      <form className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between" onSubmit={submit}>
+        <div className="sm:w-56 sm:shrink-0">
+          <div className="text-sm font-medium text-text-primary">{table.table_name}</div>
+          <div className="mt-1 text-xs text-text-secondary">{table.description}</div>
         </div>
-        <Checkbox
-          checked={infinite}
-          label={<span className="text-xs text-text-primary">{t("retention_settings.infinite_label")}</span>}
-          onChange={(event) => setInfinite(event.target.checked)}
-        />
-        <Button disabled={save.isPending} size="sm" type="submit">
-          {save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}
-        </Button>
-        {save.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(save.error, t("retention_settings.error_update"))}</p> : null}
-      </div>
-    </form>
+
+        <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-3">
+          <Stat label={t("retention_settings.current_size_label")} value={currentSizeText(t, table)} />
+          <Stat label={t("retention_settings.estimated_max_label")} value={estimatedMaxText(t, table)} />
+          <SpaceStat availableBytes={availableBytes} percent={percentOfAvailable} t={t} />
+        </div>
+
+        <div className="flex flex-col gap-2 sm:w-56 sm:shrink-0">
+          <div className="flex items-center gap-2">
+            <Input
+              aria-label={t("retention_settings.retention_value_label", { table: table.table_name })}
+              className="w-24"
+              disabled={infinite}
+              fullWidth={false}
+              id={`retention-value-${table.key}`}
+              min={0}
+              onChange={(event) => setValue(event.target.value)}
+              type="number"
+              value={infinite ? "" : value}
+            />
+            <span className="text-xs text-text-secondary">{t(`retention_settings.unit_${table.unit}`)}</span>
+          </div>
+          <Checkbox
+            checked={infinite}
+            label={<span className="text-xs text-text-primary">{t("retention_settings.infinite_label")}</span>}
+            onChange={(event) => setInfinite(event.target.checked)}
+          />
+          {table.archivable ? (
+            <Checkbox
+              checked={archiveBeforeDelete}
+              label={<span className="text-xs text-text-primary">{t("retention_settings.archives.archive_before_delete_label")}</span>}
+              onChange={(event) => setArchiveBeforeDelete(event.target.checked)}
+            />
+          ) : null}
+          <Button disabled={save.isPending} size="sm" type="submit">
+            {save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}
+          </Button>
+          {save.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(save.error, t("retention_settings.error_update"))}</p> : null}
+          {table.archivable ? (
+            <button
+              className="text-left text-xs text-brand hover:underline"
+              onClick={() => setShowArchives((shown) => !shown)}
+              type="button"
+            >
+              {showArchives ? t("retention_settings.archives.hide") : t("retention_settings.archives.show")}
+            </button>
+          ) : null}
+        </div>
+      </form>
+      {table.archivable && showArchives ? (
+        <div className="border-t border-border bg-surface-subtle px-4 py-3">
+          <ArchiveHistory tableKey={table.key} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ArchiveHistory({ tableKey }: { tableKey: string }) {
+  const { t } = useT("admin")
+  const [page, setPage] = useState(1)
+  const archives = useQuery({
+    queryKey: ["admin", "retention_archives", tableKey, page],
+    queryFn: () => fetchRetentionArchives(tableKey, page)
+  })
+
+  if (archives.isPending) return <p className="text-xs text-text-secondary">{t("retention_settings.archives.loading")}</p>
+  if (archives.isError) {
+    return <p className="text-xs text-danger" role="alert">{errorMessage(archives.error, t("retention_settings.archives.error_load"))}</p>
+  }
+
+  const { archives: rows, pagination } = archives.data
+
+  if (rows.length === 0) {
+    return <p className="text-xs text-text-secondary">{t("retention_settings.archives.empty")}</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      <table className="w-full text-left text-xs">
+        <thead>
+          <tr className="text-text-secondary">
+            <th className="pb-1 pr-3 font-medium">{t("retention_settings.archives.col_pruned_before")}</th>
+            <th className="pb-1 pr-3 font-medium">{t("retention_settings.archives.col_row_count")}</th>
+            <th className="pb-1 pr-3 font-medium">{t("retention_settings.archives.col_byte_size")}</th>
+            <th className="pb-1 pr-3 font-medium">{t("retention_settings.archives.col_created_at")}</th>
+            <th className="pb-1 font-medium">{t("retention_settings.archives.col_download")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => <ArchiveRow key={row.id} row={row} />)}
+        </tbody>
+      </table>
+
+      {pagination.total_pages > 1 ? (
+        <div className="flex items-center justify-between text-xs text-text-secondary">
+          <span>
+            {t("retention_settings.archives.showing", {
+              first: pagination.first_item,
+              last: pagination.last_item,
+              total: pagination.total
+            })}
+          </span>
+          <div className="flex gap-2">
+            <button
+              className={page > 1 ? paginationLinkClass() : disabledPaginationClass()}
+              disabled={page <= 1}
+              onClick={() => setPage((current) => current - 1)}
+              type="button"
+            >
+              {t("retention_settings.archives.previous")}
+            </button>
+            <button
+              className={page < pagination.total_pages ? paginationLinkClass() : disabledPaginationClass()}
+              disabled={page >= pagination.total_pages}
+              onClick={() => setPage((current) => current + 1)}
+              type="button"
+            >
+              {t("retention_settings.archives.next")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ArchiveRow({ row }: { row: RetentionArchiveRow }) {
+  const { t } = useT("admin")
+
+  return (
+    <tr className="border-t border-border">
+      <td className="py-1 pr-3 text-text-primary">{new Date(row.pruned_before).toLocaleString()}</td>
+      <td className="py-1 pr-3 text-text-primary">{formatRowCount(row.row_count)}</td>
+      <td className="py-1 pr-3 text-text-primary">{formatBytes(row.byte_size)}</td>
+      <td className="py-1 pr-3 text-text-primary">{new Date(row.created_at).toLocaleString()}</td>
+      <td className="py-1">
+        {row.download_path ? (
+          <a className="text-brand hover:underline" href={row.download_path}>
+            {t("retention_settings.archives.download")}
+          </a>
+        ) : (
+          <span className="text-text-secondary">{t("retention_settings.archives.no_file")}</span>
+        )}
+      </td>
+    </tr>
   )
 }
 

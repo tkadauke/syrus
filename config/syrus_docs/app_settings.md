@@ -435,10 +435,26 @@ Archiving tables as of this writing: `run_diagnostic`,
 and `main_branch_health_check` — see their respective PruneJobs
 (`RunDiagnosticPruneJob`, `WorkEngineReconcilerActivityPruneJob`,
 `ProviderSessionPruneJob`, `RunHealthSnapshotPruneJob`,
-`MainBranchHealthCheckPruneJob`) for the exact call sites. A future admin
-page (JOB-5027) is expected to expose the `archive_before_delete` toggles the
-same way `/admin/retention_settings` already exposes the retention windows;
-this doc section only covers the flag and the archiving mechanism itself.
+`MainBranchHealthCheckPruneJob`) for the exact call sites.
+
+**Admin UI.** `/admin/retention_settings` (`app/frontend/routes/RetentionSettings.tsx`)
+exposes an "Archive before delete" checkbox next to each archivable table's
+retention window, saved via the same `PATCH /api/v1/app/admin/retention_settings`
+endpoint as the retention window itself
+(`Api::V1::App::Admin::RetentionSettingsController#update_params` permits
+every `archive_setting_key` alongside the window `setting_key`s; unlike the
+integer settings, a `false` toggle must not be dropped as "blank", so this
+filter rejects only `nil`/`""`, not every Ruby-falsy value). Each archivable
+row also has a "View archives" toggle that expands a per-table history of
+past `RetentionArchive` sweeps (`pruned_before`, row count, size, archived-at,
+and a download link) via `GET /api/v1/app/admin/retention_archives?retention_key=<key>`
+(`Api::V1::App::Admin::RetentionArchivesController`, paginated 20/page). The
+download link (`GET .../retention_archives/:id/download`) is a plain
+admin-auth-gated redirect to Active Storage's own signed blob URL
+(`rails_blob_path(archive.archive_file, disposition: "attachment")`) rather
+than streaming the file through the Rails process itself. v1 is
+download-only — there is no restore action in this UI, matching
+`RetentionArchive`'s download-only v1 scope above.
 
 `archive_file` is deliberately **not** stored on the app's primary
 `config.active_storage.service` — an operator archiving to keep MySQL/SQLite
