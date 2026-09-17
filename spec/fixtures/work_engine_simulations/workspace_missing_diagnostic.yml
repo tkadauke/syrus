@@ -19,6 +19,8 @@ jobs:
       steps:
         - kind: implement
           state: running
+          run:
+            state: running
         - kind: pr_open
           state: queued
 outcomes:
