@@ -26,6 +26,10 @@ module PendingActions
       "job_id: #{payload["job_id"]}"
     end
 
+    def presentation_label
+      "Force fail #{presentation_job_slug}"
+    end
+
     def repair_action?
       true
     end

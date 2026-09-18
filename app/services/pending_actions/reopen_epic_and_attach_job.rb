@@ -26,5 +26,9 @@ module PendingActions
     def action_detail
       "epic_id: #{payload["epic_id"]}, job_id: #{payload["job_id"]}"
     end
+
+    def presentation_label
+      "Reopen Epic ##{payload["epic_id"]} and attach #{presentation_job_slug}"
+    end
   end
 end

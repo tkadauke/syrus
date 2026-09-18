@@ -1,5 +1,7 @@
 module PendingActions
   class RetryFromCurrentPrBranch < Base
+    include BranchDivergenceEvidencePresentation
+
     action_key "retry_from_current_pr_branch"
 
     DEFAULT_INSTRUCTIONS = "Start from the current remote PR branch, inspect the recorded branch divergence, and repair only the remaining work needed for this Job. Do not replay stale workflow output unless it is still required.".freeze
@@ -36,6 +38,10 @@ module PendingActions
 
     def action_detail
       "job_id: #{payload["job_id"]}, workflow_id: #{payload["workflow_id"]}"
+    end
+
+    def presentation_label
+      "Retry from current PR branch for #{presentation_job_slug}"
     end
 
     repairs_job!

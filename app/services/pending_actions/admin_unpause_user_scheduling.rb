@@ -18,5 +18,9 @@ module PendingActions
     def action_detail
       "user_id: #{payload["user_id"]}"
     end
+
+    def presentation_label
+      "Resume scheduling for user ##{payload["user_id"]}"
+    end
   end
 end

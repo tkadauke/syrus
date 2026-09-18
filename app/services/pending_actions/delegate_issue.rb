@@ -24,5 +24,9 @@ module PendingActions
     def action_detail
       "issue_number: #{payload["issue_number"]}"
     end
+
+    def presentation_label
+      "Delegate issue ##{payload["issue_number"]}"
+    end
   end
 end

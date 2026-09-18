@@ -23,5 +23,9 @@ module PendingActions
     def action_detail
       "job_id: #{payload["job_id"]}"
     end
+
+    def presentation_label
+      "Reopen #{presentation_job_slug}"
+    end
   end
 end

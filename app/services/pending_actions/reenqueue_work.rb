@@ -27,6 +27,17 @@ module PendingActions
       "job_id: #{payload["job_id"]}, workflow_id: #{payload["workflow_id"]}, run_id: #{payload["run_id"]}"
     end
 
+    def presentation_label
+      "Re-enqueue work for #{presentation_job_slug}"
+    end
+
+    def presentation_detail
+      [
+        payload["workflow_id"].presence&.then { |id| "Workflow: ##{id}" },
+        payload["run_id"].presence&.then { |id| "Run: ##{id}" }
+      ].compact.join(", ").presence
+    end
+
     repairs_job!
 
     private

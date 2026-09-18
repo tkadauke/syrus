@@ -13,5 +13,9 @@ module PendingActions
     def execution_label
       "Resuming landing queue..."
     end
+
+    def presentation_label
+      "Resume landing queue"
+    end
   end
 end

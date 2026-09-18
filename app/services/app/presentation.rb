@@ -137,12 +137,17 @@ module App
     # tool (submit_coding_changes) silently rendered a blank label/detail
     # in the live list while working fine once anchored to a message.
     #
-    # The actual rendering lives in the App::Presentation::PendingActions
-    # presenter hierarchy/registry (app/services/app/presentation/pending_actions/)
-    # so a new ChatPendingAction key is paired with a presenter registration
-    # instead of a new branch here.
+    # The actual rendering lives on the PendingActions::Base hierarchy
+    # (app/services/pending_actions/) -- the same class that already owns
+    # execution, payload validation, and audit detail for that action key --
+    # via its presentation_label/presentation_detail methods. That keeps a
+    # plugin-provided action (e.g. PendingActions::ScheduleRecurring from the
+    # scheduled_tasks plugin) able to define its own chat-card presentation
+    # without editing a core presentation registry.
     def pending_action_label(action)
-      PendingActions.for(action).label
+      pending_action_presenter(action).presentation_label
+    rescue PendingActions::UnknownAction
+      pending_action_fallback_label(action)
     end
 
     # Groups are homogeneous by construction (see PendingActionGroup) so a
@@ -150,14 +155,29 @@ module App
     # mixed-action fallback only guards against a future caller that doesn't
     # honor that convention.
     def pending_action_group_label(members)
-      action_keys = members.map { |member| PendingActions.key_for(member) }.uniq
+      action_keys = members.map { |member| member.action.presence || member.action_type }.uniq
       return "Batch action (#{members.size})" if action_keys.size != 1 || action_keys.first.blank?
 
       "#{action_keys.first.to_s.humanize} (#{members.size})"
     end
 
     def pending_action_detail(action)
-      PendingActions.for(action).detail
+      pending_action_presenter(action).presentation_detail
+    rescue PendingActions::UnknownAction
+      nil
+    end
+
+    def pending_action_presenter(action)
+      PendingActions.for(action.action.presence || action.action_type).new(action)
+    end
+
+    # Mirrors PendingActions::Base#presentation_label's conservative default,
+    # for an action key with no registered PendingActions class at all (e.g.
+    # a future action_type not yet implemented) -- PendingActions.for raises
+    # before a presenter instance even exists to fall back on its own.
+    def pending_action_fallback_label(action)
+      payload = action.payload || {}
+      payload["label"].presence || (action.action.presence || action.action_type).to_s.humanize
     end
   end
 end

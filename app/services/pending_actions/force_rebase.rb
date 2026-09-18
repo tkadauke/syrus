@@ -46,6 +46,10 @@ module PendingActions
       "job_id: #{payload["job_id"]}"
     end
 
+    def presentation_label
+      "Force rebase #{presentation_job_slug}"
+    end
+
     repairs_job!
 
     private

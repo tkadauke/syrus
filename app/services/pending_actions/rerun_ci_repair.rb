@@ -33,6 +33,14 @@ module PendingActions
       "job_id: #{payload["job_id"]}"
     end
 
+    def presentation_label
+      "Re-run CI repair for #{presentation_job_slug}"
+    end
+
+    def presentation_detail
+      payload["instructions"].presence
+    end
+
     repairs_job!
   end
 end

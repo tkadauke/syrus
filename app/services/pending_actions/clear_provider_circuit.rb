@@ -30,6 +30,14 @@ module PendingActions
       "provider: #{payload["provider"]}, user_id: #{payload["user_id"]}, mode: #{payload.fetch("mode", "clear")}"
     end
 
+    def presentation_label
+      "Clear #{payload["provider"]} circuit for user ##{payload["user_id"]}"
+    end
+
+    def presentation_detail
+      "Mode: #{payload.fetch("mode", "clear")}"
+    end
+
     def repair_action? = true
   end
 end

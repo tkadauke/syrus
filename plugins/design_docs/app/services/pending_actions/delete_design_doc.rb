@@ -26,5 +26,16 @@ module PendingActions
     def action_detail
       "#{payload["doc_ref"]}: #{payload["title"]}"
     end
+
+    def presentation_label
+      "Archive #{payload["doc_ref"].presence || "DOC-#{payload["design_doc_id"]}"}"
+    end
+
+    def presentation_detail
+      [
+        payload["title"].presence,
+        payload["confirmation_reason"].presence
+      ].compact.join("\n").presence
+    end
   end
 end

@@ -1,5 +1,7 @@
 module PendingActions
   class ReplacePrBranchWithWorkflowOutput < Base
+    include BranchDivergenceEvidencePresentation
+
     action_key "replace_pr_branch_with_workflow_output"
 
     def perform
@@ -31,6 +33,10 @@ module PendingActions
 
     def action_detail
       "job_id: #{payload["job_id"]}, workflow_id: #{payload["workflow_id"]}, destructive_confirmation: #{payload["destructive_confirmation"].present?}"
+    end
+
+    def presentation_label
+      "Replace PR branch for #{presentation_job_slug}"
     end
 
     repairs_job!

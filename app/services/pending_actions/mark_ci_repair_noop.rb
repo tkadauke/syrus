@@ -36,6 +36,14 @@ module PendingActions
       "job_id: #{payload["job_id"]}; workflow_id: #{payload["workflow_id"]}"
     end
 
+    def presentation_label
+      "Mark CI repair as no-op for #{presentation_job_slug}"
+    end
+
+    def presentation_detail
+      "Workflow: ##{payload["workflow_id"]}"
+    end
+
     repairs_job!
 
     private

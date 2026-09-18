@@ -31,6 +31,10 @@ module PendingActions
       "workflow_id: #{payload["workflow_id"]}, step_slug: #{payload["step_slug"]}"
     end
 
+    def presentation_label
+      "Retry step #{payload["step_slug"]} on workflow ##{payload["workflow_id"]}"
+    end
+
     def repair_action?
       true
     end

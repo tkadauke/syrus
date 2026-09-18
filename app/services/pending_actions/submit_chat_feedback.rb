@@ -29,5 +29,13 @@ module PendingActions
     def action_detail
       "job_id: #{payload["job_id"]}"
     end
+
+    def presentation_label
+      "Submit feedback on #{presentation_job_slug}"
+    end
+
+    def presentation_detail
+      payload["feedback"].presence
+    end
   end
 end

@@ -22,6 +22,10 @@ module PendingActions
       "reason: #{reason}"
     end
 
+    def presentation_label
+      "Wake landing queue"
+    end
+
     def repair_action? = true
   end
 end
