@@ -28,4 +28,29 @@ RSpec.describe SyrusCodexAgent::Engine do
     expect(manifest).not_to be_nil
     expect(manifest.version).to eq(Syrus::PluginApi.default_version)
   end
+
+  it "defaults to disabled so new installs opt in during onboarding" do
+    manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "codex_agent" }
+    expect(manifest.default_enabled?).to be(false)
+    expect(manifest.disableable?).to be(true)
+  end
+
+  it "creates a disabled PluginRecord for a brand-new install" do
+    PluginRecord.where(name: "codex_agent").delete_all
+
+    SyrusCodexAgent.register!
+
+    expect(PluginRecord.find_by!(name: "codex_agent").enabled).to be(false)
+  ensure
+    PluginRecord.find_or_create_by!(name: "codex_agent").update!(enabled: true)
+  end
+
+  it "leaves an already-enabled PluginRecord enabled across re-registration" do
+    record = PluginRecord.find_or_create_by!(name: "codex_agent")
+    record.update!(enabled: true)
+
+    SyrusCodexAgent.register!
+
+    expect(PluginRecord.find_by!(name: "codex_agent").enabled).to be(true)
+  end
 end
