@@ -6,11 +6,13 @@ import { Button } from "@app/components/Button"
 import { CloseIcon } from "@app/components/CloseIcon"
 import { ImageAnnotationModal, type Shape } from "@app/components/ImageAnnotationModal"
 import { Modal } from "@app/components/Modal"
+import { Notice } from "@app/components/ui"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
 import { resolveExampleResultBody } from "@app/pluginToolCards"
 import type { ToolOwnerType, ToolPresentationEntry, ToolPresentationExample, ToolSourceType } from "@app/toolPresentationRegistry"
+import { createToolCardJob } from "../api/toolCardJobs"
 import { rendererTypeFor, type RendererType, type ViewportPresetId } from "../toolCardCatalogTypes"
 
 // The Tool Card Catalog's "Discuss this card" feedback flow: capture a
@@ -132,6 +134,19 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
     }
   })
 
+  // Skips the chat round-trip entirely: same screenshot + prompt, but
+  // lands directly as a direct Job so the operator doesn't have to relay
+  // "yes, go ahead and do this" back to an assistant that already has
+  // everything it needs.
+  const createJob = useMutation({
+    mutationFn: (input: { prompt: string; screenshot: { name: string; mimeType: string; dataUrl: string } | null }) =>
+      createToolCardJob({ prompt: input.prompt, screenshot: input.screenshot }),
+    onSuccess: (payload) => {
+      setOpen(false)
+      navigate(withRoutePrefix(payload.redirect_to, routePrefix(location.pathname)))
+    }
+  })
+
   const metadata = useMemo(
     () => buildToolCardFeedbackMetadata(entry, example, viewportPresetId, deepLink, screenshot?.shapes ?? []),
     [entry, example, viewportPresetId, deepLink, screenshot]
@@ -139,6 +154,7 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
 
   async function openDialog() {
     startChat.reset()
+    createJob.reset()
     setPromptText("")
     setScreenshot(null)
     setCaptureError(null)
@@ -172,8 +188,24 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
     setAnnotating(false)
   }
 
+  const promptIsBlank = promptText.trim().length === 0
+
+  // Mirrors BugReportButton's layout: the form's primary submit action is the
+  // immediate, no-review-step one (there: file the bug report; here: create
+  // the job directly), while starting a chat is a secondary, explicitly
+  // clicked action -- never triggered by pressing Enter in the textarea.
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (promptIsBlank) return
+
+    const prompt = buildToolCardFeedbackPrompt(promptText, metadata)
+    const screenshotInput = screenshot
+      ? { dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }
+      : null
+    createJob.mutate({ prompt, screenshot: screenshotInput })
+  }
+
+  function startDiscussChat() {
     const text = buildToolCardFeedbackPrompt(promptText, metadata)
     const attachments: ChatMessageAttachmentInput[] = screenshot
       ? [{ dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }]
@@ -261,17 +293,34 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
             </details>
 
             {startChat.isError ? (
-              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" role="alert">
+              <Notice className="px-3 py-2 text-sm" role="alert" tone="danger">
                 {errorMessage(startChat.error, t("tool_cards.discuss.chat_failed"))}
-              </p>
+              </Notice>
+            ) : null}
+            {createJob.isError ? (
+              <Notice className="px-3 py-2 text-sm" role="alert" tone="danger">
+                {errorMessage(createJob.error, t("tool_cards.discuss.job_failed"))}
+              </Notice>
             ) : null}
 
             <div className="flex justify-end gap-2 border-t border-border pt-4">
               <Button onClick={closeDialog} type="button" variant="secondary">
                 {t("tool_cards.discuss.cancel")}
               </Button>
-              <Button disabled={startChat.isPending || capturing} type="submit">
+              <Button
+                disabled={startChat.isPending || createJob.isPending || capturing}
+                onClick={startDiscussChat}
+                type="button"
+                variant="secondary"
+              >
                 {startChat.isPending ? t("tool_cards.discuss.starting") : t("tool_cards.discuss.submit")}
+              </Button>
+              <Button
+                disabled={startChat.isPending || createJob.isPending || capturing || promptIsBlank}
+                title={promptIsBlank ? t("tool_cards.discuss.create_job_requires_prompt") : undefined}
+                type="submit"
+              >
+                {createJob.isPending ? t("tool_cards.discuss.creating_job") : t("tool_cards.discuss.create_job")}
               </Button>
             </div>
           </form>

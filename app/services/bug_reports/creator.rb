@@ -1,5 +1,3 @@
-require "stringio"
-
 module BugReports
   class Creator
     include BugReports::ContextFormatter
@@ -29,29 +27,17 @@ module BugReports
         return failure("Too many attachments. Bug reports can have at most #{Document::MAX_ATTACHMENTS_PER_JOB} files.")
       end
 
-      job = nil
-      ActiveRecord::Base.transaction do
-        job = user.jobs.create!(
-          repository: repository,
-          kind: "direct",
-          issue_number: nil,
-          issue_title: title,
-          issue_body: prompt_text,
-          agent_provider: repository.effective_agent_provider,
-          priority: "medium"
-        )
+      uploads = [ screenshot, *extra ].select(&:present?)
+      result = ::DirectJobs::Creator.new(user: user).call(
+        repository: repository,
+        prompt_text: prompt_text,
+        title: title,
+        attachments: uploads.map { |upload| build_attachment(upload) }
+      )
 
-        # advance_after_triage's after-callback creates the initial
-        # workflow + starts it for direct Jobs (Job#create_initial_run_if_needed).
-        job.advance_after_triage! if job.may_advance_after_triage?
+      return failure(result.error) unless result.success?
 
-        attach_file!(job, screenshot) if screenshot.present?
-        extra.each { |attachment| attach_file!(job, attachment) }
-      end
-
-      Result.new(job: job)
-    rescue ActiveRecord::RecordInvalid => e
-      failure(e.record.errors.full_messages.to_sentence)
+      Result.new(job: result.job)
     end
 
     private
@@ -62,24 +48,13 @@ module BugReports
       Result.new(error: error)
     end
 
-    def attach_file!(job, upload)
-      body = upload.read
-      filename = upload.original_filename.presence || "attachment"
-      content_type = upload.content_type.presence || "application/octet-stream"
-
-      attachment = job.job_attachments.build(
+    def build_attachment(upload)
+      ::DirectJobs::Creator::Attachment.new(
         source_url: "bug-report://#{SecureRandom.uuid}",
-        filename: filename,
-        content_type: content_type,
-        byte_size: body.bytesize
+        filename: upload.original_filename.presence || "attachment",
+        content_type: upload.content_type.presence || "application/octet-stream",
+        body: upload.read
       )
-      attachment.file.attach(
-        io: StringIO.new(body),
-        filename: filename,
-        content_type: content_type,
-        identify: false
-      )
-      attachment.save!
     end
   end
 end

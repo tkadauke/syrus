@@ -220,6 +220,117 @@ RSpec.describe Steps::ExternalPrMerge do
     expect(workflow.artifact("external_pr_head_sha")).to eq("def5678")
   end
 
+  it "rebases and retries the repair-commit push when the remote branch advanced during landing" do
+    workflow.set_artifact!("external_pr_head_repo", "acme/widgets")
+    workflow.set_artifact!("external_pr_head_ref", "contributor-branch")
+    workflow.set_artifact!("external_pr_head_sha", "abc123")
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+    allow(client).to receive(:access_token).and_return("ghs_test")
+    push_url = "https://token@example.com/acme/widgets.git"
+    allow(repository).to receive(:authenticated_push_url).and_return(push_url)
+
+    workspace = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/external-pr-workspace"))
+    rev_git = instance_double(GitRunner)
+    push_git = instance_double(GitRunner)
+    remote_rev_git = instance_double(GitRunner)
+    rebased_rev_git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(rev_git, push_git, remote_rev_git, rebased_rev_git)
+    allow_any_instance_of(described_class).to receive(:workspace).and_return(workspace)
+
+    allow(rev_git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/external-pr-workspace").and_return("def456\n")
+    allow(remote_rev_git).to receive(:run).with(
+      "rev-parse", "refs/remotes/origin/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    ).and_return("remote789\n")
+    allow(rebased_rev_git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/external-pr-workspace").and_return("def999\n")
+
+    reject_error = GitRunner::GitError.new(
+      [ "push", push_url, "HEAD:refs/heads/contributor-branch" ], 1,
+      "! [rejected] HEAD -> contributor-branch (fetch first)"
+    )
+
+    expect(push_git).to receive(:run).with(
+      "push", "--force-with-lease=refs/heads/contributor-branch:abc123",
+      push_url, "HEAD:refs/heads/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    ).ordered.and_raise(reject_error)
+    expect(push_git).to receive(:run).with(
+      "fetch", push_url, "+refs/heads/contributor-branch:refs/remotes/origin/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    ).ordered
+    expect(push_git).to receive(:run).with(
+      "rebase", "refs/remotes/origin/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    ).ordered
+    expect(push_git).to receive(:run).with(
+      "push", "--force-with-lease=refs/heads/contributor-branch:remote789",
+      push_url, "HEAD:refs/heads/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    ).ordered
+
+    described_class.new(run).call
+
+    expect(client).to have_received(:merge_pull_request)
+      .with("acme/widgets", 99, hash_including(sha: "def999"))
+    expect(job.reload).to be_closed
+    expect(job.closure_reason).to eq("external_pr_merged")
+  end
+
+  it "raises a branch-diverged failure when the rebase after a rejected repair-commit push conflicts" do
+    workflow.set_artifact!("external_pr_head_repo", "acme/widgets")
+    workflow.set_artifact!("external_pr_head_ref", "contributor-branch")
+    workflow.set_artifact!("external_pr_head_sha", "abc123")
+    allow(client).to receive(:access_token).and_return("ghs_test")
+    push_url = "https://token@example.com/acme/widgets.git"
+    allow(repository).to receive(:authenticated_push_url).and_return(push_url)
+
+    workspace = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/external-pr-workspace"))
+    rev_git = instance_double(GitRunner)
+    push_git = instance_double(GitRunner)
+    remote_rev_git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(rev_git, push_git, remote_rev_git)
+    allow_any_instance_of(described_class).to receive(:workspace).and_return(workspace)
+
+    allow(rev_git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/external-pr-workspace").and_return("def456\n")
+    allow(remote_rev_git).to receive(:run).with(
+      "rev-parse", "refs/remotes/origin/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    ).and_return("remote789\n")
+
+    reject_error = GitRunner::GitError.new(
+      [ "push", push_url, "HEAD:refs/heads/contributor-branch" ], 1,
+      "! [rejected] HEAD -> contributor-branch (fetch first)"
+    )
+    rebase_conflict_error = GitRunner::GitError.new(
+      [ "rebase", "refs/remotes/origin/contributor-branch" ], 1,
+      "CONFLICT (content): Merge conflict in lib/example.rb"
+    )
+
+    allow(push_git).to receive(:run).with(
+      "push", "--force-with-lease=refs/heads/contributor-branch:abc123",
+      push_url, "HEAD:refs/heads/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    ).and_raise(reject_error)
+    allow(push_git).to receive(:run).with(
+      "fetch", push_url, "+refs/heads/contributor-branch:refs/remotes/origin/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    )
+    allow(push_git).to receive(:run).with(
+      "rebase", "refs/remotes/origin/contributor-branch",
+      chdir: "/tmp/external-pr-workspace"
+    ).and_raise(rebase_conflict_error)
+    allow(push_git).to receive(:run).with("rebase", "--abort", chdir: "/tmp/external-pr-workspace")
+
+    expect {
+      described_class.new(run).call
+    }.to raise_error(Steps::ExternalPrMerge::RemoteBranchAdvancedRebaseConflict, /remote branch contributor-branch advanced/)
+
+    expect(step.reload.details).to include(
+      "failure_code" => "remote_branch_advanced_rebase_conflict",
+      "problem_code" => "branch_diverged"
+    )
+  end
+
   it "raises StepFailed instead of merging when the prepared head SHA is missing" do
     workflow.set_artifact!("external_pr_head_sha", nil)
     allow(client).to receive(:merge_pull_request)

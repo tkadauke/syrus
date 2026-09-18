@@ -45,9 +45,13 @@
       "prompt_placeholder": "Describe what looks wrong or what you'd like changed...",
       "metadata_summary": "Raw payload metadata",
       "chat_failed": "Couldn't start a new chat. Please try again.",
+      "job_failed": "Couldn't create a job. Please try again.",
       "cancel": "Cancel",
-      "submit": "Open chat",
-      "starting": "Starting chat..."
+      "submit": "Discuss",
+      "starting": "Starting chat...",
+      "create_job": "Create Job",
+      "creating_job": "Creating job...",
+      "create_job_requires_prompt": "Describe what you want done before creating a job."
     }
   },
   "performance": {

@@ -45,9 +45,13 @@
       "prompt_placeholder": "Describe quid perperam appareat aut quid mutari velis...",
       "metadata_summary": "Notitiae crudae oneris",
       "chat_failed": "Novum colloquium incipi non potuit. Iterum conare.",
+      "job_failed": "Opus creari non potuit. Iterum conare.",
       "cancel": "Cancellare",
-      "submit": "Colloquium aperire",
-      "starting": "Colloquium incipitur..."
+      "submit": "Disserere",
+      "starting": "Colloquium incipitur...",
+      "create_job": "Opus creare",
+      "creating_job": "Opus creatur...",
+      "create_job_requires_prompt": "Describe quid fieri velis antequam opus creatur."
     }
   },
   "performance": {

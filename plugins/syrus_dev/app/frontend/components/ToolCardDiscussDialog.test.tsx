@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import * as chatsApi from "@app/api/chats"
 import type { ToolPresentationEntry, ToolPresentationExample } from "@app/toolPresentationRegistry"
+import * as toolCardJobsApi from "../api/toolCardJobs"
 import {
   buildToolCardFeedbackMetadata,
   buildToolCardFeedbackPrompt,
@@ -25,11 +26,17 @@ vi.mock("@app/api/chats", async (importOriginal) => {
   return { ...actual, createChat: vi.fn() }
 })
 
+vi.mock("../api/toolCardJobs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/toolCardJobs")>()
+  return { ...actual, createToolCardJob: vi.fn() }
+})
+
 vi.mock("html2canvas-pro", () => ({
   default: vi.fn()
 }))
 
 const mockCreateChat = vi.mocked(chatsApi.createChat)
+const mockCreateToolCardJob = vi.mocked(toolCardJobsApi.createToolCardJob)
 const mockHtml2canvas = vi.mocked(html2canvasModule)
 
 const entry: ToolPresentationEntry = {
@@ -141,6 +148,7 @@ describe("ToolCardDiscussButton", () => {
   beforeEach(() => {
     mockNavigate.mockClear()
     mockCreateChat.mockReset()
+    mockCreateToolCardJob.mockReset()
     mockHtml2canvas.mockReset()
   })
 
@@ -196,7 +204,7 @@ describe("ToolCardDiscussButton", () => {
     await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
 
     fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "The icon looks wrong here." } })
-    fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
     await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
     const [input] = mockCreateChat.mock.calls[0]
@@ -221,7 +229,7 @@ describe("ToolCardDiscussButton", () => {
     await openDialog()
     await screen.findByText("Couldn't capture a screenshot of this card. You can still start the chat without one — the metadata below is still included.")
 
-    fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
     await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
     const [input] = mockCreateChat.mock.calls[0]
@@ -236,11 +244,70 @@ describe("ToolCardDiscussButton", () => {
     await openDialog()
     await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
     await screen.findByText("Couldn't start a new chat. Please try again.")
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it("creates a job directly with the screenshot and prompt, bypassing chat, and navigates to it on success", async () => {
+    mockHtml2canvas.mockResolvedValue({ toDataURL: () => "data:image/png;base64,c2NyZWVuc2hvdA==" } as unknown as HTMLCanvasElement)
+    mockCreateToolCardJob.mockResolvedValue({
+      message: "Job created.",
+      redirect_to: "/jobs/99",
+      job: { id: 99, job_path: "/jobs/99" }
+    })
+
+    renderHarness()
+    await openDialog()
+    await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "The icon looks wrong here." } })
+    fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
+
+    await waitFor(() => expect(mockCreateToolCardJob).toHaveBeenCalledTimes(1))
+    const [input] = mockCreateToolCardJob.mock.calls[0]
+    expect(input.prompt).toContain("The icon looks wrong here.")
+    expect(input.prompt).toContain('"selected_example_id": "two_open"')
+    expect(input.screenshot).toEqual({ name: "list_insights-tool-card.png", mimeType: "image/png", dataUrl: "data:image/png;base64,c2NyZWVuc2hvdA==" })
+    expect(mockCreateChat).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/jobs/99"))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("shows a clear inline error when creating a job fails, without closing the dialog", async () => {
+    mockHtml2canvas.mockResolvedValue({ toDataURL: () => "data:image/png;base64,c2NyZWVuc2hvdA==" } as unknown as HTMLCanvasElement)
+    mockCreateToolCardJob.mockRejectedValue(new Error("boom"))
+
+    renderHarness()
+    await openDialog()
+    await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "The icon looks wrong here." } })
+    fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
+
+    await screen.findByText("Couldn't create a job. Please try again.")
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it("disables Create Job until the operator writes a prompt, since it dispatches an agent immediately with no review step", async () => {
+    mockHtml2canvas.mockResolvedValue({ toDataURL: () => "data:image/png;base64,c2NyZWVuc2hvdA==" } as unknown as HTMLCanvasElement)
+
+    renderHarness()
+    await openDialog()
+    await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
+
+    const createJobButton = screen.getByRole("button", { name: "Create Job" })
+    expect(createJobButton).toBeDisabled()
+
+    fireEvent.click(createJobButton)
+    expect(mockCreateToolCardJob).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "Now there's a real prompt." } })
+    expect(createJobButton).not.toBeDisabled()
   })
 })
 

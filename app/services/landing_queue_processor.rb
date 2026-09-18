@@ -915,13 +915,16 @@ class LandingQueueProcessor
     return unless repository.main_branch_repair_enabled?
     return if attribution.base_sha.blank?
 
-    unless repository.ci_health_broken? && repository.last_ci_evaluated_sha == attribution.base_sha
-      repository.update!(
-        ci_health: "broken",
-        last_health_checked_sha: attribution.base_sha,
-        last_ci_evaluated_sha: attribution.base_sha
-      )
+    if repository.ci_health_broken? && repository.last_ci_evaluated_sha == attribution.base_sha
+      MainHealthChangedService.ensure_repair_job!(repository)
+      return
     end
+
+    repository.update!(
+      ci_health: "broken",
+      last_health_checked_sha: attribution.base_sha,
+      last_ci_evaluated_sha: attribution.base_sha
+    )
     MainHealthChangedService.on_health_change!(repository.reload)
   end
 

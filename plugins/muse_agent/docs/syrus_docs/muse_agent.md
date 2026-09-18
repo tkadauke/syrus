@@ -84,7 +84,14 @@ Workflow jobs can use Muse wherever Syrus asks `AgentProviders.for("muse")` to
 run an agentic step. Muse writes a per-workflow home, configures
 `~/.config/muse/settings.json` with a stdio `syrus-mcp-sidecar`, and uses dotted
 tool names such as `syrus-mcp-sidecar.submit_summary` when checking required
-workflow tools.
+workflow tools. The generated settings file always carries the top-level
+`schema_version: 1` Muse Code requires, and each `mcp_servers` entry is
+normalized into Muse's documented stdio shape (`transport: "stdio"`,
+`command`, `args`, `env`, `enabled: true`, `mode: "required"`) regardless of
+what an existing (or legacy) settings file on disk looked like —
+`MuseInvocation#write_muse_settings!` repairs a settings file that is missing
+`schema_version` or isn't valid JSON rather than crashing, and preserves any
+unrelated top-level settings already present.
 
 Syrus Chat can use Muse as an enabled `chat_provider` when the user has a saved
 Muse API key. Chat turns use a per-chat Muse home and stdio chat sidecar
