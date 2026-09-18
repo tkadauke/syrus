@@ -100,6 +100,18 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload.dig(:actions, :can_start)).to be(false)
     end
 
+    it "clears unsatisfied dependencies once dependencies_overridden_at is set" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      blocker = Factories.job_record(user: user, repository: repo, state: "approved", approved_at: Time.current)
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_by_user: user)
+
+      expect(payload_for(job).fetch(:unsatisfied_dependencies)).not_to be_empty
+
+      job.update!(dependencies_overridden_at: Time.current)
+
+      expect(payload_for(job).fetch(:unsatisfied_dependencies)).to be_empty
+    end
+
     it "loads dependency rows once for dependencies and unsatisfied dependencies" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       satisfied = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
