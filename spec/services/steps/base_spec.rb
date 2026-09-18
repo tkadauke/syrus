@@ -396,6 +396,7 @@ RSpec.describe Steps::Base, :ci_only do
     end
 
     it "logs required MCP tool health as ok for Muse dotted tool calls" do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
       result = AgentInvocation::Result.new(
         turns: 1,
         exit_status: 0,
