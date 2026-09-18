@@ -14,6 +14,15 @@ module Steps
   # manually. The Step#details on each grader Step remains the
   # source of truth.
   class GraderCollect < Base
+    # Set on this Step's `details` when every failing required grader this
+    # iteration was classified transient/infrastructure (worker_died, a full
+    # disk, a DB lock timeout, ...) rather than a code defect --
+    # StepDispatcher reads this to skip materializing a repair agent step
+    # (e.g. landing_fix) for the next iteration: there is nothing for an
+    # agent to fix, only a regrade to retry. See the note on
+    # infrastructure_failed_required below.
+    TRANSIENT_ONLY_FAILURE_DETAIL_KEY = "transient_only_required_grader_failure"
+
     def call
       grader_steps = current_iteration_graders
       carried_forward = carried_forward_grader_entries
@@ -61,6 +70,7 @@ module Steps
         classifications = infrastructure_failed_required.filter_map { |g| infrastructure_failure_classification_for(g) }.uniq
         code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "database_lock"
         log("[grader_collect] required graders failed due to infrastructure: #{names.join(', ')}")
+        mark_transient_only_failure!
         fail_with!(code, "required graders failed due to infrastructure: #{names.join(', ')}",
                    evidence: { grader_names: names, classifications: classifications })
       end
@@ -104,6 +114,10 @@ module Steps
         record_isolated_repro_dismissal!(failed_required, verdict.evidence)
       end
       true
+    end
+
+    def mark_transient_only_failure!
+      step.update!(details: step.details.to_h.merge(TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true))
     end
 
     def grader_names(grader_steps) = grader_steps.map { |grader| grader.details["name"] }

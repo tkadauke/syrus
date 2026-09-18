@@ -26,6 +26,26 @@ module Steps
 
     private
 
+    # landing_fix repairs the failing required graders diagnosed just before
+    # it in the retry_until loop. If it investigates and finds the failure
+    # was not a code defect -- confirmed by filing report_main_concern for
+    # this exact Run, not merely by the agent saying so in prose -- it is
+    # correct for it to make no commit. Treat that as the step's normal
+    # (no-op) outcome instead of a failure: the loop's next iteration will
+    # regrade the same commit rather than hard-failing the whole landing
+    # attempt on what report_main_concern already flagged as a transient or
+    # pre-existing failure.
+    def no_changes_confirmed_not_broken?
+      return false unless MainConcernReport.where(run: run).exists?
+
+      log(
+        "[landing_fix] no changes were needed -- report_main_concern was filed for this run, " \
+        "so the failing graders are treated as pre-existing/infrastructure rather than a workflow failure",
+        kind: "system"
+      )
+      true
+    end
+
     def preserve_merge_train_repair_head!
       return unless workflow.trigger_kind == "merge_train"
       return if workflow.artifact("merge_train_id").blank?
