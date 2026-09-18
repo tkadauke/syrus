@@ -195,11 +195,9 @@ module Steps
     end
 
     def merge_pull_request(client, gate)
-      client.merge_pull_request(
-        repository.slug,
-        job.pr_number,
-        commit_title: "Merge #{repository.slug}##{job.pr_number} via Syrus",
-        merge_method: "rebase"
+      PullRequestMerger.new(repository, client: client).merge(
+        pr_number: job.pr_number,
+        commit_title: "Merge #{repository.slug}##{job.pr_number} via Syrus"
       )
     rescue Octokit::MethodNotAllowed => e
       if rebase_merge_rejected?(e)
