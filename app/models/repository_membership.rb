@@ -1,4 +1,6 @@
 class RepositoryMembership < ApplicationRecord
+  include ValidatesAgentProvider
+
   # Ordered low to high -- see #at_least? and .at_least.
   ROLES = %w[read write admin].freeze
   ROLE_RANK = ROLES.each_with_index.to_h.freeze
@@ -9,7 +11,7 @@ class RepositoryMembership < ApplicationRecord
 
   validates :role, inclusion: { in: ROLES }
   validates :user_id, uniqueness: { scope: :repository_id, message: "is already a member of this repository" }
-  validates :agent_provider, inclusion: { in: -> { User.agent_providers } }, allow_nil: true
+  validates_agent_provider allow_nil: true
 
   before_validation :normalize_agent_provider
 

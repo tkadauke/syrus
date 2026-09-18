@@ -3,6 +3,7 @@ class Run < ApplicationRecord
   include RecordsStateTransitions
   include BroadcastsJobProgress
   include PluginDataCleanup
+  include ValidatesAgentProvider
 
   belongs_to :job
   belongs_to :user
@@ -49,7 +50,7 @@ class Run < ApplicationRecord
   # See Workflow#trigger_kind: resolved per validation so a plugin-contributed
   # trigger kind is honoured while its plugin is enabled.
   validates :trigger_kind, presence: true, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }
-  validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
+  validates_agent_provider
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create
   before_validation :set_effective_at
