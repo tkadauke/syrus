@@ -2530,6 +2530,12 @@ module WorkEngine
         job = run.job
         divergence = workflow&.artifact("branch_divergence").presence
         next if workflow&.artifact("branch_divergence_recovery").present?
+        # A force-push (or other) recovery is already queued for this exact
+        # divergence -- do not also plan a competing retry_workflow while it
+        # is in flight. Recovery clears this artifact on completion (success
+        # or failure), so a genuinely failed recovery attempt still leaves
+        # retry_workflow free to run on the next pass.
+        next if workflow&.artifact("branch_divergence_recovery_pending").present?
         next unless divergence_current_pr_head?(job, divergence)
 
         latest = latest_workflow_for_job(job)
