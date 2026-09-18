@@ -49,6 +49,11 @@ describe("pluginToolCards", () => {
     ]))
   })
 
+  it("discovers the emergency land core card by directory convention", () => {
+    expect(pluginToolCardRendererKeys()).toContain("emergency_land")
+    expect(pluginToolCardRendererFor("emergency_land")).not.toBeNull()
+  })
+
   it("returns null for a tool no plugin or core card claims, so it keeps using the generic renderer", () => {
     expect(pluginToolCardRendererFor("totally_unknown_tool")).toBeNull()
     expect(pluginToolCardCollapsedSummary(context({ toolName: "totally_unknown_tool" }))).toBeNull()
