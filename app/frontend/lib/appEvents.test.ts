@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import type { ChatPayload } from "../api/chats"
 import { applyAppEvent, queryKeysFor } from "./appEvents"
 
 const desktopUa = "Mozilla/5.0 (Macintosh) Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.0 Safari/537.36"
@@ -398,6 +399,51 @@ describe("applyAppEvent", () => {
     const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; turn_in_flight?: boolean; agent_busy?: boolean }> }> }>(["chats", "recent"])
     expect(recent?.groups[0].chats[0].turn_in_flight).toBe(false)
     expect(recent?.groups[0].chats[0].agent_busy).toBe(false)
+  })
+
+  it("updates and clears chat turn retry state from controls payloads", () => {
+    const queryClient = new QueryClient()
+    const state = {
+      classification: "chat_turn_crashed",
+      classification_label: "Chat turn crashed",
+      retryable: true,
+      next_auto_retry_at: "2026-09-18T12:05:00Z",
+      retry_attempt_count: 1,
+      retry_budget_remaining: 2,
+      retry_budget: 3,
+      auto_retry_exhausted: false,
+      provider_circuit_open: false,
+      retry_delayed_until: null,
+      retry_delay_reason: null,
+      state_label: "Retry scheduled"
+    }
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_controls",
+        turn_in_flight: true,
+        agent_busy: false,
+        turn_retry_state: state,
+        stop_requested_at: null
+      }
+    })
+
+    expect(queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])?.turn_retry_state).toEqual(state)
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_controls",
+        turn_in_flight: true,
+        agent_busy: true,
+        turn_retry_state: null,
+        stop_requested_at: null
+      }
+    })
+
+    expect(queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])?.turn_retry_state).toBeNull()
   })
 
   it("updates scratchpad_items_count in recent chats when update_controls includes scratchpad_items", () => {
@@ -989,7 +1035,7 @@ function message(id: number, role: "user" | "assistant" | "tool_use" | "tool_res
   }
 }
 
-function chatPayload(messages: Array<ReturnType<typeof message>>) {
+function chatPayload(messages: Array<ReturnType<typeof message>>): ChatPayload {
   return {
     message: null,
     chat: {
@@ -1009,16 +1055,25 @@ function chatPayload(messages: Array<ReturnType<typeof message>>) {
     chat_available: true,
     turn_in_flight: true,
     agent_busy: false,
+    turn_retry_state: null,
+    switching_provider: false,
     has_more_older: false,
     messages,
     bookmarks: [],
     recent_chats: [],
     pending_actions: [],
     agent_questions: [],
+    queued_messages: [],
+    scratchpad_items: [],
+    preview_panels: [],
+    workspace_tabs: [],
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
     attachment_results: [],
     whiteboard: { version: 0, elements: [], appState: {}, files: {} },
+    coding_mode_enabled: false,
+    local_mode_enabled: false,
+    local_tunnel_connected: false,
     paths: {
       credentials_path: "/credentials",
       repositories_path: "/repositories",
@@ -1026,10 +1081,17 @@ function chatPayload(messages: Array<ReturnType<typeof message>>) {
       app_message_path: "/api/v1/app/chats/9/message",
       app_rename_path: "/api/v1/app/chats/9/rename",
       app_clear_path: "/api/v1/app/chats/9/messages",
+      app_branch_path: "/api/v1/app/chats/9/branch",
+      app_share_path: "/api/v1/app/chats/9/share",
+      app_enqueue_message_path: "/api/v1/app/chats/9/queued_messages",
+      app_scheduled_messages_path: "/api/v1/app/chats/9/scheduled_messages",
       app_stop_path: "/api/v1/app/chats/9/stop",
+      app_daemon_connection_path: "/api/v1/app/chats/9/daemon_connection",
+      app_switch_provider_path: "/api/v1/app/chats/9/switch_provider",
       app_bookmarks_path: "/api/v1/app/chats/9/bookmarks",
       app_attachments_path: "/api/v1/app/chats/9/attachments",
-      app_whiteboard_path: "/api/v1/app/chats/9/whiteboard"
+      app_whiteboard_path: "/api/v1/app/chats/9/whiteboard",
+      app_scratchpad_reorder_path: "/api/v1/app/chats/9/scratchpad_items/reorder"
     }
   }
 }

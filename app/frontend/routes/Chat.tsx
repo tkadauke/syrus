@@ -114,7 +114,7 @@ import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
 import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
-import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle } from "./chat/streamChrome"
+import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle, TurnRetryIndicator } from "./chat/streamChrome"
 import { Compose } from "./chat/Compose"
 import { ThemePreviewModal } from "./chat/ThemePreviewModal"
 import { routePrefix } from "../lib/routing"
@@ -598,7 +598,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{isSupervisorChat(payload) ? t("empty_supervisor") : payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
-          {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+          <ChatTurnIndicator payload={payload} agentActive={agentActive} />
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       </div>
@@ -650,7 +650,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
           />
         ))}
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
-        {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
+        <ChatTurnIndicator payload={payload} agentActive={agentActive} />
       </div>
       {newMessageCount > 0 ? (
         <button
@@ -668,6 +668,15 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
 function switchingProviderLabel(payload: ChatPayload) {
   const provider = payload.chat.chat_provider ?? ""
   return payload.chat.chat_provider_options?.find((option) => option.value === provider)?.label || provider
+}
+
+function ChatTurnIndicator({ payload, agentActive }: { payload: ChatPayload; agentActive: boolean }) {
+  const retry = payload.turn_retry_state ?? payload.chat.turn_retry_state
+  if (retry && agentActive) return <TurnRetryIndicator retry={retry} />
+  if (payload.switching_provider) return <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} />
+  if (agentActive) return <AgentActivityIndicator running={payload.agent_busy} />
+
+  return null
 }
 
 
