@@ -100,6 +100,17 @@ RSpec.describe MetricsDashboard::DashboardPayload do
       expect(values.last).to be_nil
       expect(values.compact).to all(eq(5))
     end
+
+    it "reports worker disk utilization grouped by hostname" do
+      now = Time.current.change(sec: 0)
+      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-a" }, value: 63, at: now - 1.minute)
+      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-b" }, value: 20, at: now - 1.minute)
+
+      series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
+
+      expect(series.map { |s| s[:name] }).to contain_exactly("worker-a", "worker-b")
+      expect(series.find { |s| s[:name] == "worker-a" }[:values].compact.max).to eq(63)
+    end
   end
 
   describe "rate panels" do
@@ -201,6 +212,7 @@ RSpec.describe MetricsDashboard::DashboardPayload do
       by_key = payload[:panels].index_by { |p| p[:key] }
       expect(by_key["queue_ready"][:category]).to eq(described_class::CATEGORY_QUEUE_THROUGHPUT)
       expect(by_key["worker_cpu"][:category]).to eq(described_class::CATEGORY_WORKERS_FLEET)
+      expect(by_key["worker_disk"][:category]).to eq(described_class::CATEGORY_WORKERS_FLEET)
       expect(by_key["feature_usage"][:category]).to eq(described_class::CATEGORY_RESILIENCE_PRODUCT)
     end
 

@@ -46,11 +46,11 @@ exporter with a shared store; that is a later step. Until then, counters
 incremented on workers are not yet exported -- this currently applies to
 `syrus_admission_decisions_total`, which is incremented wherever an admission
 decision is made (see *Workers and admission* below), including on workers.
-`syrus_worker_cpu_percent`/`syrus_worker_memory_percent` are not affected by
-this gap: they are sampled from the `worker_host_health_samples` table (rows
-every worker writes on its own heartbeat) into the same web-served cache the
-other GLOBAL gauges use, so they are visible today even though no worker pod
-is scraped directly.
+`syrus_worker_cpu_percent`/`syrus_worker_memory_percent`/`syrus_worker_disk_percent`
+are not affected by this gap: they are sampled from the
+`worker_host_health_samples` table (rows every worker writes on its own
+heartbeat) into the same web-served cache the other GLOBAL gauges use, so
+they are visible today even though no worker pod is scraped directly.
 
 ## What is exposed
 
@@ -189,21 +189,22 @@ the sampler first runs, not from the beginning of time.
 |---|---|
 | `syrus_worker_cpu_percent{hostname}` | latest CPU utilization sample per worker |
 | `syrus_worker_memory_percent{hostname}` | latest memory utilization sample per worker |
+| `syrus_worker_disk_percent{hostname}` | latest data-root disk utilization sample per worker |
 | `syrus_active_agent_runs` | currently running agentic Runs, subject to the global concurrency cap |
 | `syrus_max_concurrent_agent_runs` | the configured ceiling, so the dashboard panel shows capacity alongside utilization |
 | `syrus_admission_decisions_total{decision}` | admission decisions, tagged by the action taken |
 | `syrus_workflow_step_duration_seconds{kind}` | Step wall clock from start to finish |
 
 `Metrics::WorkerSampler` (`app/services/metrics/worker_sampler.rb`) owns the
-first four. `worker_cpu_percent`/`worker_memory_percent` read the most recent
-`WorkerHostHealthSample` per hostname within a 2-minute window -- the same
-freshness window `RunHostAdmission`/`WorkflowAdmissionBudget` use to decide a
-sample is still trustworthy -- and are the panel that would have shown "one
-worker at 3277m and another idle at 51m" instead of someone finding it by
-hand. `active_agent_runs` and `max_concurrent_agent_runs` are plain gauges
-read from `Run.running_agent_runs.count` and `AppSetting.max_concurrent_agent_runs`.
-All four are GLOBAL and cache-mediated exactly like the queue-health and
-landing-queue gauges above.
+first five. `worker_cpu_percent`/`worker_memory_percent`/`worker_disk_percent`
+read the most recent `WorkerHostHealthSample` per hostname within a 2-minute
+window -- the same freshness window `RunHostAdmission`/`WorkflowAdmissionBudget`
+use to decide a sample is still trustworthy -- and are the panel that would
+have shown "one worker at 3277m and another idle at 51m" instead of someone
+finding it by hand. `active_agent_runs` and `max_concurrent_agent_runs` are
+plain gauges read from `Run.running_agent_runs.count` and
+`AppSetting.max_concurrent_agent_runs`. All five are GLOBAL and cache-mediated
+exactly like the queue-health and landing-queue gauges above.
 
 `workflow_step_duration_seconds` is a histogram and therefore goes through
 the same cursor + cumulative-snapshot dance `run_duration_seconds` uses (see
@@ -426,7 +427,7 @@ Summing across pods multiplies the value by the number of pods scraped. The
 `syrus_global_` prefix exists to make that rule legible from the metric name,
 but it is not the only signal: `job_state`, `landing_queue_depth`,
 `queue_table_rows`, `worker_cpu_percent`, `worker_memory_percent`,
-`active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`,
+`worker_disk_percent`, `active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`,
 `spawned_processes`, `provider_circuit_state`, `github_rate_limit_remaining`,
 `repositories_main_branch_broken_count`, `recurring_job_last_success_seconds`,
 `provider_sessions_bytes`, `provider_sessions_rows`,
