@@ -248,12 +248,19 @@ class MuseInvocation
       "--api-key-stdin",
       *optional_flag("--model", model),
       *optional_flag("--reasoning-effort", reasoning_effort),
-      *optional_flag("--max-model-steps", max_model_steps)
+      *positive_integer_flag("--max-model-steps", max_model_steps)
     ]
   end
 
   def optional_flag(name, value)
     return [] if value.blank?
+
+    [ name, value.to_s ]
+  end
+
+  def positive_integer_flag(name, value)
+    value = value.to_i if value.respond_to?(:to_i)
+    return [] unless value.respond_to?(:positive?) && value.positive?
 
     [ name, value.to_s ]
   end
