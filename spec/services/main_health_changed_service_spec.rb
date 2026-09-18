@@ -1302,6 +1302,44 @@ RSpec.describe MainHealthChangedService, :ci_only do
     end
   end
 
+  describe "#spawn_fix_job!" do
+    it "reuses the concurrently created repair Job instead of raising when Job creation races on a duplicate slug" do
+      # Simulates another process (e.g. a health poll racing an inline repair
+      # check triggered from a concurrent Jobs#show request) already having
+      # won the race and inserted the repair Job under the slug this call is
+      # about to collide on.
+      concurrent_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        kind: "direct",
+        issue_number: nil,
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+        state: "queued"
+      )
+
+      raised = false
+      allow_any_instance_of(Job).to receive(:save!).and_wrap_original do |original, *args, **kwargs|
+        instance = original.receiver
+        if !raised && instance.system_kind == Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR
+          raised = true
+          raise ActiveRecord::RecordNotUnique, "Duplicate entry 'fix-broken-main-branch' for key 'jobs.index_jobs_on_slug'"
+        else
+          original.call(*args, **kwargs)
+        end
+      end
+
+      result = nil
+      expect {
+        result = described_class.new(repository).send(:spawn_fix_job!)
+      }.not_to raise_error
+
+      expect(raised).to be true
+      expect(result).to eq(concurrent_job)
+      expect(repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count).to eq(1)
+    end
+  end
+
   def settle_main_health!(
     repository,
     sha: "abc123def456",
