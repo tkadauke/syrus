@@ -503,6 +503,28 @@ describe("JobDetailView", () => {
     expect(screen.getByText("No PR was opened because the workflow made no effective changes.")).toBeInTheDocument()
   })
 
+  it("shows emergency land audit details for emergency-landed jobs", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        state: "closed",
+        summary_state: "closed",
+        closure_reason: "emergency_landed",
+        finished_at: "2026-09-18T12:00:00Z",
+        emergency_landed_at: "2026-09-18T12:00:00Z",
+        emergency_landed_by_user: {
+          id: 9,
+          display_name: "Incident Owner",
+          email_address: "owner@example.com"
+        },
+        emergency_landed_by_membership_tier: "admin"
+      }
+    }))
+
+    expect(screen.getByText("Emergency land")).toBeInTheDocument()
+    expect(screen.getByText("Confirmed by Incident Owner (admin)")).toBeInTheDocument()
+  })
+
   it("links scheduled jobs back to their scheduled task", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -3647,6 +3669,9 @@ function baseJob(): JobDetailPayload["job"] {
     pr_mergeable_checked_at: null,
     pr_checks: null,
     closure_reason: null,
+    emergency_landed_at: null,
+    emergency_landed_by_user: null,
+    emergency_landed_by_membership_tier: null,
     landing_failure_reason: null,
     retry_state: undefined,
     approved_at: null,

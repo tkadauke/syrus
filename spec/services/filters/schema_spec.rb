@@ -92,6 +92,7 @@ RSpec.describe Filters::Schema do
       labels = described_class.chip_for("closure_reason")["values"].to_h { |v| [ v["value"], v["label"] ] }
       expect(labels["pr_merged"]).to eq("PR merged")
       expect(labels["external_pr_merged"]).to eq("External PR merged") if labels.key?("external_pr_merged")
+      expect(labels["emergency_landed"]).to eq("Emergency landed")
       expect(labels["issue_closed"]).to eq("Issue closed")
     end
 

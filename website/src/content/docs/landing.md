@@ -67,6 +67,20 @@ it reverts every member Job the same way any other train failure does. Unlike
 the general Cancel button, Stop Landing does not close the Job -- the PR and
 branch stay in place, ready to re-approve.
 
+## Emergency Land
+
+Emergency land is separate from the normal landing queue. When enabled with the
+`emergency_land` feature flag, a repository admin can confirm an incident-only
+Coding Mode action that skips Syrus graders, adversarial review, and visual
+review, then merges the Job's pull request directly through GitHub. Syrus still
+uses a PR and GitHub's merge API, so repository branch protection and GitHub
+mergeability checks remain in force.
+
+Every successful emergency land is auditable: the Job closes with
+`closure_reason: "emergency_landed"` and records the confirming operator,
+permission tier, and timestamp. Admins can find past uses through Job filters or
+the admin Jobs API with `closure_reason=emergency_landed`.
+
 ## What Can Block Landing
 
 Common blockers include:
