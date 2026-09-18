@@ -913,6 +913,44 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  it "classifies a GitHub 5xx '[remote rejected]' push failure as retryable, not git_state_corrupt" do
+    run.update!(state: "failed")
+    # Same shape as the JOB-330 empty_commit regression above: a
+    # GitRunner::GitError whose error_class alone would match
+    # git_state_corrupt?, but the message is a transient server-side push
+    # refusal (not a real non-fast-forward/lease conflict, and not corrupt
+    # local git state) — push_remote_transient? must win.
+    diagnostic(
+      "GitRunner::GitError",
+      "git push --force-with-lease=refs/heads/syrus/direct-5004:abc123 " \
+      "https://x-access-token:redacted@github.com/owner/repo.git " \
+      "syrus/direct-5004:refs/heads/syrus/direct-5004 exited 1\n" \
+      "remote: Internal Server Error\n" \
+      "To github.com:owner/repo.git\n" \
+      " ! [remote rejected] syrus/direct-5004 -> syrus/direct-5004 (Internal Server Error)\n" \
+      "error: failed to push some refs to 'github.com:owner/repo.git'"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("push_remote_transient")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "does not classify a genuine non-fast-forward push rejection as push_remote_transient" do
+    run.update!(state: "failed")
+    diagnostic(
+      "GitRunner::GitError",
+      "git push exited 1\n" \
+      " ! [rejected]        HEAD -> syrus/direct-5004 (non-fast-forward)\n" \
+      "error: failed to push some refs to 'github.com:owner/repo.git'"
+    )
+
+    result = classification
+
+    expect(result.classification).not_to eq("push_remote_transient")
+  end
+
   it "classifies branch divergence as non-retryable" do
     run.update!(state: "failed")
     diagnostic("Steps::PrOpen::BranchDiverged", "PR branch changed before Syrus could push WF-123")
