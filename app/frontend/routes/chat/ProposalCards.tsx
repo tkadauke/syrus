@@ -574,7 +574,7 @@ export function ProposalCard({
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
               <CopyableSlug className="text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
               <ProposalDependencyStrip
-                className="min-w-0 flex-1"
+                className="min-w-0 flex-auto"
                 dependencies={proposal.dependencies}
                 hasDependencies={proposal.has_dependencies}
                 prefix={prefix}
