@@ -1,7 +1,7 @@
 import { useMediaQuery } from "./dashboard/components"
 import { DashboardKanban } from "./dashboard/KanbanBoard"
-import { JobsDashboardTable, SimpleJobsTable } from "./dashboard/JobsTable"
-import { EpicsTable, SimpleFeaturesTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
+import { JobsDashboardTable } from "./dashboard/JobsTable"
+import { EpicsTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
 import { dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, epicTableColumns, pageLink, sortValue, sortableColumnFor, subjectLabel, uniqueValue, withRoutePrefix } from "./dashboard/helpers"
 import type { DashboardSortState } from "./dashboard/helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -175,52 +175,46 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   })
   const readiness = bootstrap.data?.setup_status?.readiness
   const { t } = useT("dashboard")
-  const isLegacyEpicsView = payload.simple_mode && payload.subject === "epic"
 
   return (
     <Page.Root aria-label={t("title")} className="space-y-5" gutter="responsive" size="wide">
       <Page.Header className="items-center gap-3 px-4 sm:px-0">
-        <PageHeading className="flex-1">{isLegacyEpicsView ? t("legacy_epics_title") : payload.simple_mode ? t("simple_title") : t("title")}</PageHeading>
-        {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
+        <PageHeading className="flex-1">{t("title")}</PageHeading>
+        {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </Page.Header>
-      {isLegacyEpicsView ? <LegacyEpicsBanner className="mx-4 sm:mx-0" /> : null}
       <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
       <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
       <UntaggedIssuesBanner className="mx-4 sm:mx-0" prefix={prefix} untaggedIssues={payload.untagged_issues} />
 
       {isDesktop ? (
         <>
-          {payload.simple_mode ? null : <DesktopDashboardControls pathname={pathname} payload={payload} search={search} />}
+          <DesktopDashboardControls pathname={pathname} payload={payload} search={search} />
           <DashboardContent pathname={pathname} payload={payload} prefix={prefix} search={search} />
         </>
       ) : (
         <>
-          {payload.simple_mode ? null : <MobileDashboardControls pathname={pathname} payload={payload} prefix={prefix} search={search} />}
+          <MobileDashboardControls pathname={pathname} payload={payload} prefix={prefix} search={search} />
           <DashboardContent pathname={pathname} payload={payload} prefix={prefix} search={search} />
         </>
       )}
-      <DashboardTour simpleMode={payload.simple_mode} />
+      <DashboardTour />
     </Page.Root>
   )
 }
 
-export function DashboardTour({ simpleMode = false }: { simpleMode?: boolean }) {
+export function DashboardTour() {
   const { run, handleJoyrideCallback } = useTour("dashboard")
   const { t } = useT("tours")
 
   const steps = [
-    ...(simpleMode
-      ? []
-      : [
-          {
-            target: "[data-tour='dashboard-filter-bar']",
-            title: t("dashboard.filter_chips_title"),
-            content: t("dashboard.filter_chips_content"),
-            placement: "bottom" as const,
-            disableBeacon: true,
-          }
-        ]),
+    {
+      target: "[data-tour='dashboard-filter-bar']",
+      title: t("dashboard.filter_chips_title"),
+      content: t("dashboard.filter_chips_content"),
+      placement: "bottom" as const,
+      disableBeacon: true,
+    },
     {
       target: "[data-tour='dashboard-view-switcher']",
       title: t("dashboard.view_switcher_title"),
@@ -229,14 +223,14 @@ export function DashboardTour({ simpleMode = false }: { simpleMode?: boolean }) 
     },
     {
       target: "[data-tour='dashboard-create-actions']",
-      title: simpleMode ? t("dashboard.create_actions_title_simple") : t("dashboard.create_actions_title"),
-      content: simpleMode ? t("dashboard.create_actions_content_simple") : t("dashboard.create_actions_content"),
+      title: t("dashboard.create_actions_title"),
+      content: t("dashboard.create_actions_content"),
       placement: "bottom-end" as const,
     },
     {
       target: "[data-tour='dashboard-table']",
-      title: simpleMode ? t("dashboard.job_row_title_simple") : t("dashboard.job_row_title"),
-      content: simpleMode ? t("dashboard.job_row_content_simple") : t("dashboard.job_row_content"),
+      title: t("dashboard.job_row_title"),
+      content: t("dashboard.job_row_content"),
       placement: "top" as const,
     },
   ]
@@ -434,16 +428,6 @@ function writeUntaggedIssuesDismissal(token: string): void {
   }
 }
 
-export function LegacyEpicsBanner({ className = "" }: { className?: string }) {
-  const { t } = useT("dashboard")
-
-  return (
-    <Notice className={className} role="status" tone="info">
-      {t("legacy_epics_banner")}
-    </Notice>
-  )
-}
-
 export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }: { className?: string; prefix: string; untaggedIssues?: DashboardUntaggedIssues }) {
   const { t } = useT("dashboard")
   const [dismissedToken, setDismissedToken] = useState<string | null>(() => readUntaggedIssuesDismissal())
@@ -598,8 +582,8 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   const { t } = useT("dashboard")
   return (
     <div className="flex flex-wrap gap-2" data-tour="dashboard-create-actions">
-      <Link className={buttonClasses()} to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{payload.simple_mode ? t("new_feature") : t("new_epic")}</Link>
-      {payload.simple_mode ? null : <Link className={buttonClasses("success")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>}
+      <Link className={buttonClasses()} to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{t("new_epic")}</Link>
+      <Link className={buttonClasses("success")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>
     </div>
   )
 }
@@ -876,8 +860,6 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
 
   const columns = dashboardVisibleColumns(payload)
   const items = payload.items ?? []
-  if (payload.simple_mode && payload.subject === "epic") return <SimpleFeaturesTable items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} />
-  if (payload.simple_mode) return <SimpleJobsTable items={items.filter((item): item is DashboardJobItem => item.type === "job")} />
   if (payload.subject === "job") {
     return (
       <JobsDashboardTable

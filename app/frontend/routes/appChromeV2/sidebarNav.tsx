@@ -3,7 +3,6 @@ import type { SidebarPluginPage } from "../../api/sidebarPages"
 import { ActivityIcon, DashboardIcon, DatabaseIcon, DocumentIcon, MockupIcon, PluginIcon, RepositoryIcon, ScheduleIcon, ServerIcon, SpendingIcon, TeamIcon, TerminalIcon, TimelineIcon } from "./icons"
 
 export type SidebarNavContext = {
-  simpleMode: boolean
   featureFlags: Record<string, boolean>
   teamUserCount: number
 }
