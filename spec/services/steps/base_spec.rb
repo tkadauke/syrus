@@ -25,17 +25,45 @@ RSpec.describe Steps::Base, :ci_only do
       GitRunner::GitError.new([ "push" ], 1, output)
     end
 
-    # Each token in isolation. "non-fast-forward" is the one force_push and
-    # stack_force_push used to drop, so a bare non-ff was re-raised as a raw
-    # GitError instead of the intended StepFailed.
-    [ "non-fast-forward", "fetch first", "rejected", "stale info" ].each do |phrase|
-      it "classifies a #{phrase.inspect} rejection" do
-        expect(handler.send(:push_rejected?, git_error("error: failed to push: #{phrase}"))).to be(true)
+    # Each reason token in isolation, exactly as git renders it — in
+    # parentheses after "[rejected]". "non-fast-forward" is the one
+    # force_push and stack_force_push used to drop, so a bare non-ff was
+    # re-raised as a raw GitError instead of the intended StepFailed.
+    [ "non-fast-forward", "fetch first", "stale info", "needs force" ].each do |reason|
+      it "classifies a #{reason.inspect} rejection" do
+        expect(handler.send(:push_rejected?, git_error("! [rejected]        HEAD -> branch (#{reason})"))).to be(true)
       end
     end
 
     it "does not classify an unrelated git error as a push rejection" do
       expect(handler.send(:push_rejected?, git_error("fatal: unable to access remote"))).to be(false)
+    end
+
+    # Regression: a transient GitHub 5xx surfaces as "[remote rejected]"
+    # (a server-side refusal, not a local non-fast-forward/lease check) and
+    # the old pattern's bare /rejected/i matched the generic "rejected" token
+    # in that line, misdiagnosing a transient outage as a real force-with-lease
+    # conflict and discarding completed rebase work instead of retrying.
+    it "does not classify a GitHub 5xx '[remote rejected]' failure as a push rejection" do
+      message = <<~OUTPUT
+        remote: Internal Server Error
+        To github.com:owner/repo.git
+         ! [remote rejected] syrus/direct-5004 -> syrus/direct-5004 (Internal Server Error)
+        error: failed to push some refs to 'github.com:owner/repo.git'
+      OUTPUT
+
+      expect(handler.send(:push_rejected?, git_error(message))).to be(false)
+    end
+
+    it "still classifies a genuine local rejection even when 'remote rejected' also appears elsewhere in the output" do
+      message = <<~OUTPUT
+        remote: Internal Server Error
+         ! [remote rejected] other-branch -> other-branch (Internal Server Error)
+         ! [rejected]        HEAD -> branch (non-fast-forward)
+        error: failed to push some refs to 'github.com:owner/repo.git'
+      OUTPUT
+
+      expect(handler.send(:push_rejected?, git_error(message))).to be(true)
     end
   end
 
