@@ -791,4 +791,71 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect(parse_body.dig("options", "locales")).to eq(%w[en de la])
   end
+
+  describe "POST /connect_onboarding_provider" do
+    it "401s with a JSON error when signed out" do
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "muse" }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(parse_body.dig("error", "code")).to eq("unauthorized")
+    end
+
+    it "enables exactly the plugin backing the connected provider, leaving other agent-provider plugins untouched" do
+      PluginRecord.find_by!(name: "muse_agent").update!(enabled: false)
+      claude_agent = PluginRecord.find_by!(name: "claude_agent")
+      claude_agent.update!(enabled: true)
+      sign_in_as(user)
+
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "muse" }
+
+      expect(response).to have_http_status(:ok)
+      expect(PluginRecord.find_by!(name: "muse_agent").enabled).to be(true)
+      expect(claude_agent.reload.enabled).to be(true)
+      expect(parse_body["message"]).to include("enabled")
+    end
+
+    it "is idempotent when the plugin is already enabled" do
+      PluginRecord.find_by!(name: "muse_agent").update!(enabled: true)
+      sign_in_as(user)
+
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "muse" }
+
+      expect(response).to have_http_status(:ok)
+      expect(PluginRecord.find_by!(name: "muse_agent").enabled).to be(true)
+    end
+
+    it "rejects a provider with no matching agent-provider plugin, enabling nothing" do
+      PluginRecord.find_by!(name: "muse_agent").update!(enabled: false)
+      sign_in_as(user)
+
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "does-not-exist" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("unknown_provider")
+      expect(PluginRecord.find_by!(name: "muse_agent").enabled).to be(false)
+    end
+
+    it "never flips an arbitrary plugin by client-supplied name outside the agent_provider mapping" do
+      video_walkthroughs = PluginRecord.find_or_create_by!(name: "video_walkthroughs")
+      video_walkthroughs.update!(enabled: false)
+      sign_in_as(user)
+
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "video_walkthroughs" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("unknown_provider")
+      expect(video_walkthroughs.reload.enabled).to be(false)
+    end
+
+    it "rejects the request once the operator has finished onboarding, enabling nothing" do
+      PluginRecord.find_by!(name: "muse_agent").update!(enabled: false)
+      Factories.epic(user: user, done_at: Time.current)
+      sign_in_as(user)
+
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "muse" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(PluginRecord.find_by!(name: "muse_agent").enabled).to be(false)
+    end
+  end
 end
