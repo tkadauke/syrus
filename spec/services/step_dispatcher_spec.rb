@@ -1568,6 +1568,47 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(auto_merge.reload.position).to eq(6)
     end
 
+    it "skips the repair step and regrades directly when grader_collect only saw transient/infrastructure grader failures" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps Workflows::RetryUntil.new(
+                max_iterations: 2,
+                repair_first: false,
+                repair: [ :landing_fix ],
+                check: [ :grader_fanout, :grader_collect ]
+              ),
+              :push,
+              :auto_merge
+
+        def self.trigger_kind = "auto_merge"
+      end
+      retry_workflow = workflow_class.instantiate(job: job)
+      grader_fanout, grader_collect, push, auto_merge = retry_workflow.steps.order(:position)
+      grader_collect.update!(
+        details: grader_collect.details.to_h.merge(
+          Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true
+        )
+      )
+
+      expect {
+        described_class.fail_from(grader_collect)
+      }.to change { Run.count }.by(1)
+
+      loop_id = grader_fanout.loop_id
+      expect(retry_workflow.steps.order(:position).pluck(:kind, :position, :iteration, :loop_id)).to eq([
+        [ "grader_fanout", 0, 1, loop_id ],
+        [ "grader_collect", 1, 1, loop_id ],
+        [ "grader_fanout", 2, 2, loop_id ],
+        [ "grader_collect", 3, 2, loop_id ],
+        [ "push", 4, 1, nil ],
+        [ "auto_merge", 5, 1, nil ]
+      ])
+      expect(retry_workflow.steps.find_by(kind: "landing_fix")).to be_nil
+      expect(grader_collect.reload.next_step).to eq(retry_workflow.steps.find_by!(kind: "grader_fanout", iteration: 2))
+      expect(retry_workflow.reload.artifact("transient_grader_repair_skips")).to contain_exactly(
+        include("iteration" => 1)
+      )
+    end
+
     it "applies placement metadata to dynamically inserted retry_until iterations when distributed workflows are enabled" do
       Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
       job.repository.update!(distributed_workflow_dag_enabled: true)
