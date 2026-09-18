@@ -30,7 +30,8 @@
     "create_comment": "Commentarium crea",
     "create_error": "Commentarium diff creari non potuit.",
     "discuss": "Disputa",
-    "discussing": "Incipitur..."
+    "discussing": "Incipitur...",
+    "discuss_error": "Disputatio incipi non potuit."
   },
   "onboarding": {
     "loading": "Status constitutionis oneratur...",

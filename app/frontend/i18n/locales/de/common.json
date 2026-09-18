@@ -30,7 +30,8 @@
     "create_comment": "Kommentar erstellen",
     "create_error": "Diff-Kommentar konnte nicht erstellt werden.",
     "discuss": "Diskutieren",
-    "discussing": "Wird gestartet..."
+    "discussing": "Wird gestartet...",
+    "discuss_error": "Diskussion konnte nicht gestartet werden."
   },
   "onboarding": {
     "loading": "Setup-Status wird geladen...",
