@@ -411,8 +411,10 @@ module WorkEngine
           classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS : AutoRetryAttempt::MAX_ATTEMPTS
         end
 
+        DELAYED_RETRY_DEDUP_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
+
         def delayed_retry_already_scheduled?(workflow:, source_run:, classification:, retry_kind:, scheduled_at:)
-          return false unless classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
+          return false unless classification.in?(DELAYED_RETRY_DEDUP_CLASSIFICATIONS)
           return false unless scheduled_at&.future?
 
           scope = workflow.auto_retry_attempts

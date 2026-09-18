@@ -165,6 +165,15 @@ narrow high-cost grader guard.
 - Non-critical hosts with no existing guarded Run admit the pickup normally.
   Missing host telemetry is reported as `unknown`; it is not treated as either
   healthy or critical by this host-local guard.
+- `visual_diff` Steps get a narrower guard than the general agentic one once
+  the selected host is already at warning pressure or worse: at most
+  `RunHostAdmission::VISUAL_DIFF_PREVIEW_RUNS_PER_HOST` (currently `1`)
+  concurrent `visual_diff` Runs are admitted per host, regardless of how much
+  general agentic headroom (`GUARDED_RUNS_PER_HOST`) remains. A `visual_diff`
+  Run drives a headless-browser preview on top of the agent turn itself, so
+  colocating a second one on an already-loaded host is the kind of IO burst
+  that produced critical pressure in past incidents. On a healthy host this
+  guard does not apply and the plain agentic cap governs instead.
 
 This is intentionally a pickup-time deferral, not a failure. The Run remains
 `queued`; the Workflow and Step are not transitioned to `running`, no repair
@@ -189,6 +198,13 @@ payload with reason `failed_worker_host_still_critical`, then re-enqueues the
 same `AutoRetryAttempt`. This prevents repeated landing-fix or grader
 replacements from being immediately admitted back onto a host that is still
 critically pressured.
+
+Scheduling a `worker_died` retry is idempotent per failed Run: once any
+unskipped `AutoRetryAttempt` exists for a given `(run, retry_kind)` pair, no
+further attempt is scheduled for it, even after the first is marked performed.
+See `work_engine_reconciler.md` for why more than one issue classifier can
+otherwise propose the same repair for one Run and how that used to slip a
+duplicate attempt past the "retry already pending" guard.
 
 ## Retry-from-failed-step storage affinity
 
