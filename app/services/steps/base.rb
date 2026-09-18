@@ -116,7 +116,17 @@ module Steps
     # break. One source of truth so the normal-push / force-push / stack-push
     # handlers can't drift their patterns (they had: force_push and
     # stack_force_push silently dropped the "non-fast-forward" token).
-    PUSH_REJECTED_PATTERN = /non-fast-forward|fetch first|rejected|stale info/i
+    #
+    # Deliberately does NOT match the bare word "rejected": git's own
+    # "[remote rejected] ... (<reason>)" line for a *server-side* refusal
+    # (a transient 5xx, a pre-receive hook, etc.) also contains "rejected",
+    # and a generic /rejected/i match misdiagnosed a transient GitHub 500
+    # ("[remote rejected] ... (Internal Server Error)") as a force-with-lease
+    # conflict, discarding completed stack-rebase work instead of retrying.
+    # Match only git's own specific reason tokens for a genuine non-fast-
+    # forward / lease conflict, which always appear in parentheses after
+    # "[rejected]" and never appear in a server-side failure message.
+    PUSH_REJECTED_PATTERN = /\((?:non-fast-forward|fetch first|stale info|needs force)\)/i
 
     def push_rejected?(error)
       error.output.to_s.match?(PUSH_REJECTED_PATTERN)
