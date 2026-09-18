@@ -31,4 +31,12 @@ describe("CopyableSlug", () => {
     fireEvent.click(button)
     await waitFor(() => expect(button).toHaveAttribute("title", "Copied"))
   })
+
+  it("constrains a long slug so it can never overflow horizontally", () => {
+    const slug = "removesupervisorchatwidenwakeupstojobsuccesseventsverylongslugwithnohyphens"
+    render(<CopyableSlug slug={slug} />)
+    const button = screen.getByRole("button", { name: `Copy ${slug} to clipboard` })
+    expect(button).toHaveClass("max-w-full", "min-w-0")
+    expect(screen.getByText(slug)).toHaveClass("break-all", "min-w-0")
+  })
 })
