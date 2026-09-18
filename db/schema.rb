@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_023150) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_032201) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1098,13 +1098,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_023150) do
     t.integer "depends_on_job_id"
     t.boolean "derived", default: false, null: false
     t.integer "epic_id", null: false
+    t.bigint "unresolved_chat_proposal_id"
     t.datetime "updated_at", null: false
     t.index ["depends_on_epic_id"], name: "index_epic_dependencies_on_depends_on_epic_id"
     t.index ["depends_on_job_id"], name: "index_epic_dependencies_on_depends_on_job_id"
     t.index ["epic_id", "depends_on_epic_id", "derived"], name: "index_epic_deps_on_epic_and_depends_on_and_derived", unique: true
     t.index ["epic_id", "depends_on_epic_id", "id"], name: "idx_epic_dependencies_epic_epic_id"
     t.index ["epic_id", "depends_on_job_id", "id"], name: "idx_epic_dependencies_epic_job_id"
+    t.index ["epic_id", "unresolved_chat_proposal_id"], name: "index_epic_deps_on_epic_and_unresolved_proposal", unique: true, where: "depends_on_epic_id IS NULL AND depends_on_job_id IS NULL AND unresolved_chat_proposal_id IS NOT NULL"
     t.index ["epic_id"], name: "index_epic_dependencies_on_epic_id"
+    t.index ["unresolved_chat_proposal_id"], name: "index_epic_dependencies_on_unresolved_chat_proposal_id"
   end
 
   create_table "epic_versions", force: :cascade do |t|
