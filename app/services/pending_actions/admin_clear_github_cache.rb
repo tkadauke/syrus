@@ -11,5 +11,9 @@ module PendingActions
     def execution_label
       "Clearing GitHub cache..."
     end
+
+    def presentation_label
+      "Clear GitHub API cache"
+    end
   end
 end

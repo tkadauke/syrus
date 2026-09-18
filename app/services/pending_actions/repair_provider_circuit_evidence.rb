@@ -28,6 +28,14 @@ module PendingActions
       "#{payload["evidence_type"]}: #{payload["evidence_id"]}, status: #{payload["repair_status"]}"
     end
 
+    def presentation_label
+      "Repair #{payload["evidence_type"]} evidence ##{payload["evidence_id"]}"
+    end
+
+    def presentation_detail
+      "Repair status: #{payload["repair_status"]}"
+    end
+
     def repair_action? = true
   end
 end

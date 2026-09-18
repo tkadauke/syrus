@@ -11,5 +11,9 @@ module PendingActions
     def execution_label
       "Requesting stale-run reaper..."
     end
+
+    def presentation_label
+      "Force-reap stale runs"
+    end
   end
 end

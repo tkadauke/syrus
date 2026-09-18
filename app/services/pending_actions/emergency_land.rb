@@ -5,6 +5,8 @@ module PendingActions
   class EmergencyLand < Base
     action_key "emergency_land"
 
+    PRESENTATION_SKIPS_NOTICE = "Skips Syrus graders, adversarial review, and visual review; merges the PR directly through GitHub after confirmation. GitHub branch protection still applies.".freeze
+
     def execute
       job = target_job
       normalized_branch = GitBranchName.normalize(payload["branch_name"])
@@ -43,6 +45,17 @@ module PendingActions
     def action_detail
       branch = GitBranchName.normalize(payload["branch_name"])
       [ "job_id: #{payload["job_id"]}", branch.present? ? "branch_name: #{branch}" : nil ].compact.join(", ")
+    end
+
+    def presentation_label
+      "Emergency land #{presentation_job_slug}"
+    end
+
+    def presentation_detail
+      [
+        payload["branch_name"].presence&.then { |branch| "Branch: #{branch}" },
+        PRESENTATION_SKIPS_NOTICE
+      ].compact.join("\n")
     end
 
     private

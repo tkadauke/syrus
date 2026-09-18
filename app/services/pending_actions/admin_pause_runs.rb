@@ -10,5 +10,9 @@ module PendingActions
     def execution_label
       "Pausing run dispatch..."
     end
+
+    def presentation_label
+      "Pause runs"
+    end
   end
 end

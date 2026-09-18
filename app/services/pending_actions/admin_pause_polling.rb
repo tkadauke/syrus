@@ -10,5 +10,9 @@ module PendingActions
     def execution_label
       "Pausing polling..."
     end
+
+    def presentation_label
+      "Pause repository polling"
+    end
   end
 end

@@ -53,6 +53,22 @@ module PendingActions
       []
     end
 
+    # Chat-card presentation for this pending action, called by
+    # App::Presentation.pending_action_label/.pending_action_detail. Pure
+    # formatting from payload/action_key/existing helpers only -- no
+    # resource-link lookups or authorization-sensitive DB fetches here, so
+    # rendering a pending-action card never has execution side effects or
+    # permission requirements. Conservative default matches the pre-registry
+    # fallback behavior; override in a subclass (or a shared module/superclass
+    # for a repeated shape) to give the action its own label/detail.
+    def presentation_label
+      payload["label"].presence || self.class.action_key.to_s.humanize
+    end
+
+    def presentation_detail
+      nil
+    end
+
     private
 
     attr_reader :action
@@ -127,6 +143,10 @@ module PendingActions
 
     def progress!(message)
       @action.update_confirmation_progress!("running", message)
+    end
+
+    def presentation_job_slug(id = payload["job_id"])
+      App::Presentation.job_slug(id)
     end
   end
 end

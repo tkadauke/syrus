@@ -20,5 +20,9 @@ module PendingActions
     def action_detail
       "process_id: #{payload["process_id"]}"
     end
+
+    def presentation_label
+      "Kill process ##{payload["process_id"]}"
+    end
   end
 end

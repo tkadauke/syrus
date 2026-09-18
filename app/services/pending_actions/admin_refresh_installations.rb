@@ -11,5 +11,9 @@ module PendingActions
     def execution_label
       "Refreshing GitHub installations..."
     end
+
+    def presentation_label
+      "Refresh GitHub App installations"
+    end
   end
 end

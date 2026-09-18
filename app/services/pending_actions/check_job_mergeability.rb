@@ -26,5 +26,9 @@ module PendingActions
     def action_detail
       "job_id: #{payload["job_id"]}"
     end
+
+    def presentation_label
+      "Check mergeability for #{presentation_job_slug}"
+    end
   end
 end

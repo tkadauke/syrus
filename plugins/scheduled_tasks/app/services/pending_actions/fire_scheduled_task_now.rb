@@ -22,5 +22,9 @@ module PendingActions
     def action_detail
       "scheduled_task_id: #{payload["scheduled_task_id"]}"
     end
+
+    def presentation_label
+      "Fire scheduled task ##{payload["scheduled_task_id"]}"
+    end
   end
 end
