@@ -7,7 +7,7 @@ module PendingActions
 
     def execute
       job = target_job
-      normalized_branch = normalize_branch_name(payload["branch_name"])
+      normalized_branch = GitBranchName.normalize(payload["branch_name"])
 
       job.with_lock do
         raise ArgumentError, "Emergency land is not enabled on this instance" unless Feature.emergency_land_enabled?
@@ -17,7 +17,7 @@ module PendingActions
         raise ArgumentError, "chat_session_id does not match this chat session" if payload["chat_session_id"].present? && payload["chat_session_id"].to_i != chat_session.id
         raise ArgumentError, "Emergency land requires repository admin permissions" unless ::EmergencyLand::Permission.granted?(user: user, repository: job.repository)
         raise ArgumentError, "branch_name is required because this Job does not have a pushed branch recorded" if normalized_branch.blank? && job.branch_name.blank?
-        raise ArgumentError, "branch_name is not a valid branch name" if normalized_branch.present? && !valid_branch_name?(normalized_branch)
+        raise ArgumentError, "branch_name is not a valid branch name" if normalized_branch.present? && !GitBranchName.valid?(normalized_branch)
 
         job.update!(branch_name: normalized_branch) if normalized_branch.present? && job.branch_name != normalized_branch
 
@@ -36,12 +36,12 @@ module PendingActions
 
     def validate_payload(errors)
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
-      branch_name = normalize_branch_name(payload["branch_name"])
-      errors.add(:payload, "branch_name is not a valid branch name") if branch_name.present? && !valid_branch_name?(branch_name)
+      branch_name = GitBranchName.normalize(payload["branch_name"])
+      errors.add(:payload, "branch_name is not a valid branch name") if branch_name.present? && !GitBranchName.valid?(branch_name)
     end
 
     def action_detail
-      branch = normalize_branch_name(payload["branch_name"])
+      branch = GitBranchName.normalize(payload["branch_name"])
       [ "job_id: #{payload["job_id"]}", branch.present? ? "branch_name: #{branch}" : nil ].compact.join(", ")
     end
 
@@ -49,19 +49,6 @@ module PendingActions
 
     def target_job
       Job.find(payload.fetch("job_id"))
-    end
-
-    def normalize_branch_name(branch_name)
-      branch_name.to_s.strip.presence
-    end
-
-    def valid_branch_name?(branch_name)
-      return false if branch_name.start_with?("/", "-") || branch_name.end_with?("/", ".")
-      return false if branch_name.include?("//") || branch_name.include?("..")
-      return false if branch_name.end_with?(".lock")
-      return false if branch_name.split("/").any? { |part| part.blank? || part.start_with?(".") }
-
-      !branch_name.match?(/[[:space:]~^:?*\[\\]/)
     end
   end
 end
