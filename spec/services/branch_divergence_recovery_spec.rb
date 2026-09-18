@@ -331,5 +331,21 @@ RSpec.describe BranchDivergenceRecovery do
       expect(retry_workflow.reload).to be_cancelled
       expect(retry_workflow.artifact("retry_cancelled_reason")).to eq("branch_divergence_recovered")
     end
+
+    # RetryWorkflowEnqueuer tries RunCheckpointResume first (which covers a
+    # failed pr_open step -- exactly this scenario) and only falls back to a
+    # plain "retry" Workflow when no safe checkpoint resume is available, so
+    # the queued Workflow this needs to catch may carry either WorkUnit kind.
+    it "cancels a queued checkpoint_resume Workflow spawned for the same Job" do
+      allow(VisualDiffSubmission).to receive(:enqueue_deferred_for_job)
+      checkpoint_resume_workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: "claude", state: "queued")
+      attach_work_unit(checkpoint_resume_workflow, member_jobs: [ job ], kind: "checkpoint_resume", state: "queued")
+
+      result = described_class.discard!(workflow: workflow, user: user)
+
+      expect(result).to be_success
+      expect(checkpoint_resume_workflow.reload).to be_cancelled
+      expect(checkpoint_resume_workflow.artifact("retry_cancelled_reason")).to eq("branch_divergence_recovered")
+    end
   end
 end
