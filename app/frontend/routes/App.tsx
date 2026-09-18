@@ -462,44 +462,12 @@ function publicCta(publicState: BootstrapPayload["public"], prefix: string, invi
 
 function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
   return appRouteDefinitions.flatMap(({ path, element }) => [
-    <Route element={<RouteErrorBoundary key={path}>{simpleModeRouteElement(path, element, initialBootstrap)}</RouteErrorBoundary>} key={path} path={path} />,
-    <Route element={<RouteErrorBoundary key={`/app-shell${path}`}>{simpleModeRouteElement(path, element, initialBootstrap)}</RouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
+    <Route element={<RouteErrorBoundary key={path}>{element}</RouteErrorBoundary>} key={path} path={path} />,
+    <Route element={<RouteErrorBoundary key={`/app-shell${path}`}>{element}</RouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
   ]).concat([
     <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
     <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
   ])
-}
-
-const SIMPLE_MODE_HIDDEN_PATHS = [
-  "/dashboard/workflows",
-  "/jobs",
-  "/jobs/new",
-  "/jobs/:id",
-  "/jobs/:id/source",
-  "/repositories/:repositoryId/skills/new"
-]
-
-function simpleModeRouteElement(path: string, element: ReactNode, initialBootstrap: BootstrapPayload | null) {
-  if (!SIMPLE_MODE_HIDDEN_PATHS.includes(path)) return element
-
-  return <SimpleModeRedirect initialBootstrap={initialBootstrap}>{element}</SimpleModeRedirect>
-}
-
-function SimpleModeRedirect({ children, initialBootstrap }: { children: ReactNode; initialBootstrap: BootstrapPayload | null }) {
-  const location = useLocation()
-  const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
-  const bootstrap = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: fetchBootstrap,
-    initialData: initialBootstrap ?? undefined,
-    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
-  })
-
-  if ((bootstrap.data ?? initialBootstrap)?.app?.mode === "simple") {
-    return <Navigate replace to={`${prefix}/dashboard/jobs`} />
-  }
-
-  return children
 }
 
 // /setup is retired — it now just lands the operator on the onboarding page.
@@ -563,12 +531,6 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
-  const bootstrap = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: fetchBootstrap,
-    staleTime: Number.POSITIVE_INFINITY
-  })
-  const simpleMode = bootstrap.data?.app?.mode === "simple"
   // Plugins can own a settings page (agent memory, say); they declare
   // section "settings" on their sidebar_page metadata.
   const pluginPages = useQuery({
@@ -589,7 +551,7 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
     <div className="flex min-h-full flex-col bg-gray-50 dark:bg-gray-900 lg:flex-row">
       <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:w-56 lg:border-b-0 lg:border-r">
         <nav aria-label={tCommon("shell.settings_nav_aria")} className="scroll-fade-x flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4 lg:[mask-image:none] lg:[-webkit-mask-image:none]">
-          {settingsNavigationItems(t, simpleMode, pluginSettingsItems).map((item) => (
+          {settingsNavigationItems(t, pluginSettingsItems).map((item) => (
             <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
               {item.label}
             </Link>
@@ -607,7 +569,6 @@ type SettingsNavigationItem = { key: string; label: string; path: string; active
 
 function settingsNavigationItems(
   t: (key: string) => string,
-  simpleMode = false,
   pluginItems: SettingsNavigationItem[] = []
 ): SettingsNavigationItem[] {
   const items: SettingsNavigationItem[] = [
@@ -623,8 +584,7 @@ function settingsNavigationItems(
     { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms" }
   ]
 
-  const withPlugins = [ ...items, ...pluginItems ]
-  return simpleMode ? withPlugins.filter((item) => item.key !== "templates") : withPlugins
+  return [ ...items, ...pluginItems ]
 }
 
 function normalizedAppPath(pathname: string) {

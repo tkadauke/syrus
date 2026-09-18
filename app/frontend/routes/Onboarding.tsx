@@ -1,11 +1,10 @@
 import { withRoutePrefix } from "../lib/routing"
 import { PageHeading } from "../components/Heading"
 import { useState } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { BootstrapPayload } from "../api/bootstrap"
 import { startOnboardingChat } from "../api/chats"
-import { updateAdminSettings } from "../api/adminSettings"
 import { GithubTokenModal } from "../components/GithubTokenModal"
 import { ConfigureAgentModal } from "../components/ConfigureAgentModal"
 import { AddRepositoryModal } from "../components/AddRepositoryModal"
@@ -24,7 +23,7 @@ type ChecklistStep = {
   // When set, the CTA opens an in-page flow instead of navigating away.
   ctaModal?: "github_token" | "configure_agent" | "add_repository"
   // When set, the CTA runs an action (and may navigate away) instead of linking.
-  ctaAction?: "start_chat" | "choose_mode"
+  ctaAction?: "start_chat"
   // Once the step is complete, prefer linking here over reopening ctaModal
   // (e.g. a management page rather than an "add new" form).
   editPath?: string
@@ -69,16 +68,10 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
     }
   }
 
-  const chooseMode = useMutation({
-    mutationFn: (selectedMode: "advanced" | "simple") =>
-      updateAdminSettings({ mode: selectedMode }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
-  })
-
-  const steps = checklistSteps(setup, user, bootstrap?.app.mode_configured ?? false)
+  const steps = checklistSteps(setup, user)
   const activeStep = steps.find((step) => !step.complete)
   const complete = !activeStep
-  const dashboardPath = bootstrap?.app.mode === "simple" ? "/dashboard/jobs" : "/dashboard/jobs?view=list"
+  const dashboardPath = "/dashboard/jobs?view=list"
 
   return (
     <main aria-label={t("onboarding_aria")} className="mx-auto max-w-5xl space-y-6 p-6">
@@ -107,26 +100,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                   {step.complete ? (
                     <span className="rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300">{t('onboarding.complete_badge')}</span>
                   ) : null}
-                  {step.ctaAction === "choose_mode" ? (
-                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-                      <button
-                        className={`${primaryCtaClass(step.complete ? bootstrap?.app.mode === "advanced" : current)} sm:min-w-44`}
-                        disabled={chooseMode.isPending}
-                        onClick={() => chooseMode.mutate("advanced")}
-                        type="button"
-                      >
-                        Yes, I write code
-                      </button>
-                      <button
-                        className={`${primaryCtaClass(step.complete ? bootstrap?.app.mode === "simple" : false)} sm:min-w-44`}
-                        disabled={chooseMode.isPending}
-                        onClick={() => chooseMode.mutate("simple")}
-                        type="button"
-                      >
-                        No, build things for me
-                      </button>
-                    </div>
-                  ) : step.complete && step.editPath ? (
+                  {step.complete && step.editPath ? (
                     <Link className={secondaryCtaClass()} to={withRoutePrefix(step.editPath, prefix)}>
                       {step.editLabel ?? t('onboarding.edit_label')}
                     </Link>
@@ -171,7 +145,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   )
 }
 
-function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["current_user"]>, modeConfigured: boolean): ChecklistStep[] {
+function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["current_user"]>): ChecklistStep[] {
   return [
     {
       key: "account",
@@ -180,17 +154,6 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       complete: user.admin,
       ctaLabel: "Open account settings",
       ctaPath: "/profile"
-    },
-    {
-      key: "mode",
-      title: "How do you work?",
-      detail: modeConfigured
-        ? "Instance mode is configured."
-        : "Tell Syrus how to tailor the experience. Choose based on whether you'll be writing code yourself.",
-      complete: modeConfigured,
-      ctaLabel: "",
-      ctaPath: "",
-      ctaAction: "choose_mode"
     },
     {
       key: "github",

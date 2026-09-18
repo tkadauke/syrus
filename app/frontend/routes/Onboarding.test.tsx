@@ -8,9 +8,9 @@ import { OnboardingRoute } from "./Onboarding"
 
 // Completed onboarding steps used to collapse to a bare "Complete" badge
 // with no way back into the setting they configured (GitHub token, agent
-// credentials, repositories, instance mode, account). These specs guard
-// that every completed step still exposes an actionable control alongside
-// the badge, per the "let the user change/edit them after the fact" bug.
+// credentials, repositories, account). These specs guard that every
+// completed step still exposes an actionable control alongside the badge,
+// per the "let the user change/edit them after the fact" bug.
 function bootstrap(overrides: Partial<BootstrapPayload> = {}): BootstrapPayload {
   return {
     current_user: {
@@ -38,9 +38,7 @@ function bootstrap(overrides: Partial<BootstrapPayload> = {}): BootstrapPayload 
       version: null,
       built_at: null,
       bug_report_mode: null,
-      report_issue_repo_slug: "tkadauke/syrus",
-      mode: "advanced",
-      mode_configured: true
+      report_issue_repo_slug: "tkadauke/syrus"
     },
     setup_status: {
       state: "first_successful_job",
@@ -108,12 +106,9 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     renderOnboarding(bootstrap())
 
     const badges = screen.getAllByText("Complete")
-    expect(badges).toHaveLength(7)
+    expect(badges).toHaveLength(6)
 
     expect(screen.getByRole("link", { name: "Open account settings" })).toHaveAttribute("href", "/profile")
-
-    expect(screen.getByRole("button", { name: "Yes, I write code" })).toBeEnabled()
-    expect(screen.getByRole("button", { name: "No, build things for me" })).toBeEnabled()
 
     expect(screen.getByRole("button", { name: "Edit GitHub connection" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Edit agent settings" })).toBeInTheDocument()
