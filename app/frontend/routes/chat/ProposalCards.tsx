@@ -933,6 +933,7 @@ export function PendingActionCard({
   onNotice: (message: string | null) => void
   onSelectMessage?: (messageId: number) => void
 }) {
+  const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const action = useMutation({
@@ -1041,7 +1042,7 @@ export function PendingActionCard({
             ) : null}
             {isEmergencyLand && !terminalLabel ? (
               <p className="mt-2 break-words text-sm font-semibold text-warning-text">
-                This skips Syrus graders, adversarial review, and visual review, then merges the PR directly through GitHub.
+                {t("pending_action_emergency_land_warning")}
               </p>
             ) : null}
             {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
