@@ -50,7 +50,8 @@
       "submit": "Colloquium aperire",
       "starting": "Colloquium incipitur...",
       "create_job": "Opus creare",
-      "creating_job": "Opus creatur..."
+      "creating_job": "Opus creatur...",
+      "create_job_requires_prompt": "Describe quid fieri velis antequam opus creatur."
     }
   },
   "performance": {
