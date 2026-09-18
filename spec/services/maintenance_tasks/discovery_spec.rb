@@ -77,6 +77,76 @@ RSpec.describe MaintenanceTasks::Discovery do
     expect(task.events.last.message).to eq("5 rows need backfill.")
   end
 
+  it "recovers when a racing discovery call already revived the task before our create (RecordInvalid)" do
+    task = MaintenanceTask.create!(
+      definition_key: "stub_backfill",
+      task_key: "detector:stub_backfill",
+      state: "succeeded",
+      recurrence: "one_off",
+      category: "backfill",
+      title: "Stub backfill",
+      summary: "A stub backfill for discovery specs.",
+      trigger_kind: "detector",
+      trigger_key: "stub_backfill",
+      required_role: "admin",
+      total_units: 5,
+      completed_units: 5,
+      finished_at: 1.hour.ago,
+      checkpoint: { "done" => true }
+    )
+
+    discovery = described_class.new
+    # Simulate the race: our snapshot of "no task yet" is stale by the time we insert,
+    # so MaintenanceTask.create! hits the task_key uniqueness *validation* (RecordInvalid),
+    # not just the DB's unique index (RecordNotUnique).
+    allow(discovery).to receive(:existing_task_for).and_return(nil)
+
+    expect { discovery.call }.not_to raise_error
+    expect { discovery.call }.not_to change(MaintenanceTask, :count)
+
+    expect(task.reload).to have_attributes(state: "pending", completed_units: 0, finished_at: nil)
+    expect(task.events.last.message).to eq("5 rows need backfill.")
+  end
+
+  it "recovers when create! races past validation and hits the DB unique index (RecordNotUnique)" do
+    MaintenanceTask.create!(
+      definition_key: "stub_backfill",
+      task_key: "detector:stub_backfill",
+      state: "pending",
+      recurrence: "one_off",
+      category: "backfill",
+      title: "Stub backfill",
+      summary: "A stub backfill for discovery specs.",
+      trigger_kind: "detector",
+      trigger_key: "stub_backfill",
+      required_role: "admin",
+      total_units: 5
+    )
+
+    discovery = described_class.new
+    allow(discovery).to receive(:existing_task_for).and_return(nil)
+    allow(MaintenanceTask).to receive(:create!).and_raise(
+      ActiveRecord::RecordNotUnique.new("Duplicate entry for task_key")
+    )
+
+    expect { discovery.call }.not_to raise_error
+    expect { discovery.call }.not_to change(MaintenanceTask, :count)
+  end
+
+  it "re-raises validation errors unrelated to a duplicate task_key" do
+    task = MaintenanceTask.new(definition_key: "stub_backfill", task_key: "detector:stub_backfill")
+    task.valid?
+    task.errors.clear
+    task.errors.add(:title, :blank)
+    invalid_error = ActiveRecord::RecordInvalid.new(task)
+
+    discovery = described_class.new
+    allow(discovery).to receive(:existing_task_for).and_return(nil)
+    allow(MaintenanceTask).to receive(:create!).and_raise(invalid_error)
+
+    expect { discovery.call }.to raise_error(ActiveRecord::RecordInvalid)
+  end
+
   it "marks inactive pending tasks not needed when the definition no longer has work" do
     task = MaintenanceTask.create!(
       definition_key: "stub_backfill",
