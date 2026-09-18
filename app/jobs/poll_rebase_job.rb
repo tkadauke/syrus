@@ -73,6 +73,7 @@ class PollRebaseJob < ApplicationJob
       return if pr.mergeable                # mergeable; nothing to do
 
       return unless we_control_head?(pr)    # head from a fork → can't push
+      return if job_closed?
       return if start_blocked?
       return if noop_rebase_already_covers?(pr)
       return if pending_rebase?
@@ -104,6 +105,17 @@ class PollRebaseJob < ApplicationJob
 
   def pending_rebase?
     RebaseWorkflowSelector.active_for_stack?(@job)
+  end
+
+  # A closed Job (e.g. a manual "check now" against a preempted external-PR
+  # tracker whose PR is still open) must never dispatch a rebase Workflow.
+  # `Workflow#job_must_be_open_on_create` rejects a Workflow for a closed
+  # Job outright (`ActiveRecord::RecordInvalid`); this exits before that.
+  def job_closed?
+    return false unless @job.closed?
+
+    Rails.logger.info("[PollRebaseJob] #{@job.slug} is closed (#{@job.closure_reason}); skipping rebase dispatch")
+    true
   end
 
   def noop_rebase_already_covers?(pr)
