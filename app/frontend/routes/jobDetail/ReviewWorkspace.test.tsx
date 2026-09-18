@@ -1074,7 +1074,9 @@ describe("ReviewWorkspace", () => {
 
   it("starts a discussion chat from a review comment with revision and line context", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
-    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment()]))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([
+      comment({ head_ref: "syrus/issue-42", diff_review_version: version({ head_sha: "immutable-head-sha" }) })
+    ]))
     vi.mocked(startJobDiscussionChat).mockReturnValue(new Promise(() => {}))
 
     renderWorkspace()
@@ -1085,7 +1087,7 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => {
       expect(startJobDiscussionChat).toHaveBeenCalledWith(42, [
         "Discuss this code review comment.",
-        "Revision: head-sha",
+        "Revision: immutable-head-sha",
         "Location: app/models/user.rb:2",
         "",
         "Comment:",
