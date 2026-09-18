@@ -113,6 +113,49 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(first_step.runs.last.agent_provider).to eq("claude")
     end
 
+    it "does not persist a first-step adversarial_review provider override onto the workflow default" do
+      allow(AgentProviders.for("claude")).to receive(:available_models).and_return([])
+      allow(AgentProviders.for("codex")).to receive(:available_models).and_return([])
+      handoff_job = Factories.job_record(
+        user: job.user,
+        repository: job.repository,
+        state: "queued",
+        agent_provider: "claude",
+        job_provider_setting: "default"
+      )
+      handoff_workflow = Workflow.create!(
+        job: handoff_job,
+        trigger_kind: "coding_handoff",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "default" }
+      )
+      review_step = Step.create!(workflow: handoff_workflow, kind: "adversarial_review", position: 0)
+      repair_step = Step.create!(workflow: handoff_workflow, kind: "coding_handoff_fix", position: 1)
+      review_step.update!(next_step_id: repair_step.id)
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: handoff_job.repository_id,
+        task_key: "coding_handoff",
+        candidates: [ { "provider" => "claude", "model" => "workflow-model", "effort_level" => "medium" } ]
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: handoff_job.repository_id,
+        task_key: "adversarial_review",
+        candidates: [ { "provider" => "codex", "model" => "review-model", "effort_level" => "high" } ]
+      )
+
+      described_class.start_workflow(handoff_workflow)
+
+      run = review_step.runs.last
+      expect(run.agent_provider).to eq("codex")
+      expect(run.model).to eq("review-model")
+      expect(run.effort_level).to eq("high")
+      expect(handoff_workflow.reload.agent_provider).to eq("claude")
+      expect(handoff_workflow.model).to eq("workflow-model")
+      expect(handoff_workflow.effort_level).to eq("medium")
+    end
+
     it "freezes the workflow provider after the first agentic Run exists" do
       user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
       repository = Factories.repository(user: user)
