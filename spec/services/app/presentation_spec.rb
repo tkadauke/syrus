@@ -106,6 +106,36 @@ RSpec.describe App::Presentation do
 
       expect(described_class.pending_action_label(action)).to eq("Wake claude admission")
     end
+
+    it "labels and details a schedule_recurring action_type action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action_type: "schedule_recurring",
+        reason: "Operator asked for a nightly reminder.",
+        payload: { "label" => "Nightly rebuild", "cron_expression" => "0 2 * * *", "prompt" => "Rebuild caches." }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Nightly rebuild")
+      expect(described_class.pending_action_detail(action)).to eq("Nightly rebuild — 0 2 * * *\n\nRebuild caches.")
+    end
+  end
+
+  describe "App::Presentation::PendingActions coverage" do
+    it "registers a presenter for every action and action_type ChatPendingAction accepts" do
+      known_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES
+
+      unregistered = known_keys - App::Presentation::PendingActions::REGISTRY.keys
+
+      expect(unregistered).to be_empty
+    end
+
+    it "falls back to the payload label or humanized key for an action with no registered presenter" do
+      action = ChatPendingAction.new(action_type: "some_future_action", payload: { "label" => "Custom Label" })
+      expect(described_class.pending_action_label(action)).to eq("Custom Label")
+      expect(described_class.pending_action_detail(action)).to be_nil
+
+      unlabeled_action = ChatPendingAction.new(action_type: "some_future_action")
+      expect(described_class.pending_action_label(unlabeled_action)).to eq("Some future action")
+    end
   end
 
   describe ".agent_provider_label" do
