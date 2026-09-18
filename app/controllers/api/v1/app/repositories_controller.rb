@@ -352,7 +352,6 @@ module Api
 
             payload = {
               message: message,
-              simple_mode: AppSetting.simple?,
               repository: PerformanceLogging.phase("repository_detail.repository", repository_id: repository.id) { repository_detail_json(repository) },
               syrus_yml: PerformanceLogging.phase("repository_detail.syrus_yml", repository_id: repository.id) { syrus_yml_summary_json(repository) },
               tabs: PerformanceLogging.phase("repository_detail.tabs", repository_id: repository.id) { repository_tabs_json(repository) },

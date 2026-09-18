@@ -13,12 +13,6 @@ RSpec.describe Throughput::UiSlots do
     expect(described_class.ui_slots(slot: "job.detail", context: { repository: repository })).to eq([])
   end
 
-  it "stays hidden in simple mode" do
-    AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
-
-    expect(described_class.ui_slots(slot: "repository.detail", context: { repository: repository })).to eq([])
-  end
-
   it "is registered on the repository detail slot through the payload" do
     panels = App::UiSlotsPayload.panels_for(slot: "repository.detail", context: { repository: repository, user: repository.user })
 

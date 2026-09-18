@@ -73,14 +73,10 @@ class Feature < ApplicationRecord
   end
 
   def self.coding_mode_enabled?
-    return false if AppSetting.simple?
-
     enabled?(:coding_mode)
   end
 
   def self.local_mode_enabled?
-    return false if AppSetting.simple?
-
     enabled?(:local_mode)
   end
 

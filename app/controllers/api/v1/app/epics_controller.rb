@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       class EpicsController < BaseController
-        before_action :authorize_epic_action!, only: [ :update_state, :start, :approve_review, :submit_review_feedback ]
+        before_action :authorize_epic_action!, only: [ :update_state, :start ]
 
         def index
           epics = policy_scope(Epic).includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
@@ -220,26 +220,6 @@ module Api
           render json: detail_payload(epic.reload, message: I18n.t("api.epics.dependency_removed"))
         end
 
-        def approve_review
-          epic = find_epic
-          return render_error("review_not_ready", I18n.t("api.epics.review_not_ready"), status: :conflict) unless epic.review_ready?
-
-          epic.mark_user_approved!
-          render json: detail_payload(epic.reload, message: I18n.t("api.epics.review_approved"))
-        end
-
-        def submit_review_feedback
-          epic = find_epic
-          feedback = params[:feedback].to_s.strip
-          return render_error("validation_failed", I18n.t("api.epics.feedback_blank"), status: :unprocessable_content) if feedback.blank?
-          return render_error("review_not_ready", I18n.t("api.epics.review_not_ready"), status: :conflict) unless epic.review_ready?
-
-          epic.append_review_feedback_job!(feedback: feedback, actor: Current.user)
-          render json: detail_payload(epic.reload, message: I18n.t("api.epics.feedback_job_created"))
-        rescue ArgumentError => e
-          render_error("validation_failed", e.message, status: :unprocessable_content)
-        end
-
         private
 
         def filter_epics(scope)
@@ -316,7 +296,6 @@ module Api
 
           payload = {
             message: message,
-            simple_mode: AppSetting.simple?,
             merge_train_branch: active_train&.integration_branch,
             merge_train_status: PerformanceLogging.phase("epic_detail.merge_train_status", epic_id: epic.id) { ::App::MergeTrainStatus.for_epic(epic) },
             origin_chat: PerformanceLogging.phase("epic_detail.origin_chat", epic_id: epic.id) { epic_origin_chat_json(epic) },
@@ -364,10 +343,7 @@ module Api
               app_claim_path: "/api/v1/app/epics/#{epic.id}/claim",
               app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim",
               app_reassign_path: "/api/v1/app/epics/#{epic.id}/reassign",
-              app_dependencies_path: "/api/v1/app/epics/#{epic.id}/dependencies",
-              app_review_approve_path: "/api/v1/app/epics/#{epic.id}/review/approve",
-              app_review_feedback_path: "/api/v1/app/epics/#{epic.id}/review/feedback",
-              app_start_preview_path: PerformanceLogging.phase("epic_detail.start_preview_path", epic_id: epic.id) { epic_start_preview_path(epic, jobs) }
+              app_dependencies_path: "/api/v1/app/epics/#{epic.id}/dependencies"
             }
           }
 
@@ -424,7 +400,6 @@ module Api
             title: epic.title.to_s,
             description: epic.description.to_s,
             state: epic.state,
-            simple_status: simple_epic_status(epic, jobs),
             landing: epic.landing?(jobs: jobs),
             stuck: epic.stuck?,
             startable: epic.may_start_implementing?(actor: Current.user),
@@ -449,8 +424,6 @@ module Api
             goal_provenance: ::App::GoalProvenancePayload.for(epic),
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
-            review_ready: epic.review_ready?,
-            user_approved_at: epic.user_approved_at&.iso8601,
             max_commits_behind_base: furthest_behind&.commits_behind_base,
             furthest_behind_job_id: furthest_behind&.id,
             furthest_behind_job_path: furthest_behind ? job_path(furthest_behind) : nil
@@ -464,10 +437,6 @@ module Api
             id: owner.id,
             email_address: owner.email_address
           }
-        end
-
-        def simple_epic_status(epic, jobs)
-          epic.simple_status(jobs: jobs)
         end
 
         def review_summary_for(jobs)
@@ -739,19 +708,6 @@ module Api
           return "preempted" if job.closure_reason&.start_with?("external_pr_")
 
           job.state
-        end
-
-        def epic_start_preview_path(epic, jobs)
-          return unless epic.review_ready?
-
-          tail = jobs.reverse.find { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-          return unless tail
-
-          path = "/api/v1/app/jobs/#{tail.id}/preview/start"
-          Rails.application.routes.recognize_path(path, method: :post)
-          path
-        rescue ActionController::RoutingError
-          nil
         end
 
         def epic_origin_chat_json(epic)

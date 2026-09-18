@@ -312,8 +312,7 @@ module WorkUnits
     # "epic_feedback:<epic_id>" is a deliberate cross-job serialization
     # queue (SerializesEpicFeedback): a sibling job's feedback workflow is
     # meant to materialize now, sit blocked, and run for real once its
-    # turn comes (the operator gets an "epic_feedback_queued" notification
-    # promising exactly that). Every other lock key represents "is this
+    # turn comes. Every other lock key represents "is this
     # same job/scope already doing conflicting work" — for those, letting
     # a second WorkUnit materialize and later run unattended is the
     # duplicate-workflow bug , so it must be rejected outright.
