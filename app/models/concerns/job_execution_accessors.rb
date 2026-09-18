@@ -16,12 +16,11 @@ module JobExecutionAccessors
     user.configured_agent_providers - [ workflow_agent_provider ]
   end
 
-  def agent_provider_failover_candidates(cause: nil)
-    user.agent_provider_failover_candidates(
-      current_provider: workflow_agent_provider,
-      cause: cause,
-      explicit_pin: !job_provider_setting_default?
-    )
+  def provider_routing_failover_candidates(task_key: latest_workflow&.trigger_kind || ProviderRoutingRule::DEFAULT_TASK_KEY)
+    current_provider = workflow_agent_provider
+    candidates = ProviderRouting::Resolver.call(job: self, task_key: task_key)
+    current_index = candidates.index { |candidate| candidate.provider == current_provider }
+    current_index ? candidates.drop(current_index + 1) : candidates
   end
 
   # The very first Run — the one that created the branch and PR.

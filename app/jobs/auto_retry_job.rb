@@ -68,15 +68,14 @@ class AutoRetryJob < ApplicationJob
   end
 
   def provider_failover_candidate?(attempt)
-    cause = PROVIDER_FAILOVER_CAUSES.fetch(attempt.failure_classification, "provider_transient")
-    attempt.job&.agent_provider_failover_candidates(cause: cause)&.any?
+    attempt.job&.provider_routing_failover_candidates(task_key: retry_task_key(attempt))&.any?
   end
 
   PROVIDER_DELAYED_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
-  PROVIDER_FAILOVER_CAUSES = {
-    "rate_limited" => "rate_limited",
-    ProviderUsageLimit::CLASSIFICATION => "usage_exhausted"
-  }.freeze
+
+  def retry_task_key(attempt)
+    attempt.workflow&.trigger_kind || ProviderRoutingRule::DEFAULT_TASK_KEY
+  end
 
   def skip_if_provider_delay_no_longer_matches(attempt)
     return false unless PROVIDER_DELAYED_CLASSIFICATIONS.include?(attempt.failure_classification)

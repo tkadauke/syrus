@@ -434,6 +434,9 @@ RSpec.describe RetryWorkflowEnqueuer do
     allow(ProviderCircuitBreaker).to receive(:call)
       .with(job.workflow_agent_provider, include_logs: false)
       .and_return(decision)
+    allow(ProviderCircuitBreaker).to receive(:call)
+      .with(job.workflow_agent_provider, include_logs: false, now: anything)
+      .and_return(decision)
 
     expect {
       result = described_class.call(job: job, automatic: true)
@@ -457,9 +460,24 @@ RSpec.describe RetryWorkflowEnqueuer do
     allow(ProviderCircuitBreaker).to receive(:call)
       .with(job.workflow_agent_provider, include_logs: false)
       .and_return(decision)
-    allow_any_instance_of(Job).to receive(:agent_provider_failover_candidates)
-      .with(cause: "provider_transient")
-      .and_return([ "codex" ])
+    allow(ProviderCircuitBreaker).to receive(:call)
+      .with(job.workflow_agent_provider, include_logs: false, now: anything)
+      .and_return(decision)
+    allow(App::ProviderAvailability).to receive(:for_user)
+      .with(job.user, job.workflow_agent_provider, now: anything)
+      .and_return({ state: "open", open: true, retry_after: 10.minutes.from_now.iso8601 })
+    allow(App::ProviderAvailability).to receive(:for_user)
+      .with(job.user, "codex", now: anything)
+      .and_return(nil)
+    ProviderRoutingRule.create!(
+      scope_type: "user",
+      scope_id: job.user_id,
+      task_key: ProviderRoutingRule::DEFAULT_TASK_KEY,
+      candidates: [
+        { "provider" => job.workflow_agent_provider },
+        { "provider" => "codex" }
+      ]
+    )
     allow(WorkUnits::Launcher).to receive(:start!)
 
     expect {

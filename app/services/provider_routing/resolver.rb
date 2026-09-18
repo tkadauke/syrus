@@ -34,6 +34,7 @@ module ProviderRouting
         rule_candidates(scope_type: "repository", scope_id: repository_id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
         rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: task_key) ||
         rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
+        legacy_default_candidate ||
         HARDCODED_FALLBACK
     end
 
@@ -67,6 +68,13 @@ module ProviderRouting
 
     def repository_id
       job.repository_id
+    end
+
+    def legacy_default_candidate
+      provider = job.workflow_agent_provider.presence || job.agent_provider.presence || effective_user&.agent_provider.presence
+      return nil if provider.blank?
+
+      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
     end
 
     def effective_user

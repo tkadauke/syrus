@@ -1572,37 +1572,37 @@ describe "running / failed lifecycle (new in this commit)" do
       expect(job.alternate_configured_agent_providers).to eq([ "codex" ])
     end
 
-    it "returns configured failover candidates for default provider settings only" do
-      user.update!(
-        agent_provider: "claude",
-        agent_provider_failover_policy: {
-          enabled: true,
-          providers: %w[codex],
-          causes: %w[usage_exhausted]
-        }
+    it "returns later routing-rule candidates for default provider settings only" do
+      user.update!(agent_provider: "claude")
+      ProviderRoutingRule.create!(
+        scope_type: "user",
+        scope_id: user.id,
+        task_key: "default",
+        candidates: [
+          { "provider" => "claude" },
+          { "provider" => "codex" }
+        ]
       )
       job.update!(job_provider_setting: "default")
 
-      expect(job.agent_provider_failover_candidates(cause: "usage_exhausted")).to eq([ "codex" ])
+      expect(job.provider_routing_failover_candidates.map(&:provider)).to eq([ "codex" ])
 
       job.update!(job_provider_setting: "claude")
 
-      expect(job.agent_provider_failover_candidates(cause: "usage_exhausted")).to be_empty
+      expect(job.provider_routing_failover_candidates).to be_empty
     end
 
-    it "can include explicit job provider pins when the named override is enabled" do
-      user.update!(
-        agent_provider: "claude",
-        agent_provider_failover_policy: {
-          enabled: true,
-          providers: %w[codex],
-          causes: %w[usage_exhausted],
-          override_explicit_pins: true
-        }
+    it "returns the whole routing-rule chain when the current provider is not present" do
+      user.update!(agent_provider: "claude")
+      ProviderRoutingRule.create!(
+        scope_type: "user",
+        scope_id: user.id,
+        task_key: "default",
+        candidates: [ { "provider" => "codex" } ]
       )
-      job.update!(job_provider_setting: "claude")
+      job.update!(job_provider_setting: "default")
 
-      expect(job.agent_provider_failover_candidates(cause: "usage_exhausted")).to eq([ "codex" ])
+      expect(job.provider_routing_failover_candidates.map(&:provider)).to eq([ "codex" ])
     end
   end
 

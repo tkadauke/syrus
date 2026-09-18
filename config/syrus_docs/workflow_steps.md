@@ -261,21 +261,20 @@ reported MCP inventory, the invocation sets `agent_outcome=mcp_sidecar_failed`
 and asks the running process to stop instead of waiting for the normal agent
 timeout.
 
-**Provider failover policy:** Agent Settings persists a disabled-by-default
-agent-provider failover policy for admission/retry selection before a Workflow
-has started. The policy stores an ordered provider list and a cause list
-covering usage exhausted, usage low, rate limited, provider transient/circuit
-open, and auth error. Only providers returned by
-`User#configured_agent_providers` are selectable at use time, so the policy
-never chooses an unconfigured provider. Auth errors are modeled for visibility
-but excluded from the default automatic-failover causes, and explicit Job
-provider pins are respected unless the separate `override_explicit_pins` setting
-is enabled. Automatic failover records `provider_failover_decision` on the
-Workflow artifacts and app payloads project that as `provider_failover` on Job
-detail, dashboard rows, repository Job rows, compact Job payloads, and Workflow
-cards. The payload includes original and selected provider labels, automatic vs
-operator mode, reason, decision time, and an unavailable-provider evidence
-summary when available. This policy does not switch chat providers or enqueue
+**Provider routing failover:** Workflow admission and retry selection now use
+`ProviderRoutingRule` fallback chains instead of the retired user-level
+`agent_provider_failover_policy` setting. The resolver walks Job overrides,
+repository task/default rules, user task/default rules, then the legacy
+single-value provider default as a one-candidate chain. Availability gating can
+advance an unstarted Workflow to the next candidate in the resolved chain when
+the current provider is unavailable; explicit Job provider pins still resolve to
+a single candidate unless a deeper routing rule model is added later. Automatic
+failover records `provider_failover_decision` on Workflow artifacts, and app
+payloads project that as `provider_failover` on Job detail, dashboard rows,
+repository Job rows, compact Job payloads, and Workflow cards. The payload
+includes original and selected provider labels, automatic vs operator mode,
+reason, decision time, and an unavailable-provider evidence summary when
+available. Routing-rule failover does not switch chat providers or enqueue
 `SwitchChatProviderJob`.
 
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)

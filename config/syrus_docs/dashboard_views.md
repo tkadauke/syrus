@@ -84,19 +84,20 @@ expose "Recheck" and
 "Resume anyway"; the latter stores a per-user/provider override that suppresses
 provider-availability pauses until newer provider evidence arrives.
 
-Agent Settings also stores the user-level agent-provider failover policy for
-workflow admission paths. The policy is disabled by default, contains an ordered
-list of candidate agent providers, and only selects from
-`User#configured_agent_providers`. Its cause list distinguishes usage exhausted,
-low usage, rate limits, transient provider/circuit-open failures, and auth
-errors; auth errors are represented but are not in the default automatic-failover
-cause set. Explicit Job provider settings are respected by default unless the
-separately named explicit-pin override is enabled. When an unstarted workflow
-automatically fails over, dashboard rows, Job detail, repository Job rows, and
-Workflow cards show the original unavailable provider and the provider selected
-for the workflow. Operator-selected alternate retry providers render distinct
-operator copy. Chat provider switching remains explicit and is not driven by
-this policy.
+Provider-routing rules drive automatic agent-provider failover for workflow
+admission paths. A resolved rule supplies the ordered fallback chain for a
+task; if an unstarted workflow's current candidate is unavailable, admission can
+select the next available candidate and record the decision on Workflow
+artifacts. The retired Agent Settings failover policy was migrated into
+user/default `ProviderRoutingRule` rows where possible: enabled policies became
+chains headed by the user's legacy default provider followed by configured
+legacy policy providers. Legacy cause lists and the explicit-pin override do not
+have separate fields in routing rules, so explicit Job provider settings still
+resolve to a single candidate. When an unstarted workflow automatically fails
+over, dashboard rows, Job detail, repository Job rows, and Workflow cards show
+the original unavailable provider and the provider selected for the workflow.
+Operator-selected alternate retry providers render distinct operator copy. Chat
+provider switching remains explicit and is not driven by routing-rule failover.
 
 ## dependencies
 
