@@ -1,26 +1,22 @@
 import { useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { fetchCredentials, savePartialCredentials } from "../api/credentials"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { connectOnboardingProvider } from "../api/credentials"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { useT } from "../hooks/useT"
 import { GeminiSetupSheet } from "./GeminiSetupSheet"
-import { errorMessage } from "../lib/errorMessage"
 import { Modal } from "./Modal"
-import { StatusBox } from "@plugins/claude_agent/app/frontend/components/credentials/ClaudeConnect"
+import { StatusBox } from "./credentials/ConnectFlowUi"
+import { pluginAgentProviderConnectPanelProviders } from "../pluginAgentProviderConnectPanels"
 import { AgentProviderConnectPanel } from "./AgentProviderConnectPanel"
 
-type AgentTab = "claude" | "gemini" | "agy"
+const AGENT_PROVIDER_TABS = pluginAgentProviderConnectPanelProviders()
 
 export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
   // settings namespace is the default (bare `configure_agent.*` keys); the
   // Gemini setup sheet's copy lives in the chat namespace (shared with Chat.tsx).
   const { t } = useT(["settings", "chat"])
   const queryClient = useQueryClient()
-  const credentials = useQuery({
-    queryKey: ["credentials"],
-    queryFn: fetchCredentials
-  })
   const geminiSheetLabels = {
     title: t("chat:gemini_setup_title"),
     intro: t("chat:gemini_setup_intro"),
@@ -34,21 +30,16 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
     saved: t("chat:gemini_setup_saved"),
     keyHelp: t("chat:gemini_setup_key_help")
   }
-  const [tab, setTab] = useState<AgentTab>("claude")
+  const [tab, setTab] = useState<string>(AGENT_PROVIDER_TABS.includes("claude") ? "claude" : (AGENT_PROVIDER_TABS[0] ?? "gemini"))
   const [geminiSheetOpen, setGeminiSheetOpen] = useState(false)
   const [geminiConfigured, setGeminiConfigured] = useState(false)
-  const agyConfigured = geminiConfigured ||
-    Boolean(credentials.data?.credential_status.gemini_api_key) ||
-    Boolean(credentials.data?.options?.agent_providers?.includes("agy")) ||
-    Boolean(credentials.data?.options?.chat_providers?.includes("agy"))
-  const agySelected = credentials.data?.user.agent_provider === "agy"
-  const useAgy = useMutation({
-    mutationFn: () => savePartialCredentials({ agent_provider: "agy" }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["credentials"] })
-      await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
-      onSaved?.()
-    }
+  // Fires after a connect panel's own credential save/probe succeeds — the
+  // one place onboarding auto-enables the plugin behind the provider the
+  // operator just connected, so it doesn't have to be toggled on separately
+  // from Admin -> Plugins. Settings' credential cards never call this.
+  const connectProvider = useMutation({
+    mutationFn: (provider: string) => connectOnboardingProvider(provider),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["credentials"] })
   })
 
   return (
@@ -82,29 +73,26 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
             </button>
           </div>
 
-          {/* Provider tabs. Codex lands in a follow-up step. */}
+          {/* Provider tabs come from every plugin with a registered connect
+              panel (pluginAgentProviderConnectPanelProviders), so a
+              disabled-by-default provider is still reachable and
+              connectable here — onboarding is the one place that must hold
+              regardless of plugin enabled state. Gemini isn't an agent
+              provider (it powers walkthrough-video analysis), so it stays a
+              separate, hardcoded tab. */}
           <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-700" role="tablist">
-            <button
-              aria-selected={tab === "claude"}
-              className={tabClass(tab === "claude")}
-              onClick={() => setTab("claude")}
-              role="tab"
-              type="button"
-            >
-              {t('configure_agent.tab_claude')}
-            </button>
-            <button
-              aria-disabled="true"
-              aria-selected={false}
-              className="cursor-not-allowed px-4 py-2 text-sm font-medium text-gray-400 dark:text-gray-600"
-              disabled
-              role="tab"
-              title={t('configure_agent.codex_title')}
-              type="button"
-            >
-              {t('configure_agent.tab_codex')}
-              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
-            </button>
+            {AGENT_PROVIDER_TABS.map((provider) => (
+              <button
+                aria-selected={tab === provider}
+                className={tabClass(tab === provider)}
+                key={provider}
+                onClick={() => setTab(provider)}
+                role="tab"
+                type="button"
+              >
+                {providerTabLabel(t, provider)}
+              </button>
+            ))}
             <button
               aria-selected={tab === "gemini"}
               className={tabClass(tab === "gemini")}
@@ -114,43 +102,24 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               type="button"
             >
               {t('configure_agent.tab_gemini')}
-              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
             </button>
-            {agyConfigured ? (
-              <button
-                aria-selected={tab === "agy"}
-                className={tabClass(tab === "agy")}
-                onClick={() => setTab("agy")}
-                role="tab"
-                title={t('configure_agent.agy_title')}
-                type="button"
-              >
-                {t('configure_agent.tab_agy')}
-              </button>
-            ) : null}
           </div>
 
-          {tab === "agy" && agyConfigured ? (
-            <div className="space-y-4">
-              <StatusBox tone="ok">
-                {agySelected ? t('configure_agent.agy_tab_selected') : t('configure_agent.agy_tab_ready')}
-              </StatusBox>
-              {useAgy.isError ? (
-                <StatusBox tone="error">
-                  {errorMessage(useAgy.error, t('configure_agent.agy_tab_save_error'))}
-                </StatusBox>
-              ) : null}
-              <div className="flex items-center justify-end gap-2">
+          {AGENT_PROVIDER_TABS.includes(tab) ? (
+            <AgentProviderConnectPanel
+              key={tab}
+              onCancel={onClose}
+              onSaved={() => {
+                connectProvider.mutate(tab)
+                onSaved?.()
+              }}
+              provider={tab}
+              secondaryAction={(ambientReady) => (
                 <Button onClick={onClose} variant="secondary">
-                  {agySelected ? t('configure_agent.done') : t('configure_agent.skip_for_now')}
+                  {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
                 </Button>
-                {!agySelected ? (
-                  <Button disabled={useAgy.isPending} onClick={() => useAgy.mutate()}>
-                    {useAgy.isPending ? t('configure_agent.agy_tab_saving') : t('configure_agent.agy_tab_use')}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
+              )}
+            />
           ) : null}
 
           {tab === "gemini" ? (
@@ -179,25 +148,6 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               )}
             </div>
           ) : null}
-          {/* The Claude flow stays MOUNTED (display: none) while the Gemini
-              tab is active: unmounting it mid-authorization would reset
-              authStarted/code and, worse, tempt a re-Authorize that rotates
-              the session's PKCE verifier — invalidating the code the user
-              already copied. Pre-extraction this state lived at modal level
-              and survived tab flips; keeping the component alive preserves
-              that without giving up the shared extraction. */}
-          <div className={tab === "claude" ? undefined : "hidden"}>
-            <AgentProviderConnectPanel
-              onCancel={onClose}
-              onSaved={onSaved}
-              provider="claude"
-              secondaryAction={(ambientReady) => (
-                <Button onClick={onClose} variant="secondary">
-                  {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
-                </Button>
-              )}
-            />
-          </div>
         </div>
       {geminiSheetOpen ? (
         // Stop backdrop clicks in the nested sheet from bubbling to this
@@ -224,4 +174,9 @@ function tabClass(active: boolean) {
   return active
     ? `${base} border-brand text-brand dark:text-brand-emphasis`
     : `${base} border-transparent text-gray-500 dark:text-gray-400`
+}
+
+function providerTabLabel(t: (key: string, options?: { defaultValue: string }) => string, provider: string) {
+  const fallback = provider.charAt(0).toUpperCase() + provider.slice(1)
+  return t(`configure_agent.tab_${provider}`, { defaultValue: fallback })
 }

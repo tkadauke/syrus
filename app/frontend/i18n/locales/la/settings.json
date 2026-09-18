@@ -900,10 +900,8 @@
     "tab_codex": "Codex",
     "tab_gemini": "Gemini",
     "tab_agy": "Antigravity",
-    "soon": "Mox",
-    "codex_title": "Sustentatio Codex proxime veniet",
-    "gemini_title": "Sustentatio Gemini planificata est",
-    "agy_title": "Antigravity per clavem API Gemini communem paratum est",
+    "tab_muse": "Muse",
+    "gemini_title": "Gemini analysin videonum perambulationis alit",
     "done": "Factum",
     "checking_login": "Connexionem Claudii existentem in hac machina verificans…",
     "ambient_ready": "Claudius iam in hac machina operatur. Tesseram durabilem infra coniungere potes (commendatum pro reinitiis et operariis sine capite), vel nunc praetermittere.",
@@ -929,12 +927,7 @@
     "exchange_catch_error": "Codex permutari non potuit. Iterum auctoritatem dare tenta.",
     "gemini_tab_intro": "Gemini perambulationes captas in Epica convertit — optio, nunc vel postea adde. Non est agens codicis; agens tuus Claude (vel Codex) opus adhuc facit.",
     "gemini_tab_configured": "Gemini paratum est — videones perambulationum automatice analysabuntur.",
-    "gemini_tab_add_key": "Clavem API Gemini addere",
-    "agy_tab_ready": "Antigravity per clavem API Gemini communem pro cursibus agentis et colloquii paratum est.",
-    "agy_tab_selected": "Antigravity iam electum est ut praebitor agentis defaltus.",
-    "agy_tab_use": "Antigravity uti",
-    "agy_tab_saving": "Servans…",
-    "agy_tab_save_error": "Antigravity eligi non potuit."
+    "gemini_tab_add_key": "Clavem API Gemini addere"
   },
   "input_sources": {
     "section_description": "Configure this repository input source.",

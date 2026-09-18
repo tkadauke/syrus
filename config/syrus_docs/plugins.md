@@ -2800,6 +2800,25 @@ Bundled plugins:
   record creation stay unblocked during that bootstrap window; actually
   *running* an agent with no plugin enabled still fails clearly, at
   `AgentProviders.for`, once something tries to.
+
+  Onboarding's Configure Agent modal (`app/frontend/components/ConfigureAgentModal.tsx`,
+  only ever rendered from `Onboarding.tsx`) is the one place a disabled
+  agent-provider plugin must still be reachable and connectable: it enumerates
+  its provider tabs from `pluginAgentProviderConnectPanelProviders()` (every
+  plugin with a registered `agentProviderConnectPanels/*.tsx` component) and
+  renders each tab's `AgentProviderConnectPanel` regardless of that plugin's
+  current `enabled` state. When a tab's connect panel reports success, the
+  modal posts to `POST /api/v1/app/credentials/connect_onboarding_provider`
+  (`Api::V1::App::CredentialsController#connect_onboarding_provider`), which
+  resolves the one `PluginRecord` whose manifest declares `provides
+  agent_provider:` for that provider key (`App::OnboardingAgentProviderPlugin`)
+  and flips it to `enabled: true` — never an admin-supplied or client-supplied
+  plugin name outside that mapping. The endpoint 403s once the current user
+  has finished first-run setup (`User#first_epic_landed?`, the same signal
+  `AppApi::SetupStatus` uses), so it can't be used as a general-purpose plugin
+  toggle outside onboarding; Settings' credential cards never call it, and an
+  operator who wants to enable a provider after onboarding still uses Admin ->
+  Plugins.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.
