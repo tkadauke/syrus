@@ -393,7 +393,7 @@ module Api
         end
 
         def onboarding_in_progress?
-          !Current.user.first_epic_landed?
+          !Current.user.first_run_setup_complete?
         end
 
         def provider_param
