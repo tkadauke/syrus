@@ -168,6 +168,49 @@ RSpec.describe ChatProviders::Claude do
       expect(calls.last[:prompt]).to include("Continue.")
     end
 
+    it "grounds the stale-resume fresh retry in a larger persisted transcript that keeps the first user message" do
+      workspace = Dir.mktmpdir
+      chat.messages.create!(role: "user", content: { "text" => "Original investigation request" })
+      30.times do |index|
+        chat.messages.create!(role: "assistant", content: { "text" => "Historical answer #{index}" })
+      end
+      compact_fallback = ChatHistoryTranscriptRenderer.compact_fallback(
+        chat_session: chat,
+        current_message: chat.messages.last
+      )
+
+      calls = []
+      runner = ->(**kwargs) {
+        calls << kwargs
+        if kwargs[:resume_session_id]
+          result_fixture(is_error: true, outcome: "error_during_execution", turns: 0)
+        else
+          result_fixture(session_id: "fresh-session", turns: 2)
+        end
+      }
+      adapter = described_class.new(chat: chat, runner: runner)
+
+      adapter.invoke(
+        workspace_path: workspace,
+        prompt: [ "Resume-mode guidance", compact_fallback, "Continue from the current turn." ].join("\n\n---\n\n"),
+        log_sink: ->(*, **) { },
+        mcp_config: "/tmp/mcp.json",
+        resume_session_id: "gone-session",
+        stop_requested: -> { false },
+        process_started: ->(_process) { }
+      )
+
+      retry_prompt = calls.last.fetch(:prompt)
+      expect(retry_prompt).to include("Persisted chat context recovered after provider resume failed:")
+      expect(retry_prompt).not_to include("Recent persisted chat context fallback:")
+      expect(retry_prompt).to include("user: Original investigation request")
+      expect(retry_prompt.scan(/^assistant:/).size).to eq(30)
+      expect(retry_prompt).to include("Historical answer 0")
+      expect(retry_prompt).to include("Historical answer 29")
+    ensure
+      FileUtils.rm_rf(workspace) if workspace
+    end
+
     it "does NOT retry when the resumed turn runs (turns > 0) even if it errors" do
       calls = []
       runner = ->(**kwargs) {

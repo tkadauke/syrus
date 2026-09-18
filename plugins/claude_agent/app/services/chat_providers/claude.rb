@@ -97,8 +97,9 @@ module ChatProviders
           # The resume-mode prompt deliberately OMITS the full system prompt (a
           # resumed session already carries it). A fresh session doesn't — so
           # without this it would run with no role / tool / proposal-flow
-          # instructions. Prepend the full chat system prompt for the fresh retry.
-          workspace_path: workspace_path, prompt: prompt_with_system(prompt), mcp_config: mcp_config,
+          # instructions. Prepend the full chat system prompt and a larger
+          # DB-backed transcript for the fresh retry.
+          workspace_path: workspace_path, prompt: prompt_with_system(recovery_prompt(prompt)), mcp_config: mcp_config,
           resume_session_id: nil, stop_requested: stop_requested,
           process_started: process_started, log_sink: log_sink
         )
@@ -173,6 +174,18 @@ module ChatProviders
     def prompt_with_system(prompt)
       system = Prompts::ChatSystem.new(repository: chat.repository, chat_session: chat).to_s
       "#{system}\n\n---\n\n#{prompt}"
+    end
+
+    def recovery_prompt(prompt)
+      recovery_context = ChatHistoryTranscriptRenderer.resume_recovery(chat_session: chat)
+      [ recovery_context, prompt_without_compact_fallback(prompt) ].compact.join("\n\n---\n\n")
+    end
+
+    def prompt_without_compact_fallback(prompt)
+      prompt.to_s
+            .split(/\n\n---\n\n/)
+            .reject { |section| section.start_with?("Recent persisted chat context fallback:\n") }
+            .join("\n\n---\n\n")
     end
 
     # A resume that died before the agent produced a single turn — the
