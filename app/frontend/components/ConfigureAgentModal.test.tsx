@@ -1,5 +1,4 @@
 import { useEffect } from "react"
-import { jsonResponse } from "../testSupport"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -56,19 +55,19 @@ describe("ConfigureAgentModal", () => {
     mountSpy.mockClear()
   })
 
-  it("enumerates a tab for every plugin-registered agent-provider connect panel, plus Gemini", () => {
+  it("enumerates a tab for every plugin-registered agent-provider connect panel, ordered popular-to-less-popular", () => {
     mockedConnectOnboardingProvider.mockResolvedValue({} as never)
     renderModal()
 
     // The four bundled agent-provider plugins (claude, codex, agy, muse) all
     // ship a real connect panel and must all be reachable during onboarding
     // regardless of their plugin's enabled state — no "Coming soon" tab and
-    // no gate hiding a tab until some other credential exists.
-    expect(screen.getByRole("tab", { name: "Claude" })).toBeInTheDocument()
-    expect(screen.getByRole("tab", { name: "Codex" })).toBeInTheDocument()
-    expect(screen.getByRole("tab", { name: "Antigravity" })).toBeInTheDocument()
-    expect(screen.getByRole("tab", { name: "Muse" })).toBeInTheDocument()
-    expect(screen.getByRole("tab", { name: "Gemini" })).toBeInTheDocument()
+    // no gate hiding a tab until some other credential exists. Gemini isn't
+    // an agent provider (it only powers walkthrough-video analysis) and has
+    // no tab here.
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Claude", "Codex", "Antigravity", "Muse"
+    ])
     expect(screen.queryByText(/Soon/)).not.toBeInTheDocument()
     expect(screen.getAllByRole("tab").every((tab) => !tab.hasAttribute("disabled"))).toBe(true)
   })
@@ -107,7 +106,7 @@ describe("ConfigureAgentModal", () => {
     renderModal()
 
     fireEvent.click(screen.getByRole("tab", { name: "Codex" }))
-    fireEvent.click(screen.getByRole("tab", { name: "Gemini" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Antigravity" }))
     fireEvent.click(screen.getByRole("tab", { name: "Claude" }))
 
     expect(mountSpy.mock.calls.filter(([provider]) => provider === "claude")).toHaveLength(1)
@@ -165,67 +164,4 @@ describe("ConfigureAgentModal", () => {
 
     expect(screen.queryByText(/couldn't enable this provider automatically/)).not.toBeInTheDocument()
   })
-
-  it("makes the Gemini tab selectable and opens the setup sheet from it", async () => {
-    renderModal()
-
-    const geminiTab = screen.getByRole("tab", { name: "Gemini" })
-    expect(geminiTab).not.toBeDisabled()
-    expect(geminiTab).toHaveAttribute("aria-selected", "false")
-
-    fireEvent.click(geminiTab)
-    expect(geminiTab).toHaveAttribute("aria-selected", "true")
-
-    const addKey = screen.getByRole("button", { name: /Add Gemini API key/ })
-    expect(addKey).toBeInTheDocument()
-
-    fireEvent.click(addKey)
-    await waitFor(() => expect(screen.getByTestId("gemini-validation-stages")).toBeInTheDocument())
-    expect(screen.getByPlaceholderText("Paste your Gemini API key here")).toBeInTheDocument()
-  })
-
-  it("keeps the modal open when Escape dismisses the nested Gemini sheet", async () => {
-    const onClose = vi.fn()
-    renderModal({ onClose })
-
-    fireEvent.click(screen.getByRole("tab", { name: "Gemini" }))
-    fireEvent.click(screen.getByRole("button", { name: /Add Gemini API key/ }))
-    await waitFor(() => expect(screen.getByTestId("gemini-validation-stages")).toBeInTheDocument())
-
-    fireEvent.keyDown(document, { key: "Escape" })
-
-    await waitFor(() => expect(screen.queryByTestId("gemini-validation-stages")).not.toBeInTheDocument())
-    expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByRole("button", { name: /Add Gemini API key/ })).toBeInTheDocument()
-  })
-
-  it("shows the configured state and calls onSaved after a successful Gemini key validation", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
-      const url = String(input)
-      const method = init?.method ?? "GET"
-      if (url.endsWith("/credentials/test_gemini_key")) {
-        return jsonResponse({
-          credential_test: { credential: "gemini_api_key", ok: true, message: "Gemini key is valid.", details: { model: "gemini-3.5-flash" } }
-        })
-      }
-      if (url.endsWith("/api/v1/app/credentials") && method === "PATCH") {
-        return jsonResponse({ credential_status: {}, options: { agent_providers: [], chat_providers: [] }, user: { agent_provider: "claude" } })
-      }
-      throw new Error(`unexpected fetch: ${url}`)
-    })
-    const onSaved = vi.fn()
-    renderModal({ onSaved })
-
-    fireEvent.click(screen.getByRole("tab", { name: "Gemini" }))
-    fireEvent.click(screen.getByRole("button", { name: /Add Gemini API key/ }))
-    const input = await screen.findByPlaceholderText("Paste your Gemini API key here")
-
-    fireEvent.change(input, { target: { value: "AIzaSyA1234567890abcdefghijklmnop" } })
-    fireEvent.click(screen.getByRole("button", { name: "Validate & save" }))
-
-    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1), { timeout: 5000 })
-    expect(screen.getByText(/walkthrough videos will be analyzed automatically/)).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument()
-    fetchSpy.mockRestore()
-  }, 10000)
 })

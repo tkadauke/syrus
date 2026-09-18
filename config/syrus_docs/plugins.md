@@ -2805,9 +2805,13 @@ Bundled plugins:
   only ever rendered from `Onboarding.tsx`) is the one place a disabled
   agent-provider plugin must still be reachable and connectable: it enumerates
   its provider tabs from `pluginAgentProviderConnectPanelProviders()` (every
-  plugin with a registered `agentProviderConnectPanels/*.tsx` component) and
-  renders each tab's `AgentProviderConnectPanel` regardless of that plugin's
-  current `enabled` state. When a tab's connect panel reports success, the
+  plugin with a registered `agentProviderConnectPanels/*.tsx` component),
+  ordered popular-to-less-popular (claude, codex, agy, muse, then any future
+  provider alphabetically), and renders each tab's `AgentProviderConnectPanel`
+  regardless of that plugin's current `enabled` state. Gemini isn't an agent
+  provider — it only powers walkthrough-video analysis — so it has no tab
+  here; it stays configurable from Settings' credential cards. When a tab's
+  connect panel reports success, the
   modal posts to `POST /api/v1/app/credentials/connect_onboarding_provider`
   (`Api::V1::App::CredentialsController#connect_onboarding_provider`), which
   resolves the one `PluginRecord` whose manifest declares `provides
