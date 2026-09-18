@@ -38,6 +38,9 @@ module Mcp::Tools
 
         unless bulk
           job = jobs.first
+          eligibility = RetryWorkflowEligibility.call(job: job)
+          return Mcp::Tools.invalid(eligibility.message) unless eligibility.eligible?
+
           pending_action = create_pending_action_for_current_message!(
             server_context,
             chat_session,
@@ -53,6 +56,12 @@ module Mcp::Tools
             message: "Job retry requires operator confirmation."
           )
         end
+
+        ineligible_messages = jobs.filter_map do |job|
+          eligibility = RetryWorkflowEligibility.call(job: job)
+          "#{job.slug}: #{eligibility.message}" unless eligibility.eligible?
+        end
+        return Mcp::Tools.invalid("Cannot retry #{ineligible_messages.size} of #{jobs.size} Jobs - #{ineligible_messages.join('; ')}") if ineligible_messages.any?
 
         group = create_pending_action_group!(
           server_context: server_context,
