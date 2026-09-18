@@ -74,6 +74,9 @@ class Problem
       Entry.new(code: "storage_unavailable", scope: :external, retryable: true,
                 default_remediation: :defer,
                 label: "Storage unavailable"),
+      Entry.new(code: "push_remote_transient", scope: :external, retryable: true,
+                default_remediation: :defer,
+                label: "GitHub push transiently rejected"),
 
       # -- The workspace ------------------------------------------------------
       Entry.new(code: "workspace_checkout_invalid", scope: :run, retryable: true,
