@@ -238,17 +238,27 @@ RSpec.describe NotificationService do
       described_class.create_for(user: user, kind: "job_failed", job: job, body: "failed")
     end
 
-    it "does not publish a chat work event for routine good news" do
+    # Success completions now publish too -- the evaluator (not this
+    # allowlist) decides per-event whether the chat cares about the outcome.
+    it "publishes an event for widened success-completion kinds" do
+      %w[job_implemented pr_merged epic_completed epic_review_ready main_recovered].each do |kind|
+        expect(ChatWorkEvents).to receive(:publish!).with(hash_including(kind: kind))
+
+        described_class.create_for(user: user, kind: kind, job: job, body: "#{kind} happened")
+      end
+    end
+
+    it "does not publish a chat work event for routine progress kinds" do
       expect(ChatWorkEvents).not_to receive(:publish!)
 
-      described_class.create_for(user: user, kind: "pr_merged", job: job, body: "merged")
-      described_class.create_for(user: user, kind: "job_implemented", job: job, body: "done")
-      described_class.create_for(user: user, kind: "main_recovered", job: job, body: "recovered")
+      described_class.create_for(user: user, kind: "epic_feedback_queued", job: job, body: "queued")
+      described_class.create_for(user: user, kind: "pr_comment_addressed", job: job, body: "addressed")
+      described_class.create_for(user: user, kind: "external_pr_feedback", job: job, body: "feedback")
     end
 
     # The user still sees them; they just are not chat work events.
     it "still creates the notification for a kind it does not publish" do
-      expect { described_class.create_for(user: user, kind: "pr_merged", job: job, body: "merged") }
+      expect { described_class.create_for(user: user, kind: "epic_feedback_queued", job: job, body: "queued") }
         .to change(Notification, :count).by(1)
     end
   end

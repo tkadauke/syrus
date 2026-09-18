@@ -118,23 +118,27 @@ RSpec.describe ChatEventEvaluator do
     expect(ProviderSession.where(resumable: chat_session).count).to eq(1)
   end
 
-  it "short-circuits low-severity informational events without invoking an evaluator agent" do
-    event.update!(
-      source_kind: "pr_merged",
-      payload: { "kind" => "pr_merged", "severity" => "info", "summary" => "PR merged" }
-    )
-    runner = lambda do |**_kwargs|
-      raise "runner should not be called"
+  %w[job_implemented pr_merged epic_completed epic_review_ready main_recovered].each do |kind|
+    it "invokes the evaluator agent for the success-kind event #{kind} instead of auto-skipping it" do
+      event.update!(
+        source_kind: kind,
+        payload: { "kind" => kind, "severity" => "info", "summary" => "#{kind} happened" }
+      )
+      calls = []
+      runner = lambda do |**kwargs|
+        calls << kwargs
+        Result.new(final_text: JSON.generate(decision: "no_op", reason: "nothing in transcript suggests interest", urgency: 0.1, confidence: 0.8))
+      end
+
+      result = described_class.new(event: event, chat_session: chat_session, runner: runner).call
+
+      expect(calls.size).to eq(1)
+      expect(result).to include(
+        "decision" => "no_op",
+        "reason" => "nothing in transcript suggests interest",
+        "submitted_via" => "json_text"
+      )
     end
-
-    result = described_class.new(event: event, chat_session: chat_session, runner: runner).call
-
-    expect(result).to include(
-      "decision" => "no_op",
-      "submitted_via" => "deterministic_info_no_op",
-      "confidence" => 1.0
-    )
-    expect(event.reload).to be_evaluator_completed
   end
 
   it "still invokes the evaluator agent for warning and error events" do
