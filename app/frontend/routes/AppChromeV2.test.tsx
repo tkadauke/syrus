@@ -11,7 +11,7 @@ import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayloa
 import type { MaintenanceTask } from "../api/maintenanceTasks"
 import { AppChromeV2 } from "./AppChromeV2"
 import { adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
-import { buildAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
+import { buildAdminNavItems, filterAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 
 const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
   toBlob(callback: (blob: Blob | null) => void) {
@@ -2071,6 +2071,57 @@ describe("AdminNav grouped navigation", () => {
     expect(screen.queryByRole("link", { name: "Features" })).not.toBeInTheDocument()
   })
 
+  it("filters admin navigation by page name as the user types", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    const searchInputs = await screen.findAllByRole("searchbox", { name: "Search admin pages" })
+    fireEvent.change(searchInputs[0], { target: { value: "retention" } })
+
+    expect(screen.getAllByRole("link", { name: "Retention Settings" })).not.toHaveLength(0)
+    expect(screen.queryByRole("link", { name: "Queue" })).not.toBeInTheDocument()
+  })
+
+  it("shows no-results feedback when admin navigation search has no page matches", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    const searchInputs = await screen.findAllByRole("searchbox", { name: "Search admin pages" })
+    fireEvent.change(searchInputs[0], { target: { value: "definitely absent" } })
+
+    expect(screen.getAllByText("No pages found.")).not.toHaveLength(0)
+    expect(screen.queryByRole("link", { name: "Overview" })).not.toBeInTheDocument()
+  })
+
+  it("uses unique input ids for the desktop and mobile admin navigation searches", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    const searchInputs = await screen.findAllByRole("searchbox", { name: "Search admin pages" })
+    expect(searchInputs).toHaveLength(2)
+    expect(searchInputs[0]).toHaveAttribute("id")
+    expect(searchInputs[1]).toHaveAttribute("id")
+    expect(searchInputs[0].id).not.toBe(searchInputs[1].id)
+  })
+
   it("does not render the admin nav on non-admin paths", () => {
     renderAppChrome(<div />, { initialEntries: ["/repositories"] })
 
@@ -2189,6 +2240,35 @@ describe("buildAdminNavItems", () => {
 
   it("does not duplicate a plugin-owned insights nav entry", () => {
     expect(CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "insights")).toBeUndefined()
+  })
+})
+
+describe("filterAdminNavItems", () => {
+  const translate = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key
+
+  it("matches page labels while preserving matching groups", () => {
+    const navItems = buildAdminNavItems({}, [{
+      id: "test.retention_report",
+      label: "Retention Report",
+      path: "/admin/retention_report",
+      paths: ["/admin/retention_report"],
+      order: 5,
+      group_id: "observability"
+    }], translate)
+
+    const filtered = filterAdminNavItems(navItems, "retention")
+
+    expect(filtered.groups.map(({ group }) => group.id)).toEqual(["observability", "system"])
+    expect(filtered.groups.flatMap(({ items }) => items.map((item) => item.label))).toEqual(["Retention Report", "nav_retention_settings"])
+  })
+
+  it("does not match by path or group name", () => {
+    const navItems = buildAdminNavItems({}, [], translate)
+    const filtered = filterAdminNavItems(navItems, "operations")
+
+    expect(filtered.overviewItem).toBeUndefined()
+    expect(filtered.groups).toEqual([])
+    expect(filtered.ungroupedExtensions).toEqual([])
   })
 })
 
