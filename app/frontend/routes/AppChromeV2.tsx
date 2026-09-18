@@ -27,6 +27,7 @@ import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/b
 import { BuildBadge } from "../components/BuildBadge"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
+import { Select } from "../components/Select"
 import { AgentProviderConnectPanel, agentProviderHasConnectPanel, type ConnectableAgentProvider } from "../components/AgentProviderConnectPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -702,43 +703,45 @@ function NewChatProviderModal({
 
   return (
     <Modal
-      className="w-full max-w-sm rounded-lg bg-white p-4 shadow-xl dark:bg-gray-900"
+      className="w-full max-w-sm"
       labelledBy="new-chat-provider-title"
       onClose={onCancel}
       open
     >
-      <form
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          onConfirm()
-        }}
-      >
-        <div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="new-chat-provider-title">
-            {t("new_chat_provider_title")}
-          </h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("new_chat_provider_hint")}</p>
-        </div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          <span>{t("aria_chat_provider")}</span>
-          <select
-            aria-label={t("aria_chat_provider")}
-            className="mt-1 w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand focus:ring-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-            disabled={submitting}
-            onChange={(event) => onSelectedChange(event.target.value)}
-            value={selected}
-          >
-            {options.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-        <div className="flex justify-end gap-2">
-          <Button disabled={submitting} onClick={onCancel} type="button" variant="secondary">{t("cancel")}</Button>
-          <Button disabled={submitting || !selected} type="submit">{t("new_chat_provider_start")}</Button>
-        </div>
-      </form>
+      <Surface className="shadow-xl" padding="sm" variant="raised">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            onConfirm()
+          }}
+        >
+          <div>
+            <h2 className="text-base font-semibold text-text-primary" id="new-chat-provider-title">
+              {t("new_chat_provider_title")}
+            </h2>
+            <p className="mt-1 text-sm text-text-secondary">{t("new_chat_provider_hint")}</p>
+          </div>
+          <label className="block text-sm font-medium text-text-primary">
+            <span>{t("aria_chat_provider")}</span>
+            <Select
+              aria-label={t("aria_chat_provider")}
+              className="mt-1"
+              disabled={submitting}
+              onChange={(event) => onSelectedChange(event.target.value)}
+              value={selected}
+            >
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button disabled={submitting} onClick={onCancel} type="button" variant="secondary">{t("cancel")}</Button>
+            <Button disabled={submitting || !selected} type="submit">{t("new_chat_provider_start")}</Button>
+          </div>
+        </form>
+      </Surface>
     </Modal>
   )
 }
