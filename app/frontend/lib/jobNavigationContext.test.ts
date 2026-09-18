@@ -4,7 +4,8 @@ import {
   createEpicJobNavigationContext,
   jobNavigationHref,
   readJobNavigationContext,
-  storeJobNavigationContext
+  storeJobNavigationContext,
+  withUpdatedNavigationItemState
 } from "./jobNavigationContext"
 
 describe("job navigation context", () => {
@@ -88,6 +89,31 @@ describe("job navigation context", () => {
 
   it("preserves the path-based source tab while dropping source-specific diff params", () => {
     expect(jobNavigationHref("/jobs/3", "/app-shell", "nav-token", "?diff_base=aaa&diff_head=bbb", "/app-shell/jobs/2/source")).toBe("/app-shell/jobs/3/source?job_nav=nav-token")
+  })
+
+  it("updates a stale snapshot item's state to a job's live state", () => {
+    const context = createDashboardJobNavigationContext({
+      currentJobId: 2,
+      label: "Dashboard",
+      items: [dashboardJob(1), dashboardJob(2), dashboardJob(3)]
+    })!
+
+    const updated = withUpdatedNavigationItemState(context, 2, "approved")
+
+    expect(updated).not.toBe(context)
+    expect(updated.items.find((item) => item.id === 2)?.state).toBe("approved")
+    expect(updated.items.find((item) => item.id === 1)?.state).toBe("running")
+  })
+
+  it("returns the same context reference when the state has not changed", () => {
+    const context = createDashboardJobNavigationContext({
+      currentJobId: 2,
+      label: "Dashboard",
+      items: [dashboardJob(1), dashboardJob(2), dashboardJob(3)]
+    })!
+
+    expect(withUpdatedNavigationItemState(context, 2, "running")).toBe(context)
+    expect(withUpdatedNavigationItemState(context, 999, "approved")).toBe(context)
   })
 })
 

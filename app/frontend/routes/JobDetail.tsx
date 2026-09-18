@@ -48,7 +48,7 @@ import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 import { scheduleJobDetailInvalidation } from "../lib/appEvents"
 import { Notice, Section } from "../components/ui"
-import { jobNavigationHref, navigationIndex, readJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
+import { jobNavigationHref, navigationIndex, readJobNavigationContext, storeJobNavigationContext, withUpdatedNavigationItemState, type JobNavigationContext } from "../lib/jobNavigationContext"
 import { MetadataLine, OwnerBadge } from "./dashboard/components"
 
 export function JobDetailRoute() {
@@ -219,6 +219,16 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       setNavigationContext(null)
     }
   }, [navigationToken, payload.job.id])
+
+  useEffect(() => {
+    if (!navigationContext) return
+
+    const updated = withUpdatedNavigationItemState(navigationContext, payload.job.id, payload.job.summary_state)
+    if (updated === navigationContext) return
+
+    storeJobNavigationContext(updated)
+    setNavigationContext(updated)
+  }, [navigationContext, payload.job.id, payload.job.summary_state])
 
   useEffect(() => {
     const attachment = jobWorkflowContextBugReportAttachment(payload)
