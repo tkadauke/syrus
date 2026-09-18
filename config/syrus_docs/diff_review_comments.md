@@ -15,6 +15,18 @@ side, old/new line coordinate, a diff hunk snapshot, and a free-form JSON
 context hash for nearby symbols or future re-anchoring metadata. State is one
 of `draft`, `submitted`, `resolved`, or `superseded`.
 
+Because a comment is pinned to the exact `DiffReviewVersion` it was created
+against, a comment renders inline in the diff only when that same version is
+the one currently being displayed — a comment from any other version, even
+one whose commits are logically "inside" a broader selected range, never
+renders inline (see `useDiffReviewFeedback`'s `selectedVersionComments`
+filter in `app/frontend/routes/jobDetail/DiffReviewFeedback.tsx`). This holds
+for both a single selected version and a multi-version range selection: a
+genuinely new base/head combination resolves to its own distinct
+`DiffReviewVersion` (see `JobSourceDiffPayload#resolve_diff_review_version`),
+so comments pinned to a version the range happens to span still only ever
+show up in the sidebar, grouped under their own version's section.
+
 `anchor_kind` is `"line"` (the default) for a comment tied to a specific
 file/side/line, or `"review"` for a whole-review comment that critiques the
 change as a whole rather than one line. Whole-review comments carry no
@@ -141,7 +153,15 @@ artifacts" panel starts collapsed (summary stays visible) and expands on
 demand. The right-hand "Diff comments" sidebar is a sticky, viewport-height
 column: it scrolls with the page until its top reaches the top of the
 viewport, then pins there with its own internal scroll, and lists every
-comment for the surface (line-anchored and whole-review).
+comment for the surface (line-anchored and whole-review), grouped into
+per-`DiffReviewVersion` sections ordered by `version_index`. Each section
+header reuses the same richer version-label formatting as the version
+selector (`collapsedLabel`/`metadataSummary`, exported from
+`DiffReviewVersionSelector.tsx` — version index, workflow/run, date, trigger
+kind, label) rather than a bare "v1" tag, and the section matching the
+version currently displayed in the diff gets a "Currently viewing" pill;
+every other section is wrapped in a subtle warning-toned surface so older
+feedback reads as historical without needing a per-comment badge.
 
 Both writing and editing a line-anchored (code) comment happen inline, at
 their anchor in the diff, not in the sidebar — clicking the gutter "+" opens a

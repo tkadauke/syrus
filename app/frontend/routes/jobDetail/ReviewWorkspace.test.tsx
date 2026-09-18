@@ -1121,7 +1121,7 @@ describe("ReviewWorkspace", () => {
     expect(createDiffReviewComment).not.toHaveBeenCalled()
   })
 
-  it("shows old comments as historical and switches to their anchored diff line", async () => {
+  it("groups old comments under their own version section, keeps them out of the current diff, and switches to their anchored diff line", async () => {
     const oldComment = comment({
       id: 10,
       diff_review_version_id: 100,
@@ -1154,11 +1154,13 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    await screen.findByText("v1 historical")
+    await screen.findByText("Initial implementation")
+    expect(screen.queryByTestId("diff-review-thread")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
 
     await waitFor(() => expect(screen.getByLabelText("Version")).toHaveTextContent("Initial implementation"))
     expect(document.querySelector('[data-diff-anchor="right::1"]')).toBeInTheDocument()
+    expect(await screen.findByTestId("diff-review-thread")).toBeInTheDocument()
     await waitFor(() => expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled())
   })
 
@@ -1224,6 +1226,118 @@ describe("ReviewWorkspace", () => {
     const record = document.querySelector('[data-diff-review-comment-id="11"]') as HTMLElement
     expect(record).toBeInTheDocument()
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it("keeps a comment from another version out of a multi-version range's inline diff, grouped in the sidebar instead", async () => {
+    const rangeVersions = [
+      version({ id: 100, version_index: 1, base_sha: "branch-base", head_sha: "first-head", label: "Initial implementation", run_id: 11 }),
+      version({ id: 200, version_index: 2, base_sha: "first-head", head_sha: "second-head", label: "Repair", run_id: 22 }),
+      version({ id: 300, version_index: 3, base_sha: "branch-base", head_sha: "third-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } })
+    ]
+    const initial = sourceDiffPayload({
+      version: rangeVersions[2],
+      versions: rangeVersions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/shared.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+shared"
+      }]
+    })
+    const range = sourceDiffPayload({
+      version: version({ id: 400, version_index: 4, base_sha: "first-head", head_sha: "third-head", label: null, reason: "source_diff_selection", metadata: { range_kind: "explicit_selection" } }),
+      versions: rangeVersions,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/shared.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+shared"
+      }]
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(range)
+    const oldComment = comment({
+      id: 20,
+      diff_review_version_id: 100,
+      diff_review_version: version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11 }),
+      path: "app/models/shared.rb",
+      new_line: 1,
+      anchor_key: "right::1",
+      body: "Comment anchored to the initial implementation version."
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([oldComment], 300))
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11 }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/shared.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+shared"
+      }]
+    })
+
+    renderWorkspace()
+
+    await screen.findByText("Comment anchored to the initial implementation version.")
+    expect(screen.queryByTestId("diff-review-thread")).not.toBeInTheDocument()
+
+    const selector = await screen.findByLabelText("Version")
+    fireEvent.click(selector)
+    const listbox = screen.getByRole("listbox", { name: "Version" })
+    const repairRange = within(listbox).getByRole("option", { name: /Repair - From main \(first-h\) to syrus\/issue-42 \(second-\)/ })
+    fireEvent.click(within(repairRange).getByRole("button", { name: "From v2 RUN-22" }))
+
+    await waitFor(() => expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=first-head&head=third-head"))
+    expect(await screen.findByTitle("app/models/shared.rb")).toBeInTheDocument()
+    // The range (v2's base .. All changes' head) is a brand new persisted
+    // version distinct from the comment's own v1 -- it must never render
+    // inline just because the file/line happens to coincide.
+    expect(screen.queryByTestId("diff-review-thread")).not.toBeInTheDocument()
+    expect(screen.getByText("Comment anchored to the initial implementation version.")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveTextContent("Initial implementation"))
+    expect(document.querySelector('[data-diff-anchor="right::1"]')).toBeInTheDocument()
+    expect(await screen.findByTestId("diff-review-thread")).toBeInTheDocument()
+  })
+
+  it("orders sidebar comment sections by version_index and marks only the currently displayed version", async () => {
+    const currentComment = comment({
+      id: 30,
+      diff_review_version_id: 200,
+      diff_review_version: version({ id: 200, version_index: 2, label: "Repair", run_id: 22 }),
+      body: "Comment on the current version."
+    })
+    const oldComment = comment({
+      id: 31,
+      diff_review_version_id: 100,
+      diff_review_version: version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11 }),
+      body: "Comment on an earlier version."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 200, version_index: 2, label: "Repair", run_id: 22 }),
+      versions: [
+        version({ id: 100, version_index: 1, label: "Initial implementation", run_id: 11, comments_count: 1 }),
+        version({ id: 200, version_index: 2, label: "Repair", run_id: 22, comments_count: 1 })
+      ]
+    }))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([oldComment, currentComment], 200))
+
+    renderWorkspace()
+
+    await screen.findByText("Comment on the current version.")
+    const sidebar = screen.getByText("Diff comments").closest("section") as HTMLElement
+    expect(within(sidebar).getByText("Comment on an earlier version.")).toBeInTheDocument()
+
+    const sidebarText = sidebar.textContent || ""
+    expect(sidebarText.indexOf("Initial implementation")).toBeLessThan(sidebarText.indexOf("Repair"))
+    expect(within(sidebar).getAllByText("Currently viewing")).toHaveLength(1)
   })
 })
 
