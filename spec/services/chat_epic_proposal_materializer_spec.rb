@@ -291,6 +291,73 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(dependent_result.epic.reload.depends_on_epics).to contain_exactly(upstream_result.epic)
   end
 
+  it "holds a dependent Epic's ready child Job blocked until an already-proposed upstream Epic confirms" do
+    # Reproduces the exact ordering from the incident this regression test
+    # guards: both proposal cards already exist in the chat session (the
+    # upstream one just hasn't been confirmed yet) when the dependent Epic
+    # is confirmed and immediately started -- the same "confirm & start"
+    # action the chat UI performs by default.
+    upstream = chat_session.proposals.create!(
+      slug: "upstream",
+      title: "Upstream",
+      body: "Do this first.",
+      kind: "epic",
+      repository: repository
+    )
+    upstream.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "upstream-child",
+      title: "Upstream child",
+      body: "Build it.",
+      repository: repository
+    )
+    dependent = epic_proposal
+    dependent.update!(epic_depends_on_tokens: JSON.generate([ "upstream" ]))
+    dependent.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "dependent-child",
+      title: "Dependent child",
+      body: "Build it.",
+      repository: repository
+    )
+
+    materializer = described_class.new(user: user)
+    dependent_result = materializer.file!(dependent)
+    epic = dependent_result.epic
+    job = dependent_result.jobs.first
+
+    expect(job).to be_blocked_by_epic
+    expect(epic.may_start_implementing?(actor: user)).to be(false)
+
+    expect {
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to raise_error(Epic::NotStartable, /waiting on Epic dependencies: Upstream/)
+    }.not_to change(Run, :count)
+
+    expect(epic.reload).to be_ready
+    expect(job.reload).to be_blocked_by_epic
+
+    upstream_result = materializer.file!(upstream)
+
+    # The unresolved token has now resolved into a real EpicDependency, but
+    # a real Epic dependency isn't satisfied until the upstream Epic is
+    # actually done -- confirming the proposal alone must not be enough to
+    # release the held Job.
+    expect(epic.reload.depends_on_epics).to contain_exactly(upstream_result.epic)
+    expect(epic.may_start_implementing?(actor: user)).to be(false)
+    expect(job.reload).to be_blocked_by_epic
+
+    upstream_result.epic.override_state!("done")
+
+    expect(epic.reload.may_start_implementing?(actor: user)).to be(true)
+    expect {
+      epic.start_implementing!(actor: user)
+    }.to change { epic.reload.state }.from("ready").to("in_progress")
+
+    expect(job.reload).to be_queued
+  end
+
   it "materializes Epic dependencies from string-encoded Epic ids" do
     prerequisite = Factories.epic(user: user, repository: repository)
     proposal = epic_proposal
