@@ -318,6 +318,40 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  it "lets a retried prepare unblock the prepared-workspace archive that an earlier failed attempt had vetoed" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    # Simulate an earlier, failed prepare attempt on this same Workflow --
+    # RetryFailedStepEnqueuer reopens and reuses the same Workflow record for
+    # a retry, so this stale artifact would otherwise survive into the
+    # now-successful attempt and permanently veto archive reuse (see
+    # Steps::GraderFanout#prepared_workspace_matches_current_plan?).
+    workflow.update!(artifacts: (workflow.artifacts || {}).merge(
+      "prepare_failure" => { "command" => "bundle install", "exit_status" => 5 }
+    ))
+
+    prepare_step = Step.create!(workflow: workflow, kind: "prepare", position: 1)
+    prepare_run = prepare_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
+    prepare_handler = Steps::Prepare.new(prepare_run)
+    allow(prepare_handler).to receive(:workspace).and_return(
+      instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    )
+
+    prepare_handler.call
+    expect(workflow.reload.artifact("prepare_failure")).to be_nil
+
+    handler.call
+
+    snapshot = workflow.source_snapshots.sole
+    expect(snapshot.prepared_workspace_archive).to be_attached
+  end
+
   it "publishes a source-snapshot ref when the prepared archive is unavailable" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
