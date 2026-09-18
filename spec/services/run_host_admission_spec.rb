@@ -407,6 +407,73 @@ RSpec.describe RunHostAdmission do
     end
   end
 
+  # visual_diff previews spawn a headless browser against a preview app on top
+  # of the agent turn itself, so colocating more than one on an already-loaded
+  # host is exactly the kind of burst that produced critical IO pressure in
+  # the 2026-09-14 incident batches.
+  describe "visual_diff preview colocation" do
+    def visual_diff_run(job_for_run: job)
+      visual_diff_workflow = Workflows::VisualDiff.instantiate(job: job_for_run, agent_provider: "codex")
+      visual_diff_workflow.update!(state: "running", worker_hostname: "worker-a")
+      visual_diff_step = visual_diff_workflow.steps.find_by!(kind: "visual_diff")
+      visual_diff_step.update!(state: "running")
+      visual_diff_step.runs.create!(
+        job: job_for_run,
+        trigger_kind: visual_diff_workflow.trigger_kind,
+        agent_provider: visual_diff_workflow.agent_provider
+      )
+    end
+
+    def other_running_visual_diff_preview!
+      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 800 + rand(1000))
+      run = visual_diff_run(job_for_run: other)
+      run.update!(state: "running", started_at: 5.minutes.ago)
+      run
+    end
+
+    it "defers a second colocated visual_diff preview on a warning host" do
+      worker_sample(cpu_pressure_some: 25.0)
+      other_running_visual_diff_preview!
+
+      decision = described_class.call(run: visual_diff_run)
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect(decision.details).to include(
+        "resource_guard_kind" => "visual_diff_preview",
+        "active_visual_diff_preview_run_count" => 1,
+        "guarded_runs_per_host" => 1
+      )
+    end
+
+    it "admits a lone visual_diff preview on a warning host" do
+      worker_sample(cpu_pressure_some: 25.0)
+
+      decision = described_class.call(run: visual_diff_run)
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("host_capacity_available")
+    end
+
+    it "admits a second colocated visual_diff preview on a healthy host" do
+      worker_sample(cpu_pressure_some: 1.0)
+      other_running_visual_diff_preview!
+
+      decision = described_class.call(run: visual_diff_run)
+
+      expect(decision).to be_admit
+    end
+
+    it "still defers visual_diff work outright when the host is under critical pressure" do
+      worker_sample(cpu_pressure_some: 55.0)
+
+      decision = described_class.call(run: visual_diff_run)
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("local_worker_pressure_critical")
+    end
+  end
+
   # Host readings lag the work that produced them, so admitting several runs
   # against a single sample overshoots before the next one lands.
   describe "staggering" do
