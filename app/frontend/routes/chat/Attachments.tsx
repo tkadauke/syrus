@@ -1,26 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import "@excalidraw/excalidraw/index.css"
 import { addChatAttachment, deleteChatAttachment, fetchChatContext, type ChatAttachmentResult, type ChatAttachmentRow, type ChatContextPayload, type ChatPayload } from "../../api/chats"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
-import { appendSearch, withRoutePrefix } from "./utils"
+import { appendSearch, isSupervisorChat, withRoutePrefix } from "./utils"
 
-
-
-
-// Attachment UI extracted from Chat.tsx: the workspace attachment list
-// (Attachments + AttachmentGroup) and the AddAttachment picker/popover.
-// Attachments is rendered by the workspace context tab and the composer;
-// AddAttachment by the composer. Depends only on leaf modules and shared UI
-// imports; unused header imports were pruned after the move.
+// AddAttachment: the composer's "+" popover picker for attaching a
+// Repository/Epic/Job/Document to the chat's context. Search results come
+// from GET .../context, scoped by type + query; picking one POSTs the
+// attachment and refreshes the chat payload.
 
 const DEFAULT_ATTACHMENT_TYPES = ["Repository", "Epic", "Job", "Document"] as const
 const EMPTY_ATTACHMENT_GROUPS = { repositories: [], epics: [], jobs: [], documents: [] } satisfies NonNullable<ChatPayload["attachment_groups"]>
+const SUPERVISOR_ATTACHMENT_TYPES = ["Document"] as const
 
 export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
@@ -161,7 +157,7 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
   const location = useLocation()
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
-  const attachmentTypes = DEFAULT_ATTACHMENT_TYPES
+  const attachmentTypes = isSupervisorChat(payload) ? SUPERVISOR_ATTACHMENT_TYPES : DEFAULT_ATTACHMENT_TYPES
   type AttachmentType = typeof attachmentTypes[number]
   const initialType = normalizeAttachmentType(params.get("attachment_type"), attachmentTypes)
   const [type, setType] = useState<AttachmentType>(initialType)

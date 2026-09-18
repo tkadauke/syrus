@@ -76,8 +76,8 @@ finish the stated sub-task without leaving TODOs for the operator.
 
 Simple-mode chat reads like a conversation: tool call names, JSON inputs, file
 paths, commands, and raw outputs are hidden. Running calls show brief progress
-text, successful calls leave no transcript entry, failed calls show only "Hit a
-snag", and the chat workspace does not show the Context tab.
+text, successful calls leave no transcript entry, and failed calls show only
+"Hit a snag".
 
 Admins can switch between simple and advanced mode from Admin Settings. Syrus
 shows a confirmation that explains the mode-specific changes, saves only after
