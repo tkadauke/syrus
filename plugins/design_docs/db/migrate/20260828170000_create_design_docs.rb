@@ -120,5 +120,6 @@ class CreateDesignDocs < ActiveRecord::Migration[8.1]
     add_index :design_doc_suggestions, [ :design_doc_id, :state ], name: "index_design_doc_suggestions_on_doc_and_state" unless index_exists?(:design_doc_suggestions, [ :design_doc_id, :state ], name: "index_design_doc_suggestions_on_doc_and_state")
     add_index :design_doc_suggestions, :suggested_by_user_id unless index_exists?(:design_doc_suggestions, :suggested_by_user_id)
     add_index :design_doc_suggestions, :reviewed_by_user_id unless index_exists?(:design_doc_suggestions, :reviewed_by_user_id)
+
   end
 end
