@@ -92,22 +92,27 @@ registry:
   example, and viewport: it captures a screenshot of the rendered preview
   with `html2canvas-pro`, lets the operator annotate it with the same
   `ImageAnnotationModal` shared with in-app bug reports, and collects a
-  free-text prompt. Submitting opens a brand new chat (`createChat`, no
-  repository attached) whose initial message carries the annotated
-  screenshot as an attachment, a human-readable summary, and the full
-  structured payload (canonical tool name, owner/plugin/provider, renderer
-  type, selected example id and viewport preset, input/result payload, the
-  result's error flag, and the catalog deep link) as a fenced JSON block —
-  so the assistant on the other end has everything it needs without the
-  operator hand-pasting JSON. A failed screenshot capture shows an inline
-  error but never blocks the chat from starting; the raw metadata stays
-  visible (and still gets sent) either way. The same dialog also offers a
-  "Create Job" action that skips the chat round-trip: it posts the same
-  screenshot and free-text prompt (folded through the same summary+JSON
-  formatting) straight to `POST /api/v1/app/admin/tool_card_jobs`
-  (`SyrusDev::ToolCardJobCreator`), which lands a direct Job immediately
-  --- no operator has to relay "yes, go ahead" back to an assistant that
-  already had everything it needed. The Job targets whichever repository
+  free-text prompt. The annotated screenshot, a human-readable summary, and
+  the full structured payload (canonical tool name, owner/plugin/provider,
+  renderer type, selected example id and viewport preset, input/result
+  payload, the result's error flag, and the catalog deep link) are folded
+  into whichever action the operator picks, as a fenced JSON block — so the
+  assistant on the other end has everything it needs without the operator
+  hand-pasting JSON. A failed screenshot capture shows an inline error but
+  never blocks either action; the raw metadata stays visible (and still gets
+  sent) either way. The dialog's footer mirrors `BugReportButton`'s
+  layout: Cancel | Discuss | Create Job, with Create Job as the highlighted
+  primary action and the form's actual submit button, since it is the
+  immediate no-review-step action; Discuss is a secondary, explicitly clicked
+  button (never triggered by pressing Enter in the prompt textarea) that opens
+  a brand new chat (`createChat`, no repository attached) carrying the same
+  screenshot and payload as its initial message. Create Job skips the chat
+  round-trip entirely: it posts the same screenshot and free-text prompt
+  (folded through the same summary+JSON formatting) straight to
+  `POST /api/v1/app/admin/tool_card_jobs` (`SyrusDev::ToolCardJobCreator`),
+  which lands a direct Job immediately --- no operator has to relay "yes, go
+  ahead" back to an assistant that already had everything it needed. The Job
+  targets whichever repository
   `BugReports::Router` already resolves for "file this about Syrus itself"
   (the configured `report_issue_repo_slug`, or the operator's own fork of
   it); there is no separate repository picker, since the Tool Card Catalog

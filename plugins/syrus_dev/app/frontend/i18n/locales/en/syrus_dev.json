@@ -47,7 +47,7 @@
       "chat_failed": "Couldn't start a new chat. Please try again.",
       "job_failed": "Couldn't create a job. Please try again.",
       "cancel": "Cancel",
-      "submit": "Open chat",
+      "submit": "Discuss",
       "starting": "Starting chat...",
       "create_job": "Create Job",
       "creating_job": "Creating job...",
