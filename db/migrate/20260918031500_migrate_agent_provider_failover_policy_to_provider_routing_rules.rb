@@ -14,7 +14,7 @@ class MigrateAgentProviderFailoverPolicyToProviderRoutingRules < ActiveRecord::M
     return unless table_exists?(:provider_routing_rules)
 
     migrate_enabled_policies
-    remove_column :users, :agent_provider_failover_policy
+    remove_column :users, :agent_provider_failover_policy if column_exists?(:users, :agent_provider_failover_policy)
   end
 
   def down
