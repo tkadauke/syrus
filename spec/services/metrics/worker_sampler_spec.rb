@@ -74,6 +74,18 @@ RSpec.describe Metrics::WorkerSampler do
       expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-b"} 20')
     end
 
+    it "anchors the cpu gauge to worker_storage_key across a pod restart, not hostname" do
+      worker_sample(hostname: "syrus-worker-abc-1", cpu: 20.0, memory: nil, disk: nil, observed_at: 1.minute.ago).update!(worker_storage_key: "storage-a")
+      worker_sample(hostname: "syrus-worker-xyz-2", cpu: 65.0, memory: nil, disk: nil, observed_at: 10.seconds.ago).update!(worker_storage_key: "storage-a")
+
+      sample!
+      refresh!
+
+      rendered = Syrus::Metrics.render
+      expect(rendered).to include('syrus_worker_cpu_percent{hostname="syrus-worker-xyz-2"} 65')
+      expect(rendered).not_to include('syrus_worker_cpu_percent{hostname="syrus-worker-abc-1"}')
+    end
+
     it "caches active_agent_runs from currently-running agentic Runs" do
       job_with_run(step_attrs: { kind: "implement" }, run_attrs: { state: "running" })
       job_with_run(step_attrs: { kind: "grader" }, run_attrs: { state: "running" }) # not agentic

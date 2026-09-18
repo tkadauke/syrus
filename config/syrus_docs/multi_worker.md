@@ -220,6 +220,13 @@ affinity lasts only as long as that storage does.
 `worker_hostname` remains useful for diagnostics, process ownership, and worker
 health correlation, but it is not the resume-routing key.
 
+`worker_host_health_samples` (the table backing the Metrics dashboard's
+Workers & Fleet tab and the admin fleet view) carries the same split: a
+`hostname` diagnostics column plus a `worker_storage_key` column stamped the
+same way, so a Deployment pod restart doesn't fork a worker's CPU/memory/disk
+history into a new series every reschedule. See `config/syrus_docs/metrics.md`'s
+"Workers and admission" section.
+
 ## Per-worker workspace pruning
 
 A workspace lives on the data root that ran the workflow, so a worker on a

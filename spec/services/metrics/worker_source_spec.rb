@@ -29,6 +29,13 @@ RSpec.describe Metrics::WorkerSource do
 
       expect(source.worker_cpu_percentages).to eq({})
     end
+
+    it "treats samples with different hostnames but the same worker_storage_key as one continuous series" do
+      sample(hostname: "syrus-worker-abc-1", worker_storage_key: "storage-a", cpu_used_percent: 10.0, observed_at: 1.minute.ago)
+      sample(hostname: "syrus-worker-xyz-2", worker_storage_key: "storage-a", cpu_used_percent: 55.0, observed_at: 10.seconds.ago)
+
+      expect(source.worker_cpu_percentages).to eq("syrus-worker-xyz-2" => 55.0)
+    end
   end
 
   describe "#worker_memory_percentages" do

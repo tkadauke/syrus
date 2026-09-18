@@ -199,6 +199,7 @@ function workerQueuePayload(): WorkersQueuePayloadWithHealth {
         {
           id: 4,
           hostname: "worker-a",
+          storage_key: "worker-a",
           role: "worker",
           version: "abc123",
           started_at: "2026-05-30T11:00:00Z",
@@ -213,6 +214,7 @@ function workerQueuePayload(): WorkersQueuePayloadWithHealth {
       hosts: [
         {
           hostname: "worker-a",
+          storage_key: "worker-a",
           status: "historical",
           current: null,
           windows: {

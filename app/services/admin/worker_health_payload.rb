@@ -49,20 +49,28 @@ module Admin
         hostname ? scope.where(hostname: hostname) : scope
       }.order(:hostname).map do |instance|
         latest = latest_sample_by_hostname[instance.hostname]
-        payload = instance_payload(instance, latest)
-        payload[:trend] = summarize(samples_for(instance.hostname).select { |sample| sample.observed_at >= 1.hour.ago })
+        key = storage_key_for(hostname: instance.hostname, latest: latest)
+        payload = instance_payload(instance, latest, key)
+        payload[:trend] = summarize(samples_by_key.fetch(key, []).select { |sample| sample.observed_at >= 1.hour.ago })
         payload
       end
     end
 
+    # Keyed by worker_storage_key (falling back to hostname for samples
+    # written before that column existed) so a Deployment pod restart -- a
+    # new hostname, same durable storage -- continues the same host's history
+    # instead of forking a new row. `hostname` stays the human-readable label,
+    # taken from the current live instance when there is one, else the most
+    # recent sample seen for that storage key.
     def host_history
-      current_by_hostname = current_workers.index_by { |worker| worker.fetch(:hostname) }
-      hostnames = (samples.map(&:hostname) + current_by_hostname.keys).compact.uniq.sort
-      hostnames.map do |host|
-        host_samples = samples_for(host)
-        current = current_by_hostname[host]
+      current_by_key = current_workers.index_by { |worker| worker.fetch(:storage_key) }
+      keys = (samples_by_key.keys + current_by_key.keys).compact.uniq.sort
+      keys.map do |key|
+        host_samples = samples_by_key.fetch(key, [])
+        current = current_by_key[key]
         {
-          hostname: host,
+          hostname: current&.fetch(:hostname) || host_samples.first&.hostname || key,
+          storage_key: key,
           status: current ? "current" : "historical",
           current: current,
           windows: TREND_WINDOWS.transform_values { |duration| summarize(host_samples.select { |sample| sample.observed_at >= until_time - duration }) },
@@ -72,11 +80,12 @@ module Admin
       end
     end
 
-    def instance_payload(instance, latest)
+    def instance_payload(instance, latest, storage_key)
       health = health_for(sample: latest, instance: instance)
       {
         id: instance.id,
         hostname: instance.hostname,
+        storage_key: storage_key,
         role: instance.role,
         version: instance.version,
         started_at: instance.started_at&.iso8601,
@@ -187,12 +196,15 @@ module Admin
       Time.zone.at((value.to_f / 60).floor * 60)
     end
 
-    def samples_for(host)
-      samples_by_hostname.fetch(host, [])
+    # The durable identity a host's history is grouped under: its most recent
+    # sample's worker_storage_key when one is known, else the hostname itself
+    # (pre-migration rows, or a live instance with no sample yet).
+    def storage_key_for(hostname:, latest:)
+      latest&.worker_storage_key.presence || hostname
     end
 
-    def samples_by_hostname
-      @samples_by_hostname ||= samples.group_by(&:hostname)
+    def samples_by_key
+      @samples_by_key ||= samples.group_by { |sample| sample.worker_storage_key.presence || sample.hostname }
     end
 
     def samples

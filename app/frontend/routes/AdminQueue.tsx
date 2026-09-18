@@ -416,7 +416,7 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
 function WorkerHealthHostGrid({ hosts }: { hosts: WorkerHealthHost[] }) {
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-      {hosts.map((host) => <WorkerHealthHostPanel host={host} key={host.hostname} />)}
+      {hosts.map((host) => <WorkerHealthHostPanel host={host} key={host.storage_key} />)}
     </div>
   )
 }

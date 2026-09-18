@@ -44,12 +44,20 @@ module Metrics
 
     private
 
+    # Grouped by the durable worker_storage_key (WorkerStorageIdentity), not
+    # hostname, so a Deployment pod restart -- a new hostname, same storage --
+    # does not fork the series. Rows written before this column existed have
+    # no worker_storage_key, so they fall back to hostname for the rollout
+    # window. The hash is then re-keyed by each group's latest sample's
+    # hostname so callers keep the human-readable label the dashboard renders.
     def latest_samples
       @latest_samples ||= WorkerHostHealthSample.worker_role
         .where("observed_at >= ?", SAMPLE_WINDOW.ago)
         .order(observed_at: :desc)
-        .group_by(&:hostname)
+        .group_by { |sample| sample.worker_storage_key.presence || sample.hostname }
         .transform_values(&:first)
+        .values
+        .index_by(&:hostname)
     end
   end
 end

@@ -339,6 +339,7 @@ export type WorkerHealthMinuteBucket = WorkerHealthSummary & {
 export type CurrentWorkerHealth = {
   id: number
   hostname: string
+  storage_key: string
   role: string
   version: string
   started_at: string | null
@@ -355,6 +356,7 @@ export type CurrentWorkerHealth = {
 
 export type WorkerHealthHost = {
   hostname: string
+  storage_key: string
   status?: "current" | "historical" | string
   current: CurrentWorkerHealth | null
   windows: Record<string, WorkerHealthSummary>

@@ -197,14 +197,29 @@ the sampler first runs, not from the beginning of time.
 
 `Metrics::WorkerSampler` (`app/services/metrics/worker_sampler.rb`) owns the
 first five. `worker_cpu_percent`/`worker_memory_percent`/`worker_disk_percent`
-read the most recent `WorkerHostHealthSample` per hostname within a 2-minute
-window -- the same freshness window `RunHostAdmission`/`WorkflowAdmissionBudget`
-use to decide a sample is still trustworthy -- and are the panel that would
-have shown "one worker at 3277m and another idle at 51m" instead of someone
+read the most recent `WorkerHostHealthSample` within a 2-minute window -- the
+same freshness window `RunHostAdmission`/`WorkflowAdmissionBudget` use to
+decide a sample is still trustworthy -- and are the panel that would have
+shown "one worker at 3277m and another idle at 51m" instead of someone
 finding it by hand. `active_agent_runs` and `max_concurrent_agent_runs` are
 plain gauges read from `Run.running_agent_runs.count` and
 `AppSetting.max_concurrent_agent_runs`. All five are GLOBAL and cache-mediated
 exactly like the queue-health and landing-queue gauges above.
+
+**Grouped by `worker_storage_key`, labeled by `hostname`.** `WorkerHostHealthSample`
+carries both a diagnostics `hostname` and a durable `worker_storage_key`
+(`WorkerStorageIdentity.queue_key`, the same id `workflows.worker_storage_key`
+already uses -- see `config/syrus_docs/multi_worker.md`'s "Retry-from-failed-step
+storage affinity"). `Metrics::WorkerSource#latest_samples` groups by
+`worker_storage_key` (falling back to `hostname` for samples written before
+that column existed) so a Kubernetes Deployment pod restart -- a new
+`<replicaset-hash>-<pod-suffix>` hostname, same underlying storage -- continues
+one series instead of forking a new one every reschedule. The `hostname` tag on
+the three gauges still comes from each group's most recent sample, so the
+label stays the human-readable pod name operators recognize; only the
+grouping identity changed. `Admin::WorkerHealthPayload`'s `current`/`hosts`
+fleet view (`GET /api/v1/admin/worker_health`) applies the same split and adds
+an explicit `storage_key` field per host alongside the `hostname` label.
 
 `workflow_step_duration_seconds` is a histogram and therefore goes through
 the same cursor + cumulative-snapshot dance `run_duration_seconds` uses (see

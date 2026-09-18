@@ -120,5 +120,16 @@ RSpec.describe WorkerHostHealthSampler do
       ])
       expect(WorkerHostHealthSample.first.cpu_used_percent).to eq(12.5)
     end
+
+    it "persists the durable worker_storage_key alongside hostname" do
+      allow(described_class).to receive(:sample).and_return(cpu_used_percent: 12.5, raw_metrics: {})
+      allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-a")
+      observed_at = Time.zone.parse("2026-07-31 12:00:00 UTC")
+      instance = InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc", started_at: observed_at, last_heartbeat_at: observed_at)
+
+      described_class.record!(instance: instance, observed_at: observed_at)
+
+      expect(WorkerHostHealthSample.last.worker_storage_key).to eq("storage-a")
+    end
   end
 end

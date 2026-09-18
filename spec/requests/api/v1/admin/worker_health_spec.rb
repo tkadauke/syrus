@@ -116,4 +116,27 @@ RSpec.describe "API: /api/v1/admin/worker_health", type: :request do
     )
     expect(body.dig("hosts", 0, "recent_samples", 0)).to include("cpu_used_percent" => 42.0)
   end
+
+  it "anchors one host's series to worker_storage_key across a Deployment pod restart, not hostname" do
+    InstanceVersion.create!(hostname: "syrus-worker-home-xyz-2", role: "worker", version: "abc123",
+                            started_at: 1.minute.ago, last_heartbeat_at: 10.seconds.ago)
+    WorkerHostHealthSample.create!(hostname: "syrus-worker-home-abc-1", role: "worker", version: "abc123",
+                                   worker_storage_key: "storage-a", observed_at: 30.minutes.ago,
+                                   cpu_used_percent: 20)
+    WorkerHostHealthSample.create!(hostname: "syrus-worker-home-xyz-2", role: "worker", version: "abc123",
+                                   worker_storage_key: "storage-a", observed_at: 10.seconds.ago,
+                                   cpu_used_percent: 65)
+
+    get "/api/v1/admin/worker_health", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["hosts"].length).to eq(1)
+    host = body["hosts"].first
+    expect(host["storage_key"]).to eq("storage-a")
+    expect(host["hostname"]).to eq("syrus-worker-home-xyz-2")
+    expect(host["status"]).to eq("current")
+    expect(host["recent_samples"].map { |sample| sample["cpu_used_percent"] }).to contain_exactly(20.0, 65.0)
+    expect(body.dig("current", 0, "storage_key")).to eq("storage-a")
+  end
 end
