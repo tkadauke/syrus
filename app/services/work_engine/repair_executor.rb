@@ -411,8 +411,13 @@ module WorkEngine
           classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS : AutoRetryAttempt::MAX_ATTEMPTS
         end
 
+        DELAYED_RETRY_DEDUP_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
+
         def delayed_retry_already_scheduled?(workflow:, source_run:, classification:, retry_kind:, scheduled_at:)
-          return false unless classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
+          if classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+            return worker_died_retry_already_scheduled?(workflow: workflow, source_run: source_run, retry_kind: retry_kind)
+          end
+          return false unless classification.in?(DELAYED_RETRY_DEDUP_CLASSIFICATIONS)
           return false unless scheduled_at&.future?
 
           scope = workflow.auto_retry_attempts
@@ -437,6 +442,27 @@ module WorkEngine
         # a second, overlapping retry for the exact same failure. Scoped to the Run (not the
         # Job) so unrelated sibling Runs -- e.g. other grader_fanout Steps still running in
         # the same Workflow -- are never blocked by this check.
+        #
+        # worker_died can be (re)detected by more than one issue classifier for
+        # the same still-failed Run in one reconciler pass -- e.g. a missing
+        # resumable session and a worker_died failure classification both
+        # propose the same retry_failed_step repair, one with an immediate
+        # scheduled_at and one backed off. auto_retry_blocker_for's "pending"
+        # check stops the second one only while the first is still pending; once
+        # AutoRetryJob marks it performed, scheduled_at alone no longer tells
+        # "already retried" from "safe to retry again" apart, and a second
+        # attempt for the exact same (run, retry_kind) gets scheduled on top of
+        # it. So this dedups unconditionally on (run, retry_kind), independent
+        # of scheduled_at or performed_at: a failed visual_diff (or any other)
+        # Run gets exactly one attempt per retry kind for its worker_died
+        # failure, not one per detector that happened to notice it.
+        def worker_died_retry_already_scheduled?(workflow:, source_run:, retry_kind:)
+          workflow.auto_retry_attempts
+            .unskipped
+            .where(run: source_run, retry_kind: retry_kind, failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
+            .exists?
+        end
+
         def auto_retry_blocker_for(workflow, retry_kind, source_run)
           return "retry already pending" if workflow.auto_retry_attempts.pending.exists?
           if (existing = existing_unskipped_attempt_for_run(workflow, source_run))
