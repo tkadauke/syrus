@@ -8,13 +8,13 @@ export function CopyableSlug({ slug, className = "" }: { slug: string; className
   return (
     <button
       aria-label={t("copy.copy_to_clipboard", { slug })}
-      className={`group inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 ${className}`}
+      className={`group inline-flex max-w-full min-w-0 items-center gap-1 rounded px-1 py-0.5 font-mono text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 ${className}`}
       onClick={() => copy(slug)}
       title={copied ? t("copy.copied") : t("copy.copy", { slug })}
       type="button"
     >
-      <span>{slug}</span>
-      <CopyIcon className={`h-3.5 w-3.5 ${copied ? "text-green-600 dark:text-green-300" : "text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300"}`} />
+      <span className="min-w-0 break-all text-left">{slug}</span>
+      <CopyIcon className={`h-3.5 w-3.5 shrink-0 ${copied ? "text-green-600 dark:text-green-300" : "text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300"}`} />
     </button>
   )
 }
