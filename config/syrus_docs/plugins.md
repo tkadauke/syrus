@@ -2763,7 +2763,9 @@ no teardown, which is exactly why it is not an effect.
 
 Bundled plugins:
 
-- `agy_agent` — default-enabled Antigravity workflow and chat provider. It writes
+- `agy_agent` — **default-disabled** Antigravity workflow and chat provider; an
+  operator enables it from Admin -> Plugins once the worker/backend image
+  includes the agy CLI and a Gemini API key is available. It writes
   the Syrus sidecar into Antigravity's isolated
   `~/.gemini/config/mcp_config.json` and reads `SYRUS_AGY_MODEL` /
   `SYRUS_AGY_EFFORT` as provider configuration. Workflow and chat invocations
@@ -2778,7 +2780,14 @@ Bundled plugins:
   essential and deferred tool tiers. Antigravity conversation ids are accepted
   only when they are path-safe; invalid ids start a fresh session and log a
   diagnostic instead of being used in a path or command argument.
-- `claude_agent` / `codex_agent` — default-enabled workflow and chat providers.
+- `claude_agent` / `codex_agent` — **default-disabled** workflow and chat
+  providers, same as `agy_agent` and `muse_agent`: a new install ships with no
+  agent provider enabled, and an operator turns one on from Admin -> Plugins
+  once its credentials are configured. Existing installs that already had one
+  of these plugins enabled before this default flipped keep it enabled —
+  `Syrus::PluginRegistry.upsert_plugin_record!` only applies a manifest's
+  `default_enabled` value to a brand-new `PluginRecord`, never to one that
+  already exists.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.

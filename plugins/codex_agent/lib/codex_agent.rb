@@ -9,7 +9,7 @@ module SyrusCodexAgent
     icon_url "/plugin-icons/codex_agent.svg"
     author "Thomas Kadauke"
     category "agent_provider"
-    default_enabled true
+    default_enabled false
     disableable true
     provides agent_provider: "AgentProviders::Codex",
              chat_provider: "ChatProviders::Codex"
