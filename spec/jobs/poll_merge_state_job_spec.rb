@@ -579,6 +579,29 @@ RSpec.describe PollMergeStateJob, :ci_only do
 
       expect(preempted.reload.closure_reason).to eq("preempted")
     end
+
+    # Regression: a preempted (closed) Job whose tracked external PR is
+    # still open but behind/dirty used to fall through
+    # finalize_terminal_external_pr (which only acts on a terminal PR)
+    # straight into dispatch_rebase, which called
+    # RebaseWorkflowSelector.instantiate for a closed Job and blew up with
+    # ActiveRecord::RecordInvalid (Workflow#job_must_be_open_on_create).
+    [ "behind", "dirty" ].each do |mergeable_state|
+      it "does not raise or schedule a rebase Workflow/WorkUnit for a closed Job with an open, #{mergeable_state} PR" do
+        preempted = preempted_job
+        allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(
+          pr(merged: false, state: "open", mergeable_state: mergeable_state, mergeable: false)
+        )
+        allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([])
+
+        expect {
+          described_class.perform_now(preempted.id)
+        }.to change(Workflow, :count).by(0).and change(WorkUnit, :count).by(0)
+
+        expect(preempted.reload).to be_closed
+        expect(preempted.closure_reason).to eq("preempted")
+      end
+    end
   end
 
   describe "proactive rebase on commit-distance threshold" do
