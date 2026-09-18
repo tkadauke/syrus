@@ -207,11 +207,5 @@ RSpec.describe Feature, type: :model do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "epicless_job_bundling" }
       expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
     end
-
-    it "declares the admin supervisor chat operations flag default-off in config/features.yml" do
-      declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
-                        .find { |f| f["slug"] == "admin_supervisor_chat" }
-      expect(declaration).to include("category" => "Operations", "default" => false)
-    end
   end
 end

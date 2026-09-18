@@ -2947,8 +2947,7 @@ Bundled plugins:
   `/insights/spending`, `component: "spending_insights/SpendingInsights"`,
   `icon: "spending"` (maps to `SpendingIcon` via `sidebarNav.tsx`'s
   `PLUGIN_ICONS`), `order: 60` — appended after `CORE_NAV_ITEMS`, so it
-  renders at the end of the primary sidebar nav, above the pinned Supervisor
-  chat block. The plugin owns the whole feature: `SpendingInsights::Payload`
+  renders at the end of the primary sidebar nav. The plugin owns the whole feature: `SpendingInsights::Payload`
   and `SpendingInsights::Filter`, the `api/v1/app/insights/spending#show`
   controller (declared as a manifest route, dispatched by the host), the
   `get_spending` chat MCP tool, the `spending_report` FilterBar subject and its

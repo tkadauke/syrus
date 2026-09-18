@@ -39,20 +39,6 @@ class McpToolPolicy
   # dispatch tools.
   REF_MOVEMENT_TOOLS = LazyToolList.new { ref_movement_tools }
 
-  SUPERVISOR_EXCLUDED_TOOL_NAMES = %w[
-    attach_repository
-    propose_epic
-    propose_job
-    propose_epic_with_jobs
-    list_proposals
-    delete_proposal
-    submit_chat_feedback
-    delegate_issue
-    list_chat_media
-  ].freeze
-
-  SUPERVISOR_EXCLUDED_TOOLS = LazyToolList.new { supervisor_excluded_tools }
-
   def self.for(context)
     new(context).allowed_tools
   end
@@ -74,15 +60,6 @@ class McpToolPolicy
       Mcp::Tools::ClassifyPullRequestTool,
       Mcp::Tools::IngestPullRequestTool
     ].freeze
-  end
-
-  def self.supervisor_excluded_tools
-    @supervisor_excluded_tools ||= begin
-      McpToolRegistry.entries(surface: :chat)
-        .select { |entry| SUPERVISOR_EXCLUDED_TOOL_NAMES.include?(entry.tool_name) }
-        .map(&:tool)
-        .freeze
-    end
   end
 
   def self.syrus_repository?(repository)
@@ -147,7 +124,7 @@ class McpToolPolicy
   def chat_tools
     return chat_evaluator_tools if @context.role == AgentRole::CHAT_EVALUATOR
 
-    apply_supervisor_filter(McpToolRegistry.tools_for_context(@context, surface: :chat))
+    McpToolRegistry.tools_for_context(@context, surface: :chat)
   end
 
   def chat_evaluator_tools
@@ -220,12 +197,6 @@ class McpToolPolicy
     return Feature.public_send("#{feature_flag}_enabled?") if feature_flag
 
     true
-  end
-
-  def apply_supervisor_filter(tools)
-    return tools unless @context.chat_session&.system_kind_supervisor?
-
-    tools.reject { |tool| self.class.supervisor_excluded_tools.include?(tool) }
   end
 
   # Insight agents: read-live-state + worker health + memory tools. Whoever

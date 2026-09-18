@@ -4,9 +4,8 @@ module ScheduledTasks
   # The schedule tools a chat agent can reach.
   #
   # Each definition carries its own policy, which is what lets these leave
-  # core without changing behaviour: the two that create or fire work stay out
-  # of Supervisor chats, and the two read-only ones remain available to the
-  # scoped-event evaluator, whose core set is a fixed allowlist.
+  # core without changing behaviour: the two read-only ones remain available
+  # to the scoped-event evaluator, whose core set is a fixed allowlist.
   class ChatToolSet
     include Syrus::Plugin::ChatMcpToolSet
 
@@ -21,7 +20,6 @@ module ScheduledTasks
       McpTools::FireScheduledTaskNowTool
     ].freeze
 
-    SUPERVISOR_EXCLUDED = %w[schedule_recurring fire_scheduled_task_now].freeze
     EVALUATOR_TOOLS = %w[list_scheduled_tasks read_scheduled_task].freeze
 
     def self.available_for?(_chat_session, tier:)
@@ -40,7 +38,6 @@ module ScheduledTasks
         name: name,
         description: klass.description_value,
         input_schema: klass.input_schema_value.to_h,
-        supervisor_excluded: SUPERVISOR_EXCLUDED.include?(name),
         evaluator: EVALUATOR_TOOLS.include?(name)
       }
     end

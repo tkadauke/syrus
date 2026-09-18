@@ -5,7 +5,7 @@ module Mcp::Tools
     extend AdminPendingActionToolSupport
 
     tool_name "refresh_pr_checks"
-    description "Refresh a Job PR's cached GitHub check-run state and return failing check names and details URLs. Admin/Supervisor only."
+    description "Refresh a Job PR's cached GitHub check-run state and return failing check names and details URLs. Admin only."
 
     input_schema(
       properties: {

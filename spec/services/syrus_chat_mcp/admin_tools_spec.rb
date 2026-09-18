@@ -400,8 +400,8 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(PendingActionGroup.count).to eq(0)
   end
 
-  it "creates and confirms Job-scoped repair actions from repositoryless Supervisor chats" do
-    supervisor_session = ChatSession.create!(user: admin, system_kind: "supervisor")
+  it "creates and confirms Job-scoped repair actions from repositoryless admin chats" do
+    repositoryless_admin_session = ChatSession.create!(user: admin)
     job = Factories.job_record(user: user, repository: Factories.repository(user: user), state: "open")
     repair_result = JobStateRepair::Result.new(job: job, message: "inspected")
     allow(JobStateRepair).to receive(:reconcile!)
@@ -409,7 +409,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       .and_return(repair_result)
 
     response = call_tool(
-      supervisor_session,
+      repositoryless_admin_session,
       "reconcile_job_state",
       { job_id: job.id, mode: "auto", reason: "JOB-115 has state drift." }
     )
@@ -418,7 +418,7 @@ RSpec.describe "Mcp::Tools admin tools" do
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(action).to have_attributes(
-      chat_session: supervisor_session,
+      chat_session: repositoryless_admin_session,
       user: admin,
       repository: nil,
       action: "reconcile_job_state",

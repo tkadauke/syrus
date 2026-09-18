@@ -37,8 +37,8 @@ memory and when, and hides edit/publish/delete actions).
 
 ## Admin chat MCP tool
 
-Admin and Supervisor chat agents can call `admin_read_memory_audit_history(memory_id)`
+Admin chat agents can call `admin_read_memory_audit_history(memory_id)`
 to read the same audit trail for any memory, including soft-deleted ones —
 useful for diagnosing why a memory's content changed or was removed.
 Registered `admin_only: true` in `McpToolRegistry`, so it is available to any
-chat where the signed-in user is an admin, not only Supervisor chat.
+chat where the signed-in user is an admin.

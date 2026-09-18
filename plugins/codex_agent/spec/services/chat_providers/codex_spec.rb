@@ -119,9 +119,8 @@ RSpec.describe ChatProviders::Codex do
       mcp_config&.close!
     end
 
-    it "bypasses the cached full transcript for compacted Supervisor chats" do
+    it "bypasses the cached full transcript for compacted chats" do
       allow(Feature).to receive(:chat_context_compaction_enabled?).and_return(true)
-      chat.update!(system_kind: "supervisor", title: "Supervisor")
       130.times do |i|
         chat.messages.create!(role: "assistant", content: [
           { "type" => "text", "text" => "assistant event #{i}" }

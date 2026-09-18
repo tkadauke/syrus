@@ -12,11 +12,11 @@ class NotificationService
   # legacy epic keep routing through the epic-level rollup notification.
   SIMPLE_JOB_CENTRIC_KINDS = %w[job_failed job_implemented].freeze
 
-  def self.create_for(user:, kind:, job: nil, repository: nil, actor: nil, pr_url: nil, body:, supervisor_dedupe_key: nil)
+  def self.create_for(user:, kind:, job: nil, repository: nil, actor: nil, pr_url: nil, body:, chat_work_event_dedupe_key: nil)
     raise ArgumentError, "unknown notification kind: #{kind}" unless Notification::KINDS.include?(kind)
     return nil unless user&.id && User.exists?(user.id)
 
-    publish_supervisor_event(
+    publish_chat_work_event(
       user: user,
       kind: kind,
       job: job,
@@ -24,7 +24,7 @@ class NotificationService
       actor: actor,
       pr_url: pr_url,
       body: body,
-      dedupe_key: supervisor_dedupe_key
+      dedupe_key: chat_work_event_dedupe_key
     )
 
     return nil if AppSetting.simple? && suppressed_in_simple_mode?(kind, job)
@@ -70,26 +70,27 @@ class NotificationService
     }
   end
 
-  # workflow-engine-v3 B2: the supervisor is not a notification firehose.
+  # workflow-engine-v3 B2: chat work events are not a notification firehose.
   #
-  # Every notification used to become a SupervisorEvent, which is why the
-  # supervisor chat drowned: most notifications report that something *went
-  # fine*, and a queue of those buries the rare one that needs a decision.
+  # Every notification used to become a chat work event, which is why the
+  # old admin Supervisor chat drowned: most notifications report that
+  # something *went fine*, and a queue of those buries the rare one that
+  # needs a decision.
   #
   # Only kinds that represent something a person may have to act on publish an
   # event now. The rest are still notifications -- the user sees them -- they
-  # just do not wake the supervisor.
-  SUPERVISOR_EVENT_KINDS = %w[
+  # just do not wake a scoped chat.
+  CHAT_WORK_EVENT_KINDS = %w[
     job_failed epic_failed main_broken main_inconclusive upstream_pr_closed
   ].freeze
 
-  def self.supervisor_event_kind?(kind) = SUPERVISOR_EVENT_KINDS.include?(kind.to_s)
-  private_class_method :supervisor_event_kind?
+  def self.chat_work_event_kind?(kind) = CHAT_WORK_EVENT_KINDS.include?(kind.to_s)
+  private_class_method :chat_work_event_kind?
 
-  def self.publish_supervisor_event(user:, kind:, job:, repository:, actor:, pr_url:, body:, dedupe_key:)
-    return unless supervisor_event_kind?(kind)
+  def self.publish_chat_work_event(user:, kind:, job:, repository:, actor:, pr_url:, body:, dedupe_key:)
+    return unless chat_work_event_kind?(kind)
 
-    SupervisorEvents.publish!(
+    ChatWorkEvents.publish!(
       kind: kind,
       severity: severity_for(kind),
       subject: subject_for(kind, job),
@@ -101,7 +102,7 @@ class NotificationService
       dedupe_key: dedupe_key || default_dedupe_key(kind, job, repository, body)
     )
   end
-  private_class_method :publish_supervisor_event
+  private_class_method :publish_chat_work_event
 
   def self.subject_for(kind, job)
     return "#{job.slug}: #{kind.to_s.humanize}" if job

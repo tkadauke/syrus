@@ -25,14 +25,6 @@ module ChatIndexPayload
     end
   end
 
-  def supervisor_chat_index_json
-    return unless Feature.admin_supervisor_chat_enabled?
-    return unless Current.user.admin?
-
-    chat_session = SupervisorChat.for_index(Current.user)
-    chat_index_json(chat_session).merge(supervisor_unread_summary(chat_session))
-  end
-
   def chat_index_group_json(key:, label:, repository_id:, chats:, has_more:, context: nil)
     PerformanceLogging.phase("chat_index.group.serialize", repository_id: repository_id, count: chats.size) do
       context ||= PerformanceLogging.phase("chat_index.group.context", repository_id: repository_id, count: chats.size) { chat_index_context_for(chats) }
@@ -291,45 +283,5 @@ module ChatIndexPayload
 
   def chat_activity_at(chat_session)
     chat_session.last_message_at || chat_session.created_at
-  end
-
-  def supervisor_unread_summary(chat_session)
-    last_read_at = current_participant_for(chat_session)&.last_read_at || chat_session.last_read_at
-
-    unread_events = chat_session.scoped_events
-    unread_events = unread_events.where("created_at > ?", last_read_at) if last_read_at.present?
-
-    legacy_unread_messages = legacy_supervisor_unread_message_scope(chat_session.id)
-    legacy_unread_messages = legacy_unread_messages.where("created_at > ?", last_read_at) if last_read_at.present?
-
-    severity_rank = { "info" => 0, "warning" => 1, "critical" => 2 }
-    event_severities = unread_events.order(created_at: :desc, id: :desc).limit(200).pluck(:payload).filter_map do |payload|
-      next unless payload.is_a?(Hash)
-
-      severity = payload["severity"].to_s
-      severity if severity_rank.key?(severity)
-    end
-    legacy_severities = legacy_unread_messages.order(created_at: :desc, id: :desc).limit(200).pluck(:content).filter_map do |content|
-      next unless content.is_a?(Hash)
-      next if content.dig("supervisor_event", "scoped_event_id").present?
-
-      severity = content.dig("supervisor_event", "severity").to_s
-      severity if severity_rank.key?(severity)
-    end
-
-    unread_count = unread_events.count + legacy_severities.size
-    severities = event_severities + legacy_severities
-    {
-      unread: unread_count.positive? || (chat_unread?(chat_session) && chat_session.messages.exists?),
-      supervisor_unread_count: unread_count,
-      supervisor_unread_severity: severities.max_by { |severity| severity_rank.fetch(severity) }
-    }
-  end
-
-  def legacy_supervisor_unread_message_scope(chat_session_id)
-    scope = ChatMessage.where(chat_session_id: chat_session_id, role: "system")
-    return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
-
-    scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (idx_chat_messages_session_role_created_id)"))
   end
 end

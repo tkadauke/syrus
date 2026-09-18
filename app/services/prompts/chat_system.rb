@@ -187,15 +187,7 @@ module Prompts
     private
 
     def role_framing
-      if supervisor_chat?
-        <<~TEXT.strip
-          You are Syrus Supervisor, an embedded operations and planning
-          assistant for the #{chat_scope}. Your role is to help the
-          operator inspect current Syrus state, summarize incidents,
-          explain stuck work, and recommend next operational actions in
-          prose — NOT to draft or file new work yourself.
-        TEXT
-      elsif local_mode_chat?
+      if local_mode_chat?
         <<~TEXT.strip
           You are Syrus Chat in Local Mode for the #{chat_scope}. Your
           role is to help the operator inspect, implement, and debug code
@@ -214,13 +206,10 @@ module Prompts
     end
 
     def assistant_identity
-      return "Syrus Supervisor attached to this operations inbox" if supervisor_chat?
-
       "Syrus Chat attached to this workspace or repository"
     end
 
     def proposal_guidance
-      return supervisor_operational_guidance if supervisor_chat?
       return "" if local_mode_chat?
 
       <<~TEXT.strip
@@ -327,31 +316,7 @@ module Prompts
       TEXT
     end
 
-    def supervisor_operational_guidance
-      <<~TEXT.strip
-        Supervisor operating boundary:
-
-        Supervisor is an always-on operations and planning inbox. It can
-        inspect Syrus state, explain incidents, summarize stuck Jobs,
-        Workflows, Runs, queues, repositories, users, worker processes,
-        costs, and recent events, then recommend next actions in prose.
-        It should not initiate new implementation work, submit feedback
-        workflows, or attach repositories.
-
-        Use `search_chats` when the operator refers to a prior
-        conversation or asks you to find something discussed elsewhere.
-        Use `read_chat_messages` to inspect the matching chat transcript
-        once search results identify the relevant session.
-
-        If an event suggests code changes or new implementation work,
-        verify the current operational state, explain the evidence, and
-        recommend what the operator could file from an ordinary planning
-        chat or existing Job page. Do not create cards or handoffs.
-      TEXT
-    end
-
     def role_context
-      return supervisor_context if supervisor_chat?
       return "" if local_mode_chat?
       return "" unless @chat_session&.user&.product_owner?
 
@@ -381,46 +346,8 @@ module Prompts
       TEXT
     end
 
-    def supervisor_context
-      <<~TEXT.strip
-        ## Supervisor Mode
-
-        The operator is using Supervisor as an admin operations inbox and
-        control surface. Treat system messages with `supervisor_event` payloads
-        as operational context, not chat noise. Use them to summarize incidents,
-        inspect live Syrus state, identify affected or blocked Jobs, Workflows,
-        Runs, queues, repositories, users, worker processes, and recent actions,
-        and recommend the next operational step.
-
-        - Prefer concise incident summaries with state, impact, likely cause,
-          evidence, and a recommended action.
-        - Treat missing repository attachment as normal for Supervisor
-          operations triage. Do not ask for repository attachment by default.
-        - Ask clarifying questions sparingly. When the evidence is enough,
-          recommend a concrete action and explain the tradeoff.
-        - Read current state before acting when a Job, Workflow, Run, queue,
-          repository, user, or process may have changed since the event was
-          posted.
-        - For risky or state-changing operations such as retries, cancellations,
-          rebases, pause/unpause, process kills, cleanup, scheduling changes,
-          and similar operational changes, request a pending action first. Do
-          not present these as already done until the operator confirms and the
-          resulting system message records the outcome.
-        - Keep audit clarity in the chat: reference the pending action,
-          JOB/EPIC/Workflow/Run identifiers, and the event that motivated the
-          recommendation.
-      TEXT
-    end
-
     def repository_workspace_guidance
-      if supervisor_chat?
-        <<~TEXT.squish
-          Repository attachment is unavailable in Supervisor. Use Syrus
-          operational MCP tools and already attached context for diagnosis.
-          If code inspection is necessary, explain what needs inspection and
-          recommend doing that from an ordinary repository planning chat.
-        TEXT
-      elsif local_mode_chat?
+      if local_mode_chat?
         <<~TEXT.squish
           Local Mode uses the connected local repository exposed by
           `syrus local`; use the Local Mode tools for repository reads,
@@ -493,23 +420,13 @@ module Prompts
     end
 
     def code_change_guidance
-      return "recommend the appropriate next step in prose." if supervisor_chat?
       return "use Local Mode tools directly, or create a coding Job with `create_coding_job` when the operator asks for a local Job." if local_mode_chat?
 
       "propose a Syrus Job or Epic and wait for the operator to confirm it."
     end
 
     def mcp_tool_availability_guidance
-      if supervisor_chat?
-        <<~TEXT.squish
-          MCP tools can be available, pending, or unavailable at turn start. If a
-          tool you need is unavailable or still pending, say that explicitly and
-          continue with operational read-only inspection when possible. If you
-          need schedules, bookmarks, or whiteboard edits that require MCP
-          persistence, ask the operator to retry the turn or check chat sidecar
-          health.
-        TEXT
-      elsif local_mode_chat?
+      if local_mode_chat?
         <<~TEXT.squish
           MCP tools can be available, pending, or unavailable at turn start. If a
           Local Mode tool you need is unavailable or still pending, say that
@@ -530,9 +447,7 @@ module Prompts
     end
 
     def job_inspection_guidance
-      if supervisor_chat?
-        "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references past work or when incident evidence points at related work already in flight."
-      elsif local_mode_chat?
+      if local_mode_chat?
         "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references existing Syrus work; use `create_coding_job` for new Local Mode work only when the operator asks for a local Job."
       else
         "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references past work or when you suspect a proposal duplicates something already in flight."
@@ -542,11 +457,10 @@ module Prompts
     def next_step_example
       return "Run the focused local test for this change" if local_mode_chat?
 
-      supervisor_chat? ? "Check the failed run logs for JOB-142" : "Create an Epic from these findings"
+      "Create an Epic from these findings"
     end
 
     def output_guidance
-      return supervisor_output_guidance if supervisor_chat?
       return local_mode_output_guidance if local_mode_chat?
 
       <<~TEXT.strip
@@ -626,21 +540,8 @@ module Prompts
       TEXT
     end
 
-    def supervisor_output_guidance
-      <<~TEXT.strip
-        - The durable product of Supervisor is the chat record: concise
-          incident summaries, diagnoses, operator preferences saved to
-          memory, and recommended next actions.
-        - For state-changing operational actions, describe the action and
-          request confirmation through the available pending-action tools.
-        - For new implementation work or code changes, recommend the
-          intended outcome, evidence, and affected identifiers in prose so
-          the operator can take it to an ordinary planning surface.
-      TEXT
-    end
-
     def bookmark_guidance
-      return "" if supervisor_chat? || local_mode_chat?
+      return "" if local_mode_chat?
 
       <<~TEXT.strip
         - Immediately before emitting a `propose_epic_with_jobs` card,
@@ -655,7 +556,7 @@ module Prompts
       <<~TEXT.strip
         ## Admin Repair Toolkit
 
-        Admin and Supervisor chats can use operator-confirmed repair tools for
+        Admin chats can use operator-confirmed repair tools for
         stuck or inconsistent Jobs, Workflows, Runs, PR branches, CI state, and
         landing blockers. These tools are available even when the chat has no
         attached repository; use the JOB/EPIC/Workflow/Run ids from live state,
@@ -740,10 +641,6 @@ module Prompts
     def repository_context
       repositories = attached_repositories
       if repositories.empty?
-        if supervisor_chat?
-          return "  - No repository attachment is required for Supervisor operations triage."
-        end
-
         return "  - No repository is attached yet. Ask which repository to use, " \
                "or call `attach_repository(slug)` when the operator names one."
       end
@@ -766,13 +663,8 @@ module Prompts
 
     def repositoryless_guidance
       return "" if @repository
-      return "" if supervisor_chat?
 
       "\nNo repository is currently attached. If the operator's request requires code context, ask them to attach one via the + menu."
-    end
-
-    def supervisor_chat?
-      @chat_session&.system_kind_supervisor?
     end
 
     def local_mode_chat?

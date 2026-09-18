@@ -2450,7 +2450,7 @@ describe("App", () => {
                 evaluator_state: "failed",
                 error: "JSON::ParserError: evaluator did not return JSON",
                 created_at: "2026-06-05T11:00:00Z",
-                chat: { id: 4, title: "Supervisor", path: "/chats/4" },
+                chat: { id: 4, title: "Ops", path: "/chats/4" },
                 job: { id: 12, slug: "JOB-12", path: "/jobs/12" }
               }
             ],
@@ -2465,7 +2465,7 @@ describe("App", () => {
                 decision: "respond",
                 reason: "operator should know",
                 created_at: "2026-06-05T11:01:00Z",
-                chat: { id: 4, title: "Supervisor", path: "/chats/4" },
+                chat: { id: 4, title: "Ops", path: "/chats/4" },
                 repository: { id: 2, slug: "acme/widgets" },
                 job: { id: 12, slug: "JOB-12", path: "/jobs/12" }
               }
@@ -2588,7 +2588,7 @@ describe("App", () => {
             decision: "respond",
             reason: "operator should know",
             created_at: "2026-06-05T11:01:00Z",
-            chat: { id: 4, title: "Supervisor", path: "/chats/4" },
+            chat: { id: 4, title: "Ops", path: "/chats/4" },
             repository: { id: 2, slug: "acme/widgets" },
             job: { id: 12, slug: "JOB-12", path: "/jobs/12" }
           }

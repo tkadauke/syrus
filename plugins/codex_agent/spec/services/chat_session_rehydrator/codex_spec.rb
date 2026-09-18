@@ -563,9 +563,8 @@ RSpec.describe ChatSessionRehydrator::Codex do
   end
 
   describe "chat context compaction" do
-    it "rehydrates from a Supervisor checkpoint plus recent messages" do
+    it "rehydrates from a compaction checkpoint plus recent messages" do
       allow(Feature).to receive(:chat_context_compaction_enabled?).and_return(true)
-      session.update!(system_kind: "supervisor", title: "Supervisor")
       130.times do |i|
         create_message!(role: "assistant", content: [
           { "type" => "text", "text" => "assistant event #{i}" }

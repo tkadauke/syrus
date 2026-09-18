@@ -145,22 +145,8 @@ describe("slashCommands", () => {
     expect(prompt).toContain("call the propose_job tool")
   })
 
-  it("hides proposal and repository attachment commands for supervisor chats", () => {
-    const context = { chat: { system_kind: "supervisor" } }
-
-    expect(filterSlashCommands("", context).map((command) => command.name)).not.toEqual(expect.arrayContaining([
-      "/attach",
-      "/proposals",
-      "/discard",
-      "/feedback",
-      "/propose"
-    ]))
-    expect(findSlashCommand("/propose", context)).toBeNull()
-    expect(slashCommandPrompt("/propose", context)).toBe("/propose")
-  })
-
   it("keeps proposal and repository attachment commands for ordinary chats", () => {
-    const context = { chat: { system_kind: null } }
+    const context = { chat: {} }
 
     expect(filterSlashCommands("", context).map((command) => command.name)).toEqual(expect.arrayContaining([
       "/attach",

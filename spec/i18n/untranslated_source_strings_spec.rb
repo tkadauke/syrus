@@ -118,7 +118,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
       PDF
       Rails
       SQL
-      Supervisor
       Syrus
     ]
   end

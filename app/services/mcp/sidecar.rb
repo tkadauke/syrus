@@ -138,13 +138,9 @@ module Mcp
       else
         registry_tier = tier.to_s == "all" ? :essential : tier
         allowed = McpToolRegistry.tools_for_context(context, surface: :chat, tier: registry_tier)
-        supervisor = !!context.chat_session&.system_kind_supervisor?
-        allowed -= McpToolPolicy.supervisor_excluded_tools if supervisor
         tools = allowed.map { |tool| authorize_tool(tool) }
         tools << authorize_tool(Tools::ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(Tools::ExplainStuckJobTool)
-        # Plugin tools are appended after core's supervisor filter, so they
-        # have to be filtered on the way in or they bypass it entirely.
-        tools + plugin_tools_for(chat_session, tier: registry_tier, policy: (:supervisor if supervisor))
+        tools + plugin_tools_for(chat_session, tier: registry_tier)
       end
     end
 
@@ -153,7 +149,6 @@ module Mcp
     # tool it advertises.
     def self.filter_by_policy(definitions, policy)
       case policy
-      when :supervisor then definitions.reject { |defn| defn[:supervisor_excluded] || defn["supervisor_excluded"] }
       when :evaluator  then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
       else definitions
       end

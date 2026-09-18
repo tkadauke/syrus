@@ -33,11 +33,10 @@ RSpec.describe ChatContextCompactor do
     Feature.clear_enabled_cache!
   end
 
-  def chat(supervisor: true)
+  def chat
     ChatSession.create!(
       user: user,
-      title: supervisor ? "Supervisor" : "Planning",
-      system_kind: supervisor ? "supervisor" : nil,
+      title: "Planning",
       chat_provider: "codex"
     )
   end
@@ -68,17 +67,7 @@ RSpec.describe ChatContextCompactor do
     }.not_to change { ChatContextCheckpoint.count }
   end
 
-  it "does not compact ordinary chats when the feature is enabled" do
-    enable_compaction!
-    session = chat(supervisor: false)
-    add_messages(session, 130)
-
-    expect {
-      described_class.maybe_compact!(session)
-    }.not_to change { ChatContextCheckpoint.count }
-  end
-
-  it "stores a checkpoint for old Supervisor messages and preserves all durable messages" do
+  it "stores a checkpoint for old messages and preserves all durable messages" do
     enable_compaction!
     session = chat
     add_messages(session, 130)

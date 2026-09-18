@@ -59,15 +59,6 @@ RSpec.describe PersistentMcpDaemon::ChatContextResolver do
       expect(resolved.allowed_tools).to include(Mcp::Tools::AdminOverviewTool)
     end
 
-    it "excludes SUPERVISOR_EXCLUDED_TOOLS for a supervisor chat session" do
-      chat.update!(system_kind: "supervisor")
-
-      resolved = described_class.resolve(raw_context(token_for))
-
-      expect(McpToolPolicy::SUPERVISOR_EXCLUDED_TOOLS).to include(Mcp::Tools::ProposeJobTool)
-      expect(resolved.allowed_tools).not_to include(Mcp::Tools::ProposeJobTool)
-    end
-
     it "uses McpToolPolicy's evaluator tool set for an evaluator-scoped token" do
       resolved = described_class.resolve(raw_context(token_for(evaluator: true)))
 

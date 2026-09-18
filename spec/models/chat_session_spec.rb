@@ -779,28 +779,21 @@ RSpec.describe ChatSession do
   end
 
   describe "system_kind" do
-    it "accepts supervisor as a durable chat identity separate from mode" do
-      session = described_class.new(user: repo.user, system_kind: "supervisor", mode: "planning", title: "Supervisor", pinned: true)
+    it "accepts a system kind as a durable chat identity separate from mode" do
+      session = described_class.new(user: repo.user, system_kind: "ops", mode: "planning", title: "Ops", pinned: true)
 
       expect(session).to be_valid
-      expect(session).to be_system_kind_supervisor
+      expect(session.system_kind).to eq("ops")
       expect(session).to be_planning
     end
 
-    it "rejects unknown system kinds" do
-      session = described_class.new(user: repo.user, system_kind: "ops")
-
-      expect(session).not_to be_valid
-      expect(session.errors[:system_kind]).to be_present
-    end
-
-    it "enforces one supervisor chat per user at the database level" do
+    it "enforces one chat per system kind per user at the database level" do
       now = Time.current
       attrs = {
         user_id: repo.user.id,
-        system_kind: "supervisor",
+        system_kind: "ops",
         chat_provider: "claude",
-        title: "Supervisor",
+        title: "Ops",
         pinned: true,
         artifacts: "{}",
         created_at: now,
@@ -817,17 +810,6 @@ RSpec.describe ChatSession do
         described_class.create!(user: repo.user)
         described_class.create!(user: repo.user)
       }.to change(described_class, :count).by(2)
-    end
-
-    it "prevents hiding, renaming, unpinning, or destroying a supervisor chat while enabled" do
-      Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
-      session = described_class.create!(user: repo.user, system_kind: "supervisor", title: "Supervisor", pinned: true)
-
-      expect(session.update(title: "Renamed")).to be(false)
-      expect(session.update(pinned: false)).to be(false)
-      expect(session.update(hidden_at: Time.current)).to be(false)
-      expect { session.destroy! }.to raise_error(ActiveRecord::RecordNotDestroyed)
-      expect(described_class.exists?(session.id)).to be(true)
     end
   end
 

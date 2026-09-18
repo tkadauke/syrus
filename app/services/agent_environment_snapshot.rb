@@ -307,13 +307,7 @@ class AgentEnvironmentSnapshot
   end
 
   def chat_workspace_rule_lines
-    if supervisor_chat?
-      [
-        "- Tool availability: no commit, push, PR-opening, repository attachment, new-work drafting, work-delegation, recurring-work creation, or feedback-submission tool is available in Supervisor.",
-        "- Repository checkout rule: Supervisor does not attach repository checkouts. Recommend ordinary planning chat code inspection when repository files are needed.",
-        "- Writable area: do not write memory to the filesystem -- use the Syrus memory MCP tools instead (see Memory section below)."
-      ]
-    elsif Feature.coding_mode_enabled? && chat_session&.coding?
+    if Feature.coding_mode_enabled? && chat_session&.coding?
       [
         "- Tool availability: commit and push through Bash inside the coding checkout; handoff tools require operator confirmation before Syrus dispatches automation.",
         "- Repository checkout rule: the scoped Coding Mode checkout is writable. Other attached repository checkouts remain read-only.",
@@ -362,19 +356,13 @@ class AgentEnvironmentSnapshot
     end
     repos.unshift(repository) if repository && repos.none? { |repo| repo.id == repository.id }
     if repos.empty?
-      return [ "- Attached repositories: none; repository attachment is unavailable in Supervisor." ] if supervisor_chat?
-
       return [ "- Attached repositories: none; call `attach_repository(slug)` before inspecting code." ]
     end
 
     lines = [ "- Attached repositories:" ]
     repos.each do |repo|
       checkout = chat_session ? ChatWorkspace.repo_path_for(chat_session, repo) : nil
-      state = if supervisor_chat?
-        "attached context only; repository checkout attachment is unavailable in Supervisor"
-      else
-        checkout&.join(".git")&.directory? ? checkout.to_s : "not cloned; call `attach_repository(\"#{repo.slug}\")`"
-      end
+      state = checkout&.join(".git")&.directory? ? checkout.to_s : "not cloned; call `attach_repository(\"#{repo.slug}\")`"
       lines << "  - #{repo.slug} default=#{repo.default_branch} checkout=#{state}"
     end
     lines
@@ -459,8 +447,6 @@ class AgentEnvironmentSnapshot
   end
 
   def chat_tool_lines
-    return supervisor_chat_tool_lines if supervisor_chat?
-
     groups = self.class.chat_tool_groups_for(chat_session)
     return [] if groups.empty?
 
@@ -471,17 +457,8 @@ class AgentEnvironmentSnapshot
     lines
   end
 
-  def supervisor_chat_tool_lines
-    context = McpToolContext.from_chat_session(chat_session)
-    tool_names = McpToolPolicy.for(context).filter_map do |tool|
-      tool.tool_name if tool.respond_to?(:tool_name)
-    end.sort
-    [ "- MCP tools: Supervisor constrained set includes #{tool_names.join(', ')}." ]
-  end
-
   def recent_proposal_activity_lines
     return [] unless chat_session
-    return [] if supervisor_chat?
 
     recent = chat_session.proposals
       .includes(:job, :epic, child_proposals: :job)
@@ -493,10 +470,6 @@ class AgentEnvironmentSnapshot
     return [] if recent.empty?
 
     [ "- Recent proposal activity:" ] + recent.map { |proposal| "  #{recent_proposal_activity_line(proposal)}" }
-  end
-
-  def supervisor_chat?
-    chat_session&.system_kind_supervisor?
   end
 
   def recent_proposal_activity_line(proposal)
