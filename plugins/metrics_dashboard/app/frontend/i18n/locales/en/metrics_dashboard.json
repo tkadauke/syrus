@@ -29,6 +29,7 @@
     "runs_total": "Runs, by state",
     "worker_cpu": "Worker CPU utilization, by host",
     "worker_memory": "Worker memory utilization, by host",
+    "worker_disk": "Worker disk utilization, by host",
     "active_agent_runs": "Active agent runs",
     "max_concurrent_agent_runs": "Max concurrent agent runs",
     "admission_decisions": "Admission decisions, by decision",
