@@ -24,6 +24,7 @@ export type ArtifactRendererEntry = {
   supportedPayloadShape: string
   render: (artifact: TypedArtifact) => ReactNode
   examples: ArtifactRendererExample[]
+  fallbackOnly?: boolean
 }
 
 function isValidEntry(candidate: unknown): candidate is ArtifactRendererEntry {
