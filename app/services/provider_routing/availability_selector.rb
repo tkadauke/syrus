@@ -139,7 +139,7 @@ module ProviderRouting
     def availability_controls_enabled?
       candidates.any? do |candidate|
         user.provider_availability_pause_enabled?(candidate.provider)
-      end || user.agent_provider_failover_enabled?
+      end || ProviderRouting::Resolver.rule_configured?(job: job, task_key: task_key)
     end
 
     def available_enough?(provider, payload)

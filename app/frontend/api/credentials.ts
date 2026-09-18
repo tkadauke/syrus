@@ -20,19 +20,11 @@ export type CredentialsUser = {
   chat_provider: string | null
   codex_auth_mode: string
   agent_max_turns: number
-  agent_provider_failover_policy: AgentProviderFailoverPolicy
   provider_availability_pause_thresholds: Record<string, number>
   provider_availability_overrides: Record<string, unknown>
   scheduling_paused: boolean
   auto_approve_mode: string
   locale: string
-}
-
-export type AgentProviderFailoverPolicy = {
-  enabled: boolean
-  providers: string[]
-  causes: string[]
-  override_explicit_pins: boolean
 }
 
 export type CredentialStatus = {
@@ -72,7 +64,6 @@ export type CredentialsOptions = {
   chat_provider_labels?: Record<string, string>
   roles: string[]
   codex_auth_modes: string[]
-  agent_provider_failover_causes: string[]
   agent_max_turns: {
     min: number
     max: number
@@ -143,7 +134,6 @@ export type CredentialsInput = {
   muse_api_key: string
   github_token: string
   agent_max_turns: number
-  agent_provider_failover_policy: AgentProviderFailoverPolicy
   provider_availability_pause_thresholds: Record<string, number>
   scheduling_paused: boolean
   auto_approve_mode: string
