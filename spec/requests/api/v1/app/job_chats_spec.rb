@@ -8,6 +8,10 @@ RSpec.describe "App API job chats", type: :request do
   def parse_body = JSON.parse(response.body)
   def path(job_record) = "/api/v1/app/jobs/#{job_record.id}/start_chat"
 
+  before do
+    allow(User).to receive(:chat_providers).and_return(%w[claude])
+  end
+
   context "as the job's creator" do
     before { sign_in_as(user) }
 
@@ -46,6 +50,29 @@ RSpec.describe "App API job chats", type: :request do
       expect(ChatTitleJob).not_to have_been_enqueued
       expect(ChatTurnJob).not_to have_been_enqueued
 
+      expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
+    end
+
+    it "adds a supplied discussion message to an existing job chat and wakes it" do
+      existing_chat = ChatSession.create!(user: user, repository: repo)
+      job.chat_attachments.create!(chat_session: existing_chat)
+
+      expect {
+        post path(job), params: { message: "Revision: abc123\nLocation: app/models/widget.rb:12\n\nComment:\nPlease check this." }, as: :json
+      }.to change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob).with(existing_chat.id, kind_of(Integer))
+
+      expect(response).to have_http_status(:ok)
+      message = existing_chat.messages.sole
+      expect(message.content["text"]).to eq(<<~TEXT.strip)
+        I would like to discuss JOB-#{job.id}.
+
+        Revision: abc123
+        Location: app/models/widget.rb:12
+
+        Comment:
+        Please check this.
+      TEXT
       expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
     end
 

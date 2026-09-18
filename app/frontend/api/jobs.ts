@@ -1249,6 +1249,10 @@ export type JobCommandPayload = {
   actions?: JobActions
 }
 
+export type JobDiscussionChatPayload = {
+  redirect_to: string
+}
+
 export type JobGradeLogPayload = {
   job_id: number
   run_id: number
@@ -1412,6 +1416,10 @@ export function submitDiffReviewComments(jobId: string | number, commentIds: num
     comment_ids: commentIds,
     diff_review_version_id: diffReviewVersionId
   })
+}
+
+export function startJobDiscussionChat(jobId: string | number, message?: string) {
+  return postJson<JobDiscussionChatPayload>(`/api/v1/app/jobs/${jobId}/start_chat`, message ? { message } : undefined)
 }
 
 function diffReviewCommentPath(jobId: string | number, commentId: number, diffReviewVersionId?: number | null, action?: string) {
