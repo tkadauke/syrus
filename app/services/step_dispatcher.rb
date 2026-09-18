@@ -1232,6 +1232,10 @@ class StepDispatcher
     next_iteration = current_grade.iteration + 1
     loop_steps = loop_step_kinds(loop_node)
     loop_steps = loop_steps.first(loop_steps.size - 1) if final_review_iteration?(loop_node, next_iteration)
+    if skip_repair_for_transient_grader_failure?(current_grade, loop_node)
+      loop_steps = Array(loop_node["check"]).map(&:to_s)
+      record_transient_grader_repair_skip!(current_grade)
+    end
     Step.transaction do
       loop_step_count = loop_steps.size
       @workflow.steps.where("position >= ?", insertion_position).update_all(
@@ -1257,6 +1261,38 @@ class StepDispatcher
         self.class.create_run_and_enqueue(new_steps.first, @workflow, parent_session_id: prior_iteration_session_id)
       end
     end
+  end
+
+  # Steps::GraderCollect already knows -- from each failing required
+  # grader's own persisted RunFailureClassification -- when every one of
+  # them failed for a transient/infrastructure reason (worker_died, a full
+  # disk, a DB lock timeout) rather than a code defect
+  # (Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY). Materializing
+  # a repair agent step (e.g. landing_fix) in that case just spends an agent
+  # turn confirming what grader_collect already determined for free -- and
+  # when the repair agent legitimately finds nothing to fix, it has no diff
+  # to commit, which used to hard-fail the whole landing attempt (see
+  # Steps::Base#no_changes_confirmed_not_broken?). Skip straight to another
+  # check-only iteration instead. Still bounded by loop_max_iterations, so a
+  # genuinely wedged infra outage still surfaces as a hard failure eventually.
+  def skip_repair_for_transient_grader_failure?(step, loop_node)
+    return false unless loop_node["type"] == "retry_until"
+    return false unless step.kind == "grader_collect"
+
+    step.details.to_h[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY] == true
+  end
+
+  def record_transient_grader_repair_skip!(step)
+    log_message = "[step_dispatcher] skipping repair for iteration #{step.iteration} -- " \
+                  "every failing required grader was classified transient/infrastructure; regrading instead"
+    Rails.logger.info(log_message)
+    @workflow.set_artifact!(
+      "transient_grader_repair_skips",
+      Array(@workflow.artifact("transient_grader_repair_skips")) + [ {
+        "iteration" => step.iteration,
+        "skipped_at" => Time.current.iso8601
+      } ]
+    )
   end
 
   def self.landing_queue_pause_deferred?(step, workflow)

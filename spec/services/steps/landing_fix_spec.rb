@@ -147,6 +147,25 @@ RSpec.describe Steps::LandingFix, :ci_only do
     expect(run.reload.agent_diff).to be_nil
   end
 
+  it "does not fail a no-op repair when the agent confirmed the failing graders were not caused by code via report_main_concern" do
+    allow(handler).to receive(:diff_against_default).and_return("diff --git a/app.rb b/app.rb\n+existing")
+    allow(handler).to receive(:diff_against_sha).and_return("")
+    MainConcernReport.create!(
+      repository: repository,
+      job: job,
+      workflow: workflow,
+      run: run,
+      reason: "required graders failed with worker_died; reran both in isolation against the exact commit and they passed",
+      failing_tests: [ "spec/models/widget_spec.rb" ]
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "no changes were needed -- report_main_concern was filed for this run"
+    )
+  end
+
   it "publishes merge-train repair commits on the integration branch for later base-moved recovery" do
     epic = Factories.epic(user: user, repository: repository)
     member = Factories.job_record(
