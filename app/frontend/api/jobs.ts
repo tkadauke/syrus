@@ -107,6 +107,9 @@ export type JobRecord = {
   pr_mergeable_checked_at: string | null
   pr_checks: JobPrChecks | null
   closure_reason: string | null
+  emergency_landed_at?: string | null
+  emergency_landed_by_user?: JobUserReference | null
+  emergency_landed_by_membership_tier?: string | null
   runaway_protection: string | null
   landing_failure_reason: string | null
   retry_state?: JobRetryState

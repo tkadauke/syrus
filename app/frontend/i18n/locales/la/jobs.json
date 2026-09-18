@@ -218,6 +218,7 @@
   "detail_cost": "Sumptus",
   "detail_started": "Inceptum",
   "detail_closed": "Clausum",
+  "detail_emergency_land": "Subitus landing",
   "detail_runaway_protection": "Tutela aberrantis",
   "detail_runaway_protection_hint": "iterationes automaticae prohibitae — preme Retemptare ad removendum",
   "approval_policy": "Regula",

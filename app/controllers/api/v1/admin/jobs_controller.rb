@@ -13,6 +13,7 @@ module Api
         #   ?issue_number=N
         #   ?repo=owner/name
         #   ?state=open|closed
+        #   ?closure_reason=emergency_landed
         #   ?user=substring         — match User#email_address
         #   ?failed_in_last_24h=true — Jobs whose latest workflow ended `failed`
         #                              within the last 24h. "What just broke?"
@@ -28,6 +29,7 @@ module Api
           if params[:state].present?
             scope = params[:state] == "open" ? scope.open_threads : scope.where(state: params[:state])
           end
+          scope = scope.where(closure_reason: params[:closure_reason]) if params[:closure_reason].present?
           if params[:repo].present?
             owner, name = params[:repo].split("/", 2)
             scope = scope.joins(:repository).where(repositories: { owner: owner, name: name })
@@ -217,6 +219,10 @@ module Api
             last_seen_comment_at: job.last_seen_comment_at,
             last_feedback_addressed_at: job.last_feedback_addressed_at,
             last_ci_handled_sha: job.last_ci_handled_sha,
+            closure_reason: job.closure_reason,
+            emergency_landed_at: job.emergency_landed_at,
+            emergency_landed_by_user_id: job.emergency_landed_by_user_id,
+            emergency_landed_by_membership_tier: job.emergency_landed_by_membership_tier,
             created_at:     job.created_at,
             updated_at:     job.updated_at
           }
@@ -247,6 +253,9 @@ module Api
             delivery_track: job.delivery_track,
             effective_base_branch: job.effective_base_branch,
             closure_reason: job.closure_reason,
+            emergency_landed_at: job.emergency_landed_at,
+            emergency_landed_by_user_id: job.emergency_landed_by_user_id,
+            emergency_landed_by_membership_tier: job.emergency_landed_by_membership_tier,
             runaway_protection: job.runaway_protection,
             failure_count: job.failure_count,
             repository: {
