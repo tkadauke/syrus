@@ -86,12 +86,6 @@ class ChatWorkEvents
       }.compact
     end
 
-    def message_text(event)
-      repository = event.dig("repository", "slug")
-      suffix = repository.present? ? " (#{repository})" : nil
-      "[#{event.fetch("severity").upcase}] #{event.fetch("subject")}#{suffix}\n#{event.fetch("summary")}"
-    end
-
     def repository_json(repository)
       return unless repository
 

@@ -63,7 +63,8 @@ RSpec.describe ChatScopedEventEvaluatorJob do
       "scoped_event_id" => event.id,
       "evaluator_decision" => result
     )
-    expect(wakeup.metadata["supervisor_event"]).to include("summary" => "New insight", "scoped_event_id" => event.id)
+    expect(wakeup.metadata).not_to have_key("supervisor_event")
+    expect(wakeup.metadata["scoped_event"]).to include("summary" => "New insight", "scoped_event_id" => event.id)
     expect(event.reload).to be_delivered
   end
 

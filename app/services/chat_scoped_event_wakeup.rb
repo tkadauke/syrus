@@ -60,7 +60,6 @@ class ChatScopedEventWakeup
       "scoped_event_wakeup" => true,
       "scoped_event_id" => event.id,
       "scoped_event" => event.payload.merge("scoped_event_id" => event.id),
-      "supervisor_event" => event.payload.merge("scoped_event_id" => event.id),
       "evaluator_decision" => @evaluator_result
     }
   end
