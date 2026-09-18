@@ -78,6 +78,7 @@ module Filters
       "parent_job_id"                 => "Filters::Chips::Jobs::ParentJobId",
 
       # Strings (free-text)
+      "search"                        => "Filters::Chips::Jobs::Search",
       "title"                         => "Filters::Chips::Jobs::Title",
       "description"                   => "Filters::Chips::Jobs::Description",
       "branch_name"                   => "Filters::Chips::Jobs::BranchName",
@@ -158,6 +159,7 @@ module Filters
         "created_at"              => "Filters::Chips::CreatedAt",
         "updated_at"              => "Filters::Chips::UpdatedAt",
         "state"                   => "Filters::Chips::Epics::State",
+        "search"                  => "Filters::Chips::Epics::Search",
         "title"                   => "Filters::Chips::Epics::Title",
         "description"             => "Filters::Chips::Epics::Description",
         "done_at"                 => "Filters::Chips::Epics::DoneAt",
@@ -196,6 +198,7 @@ module Filters
       name: :admin_user,
       model: User,
       chips: {
+        "search"           => "Filters::Chips::AdminUsers::Search",
         "email"            => "Filters::Chips::AdminUsers::Email",
         "admin"            => "Filters::Chips::AdminUsers::Admin",
         "has_github_token" => "Filters::Chips::AdminUsers::HasGithubToken",

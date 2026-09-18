@@ -4,7 +4,7 @@ module Admin
 
     def browser_errors
       @browser_errors ||= EventLogFilterDefinition.define(:browser_errors, model: BrowserErrorEvent) do
-        field :query, label: "Search", bucket: :text, operators: %i[contains does_not_contain], column: :message, columns: %i[message name path stack fingerprint user_agent], placeholder: "message, name, or path"
+        field :query, label: "Search", bucket: :text, operators: %i[contains does_not_contain], column: :message, columns: %i[message name path stack fingerprint user_agent], placeholder: "message, name, or path", free_text_search: true
         field :since, label: "Since", bucket: :date, operators: %i[within_last after more_than_ago before between], column: :occurred_at, default: { "n" => 24, "unit" => "hours" }, placeholder: "24h"
         field :until, label: "Until", bucket: :date, operators: %i[before after between within_last more_than_ago], column: :occurred_at, placeholder: "optional"
         field :id, label: "ID", bucket: :number, operators: %i[is is_not greater_than less_than between], input_mode: "numeric"
@@ -22,7 +22,7 @@ module Admin
 
     def backend_exceptions
       @backend_exceptions ||= EventLogFilterDefinition.define(:backend_exceptions, model: BackendExceptionEvent) do
-        field :query, label: "Search", bucket: :text, operators: %i[contains does_not_contain], column: :message, columns: %i[message exception_class path backtrace request_id], placeholder: "message, class, or path"
+        field :query, label: "Search", bucket: :text, operators: %i[contains does_not_contain], column: :message, columns: %i[message exception_class path backtrace request_id], placeholder: "message, class, or path", free_text_search: true
         field :since, label: "Since", bucket: :date, operators: %i[within_last after more_than_ago before between], column: :occurred_at, default: { "n" => 24, "unit" => "hours" }, placeholder: "24h"
         field :until, label: "Until", bucket: :date, operators: %i[before after between within_last more_than_ago], column: :occurred_at, placeholder: "optional"
         field :source, label: "Source", bucket: :text, operators: %i[is is_not contains]
@@ -66,7 +66,7 @@ module Admin
 
     def operational_logs
       @operational_logs ||= EventLogFilterDefinition.define(:operational_logs, model: nil) do
-        field :query, label: "Search", bucket: :text, operators: %i[contains], placeholder: "message or context"
+        field :query, label: "Search", bucket: :text, operators: %i[contains], placeholder: "message or context", free_text_search: true
         field :since, label: "Since", bucket: :date, operators: %i[within_last after more_than_ago before between], column: :occurred_at, default: { "n" => 1, "unit" => "hours" }, placeholder: "1h"
         field :until, label: "Until", bucket: :date, operators: %i[before after between within_last more_than_ago], column: :occurred_at, placeholder: "optional"
         field :level, label: "Level", bucket: :enum, operators: %i[is is_not is_one_of is_none_of], values: option_values(OperationalLogEvent::LEVELS)

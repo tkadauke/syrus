@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_17_161055) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_185310) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3049,7 +3049,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_161055) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", default: { "elements" => [] }, null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true

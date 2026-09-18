@@ -146,6 +146,7 @@
     "clear_filters": "Colandra remove",
     "search_placeholder": "Quaere colandra...",
     "suggested": "Proposita",
+    "search_for": "Quaere {{query}}",
     "no_matching_filters": "Nulla colandra congruentia",
     "operator": "Operator",
     "or_alternative": "+ Alternativa AUT",

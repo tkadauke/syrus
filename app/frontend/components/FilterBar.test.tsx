@@ -70,6 +70,18 @@ const filterSchema: FilterSchemaField[] = [
   }
 ]
 
+const filterSchemaWithFreeTextSearch: FilterSchemaField[] = [
+  ...filterSchema,
+  {
+    field: "search",
+    label: "Search",
+    bucket: "string",
+    operators: ["contains"],
+    values: [],
+    free_text_search: true
+  }
+]
+
 function LocationProbe() {
   const location = useLocation()
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
@@ -267,6 +279,8 @@ describe("FilterBar", () => {
 
     expect(screen.getByText("Suggested")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "State is Closed" }).compareDocumentPosition(screen.getByRole("button", { name: "State list" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // No pinned free-text search suggestion until the operator has typed anything.
+    expect(screen.queryByText(/^Search for /)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "State is Closed" }))
 
@@ -278,6 +292,82 @@ describe("FilterBar", () => {
     expect(onFilterApplied).toHaveBeenCalledWith({
       and: [{ field: "state", op: "is", value: "closed" }]
     })
+  })
+
+  it("keeps the pinned free-text search suggestion hidden below two typed characters", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [] }}
+          filterSchema={filterSchemaWithFreeTextSearch}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    expect(screen.queryByText(/^Search for /)).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "j" } })
+    expect(screen.queryByText(/^Search for /)).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "jo" } })
+    expect(screen.getByText("Search for jo")).toBeInTheDocument()
+  })
+
+  it("pins the free-text search suggestion above every other suggestion once typing starts", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [] }}
+          filterSchema={filterSchemaWithFreeTextSearch}
+          pathname="/dashboard/jobs"
+          search=""
+          suggestions={[
+            {
+              id: 1,
+              label: "State is Closed",
+              filter: { field: "state", op: "is", value: "closed" }
+            }
+          ]}
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "closed" } })
+
+    const pinned = screen.getByText("Search for closed")
+    expect(pinned.compareDocumentPosition(screen.getByText("Suggested")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(pinned.compareDocumentPosition(screen.getByRole("button", { name: "State is Closed" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("applies the pinned free-text search suggestion using the flagged field's own operator", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [] }}
+          filterSchema={filterSchemaWithFreeTextSearch}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "widgets" } })
+    fireEvent.click(screen.getByText("Search for widgets"))
+
+    await waitFor(() => {
+      expect(decodedFilterFromLocation()).toEqual({
+        and: [{ field: "search", op: "contains", value: "widgets" }]
+      })
+    })
+    // The flagged field never appears in the generic field/operator/value list.
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    expect(screen.queryByRole("button", { name: /^Search text$/ })).not.toBeInTheDocument()
   })
 
   it("loads matching RHS filter suggestions from the server while searching", async () => {
