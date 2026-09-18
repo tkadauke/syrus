@@ -380,6 +380,7 @@ function SourceDiffBrowser({
               annotations={diffAnnotations}
               comments={feedback.diffThreads}
               composingBody={feedback.composingBody}
+              composingDiscussError={feedback.discussComposingError}
               composingDiscussPending={feedback.discussComposingPending}
               composingError={feedback.composingError}
               composingPending={feedback.composingPending}

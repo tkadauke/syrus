@@ -66,6 +66,7 @@ export type ReviewableDiffProps = {
   changedFilesPopup?: boolean
   comments?: Record<string, Record<string, DiffReviewThread[]>> | null
   composingBody?: string
+  composingDiscussError?: Error | null
   composingDiscussPending?: boolean
   composingError?: Error | null
   composingPending?: boolean
@@ -177,6 +178,7 @@ export function ReviewableDiff({
   changedFilesPopup = false,
   comments,
   composingBody,
+  composingDiscussError,
   composingDiscussPending,
   composingError,
   composingPending,
@@ -432,6 +434,7 @@ export function ReviewableDiff({
           cache={fileCache.current}
           comments={comments?.[file.path]}
           composingBody={composingBody}
+          composingDiscussError={composingDiscussError}
           composingDiscussPending={composingDiscussPending}
           composingError={composingError}
           composingPending={composingPending}
@@ -649,6 +652,7 @@ function DiffFileSection({
   cache,
   comments,
   composingBody,
+  composingDiscussError,
   composingDiscussPending,
   composingError,
   composingPending,
@@ -682,6 +686,7 @@ function DiffFileSection({
   cache: Map<string, FileCacheEntry>
   comments?: Record<string, DiffReviewThread[]>
   composingBody?: string
+  composingDiscussError?: Error | null
   composingDiscussPending?: boolean
   composingError?: Error | null
   composingPending?: boolean
@@ -854,6 +859,7 @@ function DiffFileSection({
           annotations={annotations}
           comments={comments}
           composingBody={composingBody}
+          composingDiscussError={composingDiscussError}
           composingDiscussPending={composingDiscussPending}
           composingError={composingError}
           composingPending={composingPending}
@@ -986,6 +992,7 @@ export function UnifiedDiffTable({
   annotations,
   comments,
   composingBody,
+  composingDiscussError,
   composingDiscussPending,
   composingError,
   composingPending,
@@ -1013,6 +1020,7 @@ export function UnifiedDiffTable({
   annotations?: Record<string, LineAnnotation>
   comments?: Record<string, DiffReviewThread[]>
   composingBody?: string
+  composingDiscussError?: Error | null
   composingDiscussPending?: boolean
   composingError?: Error | null
   composingPending?: boolean
@@ -1225,6 +1233,7 @@ export function UnifiedDiffTable({
                           <Button onClick={onCancelComposing} size="sm" variant="secondary">{t("cancel")}</Button>
                         </div>
                         {composingError ? <p className="text-xs text-red-700 dark:text-red-300">{t("diff_review_composer.create_error")}</p> : null}
+                        {composingDiscussError ? <p className="text-xs text-danger-text">{t("diff_review_composer.discuss_error")}</p> : null}
                       </div>
                     </div>
                   </td>

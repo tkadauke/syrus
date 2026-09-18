@@ -1072,7 +1072,7 @@ describe("ReviewWorkspace", () => {
     })
   })
 
-  it("starts a discussion chat from the diff comment composer and dismisses the form", async () => {
+  it("starts a discussion chat from the diff comment composer", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
     vi.mocked(startJobDiscussionChat).mockReturnValue(new Promise(() => {}))
@@ -1096,7 +1096,29 @@ describe("ReviewWorkspace", () => {
       ].join("\n"))
     })
 
-    expect(screen.queryByTestId("diff-review-composer")).not.toBeInTheDocument()
+    // Still pending (the mock never resolves) -- the composer stays put showing
+    // the in-flight state rather than disappearing before we know it worked.
+    expect(within(composer).getByRole("button", { name: "Starting..." })).toBeDisabled()
+  })
+
+  it("keeps the draft and shows an error in the composer when starting a discussion chat fails", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+    vi.mocked(startJobDiscussionChat).mockRejectedValue(new Error("boom"))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
+
+    const composer = screen.getByTestId("diff-review-composer")
+    fireEvent.change(within(composer).getByLabelText("Comment"), { target: { value: "Please add a regression spec." } })
+    fireEvent.click(within(composer).getByRole("button", { name: "Discuss" }))
+
+    await within(composer).findByText("Unable to start discussion.")
+
+    // The draft survives the failure so the user can retry instead of losing it.
+    expect(within(composer).getByLabelText("Comment")).toHaveValue("Please add a regression spec.")
+    expect(createDiffReviewComment).not.toHaveBeenCalled()
   })
 
   it("shows old comments as historical and switches to their anchored diff line", async () => {

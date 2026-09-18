@@ -30,7 +30,8 @@
     "create_comment": "Create comment",
     "create_error": "Unable to create diff comment.",
     "discuss": "Discuss",
-    "discussing": "Starting..."
+    "discussing": "Starting...",
+    "discuss_error": "Unable to start discussion."
   },
   "onboarding": {
     "loading": "Loading setup status...",

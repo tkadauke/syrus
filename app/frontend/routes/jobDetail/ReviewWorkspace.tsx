@@ -227,6 +227,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             changedFilesPopup
             comments={feedback.diffThreads}
             composingBody={feedback.composingBody}
+            composingDiscussError={feedback.discussComposingError}
             composingDiscussPending={feedback.discussComposingPending}
             composingError={feedback.composingError}
             composingPending={feedback.composingPending}
