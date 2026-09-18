@@ -81,3 +81,10 @@ features:
     description: "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns can route their MCP tool calls to it, with automatic fallback to stdio; workflow agent runs do not yet use it and always fall back to the per-run stdio sidecar. When disabled, all agents keep using the default per-run/per-session stdio sidecars."
     description_i18n_key: "features.slugs.persistent_mcp_sidecar.description"
     default: false
+  - slug: emergency_land
+    category: "Labs"
+    name: "Emergency land"
+    name_i18n_key: "features.slugs.emergency_land.name"
+    description: "Enables an emergency-land escape hatch for Coding Mode, letting a repository-tier admin or global admin land a Coding Mode chat's committed branch immediately, bypassing Syrus's grader, adversarial-review, and visual-review pipeline. A separate, explicit opt-in layered on top of Coding Mode itself, since it skips Syrus's own quality gates for incident response."
+    description_i18n_key: "features.slugs.emergency_land.description"
+    default: false
