@@ -729,7 +729,7 @@ function ChatWorkspace({
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
 }) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
+  const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
   const [panelCollapsed, setPanelCollapsed] = useState(storedWorkspaceCollapsed)
@@ -745,7 +745,7 @@ function ChatWorkspace({
   const availableTabs = availableWorkspaceTabs(payload, simpleMode, hasPins)
 
   useEffect(() => {
-    if (!availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload, simpleMode))
+    if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload, simpleMode))
     if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
   }, [activeMobileTab, activeTab, availableTabs, payload, simpleMode])
 
@@ -768,7 +768,7 @@ function ChatWorkspace({
   }, [pendingJobsTabRequest, availableTabs])
 
   useEffect(() => {
-    storeWorkspacePreference(CHAT_WORKSPACE_TAB_KEY, activeTab)
+    if (activeTab !== null) storeWorkspacePreference(CHAT_WORKSPACE_TAB_KEY, activeTab)
   }, [activeTab])
 
   useEffect(() => {
@@ -797,7 +797,7 @@ function ChatWorkspace({
     window.addEventListener("mouseup", stopResize)
   }
 
-  function selectTab(tab: WorkspaceTab) {
+  function selectTab(tab: WorkspaceTab | null) {
     setActiveTab(tab)
   }
 
@@ -828,11 +828,6 @@ function ChatWorkspace({
     openBookmarks: () => {
       setBookmarkPickerOpen(true)
     },
-    openAttachments: () => {
-      if (simpleMode) return
-      setActiveTab("context")
-      setActiveMobileTab("context")
-    },
     openSettings: () => onSettingsOpenChange(true)
   }
 
@@ -861,7 +856,6 @@ function ChatWorkspace({
                 showTabs={false}
                 onSelectTab={selectTab}
                 payload={payload}
-                prefix={prefix}
                 queryKey={queryKey}
                 onNotice={onNotice}
                 onBookmarkSelect={selectBookmark}
@@ -923,7 +917,6 @@ function ChatWorkspace({
             onSelectTab={selectTab}
             onToggleCollapse={() => setPanelCollapsed(true)}
             payload={payload}
-            prefix={prefix}
             queryKey={queryKey}
             onNotice={onNotice}
             onBookmarkSelect={selectBookmark}
