@@ -15,6 +15,9 @@ module ChatSessionLifecycle
     content = message_content(text) if text.present?
     return if performed?
 
+    chat_provider = validated_chat_provider_param(params[:chat_provider])
+    return if performed?
+
     additional_participants = group_participant_users_from_params
     return if performed?
 
@@ -27,6 +30,7 @@ module ChatSessionLifecycle
         user: Current.user,
         repository: repository,
         title: nil,
+        chat_provider: chat_provider,
         last_message_at: text.present? ? Time.current : nil,
         conversation_kind: additional_participants ? "group" : "direct"
       )

@@ -226,7 +226,10 @@ module Api
           repository ||= Current.user.repositories.active.order(:owner, :name).first
 
           render json: {
-            default_repository_id: repository&.id
+            default_repository_id: repository&.id,
+            effective_chat_provider: Current.user.effective_chat_provider,
+            effective_chat_provider_label: chat_provider_label(Current.user.effective_chat_provider),
+            chat_provider_options: chat_provider_options(nil)
           }
         end
 
@@ -386,17 +389,8 @@ module Api
 
         def switch_provider
           chat_session = find_chat_session
-          provider = normalized_chat_provider_param(params[:provider])
-
-          unless User.chat_providers.include?(provider)
-            render_error("validation_failed", "Invalid provider. Must be one of: #{User.chat_providers.join(", ")}.", status: :unprocessable_content)
-            return
-          end
-
-          unless Current.user.chat_provider_configured?(provider)
-            render_error("validation_failed", "Chat provider is not configured.", status: :unprocessable_content)
-            return
-          end
+          provider = validated_chat_provider_param(params[:provider], allow_blank: false)
+          return if performed?
 
           if chat_session.turn_in_flight? || chat_session.agent_busy?
             render_error("turn_in_flight", "Cannot switch provider while a turn is in progress.", status: :unprocessable_content)
