@@ -101,7 +101,19 @@ registry:
   so the assistant on the other end has everything it needs without the
   operator hand-pasting JSON. A failed screenshot capture shows an inline
   error but never blocks the chat from starting; the raw metadata stays
-  visible (and still gets sent) either way.
+  visible (and still gets sent) either way. The same dialog also offers a
+  "Create Job" action that skips the chat round-trip: it posts the same
+  screenshot and free-text prompt (folded through the same summary+JSON
+  formatting) straight to `POST /api/v1/app/admin/tool_card_jobs`
+  (`SyrusDev::ToolCardJobCreator`), which lands a direct Job immediately
+  --- no operator has to relay "yes, go ahead" back to an assistant that
+  already had everything it needed. The Job targets whichever repository
+  `BugReports::Router` already resolves for "file this about Syrus itself"
+  (the configured `report_issue_repo_slug`, or the operator's own fork of
+  it); there is no separate repository picker, since the Tool Card Catalog
+  only exists to develop Syrus. The Job's title is left pending so
+  `GenerateJobTitleJob` derives one from the prompt, the same as leaving the
+  title blank on the normal "New Job" form.
 
 The performance and operational-log APIs are mirrored at `/api/v1/admin/performance`,
 `/api/v1/admin/performance/explain`, and `/api/v1/admin/operational_logs`
