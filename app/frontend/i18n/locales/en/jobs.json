@@ -219,6 +219,7 @@
   "detail_cost": "Cost",
   "detail_started": "Started",
   "detail_closed": "Closed",
+  "detail_emergency_land": "Emergency land",
   "detail_runaway_protection": "Runaway protection",
   "detail_runaway_protection_hint": "automatic retries blocked — click Retry to clear",
   "approval_policy": "Policy",
