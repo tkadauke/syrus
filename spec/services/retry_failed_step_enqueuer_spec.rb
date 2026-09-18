@@ -82,6 +82,63 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result.run.step).to eq(failed_grader)
   end
 
+  it "retries every failed grader in the batch, not just the one closest to the collect barrier" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    first_failed_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 5,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "migration-lint", "required" => true }
+    )
+    passing_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 6,
+      state: "succeeded",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "feature-slugs", "required" => true }
+    )
+    second_failed_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 7,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "frontend-lint", "required" => true }
+    )
+    collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 8,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop"
+    )
+    first_failed_grader.update!(next_step: collect)
+    passing_grader.update!(next_step: collect)
+    second_failed_grader.update!(next_step: collect)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.step).to eq(second_failed_grader)
+    expect(first_failed_grader.reload).to be_queued
+    expect(second_failed_grader.reload).to be_queued
+    expect(first_failed_grader.runs).not_to be_empty
+    expect(second_failed_grader.runs).not_to be_empty
+    expect(passing_grader.reload).to be_succeeded
+    expect(passing_grader.runs).to be_empty
+    expect(collect.reload).to be_queued
+  end
+
   it "retries a tail step when a later retry-until barrier cleared the earlier failure" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
