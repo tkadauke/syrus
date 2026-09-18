@@ -322,7 +322,9 @@ module Steps
           log_sink: sink,
           max_turns: max_turns,
           required_mcp_tools: required_mcp_tools,
-          disallowed_tools: disallowed_tools
+          disallowed_tools: disallowed_tools,
+          model: model,
+          effort_level: effort_level
         )
       ensure
         flush.call
@@ -343,6 +345,14 @@ module Steps
 
     def agent_provider
       run.agent_provider.presence || workflow.agent_provider.presence || job.user.agent_provider
+    end
+
+    def model
+      run.model.presence || workflow.model.presence
+    end
+
+    def effort_level
+      run.effort_level.presence || workflow.effort_level.presence
     end
 
     def agent_adapter
