@@ -53,6 +53,11 @@ class ChatProposal < ApplicationRecord
            foreign_key: :unresolved_chat_proposal_id,
            dependent: :destroy,
            inverse_of: :unresolved_chat_proposal
+  has_many :unresolved_epic_dependencies,
+           class_name: "EpicDependency",
+           foreign_key: :unresolved_chat_proposal_id,
+           dependent: :destroy,
+           inverse_of: :unresolved_chat_proposal
 
   enum :kind, {
     syrus_issue: "syrus_issue",
