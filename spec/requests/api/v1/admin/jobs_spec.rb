@@ -582,6 +582,28 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(ids).not_to include(job_124.id)
     end
 
+    it "filters by closure_reason and includes emergency-land audit fields" do
+      confirmer = Factories.user(email_address: "incident-owner@example.com")
+      job_124.update!(
+        state: "closed",
+        closure_reason: "emergency_landed",
+        emergency_landed_at: Time.zone.parse("2026-09-18 12:00:00"),
+        emergency_landed_by_user: confirmer,
+        emergency_landed_by_membership_tier: "admin"
+      )
+
+      get "/api/v1/admin/jobs", params: { closure_reason: "emergency_landed" }, headers: auth(admin_token)
+
+      rows = parse_body["jobs"]
+      expect(rows.map { |row| row["id"] }).to contain_exactly(job_124.id)
+      expect(rows.first).to include(
+        "closure_reason" => "emergency_landed",
+        "emergency_landed_by_user_id" => confirmer.id,
+        "emergency_landed_by_membership_tier" => "admin"
+      )
+      expect(rows.first["emergency_landed_at"]).to be_present
+    end
+
     it "returns a compact shape — repository slug, issue/pr/branch, no nested workflows" do
       get "/api/v1/admin/jobs", params: { pr_number: 144 }, headers: auth(admin_token)
       row = parse_body["jobs"].first
