@@ -42,6 +42,18 @@ RSpec.describe "Mcp::Tools job control tools" do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
+  # RetryWorkflowEligibility requires a prior initial workflow run before a
+  # Job is eligible for a retry workflow, so retry_job specs need a Job whose
+  # initial workflow has actually run rather than the bare Factories.job(_record).
+  def make_retryable_job(**attrs)
+    job = Factories.job_record(repository: repository, **attrs)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+    workflow.update_columns(started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    step = Step.create!(workflow: workflow, kind: "implement", position: 0)
+    step.runs.create!(job: job, trigger_kind: "initial", state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+    job
+  end
+
   it "creates a pending cancel_job confirmation without executing it" do
     job = Factories.job(repository: repository)
 
@@ -485,7 +497,7 @@ RSpec.describe "Mcp::Tools job control tools" do
   end
 
   it "creates a pending retry_job confirmation without executing it" do
-    job = Factories.job(repository: repository)
+    job = make_retryable_job
 
     response = call_tool("retry_job", job_id: job.id)
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
@@ -495,9 +507,21 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job.workflows.where(trigger_kind: "retry")).to be_empty
   end
 
+  it "rejects retry_job up front for a job whose most recent problem was a landing failure" do
+    job = make_retryable_job(landing_failure_reason: "merge conflict")
+
+    response = call_tool("retry_job", job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include(
+      "Landing failed - reapprove the Job or retry the failed landing workflow instead of retrying implementation."
+    )
+    expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
+  end
+
   it "creates a grouped pending action for retry_job job_ids" do
-    job_one = Factories.job(repository: repository)
-    job_two = Factories.job(repository: repository, issue_number: 43)
+    job_one = make_retryable_job
+    job_two = make_retryable_job(issue_number: 43)
 
     response = call_tool("retry_job", job_ids: [ job_one.id, job_two.id ])
     body = payload(response)
@@ -508,6 +532,21 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "retry_job" ])
     expect(job_one.workflows.where(trigger_kind: "retry")).to be_empty
     expect(job_two.workflows.where(trigger_kind: "retry")).to be_empty
+  end
+
+  it "rejects retry_job job_ids up front as a whole when any target job is ineligible" do
+    eligible_job = make_retryable_job
+    ineligible_job = make_retryable_job(issue_number: 43, landing_failure_reason: "merge conflict")
+
+    response = call_tool("retry_job", job_ids: [ eligible_job.id, ineligible_job.id ])
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include(ineligible_job.slug)
+    expect(response.dig(:result, :content, 0, :text)).to include(
+      "Landing failed - reapprove the Job or retry the failed landing workflow instead of retrying implementation."
+    )
+    expect(PendingActionGroup.count).to eq(0)
+    expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
   end
 
   it "requires admin access for force_fail_job" do
@@ -658,7 +697,7 @@ RSpec.describe "Mcp::Tools job control tools" do
     end
 
     it "allows an admin to retry another user's job" do
-      job = Factories.job_record(repository: other_repository, state: "queued")
+      job = make_retryable_job(repository: other_repository, state: "failed")
 
       response = admin_call("retry_job", job_id: job.id)
 
