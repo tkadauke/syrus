@@ -1068,6 +1068,32 @@
     "passkeys_load_error": "Passkeys konnten nicht geladen werden.",
     "passkeys_remove_error": "Passkey konnte nicht entfernt werden."
   },
+  "provider_routing": {
+    "title": "Anbieter-Routing-Regeln",
+    "account_description": "Wählen Sie geordnete Fallback-Kandidaten je Aufgabenschlüssel für Jobs, die Ihre Kontostandards verwenden.",
+    "repository_description": "Repository-spezifische Aufgabenregeln überschreiben Benutzer-Routing-Regeln für dieses Repository.",
+    "updated_notice": "Anbieter-Routing-Regeln aktualisiert.",
+    "empty": "Noch keine Routing-Regeln.",
+    "task_key": "Aufgabenschlüssel",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "add_candidate": "Kandidat hinzufügen",
+    "save_rule": "Regel speichern",
+    "create_rule": "Regel erstellen",
+    "cancel": "Abbrechen",
+    "remove": "Entfernen",
+    "provider_default_model": "Standardmodell des Anbieters",
+    "default_effort": "Standard-Aufwand",
+    "save_error": "Routing-Regel konnte nicht gespeichert werden.",
+    "delete_error": "Routing-Regel konnte nicht gelöscht werden.",
+    "effort_candidate": "{{effort}} Aufwand",
+    "effort_levels": {
+      "none": "Keiner",
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch"
+    }
+  },
   "connected_platforms": {
     "aria": "Connected Platforms",
     "heading": "Connected Platforms",

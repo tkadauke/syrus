@@ -193,27 +193,27 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         </div>
         {values.agentProvider ? (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Model">
+            <Field label={t("provider_model_label")}>
               <Form.Select
                 name="model"
                 onChange={(event) => setValues({ ...values, model: event.target.value })}
                 value={values.model}
               >
-                <option value="">Provider default model</option>
+                <option value="">{t("provider_default_model")}</option>
                 {(selectedProvider?.models || []).map((model) => (
                   <option key={model.id} value={model.id}>{model.label}</option>
                 ))}
               </Form.Select>
             </Field>
-            <Field label="Effort">
+            <Field label={t("provider_effort_label")}>
               <Form.Select
                 name="effort_level"
                 onChange={(event) => setValues({ ...values, effortLevel: event.target.value })}
                 value={values.effortLevel}
               >
-                <option value="">Default effort</option>
+                <option value="">{t("provider_default_effort")}</option>
                 {payload.provider_routing_options.effort_levels.map((effort) => (
-                  <option key={effort.value} value={effort.value}>{effort.label}</option>
+                  <option key={effort.value} value={effort.value}>{t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}</option>
                 ))}
               </Form.Select>
             </Field>

@@ -1068,6 +1068,32 @@
     "passkeys_load_error": "Unable to load passkeys.",
     "passkeys_remove_error": "Unable to remove passkey."
   },
+  "provider_routing": {
+    "title": "Provider routing rules",
+    "account_description": "Choose ordered fallback candidates by task key for jobs that use your account defaults.",
+    "repository_description": "Repository-scoped task rules override user routing rules for this repository.",
+    "updated_notice": "Provider routing rules updated.",
+    "empty": "No routing rules yet.",
+    "task_key": "Task key",
+    "edit": "Edit",
+    "delete": "Delete",
+    "add_candidate": "Add candidate",
+    "save_rule": "Save rule",
+    "create_rule": "Create rule",
+    "cancel": "Cancel",
+    "remove": "Remove",
+    "provider_default_model": "Provider default model",
+    "default_effort": "Default effort",
+    "save_error": "Unable to save routing rule.",
+    "delete_error": "Unable to delete routing rule.",
+    "effort_candidate": "{{effort}} effort",
+    "effort_levels": {
+      "none": "None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    }
+  },
   "connected_platforms": {
     "aria": "Connected Platforms",
     "heading": "Connected Platforms",

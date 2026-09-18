@@ -317,12 +317,12 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         {section === "agent" ? (
           <ProviderRoutingRulesEditor
             basePath="/api/v1/app/credentials/provider_routing_rules"
-            description="Choose ordered fallback candidates by task key for jobs that use your account defaults."
-            onSaved={() => onNotice("Provider routing rules updated.")}
+            description={t("provider_routing.account_description")}
+            onSaved={() => onNotice(t("provider_routing.updated_notice"))}
             options={payload.options.provider_routing_options}
             queryKey={queryKey}
             rules={payload.provider_routing_rules}
-            title="Provider routing rules"
+            title={t("provider_routing.title")}
           />
         ) : null}
 
