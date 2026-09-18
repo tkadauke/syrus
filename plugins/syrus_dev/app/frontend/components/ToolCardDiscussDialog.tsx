@@ -11,6 +11,7 @@ import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
 import { resolveExampleResultBody } from "@app/pluginToolCards"
 import type { ToolOwnerType, ToolPresentationEntry, ToolPresentationExample, ToolSourceType } from "@app/toolPresentationRegistry"
+import { createToolCardJob } from "../api/toolCardJobs"
 import { rendererTypeFor, type RendererType, type ViewportPresetId } from "../toolCardCatalogTypes"
 
 // The Tool Card Catalog's "Discuss this card" feedback flow: capture a
@@ -132,6 +133,19 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
     }
   })
 
+  // Skips the chat round-trip entirely: same screenshot + prompt, but
+  // lands directly as a direct Job so the operator doesn't have to relay
+  // "yes, go ahead and do this" back to an assistant that already has
+  // everything it needs.
+  const createJob = useMutation({
+    mutationFn: (input: { prompt: string; screenshot: { name: string; mimeType: string; dataUrl: string } | null }) =>
+      createToolCardJob({ prompt: input.prompt, screenshot: input.screenshot }),
+    onSuccess: (payload) => {
+      setOpen(false)
+      navigate(withRoutePrefix(payload.redirect_to, routePrefix(location.pathname)))
+    }
+  })
+
   const metadata = useMemo(
     () => buildToolCardFeedbackMetadata(entry, example, viewportPresetId, deepLink, screenshot?.shapes ?? []),
     [entry, example, viewportPresetId, deepLink, screenshot]
@@ -139,6 +153,7 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
 
   async function openDialog() {
     startChat.reset()
+    createJob.reset()
     setPromptText("")
     setScreenshot(null)
     setCaptureError(null)
@@ -179,6 +194,14 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
       ? [{ dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }]
       : []
     startChat.mutate({ attachments, text })
+  }
+
+  function createJobFromDialog() {
+    const prompt = buildToolCardFeedbackPrompt(promptText, metadata)
+    const screenshotInput = screenshot
+      ? { dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }
+      : null
+    createJob.mutate({ prompt, screenshot: screenshotInput })
   }
 
   return (
@@ -265,12 +288,25 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
                 {errorMessage(startChat.error, t("tool_cards.discuss.chat_failed"))}
               </p>
             ) : null}
+            {createJob.isError ? (
+              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" role="alert">
+                {errorMessage(createJob.error, t("tool_cards.discuss.job_failed"))}
+              </p>
+            ) : null}
 
             <div className="flex justify-end gap-2 border-t border-border pt-4">
               <Button onClick={closeDialog} type="button" variant="secondary">
                 {t("tool_cards.discuss.cancel")}
               </Button>
-              <Button disabled={startChat.isPending || capturing} type="submit">
+              <Button
+                disabled={startChat.isPending || createJob.isPending || capturing}
+                onClick={createJobFromDialog}
+                type="button"
+                variant="secondary"
+              >
+                {createJob.isPending ? t("tool_cards.discuss.creating_job") : t("tool_cards.discuss.create_job")}
+              </Button>
+              <Button disabled={startChat.isPending || createJob.isPending || capturing} type="submit">
                 {startChat.isPending ? t("tool_cards.discuss.starting") : t("tool_cards.discuss.submit")}
               </Button>
             </div>

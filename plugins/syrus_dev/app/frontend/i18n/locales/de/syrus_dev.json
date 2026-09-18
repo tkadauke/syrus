@@ -45,9 +45,12 @@
       "prompt_placeholder": "Beschreibe, was falsch aussieht oder was geändert werden soll...",
       "metadata_summary": "Rohdaten der Nutzlast",
       "chat_failed": "Der neue Chat konnte nicht gestartet werden. Bitte erneut versuchen.",
+      "job_failed": "Der Job konnte nicht erstellt werden. Bitte erneut versuchen.",
       "cancel": "Abbrechen",
       "submit": "Chat öffnen",
-      "starting": "Chat wird gestartet..."
+      "starting": "Chat wird gestartet...",
+      "create_job": "Job erstellen",
+      "creating_job": "Job wird erstellt..."
     }
   },
   "performance": {
