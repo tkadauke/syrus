@@ -2,6 +2,7 @@ class Workflow < ApplicationRecord
   include AASM
   include RecordsStateTransitions
   include BroadcastsJobProgress
+  include ValidatesAgentProvider
 
   EPIC_WIDE_TRIGGER_KINDS = Workflow::TriggerKind.epic_wide_values
   PRIORITIES = Job::PRIORITIES
@@ -35,7 +36,7 @@ class Workflow < ApplicationRecord
   # trigger kinds appear (and disappear) with the plugin, and a frozen array
   # would only ever hold the built-ins.
   validates :trigger_kind, presence: true, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }
-  validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
+  validates_agent_provider
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validate :user_matches_job
   validate :job_must_be_open_on_create, on: :create

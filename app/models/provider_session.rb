@@ -1,5 +1,6 @@
 class ProviderSession < ApplicationRecord
   include HasConfigurableRetention
+  include ValidatesAgentProvider
 
   belongs_to :resumable, polymorphic: true
 
@@ -8,7 +9,7 @@ class ProviderSession < ApplicationRecord
   belongs_to :run, optional: true
 
   validates :session_id, presence: true
-  validates :provider, presence: true, inclusion: { in: -> { User.agent_providers } }
+  validates_agent_provider :provider
   validates :resumable, presence: true
 
   before_validation :default_resumable_from_run

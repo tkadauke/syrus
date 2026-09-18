@@ -70,7 +70,10 @@ has closed successfully.
 
 ### 2. Add credentials and choose a provider
 
-In **Agent Settings**, choose your default agent provider. Then open
+In **Agent Settings**, choose your default agent provider. A fresh install
+ships with every agent-provider plugin (Claude, Codex, Antigravity, Muse)
+disabled, so the first admin needs to enable the one they want from
+**Admin -> Plugins** before it shows up as a choice. Then open
 **Credentials** and add the matching credential:
 
 - **Claude** uses a Claude OAuth token. On the **First-run setup**

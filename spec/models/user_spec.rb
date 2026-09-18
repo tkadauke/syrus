@@ -289,6 +289,22 @@ RSpec.describe User do
       expect(user).not_to be_valid
       expect(user.errors[:agent_provider]).to be_present
     end
+
+    it "does not block signup on a fresh install with no agent-provider plugin enabled yet" do
+      %w[claude_agent codex_agent agy_agent muse_agent].each do |name|
+        PluginRecord.find_or_create_by!(name: name).update!(enabled: false)
+      end
+      expect(User.agent_providers).to be_empty
+
+      user = User.create!(attrs)
+
+      expect(user).to be_persisted
+      expect(user.agent_provider).to eq("claude")
+    ensure
+      %w[claude_agent codex_agent agy_agent].each do |name|
+        PluginRecord.find_or_create_by!(name: name).update!(enabled: true)
+      end
+    end
   end
 
   describe "chat_provider" do

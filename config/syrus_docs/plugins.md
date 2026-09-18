@@ -2788,6 +2788,18 @@ Bundled plugins:
   `Syrus::PluginRegistry.upsert_plugin_record!` only applies a manifest's
   `default_enabled` value to a brand-new `PluginRecord`, never to one that
   already exists.
+
+  With every agent-provider plugin off by default, `User.agent_providers`
+  (the list every `agent_provider`/`provider` column's `inclusion` validation
+  checks against — `User`, `Job`, `Workflow`, `Run`, `AutoRetryAttempt`,
+  `ProviderSession`, and the optional overrides on `Repository` /
+  `RepositoryMembership`, all via the shared `ValidatesAgentProvider` concern)
+  can legitimately be empty on a fresh install, before the first admin has
+  enabled anything. That validation tolerates an empty list instead of
+  rejecting the column's placeholder value outright, so signup and normal
+  record creation stay unblocked during that bootstrap window; actually
+  *running* an agent with no plugin enabled still fails clearly, at
+  `AgentProviders.for`, once something tries to.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.
