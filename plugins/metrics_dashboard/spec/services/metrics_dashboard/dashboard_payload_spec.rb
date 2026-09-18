@@ -101,24 +101,27 @@ RSpec.describe MetricsDashboard::DashboardPayload do
       expect(values.compact).to all(eq(5))
     end
 
-    it "anchors worker disk utilization by storage key but labels it with the latest hostname" do
+    it "anchors worker disk utilization by storage key but labels it with the latest scraped hostname" do
       now = Time.current.change(sec: 0)
-      WorkerHostHealthSample.create!(
-        hostname: "worker-old", worker_storage_key: "storage-a", role: "worker",
-        version: "abc123", observed_at: now - 10.minutes, data_root_used_percent: 55
-      )
-      WorkerHostHealthSample.create!(
-        hostname: "worker-new", worker_storage_key: "storage-a", role: "worker",
-        version: "abc123", observed_at: now - 1.minute, data_root_used_percent: 63
-      )
-      sample(metric: "syrus_worker_disk_percent", labels: { "worker_storage_key" => "storage-a" }, value: 55, at: now - 10.minutes)
-      sample(metric: "syrus_worker_disk_percent", labels: { "worker_storage_key" => "storage-a" }, value: 63, at: now - 1.minute)
+      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-old", "storage_key" => "storage-a" }, value: 55, at: now - 10.minutes)
+      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-new", "storage_key" => "storage-a" }, value: 63, at: now - 1.minute)
 
       series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
 
       expect(series.sole[:key]).to eq("storage-a")
       expect(series.sole[:name]).to eq("worker-new")
       expect(series.sole[:values].compact.max).to eq(63)
+    end
+
+    it "keeps legacy hostname-only worker samples separate until retention prunes them" do
+      now = Time.current.change(sec: 0)
+      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-old" }, value: 55, at: now - 10.minutes)
+      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-new" }, value: 63, at: now - 1.minute)
+
+      series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
+
+      expect(series.map { |entry| entry[:key] }).to contain_exactly("worker-old", "worker-new")
+      expect(series.map { |entry| entry[:name] }).to contain_exactly("worker-old", "worker-new")
     end
   end
 

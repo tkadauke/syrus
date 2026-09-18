@@ -162,6 +162,15 @@ Rate panels keep only the series that moved, capped at
 `DashboardPayload::RATE_SERIES_LIMIT`, so one busy job class is not buried under
 a dozen flat ones.
 
+**Workers & Fleet host charts are anchored by storage key.** The worker
+CPU/memory/disk metrics scrape both the current `hostname` and a durable
+`storage_key`. The dashboard groups those three panels by `storage_key` so a
+pod restart continues the same line, but labels the legend from the newest
+scraped `hostname` so operators do not have to read raw storage IDs.
+Hostname-only samples recorded before this label existed are intentionally not
+backfilled; they continue to render as separate historical series until the
+sample-retention window prunes them.
+
 Series prefixed `syrus_global_` are **one cluster-wide fact**, rendered
 identically by every process that serves `/metrics`. The payload reduces them
 with `max`, never `sum` — summing them would multiply by the number of
