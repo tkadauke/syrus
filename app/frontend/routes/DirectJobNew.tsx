@@ -18,6 +18,7 @@ import {
   type DirectJobFormPayload,
   type DirectJobPromptTemplate
 } from "../api/directJobs"
+import type { ProviderRoutingOptions } from "../api/providerRoutingRules"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import { providerIconSrc } from "../lib/pluginIcon"
@@ -34,6 +35,8 @@ type DirectJobFormState = {
   createMore: boolean
   googleDocUrl: string
 }
+
+const EMPTY_PROVIDER_ROUTING_OPTIONS: ProviderRoutingOptions = { agent_providers: [], effort_levels: [] }
 
 export function DirectJobNewRoute() {
   const { t } = useT("jobs")
@@ -69,13 +72,14 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
   const [files, setFiles] = useState<File[]>([])
   const [values, setValues] = useState<DirectJobFormState>(() => initialValues(payload))
   const [appliedTemplate, setAppliedTemplate] = useState<DirectJobPromptTemplate | null>(null)
+  const providerRoutingOptions = payload.provider_routing_options || EMPTY_PROVIDER_ROUTING_OPTIONS
   const selectedRepository = useMemo(
     () => payload.repositories.find((repository) => String(repository.id) === values.repositoryId) || null,
     [payload.repositories, values.repositoryId]
   )
   const selectedProvider = useMemo(
-    () => payload.provider_routing_options.agent_providers.find((provider) => provider.value === values.agentProvider) || null,
-    [payload.provider_routing_options.agent_providers, values.agentProvider]
+    () => providerRoutingOptions.agent_providers.find((provider) => provider.value === values.agentProvider) || null,
+    [providerRoutingOptions.agent_providers, values.agentProvider]
   )
   const save = useMutation({
     mutationFn: () => createDirectJob({ ...values, files }),
@@ -212,7 +216,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                 value={values.effortLevel}
               >
                 <option value="">{t("provider_default_effort")}</option>
-                {payload.provider_routing_options.effort_levels.map((effort) => (
+                {providerRoutingOptions.effort_levels.map((effort) => (
                   <option key={effort.value} value={effort.value}>{t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}</option>
                 ))}
               </Form.Select>
