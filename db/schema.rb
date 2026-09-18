@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_023150) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_160514) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1451,6 +1451,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_023150) do
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
     t.json "diff_fixture"
+    t.datetime "emergency_landed_at"
+    t.string "emergency_landed_by_membership_tier"
+    t.bigint "emergency_landed_by_user_id"
     t.integer "epic_id"
     t.string "epic_title"
     t.string "external_pr_author"
@@ -1553,6 +1556,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_023150) do
     t.index ["closure_reason", "id"], name: "idx_jobs_spending_closure"
     t.index ["credential_mode"], name: "index_jobs_on_credential_mode"
     t.index ["dependencies_overridden_by_user_id"], name: "index_jobs_on_dependencies_overridden_by_user_id"
+    t.index ["emergency_landed_at"], name: "index_jobs_on_emergency_landed_at"
+    t.index ["emergency_landed_by_user_id"], name: "index_jobs_on_emergency_landed_by_user_id"
     t.index ["epic_id"], name: "index_jobs_on_epic_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["grace_period_expires_at"], name: "index_jobs_on_grace_period_expires_at"

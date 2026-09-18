@@ -170,6 +170,24 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".emergency_land_enabled?" do
+    it "returns the flag value in advanced mode" do
+      Feature.create!(slug: "emergency_land", category: "Labs", name: "Emergency land", enabled: true)
+      allow(AppSetting).to receive(:simple?).and_return(false)
+      expect(Feature.emergency_land_enabled?).to be true
+    end
+
+    it "is forced off in simple mode regardless of the flag" do
+      Feature.create!(slug: "emergency_land", category: "Labs", name: "Emergency land", enabled: true)
+      allow(AppSetting).to receive(:simple?).and_return(true)
+      expect(Feature.emergency_land_enabled?).to be false
+    end
+
+    it "defaults off when unset" do
+      expect(Feature.emergency_land_enabled?).to be false
+    end
+  end
+
   describe "declarations" do
     it "declares the visual_review labs flag default-on in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "visual_review" }
@@ -212,6 +230,11 @@ RSpec.describe Feature, type: :model do
       declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
                         .find { |f| f["slug"] == "admin_supervisor_chat" }
       expect(declaration).to include("category" => "Operations", "default" => false)
+    end
+
+    it "declares the emergency_land labs flag default-off in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "emergency_land" }
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
     end
   end
 end

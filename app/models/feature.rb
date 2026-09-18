@@ -131,6 +131,17 @@ class Feature < ApplicationRecord
     enabled?(:persistent_mcp_sidecar)
   end
 
+  # Emergency-land escape hatch for Coding Mode. A second, explicit opt-in
+  # layered on top of coding_mode_enabled? itself -- emergency land skips
+  # Syrus's own grader/adversarial-review/visual-review pipeline, which is
+  # materially higher risk than a normal Coding Mode handoff, so it must
+  # not be reachable just because Coding Mode is on.
+  def self.emergency_land_enabled?
+    return false if AppSetting.simple?
+
+    enabled?(:emergency_land)
+  end
+
   private
 
   def clear_request_enabled_cache
