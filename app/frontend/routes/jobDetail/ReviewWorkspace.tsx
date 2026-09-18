@@ -23,7 +23,7 @@ import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { DiffReviewVersionSelector, type DiffReviewRangeSelection } from "./DiffReviewVersionSelector"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
-import { Pill, Section, surfaceClasses } from "../../components/ui"
+import { Pill, Section, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
 
 const SURFACE = "job_review_workspace"
 
@@ -213,7 +213,16 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           versions={versions}
         />
 
-        <Section.Root className="overflow-hidden" padding="none">
+        {/*
+          Not `overflow-hidden`: this diff viewer renders with `scroll="natural"`,
+          so its file headers pin via `position: sticky` against the page itself.
+          Any ancestor whose `overflow` isn't `visible` -- including `hidden` --
+          becomes the nearest scroll container for that sticky descendant even
+          though this panel never scrolls, which permanently unpins the headers.
+          `SURFACE_CLIP_ROUNDED_CLASS` clips the diff's square corners to the
+          panel's rounded corners without that side effect.
+        */}
+        <Section.Root className={SURFACE_CLIP_ROUNDED_CLASS} padding="none">
           <ReviewableDiff
             changedFilesPopup
             comments={feedback.diffThreads}
