@@ -40,7 +40,11 @@ module ProviderRouting
     def job_override_candidates
       return nil if job.job_provider_setting_default?
 
-      [ Candidate.new(provider: job.agent_provider, model: job.model, effort_level: job.effort_level) ]
+      # job.agent_provider is only set once at creation (Job#default_agent_provider)
+      # and does not follow a later explicit pin via switch_job_provider_setting!,
+      # which only updates job_provider_setting -- workflow_agent_provider is the
+      # one that resolves job_provider_setting itself and so stays current.
+      [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level) ]
     end
 
     def rule_candidates(scope_type:, scope_id:, task_key:)
