@@ -471,7 +471,7 @@
   "review_version_comments_other": "{{count}} commentarii",
   "review_version_latest": "Novissima",
   "review_version_historical": "Historica",
-  "review_version_historical_badge": "v{{version}} historica",
+  "review_version_section_current": "Nunc spectata",
   "review_version_time_unknown": "tempus ignotum",
   "review_version_unknown_trigger": "incitamentum ignotum",
   "review_version_workflow": "Workflow {{id}}",

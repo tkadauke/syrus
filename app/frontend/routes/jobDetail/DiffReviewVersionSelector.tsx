@@ -364,7 +364,7 @@ function EndpointChip({ ariaLabel, highlighted, label, onClick, title, type }: {
   )
 }
 
-function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion) {
+export function collapsedLabel(t: TFunction<"jobs">, version: DiffReviewVersion) {
   if (isAllChangesVersion(version)) return t("review_version_all_changes")
   if (version.label) return version.label
   if (version.run_id) return `RUN-${version.run_id}`
@@ -390,7 +390,7 @@ function compactVersionSummary(t: TFunction<"jobs">, version: DiffReviewVersion)
   return [t("review_version_prefix", { version: version.version_index }), rangeName(version)].filter(Boolean).join(" ")
 }
 
-function metadataSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
+export function metadataSummary(t: TFunction<"jobs">, version: DiffReviewVersion) {
   return [
     t("review_version_prefix", { version: version.version_index }),
     version.workflow_id ? `WF-${version.workflow_id}` : null,
