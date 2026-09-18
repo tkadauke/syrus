@@ -157,6 +157,7 @@ export const coreArtifactRendererEntries: CoreArtifactRendererEntry[] = [
         id: "missing_image_url",
         label: "Malformed: missing image_url",
         description: "Falls back to the raw JSON renderer when the payload has no image_url.",
+        expectedFallback: true,
         artifact: {
           type: "visual_review_screenshot",
           title: "Broken screenshot artifact",
@@ -193,6 +194,37 @@ export const coreArtifactRendererEntries: CoreArtifactRendererEntry[] = [
             ]
           }
         }
+      },
+      {
+        id: "many_pairs",
+        label: "Large payload: eight screenshot pairs",
+        description: "Stress-tests the layout with more before/after pairs than a typical visual review round produces.",
+        artifact: {
+          type: "visual_diff_comparison",
+          title: "Full-suite visual comparison",
+          created_at: "2026-09-01T12:00:00Z",
+          renderer_type: "before_after_visual_diff",
+          payload: {
+            pairs: Array.from({ length: 8 }, (_, i) => ({
+              title: `Screen ${i + 1}`,
+              before: { image_url: `https://example.com/screenshots/screen-${i + 1}-before.png`, title: "before" },
+              after: { image_url: `https://example.com/screenshots/screen-${i + 1}-after.png`, title: "after" }
+            }))
+          }
+        }
+      },
+      {
+        id: "no_pairs",
+        label: "Malformed: no pairs",
+        description: "Falls back to the raw JSON renderer when payload.pairs is empty.",
+        expectedFallback: true,
+        artifact: {
+          type: "visual_diff_comparison",
+          title: "Empty visual comparison",
+          created_at: "2026-09-01T12:00:00Z",
+          renderer_type: "before_after_visual_diff",
+          payload: { pairs: [] }
+        }
       }
     ]
   },
@@ -221,12 +253,28 @@ export const coreArtifactRendererEntries: CoreArtifactRendererEntry[] = [
         id: "empty_table",
         label: "Malformed: no headers or rows",
         description: "Falls back to the raw JSON renderer when both headers and rows are empty.",
+        expectedFallback: true,
         artifact: {
           type: "coverage_summary",
           title: "Empty table",
           created_at: "2026-09-01T12:00:00Z",
           renderer_type: "data_table",
           payload: {}
+        }
+      },
+      {
+        id: "large_dataset",
+        label: "Large payload: 60-row coverage table",
+        description: "Stress-tests the table renderer with a payload larger than a typical coverage summary.",
+        artifact: {
+          type: "coverage_summary",
+          title: "Coverage by file (full repository)",
+          created_at: "2026-09-01T12:00:00Z",
+          renderer_type: "data_table",
+          payload: {
+            headers: [ "File", "Lines", "Branches" ],
+            rows: Array.from({ length: 60 }, (_, i) => [ `app/models/example_model_${i}.rb`, `${70 + (i % 30)}%`, `${50 + (i % 40)}%` ])
+          }
         }
       }
     ]
@@ -250,6 +298,34 @@ export const coreArtifactRendererEntries: CoreArtifactRendererEntry[] = [
           created_at: "2026-09-01T12:00:00Z",
           renderer_type: "before_after_diff",
           payload: { before: "max_retries: 1", after: "max_retries: 3" }
+        }
+      },
+      {
+        id: "large_diff",
+        label: "Large payload: 80-line config rewrite",
+        description: "Stress-tests the two-column renderer with a payload larger than a typical single-setting tweak.",
+        artifact: {
+          type: "config_diff",
+          title: "config/app_settings.yml (full rewrite)",
+          created_at: "2026-09-01T12:00:00Z",
+          renderer_type: "before_after_diff",
+          payload: {
+            before: Array.from({ length: 80 }, (_, i) => `setting_${i}: ${i}`).join("\n"),
+            after: Array.from({ length: 80 }, (_, i) => `setting_${i}: ${i * 2}`).join("\n")
+          }
+        }
+      },
+      {
+        id: "missing_before_and_after",
+        label: "Malformed: missing before and after",
+        description: "Falls back to the raw JSON renderer when both before and after are absent.",
+        expectedFallback: true,
+        artifact: {
+          type: "config_diff",
+          title: "Empty config diff",
+          created_at: "2026-09-01T12:00:00Z",
+          renderer_type: "before_after_diff",
+          payload: {}
         }
       }
     ]
