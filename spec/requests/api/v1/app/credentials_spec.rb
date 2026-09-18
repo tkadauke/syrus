@@ -464,6 +464,44 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response.body).not_to include("muse-existing")
   end
 
+  it "tests provider credentials while the provider plugin is still disabled for onboarding" do
+    PluginRecord.find_by!(name: "muse_agent").update!(enabled: false)
+    sign_in_as(user)
+    result = CredentialProbe::Result.new(
+      credential: "muse_api_key",
+      ok: true,
+      message: "Muse API key is valid.",
+      details: {}
+    )
+    expect(CredentialProbe).to receive(:call)
+      .with(user: user, credential: "muse_api_key")
+      .and_return(result)
+
+    post "/api/v1/app/credentials/test_credential", params: { credential: "muse_api_key" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("credential_test", "ok")).to be(true)
+  end
+
+  it "tests pasted Gemini keys even when the video walkthroughs plugin is disabled" do
+    PluginRecord.find_or_create_by!(name: "video_walkthroughs").update!(enabled: false, default_enabled: false, disableable: true)
+    sign_in_as(user)
+    result = CredentialProbe::Result.new(
+      credential: "gemini_api_key",
+      ok: true,
+      message: "Gemini key is valid.",
+      details: { model: "models/gemini-2.5-flash" }
+    )
+    expect(VideoWalkthroughs::CredentialProbe).to receive(:key)
+      .with(key: "AIza-test")
+      .and_return(result)
+
+    post "/api/v1/app/credentials/test_gemini_key", params: { gemini_api_key: "AIza-test" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("credential_test", "ok")).to be(true)
+  end
+
   it "tests Antigravity readiness through the shared Gemini credential" do
     sign_in_as(user)
     user.update!(gemini_api_key: "AIza-test")

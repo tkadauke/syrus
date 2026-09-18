@@ -3,22 +3,15 @@ module ValidatesAgentProvider
 
   class_methods do
     # Shared shape for every `agent_provider`/`provider` column that should
-    # name a real agent-provider plugin. The inclusion list is
-    # `User.agent_providers` -- the set of currently *enabled*
-    # agent-provider plugins. A brand-new install starts with every
-    # agent-provider plugin disabled (see e.g. `plugins/claude_agent`'s
-    # `default_enabled: false`), so that list is legitimately empty until an
-    # operator enables one from Admin -> Plugins. Validating strictly
-    # against an empty list there would make it impossible to even create
-    # the first User record: the column's DB default ("claude") would never
-    # be "included" in []. Falling back to the record's own current value
-    # when no provider is configured yet keeps bootstrapping unblocked --
-    # the value is merely a placeholder until a plugin is actually enabled,
-    # the same way `AgentProviders.for` already raises a clear
-    # `ConfigurationError` if something tries to actually run with it.
+    # name a real agent-provider plugin. Persistence accepts any installed
+    # provider key, even when that plugin is currently disabled: brand-new
+    # installs start with agent-provider plugins off, and rows may still carry
+    # the schema default ("claude") until onboarding connects/enables the first
+    # provider. Runtime paths still resolve through `User.agent_providers`, the
+    # enabled-provider list, so a disabled placeholder cannot actually run.
     def validates_agent_provider(attribute = :agent_provider, allow_nil: false)
       inclusion = {
-        in: ->(record) { User.agent_providers.presence || Array(record.public_send(attribute)) }
+        in: ->(_record) { User.known_agent_providers }
       }
 
       if allow_nil

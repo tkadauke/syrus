@@ -71,6 +71,14 @@ class CredentialProbe
   CREDENTIAL_PROBE_METHODS = {
     "github_token"       => :probe_github
   }.freeze
+  OPTIONAL_CREDENTIAL_PROBE_HANDLERS = {
+    "agy" => "AgyCredentialProbe",
+    "claude_oauth_token" => "ClaudeCredentialProbe",
+    "codex_api_key" => "CodexCredentialProbe",
+    "codex_auth_json" => "CodexCredentialProbe",
+    "gemini_api_key" => "VideoWalkthroughs::CredentialProbe",
+    "muse_api_key" => "MuseCredentialProbe"
+  }.freeze
   @registered_probe_handlers = {}
   @registered_secret_extractors = []
 
@@ -105,7 +113,13 @@ class CredentialProbe
 
   def self.probe_handler_for(credential)
     Syrus::Installer.sync!
-    CREDENTIAL_PROBE_METHODS[credential.to_s] || @registered_probe_handlers[credential.to_s]
+    CREDENTIAL_PROBE_METHODS[credential.to_s] ||
+      @registered_probe_handlers[credential.to_s] ||
+      optional_probe_handler_for(credential)
+  end
+
+  def self.optional_probe_handler_for(credential)
+    OPTIONAL_CREDENTIAL_PROBE_HANDLERS[credential.to_s]&.safe_constantize
   end
 
   def call
@@ -209,6 +223,12 @@ class CredentialProbe
 
   def registered_secrets
     Syrus::Installer.sync!
-    self.class.instance_variable_get(:@registered_secret_extractors).flat_map { |extractor| Array(extractor.call(user)) }
+    extractors = self.class.instance_variable_get(:@registered_secret_extractors).dup
+    self.class::OPTIONAL_CREDENTIAL_PROBE_HANDLERS.values.each do |class_name|
+      handler = class_name.safe_constantize
+      extractor = handler.const_get(:SECRET_EXTRACTOR, false) if handler&.const_defined?(:SECRET_EXTRACTOR, false)
+      extractors << extractor if extractor
+    end
+    extractors.uniq.flat_map { |extractor| Array(extractor.call(user)) }
   end
 end

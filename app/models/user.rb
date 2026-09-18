@@ -637,6 +637,15 @@ class User < ApplicationRecord
     Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)
   end
 
+  def self.known_agent_providers
+    plugin_providers = Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
+      Array(manifest.provides[:agent_provider])
+    end
+    (plugin_providers + Syrus::PluginRegistry.providers_for(:agent_provider))
+      .filter_map { |provider| provider.provider_key if provider.respond_to?(:provider_key) }
+      .uniq
+  end
+
   def self.search(query)
     query = query.to_s.strip
     return all if query.blank?
