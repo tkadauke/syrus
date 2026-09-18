@@ -187,18 +187,14 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
     setAnnotating(false)
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const text = buildToolCardFeedbackPrompt(promptText, metadata)
-    const attachments: ChatMessageAttachmentInput[] = screenshot
-      ? [{ dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }]
-      : []
-    startChat.mutate({ attachments, text })
-  }
-
   const promptIsBlank = promptText.trim().length === 0
 
-  function createJobFromDialog() {
+  // Mirrors BugReportButton's layout: the form's primary submit action is the
+  // immediate, no-review-step one (there: file the bug report; here: create
+  // the job directly), while starting a chat is a secondary, explicitly
+  // clicked action -- never triggered by pressing Enter in the textarea.
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (promptIsBlank) return
 
     const prompt = buildToolCardFeedbackPrompt(promptText, metadata)
@@ -206,6 +202,14 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
       ? { dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }
       : null
     createJob.mutate({ prompt, screenshot: screenshotInput })
+  }
+
+  function startDiscussChat() {
+    const text = buildToolCardFeedbackPrompt(promptText, metadata)
+    const attachments: ChatMessageAttachmentInput[] = screenshot
+      ? [{ dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }]
+      : []
+    startChat.mutate({ attachments, text })
   }
 
   return (
@@ -303,16 +307,19 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
                 {t("tool_cards.discuss.cancel")}
               </Button>
               <Button
-                disabled={startChat.isPending || createJob.isPending || capturing || promptIsBlank}
-                onClick={createJobFromDialog}
-                title={promptIsBlank ? t("tool_cards.discuss.create_job_requires_prompt") : undefined}
+                disabled={startChat.isPending || createJob.isPending || capturing}
+                onClick={startDiscussChat}
                 type="button"
                 variant="secondary"
               >
-                {createJob.isPending ? t("tool_cards.discuss.creating_job") : t("tool_cards.discuss.create_job")}
-              </Button>
-              <Button disabled={startChat.isPending || createJob.isPending || capturing} type="submit">
                 {startChat.isPending ? t("tool_cards.discuss.starting") : t("tool_cards.discuss.submit")}
+              </Button>
+              <Button
+                disabled={startChat.isPending || createJob.isPending || capturing || promptIsBlank}
+                title={promptIsBlank ? t("tool_cards.discuss.create_job_requires_prompt") : undefined}
+                type="submit"
+              >
+                {createJob.isPending ? t("tool_cards.discuss.creating_job") : t("tool_cards.discuss.create_job")}
               </Button>
             </div>
           </form>

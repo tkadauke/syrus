@@ -204,7 +204,7 @@ describe("ToolCardDiscussButton", () => {
     await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
 
     fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "The icon looks wrong here." } })
-    fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
     await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
     const [input] = mockCreateChat.mock.calls[0]
@@ -229,7 +229,7 @@ describe("ToolCardDiscussButton", () => {
     await openDialog()
     await screen.findByText("Couldn't capture a screenshot of this card. You can still start the chat without one — the metadata below is still included.")
 
-    fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
     await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
     const [input] = mockCreateChat.mock.calls[0]
@@ -244,7 +244,7 @@ describe("ToolCardDiscussButton", () => {
     await openDialog()
     await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
     await screen.findByText("Couldn't start a new chat. Please try again.")
     expect(screen.getByRole("dialog")).toBeInTheDocument()
