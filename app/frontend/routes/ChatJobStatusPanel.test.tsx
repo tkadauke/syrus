@@ -207,7 +207,7 @@ describe("ChatJobStatusPanel job cards", () => {
 })
 
 describe("ChatJobStatusPanel blocker banner", () => {
-  it("shows a red blocker banner when the job has a blocker", async () => {
+  it("shows an amber (not red) blocker banner for awaiting_review, since it is an expected step, not a failure", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
       jobItem({
         blocker: { reason: "awaiting_review", description: "Waiting for PR review and approval" }
@@ -216,10 +216,16 @@ describe("ChatJobStatusPanel blocker banner", () => {
 
     renderPanel()
 
-    expect(await screen.findByText("Awaiting review")).toBeInTheDocument()
+    const banner = await screen.findByText("Awaiting review")
+    expect(banner.className).toContain("bg-warning-surface")
+    expect(banner.className).not.toMatch(/bg-red/)
+
+    const card = await screen.findByRole("button", { name: /Inspect the aqueduct/i })
+    expect(card.className).toContain("border-l-amber-400")
+    expect(card.className).not.toContain("border-l-red-500")
   })
 
-  it("shows a landing failed banner for landing_failed blockers", async () => {
+  it("shows a red landing failed banner for landing_failed blockers", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
       jobItem({
         state: "landing",
@@ -229,10 +235,14 @@ describe("ChatJobStatusPanel blocker banner", () => {
 
     renderPanel()
 
-    expect(await screen.findByText("Landing failed")).toBeInTheDocument()
+    const banner = await screen.findByText("Landing failed")
+    expect(banner.className).toContain("bg-red-50")
+
+    const card = await screen.findByRole("button", { name: /Inspect the aqueduct/i })
+    expect(card.className).toContain("border-l-red-500")
   })
 
-  it("shows a dependency failed banner for dependency_failed blockers", async () => {
+  it("shows a red dependency failed banner for dependency_failed blockers", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
       jobItem({
         state: "queued",
@@ -242,7 +252,11 @@ describe("ChatJobStatusPanel blocker banner", () => {
 
     renderPanel()
 
-    expect(await screen.findByText("Dependency failed")).toBeInTheDocument()
+    const banner = await screen.findByText("Dependency failed")
+    expect(banner.className).toContain("bg-red-50")
+
+    const card = await screen.findByRole("button", { name: /Inspect the aqueduct/i })
+    expect(card.className).toContain("border-l-red-500")
   })
 })
 
