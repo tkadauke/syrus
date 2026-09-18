@@ -389,6 +389,8 @@ class ProcessRunner
       CommandSpan.where(spawned_process_id: @spawned_process.id).find_each do |span|
         span.update_column(:resource_attribution, command_span_process_owned_payload)
       end
+      return if ChatTurnAutoRetryReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
+
       ChatStopReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
     end
   rescue StandardError => e
