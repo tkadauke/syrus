@@ -298,8 +298,28 @@ module WorkEngine
         attrs = value.to_h
         job = Job.find(attrs.fetch("job"))
         provider = attrs.fetch("provider")
+        ensure_simulation_agent_provider_enabled!(provider)
         job.switch_job_provider_setting!(provider.to_s)
         events << "switched #{job.slug} provider to #{provider}"
+      end
+
+      def ensure_simulation_agent_provider_enabled!(provider)
+        provider = provider.to_s
+        return if User.agent_providers.include?(provider)
+
+        manifest = Syrus::PluginRegistry.all_plugins.find do |candidate|
+          Array(candidate.provides[:agent_provider]).any? do |provider_class|
+            provider_class.respond_to?(:provider_key) && provider_class.provider_key == provider
+          end
+        end
+        return unless manifest
+
+        record = PluginRecord.find_or_initialize_by(name: manifest.name)
+        record.enabled = true
+        record.default_enabled = manifest.default_enabled if record.has_attribute?(:default_enabled)
+        record.disableable = manifest.disableable if record.has_attribute?(:disableable)
+        record.save!
+        Syrus::PluginRegistry.clear_plugin_record_cache!
       end
 
       # Models someone merging (or closing) the job's PR on GitHub, outside
