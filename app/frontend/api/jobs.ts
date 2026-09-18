@@ -497,6 +497,8 @@ export type JobVisualReviewArtifact = {
 
 export type JobVisualReviewIteration = {
   iteration: number
+  step_id?: number | null
+  run_id?: number | null
   critique: string
   verdict: "needs_work" | "approved" | "skipped"
   artifacts: JobVisualReviewArtifact[]

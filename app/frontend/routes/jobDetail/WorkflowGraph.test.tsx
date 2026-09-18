@@ -680,6 +680,42 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Showing latest 0 of 5 runs for this step.")).toBeInTheDocument()
   })
 
+  it("shows only the visual review result for the clicked step iteration", () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ workflows: [workflowWithVisualReviews()] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Visual review3 iterations/ }))
+    fireEvent.click(screen.getAllByRole("button", { name: /Visual review/ })[1])
+    fireEvent.click(screen.getByRole("button", { name: "Review" }))
+
+    expect(screen.getByText("First visual pass")).toBeInTheDocument()
+    expect(screen.queryByText("Second visual pass")).not.toBeInTheDocument()
+    expect(screen.queryByText("Third visual pass")).not.toBeInTheDocument()
+  })
+
+  it("matches visual review results by run provenance when available", () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ workflows: [workflowWithVisualReviews()] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Visual review3 iterations/ }))
+    fireEvent.click(screen.getAllByRole("button", { name: /Visual review/ })[3])
+    fireEvent.click(screen.getByRole("button", { name: "Review" }))
+
+    expect(screen.getByText("Third visual pass")).toBeInTheDocument()
+    expect(screen.queryByText("First visual pass")).not.toBeInTheDocument()
+    expect(screen.queryByText("Second visual pass")).not.toBeInTheDocument()
+  })
+
   it("surfaces cancellation reasons on cancelled workflow steps", () => {
     render(
       <MemoryRouter>
@@ -876,6 +912,103 @@ function workflowWithDiffRun() {
         app_grade_log_path: null
       }]
     }]
+  } as JobDetailPayload["workflows"][number]
+}
+
+function workflowWithVisualReviews() {
+  const visualRun = (id: number, iteration: number) => ({
+    id,
+    state: "succeeded",
+    trigger_kind: "initial",
+    agent_provider: "codex",
+    agent_outcome: "success",
+    agent_turns: 1,
+    agent_pr_title: null,
+    agent_summary: null,
+    parent_session_id: null,
+    skill_source: null,
+    skill_resolved_path: null,
+    skill_resolved_class: null,
+    head_sha: null,
+    iteration,
+    started_at: null,
+    last_heartbeat_at: null,
+    finished_at: null,
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    cost_usd: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    agent_diff_present: false,
+    agent_diff_bytes: 0,
+    step_agent_diff_present: false,
+    step_agent_diff_bytes: 0,
+    job_log_count: 0,
+    rate_limited: false,
+    run_diagnostic: null,
+    health_snapshots: [],
+    agent_session: null,
+    can_stop: false,
+    can_diagnose: false,
+    can_resume: false,
+    app_artifacts_path: `/api/v1/app/jobs/42/runs/${id}/artifacts`,
+    app_stop_path: "/stop",
+    app_diagnose_path: "/diagnose",
+    app_resume_path: "/resume",
+    app_grade_log_path: null
+  })
+  const visualStep = (id: number, position: number, iteration: number) => ({
+    id,
+    kind: "visual_review",
+    display_name: `Visual review ${iteration}`,
+    display_status: "succeeded",
+    position,
+    iteration,
+    loop_id: "visual-review-loop",
+    state: "succeeded",
+    started_at: null,
+    finished_at: null,
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    details: null,
+    warnings: [],
+    latest: true,
+    runs: [visualRun(50 + iteration, iteration)]
+  })
+
+  return {
+    id: 10,
+    slug: "WF-10",
+    path: "/jobs/42?tab=workflows#workflow-10",
+    trigger_kind: "initial",
+    agent_provider: "codex",
+    state: "succeeded",
+    failure_count: 0,
+    artifacts: {
+      visual_review_iterations: [
+        { iteration: 1, critique: "First visual pass", verdict: "needs_work", artifacts: [] },
+        { iteration: 2, critique: "Second visual pass", verdict: "needs_work", artifacts: [] },
+        { iteration: 3, step_id: 33, run_id: 53, critique: "Third visual pass", verdict: "approved", artifacts: [] }
+      ]
+    },
+    cleaned_up_at: null,
+    retry_available: false,
+    started_at: null,
+    finished_at: null,
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    app_retry_step_path: "/retry",
+    app_push_commits_path: "/push",
+    app_force_push_branch_path: "/force",
+    app_discard_branch_output_path: "/discard",
+    steps_total: 3,
+    steps_displayed: 3,
+    steps_truncated: false,
+    steps: [
+      visualStep(31, 1, 1),
+      visualStep(32, 2, 2),
+      visualStep(33, 3, 3)
+    ]
   } as JobDetailPayload["workflows"][number]
 }
 
