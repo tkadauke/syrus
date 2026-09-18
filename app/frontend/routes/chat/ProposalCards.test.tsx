@@ -362,6 +362,18 @@ describe("ProposalCard layout", () => {
     expect(dependencyInfo).toHaveClass("flex-auto")
     expect(dependencyInfo).not.toHaveClass("flex-1")
   })
+
+  it("does not show a redundant state pill for a still-pending proposal", () => {
+    renderProposalCard(proposal({ state: "proposed", state_label: "Proposed", proposed: true, resolved: false }))
+
+    expect(screen.queryByTestId("proposal-state-pill")).not.toBeInTheDocument()
+  })
+
+  it("shows the state pill once a proposal is resolved", () => {
+    renderProposalCard(proposal({ state: "confirmed", state_label: "Confirmed", proposed: false, resolved: true }))
+
+    expect(screen.getByTestId("proposal-state-pill")).toHaveTextContent("Confirmed")
+  })
 })
 
 describe("ProposalCard media", () => {

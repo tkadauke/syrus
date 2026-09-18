@@ -555,11 +555,14 @@ export function ProposalCard({
                 <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">
                   {proposal.epic_bundle ? "Epic" : proposal.kind_label}
                 </span>
-                <span
-                  className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-info/10 text-info" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
-                >
-                  {proposal.state_label}
-                </span>
+                {proposal.proposed ? null : (
+                  <span
+                    className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                    data-testid="proposal-state-pill"
+                  >
+                    {proposal.state_label}
+                  </span>
+                )}
                 {proposal.epic_bundle ? (
                   <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                     {proposal.active_children_count || 0} child Jobs
@@ -1436,11 +1439,11 @@ function ProposalChildren({
           <summary className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
             <span className="text-gray-400 group-open:rotate-90 dark:text-gray-500">▸</span>
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
-            <span
-              className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-info/10 text-info" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
-            >
-              {child.state_label}
-            </span>
+            {child.proposed ? null : (
+              <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                {child.state_label}
+              </span>
+            )}
             {child.proposed && parentProposed ? (
               <ProposalEditButton
                 label={`Edit ${child.slug}`}
