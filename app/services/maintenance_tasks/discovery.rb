@@ -61,7 +61,22 @@ module MaintenanceTasks
         created.log!(created.metadata["pending_reason"].presence || "Maintenance task is pending.")
       end
     rescue ActiveRecord::RecordNotUnique
-      nil
+      reconcile_racing_task(definition)
+    rescue ActiveRecord::RecordInvalid => e
+      raise unless e.record.errors.of_kind?(:task_key, :taken)
+
+      reconcile_racing_task(definition)
+    end
+
+    # Another discovery call (or a migration-seeded task) created a task with the
+    # same task_key between our lookup and our insert. Re-read it and, if it needs
+    # reviving, fall through to the same update path a sequential call would take.
+    def reconcile_racing_task(definition)
+      task = MaintenanceTask.find_by(task_key: task_key_for(definition))
+      return unless task
+      return unless task.state.in?(%w[not_needed cancelled succeeded])
+
+      ensure_pending_task(definition, task)
     end
 
     def task_key_for(definition)
