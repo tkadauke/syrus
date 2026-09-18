@@ -66,8 +66,7 @@ class MergeTrainFailureHandler
     return if branch.blank?
     return if @workflow.job.nil?
 
-    GithubClient.for(repository: @workflow.job.repository, user: @workflow.job.user)
-                .delete_branch(@workflow.job.repository.slug, branch)
+    github_client.delete_branch(@workflow.job.repository.slug, branch)
   rescue StandardError => e
     Rails.logger.warn("[MergeTrainFailureHandler] could not delete #{branch}: #{e.class}: #{e.message}")
   end
@@ -82,23 +81,49 @@ class MergeTrainFailureHandler
 
   def complete_landing!(member, job)
     job.update_column(:landed_sha, integration_merge_sha)
+    reconcile_member_pull_request!(job)
     job.close_with_reason!("pr_merged") if job.may_close?
     member.update!(state: "merged")
     log_self_healed!(job)
   end
 
+  # Same PR reconciliation (comment + close) the happy path uses in
+  # Steps::MergeTrainLand#reconcile_member_pull_request_after_landing -- a
+  # self-healed member never went through an integration PR merge here, so
+  # nothing else ever comments on or closes its GitHub PR, leaving it open
+  # forever even though the Job itself lands correctly.
+  def reconcile_member_pull_request!(job)
+    MergeTrainMemberPrReconciler.call(
+      client: github_client,
+      repository: @workflow.job.repository,
+      train: merge_train,
+      member_job: job,
+      integration_pr: nil,
+      log: ->(message, kind: nil) { job_log(job, message, kind: kind) }
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[MergeTrainFailureHandler] could not reconcile PR for #{job.slug}: #{e.class}: #{e.message}")
+  end
+
+  def github_client
+    @github_client ||= GithubClient.for(repository: @workflow.job.repository, user: @workflow.job.user)
+  end
+
   def log_self_healed!(job)
+    job_log(
+      job,
+      "merge_train: #{job.slug} was already landed at #{integration_merge_sha.to_s.first(9)} when the train " \
+      "failed; closed pr_merged instead of reverting and closed its PR. Its branch may still need manual GitHub cleanup."
+    )
+  end
+
+  def job_log(job, message, kind: "system")
     log_run = failed_run || job.current_run
     return unless log_run
 
-    JobLog.append!(
-      run: log_run,
-      kind: "system",
-      chunk: "merge_train: #{job.slug} was already landed at #{integration_merge_sha.to_s.first(9)} when the train " \
-             "failed; closed pr_merged instead of reverting. Its PR/branch may still need manual GitHub cleanup."
-    )
+    JobLog.append!(run: log_run, kind: kind, chunk: message)
   rescue StandardError => e
-    Rails.logger.warn("[MergeTrainFailureHandler] failed to log self-healed landing for #{job.slug}: #{e.class}: #{e.message}")
+    Rails.logger.warn("[MergeTrainFailureHandler] failed to log for #{job.slug}: #{e.class}: #{e.message}")
   end
 
   def integration_merge_sha
