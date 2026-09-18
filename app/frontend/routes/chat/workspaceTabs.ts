@@ -36,15 +36,15 @@ export function mediaTabVisible(payload: ChatPayload): boolean {
 // are namespaced under "plugin:" so a plugin's own tab id can never collide
 // with one of the fixed core tab names below.
 export type PluginTab = `plugin:${string}`
-export type WorkspaceTab = "context" | "media" | "pinned" | "files" | "diff" | "jobs" | "runtime" | PreviewTab | PluginTab
+export type WorkspaceTab = "media" | "pinned" | "files" | "diff" | "jobs" | "runtime" | PreviewTab | PluginTab
 export type MobileChatTab = "chat" | WorkspaceTab
 
 export function previewTabId(panelId: number): PreviewTab {
   return `preview:${panelId}`
 }
 
-export function isPreviewTab(tab: WorkspaceTab): tab is PreviewTab {
-  return tab.startsWith("preview:")
+export function isPreviewTab(tab: WorkspaceTab | null): tab is PreviewTab {
+  return tab != null && tab.startsWith("preview:")
 }
 
 export function previewPanelIdFromTab(tab: WorkspaceTab): number | null {
@@ -58,8 +58,8 @@ export function pluginTabId(tabId: string): PluginTab {
   return `plugin:${tabId}`
 }
 
-export function isPluginTab(tab: WorkspaceTab): tab is PluginTab {
-  return tab.startsWith("plugin:")
+export function isPluginTab(tab: WorkspaceTab | null): tab is PluginTab {
+  return tab != null && tab.startsWith("plugin:")
 }
 
 export function pluginTabIdFromTab(tab: WorkspaceTab): string | null {
@@ -71,7 +71,6 @@ export function workspaceTabClass(active: boolean) {
 }
 
 export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {
-  if (tab === "context") return t("tab_context")
   if (tab === "media") return t("tab_media")
   if (tab === "pinned") return t("tab_pinned")
   if (tab === "files") return t("tab_files")
@@ -99,7 +98,6 @@ export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => strin
 
 export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false, hasPins = false): WorkspaceTab[] {
   return [
-    ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
     ...(mediaTabVisible(payload) ? (["media"] as WorkspaceTab[]) : []),
     ...(hasPins ? (["pinned"] as WorkspaceTab[]) : []),
     ...(codingFilesTabVisible(payload) || readOnlyFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
@@ -118,23 +116,29 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false,
 // means reaching for its component key specifically -- an explicit,
 // intentional seam rather than the extension point routing "preferred
 // default tab" generically. No plugin-declared tab (or a chat with no
-// whiteboard content yet) falls back to "context" as before.
+// whiteboard content yet) falls back to the first available tab.
 const WHITEBOARD_TAB_COMPONENT = "whiteboard/WhiteboardTab"
 
-export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): WorkspaceTab {
+// Returns null when the chat currently has no workspace tabs to show at all
+// (e.g. a repository-less chat with no media/pins/jobs and no plugin tabs
+// registered) -- unlike the old hardcoded "context" tab, nothing here is
+// guaranteed to always be present, so callers must treat "no tab selected"
+// as a valid state rather than assuming a WorkspaceTab always exists.
+export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): WorkspaceTab | null {
   const tabs = availableWorkspaceTabs(payload, simpleMode)
   const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
   const whiteboardTab = payload.workspace_tabs.find((tab) => tab.component === WHITEBOARD_TAB_COMPONENT)
-  const preferred = whiteboardLoaded && payload.whiteboard.elements.length > 0 && whiteboardTab
-    ? pluginTabId(whiteboardTab.id)
-    : "context"
-  return tabs.includes(preferred) ? preferred : tabs[0]
+  if (whiteboardLoaded && payload.whiteboard.elements.length > 0 && whiteboardTab) {
+    const preferred = pluginTabId(whiteboardTab.id)
+    if (tabs.includes(preferred)) return preferred
+  }
+  return tabs[0] ?? null
 }
 
 export function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    if (value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" || value === "runtime") return value
+    if (value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" || value === "runtime") return value
     // Plugin tabs (e.g. the whiteboard's "plugin:whiteboard.canvas")
     // are dynamic, so they can't be listed above -- match the "plugin:"
     // namespace instead. Preserves the pre-migration behavior where the
