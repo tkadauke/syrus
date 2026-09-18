@@ -226,7 +226,10 @@ Planner examples:
   the Workflow, and a successful recovery skips (budget-exempt, prefix
   `"branch divergence recovered"`) any pending `retry_workflow`
   `AutoRetryAttempt` for the same Job and cancels any queued (not yet started)
-  retry Workflow the earlier planning pass already spawned.
+  retry Workflow the earlier planning pass already spawned — covering both the
+  plain `retry` WorkUnit kind and its `RunCheckpointResume`-first sibling
+  `checkpoint_resume` (`WorkDefinitions.retry_workflow_attempt_kinds`), via
+  the shared `WorkUnits::WorkflowCancellation.cancel_queued_retry_workflows_for_job!`.
 - Main-health, dependency, stack, and capacity blocks return waiting plans, not
   failed retries. If a queued Workflow still has
   `stack_dependencies_not_ready` persisted but the current dependency resolver
