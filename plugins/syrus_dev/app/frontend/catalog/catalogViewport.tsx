@@ -1,3 +1,4 @@
+import { forwardRef, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { catalogTabClasses } from "./catalogTabClasses"
 
@@ -66,3 +67,27 @@ export function CatalogViewportSwitcher({
     </div>
   )
 }
+
+export const CatalogViewportFrame = forwardRef<HTMLDivElement, {
+  ariaLabel: string
+  children: ReactNode
+  className?: string
+  width: number
+}>(({ ariaLabel, children, className = "", width }, ref) => (
+  <div className="overflow-x-auto">
+    {/* Explicit `width`, not `max-width`: a block element with only
+        `max-width` never grows past its parent's actual available width, so
+        a preset wider than the ambient page content can silently collapse
+        instead of applying the chosen width and scrolling. */}
+    <div
+      aria-label={ariaLabel}
+      className={`mx-auto rounded-[var(--radius-control)] border border-dashed border-border bg-surface p-3 ${className}`}
+      ref={ref}
+      style={{ width: `${width}px` }}
+    >
+      {children}
+    </div>
+  </div>
+))
+
+CatalogViewportFrame.displayName = "CatalogViewportFrame"
