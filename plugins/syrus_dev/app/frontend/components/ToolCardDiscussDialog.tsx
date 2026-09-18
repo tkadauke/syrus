@@ -196,7 +196,11 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
     startChat.mutate({ attachments, text })
   }
 
+  const promptIsBlank = promptText.trim().length === 0
+
   function createJobFromDialog() {
+    if (promptIsBlank) return
+
     const prompt = buildToolCardFeedbackPrompt(promptText, metadata)
     const screenshotInput = screenshot
       ? { dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }
@@ -299,8 +303,9 @@ export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, vi
                 {t("tool_cards.discuss.cancel")}
               </Button>
               <Button
-                disabled={startChat.isPending || createJob.isPending || capturing}
+                disabled={startChat.isPending || createJob.isPending || capturing || promptIsBlank}
                 onClick={createJobFromDialog}
+                title={promptIsBlank ? t("tool_cards.discuss.create_job_requires_prompt") : undefined}
                 type="button"
                 variant="secondary"
               >
