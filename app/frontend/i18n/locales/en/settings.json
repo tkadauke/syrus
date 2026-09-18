@@ -901,6 +901,7 @@
     "tab_gemini": "Gemini",
     "tab_agy": "Antigravity",
     "tab_muse": "Muse",
+    "auto_enable_error": "Connected, but couldn't enable this provider automatically. Enable it from Admin -> Plugins.",
     "gemini_title": "Gemini powers walkthrough-video analysis",
     "done": "Done",
     "checking_login": "Checking for an existing Claude login on this machine…",

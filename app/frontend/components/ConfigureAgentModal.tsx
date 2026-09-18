@@ -11,6 +11,7 @@ import { pluginAgentProviderConnectPanelProviders } from "../pluginAgentProvider
 import { AgentProviderConnectPanel } from "./AgentProviderConnectPanel"
 
 const AGENT_PROVIDER_TABS = pluginAgentProviderConnectPanelProviders()
+const INITIAL_TAB = AGENT_PROVIDER_TABS.includes("claude") ? "claude" : (AGENT_PROVIDER_TABS[0] ?? "gemini")
 
 export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
   // settings namespace is the default (bare `configure_agent.*` keys); the
@@ -30,7 +31,16 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
     saved: t("chat:gemini_setup_saved"),
     keyHelp: t("chat:gemini_setup_key_help")
   }
-  const [tab, setTab] = useState<string>(AGENT_PROVIDER_TABS.includes("claude") ? "claude" : (AGENT_PROVIDER_TABS[0] ?? "gemini"))
+  const [tab, setTab] = useState<string>(INITIAL_TAB)
+  // Every provider tab the operator has opened stays mounted (hidden, not
+  // unmounted) once visited, the same way the Claude tab used to stay
+  // mounted across a Claude <-> Gemini switch. Unmounting mid-OAuth-flow
+  // (Claude, Codex) would reset that panel's local authStarted/pasted-code
+  // state and can force a re-Authorize that rotates the session's PKCE
+  // verifier, invalidating a code the operator already copied.
+  const [visitedProviderTabs, setVisitedProviderTabs] = useState<string[]>(
+    AGENT_PROVIDER_TABS.includes(INITIAL_TAB) ? [INITIAL_TAB] : []
+  )
   const [geminiSheetOpen, setGeminiSheetOpen] = useState(false)
   const [geminiConfigured, setGeminiConfigured] = useState(false)
   // Fires after a connect panel's own credential save/probe succeeds — the
@@ -41,6 +51,14 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
     mutationFn: (provider: string) => connectOnboardingProvider(provider),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["credentials"] })
   })
+
+  function selectTab(nextTab: string) {
+    setTab(nextTab)
+    connectProvider.reset()
+    if (AGENT_PROVIDER_TABS.includes(nextTab)) {
+      setVisitedProviderTabs((current) => (current.includes(nextTab) ? current : [ ...current, nextTab ]))
+    }
+  }
 
   return (
     // When the nested Gemini sheet is open, closeOnEscape is disabled here so
@@ -86,7 +104,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                 aria-selected={tab === provider}
                 className={tabClass(tab === provider)}
                 key={provider}
-                onClick={() => setTab(provider)}
+                onClick={() => selectTab(provider)}
                 role="tab"
                 type="button"
               >
@@ -96,7 +114,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
             <button
               aria-selected={tab === "gemini"}
               className={tabClass(tab === "gemini")}
-              onClick={() => setTab("gemini")}
+              onClick={() => selectTab("gemini")}
               role="tab"
               title={t('configure_agent.gemini_title')}
               type="button"
@@ -105,21 +123,26 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
             </button>
           </div>
 
-          {AGENT_PROVIDER_TABS.includes(tab) ? (
-            <AgentProviderConnectPanel
-              key={tab}
-              onCancel={onClose}
-              onSaved={() => {
-                connectProvider.mutate(tab)
-                onSaved?.()
-              }}
-              provider={tab}
-              secondaryAction={(ambientReady) => (
-                <Button onClick={onClose} variant="secondary">
-                  {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
-                </Button>
-              )}
-            />
+          {visitedProviderTabs.map((provider) => (
+            <div hidden={tab !== provider} key={provider}>
+              <AgentProviderConnectPanel
+                onCancel={onClose}
+                onSaved={() => {
+                  connectProvider.mutate(provider)
+                  onSaved?.()
+                }}
+                provider={provider}
+                secondaryAction={(ambientReady) => (
+                  <Button onClick={onClose} variant="secondary">
+                    {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
+                  </Button>
+                )}
+              />
+            </div>
+          ))}
+
+          {connectProvider.isError && AGENT_PROVIDER_TABS.includes(tab) ? (
+            <StatusBox tone="warning">{t('configure_agent.auto_enable_error')}</StatusBox>
           ) : null}
 
           {tab === "gemini" ? (

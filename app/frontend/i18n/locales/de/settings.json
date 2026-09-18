@@ -901,6 +901,7 @@
     "tab_gemini": "Gemini",
     "tab_agy": "Antigravity",
     "tab_muse": "Muse",
+    "auto_enable_error": "Verbunden, aber der Anbieter konnte nicht automatisch aktiviert werden. Aktivieren Sie ihn unter Admin -> Plugins.",
     "gemini_title": "Gemini treibt die Analyse von Walkthrough-Videos an",
     "done": "Fertig",
     "checking_login": "Auf vorhandene Claude-Anmeldung auf diesem Computer wird geprüft…",

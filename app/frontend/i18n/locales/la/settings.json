@@ -901,6 +901,7 @@
     "tab_gemini": "Gemini",
     "tab_agy": "Antigravity",
     "tab_muse": "Muse",
+    "auto_enable_error": "Coniunctus, sed praebitor automatice activari non potuit. Activa eum ex Admin -> Plugins.",
     "gemini_title": "Gemini analysin videonum perambulationis alit",
     "done": "Factum",
     "checking_login": "Connexionem Claudii existentem in hac machina verificans…",
