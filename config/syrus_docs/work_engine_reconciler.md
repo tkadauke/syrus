@@ -302,6 +302,22 @@ The executor:
 - schedules retry, resume, failed-step, and workflow recovery through
   `AutoRetryAttempt` and `AutoRetryJob` instead of bypassing the retry ledger
 
+`schedule_auto_retry!` (the shared entry point behind every `retry_workflow`,
+`failed_step`, and `resume_failed_step` action, including the
+`mark_worker_died_and_*` family) also enforces a shared idempotency key scoped
+to the specific failed Run: once any retry_kind has an unskipped
+`AutoRetryAttempt` for that Run — pending or already performed — no other
+retry_kind may schedule a second one for it. This closes the gap the
+workflow-wide "pending" check alone leaves open: once an earlier attempt for
+the same Run flips from pending to performed, that check no longer blocks a
+later repair pass from concluding "nothing pending" and scheduling a second,
+overlapping retry for a failure that already has one in flight (worker-died
+reconciliation used to be able to apply `mark_worker_died_and_resume_failed_step`
+and then, a pass later, independently apply the plain `resume_failed_step`
+repair for the same Run). The key is scoped to the Run rather than the Job or
+Workflow, so unrelated sibling Runs — e.g. other `grader_fanout` Steps still
+running in the same Workflow — are never blocked by another Run's retry.
+
 The outer `ReconcileJob`/`call_locked!` concurrency guard (above) is the
 primary defense against two reconcile passes double-applying the same repair.
 A handful of the highest-traffic `WorkEngine::RepairExecutor::Policies`
