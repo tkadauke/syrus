@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_013444) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_023150) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2469,6 +2469,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_013444) do
     t.decimal "cost_usd", precision: 12, scale: 6
     t.datetime "created_at", null: false
     t.datetime "effective_at", null: false
+    t.string "effort_level"
     t.datetime "finished_at"
     t.string "head_sha"
     t.bigint "input_tokens"
@@ -2476,6 +2477,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_013444) do
     t.integer "job_id", null: false
     t.datetime "last_heartbeat_at"
     t.string "live_session_id"
+    t.string "model"
     t.bigint "output_tokens"
     t.string "parent_session_id"
     t.text "prompt"
@@ -3061,7 +3063,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_013444) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", default: { "elements" => [] }, null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true
@@ -3386,10 +3388,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_013444) do
     t.text "chain_template"
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false
+    t.string "effort_level"
     t.integer "failure_count", default: 0, null: false
     t.string "failure_reason"
     t.datetime "finished_at"
     t.integer "job_id", null: false
+    t.string "model"
     t.string "priority", default: "medium", null: false
     t.datetime "started_at"
     t.string "state", default: "queued", null: false

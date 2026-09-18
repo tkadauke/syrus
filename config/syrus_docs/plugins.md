@@ -32,7 +32,8 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The index page is the scan-and-filter inventory: each card
 shows the plugin's name, version, enabled state, category, short description,
-dependency summary, usage blockers, and a Details link. Disableable installed
+dependency summary, and usage blockers; the plugin's name links to its
+canonical detail page. Disableable installed
 plugins can be enabled or disabled live from either the index card or the
 canonical detail page (`/admin/plugins/:name`) — both share the same
 enable/disable control, disable-blocked tooltip, and cascade-confirmation UI.

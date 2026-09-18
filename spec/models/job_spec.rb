@@ -1923,6 +1923,54 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(Job.without_pr).not_to include(job)
       end
     end
+
+    describe ".search" do
+      it "matches on issue_title text" do
+        job = Job.create!(user: user, repository: repository, issue_number: 1, issue_title: "Fix the flaky deploy spec")
+        expect(Job.search("flaky deploy").pluck(:id)).to eq([ job.id ])
+      end
+
+      it "matches on issue_body text" do
+        job = Job.create!(user: user, repository: repository, issue_number: 2, issue_body: "The Kubernetes worker pods keep restarting.")
+        expect(Job.search("Kubernetes worker").pluck(:id)).to include(job.id)
+      end
+
+      it "matches on branch_name text" do
+        job = Job.create!(user: user, repository: repository, issue_number: 3, branch_name: "syrus/widget-repair")
+        expect(Job.search("widget-repair").pluck(:id)).to include(job.id)
+      end
+
+      it "matches on issue_number" do
+        job = Job.create!(user: user, repository: repository, issue_number: 90210)
+        expect(Job.search("90210").pluck(:id)).to include(job.id)
+      end
+
+      it "matches on pr_number" do
+        job = Job.create!(user: user, repository: repository, issue_number: 4, pr_number: 77007)
+        expect(Job.search("77007").pluck(:id)).to include(job.id)
+      end
+
+      it "deliberately excludes pr_title: Job has no such column to search" do
+        expect(Job.column_names).not_to include("pr_title")
+        expect(Job::SEARCH_TEXT_COLUMNS + Job::SEARCH_NUMBER_COLUMNS).not_to include("pr_title")
+      end
+
+
+      it "returns no matches for an unrelated query" do
+        Job.create!(user: user, repository: repository, issue_number: 5, issue_title: "Unrelated title")
+        expect(Job.search("nonexistent-term-xyz")).to be_empty
+      end
+
+      it "returns every record for a blank query" do
+        job = Job.create!(user: user, repository: repository, issue_number: 6)
+        expect(Job.search("").pluck(:id)).to include(job.id)
+      end
+
+      it "returns every record for a nil query" do
+        job = Job.create!(user: user, repository: repository, issue_number: 7)
+        expect(Job.search(nil).pluck(:id)).to include(job.id)
+      end
+    end
   end
 
   describe "direct kind" do

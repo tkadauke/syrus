@@ -24,6 +24,26 @@ module AgentProviders
       "mcp(#{server_name}/#{tool_name})"
     end
 
+    # Rough categorical capability metadata for a future routing-rule
+    # system -- not exact pricing/token data. Mirrors the identifiers
+    # AgyInvocation forwards via SYRUS_AGY_MODEL/AGY_MODEL.
+    def self.available_models
+      [
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "gemini-3-pro", display_name: "Gemini 3 Pro",
+          context_window: :xlarge, cost_tier: :high
+        ),
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "gemini-3-flash", display_name: "Gemini 3 Flash",
+          context_window: :large, cost_tier: :medium
+        ),
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "gemini-2.5-flash", display_name: "Gemini 2.5 Flash",
+          context_window: :large, cost_tier: :low
+        )
+      ]
+    end
+
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
       api_key = user.gemini_api_key.presence
       raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
@@ -70,7 +90,8 @@ module AgentProviders
 
     private
 
-    def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:, required_mcp_tools: nil, **_ignored)
+    def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:, required_mcp_tools: nil,
+              model: nil, effort_level: nil, **_ignored)
       log_mcp_transport_decision!(effective_mcp_transport_decision) if mcp
       api_key = job.user.reload.gemini_api_key.presence
       raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
@@ -89,6 +110,8 @@ module AgentProviders
         resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id),
         mcp_server: (mcp ? mcp_server : nil),
         required_mcp_tools: required_mcp_tools,
+        model: model,
+        effort_level: effort_level,
         on_session_id: on_session_id
       ).run
     end

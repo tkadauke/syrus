@@ -38,7 +38,7 @@ import { ToolErrorCard } from "./toolErrorCard"
 // and ToolGroup are the entry points the message stream renders. Depends only on
 // leaf modules and shared UI imports; unused header imports were pruned.
 
-export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, payload, pendingActionIds, prefix, queryKey, readOnly = false, retryText = null, retrying = false, onNotice, onRetry }: { animateIn?: boolean; item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; readOnly?: boolean; retryText?: string | null; retrying?: boolean; onNotice: (message: string | null) => void; onRetry?: (text: string) => void }) {
+export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, payload, pendingActionIds, prefix, queryKey, readOnly = false, retryText = null, retrying = false, onNotice, onRetry, onSelectWorkspaceTab }: { animateIn?: boolean; item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; readOnly?: boolean; retryText?: string | null; retrying?: boolean; onNotice: (message: string | null) => void; onRetry?: (text: string) => void; onSelectWorkspaceTab?: () => void }) {
   const { t } = useT("chat")
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
@@ -100,7 +100,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} onLinkClick={handleMarkdownLink} />
           </div>
           <MessageImageAttachments attachments={item.attachments} />
-          {!readOnly && item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
+          {!readOnly && item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} /> : null}
           {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
         </div>
         {sourcePreview ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}

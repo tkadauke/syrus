@@ -60,6 +60,19 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(s1.runs.last.agent_provider).to eq("codex")
     end
 
+    it "copies the workflow model/effort_level onto created Runs" do
+      workflow.update!(model: "opus", effort_level: "high")
+      described_class.start_workflow(workflow)
+      expect(s1.runs.last.model).to eq("opus")
+      expect(s1.runs.last.effort_level).to eq("high")
+    end
+
+    it "leaves Run model/effort_level nil when the workflow has none set" do
+      described_class.start_workflow(workflow)
+      expect(s1.runs.last.model).to be_nil
+      expect(s1.runs.last.effort_level).to be_nil
+    end
+
     it "refreshes a default-backed workflow to the current repo provider before the first Run" do
       user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
       repository = Factories.repository(user: user)

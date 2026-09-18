@@ -46,7 +46,7 @@ import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
-import { appendSearch, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
+import { appendSearch, jobsTabVisible, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
 import {
   pendingActionBadgeLabel,
   pendingActionGroupTerminalLabel,
@@ -378,8 +378,15 @@ function sameValues(first: string[], second: string[]) {
   return first.every((value, index) => value === second[index])
 }
 
+// "job" and "syrus_issue" proposals both materialize a direct Job on confirm
+// (ChatJobStatusQuery::JOB_PROPOSAL_KINDS mirrors this on the backend); only
+// "github_issue" files to GitHub instead of creating a Job immediately.
+function proposalCreatesJob(proposal: Pick<ChatProposal, "kind">) {
+  return proposal.kind === "job" || proposal.kind === "syrus_issue"
+}
+
 function proposalSupportsBacklogRoute(proposal: Pick<ChatProposal, "kind" | "epic_bundle"> | EditableProposal) {
-  return !proposal.epic_bundle && (proposal.kind === "job" || proposal.kind === "syrus_issue")
+  return !proposal.epic_bundle && proposalCreatesJob(proposal)
 }
 
 function DependencyPicker({
@@ -488,12 +495,14 @@ export function ProposalCard({
   proposal,
   prefix,
   queryKey,
-  onNotice
+  onNotice,
+  onSelectWorkspaceTab
 }: {
   proposal: ChatProposal
   prefix: string
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
+  onSelectWorkspaceTab?: () => void
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -515,9 +524,22 @@ export function ProposalCard({
       const path = appendSearch(input.path, search)
       return input.action === "confirm" ? confirmChatProposal(path, { start: input.start, route_to_backlog: input.routeToBacklog }) : rejectChatProposal(path)
     },
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated, queryKey[1]))
+    onSuccess: (updated, variables) => {
+      const jobsTabAlreadyVisible = payload ? jobsTabVisible(payload) : false
+      const shouldSelectJobsTab = variables.action === "confirm" && (proposalCreatesJob(proposal) || proposal.kind === "epic") && !jobsTabAlreadyVisible
+
+      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => {
+        const next = applyProposalActionResult(current, updated, queryKey[1])
+        // The confirm response doesn't carry updated chat.confirmed_proposal_count
+        // (the real count only arrives via a later, separate refetch), so without
+        // this the "jobs" tab wouldn't be in availableTabs yet and ChatWorkspace's
+        // own guard effect would immediately revert the tab switch below.
+        if (!next || !shouldSelectJobsTab) return next
+        return { ...next, chat: { ...next.chat, confirmed_proposal_count: (next.chat.confirmed_proposal_count ?? 0) + 1 } }
+      })
       onNotice(updated.message || null)
+
+      if (shouldSelectJobsTab) onSelectWorkspaceTab?.()
     }
   })
 

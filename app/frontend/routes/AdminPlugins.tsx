@@ -122,7 +122,9 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-5 w-5 shrink-0" src={plugin.icon_url} /> : null}
-            <SectionHeading className="break-words">{plugin.display_name || plugin.name}</SectionHeading>
+            <SectionHeading className="break-words">
+              <Link className="hover:underline" to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>{plugin.display_name || plugin.name}</Link>
+            </SectionHeading>
             {plugin.display_name && plugin.display_name !== plugin.name ? (
               <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span>
             ) : null}
@@ -163,7 +165,6 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           ) : null}
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
-          <Link className={buttonClasses("secondary")} to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>{t("plugins.details")}</Link>
           <PluginToggleButton plugin={plugin} state={toggleState} />
         </div>
       </div>
@@ -267,9 +268,9 @@ function PluginCascadeConfirmation({ state }: { state: PluginToggleState }) {
 
 function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
-  const rows = [plugin.author ? [t("plugins.author"), plugin.author] : null, plugin.homepage ? [t("plugins.homepage"), plugin.homepage] : null].filter(
-    Boolean
-  ) as string[][]
+  const rows: [string, ReactNode][] = []
+  if (plugin.author) rows.push([t("plugins.author"), plugin.author])
+  if (plugin.homepage) rows.push([t("plugins.homepage"), <HomepageLink homepage={plugin.homepage} key="homepage" />])
 
   if (rows.length === 0) return null
 
@@ -282,6 +283,14 @@ function PluginMetadata({ plugin }: { plugin: AdminPlugin }) {
         </div>
       ))}
     </dl>
+  )
+}
+
+function HomepageLink({ homepage }: { homepage: string }) {
+  return (
+    <a className="text-info underline hover:no-underline" href={homepage} rel="noreferrer" target="_blank">
+      {homepage}
+    </a>
   )
 }
 
@@ -426,7 +435,7 @@ function PluginDetailView({ plugin }: { plugin: AdminPlugin }) {
               <KeyValueLine label={t("plugins.category")} value={plugin.category_label || plugin.category || "-"} />
               <KeyValueLine label={t("plugins.default_state")} value={plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")} />
               <KeyValueLine label={t("plugins.disableable")} value={plugin.disableable ? t("plugins.yes") : t("plugins.no")} />
-              <KeyValueLine label={t("plugins.homepage")} value={plugin.homepage || "-"} />
+              <KeyValueLine label={t("plugins.homepage")} value={plugin.homepage ? <HomepageLink homepage={plugin.homepage} /> : "-"} />
               <KeyValueLine label={t("plugins.source")} value={plugin.source || "-"} />
               <KeyValueLine label={t("plugins.depends_on")} value={(plugin.depends_on || []).join(", ") || "-"} />
               <KeyValueLine label={t("plugins.optional_depends_on")} value={(plugin.optionally_depends_on || []).join(", ") || "-"} />

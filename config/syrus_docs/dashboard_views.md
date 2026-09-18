@@ -140,6 +140,18 @@ synthesize ordinary AST chip nodes such as `{ "field": "title", "op":
 base64url filter tree as manually added chips and can be saved in
 SmartFolders.
 
+A field can instead mark itself the subject's pinned free-text search field
+with `free_text_search: true` -- `Filters::Chips::Base.free_text_search` for
+`Filters::Registry` chips (e.g. `Filters::Chips::AdminPlugins::Search`), or
+`free_text_search:` on the `field :query, ...` DSL in
+`Admin::EventLogFilterDefinitions` for its admin event-log definitions.
+`FilterBar.tsx` pulls that field out of the generic field/operator/value list
+entirely and, once the operator has typed at least two characters, renders it
+as a single pinned "Search for {typed text}" suggestion above the `Suggested`
+section, applying the field's own configured operator (its first declared
+operator) and the typed text directly on click -- no field/operator picker.
+At most one field per subject/definition should set this flag.
+
 **SmartFolder floor vs. ad hoc chip-bar filter.** `Filters::BaseFilter.from_params`
 always ANDs a given `smart_folder:` argument with the request's `q=`/legacy
 params -- that low-level AND is unconditional by design. Any controller that
