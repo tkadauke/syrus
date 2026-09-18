@@ -311,6 +311,38 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(enqueued_jobs.map { |entry| entry[:job] }).to include(WorkflowPhaseAdmissionJob)
     end
 
+    it "keeps the same provider pause path when every routed candidate is unavailable" do
+      attach_work_unit(workflow)
+      job.user.update!(provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 })
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: "initial",
+        candidates: [
+          { "provider" => "claude" },
+          { "provider" => "codex" }
+        ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(job.user, "claude", now: anything).and_return(
+        { provider: "claude", state: "open", open: true, retry_after: 20.minutes.from_now.iso8601 }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(job.user, "codex", now: anything).and_return(
+        { provider: "codex", state: "rate_limited", open: true, retry_after: 20.minutes.from_now.iso8601 }
+      )
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { Run.count }
+
+      expect(workflow.reload.artifact("pause_reason")).to eq(StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON)
+      expect(workflow.artifact("start_blocked_details")).to include(
+        "provider" => "claude",
+        "reason" => "provider_unavailable"
+      )
+      expect(workflow.artifact("start_blocked_details").dig("provider_failover_decision", "exhausted")).to be true
+      expect(enqueued_jobs.map { |entry| entry[:job] }).to include(WorkflowPhaseAdmissionJob)
+    end
+
     it "still preserves provider availability pause when workflow admission control is disabled" do
       AppSetting.current.update!(workflow_admission_control_enabled: false)
       workflow.update!(agent_provider: "codex")
@@ -834,6 +866,39 @@ RSpec.describe StepDispatcher, :ci_only do
         "reason" => "provider_usage_exhausted",
         "phase_step_id" => s2.id
       )
+    end
+
+    it "uses an adversarial_review task-key override for that step without changing the workflow default" do
+      allow(AgentProviders.for("claude")).to receive(:available_models).and_return([])
+      allow(AgentProviders.for("codex")).to receive(:available_models).and_return([])
+      s2.update!(kind: "adversarial_review")
+      workflow.update!(state: "running", started_at: 1.minute.ago, agent_provider: "claude")
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      s1.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "claude")
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: "initial",
+        candidates: [ { "provider" => "claude", "model" => "sonnet" } ]
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: "adversarial_review",
+        candidates: [ { "provider" => "codex", "model" => "gpt-5.1", "effort_level" => "high" } ]
+      )
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+
+      run = s2.runs.last
+      expect(run.agent_provider).to eq("codex")
+      expect(run.model).to eq("gpt-5.1")
+      expect(run.effort_level).to eq("high")
+      expect(workflow.reload.agent_provider).to eq("claude")
+      expect(workflow.model).to be_nil
+      expect(workflow.effort_level).to be_nil
     end
 
     it "resumes a manually paused workflow after unpause" do
