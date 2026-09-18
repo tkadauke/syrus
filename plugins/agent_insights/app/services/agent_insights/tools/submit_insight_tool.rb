@@ -139,7 +139,7 @@ module AgentInsights
             stale_memory_text: stale_memory_text_s.presence || CommandRedactor.redact(memory&.content),
             stale_memory_evidence: stale_memory_evidence_s.presence
           )
-          SupervisorEvents.publish!(
+          ChatWorkEvents.publish!(
             kind: "agent_insight_available",
             severity: severity_s == "high" ? "warning" : "info",
             subject: "Agent Insight available",

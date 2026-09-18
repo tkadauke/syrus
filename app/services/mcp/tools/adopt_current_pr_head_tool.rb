@@ -5,7 +5,7 @@ module Mcp::Tools
     extend BranchDivergenceToolSupport
 
     tool_name "adopt_current_pr_head"
-    description "Plan or request an audited repair that marks a branch-diverged workflow as superseded by the current PR head. Admin/Supervisor only; confirmation required unless dry_run is true."
+    description "Plan or request an audited repair that marks a branch-diverged workflow as superseded by the current PR head. Admin only; confirmation required unless dry_run is true."
 
     input_schema(
       properties: {

@@ -95,13 +95,13 @@ RSpec.describe AgentInsights::Tools::SubmitInsightTool do
       )
     end
 
-    it "publishes a supervisor event for the new insight" do
-      allow(SupervisorEvents).to receive(:publish!)
+    it "publishes a chat work event for the new insight" do
+      allow(ChatWorkEvents).to receive(:publish!)
 
       call(title: "High-value finding", category: "configuration", severity: "high", confidence: 0.91)
 
       suggestion = AgentInsights::Suggestion.last
-      expect(SupervisorEvents).to have_received(:publish!).with(
+      expect(ChatWorkEvents).to have_received(:publish!).with(
         kind: "agent_insight_available",
         severity: "warning",
         subject: "Agent Insight available",

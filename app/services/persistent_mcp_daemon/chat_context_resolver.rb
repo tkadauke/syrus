@@ -60,19 +60,16 @@ class PersistentMcpDaemon::ChatContextResolver
     end
 
     # Mirrors Mcp::Sidecar.chat_tools_for's gating exactly (McpToolPolicy for
-    # the evaluator role; McpToolRegistry.tools_for_context + the supervisor
-    # exclusion list otherwise) so a tool that's off-limits for this
-    # session/tier/role is rejected identically regardless of transport, even
-    # though the daemon's tools/list advertises the full known chat tool
-    # surface (see PersistentMcpDaemon::ChatToolDispatch for why).
+    # the evaluator role; McpToolRegistry.tools_for_context otherwise) so a
+    # tool that's off-limits for this session/tier/role is rejected
+    # identically regardless of transport, even though the daemon's
+    # tools/list advertises the full known chat tool surface (see
+    # PersistentMcpDaemon::ChatToolDispatch for why).
     def allowed_tools_for(tool_context, tier:)
       return McpToolPolicy.for(tool_context) if tool_context.role == AgentRole::CHAT_EVALUATOR
 
       registry_tier = tier.to_s == "deferred" ? :deferred : :essential
-      allowed = McpToolRegistry.tools_for_context(tool_context, surface: :chat, tier: registry_tier)
-      return allowed unless tool_context.chat_session&.system_kind_supervisor?
-
-      allowed - McpToolPolicy::SUPERVISOR_EXCLUDED_TOOLS
+      McpToolRegistry.tools_for_context(tool_context, surface: :chat, tier: registry_tier)
     end
   end
 end

@@ -9,8 +9,6 @@ export type ChatRepository = {
 }
 
 export type ChatMode = "planning" | "coding" | "local"
-export type ChatSystemKind = "supervisor"
-export type SupervisorUnreadSeverity = "info" | "warning" | "critical"
 export type ChatConversationKind = "direct" | "group"
 
 export type ChatParticipant = {
@@ -25,7 +23,7 @@ export type ChatRecord = {
   current_user_id?: number
   title: string | null
   title_pending: boolean
-  system_kind?: ChatSystemKind | null
+  system_kind?: string | null
   conversation_kind?: ChatConversationKind
   participants?: ChatParticipant[]
   pinned: boolean
@@ -94,8 +92,6 @@ export type ChatNavRecord = ChatRecord & {
   current?: boolean
   last_message_at: string | null
   unread: boolean
-  supervisor_unread_count?: number
-  supervisor_unread_severity?: SupervisorUnreadSeverity | null
   pending_proposal_count: number
   scratchpad_items_count: number
   created_at?: string
@@ -610,7 +606,6 @@ export type ChatGroupRecord = {
 }
 
 export type ChatsIndexPayload = {
-  supervisor_chat?: ChatNavRecord | null
   groups: ChatGroupRecord[]
   repositories: ChatRepository[]
 }

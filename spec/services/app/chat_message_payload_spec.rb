@@ -264,14 +264,14 @@ RSpec.describe App::ChatMessagePayload do
   it "includes restack_epic pending action details without an attached repository" do
     admin = Factories.user(admin: true)
     epic = Factories.epic(user: admin, repository: Factories.repository(user: admin), title: "Repair topology")
-    supervisor_chat = ChatSession.create!(user: admin)
-    action = supervisor_chat.pending_actions.create!(
+    admin_chat = ChatSession.create!(user: admin)
+    action = admin_chat.pending_actions.create!(
       action: "restack_epic",
       requested_by: "agent",
       reason: "Repair stale stack topology.",
       payload: { "epic_id" => epic.id, "strategy" => "dependency_topology" }
     )
-    message = supervisor_chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Restack it?" })
+    message = admin_chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Restack it?" })
 
     payload = described_class.messages([ message ], repository: nil).first.fetch(:pending_action)
 

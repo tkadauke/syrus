@@ -988,32 +988,6 @@ describe("chat attachment popup", () => {
     })
   })
 
-  it("only offers document attachment search for Supervisor chats", async () => {
-    mockChatRouteFetch(chatPayload({
-      chat: { repository: null, system_kind: "supervisor", title: "Supervisor" },
-      attachment_results: [
-        { type: "Repository", id: 4, label: "acme/tools" },
-        { type: "Epic", id: 2, label: "Release planning" },
-        { type: "Job", id: 3, label: "JOB-3" },
-        { type: "Document", id: 5, label: "Runbook.md" }
-      ]
-    }))
-    renderRoute()
-
-    await screen.findByPlaceholderText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state...")
-    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
-
-    const dialog = screen.getByRole("dialog", { name: "Add attachment" })
-    expect(within(dialog).getByRole("button", { name: "Doc" })).toBeInTheDocument()
-    expect(within(dialog).queryByRole("button", { name: "Repo" })).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole("button", { name: "Epic" })).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole("button", { name: "Job" })).not.toBeInTheDocument()
-    expect(within(dialog).getByRole("button", { name: "Runbook.md" })).toBeInTheDocument()
-    expect(within(dialog).queryByRole("button", { name: "acme/tools" })).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole("button", { name: "Release planning" })).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole("button", { name: "JOB-3" })).not.toBeInTheDocument()
-  })
-
   it("updates the attachment search URL from tabs and debounced input", async () => {
     mockChatRouteFetch()
     renderRouteWithLocation()
@@ -3231,27 +3205,6 @@ describe("repositoryless chat compose", () => {
     fireEvent.change(textarea, { target: { value: "Can you help me plan a release?" } })
 
     expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled()
-  })
-
-  it("uses Supervisor operations wording without the repository attachment hint", async () => {
-    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
-      }
-
-      return Promise.resolve(jsonResponse(chatPayload({
-        chat: { repository: null, system_kind: "supervisor", title: "Supervisor" },
-        messages: []
-      })))
-    })
-
-    renderRoute()
-
-    expect(await screen.findByText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state.")).toBeInTheDocument()
-    expect(screen.queryByText("Ask anything, or attach a repository for code context.")).not.toBeInTheDocument()
-    expect(await screen.findByPlaceholderText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state...")).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText("Ask anything — or attach a repository to give the agent context...")).not.toBeInTheDocument()
   })
 })
 
@@ -6493,23 +6446,6 @@ describe("chat mode selector in toolbar", () => {
 
     await screen.findByPlaceholderText("Ask about this repository...")
     expect(screen.getByRole("button", { name: "Change mode" })).toBeInTheDocument()
-  })
-
-  it("does not render the mode selector for Supervisor chats when coding mode is available", async () => {
-    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
-      }
-      return Promise.resolve(jsonResponse({
-        ...chatPayload({ chat: { repository: null, system_kind: "supervisor", title: "Supervisor" } }),
-        coding_mode_enabled: true,
-        local_mode_enabled: true
-      }))
-    })
-    renderRoute()
-
-    await screen.findByPlaceholderText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state...")
-    expect(screen.queryByRole("button", { name: "Change mode" })).not.toBeInTheDocument()
   })
 
   it("renders the mode selector when local mode is available", async () => {

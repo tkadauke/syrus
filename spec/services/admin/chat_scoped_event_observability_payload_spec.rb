@@ -4,7 +4,7 @@ RSpec.describe Admin::ChatScopedEventObservabilityPayload do
   let(:user) { Factories.user(admin: true) }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) { Factories.job_record(user: user, repository: repository, issue_number: 12, issue_title: "Repair main") }
-  let(:chat_session) { ChatSession.create!(user: user, repository: repository, title: "Supervisor", system_kind: "supervisor") }
+  let(:chat_session) { ChatSession.create!(user: user, repository: repository, title: "Ops") }
 
   def scoped_event(**attrs)
     ChatScopedEvent.create!({

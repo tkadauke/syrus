@@ -76,7 +76,7 @@ class ChatContextCompactor
   end
 
   def enabled_for_chat?
-    Feature.chat_context_compaction_enabled? && @chat_session.supervisor_chat?
+    Feature.chat_context_compaction_enabled?
   end
 
   private

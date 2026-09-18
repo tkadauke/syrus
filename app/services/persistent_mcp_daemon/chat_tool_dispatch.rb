@@ -5,7 +5,7 @@ require "mcp"
 # list for its whole process lifetime (MCP::Server has no per-request tool
 # list hook) even though chat tool availability legitimately varies per
 # chat session, tier (essential/deferred), role (planner/coding/local/
-# admin/supervisor), and feature flag -- exactly what
+# admin), and feature flag -- exactly what
 # Mcp::Sidecar.chat_tools_for computes once per stdio subprocess.
 #
 # The daemon instead registers the full known chat tool surface (see

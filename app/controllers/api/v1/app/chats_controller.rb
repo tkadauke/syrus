@@ -30,7 +30,6 @@ module Api
         def index
           render json: PerformanceLogging.phase("chats_index_payload") {
             {
-              supervisor_chat: supervisor_chat_index_json,
               groups: PerformanceLogging.phase("chats_index.groups") { recent_chats_index_json },
               repositories: PerformanceLogging.phase("chats_index.repositories") { Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) } }
             }
@@ -148,11 +147,6 @@ module Api
           end
 
           pinned = ActiveModel::Type::Boolean.new.cast(pinned)
-          if chat_session.enabled_supervisor_chat? && !pinned
-            render_error("forbidden", "Supervisor chat cannot be unpinned while the feature is enabled.", status: :forbidden)
-            return
-          end
-
           chat_session.update!(pinned: pinned)
 
           render json: chat_metadata_payload(chat_session, message: chat_session.pinned? ? "Chat pinned" : "Chat unpinned")
@@ -426,11 +420,6 @@ module Api
             render_error("validation_failed", "Name must be #{ChatSession::TITLE_MAX_LENGTH} characters or fewer.", status: :unprocessable_content)
             return
           end
-          if chat_session.enabled_supervisor_chat?
-            render_error("forbidden", "Supervisor chat cannot be renamed while the feature is enabled.", status: :forbidden)
-            return
-          end
-
           chat_session.rename!(name)
 
           render json: chat_payload(chat_session.reload, message: "Chat renamed.")
@@ -469,10 +458,6 @@ module Api
         # turn is actively running.
         def destroy
           chat_session = find_chat_session
-          if chat_session.enabled_supervisor_chat?
-            render_error("forbidden", "Supervisor chat cannot be deleted while the feature is enabled.", status: :forbidden)
-            return
-          end
           if chat_session.turn_in_flight? || chat_session.agent_busy?
             render_error(
               "turn_in_flight",
@@ -512,10 +497,6 @@ module Api
 
         def hide
           chat_session = find_chat_session
-          if chat_session.enabled_supervisor_chat?
-            render_error("forbidden", "Supervisor chat cannot be hidden while the feature is enabled.", status: :forbidden)
-            return
-          end
           chat_session.update!(hidden_at: Time.current)
 
           render json: { message: "Chat hidden.", chat: chat_index_json(chat_session.reload) }

@@ -45,31 +45,15 @@ Enables the Local chat mode and the `syrus local` daemon command. The agent conn
 
 Instance-wide default for the visual_review feature: a headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects before opening a PR, capturing screenshot artifacts for operator review. `Feature.visual_review_enabled?` is the instance-wide default; when enabled instance-wide, a repository's `.syrus.yml` `visual_review.enabled` setting can still override the default per repo (and vice versa when disabled instance-wide). See the Visual Review documentation for the full config block, step behavior, seeding requirements, and the browser tool set's loopback restriction, and the `visual_review` section of the `.syrus.yml` reference for the per-repo `rounds`, `when_files_changed`, and `seed_notes` fields.
 
-## admin_supervisor_chat
-
-**Category:** Operations
-
-Enables one durable pinned Supervisor chat per admin user. The app admin API can open or provision the chat at `/api/v1/app/admin/supervisor_chat`; the endpoint returns `404` with `feature_disabled` while the flag is off and `403` for non-admins.
-
-Supervisor chat identity is stored on `chat_sessions.system_kind = "supervisor"`, separate from the ordinary chat `mode` (`planning`, `coding`, `local`). A unique database index on `(user_id, system_kind)` enforces at most one Supervisor chat for each admin while allowing unlimited ordinary chats with `system_kind = NULL`.
-
-While the flag is enabled, normal chat update paths cannot hide, delete, rename, or unpin the Supervisor chat. `SupervisorChat.ensure_for!(admin_user)` creates or repairs the affordance with title `Supervisor`, `pinned: true`, no repository attachment, and a populated `last_message_at`. It also idempotently seeds one canned user kickoff message and enqueues the initial `ChatTurnJob`, so opening or reprovisioning Supervisor starts operations triage without requiring the admin to type first and without duplicating kickoff turns. The chat index payload exposes it as top-level `supervisor_chat`, not inside ordinary repository/general groups, so the app shell can render it as the single pinned admin control room above normal chats. The Supervisor composer uses operations-focused placeholder text and hides ordinary chat mode controls; Supervisor remains planning-mode behavior and does not prompt admins to attach a repository unless the task itself requires code context.
-
-Major operational events are also recorded in the Supervisor chat while the flag is enabled. `NotificationService` publishes an event only for the notification kinds that represent something a person may have to act on (`job_failed`, `epic_failed`, `main_broken`, `main_inconclusive`, `upstream_pr_closed` -- see `NotificationService::SUPERVISOR_EVENT_KINDS`). Every notification used to become a supervisor event, which is why the queue drowned: most notifications report that something went *fine*, and a queue of those buries the rare one that needs a decision. The rest are still ordinary notifications; they simply do not wake the supervisor. `SupervisorEvents.publish!(kind:, severity:, subject:, repository:, job:, epic:, proposal:, workflow:, run:, pr_number:, actor:, summary:, details:, dedupe_key:)` creates one `ChatScopedEvent` per admin Supervisor chat and enqueues `ChatScopedEventEvaluatorJob` for each new scoped event. The same publisher also resolves ordinary chats that originated the referenced work through confirmed proposal lineage: materialized proposals, Jobs, Epics, a Job's Epic, Workflows/Runs via their Job, and pull request numbers that map back to a Job. Ordinary chats only receive scoped events for matching originated work; unrelated Job/Epic events and generic chat attachments are ignored. The event row stores the target chat, source kind, structured payload, optional repository/Job/Epic/proposal ids, delivery state, dedupe key, and disposable evaluator result fields. `ChatScopedEventEvaluatorJob` evaluates one scoped event for its target chat in an isolated temporary provider session. It clones persisted chat context, preferring the full transcript, and falls back to the latest 10,000 messages plus a byte cap for very large content/tool outputs. The evaluator receives read-only MCP tools plus the narrow `submit_scoped_event_decision` tool; Syrus prefers that structured tool result, falls back to strict JSON parsing, retries malformed parser output once, and only converts remaining parser failures to `no_op` for low-severity informational events. Critical and warning events still fail the evaluator for operator inspection. A `no_op` records the decision but creates no visible chat message and wakes no live turn. `respond` and `act` create an immediate real `ChatWakeup` whose user message contains the structured scoped event, evaluator decision, and handoff prompt; the live chat prompt explicitly tells the agent to read current Syrus state before acting on stale event data. The admin overview surfaces the evaluator pipeline for operators with recent scoped events, 24-hour `no_op`/`respond`/`act` counts, evaluator state counts, and recent failure reasons. A maintenance job automatically retries recent failed pending evaluator events, and already delivered actionable events are skipped on retry so visible wakeups are not duplicated. Publishing a scoped event still updates `last_message_at`, clears `last_read_at`, and broadcasts a chat update so the sidebar surfaces the event as unread even before any visible response exists. The index payload includes `supervisor_unread_count` and `supervisor_unread_severity` (`info`, `warning`, or `critical`) from unread Supervisor scoped events. The publisher no-ops completely while `admin_supervisor_chat` is disabled.
-
-Supervisor agent turns receive the `chat:admin` role with a constrained Supervisor tool set: repository attachment, new-work drafting, work-delegation, recurring-work creation, and feedback-submission tools are not available. The Supervisor prompt directs the agent to treat `supervisor_event` system messages as operational context, summarize incidents, inspect live Syrus state, read current state before acting, and keep risky side effects behind pending-action confirmation. Missing repository attachment is normal for Supervisor operations triage; when code inspection or new implementation work is needed, Supervisor recommends the next step in prose for an ordinary planning surface instead of initiating it. Chat-history fallback preserves Supervisor event messages and pending-action outcome notices so provider resume failures do not drop the audit trail that motivated an action.
-
-Initial event sources are existing notifications (`NotificationService`) for job failures, implemented Jobs, merged PRs, PR feedback completion, upstream PR closure, Epic completion, and main-branch health changes, plus `submit_insight` when an Agent Insight suggestion becomes available. Callers should pass stable `dedupe_key` values for poll-driven events; the service suppresses duplicate scoped events for the same target chat to prevent repeated poll loops from flooding admins.
-
 ## chat_context_compaction
 
 **Category:** Operations
 
-Compacts provider replay context for long-running Supervisor chats without
+Compacts provider replay context for long-running chats without
 deleting or hiding any durable `ChatMessage` rows. The full chat remains visible
 and auditable in the UI and searchable through normal chat/admin tools.
 
-When enabled, `ChatTurnJob` creates a `ChatContextCheckpoint` once a Supervisor
+When enabled, `ChatTurnJob` creates a `ChatContextCheckpoint` once a
 chat has at least 120 messages. The checkpoint deterministically summarizes all
 but the latest 40 messages, stores the summary and
 `compacted_through_message_id`, and leaves the original messages untouched.
@@ -80,9 +64,7 @@ telling the agent to use tools if exact older details are needed.
 
 This first implementation intentionally avoids an extra LLM summarizer call:
 the summary is an extractive operational digest of older user/assistant/system
-text, tool calls, and bounded tool-result snippets. It is only applied to
-Supervisor chats; ordinary chats continue using their existing provider
-transcript behavior even when the flag is on.
+text, tool calls, and bounded tool-result snippets.
 
 **Observability:** every actual compaction run (a new `ChatContextCheckpoint` is
 created) emits an `OperationalLogging` event with `source: "chat_context_compactor"`,
@@ -211,7 +193,7 @@ Implementation workflow agents working on `tkadauke/syrus` or a registered fork 
 
 Indexes short-lived structured Rails application log events so Syrus implementation agents can search their own instance's recent logs while working on Syrus itself. `OperationalLogging.enabled_for_instance?` requires both the flag and at least one registered repository recognized as the Syrus repository itself (slug or upstream slug `tkadauke/syrus`, case-insensitive) — the feature never activates for ordinary target repositories. When both conditions hold, `ActiveSupport::Notifications` subscribers on `process_action.action_controller` and `perform.active_job` ingest structured request/job events into `OperationalLogIndex`/`OperationalLogEvent`, redacting secret-shaped values before storage.
 
-The `read_syrus_logs` MCP tool (bundled in the `syrus_dev` plugin) exposes search over this index, but only to workflow agents in the `workflow_implement` or `agent_insight` roles working on a recognized Syrus repository, and only while the flag and the repository check both pass; there's a matching admin-chat tool for Supervisor use. Indexed events are retained 6 hours (`OperationalLogEvent::RETENTION`) and pruned by a recurring job. `SYRUS_OPERATIONAL_LOG_ACTIVE_JOB_SUCCESS_MIN_DURATION_MS` (default 1000 ms) suppresses noisy fast successful job events from ingestion. Off by default; only useful when running (or forked from) `tkadauke/syrus` itself.
+The `read_syrus_logs` MCP tool (bundled in the `syrus_dev` plugin) exposes search over this index, but only to workflow agents in the `workflow_implement` or `agent_insight` roles working on a recognized Syrus repository, and only while the flag and the repository check both pass; there's a matching admin-chat tool for admin use. Indexed events are retained 6 hours (`OperationalLogEvent::RETENTION`) and pruned by a recurring job. `SYRUS_OPERATIONAL_LOG_ACTIVE_JOB_SUCCESS_MIN_DURATION_MS` (default 1000 ms) suppresses noisy fast successful job events from ingestion. Off by default; only useful when running (or forked from) `tkadauke/syrus` itself.
 
 ## browser_error_auto_reports
 

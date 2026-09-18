@@ -108,7 +108,7 @@ daemon sessions, the SPA `/chats/:id` gate) and every chat-reading MCP tool
 `ChatSession.active`, so a deleted chat is invisible to both the operator
 and the agent — the same invisibility `ChatMessage.active` already gives
 soft-deleted messages after `/clear`. Deletion is still refused while a
-turn is in flight or for the enabled Supervisor chat.
+turn is in flight.
 
 `read_chat_messages` and `search_chats` are admin-aware (via
 `AuthorizationSupport#admin?`): a non-admin caller never sees a trace of
@@ -244,13 +244,13 @@ events, and recent evaluator failure reasons. A recurring maintenance job
 automatically retries recent failed pending evaluator events; already delivered
 actionable events are skipped on retry so visible chat wakeups are not duplicated.
 
-When the `admin_supervisor_chat` feature is enabled, the same scoped event flow
-also applies to ordinary chat threads for work that originated in that chat.
-Syrus resolves ordinary chat scope from confirmed proposal lineage: the
-materialized proposal itself, its Job or Epic, a Job's Epic, related
-Workflows/Runs through their Job, and pull request numbers that map back to a
-Syrus Job. Ordinary chats do not receive events for unrelated Jobs or Epics, and
-generic chat attachments are not treated as origin evidence.
+This scoped event flow applies to ordinary chat threads for work that
+originated in that chat. Syrus resolves ordinary chat scope from confirmed
+proposal lineage: the materialized proposal itself, its Job or Epic, a Job's
+Epic, related Workflows/Runs through their Job, and pull request numbers that
+map back to a Syrus Job. Ordinary chats do not receive events for unrelated
+Jobs or Epics, and generic chat attachments are not treated as origin
+evidence.
 
 ## Chat about this
 
@@ -281,14 +281,14 @@ use, so it never blocks the write-gated action above it. This link is plain
 conversation, not ownership: unlike Coding/Local Mode's `linked_chat_id`, it
 never blocks automation or takes over the Job's implement step.
 
-When the `chat_context_compaction` feature is enabled, long-running Supervisor
-chats keep their durable `ChatMessage` transcript but stop replaying all older
-raw messages into the provider session. `ChatTurnJob` stores
+When the `chat_context_compaction` feature is enabled, long-running chats keep
+their durable `ChatMessage` transcript but stop replaying all older raw
+messages into the provider session. `ChatTurnJob` stores
 `ChatContextCheckpoint` rows after the chat crosses the compaction threshold,
 and provider rehydration sends one synthetic prior-context summary plus the
 latest raw messages after the checkpoint. The summary is deterministic and
 extractive; exact older details remain available through persisted chat history
-and admin/search tools. Ordinary chats are not compacted by this feature.
+and admin/search tools.
 
 The chat composer recognizes leading slash commands. Typing `/` opens the
 command palette.
@@ -308,9 +308,7 @@ filtered to `implemented` Jobs.
 
 Skill commands, such as `/canvas`, `/feedback`, and `/propose`, are sent through
 the normal chat message path so the agent can interpret them and call the
-matching MCP tools. `/feedback` and `/propose` are hidden in Supervisor chats,
-where the agent recommends operational next steps in prose instead of starting
-new work.
+matching MCP tools.
 
 ## Coding Mode existing-Job takeover
 

@@ -102,7 +102,6 @@ describe("BugReportButton", () => {
     const ref = renderButton({
       featureFlags: {
         browser_error_auto_reports: false,
-        admin_supervisor_chat: true,
         local_mode: true
       }
     })

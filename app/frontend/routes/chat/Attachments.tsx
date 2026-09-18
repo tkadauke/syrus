@@ -8,7 +8,7 @@ import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
-import { appendSearch, isSupervisorChat, withRoutePrefix } from "./utils"
+import { appendSearch, withRoutePrefix } from "./utils"
 
 
 
@@ -20,13 +20,11 @@ import { appendSearch, isSupervisorChat, withRoutePrefix } from "./utils"
 // imports; unused header imports were pruned after the move.
 
 const DEFAULT_ATTACHMENT_TYPES = ["Repository", "Epic", "Job", "Document"] as const
-const SUPERVISOR_ATTACHMENT_TYPES = ["Document"] as const
 const EMPTY_ATTACHMENT_GROUPS = { repositories: [], epics: [], jobs: [], documents: [] } satisfies NonNullable<ChatPayload["attachment_groups"]>
 
 export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   const contextPayload = useChatContextPayload(payload, queryKey)
-  const supervisorChat = isSupervisorChat(payload)
   const attachmentGroups = contextPayload.attachment_groups ?? EMPTY_ATTACHMENT_GROUPS
   return (
     <>
@@ -34,13 +32,9 @@ export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayl
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("attachments")}</h2>
       </div>
       <div className="space-y-4">
-        {supervisorChat ? null : (
-          <>
-            <AttachmentGroup label="Repos" rows={attachmentGroups.repositories} queryKey={queryKey} onNotice={onNotice} />
-            <AttachmentGroup label="Epics" rows={attachmentGroups.epics} queryKey={queryKey} onNotice={onNotice} />
-            <AttachmentGroup label="Jobs" rows={attachmentGroups.jobs} queryKey={queryKey} onNotice={onNotice} />
-          </>
-        )}
+        <AttachmentGroup label="Repos" rows={attachmentGroups.repositories} queryKey={queryKey} onNotice={onNotice} />
+        <AttachmentGroup label="Epics" rows={attachmentGroups.epics} queryKey={queryKey} onNotice={onNotice} />
+        <AttachmentGroup label="Jobs" rows={attachmentGroups.jobs} queryKey={queryKey} onNotice={onNotice} />
         <AttachmentGroup label="Documents" rows={attachmentGroups.documents} queryKey={queryKey} onNotice={onNotice} />
       </div>
       <section>
@@ -167,7 +161,7 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
   const location = useLocation()
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
-  const attachmentTypes = isSupervisorChat(payload) ? SUPERVISOR_ATTACHMENT_TYPES : DEFAULT_ATTACHMENT_TYPES
+  const attachmentTypes = DEFAULT_ATTACHMENT_TYPES
   type AttachmentType = typeof attachmentTypes[number]
   const initialType = normalizeAttachmentType(params.get("attachment_type"), attachmentTypes)
   const [type, setType] = useState<AttachmentType>(initialType)

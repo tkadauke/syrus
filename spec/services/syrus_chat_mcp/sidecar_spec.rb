@@ -190,43 +190,6 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "rename_chat", "ask_user_question")
     end
 
-    it "does not advertise attachment or work-creation tools to supervisor chats" do
-      admin = Factories.user(admin: true)
-      supervisor_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin), system_kind: "supervisor")
-      essential_server = server_for(supervisor_session, tier: :essential)
-      deferred_server = server_for(supervisor_session, tier: :deferred)
-      _ = jsonrpc(essential_server, "initialize", id: 0)
-      _ = jsonrpc(deferred_server, "initialize", id: 0)
-
-      essential_response = jsonrpc(essential_server, "tools/list", id: 1)
-      deferred_response = jsonrpc(deferred_server, "tools/list", id: 2)
-      tool_names = essential_response[:result][:tools].map { |tool| tool[:name] } +
-        deferred_response[:result][:tools].map { |tool| tool[:name] }
-
-      expect(tool_names).not_to include(
-        "attach_repository",
-        "propose_epic",
-        "propose_job",
-        "propose_epic_with_jobs",
-        "list_proposals",
-        "delete_proposal",
-        "submit_chat_feedback",
-        "delegate_issue",
-        "list_chat_media",
-        "schedule_recurring",
-        "fire_scheduled_task_now"
-      )
-      expect(tool_names).to include(
-        "admin_overview",
-        "read_queue",
-        "search_jobs",
-        "read_job",
-        "list_job_workflows",
-        "read_workflow",
-        "read_run_transcript"
-      )
-    end
-
     it "assigns every chat MCP tool file to exactly one tier" do
       registry_names = McpToolRegistry.summaries(surface: :chat).map { |entry| entry[:tool_name].to_s }.sort
 
@@ -379,11 +342,11 @@ RSpec.describe Mcp::Sidecar do
       expect(described_class.chat_tool_names(tier: :deferred)).not_to include(*tool_names.grep(/\Aadmin_/))
     end
 
-    it "advertises the repair toolkit to repositoryless Supervisor chats owned by admins" do
+    it "advertises the repair toolkit to repositoryless admin chats" do
       admin = Factories.user(admin: true)
-      supervisor_session = ChatSession.create!(user: admin, system_kind: "supervisor")
+      admin_session = ChatSession.create!(user: admin)
 
-      tool_names = described_class.tool_names(supervisor_session, tier: :essential)
+      tool_names = described_class.tool_names(admin_session, tier: :essential)
 
       expect(tool_names).to include(
         "reconcile_job_state",
@@ -405,10 +368,10 @@ RSpec.describe Mcp::Sidecar do
       )
     end
 
-    it "does not advertise the repair toolkit to non-admin Supervisor chats" do
-      supervisor_session = ChatSession.create!(user: user, system_kind: "supervisor")
+    it "does not advertise the repair toolkit to non-admin chats" do
+      non_admin_session = ChatSession.create!(user: user)
 
-      tool_names = described_class.tool_names(supervisor_session, tier: :essential)
+      tool_names = described_class.tool_names(non_admin_session, tier: :essential)
 
       expect(tool_names).not_to include(
         "reconcile_job_state",

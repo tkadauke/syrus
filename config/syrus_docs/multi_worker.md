@@ -384,7 +384,7 @@ confidence. Resource-fit prediction prefers process-attributed metrics once
 they have enough samples; otherwise it falls back to host-correlated pressure
 when available, then conservative defaults. `attribution_quality` records
 whether a profile is process-attributed, host-correlated, mixed, or defaults
-only so Admin and Supervisor surfaces can audit top command consumers without
+only so admin surfaces can audit top command consumers without
 conflating host pressure with process-owned cost.
 
 ## How Workflow Admission Decides

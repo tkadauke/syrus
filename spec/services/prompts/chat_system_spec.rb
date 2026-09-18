@@ -68,45 +68,6 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).not_to include("## Product Owner Mode")
   end
 
-  it "injects supervisor guidance for supervisor chats" do
-    admin = Factories.user(admin: true)
-    repo = repository(user: admin, owner: "acme", name: "ops")
-    chat = ChatSession.create!(user: admin, repository: repo, system_kind: "supervisor")
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(out).to include("## Supervisor Mode")
-    expect(out.index("## Supervisor Mode")).to be < out.index("Repository context:")
-    expect(out).to include("Treat system messages with `supervisor_event` payloads")
-    expect(out).to include("inspect live Syrus state")
-    expect(out).to include("blocked Jobs, Workflows,\nRuns, queues")
-    expect(out).to include("summarize incidents")
-    expect(out).to include("Do not ask for repository attachment by default")
-    expect(out).to include("Ask clarifying questions sparingly")
-    expect(out).to include("For risky or state-changing operations such as retries, cancellations,")
-    expect(out).to include("pending action first")
-    expect(out).to include("Keep audit clarity in the chat")
-  end
-
-  it "does not include removed proposal or attachment guidance for supervisor chats" do
-    admin = Factories.user(admin: true)
-    chat = ChatSession.create!(user: admin, system_kind: "supervisor")
-
-    out = described_class.new(repository: nil, chat_session: chat).to_s
-
-    expect(out).to include("You are Syrus Supervisor")
-    expect(out).to include("recommend next operational actions in\nprose")
-    expect(out).to include("It should not initiate new implementation work")
-    expect(out).to include("Repository attachment is unavailable in Supervisor")
-    expect(out).not_to include("attach_repository")
-    expect(out).not_to include("propose_job")
-    expect(out).not_to include("propose_epic")
-    expect(out).not_to include("propose_epic_with_jobs")
-    expect(out).not_to include("submit_chat_feedback")
-    expect(out).not_to include("proposal card")
-    expect(out).not_to include("proposal drafting")
-  end
-
   it "keeps proposal and attachment guidance for ordinary planning chats" do
     chat = ChatSession.create!(user: repo.user, repository: repo)
 
@@ -138,7 +99,7 @@ RSpec.describe Prompts::ChatSystem do
 
   it "instructs admin chats to diagnose before requesting repair actions" do
     admin = Factories.user(admin: true)
-    chat = ChatSession.create!(user: admin, system_kind: "supervisor")
+    chat = ChatSession.create!(user: admin)
 
     out = described_class.new(repository: nil, chat_session: chat).to_s
 
@@ -172,18 +133,6 @@ RSpec.describe Prompts::ChatSystem do
 
     expect(out).not_to include("## Admin Repair Toolkit")
     expect(out).not_to include("`reconcile_job_state` for state drift")
-  end
-
-  it "does not frame missing repository attachment as a supervisor blocker" do
-    admin = Factories.user(admin: true)
-    chat = ChatSession.create!(user: admin, system_kind: "supervisor")
-
-    out = described_class.new(repository: nil, chat_session: chat).to_s
-
-    expect(out).to include("No repository attachment is required for Supervisor operations triage.")
-    expect(out).not_to include("No repository is attached yet.")
-    expect(out).not_to include("No repository is currently attached. If the operator's request requires code context")
-    expect(out).not_to include("ask them to attach one via the + menu")
   end
 
   it "frames chat as planning and proposal drafting, not editing" do

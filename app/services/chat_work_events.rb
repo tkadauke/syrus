@@ -1,10 +1,8 @@
-class SupervisorEvents
+class ChatWorkEvents
   SEVERITIES = %w[info warning critical].freeze
 
   class << self
     def publish!(kind:, severity:, subject:, repository: nil, job: nil, epic: nil, proposal: nil, workflow: nil, run: nil, pr_number: nil, actor: nil, summary:, details: nil, dedupe_key: nil)
-      return [] unless Feature.admin_supervisor_chat_enabled?
-
       recipients = ChatScopedEventRecipients.new(
         repository: repository,
         job: job,
@@ -27,37 +25,21 @@ class SupervisorEvents
         dedupe_key: dedupe_key
       )
 
-      supervisor_events = User.admin.find_each.filter_map do |admin|
-        chat = SupervisorChat.ensure_for!(admin)
+      recipients.chat_sessions.filter_map do |chat|
         publish_for_chat!(
           chat,
           event,
           repository: recipients.repository,
           job: recipients.job,
           epic: recipients.epic,
-          proposal: recipients.proposal,
-          changed_marker: "supervisor_event"
+          proposal: recipients.proposal
         )
       end
-
-      scoped_chat_events = recipients.chat_sessions.filter_map do |chat|
-        publish_for_chat!(
-          chat,
-          event,
-          repository: recipients.repository,
-          job: recipients.job,
-          epic: recipients.epic,
-          proposal: recipients.proposal,
-          changed_marker: "scoped_event"
-        )
-      end
-
-      supervisor_events + scoped_chat_events
     end
 
     private
 
-    def publish_for_chat!(chat, event, repository:, job:, epic:, proposal:, changed_marker:)
+    def publish_for_chat!(chat, event, repository:, job:, epic:, proposal:)
       scoped_event = nil
       created = false
       now = Time.current
@@ -73,17 +55,9 @@ class SupervisorEvents
           dedupe_key: event["dedupe_key"]
         )
         created = scoped_event.previously_new_record?
-        chat.update!(last_message_at: now, last_read_at: nil) if created && chat.system_kind_supervisor?
       end
       return unless created
 
-      AppEvents.broadcast(
-        user: chat.user,
-        type: "updated",
-        resource: "chat",
-        id: chat.id,
-        changed: [ "last_message_at", "last_read_at", changed_marker ]
-      ) if chat.system_kind_supervisor?
       ChatScopedEventEvaluatorJob.perform_later(scoped_event.id, chat.id)
 
       scoped_event
@@ -98,7 +72,7 @@ class SupervisorEvents
       raise ArgumentError, "kind is required" if kind_s.blank?
       raise ArgumentError, "subject is required" if subject_s.blank?
       raise ArgumentError, "summary is required" if summary_s.blank?
-      raise ArgumentError, "unknown supervisor event severity: #{severity}" unless SEVERITIES.include?(severity_s)
+      raise ArgumentError, "unknown chat work event severity: #{severity}" unless SEVERITIES.include?(severity_s)
 
       {
         "kind" => kind_s,

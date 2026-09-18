@@ -5,7 +5,7 @@ module Mcp::Tools
     extend BranchDivergenceToolSupport
 
     tool_name "retry_from_current_pr_branch"
-    description "Plan or request an audited manual agentic repair run based on the current remote PR branch instead of stale branch-diverged workflow output. Admin/Supervisor only; confirmation required unless dry_run is true."
+    description "Plan or request an audited manual agentic repair run based on the current remote PR branch instead of stale branch-diverged workflow output. Admin only; confirmation required unless dry_run is true."
 
     input_schema(
       properties: {
