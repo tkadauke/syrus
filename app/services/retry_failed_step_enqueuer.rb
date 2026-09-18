@@ -228,7 +228,7 @@ class RetryFailedStepEnqueuer
   end
 
   def revive_cancelled_downstream_steps!(failed_step)
-    cursor = failed_step.next_step
+    cursor = downstream_start_after(failed_step)
     while cursor
       if cursor.cancelled? && cursor.runs.none?
         cursor.update_columns(
@@ -242,13 +242,35 @@ class RetryFailedStepEnqueuer
     end
   end
 
+  # A grader Step's own `next_step` pointer is topology-dependent: under the
+  # distributed-projection fanout it points straight at grader_collect, but
+  # the default legacy fanout chains graders serially (g1 -> g2 -> ... ->
+  # grader_collect) -- so the *primary* failed grader picked by
+  # failed_grader_before_collect (the highest-position one that's still
+  # failed) can have a later, already-succeeded sibling between it and
+  # grader_collect. Walking `next_step` from that primary would land on the
+  # sibling grader, not the collect barrier, and silently skip reopening it.
+  # Looking the collect step up directly by loop_id/iteration is correct
+  # under either topology.
+  def downstream_start_after(failed_step)
+    return failed_step.next_step unless failed_step.kind == "grader"
+
+    collect_step_for(failed_step)&.next_step
+  end
+
+  def collect_step_for(failed_step)
+    workflow.steps.find_by(
+      kind: "grader_collect",
+      loop_id: failed_step.loop_id,
+      iteration: failed_step.iteration
+    )
+  end
+
   def reopen_collect_barrier_after_grader!(failed_step)
     return unless failed_step.kind == "grader"
 
-    collect = failed_step.next_step
+    collect = collect_step_for(failed_step)
     return unless collect&.failed?
-    return unless collect.kind == "grader_collect"
-    return unless collect.loop_id == failed_step.loop_id && collect.iteration == failed_step.iteration
 
     collect.update_columns(
       state: "queued",
