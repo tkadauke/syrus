@@ -29,6 +29,17 @@ RSpec.describe AgentProviders::Agy do
     end
   end
 
+  describe ".available_models" do
+    it "returns a non-empty catalog of ModelInfo entries" do
+      models = described_class.available_models
+
+      expect(models).not_to be_empty
+      expect(models).to all(be_a(Syrus::Plugin::AgentProvider::ModelInfo))
+      expect(models.map(&:cost_tier)).to all(be_present)
+      expect(models.map(&:context_window)).to all(be_present)
+    end
+  end
+
   let(:user) { Factories.user(gemini_api_key: "AIza-test") }
   let(:job) { Factories.job(user: user) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
@@ -79,6 +90,88 @@ RSpec.describe AgentProviders::Agy do
       resume_session_id: "parent-1"
     )
     expect(received[:agy_home]).to eq(WorkflowWorkspace.agent_home_for(workflow, "agy").to_s)
+  end
+
+  it "forwards explicit model and effort_level through to AgyInvocation" do
+    received = nil
+    RunJob.agent_runner = ->(**kwargs) {
+      received = kwargs
+      AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false,
+        outcome: "success", final_text: nil, session_id: "agy-session"
+      )
+    }
+
+    described_class.new(run: run, workspace: workspace, parent_session_id: "parent-1")
+                   .run(prompt: "do it", log_sink: ->(*, **) { }, model: "gemini-3-pro", effort_level: "high")
+
+    expect(received[:model]).to eq("gemini-3-pro")
+    expect(received[:effort_level]).to eq("high")
+  end
+
+  it "passes nil model and effort_level by default, preserving current behavior" do
+    received = nil
+    RunJob.agent_runner = ->(**kwargs) {
+      received = kwargs
+      AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false,
+        outcome: "success", final_text: nil, session_id: "agy-session"
+      )
+    }
+
+    described_class.new(run: run, workspace: workspace, parent_session_id: "parent-1")
+                   .run(prompt: "do it", log_sink: ->(*, **) { })
+
+    expect(received[:model]).to be_nil
+    expect(received[:effort_level]).to be_nil
+  end
+
+  it "prefers explicit model/effort_level over the SYRUS_AGY_MODEL/SYRUS_AGY_EFFORT env fallback" do
+    old_model_env = ENV["SYRUS_AGY_MODEL"]
+    old_effort_env = ENV["SYRUS_AGY_EFFORT"]
+    ENV["SYRUS_AGY_MODEL"] = "gemini-2.5-flash"
+    ENV["SYRUS_AGY_EFFORT"] = "medium"
+    received = nil
+    RunJob.agent_runner = ->(**kwargs) {
+      received = kwargs
+      AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false,
+        outcome: "success", final_text: nil, session_id: "agy-session"
+      )
+    }
+
+    described_class.new(run: run, workspace: workspace, parent_session_id: "parent-1")
+                   .run(prompt: "do it", log_sink: ->(*, **) { }, model: "gemini-3-pro", effort_level: "high")
+
+    expect(received[:model]).to eq("gemini-3-pro")
+    expect(received[:effort_level]).to eq("high")
+  ensure
+    ENV["SYRUS_AGY_MODEL"] = old_model_env
+    ENV["SYRUS_AGY_EFFORT"] = old_effort_env
+  end
+
+  it "falls back to the SYRUS_AGY_MODEL/SYRUS_AGY_EFFORT env vars when no explicit model/effort_level is given" do
+    old_model_env = ENV["SYRUS_AGY_MODEL"]
+    old_effort_env = ENV["SYRUS_AGY_EFFORT"]
+    ENV["SYRUS_AGY_MODEL"] = "gemini-2.5-flash"
+    ENV["SYRUS_AGY_EFFORT"] = "medium"
+    received = nil
+    RunJob.agent_runner = ->(**kwargs) {
+      received = kwargs
+      AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false,
+        outcome: "success", final_text: nil, session_id: "agy-session"
+      )
+    }
+
+    described_class.new(run: run, workspace: workspace, parent_session_id: "parent-1")
+                   .run(prompt: "do it", log_sink: ->(*, **) { })
+
+    expect(received[:model]).to eq("gemini-2.5-flash")
+    expect(received[:effort_level]).to eq("medium")
+  ensure
+    ENV["SYRUS_AGY_MODEL"] = old_model_env
+    ENV["SYRUS_AGY_EFFORT"] = old_effort_env
   end
 
   it "raises a configuration error when the Gemini API key is missing" do

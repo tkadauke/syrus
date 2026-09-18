@@ -11,6 +11,13 @@ module Syrus
     #   #invoke(job:, step:, workspace:, &block) – streams agent output
     #
     module AgentProvider
+      # Describes one selectable model for a provider's `.available_models`
+      # catalog. `context_window` and `cost_tier` are rough categorical
+      # values (e.g. :standard/:large/:xlarge, :low/:medium/:high) -- this
+      # is capability metadata for a future routing-rule system, not exact
+      # pricing/token data.
+      ModelInfo = Data.define(:id, :display_name, :context_window, :cost_tier)
+
       def self.included(base)
         base.extend(ClassMethods)
       end
@@ -74,6 +81,14 @@ module Syrus
 
         def configured_for_user?(_user)
           false
+        end
+
+        # Optional catalog of this provider's selectable models, for a
+        # future routing-rule system to choose from. Returns an array of
+        # ModelInfo. Defaults to empty so providers that don't implement
+        # model selection keep working unmodified.
+        def available_models
+          []
         end
       end
     end

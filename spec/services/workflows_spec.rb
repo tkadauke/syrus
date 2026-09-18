@@ -68,6 +68,27 @@ RSpec.describe Workflows do
       expect(wf.artifact("agent_provider_selection")).to eq("explicit")
     end
 
+    it "leaves model/effort_level nil and records default selection when not passed" do
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.model).to be_nil
+      expect(wf.effort_level).to be_nil
+      expect(wf.artifact("model_selection")).to eq("default")
+      expect(wf.artifact("effort_level_selection")).to eq("default")
+    end
+
+    it "stores explicit model/effort_level and records explicit selection" do
+      wf = Workflows::Initial.instantiate(job: job, model: "opus", effort_level: "high")
+
+      expect(wf.model).to eq("opus")
+      expect(wf.effort_level).to eq("high")
+      expect(wf.artifact("model_selection")).to eq("explicit")
+      expect(wf.artifact("effort_level_selection")).to eq("explicit")
+    end
+
     it "inserts the adversarial review loop before the grade loop for Initial when enabled" do
       allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: []))

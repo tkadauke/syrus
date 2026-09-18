@@ -8,6 +8,10 @@ RSpec.describe AgentProviders do
       expect(provider_class.provider).to eq("unknown")
       expect(provider_class.provider_key).to eq("unknown")
     end
+
+    it "defaults available_models to an empty array" do
+      expect(described_class.available_models).to eq([])
+    end
   end
 
   describe ".for" do
