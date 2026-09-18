@@ -1,5 +1,5 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, EpicIcon, GripIcon, MenuIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, SystemThemeIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
+import { ChevronDownIcon, GripIcon, MenuIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, SystemThemeIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
@@ -103,10 +103,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   })
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
-  const simpleMode = data?.app?.mode === "simple"
-  const legacyEpicsVisible = simpleMode && Boolean(data?.app?.legacy_epics_visible)
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
-  const showDashboardSidebarSubjects = !simpleMode
   const quote = useMemo(randomPubliliusSyrusQuote, [])
   const showQuote = !normalizedPath.startsWith("/chats") && !normalizedPath.startsWith("/terminal") && !normalizedPath.startsWith("/db_browser")
   const inOnboarding = Boolean(data?.setup && !data.setup.complete)
@@ -145,10 +142,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     enabled: Boolean(user)
   })
   const sidebarNavContext = useMemo(() => ({
-    simpleMode,
     featureFlags: data?.feature_flags ?? {},
     teamUserCount: data?.team_user_count ?? 0
-  }), [simpleMode, data?.feature_flags, data?.team_user_count])
+  }), [data?.feature_flags, data?.team_user_count])
   const navBadges = useSidebarNavBadges(sidebarPluginPages.data?.pages ?? [], Boolean(user))
   const sidebarNavOrder = data?.current_user?.sidebar_nav_order ?? EMPTY_SIDEBAR_NAV_ORDER
   const mergedSidebarNavItems = useMemo(
@@ -176,26 +172,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const navItems: SidebarNavItem[] = useMemo(() => (
     user ? [
       ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, rawTo: "/onboarding", active: normalizedPath === "/onboarding", icon: <SetupIcon />, smartFolderApiPath: null, smartFolderSubject: null, smartFolderAllLink: undefined }] : []),
-      ...(tabsHidden ? [] : (() => {
-        const items = [...primaryNavItems]
-        if (legacyEpicsVisible) {
-          const dashboardIndex = items.findIndex((item) => item.id === "dashboard")
-          items.splice(dashboardIndex + 1, 0, {
-            id: "legacy_epics",
-            label: t("nav:epics"),
-            to: `${prefix}/dashboard/epics`,
-            rawTo: "/dashboard/epics",
-            active: normalizedPath.startsWith("/dashboard/epics"),
-            icon: <EpicIcon />,
-            smartFolderApiPath: null,
-            smartFolderSubject: null,
-            smartFolderAllLink: undefined
-          })
-        }
-        return items
-      })())
+      ...(tabsHidden ? [] : primaryNavItems)
     ] : []
-  ), [user, inOnboarding, tabsHidden, primaryNavItems, legacyEpicsVisible, prefix, normalizedPath, t])
+  ), [user, inOnboarding, tabsHidden, primaryNavItems, prefix, normalizedPath, t])
 
   async function startChat() {
     if (normalizedPath === "/chats/new") return
@@ -314,7 +293,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           onStartGroupChat={startGroupChat}
           prefix={prefix}
           showTeamProfile={(data?.team_user_count || 0) > 1}
-          showDashboardSidebarSubjects={showDashboardSidebarSubjects}
           startingChat={startingChat}
           user={user}
         />
@@ -347,7 +325,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             onStartGroupChat={startGroupChat}
             prefix={prefix}
             showTeamProfile={(data?.team_user_count || 0) > 1}
-            showDashboardSidebarSubjects={showDashboardSidebarSubjects}
             startingChat={startingChat}
             user={user}
           />
@@ -845,7 +822,6 @@ function SidebarContent({
   onStartChat,
   onStartGroupChat,
   prefix,
-  showDashboardSidebarSubjects,
   showTeamProfile,
   startingChat,
   user
@@ -861,7 +837,6 @@ function SidebarContent({
   onStartChat: () => void
   onStartGroupChat: () => void
   prefix: string
-  showDashboardSidebarSubjects: boolean
   showTeamProfile: boolean
   startingChat: boolean
   user: BootstrapPayload["current_user"] | undefined
@@ -1027,7 +1002,7 @@ function SidebarContent({
                   <GripIcon />
                 </div>
                 {item.id === "dashboard" && dashboardSubnavEnabled ? (
-                  <SidebarDashboardNav expanded={openSubnavItemId === item.id} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
+                  <SidebarDashboardNav expanded={openSubnavItemId === item.id} onCloseDrawer={onCloseDrawer} prefix={prefix} />
                 ) : dashboardSubnavEnabled && item.smartFolderApiPath && item.smartFolderSubject ? (
                   <SidebarPluginSmartFolderNav expanded={openSubnavItemId === item.id} item={item} prefix={prefix} />
                 ) : null}

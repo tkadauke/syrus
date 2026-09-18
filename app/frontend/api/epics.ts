@@ -87,7 +87,6 @@ export type EpicDetailRecord = {
   title: string
   description: string
   state: string
-  simple_status?: string
   landing: boolean
   stuck: boolean
   startable: boolean
@@ -105,8 +104,6 @@ export type EpicDetailRecord = {
   owner_status: "mine" | "other_owned" | "unclaimed"
   owner_user: EpicOwnerUser | null
   repository: EpicDetailRepository
-  review_ready: boolean
-  user_approved_at: string | null
   max_commits_behind_base: number | null
   furthest_behind_job_id: number | null
   furthest_behind_job_path: string | null
@@ -206,7 +203,6 @@ export type EpicOriginChat = {
 
 export type EpicDetailPayload = {
   message?: string | null
-  simple_mode?: boolean
   origin_chat?: EpicOriginChat | null
   merge_train_status?: MergeTrainStatus | null
   epic: EpicDetailRecord
@@ -228,9 +224,6 @@ export type EpicDetailPayload = {
     app_unclaim_path: string
     app_reassign_path: string
     app_dependencies_path: string
-    app_review_approve_path: string
-    app_review_feedback_path: string
-    app_start_preview_path: string | null
   }
 }
 
@@ -316,14 +309,4 @@ export function removeEpicDependency(path: string, dependsOnEpicId: number) {
   return deleteJson<EpicDetailPayload>(`${path}/${dependsOnEpicId}`)
 }
 
-export function approveEpicReview(path: string) {
-  return postJson<EpicDetailPayload>(path, {})
-}
 
-export function submitEpicReviewFeedback(path: string, feedback: string) {
-  return postJson<EpicDetailPayload>(path, { feedback })
-}
-
-export function startEpicPreview(path: string) {
-  return postJson<EpicDetailPayload>(path, {})
-}

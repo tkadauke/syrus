@@ -236,7 +236,6 @@ export type DashboardJobItem = {
   can_approve?: boolean
   can_release_from_backlog?: boolean
   can_move_to_backlog?: boolean
-  can_start_preview?: boolean
   paths: {
     job_path: string
     source_path: string
@@ -258,7 +257,6 @@ export type DashboardEpicItem = {
   title: string
   description: string
   state: string
-  simple_status?: string
   landing: boolean
   stuck: boolean
   all_jobs_closed: boolean
@@ -379,7 +377,6 @@ export type DashboardFilterSuggestion = {
 }
 
 export type DashboardPayload = {
-  simple_mode?: boolean
   subject: DashboardSubject
   view: string
   page: number

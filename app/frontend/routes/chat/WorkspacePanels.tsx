@@ -56,8 +56,7 @@ export function ChatWorkspacePanel({
   prefix,
   queryKey,
   onNotice,
-  onBookmarkSelect,
-  simpleMode = false
+  onBookmarkSelect
 }: {
   activeTab: WorkspaceTab
   showTabs?: boolean
@@ -68,7 +67,6 @@ export function ChatWorkspacePanel({
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
   onBookmarkSelect: (messageId: number) => void
-  simpleMode?: boolean
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -79,7 +77,7 @@ export function ChatWorkspacePanel({
     ...payload,
     workspace_tabs: payload.workspace_tabs.filter((tab) => !closedPluginTabs.includes(tab.id))
   }), [closedPluginTabs, payload])
-  const tabs = useMemo(() => availableWorkspaceTabs(visiblePayload, simpleMode, hasPins), [visiblePayload, simpleMode, hasPins])
+  const tabs = useMemo(() => availableWorkspaceTabs(visiblePayload, hasPins), [visiblePayload, hasPins])
   const activePreviewPanel = isPreviewTab(activeTab)
     ? payload.preview_panels.find((panel) => previewTabId(panel.id) === activeTab) ?? null
     : null
@@ -91,8 +89,8 @@ export function ChatWorkspacePanel({
   })
 
   useEffect(() => {
-    if (!tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload, simpleMode))
-  }, [activeTab, onSelectTab, payload, simpleMode, tabs])
+    if (!tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload))
+  }, [activeTab, onSelectTab, payload, tabs])
 
   return (
     <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -180,7 +178,7 @@ export function ChatWorkspacePanel({
       )}
       <div className={`min-h-0 flex-1 ${activeTab === "files" || activePreviewPanel || isPluginTab(activeTab) ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
         {activePreviewPanel ? <PreviewPanelFrame key={activePreviewPanel.id} onNotice={onNotice} panel={activePreviewPanel} queryKey={queryKey} /> : null}
-        {activeTab === "context" && !simpleMode ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
+        {activeTab === "context" ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "media" ? <MediaGallery payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "files" ? <CodingFilesPanel payload={payload} readOnly={!codingFilesTabVisible(payload)} /> : null}

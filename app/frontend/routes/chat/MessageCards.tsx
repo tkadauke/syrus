@@ -606,21 +606,8 @@ function ShellCommandCard({ shellCommand }: { shellCommand: ChatShellCommandResu
   )
 }
 
-export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: { item: ChatToolGroupItem; simpleMode?: boolean }) {
+export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroupItem }) {
   const [open, setOpen] = useState(false)
-
-  if (simpleMode) {
-    return (
-      <div className="space-y-1">
-        {item.calls.map((call) => (
-          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300" key={call.message_id}>
-            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${call.result_error ? "bg-amber-500" : "animate-pulse bg-info"}`} />
-            <span>{call.result_error ? "Hit a snag" : call.progress_label}</span>
-          </div>
-        ))}
-      </div>
-    )
-  }
 
   const details = item.calls.map((call) => [redactToolCardText(call.detail), toolCardAwareResultSummary(call)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
   const summary = item.summary_label || item.tool

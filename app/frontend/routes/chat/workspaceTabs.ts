@@ -97,9 +97,9 @@ export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => strin
   return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels, pluginTabs)
 }
 
-export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false, hasPins = false): WorkspaceTab[] {
+export function availableWorkspaceTabs(payload: ChatPayload, hasPins = false): WorkspaceTab[] {
   return [
-    ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
+    "context",
     ...(mediaTabVisible(payload) ? (["media"] as WorkspaceTab[]) : []),
     ...(hasPins ? (["pinned"] as WorkspaceTab[]) : []),
     ...(codingFilesTabVisible(payload) || readOnlyFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
@@ -121,8 +121,8 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false,
 // whiteboard content yet) falls back to "context" as before.
 const WHITEBOARD_TAB_COMPONENT = "whiteboard/WhiteboardTab"
 
-export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): WorkspaceTab {
-  const tabs = availableWorkspaceTabs(payload, simpleMode)
+export function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab {
+  const tabs = availableWorkspaceTabs(payload)
   const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
   const whiteboardTab = payload.workspace_tabs.find((tab) => tab.component === WHITEBOARD_TAB_COMPONENT)
   const preferred = whiteboardLoaded && payload.whiteboard.elements.length > 0 && whiteboardTab

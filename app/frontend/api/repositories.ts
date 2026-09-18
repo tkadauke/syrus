@@ -204,7 +204,6 @@ export type UiSlotPanel = {
 export type RepositoryDetailPayload = {
   ui_panels?: UiSlotPanel[]
   message?: string | null
-  simple_mode?: boolean
   repository: RepositoryDetailRecord
   syrus_yml?: RepositorySyrusYmlSummary
   tabs: RepositoryTab[]
