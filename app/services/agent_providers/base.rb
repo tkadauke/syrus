@@ -76,6 +76,10 @@ module AgentProviders
     def self.mcp_tool_name(tool_name, server_name:)
     end
 
+    def self.available_models
+      []
+    end
+
     def self.evidence_reset_at(evidence)
     end
 
@@ -131,7 +135,8 @@ module AgentProviders
       self.class.provider
     end
 
-    def run(prompt:, log_sink:, max_turns: nil, required_mcp_tools: nil, disallowed_tools: nil)
+    def run(prompt:, log_sink:, max_turns: nil, required_mcp_tools: nil, disallowed_tools: nil,
+           model: nil, effort_level: nil)
       invoke(
         workspace_path: workspace.path,
         prompt: prompt,
@@ -141,7 +146,9 @@ module AgentProviders
         mcp: true,
         resume_session_id: parent_session_id,
         required_mcp_tools: required_mcp_tools,
-        disallowed_tools: disallowed_tools
+        disallowed_tools: disallowed_tools,
+        model: model,
+        effort_level: effort_level
       )
     end
 
@@ -189,7 +196,8 @@ module AgentProviders
 
     attr_reader :workspace, :parent_session_id, :workflow, :job
 
-    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil)
+    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:,
+              required_mcp_tools: nil, disallowed_tools: nil, model: nil, effort_level: nil)
       raise NotImplementedError, "#{self.class.name} must implement #invoke"
     end
 

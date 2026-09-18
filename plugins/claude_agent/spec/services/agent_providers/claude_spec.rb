@@ -24,6 +24,18 @@ RSpec.describe AgentProviders::Claude do
     end
   end
 
+  describe ".available_models" do
+    it "returns a non-empty catalog of ModelInfo entries" do
+      models = described_class.available_models
+
+      expect(models).not_to be_empty
+      expect(models).to all(be_a(Syrus::Plugin::AgentProvider::ModelInfo))
+      expect(models.map(&:id)).to include("claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001")
+      expect(models.map(&:cost_tier)).to all(be_present)
+      expect(models.map(&:context_window)).to all(be_present)
+    end
+  end
+
   describe ".refresh_stale_usage!" do
     it "refreshes when the user has a Claude token and the probe is stale" do
       user = Factories.user(claude_oauth_token: "oat-test")
@@ -194,6 +206,37 @@ RSpec.describe AgentProviders::Claude do
                   disallowed_tools: %w[ReportFindings])
 
       expect(received[:disallowed_tools]).to eq(%w[ReportFindings])
+    end
+
+    it "forwards explicit model and effort_level through to ClaudeInvocation" do
+      received = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        received = kwargs
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: nil)
+      }
+
+      adapter.run(prompt: "do it", log_sink: ->(*, **) { }, max_turns: 7,
+                  model: "claude-opus-4-7", effort_level: "high")
+
+      expect(received[:model]).to eq("claude-opus-4-7")
+      expect(received[:effort_level]).to eq("high")
+    end
+
+    it "passes nil model and effort_level by default, preserving current behavior" do
+      received = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        received = kwargs
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: nil)
+      }
+
+      adapter.run(prompt: "do it", log_sink: ->(*, **) { }, max_turns: 7)
+
+      expect(received[:model]).to be_nil
+      expect(received[:effort_level]).to be_nil
     end
 
     it "persists live_session_id on the Run when on_session_id callback fires" do

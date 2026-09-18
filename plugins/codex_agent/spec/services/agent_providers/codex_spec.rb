@@ -24,6 +24,18 @@ RSpec.describe AgentProviders::Codex do
     end
   end
 
+  describe ".available_models" do
+    it "returns a non-empty catalog of ModelInfo entries" do
+      models = described_class.available_models
+
+      expect(models).not_to be_empty
+      expect(models).to all(be_a(Syrus::Plugin::AgentProvider::ModelInfo))
+      expect(models.map(&:id)).to include("gpt-5.5")
+      expect(models.map(&:cost_tier)).to all(be_present)
+      expect(models.map(&:context_window)).to all(be_present)
+    end
+  end
+
   describe ".refresh_stale_usage!" do
     it "refreshes when the user is on chatgpt_login and the probe is stale" do
       user = Factories.user(codex_auth_mode: "chatgpt_login")
@@ -119,6 +131,36 @@ RSpec.describe AgentProviders::Codex do
         command: a_string_ending_with("/bin/syrus-mcp-sidecar"),
         args: [ "--run-id", run.id.to_s ]
       )
+    end
+
+    it "forwards explicit model and effort_level through to CodexInvocation" do
+      received = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        received = kwargs
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: "new-thread")
+      }
+
+      adapter.run(prompt: "do it", log_sink: ->(*, **) { }, model: "gpt-5.2-codex", effort_level: "high")
+
+      expect(received[:model]).to eq("gpt-5.2-codex")
+      expect(received[:effort_level]).to eq("high")
+    end
+
+    it "passes the provider default model and no effort flag when neither is given, preserving current behavior" do
+      received = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        received = kwargs
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: "new-thread")
+      }
+
+      adapter.run(prompt: "do it", log_sink: ->(*, **) { })
+
+      expect(received[:model]).to eq(CodexInvocation::DEFAULT_MODEL)
+      expect(received[:effort_level]).to be_nil
     end
 
     it "launches the sidecar for non-implement steps too" do
