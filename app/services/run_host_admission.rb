@@ -20,6 +20,15 @@ class RunHostAdmission
   GUARDED_RUNS_PER_HOST = 3
   HIGH_COST_GRADER_RUNS_PER_HOST = 1
 
+  # visual_diff previews drive a headless browser against a spawned preview
+  # app -- IO-heavy on top of the agent turn itself. Colocating more than one
+  # on a host that is already under warning-or-worse pressure is exactly the
+  # kind of burst that pushed hosts into the critical IO pressure seen in the
+  # 2026-09-14 batches, so this step kind gets a narrower cap than the general
+  # agentic guard once the host stops looking idle.
+  VISUAL_DIFF_STEP_KIND = "visual_diff"
+  VISUAL_DIFF_PREVIEW_RUNS_PER_HOST = 1
+
   # The other half of the lag defence: after admitting, leave a gap so the next
   # decision on this host sees a sample that reflects it. Cheaper and more
   # honest than predicting what the admitted work will cost.
@@ -87,7 +96,8 @@ class RunHostAdmission
       "active_guarded_run_count" => active_guarded_run_count,
       "guarded_runs_per_host" => guarded_runs_per_host,
       "resource_guard_kind" => resource_guard_kind,
-      "active_high_cost_grader_run_count" => high_cost_grader_guard? ? active_high_cost_grader_run_count : nil
+      "active_high_cost_grader_run_count" => high_cost_grader_guard? ? active_high_cost_grader_run_count : nil,
+      "active_visual_diff_preview_run_count" => resource_guard_kind == "visual_diff_preview" ? active_visual_diff_preview_run_count : nil
     ).compact
   end
 
@@ -187,28 +197,44 @@ class RunHostAdmission
       active_guarded_run_count >= GUARDED_RUNS_PER_HOST
     when "high_cost_grader"
       active_high_cost_grader_run_count >= HIGH_COST_GRADER_RUNS_PER_HOST
+    when "visual_diff_preview"
+      active_visual_diff_preview_run_count >= VISUAL_DIFF_PREVIEW_RUNS_PER_HOST
     else
       false
     end
   end
 
   def guarded_runs_per_host
-    high_cost_grader_guard? ? HIGH_COST_GRADER_RUNS_PER_HOST : GUARDED_RUNS_PER_HOST
+    case resource_guard_kind
+    when "high_cost_grader" then HIGH_COST_GRADER_RUNS_PER_HOST
+    when "visual_diff_preview" then VISUAL_DIFF_PREVIEW_RUNS_PER_HOST
+    else GUARDED_RUNS_PER_HOST
+    end
   end
 
   def high_cost_grader_guard?
     resource_guard_kind == "high_cost_grader"
   end
 
+  # visual_diff is itself agentic, so it would otherwise be caught by the
+  # plain "agentic" guard (rationed to GUARDED_RUNS_PER_HOST) before ever
+  # reaching the narrower per-host preview cap below. Check it first so a
+  # host that is already showing warning-or-worse pressure never colocates a
+  # second preview, regardless of how much agentic headroom remains.
   def resource_guard_kind(candidate = run)
     candidate_step = candidate.step
     return unless candidate_step
+    return "visual_diff_preview" if visual_diff_preview_step?(candidate_step) && local_health_warning?
     return "agentic" if candidate_step.agentic?
     return unless local_health_warning?
     return unless high_cost_grader_step?(candidate_step)
     return unless high_cost_command_profile?(candidate_step)
 
     "high_cost_grader"
+  end
+
+  def visual_diff_preview_step?(candidate_step)
+    candidate_step.kind == VISUAL_DIFF_STEP_KIND
   end
 
   def local_health_warning?
@@ -268,6 +294,10 @@ class RunHostAdmission
       .includes(step: { workflow: :job })
       .select { |active_run| high_cost_command_profile?(active_run.step) }
       .size
+  end
+
+  def active_visual_diff_preview_run_count
+    @active_visual_diff_preview_run_count ||= active_run_scope.where(steps: { kind: VISUAL_DIFF_STEP_KIND }).count
   end
 
   def active_always_guarded_run_scope
