@@ -352,6 +352,17 @@ class MainHealthChangedService
       job.advance_after_triage! if job.may_advance_after_triage?
       job
     end
+  rescue ActiveRecord::RecordNotUnique
+    # Two concurrent triggers (e.g. a health poll and an inline repair
+    # check from a Jobs#show request) can both pass every guard above and
+    # race to create the repair Job; the slug's unique index is the last
+    # line of defense. Reuse whichever process won instead of 500ing the
+    # caller.
+    Rails.logger.warn(
+      "[MainHealthChangedService] #{@repository.slug} main repair job creation raced with " \
+      "another process; reusing the job it already created"
+    )
+    blocking_fix_job
   end
 
   def repair_job_priority
