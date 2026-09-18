@@ -25,7 +25,6 @@ import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
 import { chatDisplayTitle, codingFilesTabVisible, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { ImageLightbox } from "./MessageCards"
-import { Attachments } from "./Attachments"
 import { PinIcon } from "../../components/PinIcon"
 import { newestPins, useChatPins, useHasPins } from "./pins"
 import type { WorkspaceTab } from "./workspaceTabs"
@@ -53,18 +52,16 @@ export function ChatWorkspacePanel({
   onSelectTab,
   onToggleCollapse,
   payload,
-  prefix,
   queryKey,
   onNotice,
   onBookmarkSelect,
   simpleMode = false
 }: {
-  activeTab: WorkspaceTab
+  activeTab: WorkspaceTab | null
   showTabs?: boolean
-  onSelectTab: (tab: WorkspaceTab) => void
+  onSelectTab: (tab: WorkspaceTab | null) => void
   onToggleCollapse?: () => void
   payload: ChatPayload
-  prefix: string
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
   onBookmarkSelect: (messageId: number) => void
@@ -91,7 +88,7 @@ export function ChatWorkspacePanel({
   })
 
   useEffect(() => {
-    if (!tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload, simpleMode))
+    if (activeTab === null || !tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload, simpleMode))
   }, [activeTab, onSelectTab, payload, simpleMode, tabs])
 
   return (
@@ -180,7 +177,6 @@ export function ChatWorkspacePanel({
       )}
       <div className={`min-h-0 flex-1 ${activeTab === "files" || activePreviewPanel || isPluginTab(activeTab) ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
         {activePreviewPanel ? <PreviewPanelFrame key={activePreviewPanel.id} onNotice={onNotice} panel={activePreviewPanel} queryKey={queryKey} /> : null}
-        {activeTab === "context" && !simpleMode ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "media" ? <MediaGallery payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "files" ? <CodingFilesPanel payload={payload} readOnly={!codingFilesTabVisible(payload)} /> : null}

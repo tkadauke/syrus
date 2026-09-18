@@ -31,7 +31,7 @@ import { syrusShellBridge } from "../../lib/desktopShell"
 import { type ChatDraftAttachmentsChangedDetail, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
 import { appendSearch, chatDisplayTitle, contentRecord, currentRecentChat, isDesktopChatViewport, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
-import { AddAttachment, Attachments } from "./Attachments"
+import { AddAttachment } from "./Attachments"
 import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { PencilIcon, UploadIcon } from "./icons"
@@ -314,7 +314,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       setText("")
       setClearConfirmationOpen(false)
       onNotice(action.kind === "pin" ? (action.pinned ? "Chat pinned" : "Chat unpinned") : chatPayload.message || null)
-      if (action.kind === "attach") commandHandlers.openAttachments()
+      if (action.kind === "attach") setAttachmentPopoverOpen(true)
     }
   })
   const systemCommandAction = useMutation<{ payload?: ChatPayload; notice: string; jobId?: string }, Error, ChatSystemCommandAction>({
@@ -632,7 +632,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       if (argsText) {
         systemAction.mutate({ kind: "attach", slug: argsText })
       } else {
-        commandHandlers.openAttachments()
+        setAttachmentPopoverOpen(true)
         setText("")
         onNotice(null)
       }
