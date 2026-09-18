@@ -924,7 +924,7 @@
     "connect": "Coniungere",
     "paste_code_first": "Primum codicem a Claudio insere.",
     "auth_error": "Auctoritas incipere non potuit.",
-    "connected_default": "Claudius coniunctus.",
+    "connected_default": "Coniunctus.",
     "exchange_error": "Tessera a Claudio reddita non operata est. Iterum tenta.",
     "exchange_catch_error": "Codex permutari non potuit. Iterum auctoritatem dare tenta.",
     "gemini_tab_intro": "Gemini perambulationes captas in Epica convertit — optio, nunc vel postea adde. Non est agens codicis; agens tuus Claude (vel Codex) opus adhuc facit.",

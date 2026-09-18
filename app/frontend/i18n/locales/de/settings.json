@@ -924,7 +924,7 @@
     "connect": "Verbinden",
     "paste_code_first": "Fügen Sie zuerst den Code von Claude ein.",
     "auth_error": "Autorisierung konnte nicht gestartet werden.",
-    "connected_default": "Claude verbunden.",
+    "connected_default": "Verbunden.",
     "exchange_error": "Das von Claude zurückgegebene Token hat nicht funktioniert. Versuchen Sie es erneut.",
     "exchange_catch_error": "Code konnte nicht ausgetauscht werden. Versuchen Sie, erneut zu autorisieren.",
     "gemini_tab_intro": "Gemini verwandelt Bildschirmaufnahmen von Walkthroughs in Epics — optional, jetzt oder später hinzufügen. Es ist nicht der Coding-Agent; dein Claude- (oder Codex-)Agent erledigt weiterhin die Arbeit.",
