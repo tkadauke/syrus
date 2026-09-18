@@ -92,7 +92,7 @@ RSpec.describe ProviderRoutingRule do
 
   it "accepts an ordered multi-candidate fallback chain across known providers" do
     record = rule(candidates: [
-      { "provider" => "claude", "model" => "sonnet", "effort_level" => "high" },
+      { "provider" => "claude", "model" => "claude-sonnet-4-6", "effort_level" => "high" },
       { "provider" => "codex" }
     ])
 
@@ -100,6 +100,7 @@ RSpec.describe ProviderRoutingRule do
   end
 
   it "does not hard-fail on an unrecognized model when the provider has no model catalog yet" do
+    allow(AgentProviders.for("claude")).to receive(:available_models).and_return([])
     record = rule(candidates: [ { "provider" => "claude", "model" => "not-a-real-model" } ])
 
     expect(record).to be_valid

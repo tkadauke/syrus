@@ -19,6 +19,10 @@ module ProviderRouting
       new(job: job, task_key: task_key).call
     end
 
+    def self.rule_configured?(job:, task_key:, include_default: true)
+      new(job: job, task_key: task_key).send(:rule_configured?, include_default: include_default)
+    end
+
     def initialize(job:, task_key:)
       @job = job
       @task_key = task_key.to_s
@@ -67,6 +71,13 @@ module ProviderRouting
 
     def effective_user
       job.owner_user || job.user
+    end
+
+    def rule_configured?(include_default:)
+      keys = [ task_key ]
+      keys << ProviderRoutingRule::DEFAULT_TASK_KEY if include_default
+      ProviderRoutingRule.where(scope_type: "repository", scope_id: repository_id, task_key: keys).exists? ||
+        ProviderRoutingRule.where(scope_type: "user", scope_id: effective_user&.id, task_key: keys).exists?
     end
   end
 end

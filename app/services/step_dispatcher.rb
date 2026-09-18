@@ -144,9 +144,9 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, URGENT_BLOCK_REASON)
 
-    refresh_default_workflow_agent_provider!(workflow)
+    refresh_default_workflow_agent_provider!(workflow, step: first)
 
-    provider_pause = ProviderAvailabilityPause.call(workflow: workflow)
+    provider_pause = ProviderAvailabilityPause.call(workflow: workflow, task_key: provider_task_key_for(first, workflow))
     apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
     if provider_pause.pause?
       backoff = provider_pause.retry_at ? provider_pause.retry_at - Time.current : START_BLOCKED_BACKOFF
@@ -505,11 +505,14 @@ class StepDispatcher
         return nil
       end
 
-      refresh_default_workflow_agent_provider!(workflow)
+      refresh_default_workflow_agent_provider!(workflow, step: step)
+      run_provider_candidate = run_provider_candidate_for(step, workflow)
 
-      if check_phase_admission && provider_availability_deferred?(step, workflow)
+      if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
         return nil
       end
+      workflow.reload
+      run_provider_candidate = run_provider_candidate_for(step, workflow)
 
       if check_phase_admission && phase_admission_deferred?(step, workflow)
         return nil
@@ -518,9 +521,9 @@ class StepDispatcher
       step.runs.create!(
         job: workflow.job,
         trigger_kind: workflow.trigger_kind,
-        agent_provider: workflow.agent_provider,
-        model: workflow.model,
-        effort_level: workflow.effort_level,
+        agent_provider: run_provider_candidate.provider,
+        model: run_provider_candidate.model,
+        effort_level: run_provider_candidate.effort_level,
         iteration: step.iteration,
         parent_session_id: parent_session_id,
         prompt: prompt
@@ -543,23 +546,76 @@ class StepDispatcher
     true
   end
 
-  def self.refresh_default_workflow_agent_provider!(workflow)
+  def self.refresh_default_workflow_agent_provider!(workflow, step: nil)
     return unless workflow.job.job_provider_setting_default?
     selection = workflow.artifact("agent_provider_selection")
     return if selection == "explicit"
     return if selection.blank? && workflow.agent_provider != workflow.job.agent_provider
     return if workflow_has_agentic_run?(workflow)
 
-    desired_provider = workflow.job.reload.workflow_agent_provider.presence
-    return if desired_provider.blank? || desired_provider == workflow.agent_provider
+    current_candidate = ProviderRouting::AvailabilitySelector.candidate(
+      provider: workflow.agent_provider.presence || workflow.job.workflow_agent_provider,
+      model: workflow.model,
+      effort_level: workflow.effort_level
+    )
+    task_key = provider_task_key_for(step, workflow)
+    routed_selection = if ProviderRouting::Resolver.rule_configured?(job: workflow.job.reload, task_key: task_key)
+      ProviderRouting::AvailabilitySelector.call(
+        job: workflow.job,
+        task_key: task_key,
+        original_candidate: current_candidate
+      )
+    end
+    desired_candidate = routed_selection&.candidate ||
+      ProviderRouting::AvailabilitySelector.candidate(
+        provider: workflow.job.workflow_agent_provider.presence,
+        model: workflow.model,
+        effort_level: workflow.effort_level
+      )
+    return if desired_candidate.provider.blank?
+    return if desired_candidate.provider == workflow.agent_provider &&
+      desired_candidate.model == workflow.model &&
+      desired_candidate.effort_level == workflow.effort_level
 
     artifacts = workflow.artifacts.to_h.merge(
       "agent_provider_selection" => "default",
       "agent_provider_refreshed_at" => Time.current.iso8601,
       "agent_provider_previous" => workflow.agent_provider,
-      "agent_provider_resolved" => desired_provider
+      "agent_provider_resolved" => desired_candidate.provider
     )
-    workflow.update!(agent_provider: desired_provider, artifacts: artifacts)
+    artifacts["agent_provider_routing_decision"] = routed_selection.artifact if routed_selection
+    workflow.update!(
+      agent_provider: desired_candidate.provider,
+      model: desired_candidate.model,
+      effort_level: desired_candidate.effort_level,
+      artifacts: artifacts
+    )
+  end
+
+  def self.run_provider_candidate_for(step, workflow)
+    current_candidate = ProviderRouting::AvailabilitySelector.candidate(
+      provider: workflow.agent_provider,
+      model: workflow.model,
+      effort_level: workflow.effort_level
+    )
+    return current_candidate unless step_specific_provider_task_key?(step, workflow)
+
+    ProviderRouting::AvailabilitySelector.call(
+      job: workflow.job,
+      task_key: step.kind,
+      original_candidate: current_candidate
+    ).candidate
+  end
+
+  def self.provider_task_key_for(step, workflow)
+    step_specific_provider_task_key?(step, workflow) ? step.kind : workflow.trigger_kind
+  end
+
+  def self.step_specific_provider_task_key?(step, workflow)
+    return false if step.blank?
+    return false unless Step::AGENTIC_KINDS.include?(step.kind)
+
+    ProviderRouting::Resolver.rule_configured?(job: workflow.job, task_key: step.kind, include_default: false)
   end
 
   def self.workflow_has_agentic_run?(workflow)
@@ -573,10 +629,10 @@ class StepDispatcher
     WorkUnits::Launcher.schedule_blocked_recheck!(workflow, gate_result)
   end
 
-  def self.provider_availability_deferred?(step, workflow)
+  def self.provider_availability_deferred?(step, workflow, candidate: nil)
     return false if step.runs.any?
 
-    provider_pause = ProviderAvailabilityPause.call(workflow: workflow)
+    provider_pause = ProviderAvailabilityPause.call(workflow: workflow, task_key: provider_task_key_for(step, workflow), candidate: candidate)
     apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
     unless provider_pause.pause?
       clear_start_blocked!(workflow, PROVIDER_AVAILABILITY_BLOCK_REASON)
@@ -762,10 +818,15 @@ class StepDispatcher
     workflow.with_lock do
       workflow.reload
       return if workflow.runs.exists?
-      return if workflow.agent_provider == provider_pause.failover.selected_provider
+      selected = provider_pause.failover.candidate
+      return if workflow.agent_provider == selected.provider &&
+        workflow.model == selected.model &&
+        workflow.effort_level == selected.effort_level
 
       workflow.update!(
-        agent_provider: provider_pause.failover.selected_provider,
+        agent_provider: selected.provider,
+        model: selected.model,
+        effort_level: selected.effort_level,
         artifacts: workflow.artifacts.to_h.merge("provider_failover_decision" => provider_pause.failover.artifact)
       )
     end

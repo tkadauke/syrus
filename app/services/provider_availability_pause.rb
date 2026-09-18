@@ -31,13 +31,15 @@ class ProviderAvailabilityPause
     end
   end
 
-  def self.call(workflow:, now: Time.current)
-    new(workflow: workflow, now: now).call
+  def self.call(workflow:, now: Time.current, task_key: nil, candidate: nil)
+    new(workflow: workflow, now: now, task_key: task_key, candidate: candidate).call
   end
 
-  def initialize(workflow:, now: Time.current)
+  def initialize(workflow:, now: Time.current, task_key: nil, candidate: nil)
     @workflow = workflow
     @now = now
+    @task_key = task_key || workflow.trigger_kind
+    @candidate = candidate
   end
 
   def call
@@ -58,10 +60,17 @@ class ProviderAvailabilityPause
 
   private
 
-  attr_reader :workflow, :now
+  attr_reader :workflow, :now, :task_key, :candidate
 
   def user = workflow.user
-  def provider = workflow.agent_provider.presence || workflow.job.workflow_agent_provider
+  def provider = current_candidate.provider
+  def current_candidate
+    @current_candidate ||= candidate || ProviderRouting::AvailabilitySelector.candidate(
+      provider: workflow.agent_provider.presence || workflow.job.workflow_agent_provider,
+      model: workflow.model,
+      effort_level: workflow.effort_level
+    )
+  end
 
   def admit
     Decision.new(
@@ -90,7 +99,17 @@ class ProviderAvailabilityPause
   end
 
   def decide_unavailable(reason, availability)
-    failover = ProviderFailoverSelector.call(workflow: workflow, reason: reason, availability: availability, now: now)
+    return pause(reason, availability) if workflow_started? && task_key.to_s == workflow.trigger_kind.to_s
+    return pause(reason, availability) unless ProviderRouting::Resolver.rule_configured?(job: workflow.job, task_key: task_key)
+
+    failover = ProviderRouting::AvailabilitySelector.call(
+      job: workflow.job,
+      task_key: task_key,
+      original_candidate: current_candidate,
+      reason: reason,
+      availability: availability,
+      now: now
+    )
     return Decision.new(
       pause: false,
       reason: reason,
@@ -103,6 +122,10 @@ class ProviderAvailabilityPause
     ) if failover.failover?
 
     pause(reason, availability, failover: failover)
+  end
+
+  def workflow_started?
+    workflow.runs.exists?
   end
 
   def threshold

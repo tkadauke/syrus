@@ -4,6 +4,11 @@ RSpec.describe ProviderRouting::Resolver do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 
+  before do
+    allow(AgentProviders.for("claude")).to receive(:available_models).and_return([])
+    allow(AgentProviders.for("codex")).to receive(:available_models).and_return([])
+  end
+
   def resolve(job, task_key: "ci_failure")
     described_class.call(job: job, task_key: task_key)
   end

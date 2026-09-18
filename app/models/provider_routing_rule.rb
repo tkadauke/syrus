@@ -60,7 +60,7 @@ class ProviderRoutingRule < ApplicationRecord
     provider_class = AgentProviders.for(provider)
     return unless provider_class.respond_to?(:available_models)
 
-    catalog = Array(provider_class.available_models)
+    catalog = Array(provider_class.available_models).map { |entry| entry.respond_to?(:id) ? entry.id : entry.to_s }
     return if catalog.blank?
     return if catalog.include?(model)
 
