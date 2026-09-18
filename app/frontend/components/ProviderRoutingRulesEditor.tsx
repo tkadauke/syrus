@@ -5,6 +5,7 @@ import { Select } from "./Select"
 import { Form } from "./ui"
 import { PanelMessage } from "./PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
+import { useT } from "../hooks/useT"
 import {
   createProviderRoutingRule,
   deleteProviderRoutingRule,
@@ -38,6 +39,7 @@ export function ProviderRoutingRulesEditor({
   options: ProviderRoutingOptions
   onSaved?: (payload: ProviderRoutingRulesPayload) => void
 }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<DraftRule>(() => emptyDraft(options))
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -94,23 +96,23 @@ export function ProviderRoutingRulesEditor({
                 <ol className="mt-1 list-decimal space-y-1 pl-5 text-xs text-text-secondary">
                   {rule.candidates.map((candidate, index) => (
                     <li key={`${rule.id}-${index}`}>
-                      {candidateLabel(candidate, options)}
+                      {candidateLabel(candidate, options, t)}
                     </li>
                   ))}
                 </ol>
               </div>
               <div className="flex gap-2">
-                <Button onClick={() => edit(rule)} size="sm" variant="secondary">Edit</Button>
-                <Button disabled={destroy.isPending} onClick={() => destroy.mutate(rule.id)} size="sm" variant="danger">Delete</Button>
+                <Button onClick={() => edit(rule)} size="sm" variant="secondary">{t("provider_routing.edit")}</Button>
+                <Button disabled={destroy.isPending} onClick={() => destroy.mutate(rule.id)} size="sm" variant="danger">{t("provider_routing.delete")}</Button>
               </div>
             </div>
           ))}
         </div>
-      ) : <p className="text-sm text-text-secondary">No routing rules yet.</p>}
+      ) : <p className="text-sm text-text-secondary">{t("provider_routing.empty")}</p>}
 
       <div className="space-y-3 rounded border border-border p-3">
         <Form.Field>
-          <Form.Label>Task key</Form.Label>
+          <Form.Label>{t("provider_routing.task_key")}</Form.Label>
           <Form.Input onChange={(event) => setDraft({ ...draft, task_key: event.target.value })} placeholder="default" type="text" value={draft.task_key} />
         </Form.Field>
         <div className="space-y-2">
@@ -122,16 +124,17 @@ export function ProviderRoutingRulesEditor({
               onRemove={() => setDraft({ ...draft, candidates: draft.candidates.filter((_, itemIndex) => itemIndex !== index) })}
               options={options}
               removable={draft.candidates.length > 1}
+              t={t}
             />
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setDraft({ ...draft, candidates: [...draft.candidates, emptyCandidate(options)] })} size="sm" variant="secondary">Add candidate</Button>
-          <Button disabled={save.isPending} onClick={() => save.mutate()} size="sm">{editingId ? "Save rule" : "Create rule"}</Button>
-          {editingId ? <Button onClick={() => { setDraft(emptyDraft(options)); setEditingId(null) }} size="sm" variant="secondary">Cancel</Button> : null}
+          <Button onClick={() => setDraft({ ...draft, candidates: [...draft.candidates, emptyCandidate(options)] })} size="sm" variant="secondary">{t("provider_routing.add_candidate")}</Button>
+          <Button disabled={save.isPending} onClick={() => save.mutate()} size="sm">{editingId ? t("provider_routing.save_rule") : t("provider_routing.create_rule")}</Button>
+          {editingId ? <Button onClick={() => { setDraft(emptyDraft(options)); setEditingId(null) }} size="sm" variant="secondary">{t("provider_routing.cancel")}</Button> : null}
         </div>
-        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save routing rule.")}</PanelMessage> : null}
-        {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete routing rule.")}</PanelMessage> : null}
+        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("provider_routing.save_error"))}</PanelMessage> : null}
+        {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("provider_routing.delete_error"))}</PanelMessage> : null}
       </div>
     </section>
   )
@@ -142,13 +145,15 @@ function RoutingCandidateRow({
   onChange,
   onRemove,
   options,
-  removable
+  removable,
+  t
 }: {
   candidate: ProviderRoutingCandidate
   onChange: (candidate: ProviderRoutingCandidate) => void
   onRemove: () => void
   options: ProviderRoutingOptions
   removable: boolean
+  t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const provider = providerOption(options, candidate.provider)
   return (
@@ -157,14 +162,14 @@ function RoutingCandidateRow({
         {options.agent_providers.map((option) => <option disabled={option.configured === false} key={option.value} value={option.value}>{option.label}</option>)}
       </Select>
       <Select onChange={(event) => onChange({ ...candidate, model: event.target.value || null })} value={candidate.model || ""}>
-        <option value="">Provider default model</option>
+        <option value="">{t("provider_routing.provider_default_model")}</option>
         {(provider?.models || []).map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
       </Select>
       <Select onChange={(event) => onChange({ ...candidate, effort_level: event.target.value || null })} value={candidate.effort_level || ""}>
-        <option value="">Default effort</option>
-        {options.effort_levels.map((effort) => <option key={effort.value} value={effort.value}>{effort.label}</option>)}
+        <option value="">{t("provider_routing.default_effort")}</option>
+        {options.effort_levels.map((effort) => <option key={effort.value} value={effort.value}>{effortLabel(effort.value, effort.label, t)}</option>)}
       </Select>
-      <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">Remove</Button>
+      <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">{t("provider_routing.remove")}</Button>
     </div>
   )
 }
@@ -188,12 +193,17 @@ function providerOption(options: ProviderRoutingOptions, provider: string) {
   return options.agent_providers.find((option) => option.value === provider)
 }
 
-function candidateLabel(candidate: ProviderRoutingCandidate, options: ProviderRoutingOptions) {
+function candidateLabel(candidate: ProviderRoutingCandidate, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
   const provider = providerOption(options, candidate.provider)
   const model = provider?.models.find((entry) => entry.id === candidate.model)
+  const effort = options.effort_levels.find((entry) => entry.value === candidate.effort_level)
   return [
     provider?.label || candidate.provider,
     model ? model.label : candidate.model,
-    candidate.effort_level ? `${candidate.effort_level} effort` : null
+    candidate.effort_level ? t("provider_routing.effort_candidate", { effort: effortLabel(candidate.effort_level, effort?.label || candidate.effort_level, t) }) : null
   ].filter(Boolean).join(" · ")
+}
+
+function effortLabel(value: string, fallback: string, t: (key: string, options?: Record<string, unknown>) => string) {
+  return t(`provider_routing.effort_levels.${value}`, { defaultValue: fallback })
 }

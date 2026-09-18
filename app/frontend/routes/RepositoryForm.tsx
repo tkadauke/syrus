@@ -420,11 +420,11 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           {mode === "edit" && payload.repository.id ? (
             <ProviderRoutingRulesEditor
               basePath={`/api/v1/app/repositories/${payload.repository.id}/provider_routing_rules`}
-              description="Repository-scoped task rules override user routing rules for this repository."
+              description={t("provider_routing.repository_description")}
               options={payload.provider_routing_options}
               queryKey={["repositories", mode, String(payload.repository.id)]}
               rules={payload.provider_routing_rules}
-              title="Provider routing rules"
+              title={t("provider_routing.title")}
             />
           ) : null}
 

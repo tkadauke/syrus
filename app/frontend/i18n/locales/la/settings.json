@@ -1057,6 +1057,32 @@
     "passkeys_load_error": "Claves transituum onerari non poterant.",
     "passkeys_remove_error": "Clavis transitus removeri non potuit."
   },
+  "provider_routing": {
+    "title": "Regulae itineris praebitorum",
+    "account_description": "Candidatos subsidiarios ordinatos per clavem muneris elige pro operibus quae defectus rationis tuae utuntur.",
+    "repository_description": "Regulae muneris huius repositorii regulas itineris usoris superant.",
+    "updated_notice": "Regulae itineris praebitorum renovatae sunt.",
+    "empty": "Nullae regulae itineris adhuc sunt.",
+    "task_key": "Clavis muneris",
+    "edit": "Edere",
+    "delete": "Delere",
+    "add_candidate": "Candidatum adde",
+    "save_rule": "Regulam serva",
+    "create_rule": "Regulam crea",
+    "cancel": "Cancella",
+    "remove": "Remove",
+    "provider_default_model": "Exemplar defectus praebitoris",
+    "default_effort": "Conatus defectus",
+    "save_error": "Regula itineris servari non potuit.",
+    "delete_error": "Regula itineris deleri non potuit.",
+    "effort_candidate": "Conatus {{effort}}",
+    "effort_levels": {
+      "none": "Nullus",
+      "low": "Humilis",
+      "medium": "Medius",
+      "high": "Altus"
+    }
+  },
   "connected_platforms": {
     "aria": "Connected Platforms",
     "heading": "Connected Platforms",

@@ -802,10 +802,10 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
   ]
   const selectedOption = options.find((option) => option.value === draft.jobProviderSetting)
   const effortOptions = payload.job.provider_routing_options?.effort_levels || [
-    { value: "none", label: "None" },
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" }
+    { value: "none", label: t("provider_effort_level_none") },
+    { value: "low", label: t("provider_effort_level_low") },
+    { value: "medium", label: t("provider_effort_level_medium") },
+    { value: "high", label: t("provider_effort_level_high") }
   ]
 
   return (
@@ -828,31 +828,31 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
       {draft.jobProviderSetting !== "default" ? (
         <span className="grid gap-1 sm:grid-cols-2">
           <Select
-            aria-label="Model"
+            aria-label={t("provider_model_label")}
             className="max-w-full py-0.5 pl-1.5 pr-6 text-xs"
             disabled={mutation.isPending}
             fullWidth={false}
             onChange={(event) => setDraft({ ...draft, model: event.target.value })}
             value={draft.model}
           >
-            <option value="">Provider default model</option>
+            <option value="">{t("provider_default_model")}</option>
             {(selectedOption?.models || []).map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
           </Select>
           <Select
-            aria-label="Effort"
+            aria-label={t("provider_effort_label")}
             className="max-w-full py-0.5 pl-1.5 pr-6 text-xs"
             disabled={mutation.isPending}
             fullWidth={false}
             onChange={(event) => setDraft({ ...draft, effortLevel: event.target.value })}
             value={draft.effortLevel}
           >
-            <option value="">Default effort</option>
-            {effortOptions.map((effort) => <option key={effort.value} value={effort.value}>{effort.label}</option>)}
+            <option value="">{t("provider_default_effort")}</option>
+            {effortOptions.map((effort) => <option key={effort.value} value={effort.value}>{t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}</option>)}
           </Select>
-          <Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()} size="sm" variant="secondary">Save provider override</Button>
+          <Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()} size="sm" variant="secondary">{t("provider_override_save")}</Button>
         </span>
       ) : (
-        <Button disabled={mutation.isPending || currentSetting === "default"} onClick={() => mutation.mutate()} size="sm" variant="secondary">Use default routing</Button>
+        <Button disabled={mutation.isPending || currentSetting === "default"} onClick={() => mutation.mutate()} size="sm" variant="secondary">{t("provider_override_default")}</Button>
       )}
       <span className="text-xs text-gray-500 dark:text-gray-400" id={`job-${payload.job.id}-provider-help`}>
         {t("provider_setting_help", { provider: agentProviderLabel(payload, payload.job.agent_provider || "") })}

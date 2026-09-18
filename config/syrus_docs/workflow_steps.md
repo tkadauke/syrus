@@ -277,6 +277,22 @@ pins remain the most specific resolver input, so they are not overridden by
 user/repository routing rules. Chat providers are not switched by workflow
 routing or by `SwitchChatProviderJob`.
 
+Operators edit routing rules from the Agent section of account settings and
+from the Automation section of repository settings. Account rules apply to Jobs
+that use the user's defaults; repository rules override matching account rules
+for that repository and are gated by the same repository-admin permissions as
+other repository automation settings. Each rule has a `task_key` and an ordered
+candidate list. Candidate providers come from the enabled agent-provider plugin
+catalog, model choices come from that provider's `.available_models`, and
+`effort_level` can be left blank to use the provider default.
+
+Direct Job creation and Job detail both expose the deeper job-level override.
+Choosing a provider there writes the Job's `job_provider_setting`,
+`agent_provider`, optional `model`, and optional `effort_level` directly; "Use
+default routing" clears that explicit pin back to the routing resolver. Retry
+with provider remains a one-shot workflow override and does not rewrite the
+Job-level setting.
+
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
 usage instead of relying solely on reactive error-text classification. It makes a
