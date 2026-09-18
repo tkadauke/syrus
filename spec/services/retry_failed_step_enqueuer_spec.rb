@@ -82,7 +82,7 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result.run.step).to eq(failed_grader)
   end
 
-  it "retries every failed grader in the batch, not just the one closest to the collect barrier" do
+  it "retries every failed grader in the batch under distributed-projection wiring (every grader's next_step is the collect barrier)" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "retry")
     workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
@@ -136,6 +136,69 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(second_failed_grader.runs).not_to be_empty
     expect(passing_grader.reload).to be_succeeded
     expect(passing_grader.runs).to be_empty
+    expect(collect.reload).to be_queued
+  end
+
+  it "retries every failed grader under the default legacy serial-chain wiring, even when the primary failed grader's next_step is a later succeeded sibling" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+
+    # GraderFanout's default (non-distributed) wiring chains graders serially
+    # -- g1.next_step = g2, g2.next_step = g3, and only the LAST grader's
+    # next_step is grader_collect. failed_grader_before_collect picks the
+    # highest-position *failed* grader as primary, which here is g2 -- a
+    # middle grader whose own next_step points at g3 (succeeded), not at
+    # grader_collect.
+    first_failed_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 5,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "migration-lint", "required" => true }
+    )
+    second_failed_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 6,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "frontend-lint", "required" => true }
+    )
+    later_passing_grader = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 7,
+      state: "succeeded",
+      iteration: 1,
+      loop_id: "grade-loop",
+      details: { "name" => "feature-slugs", "required" => true }
+    )
+    collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 8,
+      state: "failed",
+      iteration: 1,
+      loop_id: "grade-loop"
+    )
+    first_failed_grader.update!(next_step: second_failed_grader)
+    second_failed_grader.update!(next_step: later_passing_grader)
+    later_passing_grader.update!(next_step: collect)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.step).to eq(second_failed_grader)
+    expect(first_failed_grader.reload).to be_queued
+    expect(second_failed_grader.reload).to be_queued
+    expect(first_failed_grader.runs).not_to be_empty
+    expect(second_failed_grader.runs).not_to be_empty
+    expect(later_passing_grader.reload).to be_succeeded
+    expect(later_passing_grader.runs).to be_empty
     expect(collect.reload).to be_queued
   end
 
