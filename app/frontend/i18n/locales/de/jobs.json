@@ -465,7 +465,7 @@
   "review_version_comments_other": "{{count}} Kommentare",
   "review_version_latest": "Neueste",
   "review_version_historical": "Historisch",
-  "review_version_historical_badge": "v{{version}} historisch",
+  "review_version_section_current": "Aktuell angezeigt",
   "review_version_time_unknown": "Zeit unbekannt",
   "review_version_unknown_trigger": "unbekannter Auslöser",
   "review_version_workflow": "Workflow {{id}}",
