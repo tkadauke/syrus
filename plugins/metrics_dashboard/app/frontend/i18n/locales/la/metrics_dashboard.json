@@ -29,6 +29,7 @@
     "runs_total": "Cursus, per statum",
     "worker_cpu": "Usus CPU operariorum, per hospitem",
     "worker_memory": "Usus memoriae operariorum, per hospitem",
+    "worker_disk": "Usus disci operariorum, per hospitem",
     "active_agent_runs": "Cursus agentum activi",
     "max_concurrent_agent_runs": "Maximus numerus cursuum agentum simul",
     "admission_decisions": "Decisiones admissionis, per decisionem",

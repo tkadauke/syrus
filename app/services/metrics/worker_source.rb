@@ -20,6 +20,10 @@ module Metrics
       latest_samples.transform_values(&:memory_used_percent).compact
     end
 
+    def worker_disk_percentages
+      latest_samples.transform_values(&:data_root_used_percent).compact
+    end
+
     def active_agent_run_count
       Run.running_agent_runs.count
     end

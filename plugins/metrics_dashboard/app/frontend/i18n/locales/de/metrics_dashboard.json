@@ -29,6 +29,7 @@
     "runs_total": "Runs, nach Status",
     "worker_cpu": "Worker-CPU-Auslastung, nach Host",
     "worker_memory": "Worker-Speicherauslastung, nach Host",
+    "worker_disk": "Worker-Festplattenauslastung, nach Host",
     "active_agent_runs": "Aktive Agent-Runs",
     "max_concurrent_agent_runs": "Maximale gleichzeitige Agent-Runs",
     "admission_decisions": "Zulassungsentscheidungen, nach Entscheidung",
