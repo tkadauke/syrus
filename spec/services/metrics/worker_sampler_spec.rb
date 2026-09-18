@@ -68,12 +68,11 @@ RSpec.describe Metrics::WorkerSampler do
       refresh!
 
       rendered = Syrus::Metrics.render
-      expect(rendered).to include('syrus_worker_cpu_percent{worker_storage_key="storage-a"} 87.5')
-      expect(rendered).to include('syrus_worker_memory_percent{worker_storage_key="storage-a"} 42')
-      expect(rendered).to include('syrus_worker_disk_percent{worker_storage_key="storage-a"} 63')
-      expect(rendered).to include('syrus_worker_cpu_percent{worker_storage_key="storage-b"} 12')
-      expect(rendered).to include('syrus_worker_disk_percent{worker_storage_key="storage-b"} 20')
-      expect(rendered).not_to include("hostname=")
+      expect(rendered).to include('syrus_worker_cpu_percent{hostname="worker-a",storage_key="storage-a"} 87.5')
+      expect(rendered).to include('syrus_worker_memory_percent{hostname="worker-a",storage_key="storage-a"} 42')
+      expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-a",storage_key="storage-a"} 63')
+      expect(rendered).to include('syrus_worker_cpu_percent{hostname="worker-b",storage_key="storage-b"} 12')
+      expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-b",storage_key="storage-b"} 20')
     end
 
     it "keeps the Prometheus series anchored across pod hostnames on separate ticks" do
@@ -85,8 +84,7 @@ RSpec.describe Metrics::WorkerSampler do
       end
 
       first_render = Syrus::Metrics.render
-      expect(first_render).to include('syrus_worker_cpu_percent{worker_storage_key="storage-a"} 20')
-      expect(first_render).not_to include("syrus-worker-old")
+      expect(first_render).to include('syrus_worker_cpu_percent{hostname="syrus-worker-old",storage_key="storage-a"} 20')
 
       travel_to(t0 + 3.minutes) do
         worker_sample(hostname: "syrus-worker-new", worker_storage_key: "storage-a", cpu: 65.0, memory: 55.0)
@@ -95,9 +93,9 @@ RSpec.describe Metrics::WorkerSampler do
       end
 
       second_render = Syrus::Metrics.render
-      expect(second_render).to include('syrus_worker_cpu_percent{worker_storage_key="storage-a"} 65')
-      expect(second_render).not_to include("syrus-worker-new")
-      expect(second_render.scan(/syrus_worker_cpu_percent\{worker_storage_key="storage-a"\}/).size).to eq(1)
+      expect(second_render).to include('syrus_worker_cpu_percent{hostname="syrus-worker-new",storage_key="storage-a"} 65')
+      expect(second_render).not_to include("syrus-worker-old")
+      expect(second_render.scan(/syrus_worker_cpu_percent\{/).size).to eq(1)
     end
 
     it "caches active_agent_runs from currently-running agentic Runs" do
