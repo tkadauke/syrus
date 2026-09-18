@@ -1,19 +1,11 @@
-import { useMutation } from "@tanstack/react-query"
-import { type FormEvent, type RefObject, useMemo, useState } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
-import { type ChatMessageAttachmentInput, createChat } from "@app/api/chats"
-import { Button } from "@app/components/Button"
-import { CloseIcon } from "@app/components/CloseIcon"
-import { ImageAnnotationModal, type Shape } from "@app/components/ImageAnnotationModal"
-import { Modal } from "@app/components/Modal"
-import { Notice } from "@app/components/ui"
-import { errorMessage } from "@app/lib/errorMessage"
-import { routePrefix, withRoutePrefix } from "@app/lib/routing"
+import { type RefObject, useCallback } from "react"
+import type { Shape } from "@app/components/ImageAnnotationModal"
 import { useT } from "@app/hooks/useT"
 import { resolveExampleResultBody } from "@app/pluginToolCards"
 import type { ToolOwnerType, ToolPresentationEntry, ToolPresentationExample, ToolSourceType } from "@app/toolPresentationRegistry"
-import { createToolCardJob } from "../api/toolCardJobs"
-import { rendererTypeFor, type RendererType, type ViewportPresetId } from "../toolCardCatalogTypes"
+import { CatalogFeedbackDialog } from "../catalog/CatalogFeedbackDialog"
+import type { ViewportPresetId } from "../catalog/catalogViewport"
+import { rendererTypeFor, type RendererType } from "../toolCardCatalogTypes"
 
 // The Tool Card Catalog's "Discuss this card" feedback flow: capture a
 // screenshot of the currently rendered example preview, let the operator
@@ -23,14 +15,6 @@ import { rendererTypeFor, type RendererType, type ViewportPresetId } from "../to
 // metadata) to a brand new chat -- so the assistant on the other end never
 // needs the operator to hand-paste JSON to know what card, example, and
 // payload they're looking at.
-
-type Html2Canvas = typeof import("html2canvas-pro").default
-
-let html2canvasPromise: Promise<Html2Canvas> | null = null
-function loadHtml2Canvas() {
-  html2canvasPromise ||= import("html2canvas-pro").then((module) => module.default)
-  return html2canvasPromise
-}
 
 export type ToolCardFeedbackMetadata = {
   tool_name: string
@@ -104,8 +88,6 @@ export function buildToolCardFeedbackPrompt(promptText: string, metadata: ToolCa
   return [heading, summary, jsonBlock].join("\n\n")
 }
 
-type ScreenshotState = { dataUrl: string; originalDataUrl: string; shapes: Shape[] }
-
 export type ToolCardDiscussButtonProps = {
   deepLink: string
   entry: ToolPresentationEntry
@@ -116,216 +98,34 @@ export type ToolCardDiscussButtonProps = {
 
 export function ToolCardDiscussButton({ deepLink, entry, example, previewRef, viewportPresetId }: ToolCardDiscussButtonProps) {
   const { t } = useT("syrus_dev")
-  const navigate = useNavigate()
-  const location = useLocation()
-
-  const [open, setOpen] = useState(false)
-  const [capturing, setCapturing] = useState(false)
-  const [captureError, setCaptureError] = useState<string | null>(null)
-  const [screenshot, setScreenshot] = useState<ScreenshotState | null>(null)
-  const [annotating, setAnnotating] = useState(false)
-  const [promptText, setPromptText] = useState("")
-
-  const startChat = useMutation({
-    mutationFn: (input: { attachments: ChatMessageAttachmentInput[]; text: string }) => createChat({ attachments: input.attachments, text: input.text }),
-    onSuccess: (payload) => {
-      setOpen(false)
-      navigate(withRoutePrefix(payload.redirect_to, routePrefix(location.pathname)))
-    }
-  })
-
-  // Skips the chat round-trip entirely: same screenshot + prompt, but
-  // lands directly as a direct Job so the operator doesn't have to relay
-  // "yes, go ahead and do this" back to an assistant that already has
-  // everything it needs.
-  const createJob = useMutation({
-    mutationFn: (input: { prompt: string; screenshot: { name: string; mimeType: string; dataUrl: string } | null }) =>
-      createToolCardJob({ prompt: input.prompt, screenshot: input.screenshot }),
-    onSuccess: (payload) => {
-      setOpen(false)
-      navigate(withRoutePrefix(payload.redirect_to, routePrefix(location.pathname)))
-    }
-  })
-
-  const metadata = useMemo(
-    () => buildToolCardFeedbackMetadata(entry, example, viewportPresetId, deepLink, screenshot?.shapes ?? []),
-    [entry, example, viewportPresetId, deepLink, screenshot]
+  const buildMetadata = useCallback(
+    (annotations: Shape[]) => buildToolCardFeedbackMetadata(entry, example, viewportPresetId, deepLink, annotations),
+    [entry, example, viewportPresetId, deepLink]
   )
 
-  async function openDialog() {
-    startChat.reset()
-    createJob.reset()
-    setPromptText("")
-    setScreenshot(null)
-    setCaptureError(null)
-    setAnnotating(false)
-    setOpen(true)
-    setCapturing(true)
-
-    try {
-      const node = previewRef.current
-      if (!node) throw new Error("Preview element is not mounted")
-
-      const html2canvas = await loadHtml2Canvas()
-      const canvas = await html2canvas(node, { useCORS: true })
-      const dataUrl = canvas.toDataURL("image/png")
-      setScreenshot({ dataUrl, originalDataUrl: dataUrl, shapes: [] })
-    } catch (error) {
-      console.error(error)
-      setCaptureError(t("tool_cards.discuss.capture_failed"))
-    } finally {
-      setCapturing(false)
-    }
-  }
-
-  function closeDialog() {
-    setOpen(false)
-    setAnnotating(false)
-  }
-
-  function applyAnnotation(annotatedDataUrl: string, shapes: Shape[]) {
-    setScreenshot((current) => (current ? { ...current, dataUrl: annotatedDataUrl, shapes } : current))
-    setAnnotating(false)
-  }
-
-  const promptIsBlank = promptText.trim().length === 0
-
-  // Mirrors BugReportButton's layout: the form's primary submit action is the
-  // immediate, no-review-step one (there: file the bug report; here: create
-  // the job directly), while starting a chat is a secondary, explicitly
-  // clicked action -- never triggered by pressing Enter in the textarea.
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (promptIsBlank) return
-
-    const prompt = buildToolCardFeedbackPrompt(promptText, metadata)
-    const screenshotInput = screenshot
-      ? { dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }
-      : null
-    createJob.mutate({ prompt, screenshot: screenshotInput })
-  }
-
-  function startDiscussChat() {
-    const text = buildToolCardFeedbackPrompt(promptText, metadata)
-    const attachments: ChatMessageAttachmentInput[] = screenshot
-      ? [{ dataUrl: screenshot.dataUrl, mimeType: "image/png", name: `${entry.toolName}-tool-card.png` }]
-      : []
-    startChat.mutate({ attachments, text })
-  }
-
   return (
-    <>
-      <Button onClick={() => void openDialog()} size="sm" type="button" variant="secondary">
-        {t("tool_cards.discuss.trigger")}
-      </Button>
-
-      {open && annotating && screenshot ? (
-        <ImageAnnotationModal
-          dataUrl={screenshot.dataUrl}
-          initialShapes={screenshot.shapes}
-          name={`${entry.toolName}-tool-card.png`}
-          onClose={() => setAnnotating(false)}
-          onDone={applyAnnotation}
-          originalDataUrl={screenshot.originalDataUrl}
-        />
-      ) : null}
-
-      {open && !annotating ? (
-        <Modal
-          className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col gap-4 overflow-y-auto rounded-lg bg-surface p-5 shadow-xl"
-          label={t("tool_cards.discuss.modal_aria", { tool: entry.displayLabel })}
-          onClose={closeDialog}
-          open
-        >
-          <form className="space-y-4" onSubmit={submit}>
-            <div className="flex items-start justify-between gap-4">
-              <h2 className="text-lg font-semibold text-text-primary">{t("tool_cards.discuss.heading", { tool: entry.displayLabel })}</h2>
-              <button
-                aria-label={t("tool_cards.discuss.close")}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-raised"
-                onClick={closeDialog}
-                type="button"
-              >
-                <CloseIcon className="h-5 w-5" />
-              </button>
-            </div>
-
-            {capturing ? <p className="text-sm text-text-secondary">{t("tool_cards.discuss.capturing")}</p> : null}
-            {captureError ? (
-              <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" role="alert">
-                {captureError}
-              </p>
-            ) : null}
-
-            {screenshot ? (
-              <div className="space-y-2">
-                <img
-                  alt={t("tool_cards.discuss.screenshot_alt", { tool: entry.displayLabel })}
-                  className="max-h-64 w-full rounded border border-border object-contain"
-                  src={screenshot.dataUrl}
-                />
-                <div className="flex justify-end">
-                  <Button onClick={() => setAnnotating(true)} size="sm" type="button" variant="secondary">
-                    {t("tool_cards.discuss.annotate")}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            <label className="block text-sm font-medium text-text-primary">
-              {t("tool_cards.discuss.prompt_label")}
-              <textarea
-                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
-                onChange={(event) => setPromptText(event.target.value)}
-                placeholder={t("tool_cards.discuss.prompt_placeholder")}
-                rows={4}
-                value={promptText}
-              />
-            </label>
-
-            <details className="group rounded border border-border">
-              <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-raised">
-                {t("tool_cards.discuss.metadata_summary")}
-              </summary>
-              <pre className="max-h-48 overflow-auto border-t border-border px-3 py-2 text-xs text-text-secondary">
-                {JSON.stringify(metadata, null, 2)}
-              </pre>
-            </details>
-
-            {startChat.isError ? (
-              <Notice className="px-3 py-2 text-sm" role="alert" tone="danger">
-                {errorMessage(startChat.error, t("tool_cards.discuss.chat_failed"))}
-              </Notice>
-            ) : null}
-            {createJob.isError ? (
-              <Notice className="px-3 py-2 text-sm" role="alert" tone="danger">
-                {errorMessage(createJob.error, t("tool_cards.discuss.job_failed"))}
-              </Notice>
-            ) : null}
-
-            <div className="flex justify-end gap-2 border-t border-border pt-4">
-              <Button onClick={closeDialog} type="button" variant="secondary">
-                {t("tool_cards.discuss.cancel")}
-              </Button>
-              <Button
-                disabled={startChat.isPending || createJob.isPending || capturing}
-                onClick={startDiscussChat}
-                type="button"
-                variant="secondary"
-              >
-                {startChat.isPending ? t("tool_cards.discuss.starting") : t("tool_cards.discuss.submit")}
-              </Button>
-              <Button
-                disabled={startChat.isPending || createJob.isPending || capturing || promptIsBlank}
-                title={promptIsBlank ? t("tool_cards.discuss.create_job_requires_prompt") : undefined}
-                type="submit"
-              >
-                {createJob.isPending ? t("tool_cards.discuss.creating_job") : t("tool_cards.discuss.create_job")}
-              </Button>
-            </div>
-          </form>
-        </Modal>
-      ) : null}
-    </>
+    <CatalogFeedbackDialog
+      attachmentName={`${entry.toolName}-tool-card.png`}
+      buildMetadata={buildMetadata}
+      buildPrompt={buildToolCardFeedbackPrompt}
+      copy={{
+        trigger: t("tool_cards.discuss.trigger"),
+        modalAria: t("tool_cards.discuss.modal_aria", { tool: entry.displayLabel }),
+        heading: t("tool_cards.discuss.heading", { tool: entry.displayLabel }),
+        close: t("tool_cards.discuss.close"),
+        capturing: t("tool_cards.discuss.capturing"),
+        captureFailed: t("tool_cards.discuss.capture_failed"),
+        screenshotAlt: t("tool_cards.discuss.screenshot_alt", { tool: entry.displayLabel }),
+        annotate: t("tool_cards.discuss.annotate"),
+        promptLabel: t("tool_cards.discuss.prompt_label"),
+        promptPlaceholder: t("tool_cards.discuss.prompt_placeholder"),
+        metadataSummary: t("tool_cards.discuss.metadata_summary"),
+        chatFailed: t("tool_cards.discuss.chat_failed"),
+        cancel: t("tool_cards.discuss.cancel"),
+        submit: t("tool_cards.discuss.submit"),
+        starting: t("tool_cards.discuss.starting")
+      }}
+      previewRef={previewRef}
+    />
   )
 }

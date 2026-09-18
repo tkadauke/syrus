@@ -19,7 +19,7 @@ import { ToolCardDiscussButton } from "../components/ToolCardDiscussDialog"
 import { CatalogExampleSelector } from "../catalog/CatalogExampleSelector"
 import { buildCatalogFilterLink, catalogFilterTreeFromSearch, catalogFiltersFromSearch } from "../catalog/catalogFilterLink"
 import { catalogAnchorId, useCatalogDeepLinkScroll } from "../catalog/catalogDeepLink"
-import { CatalogViewportSwitcher, viewportPresetFromSearch, type ViewportPresetId } from "../catalog/catalogViewport"
+import { CatalogViewportFrame, CatalogViewportSwitcher, viewportPresetFromSearch, type ViewportPresetId } from "../catalog/catalogViewport"
 import { rendererTypeFor } from "../toolCardCatalogTypes"
 
 // The Tool Card Catalog: every registered tool presentation (core/plugin MCP
@@ -296,22 +296,13 @@ function ToolCatalogEntry({
             </div>
 
             {group ? (
-              <div className="overflow-x-auto">
-                {/* Explicit `width`, not `max-width`: a block element with only
-                    `max-width` never grows past its parent's actual available
-                    width, so a preset wider than the ambient page content
-                    (e.g. "wide desktop" under the page's max-w-[96rem] cap)
-                    would silently collapse to the container's natural width
-                    instead of applying the chosen width and scrolling. */}
-                <div
-                  aria-label={t("tool_cards.viewport_frame_aria", { width: previewWidth })}
-                  className="mx-auto rounded-[var(--radius-control)] border border-dashed border-border bg-surface p-3"
-                  ref={previewFrameRef}
-                  style={{ width: `${previewWidth}px` }}
-                >
-                  <ToolGroup item={group} />
-                </div>
-              </div>
+              <CatalogViewportFrame
+                ariaLabel={t("tool_cards.viewport_frame_aria", { width: previewWidth })}
+                ref={previewFrameRef}
+                width={previewWidth}
+              >
+                <ToolGroup item={group} />
+              </CatalogViewportFrame>
             ) : null}
           </>
         )}

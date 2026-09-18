@@ -1,8 +1,38 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import html2canvasModule from "html2canvas-pro"
+import type { ReactElement } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import * as chatsApi from "@app/api/chats"
 import type { ArtifactRendererEntry } from "@app/artifactRendererRegistry"
-import { AdminArtifactRenderers, ArtifactCatalogEntry, payloadSummary } from "./AdminArtifactRenderers"
+import {
+  AdminArtifactRenderers,
+  ArtifactCatalogEntry,
+  buildArtifactRendererFeedbackMetadata,
+  buildArtifactRendererFeedbackPrompt,
+  payloadSummary,
+  type ArtifactRendererFeedbackMetadata
+} from "./AdminArtifactRenderers"
+
+const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }))
+
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router-dom")>()
+  return { ...actual, useNavigate: () => mockNavigate }
+})
+
+vi.mock("@app/api/chats", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@app/api/chats")>()
+  return { ...actual, createChat: vi.fn() }
+})
+
+vi.mock("html2canvas-pro", () => ({
+  default: vi.fn()
+}))
+
+const mockCreateChat = vi.mocked(chatsApi.createChat)
+const mockHtml2canvas = vi.mocked(html2canvasModule)
 
 function fakeT(key: string, options?: Record<string, unknown>): string {
   if (key === "artifact_renderers.payload_summary_empty") return "empty"
@@ -22,7 +52,68 @@ describe("payloadSummary", () => {
   })
 })
 
+describe("artifact renderer feedback metadata", () => {
+  it("carries renderer, artifact, viewport, deep-link, annotation, metadata, and full payload context", () => {
+    const artifact = provenanceEntry.examples[0].artifact
+    const shapes = [ { id: "s1", kind: "text" as const, x: 1, y: 2, value: "check table", color: "#ef4444" } ]
+
+    const metadata = buildArtifactRendererFeedbackMetadata(
+      provenanceEntry,
+      artifact,
+      "with_provenance",
+      "tablet",
+      "https://syrus.test/admin/artifact_renderers?renderer=synthetic_provenance&example=with_provenance#renderer-synthetic_provenance",
+      shapes
+    )
+
+    expect(metadata).toEqual<ArtifactRendererFeedbackMetadata>({
+      catalog_deep_link: "https://syrus.test/admin/artifact_renderers?renderer=synthetic_provenance&example=with_provenance#renderer-synthetic_provenance",
+      renderer_type: "synthetic_provenance",
+      display_label: "Synthetic Provenance Renderer",
+      artifact_type: "synthetic_artifact",
+      owner_type: "core",
+      plugin_name: null,
+      fallback_only: false,
+      selected_example_id: "with_provenance",
+      selected_viewport_preset: "tablet",
+      artifact_metadata: {
+        type: "synthetic_artifact",
+        title: "Synthetic title",
+        created_at: "2026-09-02T00:00:00Z",
+        renderer_type: null,
+        workflow_id: 555,
+        run_id: 777,
+        step_id: 888,
+        trigger_kind: "initial",
+        base_sha: "abc123",
+        head_sha: "def456",
+        diff_review_version_id: 42
+      },
+      selected_payload: { a: 1, b: 2, c: 3 },
+      full_artifact: artifact,
+      annotations: shapes
+    })
+  })
+
+  it("builds a readable prompt before the raw JSON block", () => {
+    const metadata = buildArtifactRendererFeedbackMetadata(provenanceEntry, provenanceEntry.examples[0].artifact, "with_provenance", "desktop", "https://syrus.test/admin/artifact_renderers")
+    const text = buildArtifactRendererFeedbackPrompt("The layout breaks on mobile.", metadata)
+
+    expect(text.startsWith("The layout breaks on mobile.")).toBe(true)
+    expect(text).toContain("Renderer: Synthetic Provenance Renderer (`synthetic_provenance`)")
+    expect(text).toContain("Artifact type: synthetic_artifact")
+    expect(text).toContain("```json")
+    expect(text).toContain(JSON.stringify(metadata, null, 2))
+  })
+})
+
 describe("AdminArtifactRenderers", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear()
+    mockCreateChat.mockReset()
+    mockHtml2canvas.mockReset()
+  })
+
   it("renders the heading, filter bar, and an empty state when nothing matches", () => {
     renderRoute("/admin/artifact_renderers?artifact_type=zzz_does_not_exist_zzz")
 
@@ -133,6 +224,80 @@ describe("AdminArtifactRenderers", () => {
     expect(within(switcher).getByRole("tab", { name: "Phone (390px)", selected: true })).toBeInTheDocument()
   })
 
+  it("places a shared 'Discuss this renderer' button next to the rendered preview", () => {
+    renderRoute("/admin/artifact_renderers?renderer_type=data_table")
+
+    const region = screen.getByRole("region", { name: "Data table" })
+    const discussButton = within(region).getByRole("button", { name: "Discuss this renderer" })
+    const preview = within(region).getByLabelText(/Renderer preview constrained to/)
+
+    expect(region).toContainElement(discussButton)
+    expect(region).toContainElement(preview)
+  })
+
+  it("applies each shared viewport preset's width as an explicit inline width", () => {
+    renderRoute("/admin/artifact_renderers?renderer_type=data_table")
+
+    const region = screen.getByRole("region", { name: "Data table" })
+    const frame = () => within(region).getByLabelText(/Renderer preview constrained to/)
+
+    expect(frame().style.width).toBe("1280px")
+
+    fireEvent.click(screen.getByRole("tab", { name: "Wide desktop (1600px)" }))
+    expect(frame().style.width).toBe("1600px")
+    expect(frame().style.maxWidth).toBe("")
+  })
+
+  it("carries screenshot, prompt, deep link, renderer metadata, artifact metadata, and full payload into a new chat", async () => {
+    mockHtml2canvas.mockResolvedValue({ toDataURL: () => "data:image/png;base64,YXJ0aWZhY3Q=" } as unknown as HTMLCanvasElement)
+    mockCreateChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/99", chat: {} } as unknown as chatsApi.ChatCreatedPayload)
+
+    renderRoute("/admin/artifact_renderers?renderer_type=erd_diagram&viewport=phone")
+
+    const region = screen.getByRole("region", { name: "Rails schema ERD" })
+    fireEvent.click(within(region).getByRole("button", { name: "Discuss this renderer" }))
+
+    await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the Rails schema ERD renderer" })).toHaveAttribute("src", "data:image/png;base64,YXJ0aWZhY3Q="))
+    expect(mockHtml2canvas.mock.calls[0][0]).toBe(within(region).getByLabelText("Renderer preview constrained to 390px"))
+
+    fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "The schema labels crowd each other." } })
+    fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
+
+    await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
+    const [input] = mockCreateChat.mock.calls[0]
+    expect(input.text).toContain("The schema labels crowd each other.")
+    expect(input.text).toContain('"renderer_type": "erd_diagram"')
+    expect(input.text).toContain('"artifact_type": "rails_schema_erd"')
+    expect(input.text).toContain('"owner_type": "plugin"')
+    expect(input.text).toContain('"plugin_name": "rails"')
+    expect(input.text).toContain('"selected_viewport_preset": "phone"')
+    expect(input.text).toContain('"selected_payload"')
+    expect(input.text).toContain('"full_artifact"')
+    expect(input.text).toContain('"catalog_deep_link"')
+    expect(input.attachments).toEqual([
+      { name: "erd_diagram-artifact-renderer.png", mimeType: "image/png", dataUrl: "data:image/png;base64,YXJ0aWZhY3Q=" }
+    ])
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/chats/99"))
+  })
+
+  it("keeps raw artifact metadata available when screenshot capture fails", async () => {
+    mockHtml2canvas.mockRejectedValue(new Error("tainted canvas"))
+    mockCreateChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/100", chat: {} } as unknown as chatsApi.ChatCreatedPayload)
+
+    renderRoute("/admin/artifact_renderers?renderer_type=erd_diagram")
+
+    const region = screen.getByRole("region", { name: "Rails schema ERD" })
+    fireEvent.click(within(region).getByRole("button", { name: "Discuss this renderer" }))
+
+    await screen.findByText("Couldn't capture a screenshot of this renderer. You can still start the chat without one — the metadata below is still included.")
+    fireEvent.click(screen.getByText("Raw payload metadata"))
+    expect(screen.getByText(/"renderer_type": "erd_diagram"/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
+    await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
+    expect(mockCreateChat.mock.calls[0][0].attachments).toEqual([])
+  })
+
   it("shows title, type, renderer type, owner, created-at, and a payload summary around the preview", () => {
     renderRoute("/admin/artifact_renderers?renderer_type=erd_diagram")
 
@@ -146,7 +311,7 @@ describe("AdminArtifactRenderers", () => {
 
 describe("ArtifactCatalogEntry (synthetic entries not shipped in the real registry)", () => {
   it("keeps a fallback-only, example-less renderer visible instead of hiding it", () => {
-    render(<ArtifactCatalogEntry entry={fallbackOnlyEntry} previewWidth={1280} />)
+    renderEntry(<ArtifactCatalogEntry entry={fallbackOnlyEntry} previewWidth={1280} />)
 
     const region = screen.getByRole("region", { name: "Synthetic Fallback-Only Renderer" })
     expect(within(region).getByText("plugin · example_plugin")).toBeInTheDocument()
@@ -155,7 +320,7 @@ describe("ArtifactCatalogEntry (synthetic entries not shipped in the real regist
   })
 
   it("shows provenance fields only when present on the artifact, alongside a payload summary", () => {
-    render(<ArtifactCatalogEntry entry={provenanceEntry} previewWidth={1280} />)
+    renderEntry(<ArtifactCatalogEntry entry={provenanceEntry} previewWidth={1280} />)
 
     const region = screen.getByRole("region", { name: "Synthetic Provenance Renderer" })
     expect(within(region).getByText("555")).toBeInTheDocument()
@@ -169,7 +334,7 @@ describe("ArtifactCatalogEntry (synthetic entries not shipped in the real regist
   })
 
   it("omits provenance fields entirely when the artifact carries none", () => {
-    render(<ArtifactCatalogEntry entry={noProvenanceEntry} previewWidth={1280} />)
+    renderEntry(<ArtifactCatalogEntry entry={noProvenanceEntry} previewWidth={1280} />)
 
     const region = screen.getByRole("region", { name: "Synthetic No-Provenance Renderer" })
     expect(within(region).queryByText("Workflow")).not.toBeInTheDocument()
@@ -247,11 +412,25 @@ const noProvenanceEntry: ArtifactRendererEntry = {
 }
 
 function renderRoute(initialEntry = "/admin/artifact_renderers") {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
-    <MemoryRouter initialEntries={[ initialEntry ]}>
-      <Routes>
-        <Route element={<AdminArtifactRenderers />} path="/admin/artifact_renderers" />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[ initialEntry ]}>
+        <Routes>
+          <Route element={<AdminArtifactRenderers />} path="/admin/artifact_renderers" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function renderEntry(element: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        {element}
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
