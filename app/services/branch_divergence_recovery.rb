@@ -218,24 +218,7 @@ class BranchDivergenceRecovery
       attempt.skip_stale_pending!(reason)
     end
 
-    cancel_queued_retry_workflows!(reason)
-  end
-
-  def cancel_queued_retry_workflows!(reason)
-    retry_workflow_ids = WorkUnits::Ownership.active_workflow_ids([ job.id ], kinds: "retry", states: [ "queued" ]).to_a
-    return if retry_workflow_ids.empty?
-
-    job.workflows.where(id: retry_workflow_ids).find_each do |candidate|
-      candidate.artifacts = (candidate.artifacts || {}).merge(
-        "retry_cancelled_reason" => "branch_divergence_recovered",
-        "retry_cancelled_at" => Time.current.iso8601
-      )
-      WorkUnits::WorkflowCancellation.cancel!(
-        candidate,
-        reason: "branch_divergence_recovered",
-        artifacts: candidate.artifacts
-      )
-    end
+    WorkUnits::WorkflowCancellation.cancel_queued_retry_workflows_for_job!(job: job, reason: "branch_divergence_recovered")
   end
 
   def write_artifacts!(changes)
