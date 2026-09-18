@@ -25,6 +25,7 @@ class ChatPendingAction < ApplicationRecord
     resume_landing_queue
     submit_chat_feedback
     complete_implement_step
+    emergency_land
     submit_coding_changes
     reopen_epic_and_attach_job
     admin_kill_process
@@ -79,6 +80,7 @@ class ChatPendingAction < ApplicationRecord
     force_landing_recheck
     override_landing_blocker_once
     complete_implement_step
+    emergency_land
     manual_agentic_run
     adopt_current_pr_head
     replace_pr_branch_with_workflow_output

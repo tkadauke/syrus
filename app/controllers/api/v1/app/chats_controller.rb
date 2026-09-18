@@ -1131,6 +1131,11 @@ module Api
             return
           end
 
+          if chat_session.pending_actions.where(action: "emergency_land", state: %w[queued pending confirming failed]).detect { |action| action.payload.to_h["job_id"].to_i == job.id }
+            render_error("validation_failed", "An emergency land confirmation is already pending for this Job.", status: :unprocessable_content)
+            return
+          end
+
           chat_session.pending_actions.pending.where(action: "complete_implement_step").detect { |action| action.payload.to_h["job_id"].to_i == job.id } ||
             chat_session.pending_actions.create!(
               action: "complete_implement_step",
