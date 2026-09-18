@@ -277,6 +277,8 @@
   "system_alerts_aria": "System alerts",
   "system_alert_dismiss": "Dismiss system alert",
   "admin_nav_aria": "Admin",
+  "admin_nav_search_label": "Search admin navigation",
+  "admin_nav_search_placeholder": "Search pages...",
   "primary_nav_aria": "Primary",
   "dashboard_sections_aria": "Dashboard sections",
   "recent_chats_aria": "Recent chats",

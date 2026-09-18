@@ -11,7 +11,7 @@ import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayloa
 import type { MaintenanceTask } from "../api/maintenanceTasks"
 import { AppChromeV2 } from "./AppChromeV2"
 import { adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
-import { buildAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
+import { buildAdminNavItems, filterAdminNavItems, filterAdminNavResult, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 
 const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
   toBlob(callback: (blob: Blob | null) => void) {
@@ -2077,6 +2077,44 @@ describe("AdminNav grouped navigation", () => {
     expect(screen.queryByText("Operations")).not.toBeInTheDocument()
     expect(screen.queryByText("Observability")).not.toBeInTheDocument()
   })
+
+  it("filters the nav to matching page names as the operator types", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    await screen.findAllByText("Operations")
+    const [searchInput] = screen.getAllByPlaceholderText("Search pages...")
+
+    fireEvent.change(searchInput, { target: { value: "queue" } })
+
+    expect(screen.getAllByRole("link", { name: "Queue" }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole("link", { name: "Users" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Observability")).not.toBeInTheDocument()
+  })
+
+  it("shows a no-results message when the search query matches nothing", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    await screen.findAllByText("Operations")
+    const [searchInput] = screen.getAllByPlaceholderText("Search pages...")
+
+    fireEvent.change(searchInput, { target: { value: "zzz-no-such-page" } })
+
+    expect(screen.getAllByText("No matching pages").length).toBeGreaterThan(0)
+  })
 })
 
 describe("buildAdminNavItems", () => {
@@ -2189,6 +2227,53 @@ describe("buildAdminNavItems", () => {
 
   it("does not duplicate a plugin-owned insights nav entry", () => {
     expect(CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "insights")).toBeUndefined()
+  })
+})
+
+describe("filterAdminNavItems", () => {
+  it("matches case-insensitively by page name", () => {
+    const items = [
+      { id: "queue", label: "Queue", to: "/admin/queue", paths: ["/admin/queue"], groupId: "operations", order: 10 },
+      { id: "users", label: "Users", to: "/admin/users", paths: ["/admin/users"], groupId: "users_access", order: 10 }
+    ]
+
+    expect(filterAdminNavItems(items, "QUE").map((i) => i.id)).toEqual(["queue"])
+    expect(filterAdminNavItems(items, "")).toEqual(items)
+  })
+})
+
+describe("filterAdminNavResult", () => {
+  const translate = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key
+
+  it("returns the unfiltered result for a blank query", () => {
+    const result = buildAdminNavItems({}, [], translate)
+    expect(filterAdminNavResult(result, "   ")).toBe(result)
+  })
+
+  it("keeps only groups and items whose label matches the query", () => {
+    const result = buildAdminNavItems({}, [], translate)
+    const filtered = filterAdminNavResult(result, "queue")
+
+    expect(filtered.overviewItem).toBeUndefined()
+    expect(filtered.groups).toHaveLength(1)
+    expect(filtered.groups[0].items.map((i) => i.id)).toEqual(["queue"])
+  })
+
+  it("keeps the overview item when it matches", () => {
+    const result = buildAdminNavItems({}, [], translate)
+    const filtered = filterAdminNavResult(result, "overview")
+
+    expect(filtered.overviewItem?.id).toBe("overview")
+    expect(filtered.groups).toHaveLength(0)
+  })
+
+  it("filters ungrouped extensions by label", () => {
+    const result = buildAdminNavItems({}, [
+      { id: "test.custom", label: "Custom Page", path: "/admin/custom", paths: ["/admin/custom"], order: 10, group_id: "unknown_group" }
+    ], translate)
+
+    expect(filterAdminNavResult(result, "custom").ungroupedExtensions.map((i) => i.id)).toEqual(["test.custom"])
+    expect(filterAdminNavResult(result, "nomatch").ungroupedExtensions).toHaveLength(0)
   })
 })
 

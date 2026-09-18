@@ -44,6 +44,7 @@
   "nav_group_users_access": "Benutzer & Zugriff",
   "nav_group_system": "System",
   "nav_group_product_data": "Produktdaten",
+  "admin_nav_no_results": "Keine passenden Seiten",
   "section_label": "Administration",
   "event_actions": {
     "action_failed": "Aktion fehlgeschlagen.",

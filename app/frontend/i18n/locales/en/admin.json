@@ -108,6 +108,7 @@
   "nav_group_users_access": "Users & Access",
   "nav_group_system": "System",
   "nav_group_product_data": "Product Data",
+  "admin_nav_no_results": "No matching pages",
   "section_label": "Admin",
   "event_actions": {
     "action_failed": "Action failed.",

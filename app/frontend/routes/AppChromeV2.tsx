@@ -1,7 +1,7 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
 import { ChevronDownIcon, EpicIcon, GripIcon, MenuIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, SystemThemeIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, withRoutePrefix } from "./appChromeV2/helpers"
-import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
+import { buildAdminNavItems, filterAdminNavResult, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
@@ -689,16 +689,23 @@ function AdminNav({
   prefix: string
 }) {
   const { t } = useTranslation(["admin", "nav"])
+  const [navQuery, setNavQuery] = useState("")
   const pluginPages = useQuery({
     queryKey: ["admin", "plugin_pages"],
     queryFn: fetchAdminPluginPages,
     staleTime: 30_000
   })
 
-  const { overviewItem, groups, ungroupedExtensions } = useMemo(
+  const navResult = useMemo(
     () => buildAdminNavItems(featureFlags, pluginPages.data?.pages || [], t),
     [featureFlags, pluginPages.data, t]
   )
+  const { overviewItem, groups, ungroupedExtensions } = useMemo(
+    () => filterAdminNavResult(navResult, navQuery),
+    [navResult, navQuery]
+  )
+  const isSearching = navQuery.trim() !== ""
+  const hasResults = Boolean(overviewItem) || groups.length > 0 || ungroupedExtensions.length > 0
 
   return (
     <>
@@ -708,6 +715,9 @@ function AdminNav({
         className="hidden lg:block sticky top-0 h-screen w-48 shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-2 py-3 dark:border-gray-800 dark:bg-gray-950"
         title={t("nav:admin_title")}
       >
+        <div className="mb-3">
+          <AdminNavSearch onChange={setNavQuery} value={navQuery} />
+        </div>
         {overviewItem && (
           <div className="mb-3">
             <AdminNavLink item={overviewItem} normalizedPath={normalizedPath} prefix={prefix} />
@@ -735,13 +745,21 @@ function AdminNav({
               </div>
             </section>
           )}
+          {isSearching && !hasResults && (
+            <p className="px-2.5 text-sm text-text-secondary">{t("admin:admin_nav_no_results")}</p>
+          )}
         </div>
       </nav>
       {/* Content area: mobile accordion above page content */}
       <div className="min-w-0 flex-1">
         <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+          <div className="px-4 pt-3">
+            <AdminNavSearch onChange={setNavQuery} value={navQuery} />
+          </div>
           <AdminNavAccordion
             groups={groups}
+            hasResults={hasResults}
+            isSearching={isSearching}
             normalizedPath={normalizedPath}
             overviewItem={overviewItem}
             prefix={prefix}
@@ -751,6 +769,25 @@ function AdminNav({
         {children}
       </div>
     </>
+  )
+}
+
+function AdminNavSearch({ onChange, value }: { onChange: (value: string) => void; value: string }) {
+  const { t } = useTranslation("nav")
+
+  return (
+    <div className="relative">
+      <label className="sr-only" htmlFor="admin-nav-search">{t("nav:admin_nav_search_label")}</label>
+      <SearchIcon />
+      <Input
+        className="h-9 pl-9"
+        id="admin-nav-search"
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={t("nav:admin_nav_search_placeholder")}
+        type="search"
+        value={value}
+      />
+    </div>
   )
 }
 
@@ -769,12 +806,16 @@ function AdminNavLink({ item, normalizedPath, prefix }: {
 
 function AdminNavAccordion({
   groups,
+  hasResults,
+  isSearching,
   normalizedPath,
   overviewItem,
   prefix,
   ungroupedExtensions
 }: {
   groups: Array<{ group: AdminNavGroup; items: MergedAdminNavItem[] }>
+  hasResults: boolean
+  isSearching: boolean
   normalizedPath: string
   overviewItem: MergedAdminNavItem | undefined
   prefix: string
@@ -799,7 +840,7 @@ function AdminNavAccordion({
         </div>
       )}
       {groups.map(({ group, items }) => {
-        const isExpanded = expandedId === group.id
+        const isExpanded = isSearching || expandedId === group.id
         const hasActive = items.some((item) => item.paths.some((p) => adminNavItemActive(normalizedPath, p)))
         return (
           <div className="border-t border-gray-100 dark:border-gray-800" key={group.id}>
@@ -822,6 +863,9 @@ function AdminNavAccordion({
           </div>
         )
       })}
+      {isSearching && !hasResults && (
+        <p className="px-4 py-2 text-sm text-text-secondary">{t("admin:admin_nav_no_results")}</p>
+      )}
       {ungroupedExtensions.length > 0 && (
         <div className="space-y-0.5 border-t border-gray-100 px-4 pb-2 pt-1 dark:border-gray-800">
           {ungroupedExtensions.map((item) => (

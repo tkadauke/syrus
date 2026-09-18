@@ -62,6 +62,31 @@ export const CORE_ADMIN_NAV_ITEMS: readonly CoreAdminNavItem[] = [
 
 const KNOWN_GROUP_IDS = new Set(ADMIN_NAV_GROUPS.map((g) => g.id))
 
+function adminNavItemMatchesQuery(item: MergedAdminNavItem, normalizedQuery: string) {
+  return normalizedQuery === "" || item.label.toLowerCase().includes(normalizedQuery)
+}
+
+export function filterAdminNavItems(items: readonly MergedAdminNavItem[], query: string): MergedAdminNavItem[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  return items.filter((item) => adminNavItemMatchesQuery(item, normalizedQuery))
+}
+
+export type AdminNavBuildResult = ReturnType<typeof buildAdminNavItems>
+
+export function filterAdminNavResult(result: AdminNavBuildResult, query: string): AdminNavBuildResult {
+  if (!query.trim()) return result
+
+  return {
+    overviewItem: result.overviewItem && filterAdminNavItems([result.overviewItem], query).length > 0
+      ? result.overviewItem
+      : undefined,
+    groups: result.groups
+      .map(({ group, items }) => ({ group, items: filterAdminNavItems(items, query) }))
+      .filter(({ items }) => items.length > 0),
+    ungroupedExtensions: filterAdminNavItems(result.ungroupedExtensions, query),
+  }
+}
+
 export function buildAdminNavItems(
   featureFlags: Record<string, boolean>,
   pluginPages: AdminPluginPage[],
