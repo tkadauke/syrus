@@ -373,6 +373,3 @@ component, and contributes the panel to the repository detail page through the
 endpoints; nothing else on the page changes. Core has no reference to either
 contract -- `bin/check-plugin-boundaries` (and the slower opt-in
 `bin/plugin-boundary-audit throughput`) enforce it.
-
-Simple mode still hides the panel, now decided by `Throughput::UiSlots` rather
-than by a `simple_mode` check inside the page component.

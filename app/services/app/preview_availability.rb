@@ -2,8 +2,7 @@ require "shellwords"
 
 module App
   # Shared "is a preview even possible for this repository" check, used by
-  # JobDetailPayload's can_start_preview action and the simple-mode dashboard
-  # row's Preview & Approve action. Detects either a registered
+  # JobDetailPayload's can_start_preview action. Detects either a registered
   # `:preview_provider` plugin or a `.syrus.yml` `preview:` block read
   # straight off the repository's local bare clone (no GitHub API call, so
   # this stays cheap enough to call per dashboard row).
