@@ -16,10 +16,18 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
     reap_pidless_processes
     reap_rows_from_previous_worker_instances
     reap_cross_host_orphans(live_hosts) if live_hosts # SQ unreachable — single-DB dev/test
+    reap_crashed_chat_turns
     reap_stale_chat_turns
   end
 
   private
+
+  def reap_crashed_chat_turns
+    reconciled = ChatTurnAutoRetryReconciler.sweep!
+    return unless reconciled.positive?
+
+    Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] reconciled #{reconciled} crashed chat turn auto-retry item(s)")
+  end
 
   def reap_pidless_processes
     SpawnedProcess.pidless_running.find_each do |sp|
@@ -29,7 +37,7 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
       next if rows.zero?
 
       Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] finalized pidless SpawnedProcess ##{sp.id} on #{sp.hostname} (kind #{sp.kind})")
-      ChatStopReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
+      reconcile_finalized_spawned_process!(sp, finished_at: finished_at)
     end
   end
 
@@ -43,7 +51,7 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
       next if rows.zero?
 
       Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] finalized SpawnedProcess ##{sp.id} on dead host #{sp.hostname} (pid #{sp.pid}, kind #{sp.kind})")
-      ChatStopReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
+      reconcile_finalized_spawned_process!(sp, finished_at: finished_at)
     end
   end
 
@@ -103,6 +111,12 @@ class ReapOrphanedSpawnedProcessesJob < ApplicationJob
     return if rows.zero?
 
     Rails.logger.info("[ReapOrphanedSpawnedProcessesJob] finalized SpawnedProcess ##{sp.id} on #{sp.hostname} (pid #{sp.pid}, kind #{sp.kind}) — #{reason}")
+    reconcile_finalized_spawned_process!(sp, finished_at: finished_at)
+  end
+
+  def reconcile_finalized_spawned_process!(sp, finished_at:)
+    return if ChatTurnAutoRetryReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
+
     ChatStopReconciler.reconcile_spawned_process!(sp, finished_at: finished_at)
   end
 end
