@@ -5551,6 +5551,60 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  # A single still-failed Run (e.g. a visual_diff prepare/agent Run that died
+  # under host IO pressure) is independently noticed by more than one issue
+  # classifier: a missing resumable session proposes an immediate
+  # retry_failed_step, and the worker_died failure classification separately
+  # proposes the same repair with a backed-off scheduled_at. Both reach
+  # schedule_auto_retry! for the exact same (workflow, run, retry_kind).
+  # auto_retry_blocker_for's "pending" check only stops the second one while
+  # the first attempt is still pending -- once AutoRetryJob marks it performed
+  # (dispatched), a later reconciler pass over the same Run scheduled a second
+  # attempt on top of it. That is the duplicate-retry burst the 2026-09-14
+  # visual_diff incident batches hit under sustained worker pressure.
+  it "does not schedule a duplicate worker_died retry once the first attempt has been dispatched" do
+    agent_step = workflow.steps.find_by!(kind: "implement")
+    agent_run = agent_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "claude")
+    failed_at = Time.current
+    workflow.update_columns(state: "failed", finished_at: failed_at, cleaned_up_at: nil)
+    agent_step.update_columns(state: "failed", finished_at: failed_at)
+    agent_run.update_columns(
+      state: "failed",
+      agent_provider: "claude",
+      agent_outcome: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      finished_at: failed_at
+    )
+    RunFailureClassification.create!(
+      run: agent_run,
+      classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      retryable: true,
+      confidence: 0.9,
+      reason: "worker process disappeared while starting the visual_diff preview",
+      classified_at: failed_at
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    reconcile_and_execute(run_id: agent_run.id)
+
+    first_attempt = AutoRetryAttempt.find_by!(
+      workflow: workflow,
+      run: agent_run,
+      failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+    )
+    expect(first_attempt).to have_attributes(retry_kind: "failed_step", skipped_reason: nil)
+
+    # Simulate AutoRetryJob having dispatched the retry (performed_at set)
+    # before the resulting replacement work is visible to active_runtime_work?
+    first_attempt.update!(performed_at: Time.current)
+
+    expect {
+      3.times { reconcile_and_execute(run_id: agent_run.id) }
+    }.not_to change {
+      AutoRetryAttempt.where(workflow: workflow, run: agent_run, failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION).count
+    }
+  end
+
   it "does not schedule duplicate retry_workflow attempts for repeated grader failure repair ticks" do
     assert_retry_workflow_reconcile_idempotent!(
       step_kind: "preflight_grader_collect",
