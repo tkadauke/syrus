@@ -22,6 +22,8 @@ type DraftRule = {
   candidates: ProviderRoutingCandidate[]
 }
 
+const EMPTY_OPTIONS: ProviderRoutingOptions = { agent_providers: [], effort_levels: [] }
+
 export function ProviderRoutingRulesEditor({
   basePath,
   description,
@@ -34,14 +36,16 @@ export function ProviderRoutingRulesEditor({
   basePath: string
   description: string
   queryKey: readonly unknown[]
-  rules: ProviderRoutingRule[]
+  rules?: ProviderRoutingRule[]
   title: string
-  options: ProviderRoutingOptions
+  options?: ProviderRoutingOptions
   onSaved?: (payload: ProviderRoutingRulesPayload) => void
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const [draft, setDraft] = useState<DraftRule>(() => emptyDraft(options))
+  const routingOptions = normalizeOptions(options)
+  const routingRules = rules || []
+  const [draft, setDraft] = useState<DraftRule>(() => emptyDraft(routingOptions))
   const [editingId, setEditingId] = useState<number | null>(null)
   const save = useMutation({
     mutationFn: () => {
@@ -52,7 +56,7 @@ export function ProviderRoutingRulesEditor({
     onSuccess: (payload) => {
       onSaved?.(payload)
       void queryClient.invalidateQueries({ queryKey })
-      setDraft(emptyDraft(options))
+      setDraft(emptyDraft(routingOptions))
       setEditingId(null)
     }
   })
@@ -69,7 +73,7 @@ export function ProviderRoutingRulesEditor({
     setDraft({
       id: rule.id,
       task_key: rule.task_key,
-      candidates: rule.candidates.length > 0 ? rule.candidates : [emptyCandidate(options)]
+      candidates: rule.candidates.length > 0 ? rule.candidates : [emptyCandidate(routingOptions)]
     })
   }
 
@@ -87,16 +91,16 @@ export function ProviderRoutingRulesEditor({
         <p className="mt-1 text-xs text-text-secondary">{description}</p>
       </div>
 
-      {rules.length > 0 ? (
+      {routingRules.length > 0 ? (
         <div className="space-y-2">
-          {rules.map((rule) => (
+          {routingRules.map((rule) => (
             <div className="grid gap-3 rounded border border-border p-3 sm:grid-cols-[1fr_auto] sm:items-start" key={rule.id}>
               <div className="min-w-0">
                 <div className="text-sm font-medium text-text-primary">{rule.task_key}</div>
                 <ol className="mt-1 list-decimal space-y-1 pl-5 text-xs text-text-secondary">
                   {rule.candidates.map((candidate, index) => (
                     <li key={`${rule.id}-${index}`}>
-                      {candidateLabel(candidate, options, t)}
+                      {candidateLabel(candidate, routingOptions, t)}
                     </li>
                   ))}
                 </ol>
@@ -122,16 +126,16 @@ export function ProviderRoutingRulesEditor({
               key={index}
               onChange={(next) => setCandidate(index, next)}
               onRemove={() => setDraft({ ...draft, candidates: draft.candidates.filter((_, itemIndex) => itemIndex !== index) })}
-              options={options}
+              options={routingOptions}
               removable={draft.candidates.length > 1}
               t={t}
             />
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setDraft({ ...draft, candidates: [...draft.candidates, emptyCandidate(options)] })} size="sm" variant="secondary">{t("provider_routing.add_candidate")}</Button>
+          <Button onClick={() => setDraft({ ...draft, candidates: [...draft.candidates, emptyCandidate(routingOptions)] })} size="sm" variant="secondary">{t("provider_routing.add_candidate")}</Button>
           <Button disabled={save.isPending} onClick={() => save.mutate()} size="sm">{editingId ? t("provider_routing.save_rule") : t("provider_routing.create_rule")}</Button>
-          {editingId ? <Button onClick={() => { setDraft(emptyDraft(options)); setEditingId(null) }} size="sm" variant="secondary">{t("provider_routing.cancel")}</Button> : null}
+          {editingId ? <Button onClick={() => { setDraft(emptyDraft(routingOptions)); setEditingId(null) }} size="sm" variant="secondary">{t("provider_routing.cancel")}</Button> : null}
         </div>
         {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("provider_routing.save_error"))}</PanelMessage> : null}
         {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t("provider_routing.delete_error"))}</PanelMessage> : null}
@@ -159,6 +163,7 @@ function RoutingCandidateRow({
   return (
     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem_auto]">
       <Select onChange={(event) => onChange({ provider: event.target.value, model: null, effort_level: candidate.effort_level || null })} value={candidate.provider}>
+        {options.agent_providers.length === 0 ? <option value=""></option> : null}
         {options.agent_providers.map((option) => <option disabled={option.configured === false} key={option.value} value={option.value}>{option.label}</option>)}
       </Select>
       <Select onChange={(event) => onChange({ ...candidate, model: event.target.value || null })} value={candidate.model || ""}>
@@ -172,6 +177,13 @@ function RoutingCandidateRow({
       <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">{t("provider_routing.remove")}</Button>
     </div>
   )
+}
+
+function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOptions {
+  return {
+    agent_providers: options?.agent_providers || EMPTY_OPTIONS.agent_providers,
+    effort_levels: options?.effort_levels || EMPTY_OPTIONS.effort_levels
+  }
 }
 
 function emptyCandidate(options: ProviderRoutingOptions): ProviderRoutingCandidate {
