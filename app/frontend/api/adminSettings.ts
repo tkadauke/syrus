@@ -36,7 +36,6 @@ export type AdminSettingsPayload = {
       email_address: string
       display_name?: string | null
     } | null
-    mode: "advanced" | "simple"
     metadata?: AdminSettingMetadata[]
     clearable_secrets: ClearableSecret[]
   }
@@ -53,7 +52,6 @@ export type AdminSettingsUpdate = {
   rebase_failure_cooldown_minutes?: number
   workflow_admission_control_enabled?: boolean
   workflow_admission_policy?: "whole_workflow" | "phase_aware"
-  mode?: "advanced" | "simple"
   telegram_bot_token?: string
   discord_bot_token?: string
 }
