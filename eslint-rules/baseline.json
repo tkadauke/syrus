@@ -136,7 +136,6 @@
     "plugins/syrus_dev/app/frontend/components/ToolCardDiscussDialog.tsx": 3,
     "plugins/syrus_dev/app/frontend/routes/AdminOperationalLogs.tsx": 2,
     "plugins/syrus_dev/app/frontend/routes/AdminPerformance.tsx": 11,
-    "plugins/syrus_dev/app/frontend/routes/AdminToolCards.tsx": 2,
     "plugins/tailscale/app/frontend/routes/AdminTailscale.tsx": 1,
     "plugins/team_directory/app/frontend/routes/TeamDirectory.tsx": 2,
     "plugins/terminal/app/frontend/routes/Terminal.tsx": 2,
