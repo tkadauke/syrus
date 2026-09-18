@@ -628,7 +628,7 @@ function discussionMessage(comment: DiffReviewComment) {
 
   return [
     "Discuss this code review comment.",
-    `Revision: ${comment.head_ref || comment.diff_review_version?.head_sha || "unknown"}`,
+    `Revision: ${comment.diff_review_version?.head_sha || comment.head_ref || "unknown"}`,
     `Location: ${location}`,
     "",
     "Comment:",
