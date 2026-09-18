@@ -140,6 +140,11 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       LandedCommit.create!(landable: a, sha: "a-landed-1", kind: "implementation", position: 0)
       # `b` never got its build-time commits recorded for this attempt --
       # genuinely not landed, and must still be reverted.
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+      allow(client).to receive(:add_issue_comment)
+      allow(client).to receive(:close_pull_request)
 
       described_class.call(workflow: workflow)
 
@@ -151,6 +156,54 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(b.reload.state).to eq("implemented")
       expect(train.members.find_by(job: b).state).to eq("failed")
       expect(train.reload.state).to eq("failed")
+    end
+
+    # The gap this closes: a self-healed member never goes through
+    # Steps::MergeTrainLand's integration-PR merge (there is no integration
+    # PR here -- the member's commits reached base through an earlier build
+    # that this workflow never saw finish), so nothing else ever comments on
+    # or closes its GitHub PR. Left alone, that PR stays open on GitHub
+    # forever even though the Job itself closes pr_merged.
+    it "comments on and closes a self-healed member's GitHub PR, not just the Job record" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, failure_reason: "merge_train: reconcile_members! crashed")
+      LandedCommit.create!(landable: epic, sha: "trainsha321", kind: "integration_merge", position: 0)
+      LandedCommit.create!(landable: a, sha: "a-landed-1", kind: "implementation", position: 0)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+      allow(client).to receive(:add_issue_comment)
+      allow(client).to receive(:close_pull_request)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).to have_received(:add_issue_comment)
+        .with(repository.slug, a.pr_number, a_string_including("Landed via", a.slug))
+      expect(client).to have_received(:close_pull_request).with(repository.slug, a.pr_number)
+      expect(a.reload).to be_closed
+      expect(a.closure_reason).to eq("pr_merged")
+    end
+
+    # PR cleanup is best-effort -- a GitHub hiccup while commenting/closing
+    # must not stop the Job from correctly closing pr_merged, the same way
+    # delete_integration_branch's failures don't stop member reverting.
+    it "still closes the Job pr_merged when GitHub PR reconciliation fails" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, failure_reason: "merge_train: reconcile_members! crashed")
+      LandedCommit.create!(landable: epic, sha: "trainsha654", kind: "integration_merge", position: 0)
+      LandedCommit.create!(landable: a, sha: "a-landed-1", kind: "implementation", position: 0)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+      allow(client).to receive(:add_issue_comment).and_raise(Octokit::Error.new)
+      allow(client).to receive(:close_pull_request)
+
+      expect { described_class.call(workflow: workflow) }.not_to raise_error
+
+      expect(a.reload).to be_closed
+      expect(a.closure_reason).to eq("pr_merged")
     end
 
     it "scopes landed-commit evidence to the failing attempt, ignoring stale rows from an earlier attempt" do
