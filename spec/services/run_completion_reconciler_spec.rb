@@ -55,9 +55,9 @@ RSpec.describe RunCompletionReconciler do
       expect(StepDispatcher).to have_received(:advance_from).with(step)
     end
 
-    it "does not recover deterministic terminal races after the workflow has already failed" do
+    it "does not recover non-deterministic terminal races after the workflow has already failed" do
       workflow.steps.destroy_all
-      step = Step.create!(workflow: workflow, kind: "grader", position: 1)
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1)
       run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
       workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
       step.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
@@ -69,6 +69,29 @@ RSpec.describe RunCompletionReconciler do
       expect(run.reload).to be_failed
       expect(step.reload).to be_failed
       expect(workflow.reload).to be_failed
+    end
+
+    it "reopens a failed workflow when deterministic fanout returned successfully after a terminal race" do
+      workflow.steps.destroy_all
+      fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1)
+      collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 2)
+      fanout.update!(next_step: collect)
+      run = fanout.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
+      workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+      fanout.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      run.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      allow(StepDispatcher).to receive(:advance_from)
+
+      result = described_class.call(run, allow_terminal_recovery: true)
+
+      expect(result).to be_reconciled
+      expect(result.reason).to eq("grader_fanout: handler returned successfully after terminal race")
+      expect(run.reload).to be_succeeded
+      expect(fanout.reload).to be_succeeded
+      expect(workflow.reload).not_to be_failed
+      expect(workflow.failure_reason).to be_nil
+      expect(workflow.artifact("terminal_success_race_recovered_run_id")).to eq(run.id)
+      expect(StepDispatcher).to have_received(:advance_from).with(fanout)
     end
 
     context "with a running pr_open step" do

@@ -413,7 +413,11 @@ module Steps
         latest_runs = latest_runs_by_step_id(grader_steps)
         waits = grader_steps.filter_map { |grader| queue_wait_s(latest_runs[grader.id]) }
         worker_keys = grader_steps.filter_map { |grader| worker_key_for(grader) }.uniq
-        classifications = latest_runs.values.filter_map { |grader_run| grader_run.run_failure_classification&.classification }
+        classifications = grader_steps.filter_map do |grader|
+          next unless grader.failed?
+
+          latest_runs[grader.id]&.run_failure_classification&.classification
+        end
         cache_statuses = grader_steps.filter_map { |grader| grader.details.to_h.dig("prepare_cache", "status").presence }
 
         {
@@ -469,10 +473,14 @@ module Steps
     end
 
     def infrastructure_failed_step?(grader_step)
+      return false unless grader_step.failed?
+
       infrastructure_failure_classification?(infrastructure_failure_classification_for(grader_step))
     end
 
     def infrastructure_failure_classification_for(grader_step)
+      return nil unless grader_step.failed?
+
       latest_runs_by_step_id([ grader_step ])[grader_step.id]&.run_failure_classification&.classification
     end
 

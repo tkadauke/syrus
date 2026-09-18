@@ -61,14 +61,18 @@ module Steps
       source_snapshot = nil
 
       with_materialization_lock_retries do
+        heartbeat!
         Step.transaction do
           source_snapshot = current_source_snapshot_for_projection
+          heartbeat!
 
           workflow.steps.where("position >= ?", insertion_position).update_all(
             [ "position = position + ?", offset ]
           )
+          heartbeat!
 
           new_steps = graders.each_with_index.map do |grader, index|
+            heartbeat! if (index % 5).zero?
             prepare_targets = prepare_targets_for(grader)
             target_fingerprints = target_fingerprints_for(grader)
 
@@ -97,7 +101,11 @@ module Steps
         end
       end
 
-      publish_prepared_workspace_archive!(source_snapshot) if source_snapshot
+      if source_snapshot
+        heartbeat!
+        publish_prepared_workspace_archive!(source_snapshot)
+        heartbeat!
+      end
     end
 
     def link_materialized_grader_steps!(new_steps, continuation)

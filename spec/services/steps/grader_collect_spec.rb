@@ -982,6 +982,43 @@ RSpec.describe Steps::GraderCollect do
     expect(GraderConclusion.where(workflow: workflow)).to be_empty
   end
 
+  it "ignores stale infrastructure classifications on grader steps that ultimately succeeded" do
+    base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    grader_step.update!(
+      state: "succeeded",
+      started_at: base_time,
+      finished_at: base_time + 0.5.seconds,
+      details: grader_step.details.to_h.merge("duration_s" => 0.5)
+    )
+    stale_failed_run = grader_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      state: "failed",
+      created_at: base_time - 2.seconds,
+      started_at: base_time,
+      finished_at: base_time + 0.5.seconds
+    )
+    stale_failed_run.create_run_failure_classification!(
+      classification: "worker_died",
+      confidence: 0.95,
+      retryable: true,
+      reason: "The worker disappeared before the terminal race was reconciled.",
+      classified_at: Time.current
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    metrics = workflow.reload.artifact("grader_loops").first
+    expect(metrics).to include(
+      "failed_required_count" => 0,
+      "infrastructure_failure_count" => 0
+    )
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "[grader_collect] all required graders passed"
+    )
+  end
+
   it "batch-loads rollout metric inputs for grader batches" do
     base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
     workflow.steps.where(kind: "grader").delete_all

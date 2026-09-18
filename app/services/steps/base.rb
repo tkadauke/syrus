@@ -215,6 +215,10 @@ module Steps
       RunHeartbeat.touch(run)
     end
 
+    def heartbeat!
+      RunHeartbeat.touch(run, force: true)
+    end
+
     # Returns [sink, flush] — a buffering wrapper around #log. The sink
     # lambda accumulates chunks and flushes to one JobLog row when either
     # LOG_FLUSH_BYTES or LOG_FLUSH_INTERVAL elapses, but never more often

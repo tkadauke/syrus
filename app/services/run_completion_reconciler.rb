@@ -67,9 +67,10 @@ class RunCompletionReconciler
   end
 
   def reconcile_successful_handler_return
-    return unreconciled unless workflow.running?
+    return unreconciled unless workflow.running? || workflow.failed?
 
     reason = "#{step.kind}: handler returned successfully after terminal race"
+    reopen_failed_workflow_for_terminal_race!(reason) if workflow.failed?
     force_step_success_after_terminal_race!(reason)
 
     Result.new(reconciled: true, reason: reason)
@@ -261,6 +262,18 @@ class RunCompletionReconciler
 
     StepDispatcher.advance_from(step.reload) if workflow.reload.running?
     finish_workflow_if_terminal!
+  end
+
+  def reopen_failed_workflow_for_terminal_race!(reason)
+    workflow.artifacts = workflow.artifacts.to_h.merge(
+      "terminal_success_race_recovered_at" => Time.current.iso8601,
+      "terminal_success_race_recovered_step_id" => step.id,
+      "terminal_success_race_recovered_run_id" => run.id,
+      "terminal_success_race_recovered_reason" => reason
+    )
+    workflow.failure_reason = nil if workflow.respond_to?(:failure_reason=)
+    workflow.reopen!
+    workflow.save!
   end
 
   def force_success_after_terminal_race!(reason)
