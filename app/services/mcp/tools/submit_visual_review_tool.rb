@@ -46,6 +46,8 @@ module Mcp::Tools
         iterations = Array(workflow.artifact("visual_review_iterations"))
         iterations << {
           "iteration" => run.step.iteration,
+          "step_id" => run.step_id,
+          "run_id" => run.id,
           "critique" => normalized_critique,
           "verdict" => normalized_verdict,
           "artifacts" => visual_artifacts_for_run(workflow, run)
