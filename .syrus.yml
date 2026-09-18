@@ -208,6 +208,26 @@ grade:
     required: true
     timeout_minutes: 1
 
+  - name: frontend-lint
+    description: |
+      Runs the local design-system ESLint ratchet (eslint-rules/) over
+      app/frontend and plugins/*/app/frontend. New raw form elements,
+      hand-rolled button classes, legacy blue/terracotta tokens, raw
+      gray/status colors, repeated panel shells, raw table markup, and
+      overly long class strings fail beyond each file's checked-in
+      baseline (eslint-rules/baseline.json); already-known debt stays
+      green. See config/syrus_docs/design_system_eslint_ratchet.md.
+    run: npm run lint
+    phases: [review, landing, ci]
+    when_files_changed:
+      - "app/frontend/**/*.ts"
+      - "app/frontend/**/*.tsx"
+      - "plugins/*/app/frontend/**/*.ts"
+      - "plugins/*/app/frontend/**/*.tsx"
+      - "eslint.config.js"
+      - "eslint-rules/**/*.js"
+    timeout_minutes: 3
+
   - name: plugin-model-namespaces
     description: |
       Ensures plugin-owned Active Record models are namespaced and use

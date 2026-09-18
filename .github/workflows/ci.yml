@@ -61,5 +61,8 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Run design-system ESLint ratchet
+        run: npm run lint
+
       - name: Run React tests and typecheck
         run: bin/test-react

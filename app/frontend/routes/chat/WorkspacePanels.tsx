@@ -1,7 +1,8 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { Button } from "../../components/Button"
+import { PanelMessage } from "../../components/PanelMessage"
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
-import type { MouseEvent as ReactMouseEvent, ReactNode } from "react"
+import type { MouseEvent as ReactMouseEvent } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
@@ -42,8 +43,7 @@ import { Markdown } from "../../lib/Markdown"
 
 // Chat workspace panels extracted from Chat.tsx: the workspace tab shell
 // (ChatWorkspacePanel) and its panels — local diff, media gallery, settings
-// dialog, coding files — plus the shared PanelMessage primitive. The
-// whiteboard panel moved to plugins/whiteboard (see
+// dialog, coding files. The whiteboard panel moved to plugins/whiteboard (see
 // Whiteboard::WorkspaceTabs / config/syrus_docs/plugins.md).
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
@@ -1293,15 +1293,6 @@ export function UsageOverlay({ payload }: { payload: ChatPayload }) {
       Tokens: {formatTokenCount(payload.chat.cumulative_input_tokens)} in / {formatTokenCount(payload.chat.cumulative_output_tokens)} out · {formatCurrency(payload.chat.cumulative_cost_usd)}
     </p>
   )
-}
-
-export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
-    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
 
 function FileTreeEntry({

@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-09-17T16:57:27.699Z",
+  "totals": {
+    "plugin-ui-imports": 30
+  },
+  "counts": {
+    "plugin-ui-imports": {
+      "plugins/admin_mysql/app/frontend/adminMysqlToolCard.tsx": 1,
+      "plugins/agent_memory/app/frontend/tool_cards/admin_read_memory_audit_history.tsx": 1,
+      "plugins/browser/app/frontend/browserToolCard.tsx": 1,
+      "plugins/design_docs/app/frontend/tool_cards/read_design_doc.tsx": 1,
+      "plugins/design_docs/app/frontend/tool_cards/suggest_design_doc_change.tsx": 1,
+      "plugins/metrics_dashboard/app/frontend/routes/MetricsChart.tsx": 1,
+      "plugins/metrics_dashboard/app/frontend/routes/MetricsDashboard.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/components/MysqlLiveTab.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/components/MysqlPickerDropdown.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/components/MysqlQueryTab.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/components/MysqlResultsGrid.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_execute_query.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_connections.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_databases.tsx": 1,
+      "plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_tables.tsx": 1,
+      "plugins/rails/app/frontend/components/artifacts/ErdDiagramRenderer.tsx": 1,
+      "plugins/rails/app/frontend/components/artifacts/MigrationDiffRenderer.tsx": 1,
+      "plugins/scheduled_tasks/app/frontend/routes/ScheduledTasksPage.tsx": 1,
+      "plugins/scheduled_tasks/app/frontend/scheduledTaskToolCard.tsx": 1,
+      "plugins/scheduled_tasks/app/frontend/tool_cards/fire_scheduled_task_now.tsx": 1,
+      "plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx": 1,
+      "plugins/scheduled_tasks/app/frontend/tool_cards/schedule_recurring.tsx": 1,
+      "plugins/test_insights/app/frontend/testRunResultsToolCard.tsx": 1,
+      "plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx": 1,
+      "plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx": 1,
+      "plugins/test_insights/app/frontend/tool_cards/read_test_insight.tsx": 1,
+      "plugins/theming_tools/app/frontend/themeToolCard.tsx": 1,
+      "plugins/whiteboard/app/frontend/whiteboardToolCard.tsx": 1,
+      "plugins/whiteboard/app/frontend/workspaceTabs/WhiteboardTab.tsx": 1
+    }
+  }
+}
