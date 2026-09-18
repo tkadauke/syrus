@@ -617,7 +617,7 @@ collaborators" list.
 | `LandingQueueProcessorJob` | every 30 sec | Picks approved Jobs/Epics for landing workflows |
 | `PollScheduledTasksJob` | every 1 min | Finds due `ScheduledTask`s; fires via `ScheduledTaskFire` |
 | `PollScheduledChatMessagesJob` | every 1 min | Resilience sweep for due unsent chat `/schedule` messages |
-| `ChatScopedEventRetryFailedJob` | every 5 min | Retries failed `ChatScopedEventEvaluatorJob` runs for Supervisor/scoped events |
+| `ChatScopedEventRetryFailedJob` | every 5 min | Retries failed `ChatScopedEventEvaluatorJob` runs for scoped events |
 | `SyncEnabledForksJob` | every 15 min | Refreshes enabled fork metadata and upstream links |
 | `ReapStaleRunsJob` | every 1 min | Recovers RunJob crashes: fails orphaned/stale `running` Runs, re-enqueues orphaned `queued` Runs, and finishes terminal Workflows |
 | `DataRootDiskUsageRefreshJob` | every 1 min | Refreshes `$SYRUS_DATA_ROOT` disk usage for operator visibility |
@@ -1665,14 +1665,10 @@ thread. The chat agent exposes `/branch`, `/pin`, `/copy`, `/search`,
 and `/report` slash commands; `/report` files a GitHub issue to the
 repository configured in `AppSetting.report_issue_repo_slug`.
 
-Admins can also have one durable Supervisor chat when the
-`admin_supervisor_chat` feature flag is enabled. It is identified by
-`chat_sessions.system_kind = "supervisor"`, pinned above ordinary chats,
-and protected from hide/rename/delete paths while the flag is on.
-`SupervisorEvents.publish!` records operational events as
-`ChatScopedEvent` rows for every Supervisor chat and, when lineage can be
-resolved, for ordinary chats that originated the affected Job, Epic,
-Workflow, Run, or PR. Each scoped event is evaluated in a disposable
+`ChatWorkEvents.publish!` records operational events as `ChatScopedEvent`
+rows for ordinary chats that originated the affected Job, Epic, Workflow,
+Run, or PR, resolved through confirmed proposal lineage
+(`ChatScopedEventRecipients`). Each scoped event is evaluated in a disposable
 read-only provider session by `ChatScopedEventEvaluatorJob`; `no_op`
 decisions stay audit-only, while `respond` and `act` create a real
 `ChatWakeup` message that wakes the live chat agent with the structured
@@ -1885,7 +1881,7 @@ Several layers, each catching different failure modes:
    count** — they're independent of the issue's progress and a
    transient base-branch tangle shouldn't burn through the failure
    budget. Rebase and stack-rebase workflows have their own caps.
-9. **Operator repair toolkit** — admin and Supervisor chat expose
+9. **Operator repair toolkit** — admin chat exposes
    confirmed repair actions through a `PendingActions::Base` framework.
    Repair actions (provider circuit evidence, CI repair no-op, CI repair
    rerun, provider admission wake, state reconciliation, state
@@ -1975,8 +1971,8 @@ Several layers, each catching different failure modes:
 - **Feature flags** — declared in `config/features.yml`, synchronized
   into `Feature` rows, serialized through the bootstrap
   `feature_flags` payload, and toggled by admins at `/admin/features`.
-  Notable operational/labs flags include `terminal`,
-  `agent_insights`, and `admin_supervisor_chat`.
+  Notable operational/labs flags include `terminal` and
+  `agent_insights`.
 - **`/admin/plugins`** — plugin management: view registered plugins and
   their extension points, enable/disable disableable plugins, inspect
   disable blockers (active Jobs, configured users, open Workflows).
@@ -2006,7 +2002,7 @@ Several layers, each catching different failure modes:
   context; 6-hour retention) and asynchronously indexed into an FTS5
   virtual table (`OperationalLogIndex`) for full-text search. Exposed via
   the admin REST API and the admin-only chat MCP tool
-  `admin_read_operational_logs`, so an admin (or Supervisor chat) can
+  `admin_read_operational_logs`, so an admin chat can
   search Syrus's own error/warning history the same way they'd grep
   worker logs.
 - **Admin stuck surfaces** — the overview health tile, stuck list, token

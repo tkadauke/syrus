@@ -339,7 +339,7 @@ RSpec.describe McpToolPolicy do
     end
   end
 
-  describe "chat admin role" do
+  describe "admin planning chats" do
     it "keeps repository attachment and proposal tools for ordinary admin planning chats" do
       admin = Factories.user(admin: true)
       admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin))
