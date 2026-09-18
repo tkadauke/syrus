@@ -813,6 +813,18 @@ describe("RepositoryInsightsRoute", () => {
       })
       expect(screen.getByText("Suggested prompt")).toBeInTheDocument()
     })
+
+    it("wraps long unbroken suggested-prompt text and scrolls horizontally as a fallback", async () => {
+      const longPrompt = `Investigate TestInsights::Ingester#insert_test_cases (${"a".repeat(120)}/ingester.rb) for the failure.`
+      renderRoute([makeSuggestion({ suggested_prompt: longPrompt })])
+
+      fireEvent.click(await screen.findByText("Frequent prepare failures"))
+
+      const pre = screen.getByText(longPrompt)
+      expect(pre.className).toContain("whitespace-pre-wrap")
+      expect(pre.className).toContain("break-words")
+      expect(pre.className).toContain("overflow-x-auto")
+    })
   })
 
   describe("undismiss action", () => {
