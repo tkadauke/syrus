@@ -108,11 +108,9 @@ module EmergencyLand
     end
 
     def merge!(pr_number)
-      client.merge_pull_request(
-        repository.slug,
-        pr_number,
-        commit_title: "Merge #{repository.slug}##{pr_number} via Syrus (emergency land)",
-        merge_method: "rebase"
+      PullRequestMerger.new(repository, client: client).merge(
+        pr_number: pr_number,
+        commit_title: "Merge #{repository.slug}##{pr_number} via Syrus (emergency land)"
       )
     end
 
