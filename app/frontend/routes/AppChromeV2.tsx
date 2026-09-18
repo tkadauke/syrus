@@ -6,7 +6,7 @@ import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
@@ -774,14 +774,15 @@ function AdminNav({
 
 function AdminNavSearch({ onChange, value }: { onChange: (value: string) => void; value: string }) {
   const { t } = useTranslation("nav")
+  const inputId = useId()
 
   return (
     <div className="relative">
-      <label className="sr-only" htmlFor="admin-nav-search">{t("nav:admin_nav_search_label")}</label>
+      <label className="sr-only" htmlFor={inputId}>{t("nav:admin_nav_search_label")}</label>
       <SearchIcon />
       <Input
         className="h-9 pl-9"
-        id="admin-nav-search"
+        id={inputId}
         onChange={(event) => onChange(event.target.value)}
         placeholder={t("nav:admin_nav_search_placeholder")}
         type="search"

@@ -2089,7 +2089,7 @@ describe("AdminNav grouped navigation", () => {
     renderAppChrome(<div />, { initialEntries: ["/admin"] })
 
     await screen.findAllByText("Operations")
-    const [searchInput] = screen.getAllByPlaceholderText("Search pages...")
+    const [searchInput] = screen.getAllByLabelText("Search admin navigation")
 
     fireEvent.change(searchInput, { target: { value: "queue" } })
 
@@ -2109,11 +2109,30 @@ describe("AdminNav grouped navigation", () => {
     renderAppChrome(<div />, { initialEntries: ["/admin"] })
 
     await screen.findAllByText("Operations")
-    const [searchInput] = screen.getAllByPlaceholderText("Search pages...")
+    const [searchInput] = screen.getAllByLabelText("Search admin navigation")
 
     fireEvent.change(searchInput, { target: { value: "zzz-no-such-page" } })
 
     expect(screen.getAllByText("No matching pages").length).toBeGreaterThan(0)
+  })
+
+  it("gives the desktop and mobile admin nav search inputs distinct, properly-associated ids", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    await screen.findAllByText("Operations")
+    const searchInputs = screen.getAllByLabelText("Search admin navigation")
+
+    expect(searchInputs).toHaveLength(2)
+    expect(searchInputs[0].id).not.toBe(searchInputs[1].id)
+    expect(searchInputs[0].id).not.toBe("")
+    expect(searchInputs[1].id).not.toBe("")
   })
 })
 
