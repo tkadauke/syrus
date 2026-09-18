@@ -294,6 +294,7 @@ export type WorkerHealthLevel = "ok" | "warning" | "critical" | "unknown" | stri
 export type WorkerHealthSample = {
   id: number
   hostname: string
+  worker_storage_key?: string | null
   role: string
   version: string
   observed_at: string
@@ -339,6 +340,7 @@ export type WorkerHealthMinuteBucket = WorkerHealthSummary & {
 export type CurrentWorkerHealth = {
   id: number
   hostname: string
+  worker_storage_key?: string | null
   role: string
   version: string
   started_at: string | null
@@ -354,7 +356,9 @@ export type CurrentWorkerHealth = {
 }
 
 export type WorkerHealthHost = {
+  key?: string
   hostname: string
+  worker_storage_key?: string | null
   status?: "current" | "historical" | string
   current: CurrentWorkerHealth | null
   windows: Record<string, WorkerHealthSummary>

@@ -17,17 +17,18 @@ module Syrus
       # Every entry here must have a small, bounded set of values that does not
       # grow with the amount of work Syrus does.
       #
-      # `hostname` and `version` are the two deliberate exceptions to "bounded
+      # `hostname`, `worker_storage_key`, and `version` are deliberate exceptions to "bounded
       # set of values" in the strict sense -- pod names and git SHAs do churn
-      # across deploys over a long enough retention window. They are allowed
-      # anyway because the worker/fleet gauges (syrus_worker_cpu_percent,
-      # syrus_instance_versions, ...) are sampled centrally from one process
-      # and cached, not scraped per-pod -- there is no Prometheus-assigned
-      # `instance` label to fall back on, since only the web role currently
-      # serves /metrics (see config/syrus_docs/metrics.md). The set of values
-      # actually alive at any moment is small (the live worker fleet, "two
-      # versions during a rollout"), which is what keeps this from becoming
-      # the per-request unbounded case the rest of this list guards against.
+      # across deploys over a long enough retention window and storage keys
+      # persist per worker data root. They are allowed anyway because the
+      # worker/fleet gauges (syrus_worker_cpu_percent, syrus_instance_versions,
+      # ...) are sampled centrally from one process and cached, not scraped
+      # per-pod -- there is no Prometheus-assigned `instance` label to fall
+      # back on, since only the web role currently serves /metrics (see
+      # config/syrus_docs/metrics.md). The set of values actually alive at any
+      # moment is small (the live worker fleet, "two versions during a
+      # rollout"), which is what keeps this from becoming the per-request
+      # unbounded case the rest of this list guards against.
       ALLOWED = %i[
         queue
         state
@@ -47,6 +48,7 @@ module Syrus
         tool
         plugin
         hostname
+        worker_storage_key
         version
         job
         skip_reason
