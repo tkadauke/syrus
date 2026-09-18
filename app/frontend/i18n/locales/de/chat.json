@@ -338,6 +338,7 @@
   "aria_chat_workspace": "Chat-Arbeitsbereich",
   "confirm": "Bestätigen",
   "confirmed": "Bestätigt",
+  "pending_action_emergency_land_warning": "Dies umgeht die Joberstellung und landet sofort, ohne jede Qualitätskontrolle.",
   "edit_proposal": "Vorschlag bearbeiten",
   "aria_close_proposal_editor": "Vorschlags-Editor schließen",
   "attached_scope": "Angehängter Geltungsbereich",
