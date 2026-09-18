@@ -1,18 +1,20 @@
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useRef, useState, type RefObject } from "react"
 import { useLocation } from "react-router-dom"
 import type { TypedArtifact } from "@app/api/artifacts"
 import { allArtifactRendererEntries, type ArtifactRendererEntry } from "@app/artifactRendererRegistry"
 import { FilterBar, type FilterSchemaField } from "@app/components/FilterBar"
 import { ArtifactBody } from "@app/components/artifacts/TypedArtifactPanel"
+import type { Shape } from "@app/components/ImageAnnotationModal"
 import { RAW_JSON_RENDERER_TYPE } from "@app/components/artifacts/coreArtifactRenderers"
 import { Badge, DescriptionList, Page, PanelMessage, Section, Text, type SemanticTone } from "@app/components/ui"
 import { useCopyToClipboard } from "@app/hooks/useCopyToClipboard"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { CatalogExampleSelector } from "../catalog/CatalogExampleSelector"
+import { CatalogFeedbackDialog } from "../catalog/CatalogFeedbackDialog"
 import { catalogAnchorId, useCatalogDeepLinkScroll } from "../catalog/catalogDeepLink"
 import { buildCatalogFilterLink, catalogFilterTreeFromSearch, catalogFiltersFromSearch } from "../catalog/catalogFilterLink"
-import { CatalogViewportSwitcher, viewportPresetFromSearch } from "../catalog/catalogViewport"
+import { CatalogViewportFrame, CatalogViewportSwitcher, viewportPresetFromSearch, type ViewportPresetId } from "../catalog/catalogViewport"
 
 // The Artifact Renderer Catalog: every registered typed-artifact renderer
 // (core, plugin-owned, and the raw JSON fallback -- see
@@ -94,6 +96,68 @@ export function payloadSummary(payload: unknown, t: (key: string, options?: Reco
     return t("artifact_renderers.payload_summary_object", { count: keys.length, fields: keys.join(", ") })
   }
   return String(payload)
+}
+
+export type ArtifactRendererFeedbackMetadata = {
+  catalog_deep_link: string
+  renderer_type: string
+  display_label: string
+  artifact_type: string
+  owner_type: ArtifactRendererEntry["ownerType"]
+  plugin_name: string | null
+  fallback_only: boolean
+  selected_example_id: string
+  selected_viewport_preset: ViewportPresetId
+  artifact_metadata: Omit<TypedArtifact, "payload">
+  selected_payload: unknown
+  full_artifact: TypedArtifact
+  annotations: Shape[]
+}
+
+export function buildArtifactRendererFeedbackMetadata(
+  entry: ArtifactRendererEntry,
+  artifact: TypedArtifact,
+  selectedExampleId: string,
+  viewportPresetId: ViewportPresetId,
+  deepLink: string,
+  annotations: Shape[] = []
+): ArtifactRendererFeedbackMetadata {
+  const { payload: _payload, ...artifactMetadata } = artifact
+  return {
+    catalog_deep_link: deepLink,
+    renderer_type: entry.rendererType,
+    display_label: entry.displayLabel,
+    artifact_type: artifact.type,
+    owner_type: entry.ownerType,
+    plugin_name: entry.pluginName,
+    fallback_only: Boolean(entry.fallbackOnly),
+    selected_example_id: selectedExampleId,
+    selected_viewport_preset: viewportPresetId,
+    artifact_metadata: artifactMetadata,
+    selected_payload: artifact.payload,
+    full_artifact: artifact,
+    annotations
+  }
+}
+
+export function buildArtifactRendererFeedbackPrompt(promptText: string, metadata: ArtifactRendererFeedbackMetadata): string {
+  const trimmedPrompt = promptText.trim()
+  const heading = trimmedPrompt || `Discuss the "${metadata.display_label}" artifact renderer in the Artifact Renderer Catalog.`
+
+  const summary = [
+    "---",
+    "**Artifact Renderer Context**",
+    `- Renderer: ${metadata.display_label} (\`${metadata.renderer_type}\`)`,
+    `- Artifact type: ${metadata.artifact_type}`,
+    `- Owner: ${metadata.owner_type}${metadata.plugin_name ? ` · ${metadata.plugin_name}` : ""}`,
+    `- Example: ${metadata.selected_example_id}`,
+    `- Viewport: ${metadata.selected_viewport_preset}`,
+    `- Catalog link: ${metadata.catalog_deep_link}`
+  ].join("\n")
+
+  const jsonBlock = "```json\n" + JSON.stringify(metadata, null, 2) + "\n```"
+
+  return [heading, summary, jsonBlock].join("\n\n")
 }
 
 // Only the provenance fields actually present on this artifact are shown --
@@ -191,6 +255,7 @@ export function AdminArtifactRenderers() {
               initialExampleId={entry.rendererType === deepLinkRenderer ? deepLinkExample : null}
               key={entry.rendererType}
               previewWidth={selectedViewport.width}
+              viewportPresetId={selectedViewport.id}
             />
           ))}
         </div>
@@ -204,11 +269,13 @@ export default AdminArtifactRenderers
 export function ArtifactCatalogEntry({
   entry,
   initialExampleId,
-  previewWidth
+  previewWidth,
+  viewportPresetId = "desktop"
 }: {
   entry: ArtifactRendererEntry
   initialExampleId?: string | null
   previewWidth: number
+  viewportPresetId?: ViewportPresetId
 }) {
   const { t } = useT("syrus_dev")
   const { copied, copy } = useCopyToClipboard()
@@ -216,6 +283,7 @@ export function ArtifactCatalogEntry({
   const [ selectedId, setSelectedId ] = useState<string | null>(hasInitialMatch ? (initialExampleId as string) : entry.examples[0]?.id ?? null)
   const id = anchorId(entry.rendererType)
   const headingId = `${id}-heading`
+  const previewFrameRef = useRef<HTMLDivElement | null>(null)
 
   const selectedExample = entry.examples.find((example) => example.id === selectedId) ?? entry.examples[0] ?? null
 
@@ -261,7 +329,17 @@ export function ArtifactCatalogEntry({
             {selectedExample?.description ? <Text tone="muted" variant="caption">{selectedExample.description}</Text> : null}
             {selectedExample?.expectedFallback ? <Badge tone="warning">{t("artifact_renderers.expected_fallback")}</Badge> : null}
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-2">
+              {selectedExample ? (
+                <ArtifactRendererDiscussButton
+                  deepLink={deepLinkFor(selectedExample.id)}
+                  entry={entry}
+                  exampleId={selectedExample.id}
+                  previewRef={previewFrameRef}
+                  selectedArtifact={selectedExample.artifact}
+                  viewportPresetId={viewportPresetId}
+                />
+              ) : <span />}
               <button
                 className="text-xs text-brand underline hover:no-underline"
                 onClick={() => selectedExample && copy(deepLinkFor(selectedExample.id))}
@@ -273,15 +351,14 @@ export function ArtifactCatalogEntry({
 
             {selectedExample ? (
               <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <div className="overflow-x-auto">
-                  <div
-                    aria-label={t("artifact_renderers.viewport_frame_aria", { width: previewWidth })}
-                    className="mx-auto min-w-0 rounded-[var(--radius-control)] border border-dashed border-border bg-surface p-3"
-                    style={{ width: `${previewWidth}px` }}
-                  >
-                    <ArtifactBody artifact={selectedExample.artifact} />
-                  </div>
-                </div>
+                <CatalogViewportFrame
+                  ariaLabel={t("artifact_renderers.viewport_frame_aria", { width: previewWidth })}
+                  className="min-w-0"
+                  ref={previewFrameRef}
+                  width={previewWidth}
+                >
+                  <ArtifactBody artifact={selectedExample.artifact} />
+                </CatalogViewportFrame>
                 <ArtifactMetadataPanel artifact={selectedExample.artifact} entry={entry} />
               </div>
             ) : null}
@@ -289,6 +366,54 @@ export function ArtifactCatalogEntry({
         )}
       </Section.Body>
     </Section.Root>
+  )
+}
+
+function ArtifactRendererDiscussButton({
+  deepLink,
+  entry,
+  exampleId,
+  previewRef,
+  selectedArtifact,
+  viewportPresetId
+}: {
+  deepLink: string
+  entry: ArtifactRendererEntry
+  exampleId: string
+  previewRef: RefObject<HTMLElement | null>
+  selectedArtifact: TypedArtifact
+  viewportPresetId: ViewportPresetId
+}) {
+  const { t } = useT("syrus_dev")
+  const buildMetadata = useCallback(
+    (annotations: Shape[]) => buildArtifactRendererFeedbackMetadata(entry, selectedArtifact, exampleId, viewportPresetId, deepLink, annotations),
+    [entry, selectedArtifact, exampleId, viewportPresetId, deepLink]
+  )
+
+  return (
+    <CatalogFeedbackDialog
+      attachmentName={`${entry.rendererType}-artifact-renderer.png`}
+      buildMetadata={buildMetadata}
+      buildPrompt={buildArtifactRendererFeedbackPrompt}
+      copy={{
+        trigger: t("artifact_renderers.discuss.trigger"),
+        modalAria: t("artifact_renderers.discuss.modal_aria", { renderer: entry.displayLabel }),
+        heading: t("artifact_renderers.discuss.heading", { renderer: entry.displayLabel }),
+        close: t("artifact_renderers.discuss.close"),
+        capturing: t("artifact_renderers.discuss.capturing"),
+        captureFailed: t("artifact_renderers.discuss.capture_failed"),
+        screenshotAlt: t("artifact_renderers.discuss.screenshot_alt", { renderer: entry.displayLabel }),
+        annotate: t("artifact_renderers.discuss.annotate"),
+        promptLabel: t("artifact_renderers.discuss.prompt_label"),
+        promptPlaceholder: t("artifact_renderers.discuss.prompt_placeholder"),
+        metadataSummary: t("artifact_renderers.discuss.metadata_summary"),
+        chatFailed: t("artifact_renderers.discuss.chat_failed"),
+        cancel: t("artifact_renderers.discuss.cancel"),
+        submit: t("artifact_renderers.discuss.submit"),
+        starting: t("artifact_renderers.discuss.starting")
+      }}
+      previewRef={previewRef}
+    />
   )
 }
 
