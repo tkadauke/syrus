@@ -134,7 +134,7 @@ class ChatStopReconciler
   end
 
   def latest_user_message(chat)
-    chat.messages.where(role: "user").order(:created_at, :id).last
+    ChatTurnLiveness.new(chat).latest_user_message
   end
 
   def dangling_tool_calls_after_latest_user?(chat)
@@ -157,54 +157,11 @@ class ChatStopReconciler
   end
 
   def live_agent_process?(chat)
-    SpawnedProcess.live_agent
-                  .where(workdir: chat.workspace_root.to_s)
-                  .exists?
+    ChatTurnLiveness.new(chat).live_agent_process?
   end
 
   def pending_chat_turn_job?(chat)
-    latest_user_message = latest_user_message(chat)
-    return false unless latest_user_message
-
-    active_chat_turn_job_arguments.any? do |arguments|
-      chat_turn_job_for_message?(arguments, chat.id, latest_user_message.id)
-    end
-  end
-
-  def active_chat_turn_job_arguments
-    [
-      SolidQueue::ReadyExecution,
-      SolidQueue::ClaimedExecution,
-      SolidQueue::BlockedExecution
-    ].flat_map do |execution_class|
-      execution_class
-        .joins(:job)
-        .where(solid_queue_jobs: { class_name: "ChatTurnJob", finished_at: nil })
-        .pluck("solid_queue_jobs.arguments")
-    rescue ActiveRecord::StatementInvalid
-      []
-    end
-  rescue NameError
-    []
-  end
-
-  def chat_turn_job_for_message?(arguments, chat_id, message_id)
-    values = job_argument_values(arguments)
-    return false if values.length < 2
-
-    values[0].to_i == chat_id.to_i && values[1].to_i == message_id.to_i
-  end
-
-  def job_argument_values(arguments)
-    payload = if arguments.respond_to?(:dig)
-      arguments
-    else
-      JSON.parse(arguments.to_s)
-    end
-
-    Array(payload&.dig("arguments") || payload&.dig(:arguments))
-  rescue JSON::ParserError
-    []
+    ChatTurnLiveness.new(chat).pending_chat_turn_job?
   end
 
   def create_terminal_message!(chat, message)

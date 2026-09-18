@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_18_023150) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_18_173346) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -775,6 +775,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_023150) do
     t.index ["local_tool_call_id"], name: "index_chat_shell_commands_on_local_tool_call_id"
     t.index ["spawned_process_id"], name: "index_chat_shell_commands_on_spawned_process_id"
     t.index ["user_id"], name: "index_chat_shell_commands_on_user_id"
+  end
+
+  create_table "chat_turn_auto_retry_attempts", force: :cascade do |t|
+    t.integer "attempt_number", null: false
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "exhausted_at"
+    t.datetime "performed_at"
+    t.integer "retry_message_id"
+    t.integer "root_user_message_id", null: false
+    t.datetime "scheduled_at", null: false
+    t.string "skipped_reason"
+    t.datetime "updated_at", null: false
+    t.integer "user_message_id", null: false
+    t.index ["chat_session_id", "root_user_message_id", "attempt_number"], name: "idx_chat_turn_auto_retries_budget", unique: true
+    t.index ["chat_session_id"], name: "index_chat_turn_auto_retry_attempts_on_chat_session_id"
+    t.index ["retry_message_id"], name: "index_chat_turn_auto_retry_attempts_on_retry_message_id"
+    t.index ["root_user_message_id"], name: "index_chat_turn_auto_retry_attempts_on_root_user_message_id"
+    t.index ["scheduled_at", "performed_at", "skipped_reason"], name: "idx_chat_turn_auto_retries_due"
+    t.index ["user_message_id"], name: "index_chat_turn_auto_retry_attempts_on_user_message_id"
   end
 
   create_table "chat_wakeups", force: :cascade do |t|
