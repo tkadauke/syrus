@@ -39,6 +39,30 @@ module Prompts
         - "urgency" and "confidence" must be numbers from 0.0 to 1.0.
         - Include "handoff_prompt" only for respond or act.
 
+        Success-kind events (e.g. job_implemented, pr_merged, epic_completed,
+        epic_review_ready, main_recovered) need extra scrutiny: they report that
+        something went *fine*, not that something needs attention. Only choose
+        "respond"/"act" for a success-kind event when the chat transcript shows
+        clear evidence the operator cares about hearing when this specific piece
+        of work finishes -- they asked to be notified, asked a direct question
+        about timing or outcome, or the event closes out something they were
+        actively waiting on. Default to "no_op" for a routine successful
+        completion where nothing in the chat's history suggests the operator is
+        watching for it. Do not treat "the operator started this work" alone as
+        evidence they are watching for its completion -- most Jobs/Epics finish
+        without anyone needing a ping.
+
+        Two contrasting examples:
+        - Chat history ends with the operator saying "let me know when this
+          lands" (or "ping me when it's done", "tell me once the PR merges").
+          A job_implemented/pr_merged event for that same Job closes out an
+          explicit ask -> "respond" (or "act" if the update should prompt a
+          next step), with a short handoff_prompt confirming the outcome.
+        - Chat history shows the operator confirming a proposal and then moving
+          on to unrelated topics (a different Job, a design question, nothing
+          further about this one). A job_implemented event later for that Job
+          is routine progress nobody is watching for -> "no_op".
+
         Chat:
         #{chat_json}
 

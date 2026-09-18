@@ -77,11 +77,17 @@ class NotificationService
   # something *went fine*, and a queue of those buries the rare one that
   # needs a decision.
   #
-  # Only kinds that represent something a person may have to act on publish an
-  # event now. The rest are still notifications -- the user sees them -- they
-  # just do not wake a scoped chat.
+  # Failure/attention kinds always publish -- they always warrant judgment.
+  # Success-completion kinds also publish now, but only wake a chat when the
+  # evaluator (see ChatEventEvaluator) finds transcript evidence the operator
+  # actually cares about that specific outcome; routine progress kinds that
+  # are neither a failure nor a real completion (a feedback round queued, an
+  # external reviewer left a comment, PR feedback addressed) stay out of the
+  # event pipeline entirely -- they are still notifications, the user sees
+  # them, they just do not wake a scoped chat.
   CHAT_WORK_EVENT_KINDS = %w[
     job_failed epic_failed main_broken main_inconclusive upstream_pr_closed
+    job_implemented pr_merged epic_completed epic_review_ready main_recovered
   ].freeze
 
   def self.chat_work_event_kind?(kind) = CHAT_WORK_EVENT_KINDS.include?(kind.to_s)
