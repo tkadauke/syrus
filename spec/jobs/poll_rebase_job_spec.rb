@@ -180,6 +180,24 @@ RSpec.describe PollRebaseJob, :ci_only do
       expect { described_class.perform_now(job.id) }.not_to change(Run, :count)
     end
 
+    # Regression: a closed Job (e.g. a preempted external-PR tracker
+    # someone manually "check now"s, or the poller catching up before a
+    # terminal PR state has been observed) reaching this far used to call
+    # RebaseWorkflowSelector.instantiate for a closed Job, which
+    # Workflow#job_must_be_open_on_create rejects with
+    # ActiveRecord::RecordInvalid.
+    it "does not raise or schedule a rebase Workflow/WorkUnit for a closed Job with an open, unmergeable PR" do
+      job.update!(state: "closed", closure_reason: "preempted", finished_at: Time.current)
+      stub_pr(pr_resource(mergeable: false))
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change(Workflow, :count).by(0).and change(WorkUnit, :count).by(0)
+
+      expect(job.reload).to be_closed
+      expect(job.closure_reason).to eq("preempted")
+    end
+
     it "skips instead of creating a cancelled rebase workflow when stack dependencies are not ready" do
       parent = Factories.job_record(
         user: user,
