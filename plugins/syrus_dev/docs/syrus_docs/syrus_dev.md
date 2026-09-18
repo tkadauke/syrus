@@ -113,7 +113,14 @@ registry:
   it); there is no separate repository picker, since the Tool Card Catalog
   only exists to develop Syrus. The Job's title is left pending so
   `GenerateJobTitleJob` derives one from the prompt, the same as leaving the
-  title blank on the normal "New Job" form.
+  title blank on the normal "New Job" form. Like `BugReports::Creator`
+  (which this shortcut shares its Job-creation core with, via
+  `::DirectJobs::Creator` -- see below), it always advances the Job straight
+  past triage rather than routing product owners through the `needs_triage`
+  gate `Api::V1::App::DirectJobsController#create_direct_job` applies on the
+  normal "New Job" form; that's intentional for this internal dev-tool
+  surface, which exists specifically to skip friction on Syrus-about-itself
+  jobs.
 
 The performance and operational-log APIs are mirrored at `/api/v1/admin/performance`,
 `/api/v1/admin/performance/explain`, and `/api/v1/admin/operational_logs`

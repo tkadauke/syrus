@@ -50,7 +50,8 @@
       "submit": "Chat öffnen",
       "starting": "Chat wird gestartet...",
       "create_job": "Job erstellen",
-      "creating_job": "Job wird erstellt..."
+      "creating_job": "Job wird erstellt...",
+      "create_job_requires_prompt": "Beschreibe, was erledigt werden soll, bevor ein Job erstellt wird."
     }
   },
   "performance": {

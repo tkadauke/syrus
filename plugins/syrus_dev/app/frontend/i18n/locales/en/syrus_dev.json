@@ -50,7 +50,8 @@
       "submit": "Open chat",
       "starting": "Starting chat...",
       "create_job": "Create Job",
-      "creating_job": "Creating job..."
+      "creating_job": "Creating job...",
+      "create_job_requires_prompt": "Describe what you want done before creating a job."
     }
   },
   "performance": {

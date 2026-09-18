@@ -285,11 +285,29 @@ describe("ToolCardDiscussButton", () => {
     await openDialog()
     await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
 
+    fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "The icon looks wrong here." } })
     fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
 
     await screen.findByText("Couldn't create a job. Please try again.")
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it("disables Create Job until the operator writes a prompt, since it dispatches an agent immediately with no review step", async () => {
+    mockHtml2canvas.mockResolvedValue({ toDataURL: () => "data:image/png;base64,c2NyZWVuc2hvdA==" } as unknown as HTMLCanvasElement)
+
+    renderHarness()
+    await openDialog()
+    await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toBeInTheDocument())
+
+    const createJobButton = screen.getByRole("button", { name: "Create Job" })
+    expect(createJobButton).toBeDisabled()
+
+    fireEvent.click(createJobButton)
+    expect(mockCreateToolCardJob).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "Now there's a real prompt." } })
+    expect(createJobButton).not.toBeDisabled()
   })
 })
 
