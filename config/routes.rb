@@ -175,7 +175,6 @@ Rails.application.routes.draw do
         post "jobs/:job_id/retry_pr_ingestion", to: "job_run_commands#retry_pr_ingestion", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/visual_review", to: "job_run_commands#run_visual_review", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/visual_diff", to: "job_run_commands#run_visual_diff", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
-        post "jobs/:job_id/request_changes", to: "job_run_commands#request_changes", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/override_landing_blocker", to: "jobs#override_landing_blocker", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/recheck_pr_checks", to: "job_run_commands#recheck_pr_checks", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/ref_movement_actions", to: "job_ref_movement_actions#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -200,8 +199,6 @@ Rails.application.routes.draw do
         patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /[a-zA-Z0-9_-]+/ }
         patch "epics/:id/state", to: "epics#update_state", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics/:id/start", to: "epics#start", constraints: { id: /[a-zA-Z0-9_-]+/ }
-        post "epics/:id/review/approve", to: "epics#approve_review", constraints: { id: /[a-zA-Z0-9_-]+/ }
-        post "epics/:id/review/feedback", to: "epics#submit_review_feedback", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics/:id/dependencies", to: "epics#add_dependency", constraints: { id: /[a-zA-Z0-9_-]+/ }
         delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"

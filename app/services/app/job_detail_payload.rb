@@ -1001,7 +1001,7 @@ module App
           ),
         can_cancel: writable && @job.open?,
         can_stop_landing: writable && @job.landing?,
-        can_approve: writable && reviewable_job && @job.can_add_job_approval?(@user) && !simple_epic_child?,
+        can_approve: writable && reviewable_job && @job.can_add_job_approval?(@user),
         can_unapprove: writable && @job.may_unapprove?,
         can_reopen: writable && @job.closed? && !@job.infrastructure?,
         can_mark_valid: writable && (@job.validity_duplicate? || @job.validity_already_implemented?),
@@ -1021,7 +1021,6 @@ module App
         can_deploy: @job.deployable? && deploy_configured?,
         can_run_visual_review: visual_review_enabled && visual_review_actionable,
         can_run_visual_diff: visual_review_enabled && visual_diff_actionable && visual_diff_available?,
-        can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
         can_override_pr_checks_landing_blocker: writable && pr_checks_landing_blocker_overridable?,
         can_override_inherited_pr_checks: writable && pr_checks_landing_blocker_overridable?,
         can_send_job_upstream: send_job_upstream_action&.fetch(:available) || false,
@@ -1040,24 +1039,11 @@ module App
         @job.landing_blocker_override_used_at.blank?
     end
 
-    def simple_epic_child?
-      AppSetting.simple? && @job.epic_id.present?
-    end
-
     # Only `classifier_uncertain` puts the decision in a person's hands.
     # `classifier_pending` is still in flight and `pending_epic_ref` resolves
     # itself when the Epic shows up, so neither wants an Accept/Reject prompt.
     def awaiting_triage_decision?
       @job.triaging? && @job.triaging_reason_classifier_uncertain?
-    end
-
-    # Mirrors JobReviewFeedbackSubmission's own eligibility check: a closed
-    # Job is only "already landed" (and thus safe to depend on) when it
-    # closed for a successful reason. Depending on an unsuccessfully-closed
-    # Job (invalidated/duplicate/cancelled/etc.) would create a
-    # JobDependency that can never resolve.
-    def request_changes_eligible?
-      @job.previewable? || (@job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(@job.closure_reason))
     end
 
     def coding_mode_takeover_blocked_reason(writable:)
@@ -1143,7 +1129,6 @@ module App
         app_deploy_path: "/api/v1/app/jobs/#{@job.id}/deploy",
         app_visual_review_path: "/api/v1/app/jobs/#{@job.id}/visual_review",
         app_visual_diff_path: "/api/v1/app/jobs/#{@job.id}/visual_diff",
-        app_request_changes_path: "/api/v1/app/jobs/#{@job.id}/request_changes",
         app_ref_movement_actions_path: "/api/v1/app/jobs/#{@job.id}/ref_movement_actions",
         admin_resource_admission_path: admin_resource_admission_path
       }

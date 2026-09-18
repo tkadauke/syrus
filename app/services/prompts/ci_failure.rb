@@ -59,14 +59,10 @@ module Prompts
           in `submit_summary` instead of pushing a noop.
       PROMPT
 
-      [ simple_mode_context, main_prompt, injected_context_section, ShellCommandExecutionContract::TEXT ].compact_blank.join("\n\n")
+      [ main_prompt, injected_context_section, ShellCommandExecutionContract::TEXT ].compact_blank.join("\n\n")
     end
 
     private
-
-    def simple_mode_context
-      Prompts::SimpleModeAgentContext.to_s.presence
-    end
 
     def head_sha_label
       sha = @head_sha.to_s.strip

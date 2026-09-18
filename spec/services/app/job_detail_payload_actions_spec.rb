@@ -177,9 +177,6 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
   describe "#actions_json Coding Mode takeover" do
     around do |example|
-      setting = AppSetting.current
-      original_mode = setting.mode
-      setting.update!(mode: "advanced", mode_configured_at: Time.current)
       original_github_token = user.github_token
       user.update!(github_token: "ghp_test")
       feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
@@ -191,18 +188,16 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       Feature.clear_cache!
       example.run
     ensure
-      setting&.update!(mode: original_mode || "advanced")
       user&.update!(github_token: original_github_token)
       feature&.update!(enabled: original_enabled)
       Feature.clear_cache!
     end
 
-    it "offers Coding Mode feedback in advanced mode when ordinary request changes is off" do
+    it "offers Coding Mode feedback" do
       job = Factories.job_record(user: user, repository: repo, state: "implemented", branch_name: "syrus/job-1")
 
       actions = payload_for(job).fetch(:actions)
 
-      expect(actions.fetch(:can_request_changes)).to be(false)
       expect(actions.fetch(:can_open_in_coding_mode)).to be(true)
       expect(actions.fetch(:open_in_coding_mode_blocked_reason)).to be_nil
     end

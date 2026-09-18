@@ -147,10 +147,8 @@ class Job < ApplicationRecord
   before_validation :default_credential_mode, on: :create
   before_validation :default_lifecycle_metadata, on: :create
   before_validation :set_target_repository_from_epic, on: :create
-  before_validation :apply_simple_epic_automation_defaults, on: :create
   before_validation :defer_stale_closed_epic_assignment
   before_validation :sync_epic_title
-  after_create :ensure_simple_epic_auto_approval
   before_create :generate_slug
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
@@ -1257,17 +1255,13 @@ class Job < ApplicationRecord
     return if closed?
     if failure_count >= AppSetting.max_job_failures
       close_with_reason!("too_many_failures")
-      if AppSetting.simple? && epic
-        epic.notify_child_failed
-      else
-        NotificationService.create_for(
-          user: user,
-          kind: "job_failed",
-          job: self,
-          pr_url: notification_pr_url,
-          body: "#{slug} failed after repeated retries: #{title.truncate(80)}"
-        )
-      end
+      NotificationService.create_for(
+        user: user,
+        kind: "job_failed",
+        job: self,
+        pr_url: notification_pr_url,
+        body: "#{slug} failed after repeated retries: #{title.truncate(80)}"
+      )
     end
   end
 
@@ -1947,23 +1941,6 @@ class Job < ApplicationRecord
     self.invalidation_evidence ||= []
     self.approval_evidence ||= {}
     self.pending_epic_reference ||= {}
-  end
-
-  def apply_simple_epic_automation_defaults
-    return unless AppSetting.simple?
-    return unless epic || epic_id.present?
-    return unless repository&.auto_merge_enabled?
-
-    self.auto_merge_enabled = true
-  end
-
-  def ensure_simple_epic_auto_approval
-    return unless AppSetting.simple?
-    return unless epic
-    return unless repository&.auto_merge_enabled?
-    return if epic.auto_approve_mode == "if_graders_pass"
-
-    epic.update!(auto_approve_mode: "if_graders_pass")
   end
 
   def assign_approval_metadata(*args)

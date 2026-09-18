@@ -146,8 +146,6 @@ class Epic < ApplicationRecord
   alias_method :display_number, :slug
 
   def notify_epic_completed
-    notify_epic_review_ready if review_ready?
-
     jobs.includes(:owner_user, :user).map { |job| job.owner_user || job.user }.uniq.each do |owner|
       NotificationService.create_for(
         user: owner,
@@ -266,70 +264,11 @@ class Epic < ApplicationRecord
     child_jobs.any? && child_jobs.all? { |job| job.closed? && SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
   end
 
-  def review_ready?
-    child_jobs = work_jobs.reload
-    AppSetting.simple? &&
-      user_approved_at.blank? &&
-      child_jobs.any? &&
-      child_jobs.all? { |job| job.closed? && MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-  end
-
   # Landing is not a real Epic state (it's a Job-level AASM state), but it is
   # surfaced as an apparent Epic status: while any child Job is landing, the
   # Epic is effectively landing too, even though it's usually all of them.
   def landing?(jobs: work_jobs.reload)
     jobs.any?(&:landing?)
-  end
-
-  def simple_status(jobs: work_jobs.reload)
-    return "done" if user_approved_at.present?
-    return "something_went_wrong" if jobs.any? { |job| job.closed? && !MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-    return "working_on_it" if jobs.any?(&:open?)
-    return "ready_for_your_review" if review_ready?
-    return "wrapping_up" if jobs.any? && jobs.all? { |job| job.closed? && MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-
-    "working_on_it"
-  end
-
-  def mark_user_approved!
-    update!(user_approved_at: Time.current)
-  end
-
-  def append_review_feedback_job!(feedback:, actor:)
-    feedback = feedback.to_s.strip
-    raise ArgumentError, "Feedback can't be blank" if feedback.blank?
-    raise ArgumentError, "Epic is not ready for review" unless review_ready?
-
-    transaction do
-      previous_tail = work_jobs.order(:id).last
-      update!(state: "in_progress", done_at: nil, user_approved_at: nil) if done?
-
-      job = user.jobs.create!(
-        repository: repository,
-        epic: self,
-        kind: "direct",
-        issue_number: nil,
-        issue_title: "Review feedback: #{title}",
-        issue_body: feedback,
-        agent_provider: repository.effective_agent_provider,
-        priority: "medium",
-        state: "triaging",
-        owner_user: actor || owner_user || owner || user
-      )
-
-      if previous_tail
-        job.dependencies.create!(
-          depends_on_job: previous_tail,
-          source: "manual",
-          created_by_user: actor || user
-        )
-      end
-
-      job.advance_after_triage! if job.may_advance_after_triage?
-      refresh_auto_state!
-      notify_review_feedback_queued
-      job
-    end
   end
 
   # "Stuck" means the Epic is in progress but its children have all wound
@@ -568,34 +507,6 @@ class Epic < ApplicationRecord
       job.cancel_active_execution!
       job.close_with_reason!("epic_archived")
     end
-  end
-
-  def notify_epic_review_ready
-    NotificationService.create_for(
-      user: owner_user || owner || user,
-      kind: "epic_review_ready",
-      body: AppSetting.simple? ? "Your feature '#{title}' is ready for your review" : "Feature \"#{title}\" is ready for your review"
-    )
-  end
-
-  def notify_child_failed
-    return unless AppSetting.simple?
-
-    NotificationService.create_for(
-      user: owner_user || owner || user,
-      kind: "epic_failed",
-      body: "Something went wrong with '#{title}' — Syrus is looking into it"
-    )
-  end
-
-  def notify_review_feedback_queued
-    return unless AppSetting.simple?
-
-    NotificationService.create_for(
-      user: owner_user || owner || user,
-      kind: "epic_feedback_queued",
-      body: "Got it — Syrus is working on '#{title}'"
-    )
   end
 
   private
