@@ -50,12 +50,6 @@ function makePayload(overrides: {
       chat_provider: null,
       codex_auth_mode: overrides.codex_auth_mode ?? "api_key",
       agent_max_turns: 200,
-      agent_provider_failover_policy: {
-        enabled: false,
-        providers: [],
-        causes: ["usage_exhausted", "usage_low", "rate_limited", "provider_transient"],
-        override_explicit_pins: false
-      },
       provider_availability_pause_thresholds: { agy: 10, claude: 10, codex: 10 },
       provider_availability_overrides: {},
       scheduling_paused: false,
@@ -82,7 +76,6 @@ function makePayload(overrides: {
       chat_provider_labels: overrides.chat_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
       roles: ["developer", "product_owner"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
-      agent_provider_failover_causes: ["usage_exhausted", "usage_low", "rate_limited", "provider_transient", "auth_error"],
       agent_max_turns: { min: 0, max: 1000 },
       clearable_credentials: [],
       auto_approve_modes: [{ value: "never", label: "Never", preview: "No auto-approval." }]
@@ -467,7 +460,7 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(within(agyPanel as HTMLElement).getByText("Resets in 1 hour, 45 minutes.")).toHaveAttribute("title", expect.stringContaining("2026"))
   })
 
-  it("uses plugin display names for Muse failover and availability controls", async () => {
+  it("uses plugin display names for Muse availability controls", async () => {
     mockRoutes(makePayload({
       agent_providers: ["claude", "codex", "muse"],
       agent_provider_labels: { claude: "Claude Code", codex: "Codex", muse: "Muse Code" },
@@ -475,36 +468,6 @@ describe("CredentialsRoute (provider cards)", () => {
     }))
     renderAgentSettings()
 
-    expect(await screen.findByLabelText("Muse Code")).toBeInTheDocument()
-    expect(screen.getByLabelText("Muse Code pause threshold (%)")).toBeInTheDocument()
-  })
-
-  it("serializes the agent-provider failover policy from agent settings", async () => {
-    const fetchSpy = mockRoutes(makePayload())
-    renderAgentSettings()
-
-    fireEvent.click(await screen.findByLabelText("Enable automatic agent-provider failover"))
-    fireEvent.click(screen.getByLabelText("Codex"))
-    fireEvent.click(screen.getByLabelText("Authentication error"))
-    fireEvent.click(screen.getByLabelText("Allow failover to override explicit Job provider pins"))
-    fireEvent.click(screen.getByRole("button", { name: "Save" }))
-
-    await waitFor(() => {
-      const patchCall = fetchSpy.mock.calls.find(([url, init]) => String(url).endsWith("/api/v1/app/credentials") && init?.method === "PATCH")
-      expect(patchCall).toBeTruthy()
-      expect(JSON.parse(patchCall?.[1]?.body as string).user.agent_provider_failover_policy).toEqual({
-        enabled: true,
-        providers: ["codex"],
-        causes: ["usage_exhausted", "usage_low", "rate_limited", "provider_transient", "auth_error"],
-        override_explicit_pins: true
-      })
-    })
-  })
-
-  it("keeps automatic failover copy scoped to workflows instead of chats", async () => {
-    mockRoutes(makePayload())
-    renderAgentSettings()
-
-    expect(await screen.findByText("Chat sessions keep their selected chat provider; chats do not automatically fail over.")).toBeInTheDocument()
+    expect(await screen.findByLabelText("Muse Code pause threshold (%)")).toBeInTheDocument()
   })
 })

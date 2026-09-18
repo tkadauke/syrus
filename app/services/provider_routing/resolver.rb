@@ -5,9 +5,6 @@ module ProviderRouting
   # precedence shape of Repository#effective_agent_provider and
   # Job::ProviderSetting::Default#resolve, but returns a list instead of
   # a single value so callers can fail over between candidates.
-  #
-  # Not yet wired into Workflows::Base/StepDispatcher -- this is resolver
-  # + model only.
   class Resolver
     Candidate = Data.define(:provider, :model, :effort_level) do
       def to_h = super.compact

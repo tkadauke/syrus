@@ -139,7 +139,8 @@ class ProviderAvailabilityPause
   end
 
   def provider_availability_controls_enabled?
-    user.provider_availability_pause_enabled?(provider) || user.agent_provider_failover_enabled?
+    user.provider_availability_pause_enabled?(provider) ||
+      ProviderRouting::Resolver.rule_configured?(job: workflow.job, task_key: task_key)
   end
 
   def usage_exhausted?(availability)

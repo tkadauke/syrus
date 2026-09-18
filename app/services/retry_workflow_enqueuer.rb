@@ -131,15 +131,11 @@ class RetryWorkflowEnqueuer
   end
 
   def provider_failover_candidate?
-    job.agent_provider_failover_candidates(cause: retry_failover_cause).any?
-  end
+    return false unless ProviderRouting::Resolver.rule_configured?(job: job, task_key: "retry")
 
-  def retry_failover_cause
-    attempt = AutoRetryAttempt.find_by(id: artifacts.to_h["auto_retry_attempt_id"])
-    return "rate_limited" if attempt&.failure_classification == "rate_limited"
-    return "usage_exhausted" if attempt&.failure_classification == ProviderUsageLimit::CLASSIFICATION
-
-    "provider_transient"
+    ProviderRouting::Resolver.call(job: job, task_key: "retry").any? do |candidate|
+      candidate.provider != effective_agent_provider
+    end
   end
 
   def circuit_failure

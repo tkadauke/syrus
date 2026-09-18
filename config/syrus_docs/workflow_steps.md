@@ -261,22 +261,21 @@ reported MCP inventory, the invocation sets `agent_outcome=mcp_sidecar_failed`
 and asks the running process to stop instead of waiting for the normal agent
 timeout.
 
-**Provider failover policy:** Agent Settings persists a disabled-by-default
-agent-provider failover policy for admission/retry selection before a Workflow
-has started. The policy stores an ordered provider list and a cause list
-covering usage exhausted, usage low, rate limited, provider transient/circuit
-open, and auth error. Only providers returned by
-`User#configured_agent_providers` are selectable at use time, so the policy
-never chooses an unconfigured provider. Auth errors are modeled for visibility
-but excluded from the default automatic-failover causes, and explicit Job
-provider pins are respected unless the separate `override_explicit_pins` setting
-is enabled. Automatic failover records `provider_failover_decision` on the
-Workflow artifacts and app payloads project that as `provider_failover` on Job
-detail, dashboard rows, repository Job rows, compact Job payloads, and Workflow
-cards. The payload includes original and selected provider labels, automatic vs
-operator mode, reason, decision time, and an unavailable-provider evidence
-summary when available. This policy does not switch chat providers or enqueue
-`SwitchChatProviderJob`.
+**Provider routing and availability failover:** `ProviderRouting::Resolver`
+chooses ordered provider/model/effort candidates for a Workflow from explicit
+Job pins, repository rules, user rules, and the hardcoded fallback. Workflow
+creation records the chosen candidate in `agent_provider_routing_decision`.
+Before the first Run starts, provider availability can walk that ordered
+candidate list and choose the first candidate that is not paused, exhausted,
+rate-limited, or manually overridden. Automatic candidate changes record
+`provider_failover_decision` on the Workflow artifacts, and app payloads project
+that as `provider_failover` on Job detail, dashboard rows, repository Job rows,
+compact Job payloads, and Workflow cards. The payload includes original and
+selected provider labels, automatic vs operator mode, reason, decision time, and
+an unavailable-provider evidence summary when available. Explicit Job provider
+pins remain the most specific resolver input, so they are not overridden by
+user/repository routing rules. Chat providers are not switched by workflow
+routing or by `SwitchChatProviderJob`.
 
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic

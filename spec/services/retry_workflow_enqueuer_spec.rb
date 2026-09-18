@@ -457,9 +457,23 @@ RSpec.describe RetryWorkflowEnqueuer do
     allow(ProviderCircuitBreaker).to receive(:call)
       .with(job.workflow_agent_provider, include_logs: false)
       .and_return(decision)
-    allow_any_instance_of(Job).to receive(:agent_provider_failover_candidates)
-      .with(cause: "provider_transient")
-      .and_return([ "codex" ])
+    allow(ProviderCircuitBreaker).to receive(:call)
+      .with(anything, include_logs: false, now: anything)
+      .and_return(ProviderCircuitBreaker::Decision.new(
+        provider: "codex",
+        open: false,
+        reason: nil,
+        retry_after: nil,
+        failure_count: 0,
+        job_count: 0,
+        signature: nil
+      ))
+    ProviderRoutingRule.create!(
+      scope_type: "user",
+      scope_id: user.id,
+      task_key: "retry",
+      candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
+    )
     allow(WorkUnits::Launcher).to receive(:start!)
 
     expect {
