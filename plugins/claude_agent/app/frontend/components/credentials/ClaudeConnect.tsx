@@ -6,6 +6,13 @@ import { useT } from "@app/hooks/useT"
 import { useBackendOutage } from "@app/hooks/useBackendUpdate"
 import { Button } from "@app/components/Button"
 import { Input } from "@app/components/Input"
+import { StatusBox, Spinner } from "@app/components/credentials/ConnectFlowUi"
+
+// Re-exported so existing importers (ConfigureAgentModal.tsx) keep working
+// unchanged now that the shared pieces live in core -- every provider's
+// connect panel (CodexConnect, MuseConnect, AgyConnect, …) sources them
+// directly from @app/components/credentials/ConnectFlowUi instead.
+export { StatusBox, Spinner }
 
 type Preflight =
   | { status: "checking" }
@@ -229,28 +236,5 @@ export function ClaudeConnect({
         </Button>
       </div>
     </div>
-  )
-}
-
-export function StatusBox({ tone, children }: { tone: "ok" | "warning" | "error"; children: React.ReactNode }) {
-  const toneClass =
-    tone === "ok"
-      ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-      : tone === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
-        : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-  return (
-    <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={tone === "ok" ? "status" : "alert"}>
-      {children}
-    </p>
-  )
-}
-
-export function Spinner({ light }: { light?: boolean }) {
-  return (
-    <svg aria-hidden="true" className={`h-4 w-4 animate-spin ${light ? "text-white" : "text-gray-400"}`} fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" d="M4 12a8 8 0 018-8" fill="currentColor" />
-    </svg>
   )
 }
