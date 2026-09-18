@@ -1090,21 +1090,25 @@ renderer types (`image_diff`, `before_after_visual_diff`, `data_table`,
 they ship with core rather than a plugin.
 
 Export a named `examples` array (`ArtifactRendererExample[]`) alongside the
-`default` export so the renderer has synthetic fixtures a future catalog page
-can render without a real workflow artifact -- each example needs a stable
-`id` (survives reordering), a `label`, an optional `description` for
-non-obvious fixtures, and a ready-to-render `artifact`. Set `expectedFallback:
-true` on a fixture that is deliberately malformed/edge-case input and is
-expected to degrade to a fallback body, and give it a `description` saying so
+`default` export so the renderer has synthetic fixtures the `syrus_dev`
+plugin's **Artifact Renderer Catalog** admin page (`/admin/artifact_renderers`,
+gated behind the `syrus_dev` plugin like the rest of its diagnostics) can
+render without a real workflow artifact -- each example needs a stable `id`
+(survives reordering), a `label`, an optional `description` for non-obvious
+fixtures, and a ready-to-render `artifact`. Set `expectedFallback: true` on a
+fixture that is deliberately malformed/edge-case input and is expected to
+degrade to a fallback body, and give it a `description` saying so
 (`coreArtifactRenderers.tsx`'s `missing_image_url`/`empty_table`/`no_pairs`
-fixtures are the pattern to copy). Cover at least one large-payload fixture
-when the renderer's shape can grow meaningfully (many rows, many pairs, long
-text). Every registered
-renderer needs at least one example, or must set `fallbackOnly: true` on its
-`ArtifactRendererDefinition` with a reason a reviewer can sanity-check; see
-`artifactRendererRegistry.test.ts`'s fixture-coverage tests. Fixtures must
-stay synthetic -- no secrets, production credentials, real private URLs, or
-repository-sensitive payloads.
+fixtures are the pattern to copy) -- the catalog page renders these examples
+right alongside normal ones rather than hiding them. Cover at least one
+large-payload fixture when the renderer's shape can grow meaningfully (many
+rows, many pairs, long text). Every registered renderer needs at least one
+example, or must set `fallbackOnly: true` on its `ArtifactRendererDefinition`
+with a reason a reviewer can sanity-check; see `artifactRendererRegistry.test.ts`'s
+fixture-coverage tests -- a `fallbackOnly` renderer still shows up in the
+catalog page (with a badge and no example selector) instead of being hidden
+for having zero examples. Fixtures must stay synthetic -- no secrets,
+production credentials, real private URLs, or repository-sensitive payloads.
 
 ## `tool_card`
 
