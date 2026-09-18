@@ -85,11 +85,11 @@ module MetricsDashboard
 
       # Workers & Fleet -- is the fleet keeping up, and what is actually running.
       { key: "worker_cpu", metric: "syrus_worker_cpu_percent",
-        group_by: "hostname", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
+        group_by: "worker_storage_key", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
       { key: "worker_memory", metric: "syrus_worker_memory_percent",
-        group_by: "hostname", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
+        group_by: "worker_storage_key", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
       { key: "worker_disk", metric: "syrus_worker_disk_percent",
-        group_by: "hostname", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
+        group_by: "worker_storage_key", mode: :value, aggregate: :max, unit: "percent", category: CATEGORY_WORKERS_FLEET },
       { key: "active_agent_runs", metric: "syrus_active_agent_runs",
         group_by: nil, mode: :value, aggregate: :max, unit: "runs", category: CATEGORY_WORKERS_FLEET },
       { key: "max_concurrent_agent_runs", metric: "syrus_max_concurrent_agent_runs",

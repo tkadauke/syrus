@@ -187,9 +187,9 @@ the sampler first runs, not from the beginning of time.
 
 | Metric | Meaning |
 |---|---|
-| `syrus_worker_cpu_percent{hostname}` | latest CPU utilization sample per worker |
-| `syrus_worker_memory_percent{hostname}` | latest memory utilization sample per worker |
-| `syrus_worker_disk_percent{hostname}` | latest data-root disk utilization sample per worker |
+| `syrus_worker_cpu_percent{worker_storage_key}` | latest CPU utilization sample per worker storage identity |
+| `syrus_worker_memory_percent{worker_storage_key}` | latest memory utilization sample per worker storage identity |
+| `syrus_worker_disk_percent{worker_storage_key}` | latest data-root disk utilization sample per worker storage identity |
 | `syrus_active_agent_runs` | currently running agentic Runs, subject to the global concurrency cap |
 | `syrus_max_concurrent_agent_runs` | the configured ceiling, so the dashboard panel shows capacity alongside utilization |
 | `syrus_admission_decisions_total{decision}` | admission decisions, tagged by the action taken |
@@ -197,14 +197,18 @@ the sampler first runs, not from the beginning of time.
 
 `Metrics::WorkerSampler` (`app/services/metrics/worker_sampler.rb`) owns the
 first five. `worker_cpu_percent`/`worker_memory_percent`/`worker_disk_percent`
-read the most recent `WorkerHostHealthSample` per hostname within a 2-minute
-window -- the same freshness window `RunHostAdmission`/`WorkflowAdmissionBudget`
-use to decide a sample is still trustworthy -- and are the panel that would
-have shown "one worker at 3277m and another idle at 51m" instead of someone
-finding it by hand. `active_agent_runs` and `max_concurrent_agent_runs` are
-plain gauges read from `Run.running_agent_runs.count` and
-`AppSetting.max_concurrent_agent_runs`. All five are GLOBAL and cache-mediated
-exactly like the queue-health and landing-queue gauges above.
+read the most recent `WorkerHostHealthSample` per durable
+`worker_storage_key` within a 2-minute window, falling back to `hostname` only
+for legacy rows written before that column existed. This is the same identity
+split used by workflow resume routing in `multi_worker.md`:
+`worker_storage_key` anchors the time series across Kubernetes pod restarts,
+while `hostname` remains diagnostics/display data on the underlying sample and
+admin worker-health payloads. The gauges are the panel that would have shown
+"one worker at 3277m and another idle at 51m" instead of someone finding it by
+hand. `active_agent_runs` and `max_concurrent_agent_runs` are plain gauges read
+from `Run.running_agent_runs.count` and `AppSetting.max_concurrent_agent_runs`.
+All five are GLOBAL and cache-mediated exactly like the queue-health and
+landing-queue gauges above.
 
 `workflow_step_duration_seconds` is a histogram and therefore goes through
 the same cursor + cumulative-snapshot dance `run_duration_seconds` uses (see

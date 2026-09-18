@@ -10,12 +10,19 @@ RSpec.describe Metrics::WorkerSource do
   end
 
   describe "#worker_cpu_percentages" do
-    it "returns the latest sample's CPU percentage per hostname" do
+    it "returns the latest sample's CPU percentage per worker identity" do
       sample(hostname: "worker-a", cpu_used_percent: 10.0, observed_at: 10.minutes.ago) # stale
       sample(hostname: "worker-a", cpu_used_percent: 87.5)
       sample(hostname: "worker-b", cpu_used_percent: 12.0)
 
       expect(source.worker_cpu_percentages).to eq("worker-a" => 87.5, "worker-b" => 12.0)
+    end
+
+    it "anchors restarted pod hostnames to one worker storage key" do
+      sample(hostname: "worker-old", worker_storage_key: "storage-a", cpu_used_percent: 20.0, observed_at: 1.minute.ago)
+      sample(hostname: "worker-new", worker_storage_key: "storage-a", cpu_used_percent: 65.0, observed_at: 10.seconds.ago)
+
+      expect(source.worker_cpu_percentages).to eq("storage-a" => 65.0)
     end
 
     it "excludes hosts with no recent sample" do
@@ -32,7 +39,7 @@ RSpec.describe Metrics::WorkerSource do
   end
 
   describe "#worker_memory_percentages" do
-    it "returns the latest sample's memory percentage per hostname" do
+    it "returns the latest sample's memory percentage per worker identity" do
       sample(hostname: "worker-a", memory_used_percent: 42.0)
       sample(hostname: "worker-b", memory_used_percent: 30.0)
 
@@ -41,7 +48,7 @@ RSpec.describe Metrics::WorkerSource do
   end
 
   describe "#worker_disk_percentages" do
-    it "returns the latest sample's data-root disk percentage per hostname" do
+    it "returns the latest sample's data-root disk percentage per worker identity" do
       sample(hostname: "worker-a", data_root_used_percent: 10.0, observed_at: 10.minutes.ago) # stale
       sample(hostname: "worker-a", data_root_used_percent: 73.5)
       sample(hostname: "worker-b", data_root_used_percent: 25.0)

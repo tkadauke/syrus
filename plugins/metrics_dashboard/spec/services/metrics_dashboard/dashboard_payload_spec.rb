@@ -101,15 +101,15 @@ RSpec.describe MetricsDashboard::DashboardPayload do
       expect(values.compact).to all(eq(5))
     end
 
-    it "reports worker disk utilization grouped by hostname" do
+    it "reports worker disk utilization grouped by worker storage key" do
       now = Time.current.change(sec: 0)
-      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-a" }, value: 63, at: now - 1.minute)
-      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-b" }, value: 20, at: now - 1.minute)
+      sample(metric: "syrus_worker_disk_percent", labels: { "worker_storage_key" => "storage-a" }, value: 63, at: now - 1.minute)
+      sample(metric: "syrus_worker_disk_percent", labels: { "worker_storage_key" => "storage-b" }, value: 20, at: now - 1.minute)
 
       series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
 
-      expect(series.map { |s| s[:name] }).to contain_exactly("worker-a", "worker-b")
-      expect(series.find { |s| s[:name] == "worker-a" }[:values].compact.max).to eq(63)
+      expect(series.map { |s| s[:name] }).to contain_exactly("storage-a", "storage-b")
+      expect(series.find { |s| s[:name] == "storage-a" }[:values].compact.max).to eq(63)
     end
   end
 
