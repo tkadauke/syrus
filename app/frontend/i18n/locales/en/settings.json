@@ -222,9 +222,6 @@
     "pref_pr_comment_addressed": "Notify me when Syrus addresses my PR comments",
     "pref_pr_merged": "Notify me when a job is merged",
     "pref_epic_completed": "Notify me when an epic completes",
-    "pref_epic_review_ready": "Notify me when a feature is ready for review",
-    "pref_epic_failed": "Notify me when a feature needs attention",
-    "pref_epic_feedback_queued": "Notify me when feature feedback starts",
     "pref_main_inconclusive": "Notify me when main branch health needs review",
     "updated": "Notification preferences updated."
   },

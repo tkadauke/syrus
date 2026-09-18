@@ -1,6 +1,5 @@
 {
   "title": "Dashboard",
-  "simple_title": "Your work",
   "legacy_epics_title": "Epics",
   "legacy_epics_banner": "These are older, multi-step features created before this update. New requests now appear as individual tasks on the main dashboard.",
   "loading": "Loading...",
@@ -36,8 +35,6 @@
   "no_items_in_lane": "No {{subject}}",
   "empty_title": "No {{subject}} yet",
   "empty_description": "No {{subject}} exist yet. Create work from a direct prompt or a labelled GitHub issue.",
-  "simple_empty_title": "No features yet",
-  "simple_empty_description": "Create a feature when you are ready to ask Syrus for new work.",
   "setup_credentials_description": "Finish credentials first so Syrus can talk to GitHub and the selected agent.",
   "setup_description": "Finish setup first so Syrus can run work against a repository.",
   "open_setup": "Open setup",
@@ -68,10 +65,6 @@
   "priority": "Priority",
   "set_priority": "Set priority",
   "approve": "Approve",
-  "simple_review_approve": "Looks good, approve",
-  "simple_review_approved": "Approved! Syrus will land it soon.",
-  "simple_review_approve_error": "Couldn't approve this job. Try again.",
-  "simple_review_preview_error": "Couldn't start the preview. Try again.",
   "close_action": "Close",
   "move_to_in_progress": "Move to In Progress",
   "close_confirm_one": "Close {{count}} selected job?",
@@ -178,12 +171,5 @@
     "delivery_needs_attention": "Delivery needs attention"
   },
   "epic_commits_behind_one": "{{count}} commit behind",
-  "epic_commits_behind_other": "{{count}} commits behind",
-  "simple_status": {
-    "working_on_it": "Working on it",
-    "wrapping_up": "Wrapping up",
-    "ready_for_your_review": "Ready for your review",
-    "done": "Done",
-    "something_went_wrong": "Something went wrong"
-  }
+  "epic_commits_behind_other": "{{count}} commits behind"
 }

@@ -143,30 +143,16 @@ RSpec.describe Feature, type: :model do
   end
 
   describe ".coding_mode_enabled?" do
-    it "returns the flag value in advanced mode" do
+    it "returns the flag value" do
       Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
-      allow(AppSetting).to receive(:simple?).and_return(false)
       expect(Feature.coding_mode_enabled?).to be true
-    end
-
-    it "is forced off in simple mode regardless of the flag" do
-      Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
-      allow(AppSetting).to receive(:simple?).and_return(true)
-      expect(Feature.coding_mode_enabled?).to be false
     end
   end
 
   describe ".local_mode_enabled?" do
-    it "returns the flag value in advanced mode" do
+    it "returns the flag value" do
       Feature.create!(slug: "local_mode", category: "Labs", name: "Local Mode", enabled: true)
-      allow(AppSetting).to receive(:simple?).and_return(false)
       expect(Feature.local_mode_enabled?).to be true
-    end
-
-    it "is forced off in simple mode regardless of the flag" do
-      Feature.create!(slug: "local_mode", category: "Labs", name: "Local Mode", enabled: true)
-      allow(AppSetting).to receive(:simple?).and_return(true)
-      expect(Feature.local_mode_enabled?).to be false
     end
   end
 

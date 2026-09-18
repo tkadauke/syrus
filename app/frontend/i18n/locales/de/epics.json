@@ -108,17 +108,8 @@
   "submitting": "Wird gesendet...",
   "review_command_error": "Review konnte nicht aktualisiert werden.",
   "preview_see_more": "Mehr anzeigen",
-
   "view_in_chat": "Im Chat anzeigen",
   "back_to_dashboard": "Zurück zum Dashboard",
-
   "furthest_behind_one": "am weitesten zurück: {{count}} Commit",
-  "furthest_behind_other": "am weitesten zurück: {{count}} Commits",
-  "simple_status": {
-    "working_on_it": "In Arbeit",
-    "wrapping_up": "Wird abgeschlossen",
-    "ready_for_your_review": "Bereit zur Prüfung",
-    "done": "Fertig",
-    "something_went_wrong": "Etwas ist schiefgelaufen"
-  }
+  "furthest_behind_other": "am weitesten zurück: {{count}} Commits"
 }

@@ -1,7 +1,6 @@
 {
   "title": "Epics",
   "legacy_epic_banner": "This is an older, multi-step feature created before this update. New requests now appear as individual tasks on the main dashboard.",
-
   "detail_label": "Epic",
   "job_progress_label": "Epic job progress",
   "deployment_stages_label": "Deployment stages",
@@ -12,7 +11,6 @@
   "command_error": "Epic command failed.",
   "dependency_error": "Unable to update dependencies.",
   "save_error": "Unable to save Epic.",
-
   "claim": "Claim",
   "unclaim": "Unclaim",
   "edit": "Edit",
@@ -20,7 +18,6 @@
   "add_button": "Add",
   "add_job": "+ Add Job",
   "more_actions": "More actions",
-
   "description": "Description",
   "summary": "Summary",
   "summary_pending": "Syrus is still preparing this feature summary.",
@@ -42,7 +39,6 @@
   "merge_train_reconcile_failed": "Reconciliation failed inside the merge train and needs operator attention.",
   "merge_train_failed": "The merge train failed and needs operator attention before retry.",
   "merge_train_failed_with_reason": "The merge train failed and needs operator attention: {{reason}}",
-
   "dependencies": "Dependencies",
   "depends_on": "Depends on",
   "depended_on_by": "Depended on by",
@@ -52,7 +48,6 @@
   "no_matches": "No matches",
   "remove_dependency": "Remove dependency on {{title}}",
   "none": "None",
-
   "no_external_dependencies": "No external dependencies",
   "dependency_graph": "Dependency graph",
   "dependency_graph_scroll_region": "Dependency graph scroll region",
@@ -60,7 +55,6 @@
   "epic_dep_other": "{{count}} epic deps",
   "job_blocker_one": "{{count}} job blocker",
   "job_blocker_other": "{{count}} job blockers",
-
   "history": "History",
   "no_history": "No title or description changes yet.",
   "title_before": "Title before",
@@ -68,13 +62,11 @@
   "description_before": "Description before",
   "description_after": "Description after",
   "empty_value": "(empty)",
-
   "jobs_section": "Jobs",
   "job_navigation_context_epic": "Epic Jobs",
   "no_jobs": "No Jobs in this Epic.",
   "deployment_stage_pending": "Pending",
   "deployment_stage_partial": "{{reached}}/{{total}} Jobs",
-
   "details": "Details",
   "owner": "Owner",
   "owner_label": "Owner {{email}}",
@@ -87,15 +79,12 @@
   "jobs_count_other": "{{count}} Jobs",
   "dep_one": "{{count}} dep",
   "dep_other": "{{count}} deps",
-
   "needs_attention": "Needs attention",
   "needs_attention_title": "All jobs closed - mark this epic done or file a follow-up.",
-
   "state_chip": {
     "merged": "Landed",
     "blocked_by_epic": "Blocked"
   },
-
   "new_epic": "New Epic",
   "edit_epic": "Edit Epic",
   "back_to_epic": "Back to Epic",
@@ -118,19 +107,9 @@
   "submit_feedback": "Submit feedback",
   "submitting": "Submitting...",
   "review_command_error": "Unable to update review.",
-
   "preview_see_more": "See more",
-
   "view_in_chat": "View in Chat",
   "back_to_dashboard": "Back to dashboard",
-
   "furthest_behind_one": "furthest behind: {{count}} commit",
-  "furthest_behind_other": "furthest behind: {{count}} commits",
-  "simple_status": {
-    "working_on_it": "Working on it",
-    "wrapping_up": "Wrapping up",
-    "ready_for_your_review": "Ready for your review",
-    "done": "Done",
-    "something_went_wrong": "Something went wrong"
-  }
+  "furthest_behind_other": "furthest behind: {{count}} commits"
 }
