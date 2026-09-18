@@ -1074,6 +1074,38 @@ each entry with the matching `renderer_type` from registered renderers and
 displays them in the **Artifacts** tab. Artifacts with no registered renderer
 fall back to a raw JSON display.
 
+The Ruby side above only maps `artifact_type` -> `renderer_type`; the frontend
+component a `renderer_type` actually dispatches to is registered separately,
+by directory convention (`app/frontend/artifactRendererRegistry.ts`, mirroring
+`tool_card` below). A plugin owns both halves for a custom renderer type: drop
+a file under `plugins/<name>/app/frontend/artifact_renderers/<renderer_type>.tsx`
+whose default export is an `ArtifactRendererDefinition` (`rendererType`,
+`artifactTypes`, `displayLabel`, `description`, `supportedPayloadShape`,
+`render`) -- `app/frontend/pluginArtifactRenderers.tsx`'s `import.meta.glob`
+discovers it automatically, the same way `erd_diagram.tsx` and
+`migration_diff.tsx` register the Rails plugin's two renderers. Core-owned
+renderer types (`image_diff`, `before_after_visual_diff`, `data_table`,
+`before_after_diff`, and the `raw_json` fallback) are registered directly in
+`app/frontend/components/artifacts/coreArtifactRenderers.tsx` instead, since
+they ship with core rather than a plugin.
+
+Export a named `examples` array (`ArtifactRendererExample[]`) alongside the
+`default` export so the renderer has synthetic fixtures a future catalog page
+can render without a real workflow artifact -- each example needs a stable
+`id` (survives reordering), a `label`, an optional `description` for
+non-obvious fixtures, and a ready-to-render `artifact`. Set `expectedFallback:
+true` on a fixture that is deliberately malformed/edge-case input and is
+expected to degrade to a fallback body, and give it a `description` saying so
+(`coreArtifactRenderers.tsx`'s `missing_image_url`/`empty_table`/`no_pairs`
+fixtures are the pattern to copy). Cover at least one large-payload fixture
+when the renderer's shape can grow meaningfully (many rows, many pairs, long
+text). Every registered
+renderer needs at least one example, or must set `fallbackOnly: true` on its
+`ArtifactRendererDefinition` with a reason a reviewer can sanity-check; see
+`artifactRendererRegistry.test.ts`'s fixture-coverage tests. Fixtures must
+stay synthetic -- no secrets, production credentials, real private URLs, or
+repository-sensitive payloads.
+
 ## `tool_card`
 
 Upgrades how one MCP tool call renders in a chat `ToolGroup` (and the admin
