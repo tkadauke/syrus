@@ -31,6 +31,20 @@ RSpec.describe MergeTrain do
     expect(MergeTrain.active).not_to include(t)
   end
 
+  describe "#label" do
+    it "labels an epic-backed train by the epic's issue number" do
+      t = train
+
+      expect(t.label).to eq("Epic ##{epic.number}")
+    end
+
+    it "labels a bundle-backed train by the train id" do
+      t = MergeTrain.create!(epic: nil, repository: repository, base_branch: "master", priority: "medium")
+
+      expect(t.label).to eq("job bundle ##{t.id}")
+    end
+  end
+
   it "defaults merge_train settings to disabled" do
     expect(AppSetting.merge_train_enabled?).to be(false)
     expect(AppSetting.merge_train_max_size).to eq(20)
