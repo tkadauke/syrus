@@ -935,6 +935,23 @@ module WorkEngine
         end
       end
 
+      class ContinueLoopIterationFromFailedStep < Base
+        def perform
+          step = target_step
+          return skipped("Step no longer exists") unless step
+
+          workflow = step.workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not queued/running") unless workflow.queued? || workflow.running?
+          return skipped("Workflow still has running descendants") if workflow.live_descendants?
+          return skipped("#{step_label(step)} is #{step.state}, not failed") unless step.failed?
+          return skipped("#{step_label(step)} no longer has loop budget remaining") unless StepDispatcher.loop_iteration_budget_remaining?(step)
+
+          StepDispatcher.fail_from(step)
+          success("continued loop iteration from failed #{step_label(step)} on #{workflow_label(workflow)}")
+        end
+      end
+
       class ReconcileStepFromTerminalRun < Base
         def perform
           step = target_step

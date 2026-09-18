@@ -832,6 +832,19 @@ class StepDispatcher
     new(step.workflow, advancing_from: step).fail!
   end
 
+  def self.loop_iteration_budget_remaining?(step)
+    return false unless step&.loop_id.present?
+    return false unless Step::Kind.fetch(step.kind).fail_policy == :loop_iteration
+
+    dispatcher = new(step.workflow, advancing_from: step)
+    loop_node = dispatcher.send(:loop_node_for, step)
+    return false unless loop_node
+
+    step.iteration < dispatcher.send(:loop_max_iterations, loop_node)
+  rescue ArgumentError
+    false
+  end
+
   def self.log_prepare_skip(run, workflow)
     reason = workflow.artifact("prepare_skipped_reason")
     return unless reason
