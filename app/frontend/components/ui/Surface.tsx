@@ -29,6 +29,14 @@ export const SURFACE_PADDING_CLASSES: Record<SurfacePadding, string> = {
   lg: "p-6"
 }
 
+// Clips a panel's descendants to its own rounded corners without using
+// `overflow`, which becomes the nearest scroll container for any
+// `position: sticky` descendant the moment it's non-visible -- even when the
+// ancestor itself never scrolls (e.g. a panel wrapping a diff viewer whose
+// sticky file headers pin against the page, not the panel). `clip-path`
+// performs the same corner clip while leaving sticky positioning alone.
+export const SURFACE_CLIP_ROUNDED_CLASS = "[clip-path:inset(0_round_var(--radius-panel))]"
+
 export function surfaceClasses(variant: SurfaceVariant = "panel", padding: SurfacePadding = "md", className = "") {
   return classes(
     "rounded-[var(--radius-panel)] border border-[length:var(--border-width)]",

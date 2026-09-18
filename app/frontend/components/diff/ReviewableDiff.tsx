@@ -1419,7 +1419,10 @@ function DiffFileHeader({
   // stays visible (AppChromeV2's `lg:hidden` bar) up through the `lg` breakpoint,
   // not just `md` — otherwise a tablet-width viewport (768-1023px) sticks this
   // header at the very top, behind that bar, instead of just under it.
-  const className = `sticky top-0 z-10 flex w-full items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-left font-mono text-xs text-gray-600 max-lg:top-14 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400 ${selected ? "text-brand dark:text-brand-emphasis" : ""}`
+  // A collapsed file has nothing left to scroll past, so it must not stay
+  // pinned -- it scrolls away with the rest of the page like any other row.
+  const stickyClass = collapsed ? "" : "sticky top-0 z-10 max-lg:top-14 "
+  const className = `${stickyClass}flex w-full items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-left font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400 ${selected ? "text-brand dark:text-brand-emphasis" : ""}`
 
   return (
     <div className={className} title={file.path}>
