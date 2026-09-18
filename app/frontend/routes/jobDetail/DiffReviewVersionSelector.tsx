@@ -224,10 +224,23 @@ function compareVersions(a: DiffReviewVersion, b: DiffReviewVersion) {
   return a.version_index - b.version_index || a.id - b.id
 }
 
-function canonicalReviewVersions(versions: DiffReviewVersion[]) {
+export function canonicalReviewVersions(versions: DiffReviewVersion[]) {
   const canonicalByRunRange = new Map<string, DiffReviewVersion>()
   const canonical = new Set<DiffReviewVersion>()
+  let canonicalAllChanges: DiffReviewVersion | null = null
   for (const version of versions) {
+    // "All changes" is a singleton per Job on the backend, but a synthetic
+    // version has no run_id (runRangeKey returns null), so a legacy
+    // duplicate row must still be collapsed here defensively.
+    if (isAllChangesVersion(version)) {
+      if (!canonicalAllChanges || version.id > canonicalAllChanges.id) {
+        if (canonicalAllChanges) canonical.delete(canonicalAllChanges)
+        canonicalAllChanges = version
+        canonical.add(version)
+      }
+      continue
+    }
+
     const key = runRangeKey(version)
     if (!key) {
       canonical.add(version)
