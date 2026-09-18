@@ -1311,7 +1311,7 @@ function legacySearchQuery(value: string) {
   }
 }
 
-function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: { expanded: boolean; onCloseDrawer: () => void; prefix: string; showSubjects: boolean }) {
+function SidebarDashboardNav({ expanded, onCloseDrawer, prefix }: { expanded: boolean; onCloseDrawer: () => void; prefix: string }) {
   const location = useLocation()
   const queryClient = useQueryClient()
   const isDashboard = location.pathname.includes("/dashboard")
@@ -1357,7 +1357,7 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
     >
       <div className={`min-h-0 overflow-hidden transition-opacity duration-150 ease-out ${expanded ? "opacity-100 delay-75" : "opacity-0"}`}>
         <div className="space-y-3 pl-7 pt-1">
-          {showSubjects ? <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={payload} prefix={prefix} /> : null}
+          <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={payload} prefix={prefix} />
           <DashboardSmartFolderNav payload={smartFolderPayload} prefix={prefix} search={location.search} />
         </div>
       </div>

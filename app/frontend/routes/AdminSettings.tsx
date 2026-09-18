@@ -17,7 +17,6 @@ import { NoticeToast } from "../components/NoticeToast"
 import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
-import * as pageReload from "../lib/pageReload"
 import { useConfirm } from "../hooks/useConfirm"
 
 const queryKey = ["admin", "settings"] as const
@@ -108,7 +107,6 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
 
 function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
   const { t } = useT("admin")
-  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [signupsOpen, setSignupsOpen] = useState(payload.settings.signups_open)
   const [videoRetentionDays, setVideoRetentionDays] = useState(String(payload.settings.video_retention_days))
@@ -119,7 +117,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [rebaseFailureCooldown, setRebaseFailureCooldown] = useState(String(payload.settings.rebase_failure_cooldown_minutes))
   const [workflowAdmissionControlEnabled, setWorkflowAdmissionControlEnabled] = useState(payload.settings.workflow_admission_control_enabled)
   const [workflowAdmissionPolicy, setWorkflowAdmissionPolicy] = useState<"whole_workflow" | "phase_aware">(payload.settings.workflow_admission_policy)
-  const [mode, setMode] = useState<"advanced" | "simple">(payload.settings.mode)
   const update = useMutation({
     mutationFn: () => updateAdminSettings({
       signups_open: signupsOpen,
@@ -130,13 +127,11 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       show_work_unit_debug: showWorkUnitDebug,
       rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
       workflow_admission_control_enabled: workflowAdmissionControlEnabled,
-      workflow_admission_policy: workflowAdmissionPolicy,
-      mode
+      workflow_admission_policy: workflowAdmissionPolicy
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || t("settings.settings_updated"))
-      if (updated.settings.mode !== payload.settings.mode) pageReload.reloadPage()
     }
   })
 
@@ -150,19 +145,11 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setRebaseFailureCooldown(String(payload.settings.rebase_failure_cooldown_minutes))
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
-    setMode(payload.settings.mode)
-  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.mode])
+  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     onNotice(null)
-    if (mode !== payload.settings.mode) {
-      const confirmed = await confirm({ message: modeChangeMessage(t, payload.settings.mode, mode) })
-      if (!confirmed) {
-        setMode(payload.settings.mode)
-        return
-      }
-    }
     update.mutate()
   }
 
@@ -299,21 +286,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-mode">{t("settings.mode_label")}</label>
-        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.mode_help")}</span>
-        <Select
-          className="mt-1"
-          fullWidth={false}
-          id="admin-settings-mode"
-          onChange={(event) => setMode(event.target.value as "advanced" | "simple")}
-          value={mode}
-        >
-          <option value="advanced">{t("settings.mode_advanced")}</option>
-          <option value="simple">{t("settings.mode_simple")}</option>
-        </Select>
-      </div>
-
       <Button
         disabled={update.isPending}
         type="submit"
@@ -321,7 +293,6 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         {update.isPending ? t("settings.saving") : t("settings.save")}
       </Button>
       {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("settings.error_update"))}</p> : null}
-      {dialog}
     </form>
   )
 }
@@ -489,11 +460,6 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
       {dialog}
     </section>
   )
-}
-
-function modeChangeMessage(t: ReturnType<typeof useT<"admin">>["t"], from: "advanced" | "simple", to: "advanced" | "simple") {
-  if (from === to) return ""
-  return to === "advanced" ? t("settings.mode_confirm_to_advanced") : t("settings.mode_confirm_to_simple")
 }
 
 function SettingsError({ error }: { error: Error }) {

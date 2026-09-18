@@ -45,10 +45,7 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
       version: null,
       built_at: null,
       bug_report_mode: null,
-      report_issue_repo_slug: "owner/repo",
-      mode: "advanced" as const,
-      mode_configured: false,
-      legacy_epics_visible: false
+      report_issue_repo_slug: "owner/repo"
     },
     setup_status: null,
     public: {
@@ -65,12 +62,12 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
   }
 }
 
-function renderTour(seenTours: string[] = [], simpleMode = false) {
+function renderTour(seenTours: string[] = []) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(seenTours))
   return render(
     <QueryClientProvider client={queryClient}>
-      <DashboardTour simpleMode={simpleMode} />
+      <DashboardTour />
     </QueryClientProvider>
   )
 }
@@ -91,8 +88,8 @@ describe("DashboardTour", () => {
     expect(screen.getByTestId("syrus-tour")).toHaveAttribute("data-run", "true")
   })
 
-  it("renders all 4 steps with advanced-mode copy when not in simple mode", () => {
-    renderTour([], false)
+  it("renders all 4 steps", () => {
+    renderTour([])
     const steps = screen.getAllByTestId("syrus-tour-step")
     expect(steps).toHaveLength(4)
     expect(steps.map((step) => step.getAttribute("data-target"))).toEqual([
@@ -105,19 +102,5 @@ describe("DashboardTour", () => {
     expect(screen.getByText("'New Job' opens a quick-start form; 'New Epic' groups related jobs together. The recommended way to create jobs and epics is through Chat — describe your task there and Syrus turns it into a pull request.")).toBeInTheDocument()
     expect(screen.getByText("Click any job to dive in")).toBeInTheDocument()
     expect(screen.getByText("Opening a job shows the full implementation timeline, the pull request diff, and lets you give feedback or approve the work.")).toBeInTheDocument()
-  })
-
-  it("drops the filter_chips step and uses simple-mode copy in simple mode", () => {
-    renderTour([], true)
-    const steps = screen.getAllByTestId("syrus-tour-step")
-    expect(steps).toHaveLength(3)
-    expect(steps.map((step) => step.getAttribute("data-target"))).toEqual([
-      "[data-tour='dashboard-view-switcher']",
-      "[data-tour='dashboard-create-actions']",
-      "[data-tour='dashboard-table']"
-    ])
-    expect(screen.getByText("'New Feature' starts a new piece of work. The recommended way to start is through Chat — describe what you want there and Syrus turns it into a feature you can review.")).toBeInTheDocument()
-    expect(screen.getByText("Click any feature to dive in")).toBeInTheDocument()
-    expect(screen.getByText("Opening a feature shows its progress. Once it's ready, you can approve it or leave feedback, which starts another round of work.")).toBeInTheDocument()
   })
 })
