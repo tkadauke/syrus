@@ -777,7 +777,7 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
               {option.label}
             </button>
           ))}
-          {filteredOptions.length === 0 ? <div className="px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matches")}</div> : null}
+          {filteredOptions.length === 0 ? <div className="px-3 py-1.5 text-sm text-text-secondary">{t("filter_bar.no_matches")}</div> : null}
         </div>
       </div>
     </label>
