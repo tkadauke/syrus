@@ -1072,28 +1072,31 @@ describe("ReviewWorkspace", () => {
     })
   })
 
-  it("starts a discussion chat from a review comment with revision and line context", async () => {
+  it("starts a discussion chat from the diff comment composer and dismisses the form", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
-    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([
-      comment({ head_ref: "syrus/issue-42", diff_review_version: version({ head_sha: "immutable-head-sha" }) })
-    ]))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
     vi.mocked(startJobDiscussionChat).mockReturnValue(new Promise(() => {}))
 
     renderWorkspace()
 
-    await screen.findByText("Please add a regression spec.")
-    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
+
+    const composer = screen.getByTestId("diff-review-composer")
+    fireEvent.change(within(composer).getByLabelText("Comment"), { target: { value: "Please add a regression spec." } })
+    fireEvent.click(within(composer).getByRole("button", { name: "Discuss" }))
 
     await waitFor(() => {
       expect(startJobDiscussionChat).toHaveBeenCalledWith(42, [
         "Discuss this code review comment.",
-        "Revision: immutable-head-sha",
-        "Location: app/models/user.rb:2",
+        "Revision: head-sha",
+        "Location: app/models/user.rb:1",
         "",
         "Comment:",
         "Please add a regression spec."
       ].join("\n"))
     })
+
+    expect(screen.queryByTestId("diff-review-composer")).not.toBeInTheDocument()
   })
 
   it("shows old comments as historical and switches to their anchored diff line", async () => {

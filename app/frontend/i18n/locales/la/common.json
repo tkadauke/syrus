@@ -28,7 +28,9 @@
     "delete": "Delere",
     "edit_comment_aria": "Commentarium {{id}} edere",
     "create_comment": "Commentarium crea",
-    "create_error": "Commentarium diff creari non potuit."
+    "create_error": "Commentarium diff creari non potuit.",
+    "discuss": "Disputa",
+    "discussing": "Incipitur..."
   },
   "onboarding": {
     "loading": "Status constitutionis oneratur...",

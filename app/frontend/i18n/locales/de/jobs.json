@@ -449,8 +449,6 @@
   "review_create_comment": "Kommentar erstellen",
   "review_save_comment": "Kommentar speichern",
   "review_edit_comment": "Bearbeiten",
-  "review_discuss_comment": "Diskutieren",
-  "review_discussing_comment": "Wird gestartet...",
   "review_discuss_error": "Diskussion konnte nicht gestartet werden.",
   "review_resolve_comment": "Erledigen",
   "review_reply_comment": "Antworten",

@@ -28,7 +28,9 @@
     "delete": "Delete",
     "edit_comment_aria": "Edit comment {{id}}",
     "create_comment": "Create comment",
-    "create_error": "Unable to create diff comment."
+    "create_error": "Unable to create diff comment.",
+    "discuss": "Discuss",
+    "discussing": "Starting..."
   },
   "onboarding": {
     "loading": "Loading setup status...",
