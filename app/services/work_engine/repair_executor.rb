@@ -898,6 +898,32 @@ module WorkEngine
         end
       end
 
+      # Counterpart to FailWorkflowFromFailedStep for a failed loop-iteration
+      # Step (grader_collect, grade) that still has repair/regrade budget
+      # remaining -- see StepDispatcher.loop_iteration_budget_remaining? and
+      # RepairPlanner::Policies::Base#loop_continuation_plan. Re-dispatches
+      # through StepDispatcher.fail_from, the exact same synchronous path a
+      # freshly-failed Step's Run would have driven, instead of failing the
+      # whole Workflow out from under a loop that still has iterations left.
+      class ContinueLoopIterationFromFailedStep < Base
+        def perform
+          step = target_step
+          return skipped("Step no longer exists") unless step
+          return skipped("Step is #{step.state}, not failed") unless step.failed?
+
+          workflow = step.workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not queued/running") unless workflow.queued? || workflow.running?
+          return skipped("Workflow still has running descendants") if workflow.live_descendants?
+          return skipped("Step's grade loop has no repair/regrade budget remaining") unless StepDispatcher.loop_iteration_budget_remaining?(step)
+
+          with_transition_reason do
+            StepDispatcher.fail_from(step)
+          end
+          success("continued grade loop from failed #{step_label(step)}")
+        end
+      end
+
       class ReconcileStepFromTerminalRun < Base
         def perform
           step = target_step

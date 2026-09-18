@@ -188,6 +188,22 @@ Planner examples:
   `retry_after`; it does not consume the attempt as skipped.
 - Deterministic idempotent step failures, as declared by `Step::Kind`, may plan
   an in-place failed-step retry when the workspace and retry budget allow it.
+- `running_workflow_with_failed_step` / `queued_workflow_with_failed_step`
+  (an orphaned failed Step with no live descendants) plan
+  `fail_workflow_from_failed_step` only when the failed Step is genuinely
+  terminal. When the failed Step's `Step::Kind#fail_policy` is
+  `:loop_iteration` (`grader_collect`, `grade`) and its grade loop still has
+  repair/regrade budget remaining — the same
+  `iteration < loop_max_iterations(loop_node)` condition
+  `StepDispatcher#handle_loop_iteration` checks synchronously, exposed as
+  `StepDispatcher.loop_iteration_budget_remaining?` — the planner instead
+  returns `continue_loop_iteration_from_failed_step`, which re-dispatches
+  through `StepDispatcher.fail_from` to continue the loop. Without this, a
+  grade-loop failure that the synchronous path never got to (or that a later
+  "Retry failed step" action re-surfaced) could be discovered asynchronously
+  by the reconciler and hard-fail the whole Workflow even though a repair
+  iteration was still available, cancelling already-materialized later
+  iterations.
 - **The retry budget is the loop's only termination condition.** A skipped
   `AutoRetryAttempt` normally still counts against
   `AutoRetryAttempt.budget_scope_for`, so a planner that keeps proposing

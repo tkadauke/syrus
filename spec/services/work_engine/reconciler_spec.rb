@@ -3503,6 +3503,88 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("marked #{workflow.slug} failed from failed #{step.slug}")
   end
 
+  def build_grade_loop_failure!(max_iterations:)
+    workflow.steps.destroy_all
+    workflow.update_columns(
+      state: "running",
+      started_at: 30.minutes.ago,
+      finished_at: nil,
+      chain_template: [
+        {
+          "type" => "retry_until",
+          "max_iterations" => max_iterations,
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        },
+        { "type" => "step", "kind" => "pr_open" }
+      ]
+    )
+    job.update_columns(state: "running", started_at: 30.minutes.ago)
+
+    pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 2)
+    grader_collect = Step.create!(
+      workflow: workflow, kind: "grader_collect", position: 1, iteration: 1, loop_id: "grade-loop",
+      state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago, next_step: pr_open
+    )
+    Step.create!(
+      workflow: workflow, kind: "grader_fanout", position: 0, iteration: 1, loop_id: "grade-loop",
+      state: "succeeded", next_step: grader_collect
+    )
+    Run.create!(
+      job: job, step: grader_collect, trigger_kind: "initial", agent_provider: "claude",
+      state: "failed", agent_outcome: "error", started_at: 20.minutes.ago, finished_at: 15.minutes.ago
+    )
+
+    grader_collect
+  end
+
+  it "continues a running workflow's grade loop when the failed grader_collect still has repair budget remaining" do
+    grader_collect = build_grade_loop_failure!(max_iterations: 2)
+
+    result = nil
+    expect {
+      result = reconcile_and_execute(workflow_id: workflow.id)
+    }.to change { Run.count }.by(1)
+
+    issue = kind(result, :running_workflow_with_failed_step)
+    expect(issue).to have_attributes(recommended_repair_action: "continue_loop_iteration_from_failed_step")
+    expect(plan(result, :continue_loop_iteration_from_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_type: "Step",
+      target_id: grader_collect.id
+    )
+    expect(plan(result, :fail_workflow_from_failed_step)).to be_nil
+    expect(workflow.reload).to be_running
+    expect(job.reload).to be_running
+    expect(grader_collect.reload).to be_failed
+    new_grader_collect = workflow.steps.find_by(kind: "grader_collect", iteration: 2)
+    expect(new_grader_collect).to be_present
+    expect(new_grader_collect).to be_queued
+    expect(workflow.steps.find_by(kind: "implement", iteration: 2)).to be_present
+    expect(grader_collect.reload.next_step).to eq(workflow.steps.find_by!(kind: "implement", iteration: 2))
+    expect(result.repair_executions.map(&:message)).to include("continued grade loop from failed #{grader_collect.slug}")
+  end
+
+  it "still fails a running workflow's grade loop when the failed grader_collect has exhausted its repair budget" do
+    grader_collect = build_grade_loop_failure!(max_iterations: 1)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    issue = kind(result, :running_workflow_with_failed_step)
+    expect(issue).to have_attributes(recommended_repair_action: "fail_workflow_from_failed_step")
+    expect(plan(result, :fail_workflow_from_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_type: "Workflow",
+      target_id: workflow.id
+    )
+    expect(plan(result, :continue_loop_iteration_from_failed_step)).to be_nil
+    expect(workflow.reload).to be_failed
+    expect(job.reload).to be_failed
+    expect(workflow.steps.where(kind: "grader_collect", iteration: 2)).to be_empty
+    expect(result.repair_executions.map(&:message)).to include("marked #{workflow.slug} failed from failed #{grader_collect.slug}")
+  end
+
   it "reconciles a running Step whose only Run already succeeded" do
     next_step = Step.create!(workflow: workflow, kind: "grader_collect", position: 1)
     step.update!(kind: "grader", next_step: next_step)

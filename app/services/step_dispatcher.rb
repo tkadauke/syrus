@@ -832,6 +832,26 @@ class StepDispatcher
     new(step.workflow, advancing_from: step).fail!
   end
 
+  # Whether a failed loop-iteration Step (grader_collect, grade -- see
+  # Step::Kind#fail_policy == :loop_iteration) still has repair/regrade
+  # budget remaining, i.e. the same condition #handle_loop_iteration checks
+  # before hard-failing the workflow. Exposed so WorkEngine::Reconciler and
+  # WorkEngine::RepairPlanner can apply the exact same budget rule to a
+  # failed Step discovered asynchronously, instead of re-deriving
+  # iteration/budget math independently and drifting from this synchronous
+  # path (see the loop-iteration reconciliation gap this method closes).
+  def self.loop_iteration_budget_remaining?(step)
+    return false unless step && Step::Kind.fetch(step.kind).fail_policy == :loop_iteration
+
+    dispatcher = new(step.workflow, advancing_from: step)
+    loop_node = dispatcher.send(:loop_node_for, step)
+    return false unless loop_node
+
+    step.iteration < dispatcher.send(:loop_max_iterations, loop_node)
+  rescue ArgumentError
+    false
+  end
+
   def self.log_prepare_skip(run, workflow)
     reason = workflow.artifact("prepare_skipped_reason")
     return unless reason

@@ -949,7 +949,7 @@ module WorkEngine
             severity: :error,
             affected_ids: ids_for(workflow).merge(step_ids: [ failed_step.id ], run_ids: failed_step.runs.where(state: "failed").pluck(:id)),
             safe_to_auto_repair: true,
-            recommended_repair_action: "fail_workflow_from_failed_step",
+            recommended_repair_action: failed_step_repair_action(failed_step),
             evidence: workflow_evidence(workflow).merge(
               failed_step_id: failed_step.id,
               failed_step_kind: failed_step.kind,
@@ -974,7 +974,7 @@ module WorkEngine
             severity: :error,
             affected_ids: ids_for(workflow).merge(step_ids: [ failed_step.id ], run_ids: failed_step.runs.where(state: "failed").pluck(:id)),
             safe_to_auto_repair: true,
-            recommended_repair_action: "fail_workflow_from_failed_step",
+            recommended_repair_action: failed_step_repair_action(failed_step),
             evidence: workflow_evidence(workflow).merge(
               failed_step_id: failed_step.id,
               failed_step_kind: failed_step.kind,
@@ -2944,6 +2944,21 @@ module WorkEngine
       return nil if workflow.live_descendants?
 
       failed_steps.max_by { |step| [ step.position || -1, step.id || -1 ] }
+    end
+
+    # A failed loop-iteration Step (grader_collect, grade) with regrade
+    # budget remaining is not actually a terminal workflow failure -- see
+    # StepDispatcher.loop_iteration_budget_remaining?, the same check
+    # StepDispatcher#handle_loop_iteration applies synchronously. Only
+    # recommend hard-failing the Workflow once that budget is genuinely
+    # exhausted (or the failed Step isn't loop-governed at all); otherwise
+    # recommend continuing the loop instead.
+    def failed_step_repair_action(failed_step)
+      if StepDispatcher.loop_iteration_budget_remaining?(failed_step)
+        "continue_loop_iteration_from_failed_step"
+      else
+        "fail_workflow_from_failed_step"
+      end
     end
 
     def runs_for_step_reconciliation(step)

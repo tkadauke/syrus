@@ -200,6 +200,33 @@ module WorkEngine
           nil
         end
 
+        # A failed loop-iteration Step (grader_collect, grade -- see
+        # Step::Kind#fail_policy == :loop_iteration) with regrade budget
+        # remaining is not a terminal workflow failure: StepDispatcher's own
+        # synchronous #handle_loop_iteration would continue the loop instead
+        # of failing the workflow, and the reconciler must reach the same
+        # verdict rather than re-deriving the iteration/budget math here.
+        # Returns a plan to continue the loop when budget remains, or nil
+        # when the failed Step isn't loop-governed or its budget is
+        # genuinely exhausted -- callers fall back to failing the workflow.
+        def loop_continuation_plan(workflow_state:)
+          step = primary_step
+          return nil unless step && StepDispatcher.loop_iteration_budget_remaining?(step)
+
+          automatic_plan(
+            "continue_loop_iteration_from_failed_step",
+            step,
+            "Step ##{step.id} (#{step.kind}) failed, but its grade loop still has repair/regrade budget remaining, so continue the loop instead of failing the Workflow.",
+            execution_steps: [ "StepDispatcher.fail_from(failed step)" ],
+            preconditions: {
+              workflow_state: workflow_state,
+              failed_step_id: step.id,
+              failed_step_kind: step.kind,
+              failed_step_iteration: step.iteration
+            }
+          )
+        end
+
         def workspace_available?
           workflow = primary_workflow
           return false unless workflow
@@ -560,7 +587,7 @@ module WorkEngine
 
       class RunningWorkflowWithFailedStep < Base
         def plan
-          automatic_plan(
+          loop_continuation_plan(workflow_state: "running") || automatic_plan(
             "fail_workflow_from_failed_step",
             primary_workflow,
             "The Workflow is still running even though one of its Steps failed, so mark the Workflow failed and let the normal failed-step retry path take over.",
@@ -577,7 +604,7 @@ module WorkEngine
 
       class QueuedWorkflowWithFailedStep < Base
         def plan
-          automatic_plan(
+          loop_continuation_plan(workflow_state: "queued") || automatic_plan(
             "fail_workflow_from_failed_step",
             primary_workflow,
             "The Workflow is still queued even though one of its Steps failed, so mark the Workflow failed and let the normal failed-step retry path take over.",
