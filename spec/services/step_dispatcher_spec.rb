@@ -536,6 +536,32 @@ RSpec.describe StepDispatcher, :ci_only do
         described_class.start_workflow(workflow)
       }.to change { s1.runs.count }.by(1)
       expect(job.reload.parent_job).to eq(prerequisite)
+      expect(workflow.reload.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq(prerequisite.branch_name)
+    end
+
+    # Regression for the stack-child false-positive git-state-corruption bug:
+    # RebaseTarget.branch_for recomputes the stack parent's branch live on
+    # every new WorkflowWorkspace instance (one per Run/Step) unless it's
+    # pinned. Without pinning, the parent closing mid-Workflow (e.g. it lands
+    # while this child's own grade loop is still running) would silently
+    # change what a later Run's Steps::Base#assert_branch_history_intact!
+    # diffs against, even though the on-disk clone was never re-fetched to
+    # match. Pinning at start_workflow time keeps the whole Workflow's base
+    # ref fixed to what the initial clone actually used.
+    it "keeps the pinned stack base branch stable even after the parent Job later closes" do
+      prerequisite = Factories.job(repository: job.repository, issue_number: 99)
+      prerequisite.update!(branch_name: "syrus/issue-99-#{prerequisite.id}", pr_number: 99)
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "c" * 40)
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+      described_class.start_workflow(workflow)
+      pinned_branch = workflow.reload.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)
+      expect(pinned_branch).to eq(prerequisite.branch_name)
+
+      prerequisite.update!(state: "closed", closure_reason: "pr_merged")
+
+      expect(RebaseTarget.branch_for(job: job, workflow: workflow)).to eq(pinned_branch)
+      expect(WorkflowWorkspace.base_ref_for(job, workflow: workflow)).to eq("origin/#{pinned_branch}")
     end
 
     it "starts landing workflows when redundant transitive dependencies resolve to one stack parent" do
