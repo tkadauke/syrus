@@ -40,7 +40,7 @@ import { PanelMessage } from "../components/PanelMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import { deletePasskey, fetchPasskeyRegistrationOptions, fetchPasskeys, registerPasskey, type PasskeyRecord } from "../api/passkeys"
 import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
-import type { ProviderAvailability } from "../api/providerAvailability"
+import type { ProviderAvailability, ProviderUsageWindow } from "../api/providerAvailability"
 
 const queryKey = ["credentials"] as const
 type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences"
@@ -752,6 +752,9 @@ function ProviderAvailabilitySettings({
         const availability = payload.provider_availability?.[provider]
         const threshold = values.provider_availability_pause_thresholds?.[provider] ?? 10
         const usageReset = providerUsageReset(availability)
+        const usageWindows = Object.values(availability?.usage?.windows || {}).filter(
+          (window): window is ProviderUsageWindow => window != null && window.remaining_percent != null
+        )
         const usageTextClass = availability?.usage_exhausted
           ? "text-red-700 dark:text-red-300"
           : "text-gray-500 dark:text-gray-400"
@@ -775,20 +778,52 @@ function ProviderAvailabilitySettings({
                   value={threshold}
                 />
               </Form.Field>
-              <p className={`mt-1 text-xs ${usageTextClass}`}>
-                {availability?.usage_exhausted
-                  ? availability.message
-                  : availability?.usage?.remaining_percent != null
-                  ? t("account_settings.provider_availability_remaining", { percent: Math.round(availability.usage.remaining_percent) })
-                  : t("account_settings.provider_availability_no_usage")}
-                {usageReset ? (
-                  <span title={usageReset.absolute}>
-                    {" "}
-                    {t("account_settings.provider_availability_resets_in", { time: usageReset.relative })}
-                  </span>
-                ) : null}
-                {availability?.override_active ? ` ${t("account_settings.provider_availability_override_active")}` : ""}
-              </p>
+              {availability?.usage_exhausted ? (
+                <p className={`mt-1 text-xs ${usageTextClass}`}>
+                  {availability.message}
+                  {usageReset ? (
+                    <span title={usageReset.absolute}>
+                      {" "}
+                      {t("account_settings.provider_availability_resets_in", { time: usageReset.relative })}
+                    </span>
+                  ) : null}
+                  {availability?.override_active ? ` ${t("account_settings.provider_availability_override_active")}` : ""}
+                </p>
+              ) : usageWindows.length > 0 ? (
+                <div className={`mt-1 space-y-0.5 text-xs ${usageTextClass}`}>
+                  {usageWindows.map((window, index) => {
+                    const windowReset = providerUsageWindowReset(window)
+                    return (
+                      <p key={`${window.label}-${index}`}>
+                        {t("account_settings.provider_availability_window_remaining", {
+                          label: window.label,
+                          percent: Math.round(window.remaining_percent as number)
+                        })}
+                        {windowReset ? (
+                          <span title={windowReset.absolute}>
+                            {" "}
+                            {t("account_settings.provider_availability_resets_in", { time: windowReset.relative })}
+                          </span>
+                        ) : null}
+                      </p>
+                    )
+                  })}
+                  {availability?.override_active ? <p>{t("account_settings.provider_availability_override_active")}</p> : null}
+                </div>
+              ) : (
+                <p className={`mt-1 text-xs ${usageTextClass}`}>
+                  {availability?.usage?.remaining_percent != null
+                    ? t("account_settings.provider_availability_remaining", { percent: Math.round(availability.usage.remaining_percent) })
+                    : t("account_settings.provider_availability_no_usage")}
+                  {usageReset ? (
+                    <span title={usageReset.absolute}>
+                      {" "}
+                      {t("account_settings.provider_availability_resets_in", { time: usageReset.relative })}
+                    </span>
+                  ) : null}
+                  {availability?.override_active ? ` ${t("account_settings.provider_availability_override_active")}` : ""}
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -832,6 +867,17 @@ function providerUsageReset(availability?: ProviderAvailability) {
   const resetAt = futureResetCandidate(providerUsageResetCandidates(availability, now), now) ||
     futureResetCandidate([parseTimestamp(availability?.retry_after)], now)
 
+  if (!resetAt) return null
+
+  return {
+    absolute: resetAt.toLocaleString(),
+    relative: formatRelativeReset(resetAt, now)
+  }
+}
+
+function providerUsageWindowReset(window: ProviderUsageWindow) {
+  const now = new Date()
+  const resetAt = futureResetCandidate([parseTimestamp(window.reset_at)], now)
   if (!resetAt) return null
 
   return {

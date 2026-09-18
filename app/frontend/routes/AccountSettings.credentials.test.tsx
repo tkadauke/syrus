@@ -467,6 +467,66 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(within(agyPanel as HTMLElement).getByText("Resets in 1 hour, 45 minutes.")).toHaveAttribute("title", expect.stringContaining("2026"))
   })
 
+  it("shows each Claude usage window with its own remaining percent and reset time, not blended", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-09-01T09:00:00Z"))
+    mockRoutes({
+      ...makePayload({ agent_providers: ["claude"] }),
+      provider_availability: {
+        claude: {
+          provider: "claude",
+          label: "Claude Code",
+          model: null,
+          state: "rate_limited",
+          open: true,
+          usage_exhausted: false,
+          retry_after: null,
+          reason: null,
+          message: "Claude Code approaching its weekly usage limit.",
+          usage: {
+            status: "warning",
+            observed_at: "2026-09-01T09:00:00Z",
+            remaining_percent: 15,
+            windows: {
+              five_hour: {
+                label: "5h",
+                remaining_percent: 93,
+                reset_at: "2026-09-01T09:37:00Z"
+              },
+              weekly: {
+                label: "weekly",
+                remaining_percent: 15,
+                reset_at: "2026-09-01T23:00:00Z"
+              }
+            }
+          }
+        }
+      }
+    })
+    renderAgentSettings()
+
+    const claudeInput = await screen.findByLabelText("Claude Code pause threshold (%)")
+    const claudePanel = claudeInput.closest(".grid") as HTMLElement
+    expect(claudePanel).not.toBeNull()
+
+    const fiveHourLine = within(claudePanel).getByText(/^5h: 93% remaining\./)
+    expect(within(fiveHourLine).getByText("Resets in 37 minutes.")).toHaveAttribute(
+      "title",
+      expect.stringContaining("2026")
+    )
+
+    const weeklyLine = within(claudePanel).getByText(/^weekly: 15% remaining\./)
+    expect(within(weeklyLine).getByText("Resets in 14 hours.")).toHaveAttribute(
+      "title",
+      expect.stringContaining("2026")
+    )
+
+    // Neither window's remaining-percent may be paired with the other window's reset time.
+    expect(within(claudePanel).queryByText("5h: 93% remaining. Resets in 14 hours.")).not.toBeInTheDocument()
+    expect(within(claudePanel).queryByText("weekly: 15% remaining. Resets in 37 minutes.")).not.toBeInTheDocument()
+    expect(within(claudePanel).queryByText("15% remaining.")).not.toBeInTheDocument()
+  })
+
   it("uses plugin display names for Muse failover and availability controls", async () => {
     mockRoutes(makePayload({
       agent_providers: ["claude", "codex", "muse"],
