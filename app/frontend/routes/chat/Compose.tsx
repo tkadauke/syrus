@@ -305,7 +305,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     mutationFn: (action) => {
       if (action.kind === "rename") return renameChat(appendSearch(payload.paths.app_rename_path, search), action.title)
       if (action.kind === "clear") return clearChatHistory(appendSearch(payload.paths.app_clear_path, search))
-      if (action.kind === "new") return createChat({ repositoryId: payload.chat.repository ? String(payload.chat.repository.id) : "", text: "" })
+      if (action.kind === "new") return createChat({ repositoryId: payload.chat.repository ? String(payload.chat.repository.id) : "", text: "", chatProvider: payload.chat.effective_chat_provider ?? payload.chat.chat_provider })
       if (action.kind === "pin") return updateChatPinned(chatId, action.pinned)
       if (action.kind === "branch") return branchChat(appendSearch(payload.paths.app_branch_path, search))
       if (action.kind === "share") return shareChat(appendSearch(payload.paths.app_share_path, search))
