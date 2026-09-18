@@ -157,6 +157,22 @@ Planner examples:
   fresh retry workflow only when the usual workflow retry gate is safe. The
   normal stale-heartbeat deadline remains `Run::STALE_HEARTBEAT_THRESHOLD`
   for ambiguous cases with active worker evidence.
+- A `worker_died` failure can be independently noticed by more than one issue
+  classifier for the exact same still-failed Run — for example a missing
+  resumable session and the `worker_died` failure classification both
+  proposing the same `retry_failed_step` repair, one immediate and one backed
+  off. `auto_retry_blocker_for`'s "retry already pending" check only stops the
+  second detector's plan while the first `AutoRetryAttempt` is still pending;
+  once `AutoRetryJob` marks it performed, a later reconciler pass over the
+  same Run could otherwise schedule a second attempt on top of it before
+  replacement work is visible. `schedule_auto_retry!` dedups `worker_died`
+  unconditionally instead: once any unskipped `AutoRetryAttempt` exists for a
+  given `(run, retry_kind)` pair, no further attempt is scheduled for it,
+  regardless of `scheduled_at` or `performed_at`. This is what keeps a
+  pressured host's `visual_diff` (or any other) worker_died Run from
+  accumulating duplicate retry attempts across repeated reconciler passes; see
+  `multi_worker.md` for the related per-host `visual_diff` preview admission
+  guard.
 - When a `worker_died` failure has a critical `run_resource_summary`
   host-pressure level, `RunFailureClassifier` records
   `worker_died_under_resource_pressure` instead of retryable `worker_died`.
