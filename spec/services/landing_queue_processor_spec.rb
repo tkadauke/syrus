@@ -1088,6 +1088,40 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(LandingBlockerOverride.overridable?("pr_checks_failing")).to be(false)
     end
 
+    # trigger_main_repair_for_inherited_pr_checks used to call
+    # MainHealthChangedService.on_health_change! unconditionally on every
+    # invocation, even when ci_health was already known broken for the exact
+    # same base SHA. on_health_change! is what emits the "main branch broken"
+    # notification, and this method runs once per blocked Job whose PR checks
+    # inherit a broken base -- so every landing-queue tick re-fired the same
+    # notification for every Job stuck on that base SHA, producing duplicate
+    # notifications seconds apart.
+    it "does not re-trigger on_health_change! for a base SHA that is already known broken" do
+      first_job = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+      second_job = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+      [ first_job, second_job ].each do |job|
+        job.update_columns(
+          pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+          pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
+        )
+      end
+      first_job.repository.update!(
+        ci_health: "broken",
+        last_health_checked_sha: "base-sha",
+        last_ci_evaluated_sha: "base-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: first_job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+      expect(MainHealthChangedService).not_to receive(:on_health_change!)
+      expect(MainHealthChangedService).to receive(:ensure_repair_job!).with(first_job.repository).twice
+
+      expect {
+        described_class.entries(Job.where(id: [ first_job.id, second_job.id ]))
+      }.not_to change(Notification, :count)
+    end
+
     it "lands through an inherited failure when the repository opts in" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.repository.update!(land_on_inherited_check_failure: true)
