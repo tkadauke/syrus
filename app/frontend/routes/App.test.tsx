@@ -15332,8 +15332,19 @@ function directJobFormPayload() {
       { value: "claude", label: "Claude Code" },
       { value: "codex", label: "Codex" }
     ],
+    provider_routing_options: {
+      agent_providers: [
+        { value: "claude", label: "Claude Code", models: [] },
+        { value: "codex", label: "Codex", models: [] }
+      ],
+      effort_levels: []
+    },
     selected_repository_id: "3",
     selected_agent_provider: null,
+    selected_model: null,
+    selected_effort_level: null,
+    selected_epic_id: null,
+    epic: null,
     create_more: true,
     prompt_templates: [
       {
