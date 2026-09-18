@@ -116,7 +116,19 @@ module Steps
     # break. One source of truth so the normal-push / force-push / stack-push
     # handlers can't drift their patterns (they had: force_push and
     # stack_force_push silently dropped the "non-fast-forward" token).
-    PUSH_REJECTED_PATTERN = /non-fast-forward|fetch first|rejected|stale info/i
+    #
+    # Matches only git's own vocabulary for a *client-detected* ref-update
+    # conflict — "non-fast-forward", "fetch first", "stale info" are the only
+    # three reasons git itself ever prints for a bare "[rejected]" line. A bare
+    # "rejected" token used to be in this pattern too, which also matched
+    # "[remote rejected] ... (<arbitrary server message>)" — a rejection the
+    # *remote* issued for any reason, including a transient 5xx ("remote:
+    # Internal Server Error" / "[remote rejected] ... (Internal Server
+    # Error)"). That false match diagnosed a transient GitHub outage as "the
+    # remote branch moved after Syrus fetched it" and discarded completed
+    # rebase-conflict-resolution work instead of letting the failure surface
+    # (and retry) as the transient error it actually was.
+    PUSH_REJECTED_PATTERN = /non-fast-forward|fetch first|stale info/i
 
     def push_rejected?(error)
       error.output.to_s.match?(PUSH_REJECTED_PATTERN)

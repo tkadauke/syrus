@@ -28,14 +28,36 @@ RSpec.describe Steps::Base, :ci_only do
     # Each token in isolation. "non-fast-forward" is the one force_push and
     # stack_force_push used to drop, so a bare non-ff was re-raised as a raw
     # GitError instead of the intended StepFailed.
-    [ "non-fast-forward", "fetch first", "rejected", "stale info" ].each do |phrase|
+    [ "non-fast-forward", "fetch first", "stale info" ].each do |phrase|
       it "classifies a #{phrase.inspect} rejection" do
         expect(handler.send(:push_rejected?, git_error("error: failed to push: #{phrase}"))).to be(true)
       end
     end
 
+    it "classifies a genuine local non-fast-forward rejection" do
+      expect(handler.send(:push_rejected?, git_error("! [rejected]        HEAD -> syrus/direct-5004 (non-fast-forward)"))).to be(true)
+    end
+
     it "does not classify an unrelated git error as a push rejection" do
       expect(handler.send(:push_rejected?, git_error("fatal: unable to access remote"))).to be(false)
+    end
+
+    # RUN-145012: a transient GitHub 500 during `stack_force_push` surfaced as
+    # "remote: Internal Server Error" / "! [remote rejected] ... (Internal
+    # Server Error)". The old pattern's bare "rejected" token matched this and
+    # misdiagnosed it as a force-with-lease conflict ("remote branch moved
+    # after Syrus fetched it"), discarding ~9.5 minutes of completed
+    # stack_agent_rebase conflict-resolution work instead of letting the
+    # transient failure surface (and retry) as itself.
+    it "does not classify a GitHub 5xx '[remote rejected]' refusal as a push rejection" do
+      output = <<~OUTPUT
+        remote: Internal Server Error
+        To https://github.com/acme/widgets.git
+         ! [remote rejected] syrus/direct-5004 -> syrus/direct-5004 (Internal Server Error)
+        error: failed to push some refs to 'https://github.com/acme/widgets.git'
+      OUTPUT
+
+      expect(handler.send(:push_rejected?, git_error(output))).to be(false)
     end
   end
 
