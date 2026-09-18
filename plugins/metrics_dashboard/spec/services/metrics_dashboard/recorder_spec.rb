@@ -59,10 +59,36 @@ RSpec.describe MetricsDashboard::Recorder do
   # A recorder that raises would fail the plugin tick and could retry into a
   # loop. Losing a minute of chart is the cheaper outcome by far.
   it "records nothing rather than raising when metrics cannot be rendered" do
-    allow(Metrics::QueueSampler).to receive(:refresh_gauges!).and_raise(ActiveRecord::StatementInvalid, "nope")
+    allow(Syrus::Metrics).to receive(:render).and_raise(StandardError, "nope")
 
     expect { described_class.record! }.not_to raise_error
     expect(MetricsDashboard::Sample.count).to eq(0)
+  end
+
+  # Regression test: the recorder used to hardcode a refresh of only
+  # QueueSampler and PluginSampler, so every other registered sampler's
+  # GLOBAL gauges -- including Metrics::WorkerSampler's -- were never
+  # refreshed before rendering and so never appeared in the recorded rows.
+  it "records metrics owned by every registered sampler, not just QueueSampler and PluginSampler" do
+    Metrics::WorkerSampler.sample!
+
+    described_class.record!
+
+    expect(MetricsDashboard::Sample.exists?(metric: "syrus_max_concurrent_agent_runs")).to be(true)
+  end
+
+  # Mirrors the isolation guarantee MetricsController#refresh_global_gauges
+  # already has (see spec/requests/metrics_spec.rb): one broken sampler must
+  # not blank every other sampler's metrics out of the recorded exposition.
+  it "does not let one sampler's refresh failure prevent other samplers' metrics from being recorded" do
+    render_metrics("syrus_global_queue_ready_count{queue=\"polling\"} 10\n")
+    failing = Class.new { def self.refresh_gauges! = raise("boom") }
+    Syrus::Metrics.register_sampler(failing)
+
+    expect { described_class.record! }.not_to raise_error
+    expect(MetricsDashboard::Sample.exists?(metric: "syrus_global_queue_ready_count")).to be(true)
+
+    Syrus::Metrics.unregister_sampler(failing)
   end
 
   # Histograms are exposed as _bucket/_sum/_count families. Charting a quantile
