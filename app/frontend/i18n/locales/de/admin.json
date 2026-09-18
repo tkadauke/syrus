@@ -428,6 +428,10 @@
       "browser_error_auto_reports": {
         "name": "Automatische Browser-Fehlerberichte",
         "description": "Erstellt automatisch einen Bug-Report-Job pro Browser-Fehler-Fingerabdruck und App-Revision."
+      },
+      "emergency_land": {
+        "name": "Notlandung",
+        "description": "Aktiviert einen Notlandungs-Notausgang für den Coding-Modus, mit dem ein Admin auf Repository-Ebene oder ein globaler Admin den committeten Branch eines Coding-Modus-Chats sofort landen kann, unter Umgehung der Grader-, Adversarial-Review- und Visual-Review-Pipeline von Syrus. Eine separate, explizite Opt-in-Funktion, die auf dem Coding-Modus selbst aufbaut, da sie Syrus' eigene Qualitätskontrollen für die Reaktion auf Vorfälle überspringt."
       }
     }
   },
