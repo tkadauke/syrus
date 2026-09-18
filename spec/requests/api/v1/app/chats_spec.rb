@@ -51,7 +51,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get "/api/v1/app/chats/new"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("default_repository_id" => newer_repo.id)
+      expect(parse_body).to include(
+        "default_repository_id" => newer_repo.id,
+        "effective_chat_provider" => "claude",
+        "effective_chat_provider_label" => "Claude",
+        "chat_provider_options" => include(include("value" => "claude", "label" => "Claude", "configured" => true))
+      )
     end
 
     it "falls back to alphabetical-first active repository when no chat session has a repository" do
@@ -63,7 +68,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get "/api/v1/app/chats/new"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("default_repository_id" => repo_a.id)
+      expect(parse_body).to include("default_repository_id" => repo_a.id)
     end
 
     it "returns nil when the user has no repositories" do
@@ -72,7 +77,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get "/api/v1/app/chats/new"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("default_repository_id" => nil)
+      expect(parse_body).to include("default_repository_id" => nil)
+    end
+
+    it "returns configured provider metadata for new chat creation" do
+      sign_in_as(user)
+      user.update!(chat_provider: "codex", codex_api_key: "sk-test")
+
+      get "/api/v1/app/chats/new"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include(
+        "effective_chat_provider" => "codex",
+        "effective_chat_provider_label" => "Codex"
+      )
+      expect(parse_body["chat_provider_options"]).to include(
+        include("value" => "claude", "label" => "Claude", "configured" => true),
+        include("value" => "codex", "label" => "Codex", "configured" => true)
+      )
     end
   end
 
@@ -984,6 +1006,59 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(ChatMessage.count).to eq(0)
     expect(enqueued_jobs.count).to eq(jobs_before_request)
     expect(parse_body).to include("message" => "Chat created.", "redirect_to" => chat_path(chat))
+  end
+
+  it "creates a chat pinned to a valid configured provider" do
+    sign_in_as(user)
+    user.update!(codex_api_key: "sk-test", chat_provider: "claude")
+
+    expect {
+      post "/api/v1/app/chats", params: { repository_id: repository.id, chat_provider: "codex", chat_message: { text: "Use Codex for this" } }
+    }.to change(ChatSession, :count).by(1)
+      .and change(ChatMessage, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    chat = ChatSession.last
+    expect(chat.chat_provider).to eq("codex")
+    expect(chat.messages.last.content["text"]).to eq("Use Codex for this")
+    expect(parse_body.dig("chat", "chat_provider")).to eq("codex")
+  end
+
+  it "creates an empty chat pinned to a valid configured provider before the first turn" do
+    sign_in_as(user)
+    user.update!(codex_api_key: "sk-test", chat_provider: "claude")
+
+    expect {
+      post "/api/v1/app/chats", params: { repository_id: repository.id, chat_provider: "codex" }
+    }.to change(ChatSession, :count).by(1)
+      .and change(ChatMessage, :count).by(0)
+
+    expect(response).to have_http_status(:created)
+    chat = ChatSession.last
+    expect(chat.chat_provider).to eq("codex")
+    expect(chat.messages).to be_empty
+  end
+
+  it "rejects an unknown provider during chat creation" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/chats", params: { chat_provider: "unknown" }
+    }.not_to change(ChatSession, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Invalid provider")
+  end
+
+  it "rejects a known but unconfigured provider during chat creation" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/chats", params: { chat_provider: "codex" }
+    }.not_to change(ChatSession, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Chat provider is not configured.")
   end
 
   it "returns provider switch metadata for configured explicit providers" do
