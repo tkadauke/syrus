@@ -141,7 +141,7 @@ export function useDiffReviewFeedback({
     onError: (error) => setSubmitError(errorMessage(error, t("review_submit_error")))
   })
   const discussComment = useMutation({
-    mutationFn: (comment: DiffReviewComment) => startJobDiscussionChat(jobId, discussionMessage(comment)),
+    mutationFn: (message: string) => startJobDiscussionChat(jobId, message),
     onSuccess: (payload) => {
       window.location.assign(payload.redirect_to)
     }
@@ -185,6 +185,15 @@ export function useDiffReviewFeedback({
     setSelection(null)
     setEditing(null)
     setBody("")
+  }
+
+  function discussComposing() {
+    if (!selection) return
+    const trimmed = body.trim()
+    if (!trimmed) return
+    const message = discussionMessageForSelection({ body: trimmed, headRef, selection })
+    cancelComposer()
+    discussComment.mutate(message)
   }
 
   function commentOnReview() {
@@ -264,6 +273,7 @@ export function useDiffReviewFeedback({
         createError={createComment.error}
         createPending={createComment.isPending}
         deleteError={deleteComment.error}
+        discussError={discussComment.error}
         deletePending={deleteComment.isPending}
         editing={editing}
         handledComments={handledComments}
@@ -274,7 +284,6 @@ export function useDiffReviewFeedback({
         onChangeReplyBody={setReplyBody}
         onComment={commentOnReview}
         onDelete={(comment) => requestDeleteComment(comment.id, comment.diff_review_version_id)}
-        onDiscuss={(comment) => discussComment.mutate(comment)}
         onEdit={editComment}
         onReply={saveReply}
         onResolve={(comment) => resolveComment.mutate({ id: comment.id, versionId: comment.diff_review_version_id })}
@@ -300,8 +309,6 @@ export function useDiffReviewFeedback({
         replyingId={replyingId}
         resolvePending={resolveComment.isPending}
         reviewCommentBody={reviewCommentBody}
-        discussError={discussComment.error}
-        discussPendingId={discussComment.isPending ? discussComment.variables?.id ?? null : null}
         submitError={submitError}
         submitPending={submitComments.isPending}
         supportsGlobalComments={supportsGlobalComments}
@@ -321,6 +328,8 @@ export function useDiffReviewFeedback({
     composingPending: createComment.isPending,
     composingSelection: selection,
     diffThreads,
+    discussComposingError: discussComment.error,
+    discussComposingPending: discussComment.isPending,
     editingThreadBody,
     editingThreadId,
     onCancelComposing: cancelComposer,
@@ -328,6 +337,7 @@ export function useDiffReviewFeedback({
     onChangeComposingBody: setBody,
     onChangeEditingThreadBody: setEditingThreadBody,
     onCommentLine: enabled ? startComment : undefined,
+    onDiscussComposing: discussComposing,
     onSaveComposing: saveComment,
     onDeleteThread: enabled ? (thread: DiffReviewThread) => requestDeleteComment(thread.id, diffReviewVersionId) : undefined,
     onSaveEditThread: saveEditThread,
@@ -346,6 +356,7 @@ function DiffReviewFeedbackPanel({
   createPending,
   deleteError,
   deletePending,
+  discussError,
   editing,
   handledComments,
   isComposing,
@@ -355,7 +366,6 @@ function DiffReviewFeedbackPanel({
   onChangeReplyBody,
   onComment,
   onDelete,
-  onDiscuss,
   onEdit,
   onReply,
   onResolve,
@@ -370,8 +380,6 @@ function DiffReviewFeedbackPanel({
   replyingId,
   resolvePending,
   reviewCommentBody,
-  discussError,
-  discussPendingId,
   submitError,
   submitPending,
   supportsGlobalComments,
@@ -387,6 +395,7 @@ function DiffReviewFeedbackPanel({
   createPending: boolean
   deleteError: Error | null
   deletePending: boolean
+  discussError: Error | null
   editing: DiffReviewComment | null
   handledComments: DiffReviewComment[]
   isComposing: boolean
@@ -396,7 +405,6 @@ function DiffReviewFeedbackPanel({
   onChangeReplyBody: (body: string) => void
   onComment: () => void
   onDelete: (comment: DiffReviewComment) => void
-  onDiscuss: (comment: DiffReviewComment) => void
   onEdit: (comment: DiffReviewComment) => void
   onReply: () => void
   onResolve: (comment: DiffReviewComment) => void
@@ -411,8 +419,6 @@ function DiffReviewFeedbackPanel({
   replyingId: number | null
   resolvePending: boolean
   reviewCommentBody: string
-  discussError: Error | null
-  discussPendingId: number | null
   submitError: string | null
   submitPending: boolean
   supportsGlobalComments: boolean
@@ -455,9 +461,6 @@ function DiffReviewFeedbackPanel({
             <div className="mt-3 flex flex-wrap gap-2">
               {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
               {supportsGlobalComments && (comment.path || isGlobal) ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
-              <Button disabled={discussPendingId === comment.id} onClick={() => onDiscuss(comment)} size="sm" variant="secondary">
-                {discussPendingId === comment.id ? t("review_discussing_comment") : t("review_discuss_comment")}
-              </Button>
               {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
               {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
               {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
@@ -618,21 +621,17 @@ function diffContextHighlightLine(comment: DiffReviewComment): string | null {
   return ` ${lineText}`
 }
 
-function discussionMessage(comment: DiffReviewComment) {
-  const location = comment.anchor_kind === "review"
-    ? "Whole review"
-    : [
-        comment.path || "Unknown file",
-        comment.side === "left" ? comment.old_line : comment.new_line
-      ].filter((part) => part != null && part !== "").join(":")
+function discussionMessageForSelection({ body, headRef, selection }: { body: string; headRef?: string | null; selection: DiffLineSelection }) {
+  const line = selection.side === "old" ? selection.line.oldLine : selection.line.newLine
+  const location = [selection.file.path, line].filter((part) => part != null && part !== "").join(":")
 
   return [
     "Discuss this code review comment.",
-    `Revision: ${comment.diff_review_version?.head_sha || comment.head_ref || "unknown"}`,
+    `Revision: ${headRef || "unknown"}`,
     `Location: ${location}`,
     "",
     "Comment:",
-    comment.body
+    body
   ].join("\n")
 }
 
