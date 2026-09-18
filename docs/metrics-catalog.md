@@ -49,7 +49,7 @@ are computed at read time with `rate()`.
 | `syrus_skip_if_pending_skips_total` | counter | `job_class`, `queue`, `mode` | no | Job enqueue attempts skipped because an unfinished matching job already exists |
 | `syrus_spawned_processes` | gauge | `kind`, `state` | no | Spawned subprocesses running or recently finished, by kind and state (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_time_to_land_seconds` | histogram | — | no | Wall clock from Job creation to landing |
-| `syrus_worker_cpu_percent` | gauge | `worker_storage_key` | no | Worker host CPU utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
-| `syrus_worker_disk_percent` | gauge | `worker_storage_key` | no | Worker host data-root disk utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
-| `syrus_worker_memory_percent` | gauge | `worker_storage_key` | no | Worker host memory utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_worker_cpu_percent` | gauge | `hostname`, `storage_key` | no | Worker host CPU utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_worker_disk_percent` | gauge | `hostname`, `storage_key` | no | Worker host data-root disk utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
+| `syrus_worker_memory_percent` | gauge | `hostname`, `storage_key` | no | Worker host memory utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum) |
 | `syrus_workflow_step_duration_seconds` | histogram | `kind` | no | Step wall clock from start to finish, spanning every Run attempt within the Step |
