@@ -134,8 +134,8 @@ syrus_time_to_land_seconds                  histogram
 Workers and admission:
 
 ```
-syrus_worker_cpu_percent{worker_storage_key} gauge  ← from existing host health samples
-syrus_worker_memory_percent{worker_storage_key} gauge
+syrus_worker_cpu_percent{hostname,storage_key} gauge  ← from existing host health samples
+syrus_worker_memory_percent{hostname,storage_key} gauge
 syrus_active_agent_runs                     gauge
 syrus_max_concurrent_agent_runs             gauge   ← so the panel shows the ceiling
 syrus_admission_decisions_total{decision}   counter
