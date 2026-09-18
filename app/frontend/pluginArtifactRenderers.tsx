@@ -29,6 +29,15 @@ export type ArtifactRendererExample = {
   // why it's shaped the way it is (e.g. "malformed: missing headers/rows").
   // Omit when the label already says it all.
   description?: string
+  // Marks a deliberately malformed/edge-case fixture whose artifact is
+  // expected to degrade to a fallback body -- either this renderer's own
+  // internal fallback (most core renderers fall back to RawArtifactBody
+  // when their payload is unusable) or, if render() itself throws, the
+  // registry's raw JSON entry (see renderArtifactRendererEntry). A future
+  // catalog can badge these instead of presenting them as the renderer's
+  // normal output. Omit (or set false) for a normal, representative
+  // fixture.
+  expectedFallback?: boolean
   // A ready-to-render TypedArtifact fixture -- handed straight to
   // renderArtifactBody/ArtifactBody, the same shape a live artifact has.
   artifact: TypedArtifact
@@ -55,6 +64,13 @@ export type ArtifactRendererDefinition = {
   // TypeScript payload types live in api/artifacts.ts).
   supportedPayloadShape: string
   render: (artifact: TypedArtifact) => ReactNode
+  // Set when this renderer_type intentionally ships no example fixtures --
+  // e.g. a thin variant with no payload shape worth demonstrating beyond
+  // what another renderer's examples already cover. Most renderers should
+  // ship at least one example instead of reaching for this; see the
+  // fixture-coverage test in artifactRendererRegistry.test.ts, which
+  // requires every registered entry to have either an example or this flag.
+  fallbackOnly?: boolean
 }
 
 export type ArtifactRendererOwner = { ownerType: "core" | "plugin"; pluginName: string | null }
