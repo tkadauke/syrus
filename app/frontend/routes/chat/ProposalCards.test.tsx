@@ -152,7 +152,7 @@ describe("PendingActionCard emergency land", () => {
     expect(card?.className).toContain("border-warning-border")
     expect(card?.className).toContain("bg-warning-surface")
     expect(screen.getAllByText("Emergency land")[0]).toHaveClass("bg-warning")
-    expect(screen.getByText("This skips Syrus graders, adversarial review, and visual review, then merges the PR directly through GitHub.")).toBeInTheDocument()
+    expect(screen.getByText("This bypasses job creation and lands immediately, without any quality control.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument()
   })
