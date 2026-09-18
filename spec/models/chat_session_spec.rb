@@ -474,6 +474,7 @@ RSpec.describe ChatSession do
           action: "update_controls",
           turn_in_flight: false,
           agent_busy: false,
+          turn_retry_state: nil,
           switching_provider: false,
           stop_requested_at: stopped_at.iso8601,
           queued_messages: [],
