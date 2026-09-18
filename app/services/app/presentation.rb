@@ -189,6 +189,8 @@ module App
         "Submit feedback on #{job_slug(payload['job_id'])}"
       when "complete_implement_step"
         "Hand off #{job_slug(payload['job_id'])}"
+      when "emergency_land"
+        "Emergency land #{job_slug(payload['job_id'])}"
       when "reopen_epic_and_attach_job"
         "Reopen Epic ##{payload['epic_id']} and attach #{job_slug(payload['job_id'])}"
       when "submit_coding_changes"
@@ -272,6 +274,8 @@ module App
           payload["confirmation_reason"].presence
         ].compact.join("\n").presence
       when "complete_implement_step"
+        payload["branch_name"].presence&.then { |branch| "Branch: #{branch}" }
+      when "emergency_land"
         payload["branch_name"].presence&.then { |branch| "Branch: #{branch}" }
       when "adopt_current_pr_head", "replace_pr_branch_with_workflow_output", "retry_from_current_pr_branch"
         evidence = payload["evidence"].to_h

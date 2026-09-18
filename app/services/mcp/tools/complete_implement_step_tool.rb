@@ -54,6 +54,12 @@ module Mcp::Tools
         if normalized_branch.present? && !valid_branch_name?(normalized_branch)
           return Mcp::Tools.invalid("branch_name is not a valid branch name.")
         end
+        existing_emergency_land = pending_landing_action_for(chat_session, job, action: "emergency_land")
+        if existing_emergency_land
+          return Mcp::Tools.invalid("An emergency_land confirmation is already pending for #{job.slug}; resolve it before requesting complete_implement_step.")
+        end
+        existing_handoff = pending_landing_action_for(chat_session, job, action: "complete_implement_step")
+        return pending_action_response(existing_handoff) if existing_handoff
 
         payload = { "job_id" => job.id }
         payload["branch_name"] = normalized_branch if normalized_branch.present?
@@ -86,6 +92,24 @@ module Mcp::Tools
         return false if branch_name.split("/").any? { |part| part.blank? || part.start_with?(".") }
 
         !branch_name.match?(/[[:space:]~^:?*\[\\]/)
+      end
+
+      private
+
+      def pending_landing_action_for(chat_session, job, action:)
+        chat_session.pending_actions
+          .where(action: action)
+          .where(state: %w[queued pending confirming failed])
+          .detect { |pending_action| pending_action.payload.to_h["job_id"].to_i == job.id }
+      end
+
+      def pending_action_response(pending_action)
+        Mcp::Tools.success(
+          pending_confirmation_id: pending_action.id,
+          pending_action_id: pending_action.id,
+          state: pending_action.state,
+          message: "Implementation handoff requires operator confirmation."
+        )
       end
     end
   end

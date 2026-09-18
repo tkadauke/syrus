@@ -94,6 +94,23 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     expect(job.reload.branch_name).to eq("syrus/stale")
   end
 
+  it "rejects when an emergency land confirmation is already pending for the same Job" do
+    job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
+                               issue_number: nil, branch_name: "syrus/incident", pr_number: nil)
+    job.update_columns(linked_chat_id: chat_session.id, state: "coding")
+    chat_session.pending_actions.create!(
+      action: "emergency_land",
+      payload: { "chat_session_id" => chat_session.id, "job_id" => job.id, "branch_name" => "syrus/incident" },
+      requested_by: "agent"
+    )
+
+    response = call_tool(job_id: job.id, branch_name: "syrus/incident")
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("emergency_land confirmation is already pending")
+    expect(chat_session.pending_actions.where(action: "complete_implement_step").count).to eq(0)
+  end
+
   it "rejects invalid replacement branch names" do
     job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
                                issue_number: nil, branch_name: "syrus/stale", pr_number: 10)
