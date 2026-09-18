@@ -15,7 +15,6 @@ function renderConnect(props: { onConnected?: (result: CredentialTestResult) => 
 }
 
 const VALID_KEY = "test-gemini-api-key-1234567890"
-const geminiValid: CredentialTestResult = { credential: "gemini_api_key", ok: true, message: "Gemini key is valid.", details: {} }
 const agyValid: CredentialTestResult = {
   credential: "agy",
   ok: true,
@@ -23,11 +22,10 @@ const agyValid: CredentialTestResult = {
   details: { shared_credential: "gemini_api_key" }
 }
 
-function mockRoutes(routes: { geminiTest?: () => Response; patch?: () => Response; agyTest?: () => Response } = {}) {
+function mockRoutes(routes: { patch?: () => Response; agyTest?: () => Response } = {}) {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = String(input)
     const method = init?.method ?? "GET"
-    if (url.endsWith("/test_gemini_key")) return routes.geminiTest?.() ?? jsonResponse({ credential_test: geminiValid })
     if (url.endsWith("/credentials") && method === "PATCH") return routes.patch?.() ?? jsonResponse({})
     if (url.endsWith("/test_credential")) return routes.agyTest?.() ?? jsonResponse({ credential_test: agyValid })
     throw new Error(`unexpected fetch: ${method} ${url}`)
@@ -37,7 +35,7 @@ function mockRoutes(routes: { geminiTest?: () => Response; patch?: () => Respons
 describe("AgyConnect", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("validates the format, tests the key against Google, saves it, and confirms through the agy probe", async () => {
+  it("validates the format, saves the shared key, and confirms through the agy probe", async () => {
     const fetchSpy = mockRoutes()
     const onConnected = vi.fn()
     renderConnect({ onConnected })
@@ -68,15 +66,15 @@ describe("AgyConnect", () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it("surfaces a Google-rejected key without saving or calling onConnected", async () => {
-    mockRoutes({ geminiTest: () => jsonResponse({ credential_test: { credential: "gemini_api_key", ok: false, message: "Google rejected this key.", details: {} } }) })
+  it("surfaces an agy probe failure without calling onConnected", async () => {
+    mockRoutes({ agyTest: () => jsonResponse({ credential_test: { credential: "agy", ok: false, message: "Antigravity rejected this key.", details: {} } }) })
     const onConnected = vi.fn()
     renderConnect({ onConnected })
 
     fireEvent.change(screen.getByPlaceholderText("Paste your Gemini API key here"), { target: { value: VALID_KEY } })
     fireEvent.click(screen.getByRole("button", { name: "Validate & save" }))
 
-    await waitFor(() => expect(screen.getByText("Google rejected this key.")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Antigravity rejected this key.")).toBeInTheDocument())
     expect(onConnected).not.toHaveBeenCalled()
   })
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { savePartialCredentials, testCredential, testGeminiKey, type CredentialTestResult } from "@app/api/credentials"
+import { savePartialCredentials, testCredential, type CredentialTestResult } from "@app/api/credentials"
 import { openInNewTab } from "@app/lib/desktopShell"
 import { errorMessage } from "@app/lib/errorMessage"
 import { useT } from "@app/hooks/useT"
@@ -18,12 +18,8 @@ const INITIAL_STAGES: ValidationStage[] = [
 ]
 
 // Antigravity has no secret of its own -- connecting it means saving the
-// shared Gemini API key, so this reuses the same format-then-reach
-// validation cascade GeminiSetupSheet uses (extracted as ValidationStages /
-// looksLikeGeminiKey) rendered inline (no Modal wrapper) to conform to the
-// generic connect-panel shape. The final confirmation goes through the
-// "agy" credential probe rather than the raw Gemini probe response, so the
-// message reads as Antigravity (not just Gemini) being ready.
+// shared Gemini API key, then confirming it through the "agy" credential
+// probe so the message reads as Antigravity (not just Gemini) being ready.
 //
 // The onConnected/secondaryAction/autoFocus shape matches
 // AgentProviderConnectPanelProps, but onConnected is declared with the
@@ -70,17 +66,16 @@ export function AgyConnect({
       }
       setStage("format", "ok")
 
+      await savePartialCredentials({ gemini_api_key: candidate })
       setStage("reach", "running")
-      const probe = await testGeminiKey(candidate)
-      if (!probe.credential_test.ok) {
+      const agyTest = await testCredential("agy")
+      if (!agyTest.credential_test.ok) {
         setStage("reach", "failed")
-        setError(probe.credential_test.message || t("credential_cards.test_error"))
+        setError(agyTest.credential_test.message || t("credential_cards.test_error"))
         return
       }
       setStage("reach", "ok")
 
-      await savePartialCredentials({ gemini_api_key: candidate })
-      const agyTest = await testCredential("agy")
       await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       await queryClient.invalidateQueries({ queryKey: ["credentials"] })
       setKey("")
