@@ -27,6 +27,14 @@ class MergeTrain < ApplicationRecord
 
   def bundle_backed? = epic_id.blank? && priority.present?
 
+  def label
+    if epic_backed?
+      epic.respond_to?(:number) && epic.number ? "Epic ##{epic.number}" : "Epic ##{epic.id}"
+    else
+      "job bundle ##{id}"
+    end
+  end
+
   def default_integration_branch
     if epic_backed?
       "syrus/merge-train-epic-#{epic_id}-#{id}"
