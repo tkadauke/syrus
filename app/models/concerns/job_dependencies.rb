@@ -30,6 +30,8 @@ module JobDependencies
   end
 
   def unsatisfied_dependencies
+    return [] if dependencies_overridden_at.present?
+
     preloaded_dependencies(:depends_on_epic, depends_on_job: :repository).reject do |dependency|
       dependency.dependency_succeeded?
     end

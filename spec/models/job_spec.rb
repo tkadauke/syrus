@@ -2446,6 +2446,24 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.unsatisfied_dependencies.first).to be_pending
     end
 
+    it "treats an unclosed dependency as unsatisfied without an override" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 42, state: "approved", approved_at: Time.current)
+      job = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      job.dependencies.create!(depends_on_job: prerequisite, source: "manual")
+
+      expect(job.unsatisfied_dependencies).to contain_exactly(job.dependencies.first)
+    end
+
+    it "clears unsatisfied_dependencies once dependencies_overridden_at is set, even though the dependency job hasn't closed" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 42, state: "approved", approved_at: Time.current)
+      job = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      job.dependencies.create!(depends_on_job: prerequisite, source: "manual")
+
+      job.update!(dependencies_overridden_at: Time.current)
+
+      expect(job.unsatisfied_dependencies).to be_empty
+    end
+
     it "treats cancelled dependencies as failed for execution" do
       prerequisite = Factories.job_record(
         user: user,
