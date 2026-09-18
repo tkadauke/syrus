@@ -40,4 +40,41 @@ RSpec.describe WorkUnits::WorkflowCancellation do
     expect(workflow.reload).to be_cancelled
     expect(workflow.artifact("start_cancelled_reason")).to eq("job_closed")
   end
+
+  describe ".cancel_queued_retry_workflows_for_job!" do
+    # RetryWorkflowEnqueuer tries RunCheckpointResume first and only falls
+    # back to a plain "retry" Workflow when no safe checkpoint resume is
+    # available, so a stale retry attempt can surface as either WorkUnit
+    # kind -- both must be cancelled, or the missed one stays queued and
+    # fires later against state the caller just settled.
+    it "cancels a queued retry Workflow" do
+      retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+      attach_work_unit(retry_workflow, member_jobs: [ job ], kind: "retry", state: "queued")
+
+      described_class.cancel_queued_retry_workflows_for_job!(job: job, reason: "job_approved")
+
+      expect(retry_workflow.reload).to be_cancelled
+      expect(retry_workflow.artifact("retry_cancelled_reason")).to eq("job_approved")
+    end
+
+    it "cancels a queued checkpoint_resume Workflow" do
+      checkpoint_resume_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+      attach_work_unit(checkpoint_resume_workflow, member_jobs: [ job ], kind: "checkpoint_resume", state: "queued")
+
+      described_class.cancel_queued_retry_workflows_for_job!(job: job, reason: "job_approved")
+
+      expect(checkpoint_resume_workflow.reload).to be_cancelled
+      expect(checkpoint_resume_workflow.artifact("retry_cancelled_reason")).to eq("job_approved")
+    end
+
+    it "leaves queued Workflows of unrelated WorkUnit kinds alone" do
+      auto_merge_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "queued")
+      attach_work_unit(auto_merge_workflow, member_jobs: [ job ], kind: "auto_merge", state: "queued")
+
+      described_class.cancel_queued_retry_workflows_for_job!(job: job, reason: "job_approved")
+
+      expect(auto_merge_workflow.reload).to be_queued
+      expect(auto_merge_workflow.artifact("retry_cancelled_reason")).to be_nil
+    end
+  end
 end
