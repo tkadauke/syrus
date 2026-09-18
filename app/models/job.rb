@@ -1,6 +1,7 @@
 class Job < ApplicationRecord
   include AASM
   include RecordsStateTransitions
+  include ValidatesAgentProvider
   include JobCodingMode
   include JobNeedsAttention
   include JobWorkflowAccessors
@@ -122,7 +123,7 @@ class Job < ApplicationRecord
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validates :job_provider_setting, presence: true, inclusion: { in: ->(_) { Job.provider_settings } }
   validates :stack_base, presence: true, inclusion: { in: STACK_BASES }
-  validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
+  validates_agent_provider
   validates :validity, presence: true, inclusion: { in: VALIDITIES }
   validates :triaging_reason, presence: true, inclusion: { in: TRIAGING_REASONS }
   validates :approved_via, inclusion: { in: APPROVAL_VIAS }, allow_nil: true
