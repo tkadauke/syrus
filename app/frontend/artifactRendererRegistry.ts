@@ -2,11 +2,12 @@
 // every typed_artifacts `renderer_type` (see TypedArtifact in
 // api/artifacts.ts) is presented: core renderers, plugin-owned renderers,
 // and the raw-JSON fallback. Mirrors toolPresentationRegistry.ts's role for
-// chat tool cards -- this is the identity/metadata layer a future Artifact
-// Renderer Catalog page renders from, composing existing rendering
-// implementations (coreArtifactRenderers.tsx's bodies, plugin-owned
-// components discovered via pluginArtifactRenderers.tsx) rather than
-// duplicating them.
+// chat tool cards -- this is the identity/metadata layer the syrus_dev
+// plugin's Artifact Renderer Catalog admin page
+// (plugins/syrus_dev/app/frontend/routes/AdminArtifactRenderers.tsx) renders
+// from, composing existing rendering implementations
+// (coreArtifactRenderers.tsx's bodies, plugin-owned components discovered
+// via pluginArtifactRenderers.tsx) rather than duplicating them.
 import type { ReactNode } from "react"
 import type { TypedArtifact } from "./api/artifacts"
 import { coreArtifactRendererEntries, RAW_JSON_RENDERER_TYPE } from "./components/artifacts/coreArtifactRenderers"
