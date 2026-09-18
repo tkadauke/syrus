@@ -116,7 +116,17 @@ module Steps
     # break. One source of truth so the normal-push / force-push / stack-push
     # handlers can't drift their patterns (they had: force_push and
     # stack_force_push silently dropped the "non-fast-forward" token).
-    PUSH_REJECTED_PATTERN = /non-fast-forward|fetch first|rejected|stale info/i
+    #
+    # Deliberately does NOT match the bare word "rejected": git's own
+    # "[remote rejected] ... (<reason>)" line for a *server-side* refusal
+    # (a transient 5xx, a pre-receive hook, etc.) also contains "rejected",
+    # and a generic /rejected/i match misdiagnosed a transient GitHub 500
+    # ("[remote rejected] ... (Internal Server Error)") as a force-with-lease
+    # conflict, discarding completed stack-rebase work instead of retrying.
+    # Match only git's own specific reason tokens for a genuine non-fast-
+    # forward / lease conflict, which always appear in parentheses after
+    # "[rejected]" and never appear in a server-side failure message.
+    PUSH_REJECTED_PATTERN = /\((?:non-fast-forward|fetch first|stale info|needs force)\)/i
 
     def push_rejected?(error)
       error.output.to_s.match?(PUSH_REJECTED_PATTERN)
@@ -819,6 +829,22 @@ module Steps
       problem_code :git_state_corrupt
     end
 
+    # A merge-base failure has two very different causes, and `git
+    # merge-base` reports both the same way (nonzero exit): either (a) both
+    # refs resolve but share no history — the agent genuinely detached/
+    # orphaned the branch — or (b) `base_ref` itself doesn't resolve locally
+    # at all. (b) is not evidence the agent did anything: for a stack-child
+    # Job, `base_ref` is a parent Job's branch rather than the default
+    # branch, and the workspace it's checked in a fresh clone doesn't happen
+    # again on retry Runs within the same Workflow — reused verbatim, never
+    # re-fetched. A ref that genuinely exists on origin can still be absent
+    # here. Reported as `workspace_checkout_invalid` (retryable, run-scoped)
+    # rather than `git_state_corrupt` (non-retryable, workflow-scoped) so it
+    # doesn't get treated as agent-caused corruption.
+    class BranchHistoryBaseUnresolvable < StepFailed
+      problem_code :workspace_checkout_invalid
+    end
+
     def assert_branch_history_intact!
       # Use the remote-tracking ref (`origin/<default>`), not the bare
       # local branch name. WorkflowWorkspace clones with
@@ -830,6 +856,7 @@ module Steps
       # git state. `refs/remotes/origin/<default>` is always present
       # after clone regardless of which branch was checked out.
       base_ref = default_branch_ref
+      ensure_history_check_base_ref_resolvable!(base_ref)
       # Non-streaming: we only care about success-or-raise here. The
       # merge-base SHA (the only output of this command) isn't useful
       # in the transcript and just adds noise above the agent_diff.
@@ -839,6 +866,48 @@ module Steps
       raise AgentBrokeGitState,
             "agent's branch has no common ancestor with #{base_ref} — orphan/detached state. " \
             "Likely cause: agent ran `git checkout --orphan`, `git reset --hard <unrelated>`, or similar."
+    end
+
+    # Confirms `base_ref` actually resolves in this workspace before we ask
+    # `git merge-base` to compare against it. If it doesn't, fetch the exact
+    # ref from its remote and check again — self-healing the common "ref
+    # exists on origin but this on-disk clone never fetched it" case — before
+    # giving up with a distinct, retryable error that doesn't blame the
+    # agent.
+    def ensure_history_check_base_ref_resolvable!(base_ref)
+      return if git_ref_resolves?(base_ref)
+
+      log("[#{step.kind}] base ref #{base_ref} not present in workspace; fetching before verifying branch history", kind: "system")
+      fetch_history_check_base_ref!(base_ref)
+      return if git_ref_resolves?(base_ref)
+
+      raise BranchHistoryBaseUnresolvable,
+            "could not resolve base ref #{base_ref} in the workspace, even after fetching it — " \
+            "this is a missing or stale ref, not evidence that the agent corrupted git history."
+    end
+
+    def git_ref_resolves?(ref)
+      GitRunner.new.run("rev-parse", "--verify", "--quiet", ref, chdir: workspace.path.to_s)
+      true
+    rescue GitRunner::GitError
+      false
+    end
+
+    def fetch_history_check_base_ref!(base_ref)
+      remote, branch = base_ref.to_s.split("/", 2)
+      return if remote.blank? || branch.blank?
+
+      fetch_repository = remote == "upstream" ? job.base_repository : repository
+      authenticated_git("git_history_check_base_fetch", repository: fetch_repository) do |url|
+        streaming_git.run(
+          "fetch", "--no-tags", url,
+          "+refs/heads/#{branch}:refs/remotes/#{remote}/#{branch}",
+          chdir: workspace.path.to_s,
+          env: { "GIT_TERMINAL_PROMPT" => "0" }
+        )
+      end
+    rescue GitRunner::GitError => e
+      log("[#{step.kind}] could not fetch base ref #{base_ref}: #{e.message}", kind: "system")
     end
 
     # ---- Chain control ----

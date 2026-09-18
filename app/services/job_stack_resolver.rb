@@ -69,13 +69,34 @@ class JobStackResolver
 
   def update_parent!(parent)
     parent_id = parent&.id
-    return ready_result(parent) if @job.parent_job_id == parent_id
-    return ready_result(parent) unless apply?
+    return ready_result(parent, artifacts: pinned_base_artifacts(parent)) if @job.parent_job_id == parent_id
+    return ready_result(parent, artifacts: pinned_base_artifacts(parent)) unless apply?
 
     old_parent = @job.parent_job
     @job.update!(parent_job: parent)
     refresh_stack_footers(old_parent, parent, @job)
-    ready_result(parent)
+    ready_result(parent, artifacts: pinned_base_artifacts(parent))
+  end
+
+  # Pin the resolved parent's branch onto the Workflow the moment it is
+  # chosen, so `RebaseTarget.branch_for` reads this fixed value for the rest
+  # of the Workflow's life instead of recomputing `open_parent_branch` live
+  # on every new WorkflowWorkspace instance (one per Run/Step). Without this,
+  # a stack child's base ref could silently drift mid-Workflow -- e.g. the
+  # parent Job merging or closing between the `implement` Run that cloned the
+  # workspace and a later `graders`/`adversarial_review` Run that re-resolves
+  # the base branch -- while the on-disk clone (reused, never re-fetched
+  # against the new base) still reflects the original parent branch. That
+  # mismatch surfaced as `git merge-base` failing to resolve the recomputed
+  # ref and got misreported as agent-caused git corruption (see
+  # Steps::Base#assert_branch_history_intact!). Pinning here removes the
+  # drift at its source; a genuinely new base for a *new* Workflow attempt
+  # (e.g. a retry after the parent has landed) still resolves fresh, since
+  # each Workflow gets its own artifacts.
+  def pinned_base_artifacts(parent)
+    return {} if parent&.branch_name.blank?
+
+    { RebaseTarget::BASE_BRANCH_ARTIFACT => parent.branch_name }
   end
 
   def ready_result(parent, artifacts: {})

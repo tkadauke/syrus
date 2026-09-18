@@ -17,6 +17,7 @@ class BranchDivergenceRecovery
   end
 
   def force_push!
+    return failure(already_recovered_message) if already_recovered?
     return failure("No branch divergence was recorded for this workflow.") unless divergence
     return failure("Unapprove before replacing the PR branch.") if job.approved? || job.landing?
     return failure("Closed Jobs cannot replace PR branches.") if job.closed?
@@ -46,6 +47,7 @@ class BranchDivergenceRecovery
   end
 
   def mark_force_push_pending!
+    return failure(already_recovered_message) if already_recovered?
     return failure("No branch divergence was recorded for this workflow.") unless divergence
     return failure("Unapprove before replacing the PR branch.") if job.approved? || job.landing?
     return failure("Closed Jobs cannot replace PR branches.") if job.closed?
@@ -77,6 +79,7 @@ class BranchDivergenceRecovery
   end
 
   def discard!
+    return failure(already_recovered_message) if already_recovered?
     return failure("No branch divergence was recorded for this workflow.") unless divergence
 
     record_recovery!("discarded")
@@ -85,6 +88,7 @@ class BranchDivergenceRecovery
   end
 
   def discard_superseded!
+    return failure(already_recovered_message) if already_recovered?
     return failure("No branch divergence was recorded for this workflow.") unless divergence
     return failure("Current PR head no longer matches the recorded remote SHA.") unless current_pr_head_matches_recorded_remote?
 
@@ -94,6 +98,7 @@ class BranchDivergenceRecovery
   end
 
   def adopt_current_pr_head!
+    return failure(already_recovered_message) if already_recovered?
     return failure("No branch divergence was recorded for this workflow.") unless divergence
     return failure("Current PR head SHA is unavailable.") if current_pr_head_sha.blank?
 
@@ -120,6 +125,20 @@ class BranchDivergenceRecovery
 
   def current_pr_head_matches_recorded_remote?
     current_pr_head_sha.present? && current_pr_head_sha == remote_sha
+  end
+
+  # A durable idempotency check shared by every mutating entry point above:
+  # once any recovery action (force-push, discard, adopt) has resolved this
+  # divergence, a repeated call -- a stale reconciler pass, a duplicate
+  # operator confirmation, a retried pending action -- must not replay the
+  # git/GitHub side effect or overwrite the recorded outcome.
+  def already_recovered?
+    workflow.artifact("branch_divergence_recovery").present?
+  end
+
+  def already_recovered_message
+    action = workflow.artifact("branch_divergence_recovery")["action"]
+    "Branch divergence was already resolved (#{action}); no further recovery action is needed."
   end
 
   def current_pr_head_sha
@@ -182,6 +201,24 @@ class BranchDivergenceRecovery
       "branch_divergence_recovery_error" => nil
     )
     log!("branch divergence recovery: #{action}")
+    cancel_stale_retry_workflow_attempts!(action)
+  end
+
+  # This divergence just got resolved through one recovery path (force-push,
+  # discard, or adopt) -- any retry_workflow the reconciler already scheduled
+  # to resolve the SAME divergence via a fresh workflow is now redundant and
+  # would only race against the branch this just settled. Cancel it rather
+  # than let it fire later against a branch that has already moved on.
+  # Exempt from the retry budget: the Job did nothing wrong here, recovery
+  # simply reached the finish line first.
+  def cancel_stale_retry_workflow_attempts!(action)
+    reason = "branch divergence recovered via #{action}"
+
+    AutoRetryAttempt.where(job: job, failure_classification: "branch_diverged").retry_workflow.pending.find_each do |attempt|
+      attempt.skip_stale_pending!(reason)
+    end
+
+    WorkUnits::WorkflowCancellation.cancel_queued_retry_workflows_for_job!(job: job, reason: "branch_divergence_recovered")
   end
 
   def write_artifacts!(changes)

@@ -113,6 +113,18 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
+  it("never wraps the diff viewer in an ancestor with non-visible overflow, which would block its sticky file headers from pinning", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    const diffViewer = await screen.findByTestId("agent-diff-viewer")
+    for (let ancestor = diffViewer.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+      expect(ancestor.className).not.toMatch(/\boverflow-(hidden|auto|scroll|y-auto|y-scroll|x-auto|x-scroll)\b/)
+    }
+  })
+
   it("renders before/after image thumbnails for a patch-less image file instead of the generic placeholder", async () => {
     const payload = sourceDiffPayload()
     vi.mocked(fetchJobSourceDiff).mockResolvedValue({

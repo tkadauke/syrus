@@ -58,7 +58,7 @@ module Steps
 
       train.update!(state: "succeeded", finished_at: Time.current)
       log(
-        "merge_train: landed #{train_label(train)} (#{train.members.size} PR(s)) via integration PR ##{pr.number}; " \
+        "merge_train: landed #{train.label} (#{train.members.size} PR(s)) via integration PR ##{pr.number}; " \
         "integration #{integration_sha.to_s.first(9)} merged onto #{train.base_branch}@#{pre_merge_base_sha.to_s.first(9)}"
       )
     end
@@ -282,7 +282,7 @@ module Steps
       client.merge_pull_request(
         repository.slug,
         pr.number,
-        commit_title: "Merge #{train_label(train)} via Syrus merge-train",
+        commit_title: "Merge #{train.label} via Syrus merge-train",
         merge_method: "merge"
       )
     rescue Octokit::MethodNotAllowed => e
@@ -537,26 +537,15 @@ module Steps
       fail_with!(:merge_train_rebuild_required, reason)
     end
 
-    # There is no integration PR when the branch turned out to already be on
-    # base -- nothing was merged this time, the work was merged earlier.
-    def landed_comment_for(member_job, integration_pr)
-      via = integration_pr ? " (integration PR ##{integration_pr.number})" : ""
-      "Landed via #{train_label(merge_train)} merge-train#{via}. #{member_job.slug}."
-    end
-
     def reconcile_member_pull_request_after_landing(client, member_job, integration_pr)
-      return if member_job.pr_number.blank?
-
-      cleanup_after_landing("comment on PR ##{member_job.pr_number}") do
-        client.add_issue_comment(
-          repository.slug,
-          member_job.pr_number,
-          landed_comment_for(member_job, integration_pr)
-        )
-      end
-      cleanup_after_landing("close PR ##{member_job.pr_number}") do
-        client.close_pull_request(repository.slug, member_job.pr_number)
-      end
+      MergeTrainMemberPrReconciler.call(
+        client: client,
+        repository: repository,
+        train: merge_train,
+        member_job: member_job,
+        integration_pr: integration_pr,
+        log: method(:log)
+      )
     end
 
     def delete_branch_after_landing(client, branch_name)
@@ -575,27 +564,17 @@ module Steps
     end
 
     def integration_pr_title(train)
-      "Land #{train_label(train)}: #{train_title(train)}".strip
+      "Land #{train.label}: #{train_title(train)}".strip
     end
 
     def integration_pr_body(train)
-      lines = [ "Atomic #{train_label(train)} landing via Syrus merge-train.", "", "Members:" ]
+      lines = [ "Atomic #{train.label} landing via Syrus merge-train.", "", "Members:" ]
       train.members.includes(:job).each do |member|
         member_job = member.job
         ref = member_job.pr_number.present? ? "##{member_job.pr_number}" : member_job.slug
         lines << "- #{ref} (#{member_job.branch_name})"
       end
       lines.join("\n")
-    end
-
-    def train_label(train)
-      if train.epic_backed?
-        epic = train.epic
-        label = epic.respond_to?(:number) && epic.number ? "Epic ##{epic.number}" : "Epic ##{epic.id}"
-        return label
-      end
-
-      "job bundle ##{train.id}"
     end
 
     def train_title(train)

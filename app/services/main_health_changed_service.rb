@@ -338,20 +338,39 @@ class MainHealthChangedService
     return unless user
 
     Job.transaction do
-      job = user.jobs.create!(
-        repository: @repository,
-        kind: "direct",
-        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
-        issue_number: nil,
-        issue_title: FIX_MAIN_TITLE,
-        issue_body: fix_job_prompt,
-        agent_provider: @repository.effective_agent_provider,
-        priority: repair_job_priority
-      )
+      job = create_fix_job(user)
+      next blocking_fix_job unless job
+
       attach_repair_context!(job)
       job.advance_after_triage! if job.may_advance_after_triage?
       job
     end
+  end
+
+  def create_fix_job(user)
+    user.jobs.create!(
+      repository: @repository,
+      kind: "direct",
+      system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+      issue_number: nil,
+      issue_title: FIX_MAIN_TITLE,
+      issue_body: fix_job_prompt,
+      agent_provider: @repository.effective_agent_provider,
+      priority: repair_job_priority
+    )
+  rescue ActiveRecord::RecordNotUnique => e
+    # Two concurrent triggers (e.g. a health poll and an inline repair
+    # check from a Jobs#show request) can both pass every guard above and
+    # race to create the repair Job; the slug's unique index is the last
+    # line of defense. Reuse whichever process won instead of 500ing the
+    # caller. Scoped to just this create! call so a RecordNotUnique from a
+    # deeper side effect (e.g. WorkUnitLock creation inside
+    # advance_after_triage!) is never mistaken for this slug race.
+    Rails.logger.warn(
+      "[MainHealthChangedService] #{@repository.slug} main repair job creation raced with " \
+      "another process; reusing the job it already created (#{e.message})"
+    )
+    nil
   end
 
   def repair_job_priority

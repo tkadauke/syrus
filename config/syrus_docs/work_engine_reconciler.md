@@ -107,6 +107,12 @@ The classifier currently emits these families:
 - `nonretryable_semantic_git_failure`
 - `cleanup_blocked_by_active_descendants`
 - `workflow_workspace_prune_risk`
+- `branch_diverged_pr_open` — the latest failed Workflow's `pr_open` step
+  found the remote PR branch had moved; plans `retry_workflow` from the
+  current PR branch
+- `stale_branch_diverged_workflow` — an older failed Workflow's recorded
+  branch divergence is now stale because the current PR branch already
+  matches the protected remote SHA; plans `discard_superseded_branch_output`
 
 `safe_to_auto_repair` only describes whether the repair planner may choose an
 automatic action. The classifier and planner are side-effect free; mutations are
@@ -151,6 +157,22 @@ Planner examples:
   fresh retry workflow only when the usual workflow retry gate is safe. The
   normal stale-heartbeat deadline remains `Run::STALE_HEARTBEAT_THRESHOLD`
   for ambiguous cases with active worker evidence.
+- A `worker_died` failure can be independently noticed by more than one issue
+  classifier for the exact same still-failed Run — for example a missing
+  resumable session and the `worker_died` failure classification both
+  proposing the same `retry_failed_step` repair, one immediate and one backed
+  off. `auto_retry_blocker_for`'s "retry already pending" check only stops the
+  second detector's plan while the first `AutoRetryAttempt` is still pending;
+  once `AutoRetryJob` marks it performed, a later reconciler pass over the
+  same Run could otherwise schedule a second attempt on top of it before
+  replacement work is visible. `schedule_auto_retry!` dedups `worker_died`
+  unconditionally instead: once any unskipped `AutoRetryAttempt` exists for a
+  given `(run, retry_kind)` pair, no further attempt is scheduled for it,
+  regardless of `scheduled_at` or `performed_at`. This is what keeps a
+  pressured host's `visual_diff` (or any other) worker_died Run from
+  accumulating duplicate retry attempts across repeated reconciler passes; see
+  `multi_worker.md` for the related per-host `visual_diff` preview admission
+  guard.
 - When a `worker_died` failure has a critical `run_resource_summary`
   host-pressure level, `RunFailureClassifier` records
   `worker_died_under_resource_pressure` instead of retryable `worker_died`.
@@ -208,6 +230,22 @@ Planner examples:
   permanent verdict.
 - Git publication, landing, and semantic failures return operator-review plans
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
+- `branch_diverged_pr_open` is never planned while the same Workflow already
+  has a `branch_divergence_recovery_pending` artifact — a force-push (or other)
+  recovery is already in flight for that exact divergence, so a competing
+  `retry_workflow` would only race the branch it is about to settle. The
+  pending marker clears on completion (success or failure), so a genuinely
+  failed recovery attempt still leaves `retry_workflow` free to run on the next
+  pass. `BranchDivergenceRecovery` is the single idempotency key for this
+  path: every mutating action (force-push, discard, adopt-current-head)
+  refuses to replay once `branch_divergence_recovery` is already recorded for
+  the Workflow, and a successful recovery skips (budget-exempt, prefix
+  `"branch divergence recovered"`) any pending `retry_workflow`
+  `AutoRetryAttempt` for the same Job and cancels any queued (not yet started)
+  retry Workflow the earlier planning pass already spawned — covering both the
+  plain `retry` WorkUnit kind and its `RunCheckpointResume`-first sibling
+  `checkpoint_resume` (`WorkDefinitions.retry_workflow_attempt_kinds`), via
+  the shared `WorkUnits::WorkflowCancellation.cancel_queued_retry_workflows_for_job!`.
 - Main-health, dependency, stack, and capacity blocks return waiting plans, not
   failed retries. If a queued Workflow still has
   `stack_dependencies_not_ready` persisted but the current dependency resolver
@@ -301,6 +339,22 @@ The executor:
 - records direct state transitions with `StateTransition.with_source("reconciler")`
 - schedules retry, resume, failed-step, and workflow recovery through
   `AutoRetryAttempt` and `AutoRetryJob` instead of bypassing the retry ledger
+
+`schedule_auto_retry!` (the shared entry point behind every `retry_workflow`,
+`failed_step`, and `resume_failed_step` action, including the
+`mark_worker_died_and_*` family) also enforces a shared idempotency key scoped
+to the specific failed Run: once any retry_kind has an unskipped
+`AutoRetryAttempt` for that Run — pending or already performed — no other
+retry_kind may schedule a second one for it. This closes the gap the
+workflow-wide "pending" check alone leaves open: once an earlier attempt for
+the same Run flips from pending to performed, that check no longer blocks a
+later repair pass from concluding "nothing pending" and scheduling a second,
+overlapping retry for a failure that already has one in flight (worker-died
+reconciliation used to be able to apply `mark_worker_died_and_resume_failed_step`
+and then, a pass later, independently apply the plain `resume_failed_step`
+repair for the same Run). The key is scoped to the Run rather than the Job or
+Workflow, so unrelated sibling Runs — e.g. other `grader_fanout` Steps still
+running in the same Workflow — are never blocked by another Run's retry.
 
 The outer `ReconcileJob`/`call_locked!` concurrency guard (above) is the
 primary defense against two reconcile passes double-applying the same repair.

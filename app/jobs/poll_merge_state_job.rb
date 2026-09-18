@@ -46,6 +46,7 @@ class PollMergeStateJob < ApplicationJob
       return if @pr.merged
       return if @pr.state == "closed"
       return unless we_control_head?(@pr)
+      return if job_closed?
 
       gate = AutoMergeGate.new(job: @job, client: @client, bypass_cache: true, pr: @pr).evaluate
       if gate.merge_ready?
@@ -95,6 +96,21 @@ class PollMergeStateJob < ApplicationJob
     end
 
     Rails.logger.info("[PollMergeStateJob] finalized preempted #{@job.slug}: external PR ##{@job.external_pr_number} -> #{@job.closure_reason}")
+    true
+  end
+
+  # The only closed Jobs `PollAllMergeStatesJob` fans out to are
+  # preempted external-PR trackers (see its `pollable_jobs` scope) whose
+  # tracked PR is still open — `finalize_terminal_external_pr` above
+  # already resolved the terminal case. A closed Job must never be
+  # approved for landing or reach `RebaseWorkflowSelector.instantiate`:
+  # `Workflow#job_must_be_open_on_create` rejects a Workflow for a closed
+  # Job outright (`ActiveRecord::RecordInvalid`), so this exits before we
+  # ever attempt it.
+  def job_closed?
+    return false unless @job.closed?
+
+    Rails.logger.info("[PollMergeStateJob] #{@job.slug} is closed (#{@job.closure_reason}); skipping approval/rebase dispatch")
     true
   end
 

@@ -25,6 +25,12 @@ export type MergedAdminNavItem = {
   order: number
 }
 
+export type AdminNavItems = {
+  overviewItem: MergedAdminNavItem | undefined
+  groups: Array<{ group: AdminNavGroup; items: MergedAdminNavItem[] }>
+  ungroupedExtensions: MergedAdminNavItem[]
+}
+
 export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
   { id: "operations", labelKey: "nav_group_operations", order: 10 },
   { id: "observability", labelKey: "nav_group_observability", order: 20 },
@@ -66,11 +72,7 @@ export function buildAdminNavItems(
   featureFlags: Record<string, boolean>,
   pluginPages: AdminPluginPage[],
   translate: (key: string, options?: { defaultValue?: string }) => string
-): {
-  overviewItem: MergedAdminNavItem | undefined
-  groups: Array<{ group: AdminNavGroup; items: MergedAdminNavItem[] }>
-  ungroupedExtensions: MergedAdminNavItem[]
-} {
+): AdminNavItems {
   const coreItems: MergedAdminNavItem[] = CORE_ADMIN_NAV_ITEMS
     .filter((item) => !item.visible || item.visible(featureFlags))
     .map((item) => ({
@@ -110,4 +112,19 @@ export function buildAdminNavItems(
     .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
 
   return { overviewItem, groups, ungroupedExtensions }
+}
+
+export function filterAdminNavItems(navItems: AdminNavItems, query: string): AdminNavItems {
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  if (!normalizedQuery) return navItems
+
+  const matchesQuery = (item: MergedAdminNavItem) => item.label.toLocaleLowerCase().includes(normalizedQuery)
+
+  return {
+    overviewItem: navItems.overviewItem && matchesQuery(navItems.overviewItem) ? navItems.overviewItem : undefined,
+    groups: navItems.groups
+      .map(({ group, items }) => ({ group, items: items.filter(matchesQuery) }))
+      .filter(({ items }) => items.length > 0),
+    ungroupedExtensions: navItems.ungroupedExtensions.filter(matchesQuery),
+  }
 }

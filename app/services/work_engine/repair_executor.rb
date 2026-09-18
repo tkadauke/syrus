@@ -331,7 +331,7 @@ module WorkEngine
             current_provider: agent_provider,
             classification: classification
           ) if provider_switched
-          retry_blocker = auto_retry_blocker_for(workflow, retry_kind)
+          retry_blocker = auto_retry_blocker_for(workflow, retry_kind, source_run)
           return skipped(retry_blocker) if retry_blocker
 
           circuit = ProviderCircuitBreaker.call(agent_provider, now: now, include_logs: false)
@@ -345,7 +345,7 @@ module WorkEngine
           scheduled_at = provider_switched ? now : (plan.retry_after || now)
           workflow.with_lock do
             workflow.reload
-            retry_blocker = auto_retry_blocker_for(workflow, retry_kind)
+            retry_blocker = auto_retry_blocker_for(workflow, retry_kind, source_run)
             if retry_blocker
               locked_skip = skipped(retry_blocker)
             elsif delayed_retry_already_scheduled?(
@@ -411,8 +411,13 @@ module WorkEngine
           classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS : AutoRetryAttempt::MAX_ATTEMPTS
         end
 
+        DELAYED_RETRY_DEDUP_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
+
         def delayed_retry_already_scheduled?(workflow:, source_run:, classification:, retry_kind:, scheduled_at:)
-          return false unless classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
+          if classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+            return worker_died_retry_already_scheduled?(workflow: workflow, source_run: source_run, retry_kind: retry_kind)
+          end
+          return false unless classification.in?(DELAYED_RETRY_DEDUP_CLASSIFICATIONS)
           return false unless scheduled_at&.future?
 
           scope = workflow.auto_retry_attempts
@@ -427,11 +432,43 @@ module WorkEngine
           scope.exists?
         end
 
-        def auto_retry_blocker_for(workflow, retry_kind)
+        # A shared idempotency key across retry_workflow/failed_step/resume_failed_step:
+        # once ANY retry has been scheduled for a specific failed Run (pending or already
+        # performed), no other retry_kind may be scheduled for that same Run. Without this,
+        # separate repair paths -- mark_worker_died_and_resume_failed_step, then the plain
+        # resume_failed_step/retry_failed_step/retry_workflow issue-driven repairs -- can
+        # each independently decide "no pending attempt on the workflow" is true (true only
+        # because the earlier attempt already flipped from pending to performed) and schedule
+        # a second, overlapping retry for the exact same failure. Scoped to the Run (not the
+        # Job) so unrelated sibling Runs -- e.g. other grader_fanout Steps still running in
+        # the same Workflow -- are never blocked by this check.
+        # worker_died can be (re)detected by more than one issue classifier for
+        # the same still-failed Run in one reconciler pass -- e.g. a missing
+        # resumable session and a worker_died failure classification both
+        # propose the same repair, one with an immediate scheduled_at and one
+        # backed off. Keep an explicit worker_died delayed-retry guard too so
+        # delayed scheduling remains idempotent independent of scheduled_at.
+        def worker_died_retry_already_scheduled?(workflow:, source_run:, retry_kind:)
+          workflow.auto_retry_attempts
+            .unskipped
+            .where(run: source_run, retry_kind: retry_kind, failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
+            .exists?
+        end
+
+        def auto_retry_blocker_for(workflow, retry_kind, source_run)
           return "retry already pending" if workflow.auto_retry_attempts.pending.exists?
+          if (existing = existing_unskipped_attempt_for_run(workflow, source_run))
+            return "#{existing.retry_kind} auto-retry ##{existing.id} was already scheduled for this Run"
+          end
           return nil unless retry_kind == "retry_workflow"
 
           "retry_workflow already scheduled for workflow" if AutoRetryAttempt.retry_workflow_scheduled_for?(workflow)
+        end
+
+        def existing_unskipped_attempt_for_run(workflow, source_run)
+          return nil unless source_run
+
+          workflow.auto_retry_attempts.unskipped.where(run: source_run).order(:id).first
         end
 
         def mark_worker_died!
@@ -895,6 +932,23 @@ module WorkEngine
             workflow.save!
           end
           success("marked #{workflow_label(workflow)} failed from failed #{step_label(failed_step)}")
+        end
+      end
+
+      class ContinueLoopIterationFromFailedStep < Base
+        def perform
+          step = target_step
+          return skipped("Step no longer exists") unless step
+
+          workflow = step.workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not queued/running") unless workflow.queued? || workflow.running?
+          return skipped("Workflow still has running descendants") if workflow.live_descendants?
+          return skipped("#{step_label(step)} is #{step.state}, not failed") unless step.failed?
+          return skipped("#{step_label(step)} no longer has loop budget remaining") unless StepDispatcher.loop_iteration_budget_remaining?(step)
+
+          StepDispatcher.fail_from(step)
+          success("continued loop iteration from failed #{step_label(step)} on #{workflow_label(workflow)}")
         end
       end
 
@@ -1524,6 +1578,7 @@ module WorkEngine
         def perform
           result = mark_worker_died!
           return result unless result.status == "applied"
+          return skipped("worker_died failure already created active replacement work") if active_runtime_work_for_job?(target_job)
 
           schedule_auto_retry!(retry_kind: "resume_failed_step")
         end

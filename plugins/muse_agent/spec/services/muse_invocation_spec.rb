@@ -127,6 +127,38 @@ RSpec.describe MuseInvocation do
     expect(result.session_id).to eq("11111111-2222-4333-8444-555555555555")
   end
 
+  it "omits --max-model-steps when max_model_steps is 0" do
+    captured = []
+    stub_process_runners(lines: fixture_lines, captured: captured)
+
+    described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      session_id: "11111111-2222-4333-8444-555555555555",
+      max_model_steps: 0,
+      transcript_policy: :exec_jsonl
+    ).run
+
+    expect(captured.first[:command]).not_to include("--max-model-steps")
+  end
+
+  it "omits --max-model-steps when max_model_steps is nil" do
+    captured = []
+    stub_process_runners(lines: fixture_lines, captured: captured)
+
+    described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      session_id: "11111111-2222-4333-8444-555555555555",
+      max_model_steps: nil,
+      transcript_policy: :exec_jsonl
+    ).run
+
+    expect(captured.first[:command]).not_to include("--max-model-steps")
+  end
+
   it "parses Local Mode echo-shaped JSONL into the common result shape" do
     events = []
     stub_process_runners(lines: fixture_lines)

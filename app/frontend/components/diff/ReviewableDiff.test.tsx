@@ -658,6 +658,18 @@ describe("collapsing a file", () => {
 
     expect(screen.queryByRole("button", { name: "Collapse file" })).not.toBeInTheDocument()
   })
+
+  it("stops pinning a collapsed file's header, since there's nothing left to scroll past", () => {
+    render(<ReviewableDiff files={[files[0]]} mode="continuous" showFileHeaders />)
+
+    expect(screen.getByTitle("app/models/job.rb")).toHaveClass("sticky")
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse file" }))
+    expect(screen.getByTitle("app/models/job.rb")).not.toHaveClass("sticky")
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand file" }))
+    expect(screen.getByTitle("app/models/job.rb")).toHaveClass("sticky")
+  })
 })
 
 describe("changed-file count cap", () => {

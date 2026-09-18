@@ -25,17 +25,45 @@ RSpec.describe Steps::Base, :ci_only do
       GitRunner::GitError.new([ "push" ], 1, output)
     end
 
-    # Each token in isolation. "non-fast-forward" is the one force_push and
-    # stack_force_push used to drop, so a bare non-ff was re-raised as a raw
-    # GitError instead of the intended StepFailed.
-    [ "non-fast-forward", "fetch first", "rejected", "stale info" ].each do |phrase|
-      it "classifies a #{phrase.inspect} rejection" do
-        expect(handler.send(:push_rejected?, git_error("error: failed to push: #{phrase}"))).to be(true)
+    # Each reason token in isolation, exactly as git renders it — in
+    # parentheses after "[rejected]". "non-fast-forward" is the one
+    # force_push and stack_force_push used to drop, so a bare non-ff was
+    # re-raised as a raw GitError instead of the intended StepFailed.
+    [ "non-fast-forward", "fetch first", "stale info", "needs force" ].each do |reason|
+      it "classifies a #{reason.inspect} rejection" do
+        expect(handler.send(:push_rejected?, git_error("! [rejected]        HEAD -> branch (#{reason})"))).to be(true)
       end
     end
 
     it "does not classify an unrelated git error as a push rejection" do
       expect(handler.send(:push_rejected?, git_error("fatal: unable to access remote"))).to be(false)
+    end
+
+    # Regression: a transient GitHub 5xx surfaces as "[remote rejected]"
+    # (a server-side refusal, not a local non-fast-forward/lease check) and
+    # the old pattern's bare /rejected/i matched the generic "rejected" token
+    # in that line, misdiagnosing a transient outage as a real force-with-lease
+    # conflict and discarding completed rebase work instead of retrying.
+    it "does not classify a GitHub 5xx '[remote rejected]' failure as a push rejection" do
+      message = <<~OUTPUT
+        remote: Internal Server Error
+        To github.com:owner/repo.git
+         ! [remote rejected] syrus/direct-5004 -> syrus/direct-5004 (Internal Server Error)
+        error: failed to push some refs to 'github.com:owner/repo.git'
+      OUTPUT
+
+      expect(handler.send(:push_rejected?, git_error(message))).to be(false)
+    end
+
+    it "still classifies a genuine local rejection even when 'remote rejected' also appears elsewhere in the output" do
+      message = <<~OUTPUT
+        remote: Internal Server Error
+         ! [remote rejected] other-branch -> other-branch (Internal Server Error)
+         ! [rejected]        HEAD -> branch (non-fast-forward)
+        error: failed to push some refs to 'github.com:owner/repo.git'
+      OUTPUT
+
+      expect(handler.send(:push_rejected?, git_error(message))).to be(true)
     end
   end
 
@@ -368,6 +396,7 @@ RSpec.describe Steps::Base, :ci_only do
     end
 
     it "logs required MCP tool health as ok for Muse dotted tool calls" do
+      PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
       result = AgentInvocation::Result.new(
         turns: 1,
         exit_status: 0,
@@ -813,6 +842,39 @@ RSpec.describe Steps::Base, :ci_only do
       expect { handler.send(:assert_branch_history_intact!) }
         .to raise_error(Steps::Base::AgentBrokeGitState, /no common ancestor with origin\/master/)
       expect(run.reload.agent_outcome).to eq("git_state_corrupt")
+    end
+
+    # Regression for JOB-5006/WF-28504: a stack-child Job's base_ref is the
+    # parent Job's branch, resolved fresh on every new WorkflowWorkspace
+    # instance. A workspace that's reused across Runs within the same
+    # Workflow is never re-fetched, so a ref that genuinely exists on origin
+    # can still be absent locally (e.g. the local clone predates the parent
+    # branch's latest push, or the ref was pruned). `git merge-base` reports
+    # that the exact same way as a real orphan branch -- exit 128 -- so
+    # without this fix it was misreported as agent-caused git corruption.
+    it "self-heals and does not flag git_state_corrupt when base_ref is missing locally but still resolvable on origin" do
+      system("git", "-C", workspace_dir.to_s, "update-ref", "-d",
+             "refs/remotes/origin/syrus/issue-198-431", out: File::NULL, err: File::NULL)
+      expect(`git -C #{workspace_dir} rev-parse --verify --quiet refs/remotes/origin/syrus/issue-198-431`.strip)
+        .to eq(""), "expected the base ref to be missing locally before the self-heal"
+
+      allow(handler).to receive(:workspace).and_return(stacked_fake_ws)
+      allow(handler).to receive(:authenticated_git).and_yield(bare_remote.to_s)
+
+      expect { handler.send(:assert_branch_history_intact!) }.not_to raise_error
+      expect(run.reload.agent_outcome).not_to eq("git_state_corrupt")
+      expect(`git -C #{workspace_dir} rev-parse --verify --quiet refs/remotes/origin/syrus/issue-198-431`.strip)
+        .not_to eq(""), "expected the fetch-and-retry to have created the missing ref"
+    end
+
+    it "raises a distinct, retryable error (not git_state_corrupt) when base_ref still doesn't resolve after fetching" do
+      unresolvable_ws = instance_double(WorkflowWorkspace, path: workspace_dir, base_ref: "origin/syrus/does-not-exist-anywhere")
+      allow(handler).to receive(:workspace).and_return(unresolvable_ws)
+      allow(handler).to receive(:authenticated_git).and_yield(bare_remote.to_s)
+
+      expect { handler.send(:assert_branch_history_intact!) }
+        .to raise_error(Steps::Base::BranchHistoryBaseUnresolvable, /could not resolve base ref origin\/syrus\/does-not-exist-anywhere/)
+      expect(run.reload.agent_outcome).not_to eq("git_state_corrupt")
     end
   end
 

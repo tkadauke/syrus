@@ -183,6 +183,11 @@ function InsightSuggestionsList({
   )
 }
 
+// Shared by the suggested-prompt and memory-suggestion blocks below: both render
+// unbounded agent-authored text that must wrap instead of stretching the page,
+// with horizontal scroll on the box itself as a fallback for unbreakable runs.
+const WRAPPING_PRE_CLASSES = "mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+
 function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; suggestion: InsightSuggestion }) {
   const { t } = useT("agent_insights")
   const queryClient = useQueryClient()
@@ -309,7 +314,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
             {suggestion.suggested_prompt && (
               <div>
                 <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("suggested_prompt_label")}</p>
-                <pre className="mt-1 whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                <pre className={WRAPPING_PRE_CLASSES}>
                   {suggestion.suggested_prompt}
                 </pre>
               </div>
@@ -317,7 +322,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
             {suggestion.memory_suggestion && (
               <div>
                 <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("memory_suggestion_label")}</p>
-                <pre className="mt-1 whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                <pre className={WRAPPING_PRE_CLASSES}>
                   {suggestion.memory_suggestion}
                 </pre>
               </div>
@@ -326,19 +331,19 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
               <div className="rounded border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
                 <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">{t("remove_memory_label", { id: suggestion.target_memory_id })}</p>
                 {suggestion.stale_memory_text && (
-                  <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
+                  <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
                     {suggestion.stale_memory_text}
                   </pre>
                 )}
                 {suggestion.stale_memory_evidence && (
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">{suggestion.stale_memory_evidence}</p>
+                  <p className="mt-2 whitespace-pre-wrap break-words text-xs text-red-800 dark:text-red-200">{suggestion.stale_memory_evidence}</p>
                 )}
               </div>
             )}
             {suggestion.state === "retired" && (
               <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 <p className="font-medium text-gray-700 dark:text-gray-200">{t("retired_heading")}</p>
-                {suggestion.retired_reason && <p className="mt-1 whitespace-pre-wrap">{suggestion.retired_reason}</p>}
+                {suggestion.retired_reason && <p className="mt-1 whitespace-pre-wrap break-words">{suggestion.retired_reason}</p>}
                 {suggestion.superseded_by_insight_id && <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>}
                 {suggestion.superseded_by_job_slug && <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>}
               </div>

@@ -9,6 +9,7 @@ class WorkerHostHealthSampler
       WorkerHostHealthSample.create!(
         metrics.merge(
           hostname: instance.hostname,
+          worker_storage_key: WorkerStorageIdentity.queue_key,
           role: instance.role,
           version: instance.version,
           observed_at: observed_at

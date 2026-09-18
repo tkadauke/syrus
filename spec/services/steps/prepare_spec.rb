@@ -54,6 +54,32 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     )
   end
 
+  it "clears a stale prepare_failure/mise_install_failure left by an earlier attempt once this attempt runs" do
+    # A retry reopens and reuses the same Step *and* Workflow (RetryFailedStepEnqueuer),
+    # only adding a new Run -- so a failure recorded on step.details AND
+    # workflow.artifacts by an earlier, failed attempt would otherwise still
+    # be there after a later attempt succeeds: the UI would keep rendering it
+    # on top of the step panel, and Steps::GraderFanout/PreflightGraderFanout
+    # would keep treating the stale workflow artifact as a permanent veto
+    # against publishing the prepared-workspace archive for distributed
+    # grader reuse.
+    step.update!(details: {
+      "prepare_failure" => { "command" => "bundle install", "exit_status" => 5 },
+      "mise_install_failure" => { "command" => "mise install", "exit_status" => 1, "soft" => true }
+    })
+    workflow.update!(artifacts: {
+      "prepare_failure" => { "command" => "bundle install", "exit_status" => 5 },
+      "mise_install_failure" => { "command" => "mise install", "exit_status" => 1, "soft" => true }
+    })
+
+    expect { handler.call }.not_to raise_error
+
+    expect(step.reload.details["prepare_failure"]).to be_nil
+    expect(step.reload.details["mise_install_failure"]).to be_nil
+    expect(workflow.reload.artifact("prepare_failure")).to be_nil
+    expect(workflow.reload.artifact("mise_install_failure")).to be_nil
+  end
+
   it "runs each command from .syrus.yml in order" do
     File.write(@ws_path.join(".syrus.yml"), <<~YAML)
       prepare:

@@ -31,6 +31,22 @@ class RetryFailedStepEnqueuer
   end
   private_class_method :failed_grader_before_collect
 
+  # A fanout batch can fail more than one required grader at once; retrying
+  # only the single Step returned by failed_step_for left every sibling
+  # sitting in state: "failed" with no new Run, so grader_collect immediately
+  # re-failed on the untouched siblings the moment the retried grader
+  # finished -- a dead-end retry. Every other "grader" Step sharing this
+  # one's loop_id/iteration and still failed needs the same reopen + Run.
+  def self.failed_grader_siblings(step)
+    return [] unless step&.kind == "grader"
+
+    step.workflow.steps
+      .where(kind: "grader", state: "failed", loop_id: step.loop_id, iteration: step.iteration)
+      .where.not(id: step.id)
+      .order(:position)
+      .to_a
+  end
+
   def self.crosses_uncleared_retry_until_barrier?(step)
     return false if step.loop_id.present?
 
@@ -101,9 +117,12 @@ class RetryFailedStepEnqueuer
       return failure(lock_error)
     end
 
+    sibling_graders = self.class.failed_grader_siblings(failed_step)
+
     workflow.reopen!
     workflow.save!
     reopen_step!(failed_step)
+    sibling_graders.each { |sibling| reopen_step!(sibling) }
     reopen_collect_barrier_after_grader!(failed_step)
     revive_cancelled_downstream_steps!(failed_step)
 
@@ -112,13 +131,8 @@ class RetryFailedStepEnqueuer
       job.update_columns(landing_failure_reason: nil) if job.landing_failure_reason.present?
     end
 
-    run = failed_step.runs.create!(
-      job: workflow.job,
-      trigger_kind: workflow.trigger_kind,
-      agent_provider: agent_provider || workflow.agent_provider,
-      parent_session_id: retry_parent_session_id,
-      prompt: prompt
-    )
+    run = create_run_for!(failed_step)
+    sibling_graders.each { |sibling| create_run_for!(sibling) }
 
     Result.new(run: run, workflow: workflow, step: failed_step, error: nil)
   rescue WorkUnits::Launcher::LockConflict => e
@@ -164,6 +178,16 @@ class RetryFailedStepEnqueuer
     nil
   end
 
+  def create_run_for!(step)
+    step.runs.create!(
+      job: workflow.job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: agent_provider || workflow.agent_provider,
+      parent_session_id: retry_parent_session_id,
+      prompt: prompt
+    )
+  end
+
   def reopen_step!(step)
     if step.failed?
       step.reopen!
@@ -204,7 +228,7 @@ class RetryFailedStepEnqueuer
   end
 
   def revive_cancelled_downstream_steps!(failed_step)
-    cursor = failed_step.next_step
+    cursor = downstream_start_after(failed_step)
     while cursor
       if cursor.cancelled? && cursor.runs.none?
         cursor.update_columns(
@@ -218,13 +242,35 @@ class RetryFailedStepEnqueuer
     end
   end
 
+  # A grader Step's own `next_step` pointer is topology-dependent: under the
+  # distributed-projection fanout it points straight at grader_collect, but
+  # the default legacy fanout chains graders serially (g1 -> g2 -> ... ->
+  # grader_collect) -- so the *primary* failed grader picked by
+  # failed_grader_before_collect (the highest-position one that's still
+  # failed) can have a later, already-succeeded sibling between it and
+  # grader_collect. Walking `next_step` from that primary would land on the
+  # sibling grader, not the collect barrier, and silently skip reopening it.
+  # Looking the collect step up directly by loop_id/iteration is correct
+  # under either topology.
+  def downstream_start_after(failed_step)
+    return failed_step.next_step unless failed_step.kind == "grader"
+
+    collect_step_for(failed_step)&.next_step
+  end
+
+  def collect_step_for(failed_step)
+    workflow.steps.find_by(
+      kind: "grader_collect",
+      loop_id: failed_step.loop_id,
+      iteration: failed_step.iteration
+    )
+  end
+
   def reopen_collect_barrier_after_grader!(failed_step)
     return unless failed_step.kind == "grader"
 
-    collect = failed_step.next_step
+    collect = collect_step_for(failed_step)
     return unless collect&.failed?
-    return unless collect.kind == "grader_collect"
-    return unless collect.loop_id == failed_step.loop_id && collect.iteration == failed_step.iteration
 
     collect.update_columns(
       state: "queued",

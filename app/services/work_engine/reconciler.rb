@@ -944,16 +944,20 @@ module WorkEngine
             explanation: "Workflow ##{workflow.id} is queued and its first Step has no Run."
           )
         elsif workflow.queued? && (failed_step = orphaned_failed_step(workflow))
+          repair_action = failed_step_repair_action(failed_step)
           issue(
             kind: :queued_workflow_with_failed_step,
             severity: :error,
             affected_ids: ids_for(workflow).merge(step_ids: [ failed_step.id ], run_ids: failed_step.runs.where(state: "failed").pluck(:id)),
             safe_to_auto_repair: true,
-            recommended_repair_action: "fail_workflow_from_failed_step",
+            recommended_repair_action: repair_action,
             evidence: workflow_evidence(workflow).merge(
               failed_step_id: failed_step.id,
               failed_step_kind: failed_step.kind,
               failed_step_finished_at: failed_step.finished_at&.iso8601,
+              failed_step_loop_id: failed_step.loop_id,
+              failed_step_iteration: failed_step.iteration,
+              loop_iteration_budget_remaining: repair_action == "continue_loop_iteration_from_failed_step",
               step_states: workflow.steps.pluck(:id, :kind, :state)
             ),
             explanation: "Workflow ##{workflow.id} is still queued even though Step ##{failed_step.id} has failed."
@@ -969,16 +973,20 @@ module WorkEngine
             explanation: "Workflow ##{workflow.id} is running but has no queued or running Steps/Runs."
           )
         elsif workflow.running? && (failed_step = orphaned_failed_step(workflow))
+          repair_action = failed_step_repair_action(failed_step)
           issue(
             kind: :running_workflow_with_failed_step,
             severity: :error,
             affected_ids: ids_for(workflow).merge(step_ids: [ failed_step.id ], run_ids: failed_step.runs.where(state: "failed").pluck(:id)),
             safe_to_auto_repair: true,
-            recommended_repair_action: "fail_workflow_from_failed_step",
+            recommended_repair_action: repair_action,
             evidence: workflow_evidence(workflow).merge(
               failed_step_id: failed_step.id,
               failed_step_kind: failed_step.kind,
               failed_step_finished_at: failed_step.finished_at&.iso8601,
+              failed_step_loop_id: failed_step.loop_id,
+              failed_step_iteration: failed_step.iteration,
+              loop_iteration_budget_remaining: repair_action == "continue_loop_iteration_from_failed_step",
               step_states: workflow.steps.pluck(:id, :kind, :state)
             ),
             explanation: "Workflow ##{workflow.id} is still running even though Step ##{failed_step.id} has failed."
@@ -2530,6 +2538,12 @@ module WorkEngine
         job = run.job
         divergence = workflow&.artifact("branch_divergence").presence
         next if workflow&.artifact("branch_divergence_recovery").present?
+        # A force-push (or other) recovery is already queued for this exact
+        # divergence -- do not also plan a competing retry_workflow while it
+        # is in flight. Recovery clears this artifact on completion (success
+        # or failure), so a genuinely failed recovery attempt still leaves
+        # retry_workflow free to run on the next pass.
+        next if workflow&.artifact("branch_divergence_recovery_pending").present?
         next unless divergence_current_pr_head?(job, divergence)
 
         latest = latest_workflow_for_job(job)
@@ -2944,6 +2958,14 @@ module WorkEngine
       return nil if workflow.live_descendants?
 
       failed_steps.max_by { |step| [ step.position || -1, step.id || -1 ] }
+    end
+
+    def failed_step_repair_action(step)
+      if StepDispatcher.loop_iteration_budget_remaining?(step)
+        "continue_loop_iteration_from_failed_step"
+      else
+        "fail_workflow_from_failed_step"
+      end
     end
 
     def runs_for_step_reconciliation(step)

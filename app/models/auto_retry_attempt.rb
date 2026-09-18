@@ -27,7 +27,8 @@ class AutoRetryAttempt < ApplicationRecord
     "job is terminal",
     "source workflow was already superseded",
     "failure classification changed",
-    "default provider changed"
+    "default provider changed",
+    "branch divergence recovered"
   ].freeze
 
   # A failure that is simply not retryable. Counts against the budget, so a
