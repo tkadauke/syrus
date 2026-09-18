@@ -968,7 +968,7 @@ export function AgyCredentialCard({ payload, onNotice }: CardProps) {
 
 export function GeminiCredentialCard({ payload, onNotice }: CardProps) {
   // settings is the default namespace; the Gemini setup sheet's copy lives in
-  // the chat namespace (shared with Chat.tsx and ConfigureAgentModal).
+  // the chat namespace (shared with Chat.tsx).
   const { t } = useT(["settings", "chat"])
   const set = payload.credential_status.gemini_api_key
   const [sheetOpen, setSheetOpen] = useState(false)

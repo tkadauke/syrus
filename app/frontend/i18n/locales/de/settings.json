@@ -898,11 +898,9 @@
     "close": "Schließen",
     "tab_claude": "Claude",
     "tab_codex": "Codex",
-    "tab_gemini": "Gemini",
     "tab_agy": "Antigravity",
     "tab_muse": "Muse",
     "auto_enable_error": "Verbunden, aber der Anbieter konnte nicht automatisch aktiviert werden. Aktivieren Sie ihn unter Admin -> Plugins.",
-    "gemini_title": "Gemini treibt die Analyse von Walkthrough-Videos an",
     "done": "Fertig",
     "checking_login": "Auf vorhandene Claude-Anmeldung auf diesem Computer wird geprüft…",
     "ambient_ready": "Claude funktioniert bereits auf diesem Computer. Sie können unten ein dauerhaftes Token verbinden (empfohlen für Neustarts und kopflose Worker) oder jetzt überspringen.",
@@ -925,10 +923,7 @@
     "auth_error": "Autorisierung konnte nicht gestartet werden.",
     "connected_default": "Verbunden.",
     "exchange_error": "Das von Claude zurückgegebene Token hat nicht funktioniert. Versuchen Sie es erneut.",
-    "exchange_catch_error": "Code konnte nicht ausgetauscht werden. Versuchen Sie, erneut zu autorisieren.",
-    "gemini_tab_intro": "Gemini verwandelt Bildschirmaufnahmen von Walkthroughs in Epics — optional, jetzt oder später hinzufügen. Es ist nicht der Coding-Agent; dein Claude- (oder Codex-)Agent erledigt weiterhin die Arbeit.",
-    "gemini_tab_configured": "Gemini ist eingerichtet — Walkthrough-Videos werden automatisch analysiert.",
-    "gemini_tab_add_key": "Gemini-API-Schlüssel hinzufügen"
+    "exchange_catch_error": "Code konnte nicht ausgetauscht werden. Versuchen Sie, erneut zu autorisieren."
   },
   "input_sources": {
     "section_description": "Configure this repository input source.",

@@ -4,45 +4,26 @@ import { connectOnboardingProvider } from "../api/credentials"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { useT } from "../hooks/useT"
-import { GeminiSetupSheet } from "./GeminiSetupSheet"
 import { Modal } from "./Modal"
 import { StatusBox } from "./credentials/ConnectFlowUi"
 import { pluginAgentProviderConnectPanelProviders } from "../pluginAgentProviderConnectPanels"
 import { AgentProviderConnectPanel } from "./AgentProviderConnectPanel"
 
 const AGENT_PROVIDER_TABS = pluginAgentProviderConnectPanelProviders()
-const INITIAL_TAB = AGENT_PROVIDER_TABS.includes("claude") ? "claude" : (AGENT_PROVIDER_TABS[0] ?? "gemini")
+const INITIAL_TAB = AGENT_PROVIDER_TABS.includes("claude") ? "claude" : (AGENT_PROVIDER_TABS[0] ?? "")
 
 export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
-  // settings namespace is the default (bare `configure_agent.*` keys); the
-  // Gemini setup sheet's copy lives in the chat namespace (shared with Chat.tsx).
-  const { t } = useT(["settings", "chat"])
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const geminiSheetLabels = {
-    title: t("chat:gemini_setup_title"),
-    intro: t("chat:gemini_setup_intro"),
-    getKey: t("chat:gemini_setup_get_key"),
-    keyPlaceholder: t("chat:gemini_setup_placeholder"),
-    validateAndSave: t("chat:gemini_setup_save"),
-    validating: t("chat:gemini_setup_validating"),
-    stageFormat: t("chat:gemini_stage_format"),
-    stageReach: t("chat:gemini_stage_reach"),
-    stageVideo: t("chat:gemini_stage_video"),
-    saved: t("chat:gemini_setup_saved"),
-    keyHelp: t("chat:gemini_setup_key_help")
-  }
   const [tab, setTab] = useState<string>(INITIAL_TAB)
   // Every provider tab the operator has opened stays mounted (hidden, not
-  // unmounted) once visited, the same way the Claude tab used to stay
-  // mounted across a Claude <-> Gemini switch. Unmounting mid-OAuth-flow
-  // (Claude, Codex) would reset that panel's local authStarted/pasted-code
-  // state and can force a re-Authorize that rotates the session's PKCE
-  // verifier, invalidating a code the operator already copied.
+  // unmounted) once visited. Unmounting mid-OAuth-flow (Claude, Codex) would
+  // reset that panel's local authStarted/pasted-code state and can force a
+  // re-Authorize that rotates the session's PKCE verifier, invalidating a
+  // code the operator already copied.
   const [visitedProviderTabs, setVisitedProviderTabs] = useState<string[]>(
     AGENT_PROVIDER_TABS.includes(INITIAL_TAB) ? [INITIAL_TAB] : []
   )
-  const [geminiSheetOpen, setGeminiSheetOpen] = useState(false)
-  const [geminiConfigured, setGeminiConfigured] = useState(false)
   // Fires after a connect panel's own credential save/probe succeeds — the
   // one place onboarding auto-enables the plugin behind the provider the
   // operator just connected, so it doesn't have to be toggled on separately
@@ -61,12 +42,8 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
   }
 
   return (
-    // When the nested Gemini sheet is open, closeOnEscape is disabled here so
-    // ITS Escape handler closes the sheet only — otherwise both Modal
-    // instances would react to the same keypress and tear down this modal too.
     <Modal
       className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl"
-      closeOnEscape={!geminiSheetOpen}
       labelledBy="configure-agent-title"
       onClose={onClose}
       open
@@ -92,12 +69,13 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
           </div>
 
           {/* Provider tabs come from every plugin with a registered connect
-              panel (pluginAgentProviderConnectPanelProviders), so a
-              disabled-by-default provider is still reachable and
-              connectable here — onboarding is the one place that must hold
-              regardless of plugin enabled state. Gemini isn't an agent
-              provider (it powers walkthrough-video analysis), so it stays a
-              separate, hardcoded tab. */}
+              panel (pluginAgentProviderConnectPanelProviders), ordered
+              popular-to-less-popular, so a disabled-by-default provider is
+              still reachable and connectable here — onboarding is the one
+              place that must hold regardless of plugin enabled state.
+              Gemini isn't an agent provider (it only powers walkthrough-video
+              analysis) and isn't shown here; it stays configurable from
+              Settings. */}
           <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-700" role="tablist">
             {AGENT_PROVIDER_TABS.map((provider) => (
               <button
@@ -111,16 +89,6 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                 {providerTabLabel(t, provider)}
               </button>
             ))}
-            <button
-              aria-selected={tab === "gemini"}
-              className={tabClass(tab === "gemini")}
-              onClick={() => selectTab("gemini")}
-              role="tab"
-              title={t('configure_agent.gemini_title')}
-              type="button"
-            >
-              {t('configure_agent.tab_gemini')}
-            </button>
           </div>
 
           {visitedProviderTabs.map((provider) => (
@@ -144,50 +112,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
           {connectProvider.isError && AGENT_PROVIDER_TABS.includes(tab) ? (
             <StatusBox tone="warning">{t('configure_agent.auto_enable_error')}</StatusBox>
           ) : null}
-
-          {tab === "gemini" ? (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('configure_agent.gemini_tab_intro')}
-              </p>
-              {geminiConfigured ? (
-                <>
-                  <StatusBox tone="ok">{t('configure_agent.gemini_tab_configured')}</StatusBox>
-                  <div className="flex justify-end">
-                    <Button onClick={onClose}>
-                      {t('configure_agent.done')}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-end gap-2">
-                  <Button onClick={onClose} variant="secondary">
-                    {t('configure_agent.skip_for_now')}
-                  </Button>
-                  <Button onClick={() => setGeminiSheetOpen(true)}>
-                    {t('configure_agent.gemini_tab_add_key')}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : null}
         </div>
-      {geminiSheetOpen ? (
-        // Stop backdrop clicks in the nested sheet from bubbling to this
-        // modal's own onClose — otherwise dismissing the sheet also closes
-        // the whole Configure-agent modal.
-        <div onClick={(event) => event.stopPropagation()}>
-          <GeminiSetupSheet
-            labels={geminiSheetLabels}
-            onClose={() => setGeminiSheetOpen(false)}
-            onConfigured={() => {
-              setGeminiSheetOpen(false)
-              setGeminiConfigured(true)
-              onSaved?.()
-            }}
-          />
-        </div>
-      ) : null}
     </Modal>
   )
 }
