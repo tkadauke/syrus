@@ -16,6 +16,7 @@ module SyrusDev
     route :get, "/api/v1/app/admin/performance", to: "api/v1/app/admin/performance#show"
     route :post, "/api/v1/app/admin/performance/explain", to: "api/v1/app/admin/performance#explain"
     route :get, "/api/v1/app/admin/operational_logs", to: "api/v1/app/admin/operational_logs#index"
+    route :post, "/api/v1/app/admin/tool_card_jobs", to: "api/v1/app/admin/tool_card_jobs#create"
     route :get, "/api/v1/admin/performance", to: "api/v1/admin/performance#show"
     route :post, "/api/v1/admin/performance/explain", to: "api/v1/admin/performance#explain"
     route :get, "/api/v1/admin/operational_logs", to: "api/v1/admin/operational_logs#index"
