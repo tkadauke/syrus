@@ -86,6 +86,62 @@ RSpec.describe EpicDependency do
     expect(job.reload.state).to eq("blocked_by_epic")
   end
 
+  it "accepts unresolved_chat_proposal as a single pending target" do
+    epic = Factories.epic(user: user)
+    chat_session = ChatSession.create!(user: user, repository: epic.repository)
+    proposal = chat_session.proposals.create!(slug: "other", title: "Other", body: "Body.", kind: "epic", repository: epic.repository)
+
+    dependency = described_class.new(epic: epic, unresolved_chat_proposal: proposal)
+
+    expect(dependency).to be_valid
+    expect(dependency).to be_pending
+    expect(dependency).not_to be_resolved
+    expect(dependency).not_to be_dependency_succeeded
+  end
+
+  it "rejects rows with both an unresolved proposal and a real target set" do
+    epic = Factories.epic(user: user)
+    upstream_epic = Factories.epic(user: user, repository: epic.repository)
+    chat_session = ChatSession.create!(user: user, repository: epic.repository)
+    proposal = chat_session.proposals.create!(slug: "other", title: "Other", body: "Body.", kind: "epic", repository: epic.repository)
+
+    dependency = described_class.new(epic: epic, depends_on_epic: upstream_epic, unresolved_chat_proposal: proposal)
+
+    expect(dependency).not_to be_valid
+    expect(dependency.errors[:base]).to include("must reference exactly one dependency target")
+  end
+
+  it "resolves a pending row into a real Epic dependency without releasing held child Jobs early" do
+    epic = Factories.epic(user: user, state: "in_progress")
+    job = Factories.job_record(user: user, repository: epic.repository, epic: epic, state: "blocked_by_epic")
+    chat_session = ChatSession.create!(user: user, repository: epic.repository)
+    proposal = chat_session.proposals.create!(slug: "other", title: "Other", body: "Body.", kind: "epic", repository: epic.repository)
+    dependency = described_class.create!(epic: epic, unresolved_chat_proposal: proposal)
+    upstream_epic = Factories.epic(user: user, repository: epic.repository)
+
+    expect(job.reload).to be_blocked_by_epic
+
+    dependency.resolve!(depends_on_epic: upstream_epic)
+
+    expect(dependency.reload).to be_resolved
+    expect(dependency.unresolved_chat_proposal_id).to be_nil
+    expect(dependency.depends_on_epic).to eq(upstream_epic)
+    # The pending block is lifted, but the (now real) upstream dependency
+    # still isn't done, so the child Job stays held.
+    expect(job.reload).to be_blocked_by_epic
+    expect(epic.reload.releases_jobs_for_execution?).to be(false)
+  end
+
+  it "raises when resolving an already-resolved dependency" do
+    epic = Factories.epic(user: user)
+    upstream_epic = Factories.epic(user: user, repository: epic.repository)
+    dependency = described_class.create!(epic: epic, depends_on_epic: upstream_epic)
+
+    expect {
+      dependency.resolve!(depends_on_epic: upstream_epic)
+    }.to raise_error(/already resolved/)
+  end
+
   it "rejects self references" do
     epic = Factories.epic(user: user)
 
