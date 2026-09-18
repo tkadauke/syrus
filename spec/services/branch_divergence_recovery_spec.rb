@@ -192,6 +192,29 @@ RSpec.describe BranchDivergenceRecovery do
     expect(result.error).to eq("Workflow workspace is not available on this worker - retry from the current PR branch instead.")
   end
 
+  it "leaves a pending retry_workflow attempt untouched when workspace-unavailable recovery fails" do
+    step = Step.create!(workflow: workflow, kind: "pr_open", position: 0, state: "failed")
+    failed_run = Run.create!(job: job, step: step, trigger_kind: workflow.trigger_kind, agent_provider: "claude", state: "failed")
+    attempt = AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: failed_run,
+      agent_provider: "claude",
+      failure_classification: "branch_diverged",
+      retry_kind: "retry_workflow",
+      attempt_number: 1,
+      scheduled_at: 5.minutes.from_now
+    )
+    allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new("/tmp/syrus-missing-workspace"))
+
+    result = described_class.force_push!(workflow: workflow, user: user)
+    described_class.record_failure!(workflow: workflow, user: user, message: result.error) unless result.success?
+
+    expect(result).not_to be_success
+    expect(workflow.reload.artifact("branch_divergence_recovery")).to be_nil
+    expect(attempt.reload.skipped_reason).to be_nil
+  end
+
   it "does not force-push approved jobs" do
     job.update!(state: "approved")
 
@@ -199,5 +222,114 @@ RSpec.describe BranchDivergenceRecovery do
 
     expect(result).not_to be_success
     expect(result.error).to eq("Unapprove before replacing the PR branch.")
+  end
+
+  describe "idempotency once a divergence is already resolved" do
+    before do
+      allow(VisualDiffSubmission).to receive(:enqueue_deferred_for_job)
+      described_class.discard!(workflow: workflow, user: user)
+    end
+
+    it "refuses a second force-push instead of replaying the push" do
+      git = instance_double(GitRunner)
+      allow(GitRunner).to receive(:new).and_return(git)
+      allow(git).to receive(:run)
+
+      result = described_class.force_push!(workflow: workflow, user: user)
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Branch divergence was already resolved (discarded); no further recovery action is needed.")
+      expect(git).not_to have_received(:run)
+    end
+
+    it "refuses to re-queue a pending force-push" do
+      result = described_class.mark_force_push_pending!(workflow: workflow, user: user)
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Branch divergence was already resolved (discarded); no further recovery action is needed.")
+      expect(workflow.reload.artifact("branch_divergence_recovery_pending")).to be_nil
+    end
+
+    it "refuses a second discard" do
+      result = described_class.discard!(workflow: workflow, user: user)
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Branch divergence was already resolved (discarded); no further recovery action is needed.")
+    end
+
+    it "refuses to adopt the current PR head after the divergence already resolved" do
+      job.update!(mergeability_head_sha: "newer-remote-sha")
+
+      result = described_class.adopt_current_pr_head!(workflow: workflow, user: user)
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Branch divergence was already resolved (discarded); no further recovery action is needed.")
+    end
+  end
+
+  describe "cancelling stale retry_workflow attempts once recovery succeeds" do
+    def pending_retry_workflow_attempt_for(job, workflow, run)
+      AutoRetryAttempt.create!(
+        job: job,
+        workflow: workflow,
+        run: run,
+        agent_provider: "claude",
+        failure_classification: "branch_diverged",
+        retry_kind: "retry_workflow",
+        attempt_number: 1,
+        scheduled_at: 5.minutes.from_now
+      )
+    end
+
+    def failed_pr_open_run
+      step = Step.create!(workflow: workflow, kind: "pr_open", position: 0, state: "failed")
+      Run.create!(
+        job: job, step: step, trigger_kind: workflow.trigger_kind,
+        agent_provider: "claude", state: "failed"
+      )
+    end
+
+    it "skips a pending retry_workflow auto-retry attempt for the same Job as budget-exempt" do
+      allow(VisualDiffSubmission).to receive(:enqueue_deferred_for_job)
+      attempt = pending_retry_workflow_attempt_for(job, workflow, failed_pr_open_run)
+
+      result = described_class.discard!(workflow: workflow, user: user)
+
+      expect(result).to be_success
+      attempt.reload
+      expect(attempt.skipped_reason).to eq("branch divergence recovered via discarded")
+      expect(AutoRetryAttempt.skip_reason_category(attempt.skipped_reason)).to eq("branch_divergence_recovered")
+    end
+
+    it "does not touch a pending retry_workflow attempt unrelated to this divergence" do
+      allow(VisualDiffSubmission).to receive(:enqueue_deferred_for_job)
+      unrelated_run = failed_pr_open_run
+      unrelated_attempt = AutoRetryAttempt.create!(
+        job: job,
+        workflow: workflow,
+        run: unrelated_run,
+        agent_provider: "claude",
+        failure_classification: "worker_died",
+        retry_kind: "retry_workflow",
+        attempt_number: 1,
+        scheduled_at: 5.minutes.from_now
+      )
+
+      described_class.discard!(workflow: workflow, user: user)
+
+      expect(unrelated_attempt.reload.skipped_reason).to be_nil
+    end
+
+    it "cancels a queued retry Workflow spawned for the same Job" do
+      allow(VisualDiffSubmission).to receive(:enqueue_deferred_for_job)
+      retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: "claude", state: "queued")
+      attach_work_unit(retry_workflow, member_jobs: [ job ], kind: "retry", state: "queued")
+
+      result = described_class.discard!(workflow: workflow, user: user)
+
+      expect(result).to be_success
+      expect(retry_workflow.reload).to be_cancelled
+      expect(retry_workflow.artifact("retry_cancelled_reason")).to eq("branch_divergence_recovered")
+    end
   end
 end
