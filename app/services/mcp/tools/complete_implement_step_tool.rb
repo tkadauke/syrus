@@ -34,7 +34,7 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
         job, error = find_repository_job(chat_session, job_id)
         return error if error
-        normalized_branch = normalize_branch_name(branch_name)
+        normalized_branch = GitBranchName.normalize(branch_name)
 
         unless job.coding?
           return Mcp::Tools.invalid("#{job.slug} is not in coding state (current: #{job.state}).")
@@ -51,7 +51,7 @@ module Mcp::Tools
         if job.pr_number.blank? && normalized_branch.blank?
           return Mcp::Tools.invalid("branch_name is required for Jobs without an existing PR.")
         end
-        if normalized_branch.present? && !valid_branch_name?(normalized_branch)
+        if normalized_branch.present? && !GitBranchName.valid?(normalized_branch)
           return Mcp::Tools.invalid("branch_name is not a valid branch name.")
         end
         existing_emergency_land = pending_landing_action_for(chat_session, job, action: "emergency_land")
@@ -79,19 +79,6 @@ module Mcp::Tools
         )
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)
-      end
-
-      def normalize_branch_name(branch_name)
-        branch_name.to_s.strip.presence
-      end
-
-      def valid_branch_name?(branch_name)
-        return false if branch_name.start_with?("/", "-") || branch_name.end_with?("/", ".")
-        return false if branch_name.include?("//") || branch_name.include?("..")
-        return false if branch_name.end_with?(".lock")
-        return false if branch_name.split("/").any? { |part| part.blank? || part.start_with?(".") }
-
-        !branch_name.match?(/[[:space:]~^:?*\[\\]/)
       end
 
       private
