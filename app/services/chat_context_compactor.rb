@@ -75,8 +75,15 @@ class ChatContextCompactor
     [ checkpoint_message(checkpoint), *messages_after(checkpoint) ]
   end
 
+  # This compactor's only consumer was the admin Supervisor chat, which no
+  # longer exists. Widening it to ordinary chats would be a real product/cost
+  # behavior change (unbounded context loss for any operator who already has
+  # this Operations-category flag on) that is out of scope for a Supervisor
+  # removal cleanup, so this stays permanently off rather than silently
+  # applying to every chat. Whether to generalize (or delete) this feature is
+  # a separate decision for a future Job.
   def enabled_for_chat?
-    Feature.chat_context_compaction_enabled?
+    false
   end
 
   private
