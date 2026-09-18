@@ -1,3 +1,5 @@
+import { render } from "@testing-library/react"
+import { createElement, Fragment } from "react"
 import { describe, expect, it, vi } from "vitest"
 import type { TypedArtifact } from "./api/artifacts"
 import {
@@ -183,6 +185,45 @@ describe("artifactRendererRegistry", () => {
       for (const artifactEntry of allArtifactRendererEntries()) {
         for (const example of artifactEntry.examples) {
           expect(() => renderArtifactBody(example.artifact)).not.toThrow()
+        }
+      }
+    })
+
+    it("actually renders a fallback body for every example fixture flagged expectedFallback", () => {
+      for (const artifactEntry of allArtifactRendererEntries()) {
+        for (const example of artifactEntry.examples) {
+          if (!example.expectedFallback) continue
+
+          const { container } = render(createElement(Fragment, null, renderArtifactBody(example.artifact)))
+          expect(container.textContent).toContain(JSON.stringify(example.artifact.payload, null, 2))
+        }
+      }
+    })
+  })
+
+  describe("fixture coverage", () => {
+    it("gives every registered renderer at least one example fixture, or explicitly marks it fallback-only", () => {
+      const entries = allArtifactRendererEntries()
+      expect(entries.length).toBeGreaterThan(0)
+
+      for (const artifactEntry of entries) {
+        if (artifactEntry.fallbackOnly) continue
+        expect(artifactEntry.examples.length).toBeGreaterThan(0)
+      }
+    })
+
+    it("keeps example ids unique within each renderer's own example set", () => {
+      for (const artifactEntry of allArtifactRendererEntries()) {
+        const ids = artifactEntry.examples.map((example) => example.id)
+        expect(new Set(ids).size).toBe(ids.length)
+        for (const id of ids) expect(id).toBeTruthy()
+      }
+    })
+
+    it("marks every malformed example fixture with a description explaining the expected fallback", () => {
+      for (const artifactEntry of allArtifactRendererEntries()) {
+        for (const example of artifactEntry.examples) {
+          if (example.expectedFallback) expect(example.description).toBeTruthy()
         }
       }
     })
