@@ -73,7 +73,7 @@ module Workflows
     # `failed_checks` + `head_sha`. Handlers compose their prompts
     # from these at run time, so the polling job (or controller)
     # doesn't need to know prompt internals.
-    def self.instantiate(job:, artifacts: nil, agent_provider: nil)
+    def self.instantiate(job:, artifacts: nil, agent_provider: nil, model: nil, effort_level: nil)
       chain_template = steps_for(job)
       raise "no steps declared for #{name}" if chain_template.nil? || chain_template.empty?
 
@@ -99,13 +99,21 @@ module Workflows
 
       provider_selection = agent_provider.present? ? "explicit" : "default"
       resolved_agent_provider = agent_provider.presence || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider
-      effective_artifacts = (effective_artifacts || {}).merge("agent_provider_selection" => provider_selection)
+      model_selection = model.present? ? "explicit" : "default"
+      effort_level_selection = effort_level.present? ? "explicit" : "default"
+      effective_artifacts = (effective_artifacts || {}).merge(
+        "agent_provider_selection" => provider_selection,
+        "model_selection" => model_selection,
+        "effort_level_selection" => effort_level_selection
+      )
 
       Workflow.transaction do
         wf = Workflow.create!(
           job: job,
           trigger_kind: trigger_kind,
           agent_provider: resolved_agent_provider,
+          model: model.presence,
+          effort_level: effort_level.presence,
           chain_template: resolution.graph,
           artifacts: effective_artifacts
         )
