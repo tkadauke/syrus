@@ -6,7 +6,6 @@ class AppSetting < ApplicationRecord
     "discord_bot_token" => "Discord bot token"
   }.freeze
 
-  MODES = %w[advanced simple].freeze
   WORKFLOW_ADMISSION_POLICIES = %w[whole_workflow phase_aware].freeze
   MAIN_BRANCH_BREAKAGE_POLICIES = %w[strict isolate_unrelated_failures].freeze
 
@@ -22,7 +21,6 @@ class AppSetting < ApplicationRecord
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
   validates :main_branch_breakage_policy, inclusion: { in: MAIN_BRANCH_BREAKAGE_POLICIES }
-  validates :mode, inclusion: { in: MODES }
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
 
@@ -66,30 +64,6 @@ class AppSetting < ApplicationRecord
 
   def self.boot_polling_paused_default
     BOOT_TRUTHY_VALUES.include?(ENV["SYRUS_BOOT_POLLING_PAUSED"].to_s.strip.downcase)
-  end
-
-  def self.mode
-    current.mode
-  end
-
-  def self.simple?
-    current.simple?
-  end
-
-  def self.advanced?
-    current.advanced?
-  end
-
-  def self.mode_configured?
-    current.mode_configured_at.present?
-  end
-
-  def simple?
-    mode == "simple"
-  end
-
-  def advanced?
-    mode == "advanced"
   end
 
   def self.signups_open?

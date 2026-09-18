@@ -2,10 +2,7 @@ module GithubSource
   class RepoPageTabs
     include Syrus::Plugin::RepoPageTab
 
-    # Hidden in simple mode, as the core tab was: a non-technical operator
-    # tracks features, not the issue tracker underneath them.
     def self.repo_page_tabs(repository:, user:)
-      return [] if AppSetting.simple?
       return [] if repository.blank?
 
       [

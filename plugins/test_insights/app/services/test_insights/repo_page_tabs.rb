@@ -2,10 +2,7 @@ module TestInsights
   class RepoPageTabs
     include Syrus::Plugin::RepoPageTab
 
-    # Hidden in simple mode, as the core tab was: flaky-test triage is a
-    # developer surface, not something a non-technical operator watches.
     def self.repo_page_tabs(repository:, user:)
-      return [] if AppSetting.simple?
       return [] if repository.blank?
 
       [

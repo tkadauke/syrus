@@ -11,8 +11,6 @@ module Api
         PER_PAGE = 20
 
         def index
-          return render_error("not_found", "Tests are not available in simple mode.", status: :not_found) if AppSetting.simple?
-
           repository = find_repository
           query = params[:query].to_s.strip
           default_limit = query.present? ? DEFAULT_SEARCH_LIMIT : DEFAULT_INTERESTING_LIMIT
@@ -29,8 +27,6 @@ module Api
         end
 
         def show
-          return render_error("not_found", "Tests are not available in simple mode.", status: :not_found) if AppSetting.simple?
-
           repository = find_repository
           test_identity = TestInsights::TestIdentity.for_repository(repository).find(params[:id])
 

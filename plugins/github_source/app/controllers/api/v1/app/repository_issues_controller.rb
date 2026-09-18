@@ -11,8 +11,6 @@ module Api
         include RepositorySummarySerialization
 
         def issues
-          return render_error("not_found", "GitHub issues are not available in simple mode.", status: :not_found) if AppSetting.simple?
-
           repository = find_repository
           render json: repository_issues_payload(repository, state: issue_state)
         end
