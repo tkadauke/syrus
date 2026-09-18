@@ -156,7 +156,7 @@ function makePlanningFilesPayload(overrides: Partial<ChatPayload> = {}): ChatPay
 
 function renderWorkspacePanel(payload: ChatPayload, options: {
   activeTab?: WorkspaceTab
-  onSelectTab?: (tab: WorkspaceTab) => void
+  onSelectTab?: (tab: WorkspaceTab | null) => void
   onToggleCollapse?: () => void
   onBookmarkSelect?: (messageId: number) => void
   onNotice?: (message: string | null) => void
@@ -172,7 +172,6 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
           activeTab={options.activeTab ?? "files"}
           onSelectTab={options.onSelectTab ?? (() => {})}
           payload={payload}
-          prefix=""
           queryKey={["chats", "1", ""] as const}
           onToggleCollapse={options.onToggleCollapse}
           onBookmarkSelect={options.onBookmarkSelect ?? (() => {})}
@@ -270,35 +269,6 @@ describe("ChatSettingsDialog", () => {
     const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
     expect(icon).toBeInTheDocument()
     expect(icon).toHaveClass("h-4", "w-4")
-  })
-})
-
-describe("ChatWorkspacePanel context attachments", () => {
-  it("renders repository, epic, and job attachment groups for ordinary chats", () => {
-    renderWorkspacePanel(makePayload(), { activeTab: "context" })
-
-    const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
-    expect(within(workspace).getByText("Repos")).toBeInTheDocument()
-    expect(within(workspace).getByText("Epics")).toBeInTheDocument()
-    expect(within(workspace).getByText("Jobs")).toBeInTheDocument()
-    expect(within(workspace).getByText("Documents")).toBeInTheDocument()
-    expect(within(workspace).getAllByText("None")).toHaveLength(4)
-  })
-
-  it("hides repository, epic, and job attachment groups for Supervisor chats", () => {
-    renderWorkspacePanel(makePayload({
-      repository: null,
-      system_kind: "supervisor",
-      title: "Supervisor"
-    }), { activeTab: "context" })
-
-    const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
-    expect(within(workspace).queryByText("Repos")).not.toBeInTheDocument()
-    expect(within(workspace).queryByText("Epics")).not.toBeInTheDocument()
-    expect(within(workspace).queryByText("Jobs")).not.toBeInTheDocument()
-    expect(within(workspace).getByText("Documents")).toBeInTheDocument()
-    expect(within(workspace).getByText("In-scope documents")).toBeInTheDocument()
-    expect(within(workspace).getAllByText("None")).toHaveLength(1)
   })
 })
 
@@ -471,7 +441,6 @@ describe("ChatWorkspacePanel coding files", () => {
             activeTab="files"
             onSelectTab={onSelectTab}
             payload={withoutCheckout}
-            prefix=""
             queryKey={["chats", "1", ""] as const}
             onBookmarkSelect={() => {}}
             onNotice={() => {}}
@@ -480,7 +449,9 @@ describe("ChatWorkspacePanel coding files", () => {
       </QueryClientProvider>
     )
 
-    await waitFor(() => expect(onSelectTab).toHaveBeenCalledWith("context"))
+    // No other tab is available for this bare payload (no media/pins/jobs and
+    // no plugin-registered tabs), so there's nothing left to fall back to.
+    await waitFor(() => expect(onSelectTab).toHaveBeenCalledWith(null))
   })
 })
 

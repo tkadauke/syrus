@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import "@excalidraw/excalidraw/index.css"
-import { addChatAttachment, deleteChatAttachment, fetchChatContext, type ChatAttachmentResult, type ChatAttachmentRow, type ChatContextPayload, type ChatPayload } from "../../api/chats"
+import { addChatAttachment, fetchChatContext, type ChatAttachmentResult, type ChatPayload } from "../../api/chats"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
@@ -10,156 +9,13 @@ import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { appendSearch, isSupervisorChat, withRoutePrefix } from "./utils"
 
-
-
-
-// Attachment UI extracted from Chat.tsx: the workspace attachment list
-// (Attachments + AttachmentGroup) and the AddAttachment picker/popover.
-// Attachments is rendered by the workspace context tab and the composer;
-// AddAttachment by the composer. Depends only on leaf modules and shared UI
-// imports; unused header imports were pruned after the move.
+// AddAttachment: the composer's "+" popover picker for attaching a
+// Repository/Epic/Job/Document to the chat's context. Search results come
+// from GET .../context, scoped by type + query; picking one POSTs the
+// attachment and refreshes the chat payload.
 
 const DEFAULT_ATTACHMENT_TYPES = ["Repository", "Epic", "Job", "Document"] as const
 const SUPERVISOR_ATTACHMENT_TYPES = ["Document"] as const
-const EMPTY_ATTACHMENT_GROUPS = { repositories: [], epics: [], jobs: [], documents: [] } satisfies NonNullable<ChatPayload["attachment_groups"]>
-
-export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
-  const { t } = useT("chat")
-  const contextPayload = useChatContextPayload(payload, queryKey)
-  const supervisorChat = isSupervisorChat(payload)
-  const attachmentGroups = contextPayload.attachment_groups ?? EMPTY_ATTACHMENT_GROUPS
-  return (
-    <>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("attachments")}</h2>
-      </div>
-      <div className="space-y-4">
-        {supervisorChat ? null : (
-          <>
-            <AttachmentGroup label="Repos" rows={attachmentGroups.repositories} queryKey={queryKey} onNotice={onNotice} />
-            <AttachmentGroup label="Epics" rows={attachmentGroups.epics} queryKey={queryKey} onNotice={onNotice} />
-            <AttachmentGroup label="Jobs" rows={attachmentGroups.jobs} queryKey={queryKey} onNotice={onNotice} />
-          </>
-        )}
-        <AttachmentGroup label="Documents" rows={attachmentGroups.documents} queryKey={queryKey} onNotice={onNotice} />
-      </div>
-      <section>
-        <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">In-scope documents</div>
-        {(contextPayload.documents_in_scope ?? []).length > 0 ? (
-          <div className="space-y-1">
-            {(contextPayload.documents_in_scope ?? []).map((document) => (
-              <div className="rounded border border-gray-200 px-2 py-1.5 text-xs dark:border-gray-700" key={document.id}>
-                <div className="font-medium text-gray-800 dark:text-gray-100">{document.title}</div>
-                <div className="font-mono text-2xs text-gray-500 dark:text-gray-400">{document.repository_slug}</div>
-              </div>
-            ))}
-          </div>
-        ) : <div className="text-xs text-gray-400 dark:text-gray-500">No documents in scope.</div>}
-      </section>
-    </>
-  )
-}
-
-function useChatContextPayload(payload: ChatPayload, queryKey: ChatQueryKey): ChatContextPayload {
-  const contextPath = chatContextPath(payload)
-  const queryClient = useQueryClient()
-  const context = useQuery({
-    queryKey: ["chat-context", String(payload.chat.id), queryKey[2]],
-    queryFn: ({ signal }) => fetchChatContext(appendSearch(contextPath, queryKey[2]), { signal }),
-    initialData: hasContextPayload(payload) ? {
-      attachment_groups: payload.attachment_groups ?? EMPTY_ATTACHMENT_GROUPS,
-      documents_in_scope: payload.documents_in_scope ?? [],
-      attachment_results: payload.attachment_results ?? []
-    } : undefined
-  })
-
-  useEffect(() => {
-    const data = context.data
-    if (!data) return
-
-    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(payload.chat.id)] }, (current) => current ? {
-      ...current,
-      attachment_groups: data.attachment_groups,
-      documents_in_scope: data.documents_in_scope,
-      attachment_results: data.attachment_results
-    } : current)
-  }, [context.data, payload.chat.id, queryClient])
-
-  return context.data ?? emptyContextPayload()
-}
-
-function hasContextPayload(payload: ChatPayload) {
-  return (payload.documents_in_scope ?? []).length > 0 ||
-    (payload.attachment_results ?? []).length > 0 ||
-    Object.values(payload.attachment_groups ?? EMPTY_ATTACHMENT_GROUPS).some((rows) => rows.length > 0)
-}
-
-function emptyContextPayload(): ChatContextPayload {
-  return {
-    attachment_groups: EMPTY_ATTACHMENT_GROUPS,
-    documents_in_scope: [],
-    attachment_results: []
-  }
-}
-
-function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; rows: ChatAttachmentRow[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
-  const queryClient = useQueryClient()
-  const search = queryKey[2]
-  const [pendingDetachId, setPendingDetachId] = useState<string | null>(null)
-  const detach = useMutation({
-    mutationFn: (path: string) => deleteChatAttachment(appendSearch(path, search)),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || null)
-    }
-  })
-
-  return (
-    <section>
-      <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</div>
-      {(rows ?? []).length > 0 ? (
-        <div className="space-y-1">
-          {(rows ?? []).map((row) => {
-            const rowId = String(row.id)
-            const pending = pendingDetachId === rowId
-            return (
-              <div className="flex items-center gap-2" key={row.id}>
-                <Button
-                  className={`w-full !justify-start text-left disabled:text-gray-300 dark:disabled:text-gray-600 ${pending ? "!border-red-200 !bg-red-50 !text-red-700 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300" : "hover:!border-red-200 hover:!bg-red-50 hover:!text-red-700 dark:hover:!border-red-800 dark:hover:!bg-red-950 dark:hover:!text-red-300"}`}
-                  disabled={detach.isPending}
-                  onClick={() => {
-                    if (pending) {
-                      setPendingDetachId(null)
-                      detach.mutate(row.app_detach_path)
-                    } else {
-                      setPendingDetachId(rowId)
-                    }
-                  }}
-                  size="sm"
-                  title={`Detach ${row.label}`}
-                  variant="secondary"
-                >
-                  {pending ? `Detach ${row.label}?` : row.label}
-                </Button>
-                {pending ? (
-                  <Button
-                    disabled={detach.isPending}
-                    onClick={() => setPendingDetachId(null)}
-                    size="sm"
-                    variant="secondary"
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      ) : <div className="text-xs text-gray-400 dark:text-gray-500">None</div>}
-      {detach.isError ? <div className="mt-1 text-xs text-red-700 dark:text-red-300">{errorMessage(detach.error, "Detach failed.")}</div> : null}
-    </section>
-  )
-}
 
 export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onAttached?: () => void; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
