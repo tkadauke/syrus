@@ -359,11 +359,15 @@ class RunFailureClassifier
   end
 
   def auth_or_config?
-    # NOTE: match specific configuration phrasings, not a bare `config`
-    # substring — the latter matched the `--mcp-config` flag echoed in an
-    # unrelated command line (e.g. the Errno::E2BIG argv-too-long failure)
-    # and mislabeled it as an auth/config problem.
-    text_match?(/auth|oauth|token|api key|unauthorized|forbidden|permission denied|not configured|misconfigur|invalid configuration|missing.+credential|invalid.+credential|mcp.+initialize|connection closed: initialize/i)
+    # NOTE: match specific configuration/token phrasings, not bare `config` or
+    # `token` substrings. `config` matched the `--mcp-config` flag echoed in
+    # an unrelated command line (e.g. the Errno::E2BIG argv-too-long
+    # failure); `token` matched the `x-access-token` identifier that always
+    # appears in a logged authenticated git push URL (the redaction scrubs
+    # the credential value, not that identifier), which mislabeled an
+    # ordinary rejected push (branch_diverged) as a provider auth/config
+    # failure.
+    text_match?(/auth|oauth|token.{0,20}(?:invalid|expired|revoked|missing|not[\s_-]*found)|(?:invalid|expired|revoked|missing|no)[\s_-]*(?:access[\s_-]*)?token|api key|unauthorized|forbidden|permission denied|not configured|misconfigur|invalid configuration|missing.+credential|invalid.+credential|mcp.+initialize|connection closed: initialize/i)
   end
 
   def argument_list_too_long?
