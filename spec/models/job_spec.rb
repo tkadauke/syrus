@@ -1571,7 +1571,6 @@ describe "running / failed lifecycle (new in this commit)" do
 
       expect(job.alternate_configured_agent_providers).to eq([ "codex" ])
     end
-
   end
 
   describe "#record_run_failure!" do

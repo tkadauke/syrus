@@ -136,5 +136,4 @@ RSpec.describe ProviderAvailabilityPause do
       expect(App::ProviderAvailability).not_to have_received(:for_user).with(user, "codex", now: anything)
     end
   end
-
 end
