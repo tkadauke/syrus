@@ -40,7 +40,7 @@ module Mcp::Tools
         job, error = find_job(job_id)
         return error if error
 
-        normalized_branch = normalize_branch_name(branch_name)
+        normalized_branch = GitBranchName.normalize(branch_name)
         validation_error = validate_request(chat_session: chat_session, job: job, branch_name: normalized_branch)
         return validation_error if validation_error
 
@@ -69,19 +69,6 @@ module Mcp::Tools
         invalid_record(e)
       end
 
-      def normalize_branch_name(branch_name)
-        branch_name.to_s.strip.presence
-      end
-
-      def valid_branch_name?(branch_name)
-        return false if branch_name.start_with?("/", "-") || branch_name.end_with?("/", ".")
-        return false if branch_name.include?("//") || branch_name.include?("..")
-        return false if branch_name.end_with?(".lock")
-        return false if branch_name.split("/").any? { |part| part.blank? || part.start_with?(".") }
-
-        !branch_name.match?(/[[:space:]~^:?*\[\\]/)
-      end
-
       private
 
       def find_job(job_id)
@@ -100,7 +87,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("#{job.slug} is not in coding state (current: #{job.state}).") unless job.coding?
         return Mcp::Tools.invalid("#{job.slug} is not linked to this chat session.") unless job.linked_chat_id == chat_session.id
         return Mcp::Tools.invalid("Emergency land requires repository admin permissions.") unless EmergencyLand::Permission.granted?(user: chat_session.user, repository: job.repository)
-        return Mcp::Tools.invalid("branch_name is not a valid branch name.") if branch_name.present? && !valid_branch_name?(branch_name)
+        return Mcp::Tools.invalid("branch_name is not a valid branch name.") if branch_name.present? && !GitBranchName.valid?(branch_name)
         return Mcp::Tools.invalid("branch_name is required because this Job does not have a pushed branch recorded.") if branch_name.blank? && job.branch_name.blank?
 
         nil
