@@ -237,6 +237,16 @@ The handoff tools create a pending action that the operator must confirm before
 Syrus dispatches any automation. `reset_workspace` runs immediately, but only
 performs destructive cleanup when the call explicitly confirms discard.
 
+When the `emergency_land` feature flag is enabled, a Coding Mode chat linked to
+an active coding Job can request an emergency land. This is a repository-admin
+escape hatch for incidents: the pending confirmation uses warning styling and
+states that Syrus graders, adversarial review, and visual review will be
+skipped. If confirmed, Syrus opens the pull request if needed and merges it
+through GitHub directly. It does not push to the default branch itself, and it
+does not bypass GitHub branch protection or mergeability checks. Jobs landed
+this way close with `closure_reason: "emergency_landed"` and show the confirming
+operator, permission tier, and timestamp on the Job detail page.
+
 If handoff graders fail, Syrus keeps repair inside the CodingHandoff workflow:
 a fresh workflow agent fixes the committed handoff branch and graders retry
 before the PR opens. The originating chat may receive status notifications, but
