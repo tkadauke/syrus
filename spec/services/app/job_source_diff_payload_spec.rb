@@ -504,6 +504,54 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(payload[:versions].map { |version| version[:id] }).to include(repair_step.id, full_range.id)
   end
 
+  it "reuses the single All changes version across workflows with different head SHAs instead of duplicating it" do
+    claude_workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+    claude_step = Step.create!(workflow: claude_workflow, kind: "implement", position: 1, state: "succeeded")
+    claude_run = Run.create!(job: job, step: claude_step, trigger_kind: "initial", state: "succeeded",
+                             base_sha: "base-sha", head_sha: "claude-head")
+
+    codex_workflow = Workflow.create!(job: job, user: user, trigger_kind: "retry", agent_provider: "codex", state: "succeeded")
+    codex_step = Step.create!(workflow: codex_workflow, kind: "implement", position: 1, state: "succeeded")
+    codex_run = Run.create!(job: job, step: codex_step, trigger_kind: "retry", state: "succeeded",
+                            base_sha: "base-sha", head_sha: "codex-head")
+
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(
+        { commits: [ { sha: "claude-head", short_sha: "claude-h", message: "Claude implementation", date: Time.zone.parse("2026-05-01T12:00:00Z") } ], merge_base_sha: "base-sha" },
+        { commits: [ { sha: "codex-head", short_sha: "codex-he", message: "Codex retry", date: Time.zone.parse("2026-05-02T12:00:00Z") } ], merge_base_sha: "base-sha" }
+      )
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "base-sha", "claude-head")
+      .and_return(files: [
+        { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+claude" }
+      ], truncated: false)
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "base-sha", "codex-head")
+      .and_return(files: [
+        { path: "app/models/widget.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+codex" }
+      ], truncated: false)
+
+    first_payload = described_class.build(job: job, user: user)
+    second_payload = described_class.build(job: job, user: user)
+
+    all_changes_versions = job.diff_review_versions.where(reason: "source_diff")
+    expect(all_changes_versions.count).to eq(1)
+    expect(second_payload.dig(:version, :id)).to eq(first_payload.dig(:version, :id))
+    expect(second_payload[:versions].size).to eq(1)
+
+    version = all_changes_versions.sole
+    expect(version).to have_attributes(
+      base_sha: "base-sha",
+      head_sha: "codex-head",
+      workflow_id: codex_workflow.id,
+      run_id: codex_run.id,
+      trigger_kind: "retry",
+      label: "All changes"
+    )
+    expect(second_payload[:version]).to include(base_sha: "base-sha", head_sha: "codex-head")
+  end
+
   describe "preview diff fixture" do
     let(:fixture) do
       {

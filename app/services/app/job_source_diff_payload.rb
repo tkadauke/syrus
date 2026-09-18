@@ -213,8 +213,20 @@ module App
       trigger_kind = source_workflow&.trigger_kind || source_run&.trigger_kind
       range_kind = explicit_selection ? "explicit_selection" : "all_changes"
       existing_version = existing_version_for(base_sha: base_sha, head_sha: head_sha)
+      existing_version ||= @job.diff_review_versions.all_changes.latest_first.first unless explicit_selection
       if existing_version
-        promote_all_changes_version!(existing_version, files: files, truncated: truncated) unless explicit_selection
+        unless explicit_selection
+          promote_all_changes_version!(
+            existing_version,
+            base_sha: base_sha,
+            head_sha: head_sha,
+            workflow: source_workflow,
+            run: source_run,
+            trigger_kind: trigger_kind,
+            files: files,
+            truncated: truncated
+          )
+        end
         return existing_version
       end
 
@@ -245,11 +257,16 @@ module App
           .first
     end
 
-    def promote_all_changes_version!(version, files:, truncated:)
+    def promote_all_changes_version!(version, base_sha:, head_sha:, workflow:, run:, trigger_kind:, files:, truncated:)
       metadata = version.metadata.to_h.merge("range_kind" => "all_changes")
       version.update!(
+        base_sha: base_sha,
+        head_sha: head_sha,
         base_ref: job_base_branch,
         head_ref: @job.branch_name,
+        workflow: workflow,
+        run: run,
+        trigger_kind: trigger_kind.to_s.presence || workflow&.trigger_kind || run&.trigger_kind,
         label: "All changes",
         reason: "source_diff",
         truncated: truncated,
