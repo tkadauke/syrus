@@ -141,6 +141,8 @@ module Steps
       iterations = review_iterations
       iterations << {
         "iteration" => step.iteration,
+        "step_id" => step.id,
+        "run_id" => run.id,
         "critique" => critique,
         "verdict" => "skipped"
       }

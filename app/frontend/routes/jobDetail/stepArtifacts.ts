@@ -26,7 +26,13 @@ export function stepArtifactAdversarialReview(raw: unknown): JobAdversarialRevie
   return result.length > 0 ? result : null
 }
 
-export function stepArtifactVisualReview(raw: unknown): JobVisualReviewIteration[] | null {
+export type VisualReviewArtifactFilter = {
+  stepId?: number | null
+  runId?: number | null
+  iteration?: number | null
+}
+
+export function stepArtifactVisualReview(raw: unknown, filter: VisualReviewArtifactFilter = {}): JobVisualReviewIteration[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null
   const result: JobVisualReviewIteration[] = []
   for (const item of raw) {
@@ -35,11 +41,26 @@ export function stepArtifactVisualReview(raw: unknown): JobVisualReviewIteration
     if (typeof obj.iteration !== "number") continue
     if (typeof obj.critique !== "string") continue
     if (obj.verdict !== "approved" && obj.verdict !== "needs_work" && obj.verdict !== "skipped") continue
+    if (!visualReviewIterationMatches(obj, filter)) continue
 
     const artifacts = Array.isArray(obj.artifacts) ? obj.artifacts.flatMap(parseVisualReviewArtifact) : []
-    result.push({ iteration: obj.iteration, critique: obj.critique, verdict: obj.verdict, artifacts })
+    result.push({
+      iteration: obj.iteration,
+      step_id: typeof obj.step_id === "number" ? obj.step_id : null,
+      run_id: typeof obj.run_id === "number" ? obj.run_id : null,
+      critique: obj.critique,
+      verdict: obj.verdict,
+      artifacts
+    })
   }
   return result.length > 0 ? result : null
+}
+
+function visualReviewIterationMatches(obj: Record<string, unknown>, filter: VisualReviewArtifactFilter) {
+  if (typeof filter.runId === "number" && typeof obj.run_id === "number") return obj.run_id === filter.runId
+  if (typeof filter.stepId === "number" && typeof obj.step_id === "number") return obj.step_id === filter.stepId
+  if (typeof filter.iteration === "number" && typeof obj.run_id !== "number" && typeof obj.step_id !== "number") return obj.iteration === filter.iteration
+  return typeof filter.runId !== "number" && typeof filter.stepId !== "number" && typeof filter.iteration !== "number"
 }
 
 function parseVisualReviewArtifact(raw: unknown): JobVisualReviewArtifact[] {
