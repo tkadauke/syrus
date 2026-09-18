@@ -93,7 +93,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     onNavigateToFile: setSelectedPath,
     onViewCommentVersion: viewCommentVersion,
     supportsGlobalComments: true,
-    surface: SURFACE
+    surface: SURFACE,
+    versions
   })
   const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
 
