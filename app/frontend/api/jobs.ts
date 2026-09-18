@@ -832,7 +832,6 @@ export type JobActions = {
   can_run_visual_diff: boolean
   can_override_pr_checks_landing_blocker?: boolean
   can_override_inherited_pr_checks: boolean
-  can_request_changes: boolean
   can_send_job_upstream: boolean
   send_job_upstream_blocked_reason?: string | null
   feedback_agent_options: string[]
@@ -917,7 +916,6 @@ export type JobPaths = {
   app_deploy_path: string
   app_visual_review_path: string
   app_visual_diff_path: string
-  app_request_changes_path: string
   app_ref_movement_actions_path: string
   admin_resource_admission_path: string
 }
@@ -1505,10 +1503,6 @@ export function deleteJobCommand(path: string) {
 
 export async function submitJobFeedback(jobId: number, body: string): Promise<void> {
   await postJson(`/api/v1/app/jobs/${jobId}/chat_feedback`, { body })
-}
-
-export function submitJobRequestChanges(path: string, feedback: string) {
-  return postJson<JobCommandPayload>(path, { feedback })
 }
 
 export function openJobInCodingMode(path: string, feedback?: string) {
