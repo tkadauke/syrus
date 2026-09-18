@@ -20,6 +20,7 @@ class CodexInvocation
                  mcp_server: nil,
                  mcp_servers: nil,
                  model: nil,
+                 effort_level: nil,
                  resume_session_id: nil,
                  resume_transcript_jsonl: nil,
                  stop_requested: -> { false },
@@ -35,6 +36,7 @@ class CodexInvocation
     @mcp_server = mcp_server
     @mcp_servers = mcp_servers
     @model = model.presence || self.class.configured_model
+    @effort_level = effort_level.to_s.strip.presence
     @resume_session_id = resume_session_id
     @resume_transcript_jsonl = resume_transcript_jsonl
     @stop_requested = stop_requested
@@ -53,6 +55,7 @@ class CodexInvocation
       mcp_server: @mcp_server,
       mcp_servers: @mcp_servers,
       model: @model,
+      effort_level: @effort_level,
       resume_session_id: @resume_session_id,
       resume_transcript_jsonl: @resume_transcript_jsonl,
       stop_requested: @stop_requested,
@@ -93,13 +96,13 @@ class CodexInvocation
   private
 
   def default_runner(workspace_path:, prompt:, api_key:, log_sink:, timeout:,
-                     codex_home:, mcp_server: nil, mcp_servers: nil, model: nil,
+                     codex_home:, mcp_server: nil, mcp_servers: nil, model: nil, effort_level: nil,
                      resume_session_id: nil, resume_transcript_jsonl: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
                      startup_timing: StartupTiming.new(source: "codex"))
     codex_home = codex_home.presence || File.join(Dir.home, ".codex")
     startup_timing.measure("codex_home_prepare") { FileUtils.mkdir_p(codex_home) }
-    startup_timing.measure("config_write") { write_config(codex_home, mcp_servers || mcp_server, model) }
+    startup_timing.measure("config_write") { write_config(codex_home, mcp_servers || mcp_server, model, effort_level) }
     restored_resume = startup_timing.measure("transcript_restore", resume: resume_session_id.present?) do
       restore_resume_transcript(codex_home, resume_session_id, resume_transcript_jsonl, log_sink)
     end
@@ -223,22 +226,23 @@ class CodexInvocation
     )
   end
 
-  def write_config(codex_home, mcp_servers, model)
+  def write_config(codex_home, mcp_servers, model, effort_level)
     FileUtils.mkdir_p(codex_home)
     path = File.join(codex_home, "config.toml")
-    content = codex_config_toml(mcp_servers, model: model)
+    content = codex_config_toml(mcp_servers, model: model, effort_level: effort_level)
     return :unchanged if File.exist?(path) && File.read(path) == content
 
     File.write(path, content)
     :written
   end
 
-  def codex_config_toml(mcp_servers, model:)
+  def codex_config_toml(mcp_servers, model:, effort_level: nil)
     lines = [
       'cli_auth_credentials_store = "file"',
       'approval_policy = "never"'
     ]
     lines << "model = #{toml_string(model)}" if model.present?
+    lines << "model_reasoning_effort = #{toml_string(effort_level)}" if effort_level.present? && effort_level != "none"
 
     normalized_mcp_servers(mcp_servers).each do |name, server|
       lines += [
