@@ -5,6 +5,8 @@ import { Button } from "../Button"
 import { ChevronIcon } from "../ChevronIcon"
 import { CloseIcon } from "../CloseIcon"
 import { renderCodeLine } from "../CodeBlock"
+import { CopyIcon } from "../CopyableSlug"
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
@@ -123,6 +125,8 @@ type FilesPopupPlacement = {
 
 const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
+const DIFF_FILE_PATH_COPY_CLASS = "group flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand"
+const DIFF_FILE_HEADER_CONTROL_CLASS = "shrink-0 rounded border border-border px-2 py-0.5 font-sans text-2xs font-medium text-text-secondary hover:bg-surface-raised disabled:opacity-50"
 
 // Per-file state that must survive a file section unmounting and remounting
 // as the user scrolls it out of, then back into, the virtualized window --
@@ -256,8 +260,7 @@ export function ReviewableDiff({
   const virtualizer = useVirtualizer({ count: visibleFiles.length, enabled: scroll === "bounded", estimateSize, getItemKey, getScrollElement: () => scrollContainerRef.current, overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN })
 
   // Navigates the virtualized list to `selectedPath` whenever it changes
-  // (Files menu selection, a header click round-tripping back through
-  // `onSelectFile`, or a sidebar comment's "View in diff") -- unlike the old
+  // (Files menu selection or a sidebar comment's "View in diff") -- unlike the old
   // `data-diff-file` DOM query, this works even when the target file isn't
   // currently mounted. `pendingScrollTarget` survives across the render
   // where a beyond-the-cap file first gets included in `visibleFiles`, so
@@ -445,7 +448,6 @@ export function ReviewableDiff({
           onLoadFileContext={onLoadFileContext}
           onSaveComposing={onSaveComposing}
           onSaveEditThread={onSaveEditThread}
-          onSelectFile={onSelectFile}
           onStartEditThread={onStartEditThread}
           onToggleFilesPopup={changedFilesPopup ? toggleFilesPopup : undefined}
           onToggleHighlightToken={wordHighlighting ? toggleHighlightToken : undefined}
@@ -660,7 +662,6 @@ function DiffFileSection({
   onLoadFileContext,
   onSaveComposing,
   onSaveEditThread,
-  onSelectFile,
   onStartEditThread,
   onToggleFilesPopup,
   onToggleHighlightToken,
@@ -691,7 +692,6 @@ function DiffFileSection({
   onLoadFileContext?: (file: ReviewableDiffFile) => Promise<string | null>
   onSaveComposing?: () => void
   onSaveEditThread?: () => void
-  onSelectFile?: (path: string) => void
   onStartEditThread?: (thread: DiffReviewThread) => void
   onToggleFilesPopup?: (event: MouseEvent<HTMLButtonElement>) => void
   onToggleHighlightToken?: (token: string) => void
@@ -796,7 +796,6 @@ function DiffFileSection({
       <DiffFileHeader
         collapsed
         file={file}
-        onSelectFile={onSelectFile}
         onToggleCollapsed={() => setCollapsed(false)}
         onToggleFilesPopup={onToggleFilesPopup}
         selected={selected}
@@ -811,7 +810,6 @@ function DiffFileSection({
         {showHeader ? (
           <DiffFileHeader
             file={file}
-            onSelectFile={onSelectFile}
             onToggleCollapsed={() => setCollapsed(true)}
             onToggleFilesPopup={onToggleFilesPopup}
             selected={selected}
@@ -832,7 +830,6 @@ function DiffFileSection({
           file={file}
           loadWholeFileState={loadWholeFileState}
           onLoadWholeFile={contextExpansionEnabled ? loadWholeFile : undefined}
-          onSelectFile={onSelectFile}
           onToggleCollapsed={() => setCollapsed(true)}
           onToggleFilesPopup={onToggleFilesPopup}
           selected={selected}
@@ -1391,7 +1388,6 @@ function DiffFileHeader({
   file,
   loadWholeFileState,
   onLoadWholeFile,
-  onSelectFile,
   onToggleCollapsed,
   onToggleFilesPopup,
   selected,
@@ -1401,20 +1397,13 @@ function DiffFileHeader({
   file: ReviewableDiffFile
   loadWholeFileState?: "error" | "idle" | "loaded" | "loading" | null
   onLoadWholeFile?: () => void
-  onSelectFile?: (path: string) => void
   onToggleCollapsed?: () => void
   onToggleFilesPopup?: (event: MouseEvent<HTMLButtonElement>) => void
   selected: boolean
   showFilesPopupTrigger?: boolean
 }) {
   const { t } = useT("common")
-  const content = (
-    <>
-      <span className="min-w-0 flex-1 truncate">{file.path}</span>
-      {typeof file.additions === "number" ? <span>+{file.additions}</span> : null}
-      {typeof file.deletions === "number" ? <span>-{file.deletions}</span> : null}
-    </>
-  )
+  const { copied, copy } = useCopyToClipboard()
   // max-lg:top-14 keeps this below the app chrome's own sticky top bar, which
   // stays visible (AppChromeV2's `lg:hidden` bar) up through the `lg` breakpoint,
   // not just `md` — otherwise a tablet-width viewport (768-1023px) sticks this
@@ -1439,16 +1428,21 @@ function DiffFileHeader({
           <ChevronIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} />
         </button>
       ) : null}
-      {onSelectFile ? (
-        <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onSelectFile(file.path)} type="button">
-          {content}
-        </button>
-      ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-3">{content}</div>
-      )}
+      <button
+        aria-label={t("diff_review.copy_file_path_to_clipboard", { path: file.path })}
+        className={DIFF_FILE_PATH_COPY_CLASS}
+        onClick={() => copy(file.path)}
+        title={copied ? t("copy.copied") : t("diff_review.copy_file_path", { path: file.path })}
+        type="button"
+      >
+        <span className="min-w-0 flex-1 truncate">{file.path}</span>
+        <CopyIcon className={`h-3.5 w-3.5 shrink-0 ${copied ? "text-success-text" : "text-text-secondary group-hover:text-text-primary"}`} />
+      </button>
+      {typeof file.additions === "number" ? <span>+{file.additions}</span> : null}
+      {typeof file.deletions === "number" ? <span>-{file.deletions}</span> : null}
       {onLoadWholeFile ? (
         <button
-          className="shrink-0 rounded border border-gray-300 px-2 py-0.5 font-sans text-2xs font-medium text-gray-600 hover:bg-white disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          className={DIFF_FILE_HEADER_CONTROL_CLASS}
           disabled={loadWholeFileState !== "idle" && loadWholeFileState !== "error"}
           onClick={onLoadWholeFile}
           type="button"
@@ -1459,7 +1453,7 @@ function DiffFileHeader({
       {showFilesPopupTrigger ? (
         <button
           aria-label={t("diff_review.browse_changed_files")}
-          className="shrink-0 rounded border border-gray-300 px-2 py-0.5 font-sans text-2xs font-medium text-gray-600 hover:bg-white dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          className={DIFF_FILE_HEADER_CONTROL_CLASS}
           onClick={onToggleFilesPopup}
           type="button"
         >
