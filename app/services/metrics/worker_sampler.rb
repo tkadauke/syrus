@@ -30,11 +30,11 @@ module Metrics
 
     def self.declare_metrics!
       Syrus::Metrics.declare do
-        gauge :worker_cpu_percent, tags: %i[worker_storage_key],
+        gauge :worker_cpu_percent, tags: %i[hostname storage_key],
               comment: "Worker host CPU utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum)"
-        gauge :worker_memory_percent, tags: %i[worker_storage_key],
+        gauge :worker_memory_percent, tags: %i[hostname storage_key],
               comment: "Worker host memory utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum)"
-        gauge :worker_disk_percent, tags: %i[worker_storage_key],
+        gauge :worker_disk_percent, tags: %i[hostname storage_key],
               comment: "Worker host data-root disk utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum)"
         gauge :active_agent_runs,
               comment: "Currently running agentic Runs, subject to the global concurrency cap (GLOBAL -- aggregate with max by, never sum)"
@@ -85,9 +85,9 @@ module Metrics
       return false if payload.blank? && totals.blank?
 
       if payload.present?
-        set_each(:syrus_worker_cpu_percent, payload[:worker_cpu_percent], :worker_storage_key)
-        set_each(:syrus_worker_memory_percent, payload[:worker_memory_percent], :worker_storage_key)
-        set_each(:syrus_worker_disk_percent, payload[:worker_disk_percent], :worker_storage_key)
+        set_each(:syrus_worker_cpu_percent, payload[:worker_cpu_percent])
+        set_each(:syrus_worker_memory_percent, payload[:worker_memory_percent])
+        set_each(:syrus_worker_disk_percent, payload[:worker_disk_percent])
         Syrus::Metrics.gauge(:syrus_active_agent_runs).set(payload[:active_agent_runs].to_i)
         Syrus::Metrics.gauge(:syrus_max_concurrent_agent_runs).set(payload[:max_concurrent_agent_runs].to_i)
       end
@@ -101,9 +101,12 @@ module Metrics
 
     attr_reader :source
 
-    def set_each(metric, values, tag)
+    def set_each(metric, values)
       gauge = Syrus::Metrics.gauge(metric)
-      Hash(values).each { |label, value| gauge.set(value, tags: { tag => label }) }
+      gauge.samples.each { |tags, _value| gauge.clear(tags: tags) }
+      Hash(values).each_value do |reading|
+        gauge.set(reading.value, tags: { hostname: reading.hostname, storage_key: reading.storage_key })
+      end
     end
 
     # Bootstraps the cursor to "now" without instrumenting existing history,

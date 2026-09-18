@@ -11,17 +11,18 @@ module Metrics
     # heartbeat tick (sampled every minute), short enough that a dead worker
     # drops out of the gauge instead of reporting a stale reading forever.
     SAMPLE_WINDOW = 2.minutes
+    WorkerReading = Data.define(:hostname, :storage_key, :value)
 
     def worker_cpu_percentages
-      latest_samples.transform_values(&:cpu_used_percent).compact
+      worker_readings(:cpu_used_percent)
     end
 
     def worker_memory_percentages
-      latest_samples.transform_values(&:memory_used_percent).compact
+      worker_readings(:memory_used_percent)
     end
 
     def worker_disk_percentages
-      latest_samples.transform_values(&:data_root_used_percent).compact
+      worker_readings(:data_root_used_percent)
     end
 
     def active_agent_run_count
@@ -43,6 +44,16 @@ module Metrics
     end
 
     private
+
+    def worker_readings(attribute)
+      latest_samples.transform_values do |sample|
+        value = sample.public_send(attribute)
+        next if value.nil?
+
+        storage_key = sample.worker_storage_key.presence || sample.hostname
+        WorkerReading.new(hostname: sample.hostname, storage_key: storage_key, value: value)
+      end.compact
+    end
 
     def latest_samples
       @latest_samples ||= WorkerHostHealthSample.worker_role

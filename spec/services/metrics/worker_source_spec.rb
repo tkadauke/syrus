@@ -15,14 +15,17 @@ RSpec.describe Metrics::WorkerSource do
       sample(hostname: "worker-a", cpu_used_percent: 87.5)
       sample(hostname: "worker-b", cpu_used_percent: 12.0)
 
-      expect(source.worker_cpu_percentages).to eq("worker-a" => 87.5, "worker-b" => 12.0)
+      expect(source.worker_cpu_percentages.transform_values(&:value)).to eq("worker-a" => 87.5, "worker-b" => 12.0)
     end
 
     it "anchors restarted pod hostnames to one worker storage key" do
       sample(hostname: "worker-old", worker_storage_key: "storage-a", cpu_used_percent: 20.0, observed_at: 1.minute.ago)
       sample(hostname: "worker-new", worker_storage_key: "storage-a", cpu_used_percent: 65.0, observed_at: 10.seconds.ago)
 
-      expect(source.worker_cpu_percentages).to eq("storage-a" => 65.0)
+      readings = source.worker_cpu_percentages
+      expect(readings.transform_values(&:value)).to eq("storage-a" => 65.0)
+      expect(readings.fetch("storage-a").hostname).to eq("worker-new")
+      expect(readings.fetch("storage-a").storage_key).to eq("storage-a")
     end
 
     it "excludes hosts with no recent sample" do
@@ -43,7 +46,7 @@ RSpec.describe Metrics::WorkerSource do
       sample(hostname: "worker-a", memory_used_percent: 42.0)
       sample(hostname: "worker-b", memory_used_percent: 30.0)
 
-      expect(source.worker_memory_percentages).to eq("worker-a" => 42.0, "worker-b" => 30.0)
+      expect(source.worker_memory_percentages.transform_values(&:value)).to eq("worker-a" => 42.0, "worker-b" => 30.0)
     end
   end
 
@@ -53,7 +56,7 @@ RSpec.describe Metrics::WorkerSource do
       sample(hostname: "worker-a", data_root_used_percent: 73.5)
       sample(hostname: "worker-b", data_root_used_percent: 25.0)
 
-      expect(source.worker_disk_percentages).to eq("worker-a" => 73.5, "worker-b" => 25.0)
+      expect(source.worker_disk_percentages.transform_values(&:value)).to eq("worker-a" => 73.5, "worker-b" => 25.0)
     end
 
     it "excludes hosts whose latest sample has no disk reading" do
