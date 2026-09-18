@@ -254,6 +254,7 @@ admin-only:
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb
+  - plugins/syrus_dev/app/controllers/api/v1/app/admin/tool_card_jobs_controller.rb
 ```
 
 ## Teams
