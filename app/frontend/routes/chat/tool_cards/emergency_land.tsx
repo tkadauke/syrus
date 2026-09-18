@@ -19,7 +19,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <div className="space-y-2">
       {jobId || branch ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
           {jobId ? <JobRefLink jobId={jobId} /> : null}
           {branch ? <Badge>{branch}</Badge> : null}
         </div>
