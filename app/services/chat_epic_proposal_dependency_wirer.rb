@@ -9,14 +9,18 @@ class ChatEpicProposalDependencyWirer
     rewrite_resolved_tokens!(proposal)
     proposal.epic_dependency_tokens.each do |token|
       depends_on_epic = resolve_token(proposal, token)
-      next unless depends_on_epic
-
-      create_dependency!(proposal.epic, depends_on_epic)
+      if depends_on_epic
+        create_dependency!(proposal.epic, depends_on_epic)
+      else
+        create_pending_dependency!(proposal, token)
+      end
     end
   end
 
   def resolve_confirmed_proposal!(confirmed_proposal)
     return unless confirmed_proposal&.epic
+
+    resolve_pending_dependencies_on!(confirmed_proposal)
 
     slug = confirmed_proposal.slug
     epic_token = epic_token_for(confirmed_proposal.epic)
@@ -33,6 +37,37 @@ class ChatEpicProposalDependencyWirer
   end
 
   private
+
+  # Holds the dependent Epic's admission open (via a pending EpicDependency
+  # row -- see EpicDependency#pending?) while `token` names a sibling
+  # proposal that exists but hasn't confirmed yet. Without this, a
+  # depends_on_proposal_slugs token pointing at an unconfirmed proposal left
+  # no trace at all, and Job admission (which only reacts to real
+  # EpicDependency rows) had nothing to hold on -- ready child Jobs could
+  # start and finish before the referenced proposal was ever confirmed.
+  # A token with no matching proposal at all (forward reference to a slug
+  # that doesn't exist yet, or a stale/rejected one) is left as-is, exactly
+  # like before: #resolve_confirmed_proposal! still wires the dependency
+  # retroactively once/if a matching proposal does confirm later.
+  def create_pending_dependency!(proposal, token)
+    return if token.to_s.match?(/\Aepic:\d+\z/)
+
+    target_proposal = proposal.chat_session.proposals.find_by(slug: token)
+    return unless target_proposal
+    return if target_proposal.id == proposal.id
+    return unless target_proposal.proposed?
+
+    EpicDependency.find_or_create_by!(
+      epic: proposal.epic,
+      unresolved_chat_proposal: target_proposal
+    )
+  end
+
+  def resolve_pending_dependencies_on!(confirmed_proposal)
+    EpicDependency.pending.where(unresolved_chat_proposal: confirmed_proposal).find_each do |dependency|
+      dependency.resolve!(depends_on_epic: confirmed_proposal.epic)
+    end
+  end
 
   attr_reader :user
 
