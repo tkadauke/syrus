@@ -164,7 +164,7 @@ available space, and `$SYRUS_DATA_ROOT` path so operators can clean old
 workflow workspaces or resize the PVC before clone and prepare steps
 start failing. Syrus also exposes an authenticated `GET /metrics` endpoint in
 the Prometheus text exposition format -- queue health, product usage, landing
-queue/run throughput, worker CPU/memory and admission decisions, and fleet
+queue/run throughput, worker CPU/memory/disk and admission decisions, and fleet
 (pod version, spawned process) gauges and counters. Route container logs to
 your cluster logging stack, scrape `/metrics` from a Prometheus instance, and
 alert on repeated worker failures or growing queue depth.
