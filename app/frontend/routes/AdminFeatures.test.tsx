@@ -198,9 +198,6 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       built_at: null,
       bug_report_mode: null,
       report_issue_repo_slug: "tkadauke/syrus",
-      mode: "advanced" as const,
-      mode_configured: false,
-      legacy_epics_visible: false
     },
     setup_status: null,
     public: {
