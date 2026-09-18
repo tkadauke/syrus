@@ -344,6 +344,24 @@ describe("ProposalCard layout", () => {
     expect(slug.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(dependencyLabel.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
+
+  it("gives the dependency info a content-based flex basis so it wraps below a long slug instead of being squeezed onto its line", () => {
+    // flex-1 (flex-basis: 0%) reports a zero hypothetical main size to the flex
+    // line-wrapping algorithm, so the browser always packs it onto the slug's
+    // line and then shrinks it to whatever sliver of space is left -- it never
+    // gets promoted to its own line, no matter how little room remains. Using
+    // flex-auto (flex-basis: auto) makes its real content size count, so it
+    // wraps onto a new line when the slug leaves no room for it.
+    renderProposalCard(proposal({
+      title: "Remove Supervisor chat",
+      slug: "remove-supervisor-chat-widen-wakeups",
+      has_dependencies: false
+    }))
+
+    const dependencyInfo = screen.getByText("No dependencies")
+    expect(dependencyInfo).toHaveClass("flex-auto")
+    expect(dependencyInfo).not.toHaveClass("flex-1")
+  })
 })
 
 describe("ProposalCard media", () => {
