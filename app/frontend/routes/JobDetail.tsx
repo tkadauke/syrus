@@ -771,9 +771,23 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
+  const currentSetting = payload.job.job_provider_setting || "default"
+  const [draft, setDraft] = useState({
+    jobProviderSetting: currentSetting,
+    model: payload.job.model || "",
+    effortLevel: payload.job.effort_level || ""
+  })
+
+  useEffect(() => {
+    setDraft({
+      jobProviderSetting: currentSetting,
+      model: payload.job.model || "",
+      effortLevel: payload.job.effort_level || ""
+    })
+  }, [currentSetting, payload.job.model, payload.job.effort_level])
 
   const mutation = useMutation({
-    mutationFn: (setting: string) => updateJobProviderSetting(providerPath, setting),
+    mutationFn: () => updateJobProviderSetting(providerPath, draft),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey })
       void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
@@ -781,11 +795,17 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
     },
     onError: () => setError(t("provider_setting_update_error"))
   })
-  const currentSetting = payload.job.job_provider_setting || "default"
   const options = payload.job.job_provider_setting_options || [
     { value: "default" as const, label: t("provider_setting_default"), configured: true },
     { value: "claude" as const, label: "Claude Code", configured: true },
     { value: "codex" as const, label: "Codex", configured: true }
+  ]
+  const selectedOption = options.find((option) => option.value === draft.jobProviderSetting)
+  const effortOptions = payload.job.provider_routing_options?.effort_levels || [
+    { value: "none", label: t("provider_effort_level_none") },
+    { value: "low", label: t("provider_effort_level_low") },
+    { value: "medium", label: t("provider_effort_level_medium") },
+    { value: "high", label: t("provider_effort_level_high") }
   ]
 
   return (
@@ -796,8 +816,8 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
         className="max-w-full py-0.5 pl-1.5 pr-6 text-xs"
         disabled={mutation.isPending}
         fullWidth={false}
-        onChange={(event) => mutation.mutate(event.target.value)}
-        value={currentSetting}
+        onChange={(event) => setDraft({ ...draft, jobProviderSetting: event.target.value, model: "" })}
+        value={draft.jobProviderSetting}
       >
         {options.map((option) => (
           <option disabled={!option.configured} key={option.value} value={option.value}>
@@ -805,6 +825,35 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
           </option>
         ))}
       </Select>
+      {draft.jobProviderSetting !== "default" ? (
+        <span className="grid gap-1 sm:grid-cols-2">
+          <Select
+            aria-label={t("provider_model_label")}
+            className="max-w-full py-0.5 pl-1.5 pr-6 text-xs"
+            disabled={mutation.isPending}
+            fullWidth={false}
+            onChange={(event) => setDraft({ ...draft, model: event.target.value })}
+            value={draft.model}
+          >
+            <option value="">{t("provider_default_model")}</option>
+            {(selectedOption?.models || []).map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+          </Select>
+          <Select
+            aria-label={t("provider_effort_label")}
+            className="max-w-full py-0.5 pl-1.5 pr-6 text-xs"
+            disabled={mutation.isPending}
+            fullWidth={false}
+            onChange={(event) => setDraft({ ...draft, effortLevel: event.target.value })}
+            value={draft.effortLevel}
+          >
+            <option value="">{t("provider_default_effort")}</option>
+            {effortOptions.map((effort) => <option key={effort.value} value={effort.value}>{t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}</option>)}
+          </Select>
+          <Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()} size="sm" variant="secondary">{t("provider_override_save")}</Button>
+        </span>
+      ) : (
+        <Button disabled={mutation.isPending || currentSetting === "default"} onClick={() => mutation.mutate()} size="sm" variant="secondary">{t("provider_override_default")}</Button>
+      )}
       <span className="text-xs text-gray-500 dark:text-gray-400" id={`job-${payload.job.id}-provider-help`}>
         {t("provider_setting_help", { provider: agentProviderLabel(payload, payload.job.agent_provider || "") })}
       </span>

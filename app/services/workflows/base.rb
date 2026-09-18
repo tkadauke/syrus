@@ -98,11 +98,30 @@ module Workflows
       effective_artifacts = (effective_artifacts || {}).merge(resolution.provenance)
 
       provider_selection = agent_provider.present? ? "explicit" : "default"
-      resolved_agent_provider = agent_provider.presence || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider
+      explicit_candidate = ProviderRouting::AvailabilitySelector.candidate(
+        provider: agent_provider.presence || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider,
+        model: model.presence,
+        effort_level: effort_level.presence
+      )
+      routed_selection = if agent_provider.present?
+        ProviderRouting::AvailabilitySelector::Decision.new(
+          candidate: explicit_candidate,
+          original_candidate: explicit_candidate,
+          reason: nil,
+          availability: nil,
+          candidate_availability: nil,
+          decided_at: Time.current,
+          exhausted: false
+        )
+      else
+        ProviderRouting::AvailabilitySelector.call(job: job, task_key: trigger_kind, original_candidate: explicit_candidate)
+      end
+      resolved_candidate = routed_selection.candidate
       model_selection = model.present? ? "explicit" : "default"
       effort_level_selection = effort_level.present? ? "explicit" : "default"
       effective_artifacts = (effective_artifacts || {}).merge(
         "agent_provider_selection" => provider_selection,
+        "agent_provider_routing_decision" => routed_selection.artifact,
         "model_selection" => model_selection,
         "effort_level_selection" => effort_level_selection
       )
@@ -111,9 +130,9 @@ module Workflows
         wf = Workflow.create!(
           job: job,
           trigger_kind: trigger_kind,
-          agent_provider: resolved_agent_provider,
-          model: model.presence,
-          effort_level: effort_level.presence,
+          agent_provider: resolved_candidate.provider,
+          model: model.presence || resolved_candidate.model,
+          effort_level: effort_level.presence || resolved_candidate.effort_level,
           chain_template: resolution.graph,
           artifacts: effective_artifacts
         )

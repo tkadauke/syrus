@@ -136,12 +136,14 @@ per-user/private:
   - app/controllers/concerns/chat_index_payload.rb
   - app/controllers/concerns/chat_proposal_outcome.rb
   - app/controllers/concerns/chat_provider_options.rb
+  - app/controllers/concerns/agent_provider_catalog_options.rb
   - app/controllers/concerns/chat_serialization.rb
   - app/controllers/concerns/chat_session_lifecycle.rb
   - app/controllers/concerns/chat_search.rb
   - app/controllers/concerns/performance_logging_context.rb
   - app/controllers/api/v1/app/credentials_controller.rb
   - app/controllers/api/v1/app/credentials/documents_controller.rb
+  - app/controllers/api/v1/app/provider_routing_rules_controller.rb
   - plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb
   - app/controllers/api/v1/app/dashboard_controller.rb
   - app/controllers/api/v1/app/desktop_tokens_controller.rb
@@ -351,9 +353,11 @@ instead of broader model scopes.
 | `app/controllers/concerns/chat_serialization.rb` | per-user/private | Chat JSON serializers (extracted from `ChatsController`) build the chat/message/attachment payloads, reading `Current.user` for unread state and ownership-scoped fields. |
 | `app/controllers/concerns/chat_session_lifecycle.rb` | per-user/private | Chat-session lifecycle helpers (extracted from `ChatsController`) create the session as `Current.user` and branch from a source chat. |
 | `app/controllers/concerns/chat_provider_options.rb` | per-user/private | Chat-provider picker helpers (extracted from `ChatsController`) build options from `Current.user`'s configured agent providers. |
+| `app/controllers/concerns/agent_provider_catalog_options.rb` | per-user/private | Builds the agent-provider/model/effort-level catalog options for the routing-rule editors and direct-job forms, using `Current.user`'s configured providers to mark which options are usable. |
 | `app/controllers/concerns/chat_search.rb` | per-user/private | Chat-search helpers (extracted from `ChatsController`) search and filter `Current.user`'s chats and serialize the results. |
 | `app/controllers/concerns/performance_logging_context.rb` | per-user/private | Performance log request diagnostics include the current user's id/admin flag when a signed-in user is available. |
 | `app/controllers/api/v1/app/credentials/documents_controller.rb` | per-user/private | Personal credential documents are listed, created, and deleted through `Current.user.documents`. |
+| `app/controllers/api/v1/app/provider_routing_rules_controller.rb` | per-user/private and repository-write affordance | User-scoped routing rules are created/updated/deleted under `Current.user.id`; repository-scoped rules resolve the repository through `policy_scope(Repository)` and require `RepositoryPolicy#update?` for `Current.user`. |
 | `app/controllers/api/v1/app/admin/settings_controller.rb` | admin-only | App-wide settings are admin-only; `Current.user` stamps the actor for workflow-admission-control audit metadata and `AdminAction` rows. |
 | `plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |
 | `app/controllers/api/v1/app/dashboard_controller.rb` | per-user/private | Dashboard payload, preferences, bulk job actions, tags, approvals, and broadcasts operate on `Current.user` jobs/epics/tags. |

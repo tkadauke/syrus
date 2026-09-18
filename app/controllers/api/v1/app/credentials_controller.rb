@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class CredentialsController < BaseController
+        include ProviderRoutingRuleSerialization
+
         # Scopes a classic GitHub PAT must carry for Syrus to clone, branch,
         # open PRs, and update GitHub Actions workflows.
         GITHUB_REQUIRED_SCOPES = %w[ repo workflow ].freeze
@@ -255,6 +257,7 @@ module Api
             credential_status: credential_status_json(user),
             github_rate_limit: github_rate_limit_json(user),
             provider_availability: ::App::ProviderAvailability.all_for_user(user),
+            provider_routing_rules: provider_routing_rules_json(scope_type: "user", scope_id: user.id),
             options: credentials_options(user)
           }
         end
@@ -285,7 +288,6 @@ module Api
             chat_provider: user.chat_provider,
             codex_auth_mode: user.codex_auth_mode,
             agent_max_turns: user.agent_max_turns,
-            agent_provider_failover_policy: user.agent_provider_failover_policy,
             provider_availability_pause_thresholds: User.agent_providers.to_h do |provider|
               [ provider, user.provider_availability_pause_threshold_for(provider) ]
             end,
@@ -346,7 +348,6 @@ module Api
             end,
             roles: User::ROLES,
             codex_auth_modes: User::CODEX_AUTH_MODES,
-            agent_provider_failover_causes: User::AGENT_PROVIDER_FAILOVER_CAUSES,
             agent_max_turns: {
               min: User::AGENT_MAX_TURNS_RANGE.first,
               max: User::AGENT_MAX_TURNS_RANGE.last
@@ -355,7 +356,7 @@ module Api
               { value: value, label: label }
             end,
             auto_approve_modes: AutoApproveModes.options
-          }
+          }.merge(provider_routing_options: agent_provider_catalog_options(user))
         end
 
         def testable_credentials
@@ -385,10 +386,6 @@ module Api
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :gemini_api_key, :muse_api_key, :github_token,
                                 :agent_max_turns, :scheduling_paused, :auto_approve_mode, :locale,
-                                { agent_provider_failover_policy: [
-                                  :enabled, :override_explicit_pins,
-                                  { providers: [], causes: [] }
-                                ] },
                                 { provider_availability_pause_thresholds: User.agent_providers.map(&:to_sym) } ])
         end
 

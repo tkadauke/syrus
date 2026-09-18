@@ -18,6 +18,7 @@ import {
   type DirectJobFormPayload,
   type DirectJobPromptTemplate
 } from "../api/directJobs"
+import type { ProviderRoutingOptions } from "../api/providerRoutingRules"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import { providerIconSrc } from "../lib/pluginIcon"
@@ -25,6 +26,8 @@ import { providerIconSrc } from "../lib/pluginIcon"
 type DirectJobFormState = {
   repositoryId: string
   agentProvider: string
+  model: string
+  effortLevel: string
   epicId: string
   title: string
   prompt: string
@@ -32,6 +35,8 @@ type DirectJobFormState = {
   createMore: boolean
   googleDocUrl: string
 }
+
+const EMPTY_PROVIDER_ROUTING_OPTIONS: ProviderRoutingOptions = { agent_providers: [], effort_levels: [] }
 
 export function DirectJobNewRoute() {
   const { t } = useT("jobs")
@@ -67,9 +72,14 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
   const [files, setFiles] = useState<File[]>([])
   const [values, setValues] = useState<DirectJobFormState>(() => initialValues(payload))
   const [appliedTemplate, setAppliedTemplate] = useState<DirectJobPromptTemplate | null>(null)
+  const providerRoutingOptions = payload.provider_routing_options || EMPTY_PROVIDER_ROUTING_OPTIONS
   const selectedRepository = useMemo(
     () => payload.repositories.find((repository) => String(repository.id) === values.repositoryId) || null,
     [payload.repositories, values.repositoryId]
+  )
+  const selectedProvider = useMemo(
+    () => providerRoutingOptions.agent_providers.find((provider) => provider.value === values.agentProvider) || null,
+    [providerRoutingOptions.agent_providers, values.agentProvider]
   )
   const save = useMutation({
     mutationFn: () => createDirectJob({ ...values, files }),
@@ -173,7 +183,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                 ) : null}
                 <Form.Select
                   name="agent_provider"
-                  onChange={(event) => setValues({ ...values, agentProvider: event.target.value })}
+                  onChange={(event) => setValues({ ...values, agentProvider: event.target.value, model: "" })}
                   value={values.agentProvider}
                 >
                   <option value="">{t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})</option>
@@ -185,6 +195,34 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
             </Field>
           ) : null}
         </div>
+        {values.agentProvider ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t("provider_model_label")}>
+              <Form.Select
+                name="model"
+                onChange={(event) => setValues({ ...values, model: event.target.value })}
+                value={values.model}
+              >
+                <option value="">{t("provider_default_model")}</option>
+                {(selectedProvider?.models || []).map((model) => (
+                  <option key={model.id} value={model.id}>{model.label}</option>
+                ))}
+              </Form.Select>
+            </Field>
+            <Field label={t("provider_effort_label")}>
+              <Form.Select
+                name="effort_level"
+                onChange={(event) => setValues({ ...values, effortLevel: event.target.value })}
+                value={values.effortLevel}
+              >
+                <option value="">{t("provider_default_effort")}</option>
+                {providerRoutingOptions.effort_levels.map((effort) => (
+                  <option key={effort.value} value={effort.value}>{t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}</option>
+                ))}
+              </Form.Select>
+            </Field>
+          </div>
+        ) : null}
         {payload.epic ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {t("form_epic_note")}{" "}
@@ -323,6 +361,8 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
   return {
     repositoryId: payload.selected_repository_id || "",
     agentProvider: payload.selected_agent_provider || "",
+    model: payload.selected_model || "",
+    effortLevel: payload.selected_effort_level || "",
     epicId: payload.selected_epic_id || "",
     title: "",
     prompt: "",

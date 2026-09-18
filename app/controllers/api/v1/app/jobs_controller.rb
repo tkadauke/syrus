@@ -4,6 +4,8 @@ module Api
   module V1
     module App
       class JobsController < BaseController
+        include AgentProviderCatalogOptions
+
         def index
           jobs = policy_scope(Job)
                    .without_active_runtime_work
@@ -122,7 +124,9 @@ module Api
             return
           end
 
-          job.switch_job_provider_setting!(setting)
+          model = setting == "default" ? nil : params[:model].to_s.strip.presence
+          effort_level = setting == "default" ? nil : params[:effort_level].to_s.strip.presence
+          job.switch_job_provider_setting!(setting, model: model, effort_level: effort_level)
           render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user, params: params)
         end
 

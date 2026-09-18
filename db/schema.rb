@@ -1451,6 +1451,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_162508) do
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
     t.json "diff_fixture"
+    t.string "effort_level"
     t.integer "epic_id"
     t.string "epic_title"
     t.string "external_pr_author"
@@ -1505,6 +1506,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_162508) do
     t.string "mergeability_base_sha"
     t.datetime "mergeability_checked_at"
     t.string "mergeability_head_sha"
+    t.string "model"
     t.boolean "needs_attention", default: false, null: false
     t.string "needs_attention_reason"
     t.datetime "needs_attention_since"
@@ -2133,6 +2135,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_162508) do
     t.index ["user_id", "provider", "status", "observed_at"], name: "idx_provider_evidence_user_provider_status_observed"
     t.index ["user_id", "provider", "status", "repair_status", "observed_at", "id"], name: "idx_provider_evidence_user_status_repair_recent"
     t.index ["user_id"], name: "index_provider_availability_evidences_on_user_id"
+  end
+
+  create_table "provider_routing_rules", force: :cascade do |t|
+    t.json "candidates", null: false
+    t.datetime "created_at", null: false
+    t.bigint "scope_id", null: false
+    t.string "scope_type", limit: 32, null: false
+    t.string "task_key", null: false
+    t.datetime "updated_at", null: false
+    t.index ["scope_type", "scope_id", "task_key"], name: "idx_provider_routing_rules_scope_task_key_unique", unique: true
   end
 
   create_table "provider_sessions", force: :cascade do |t|
@@ -2970,7 +2982,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_162508) do
   create_table "users", force: :cascade do |t|
     t.integer "agent_max_turns", default: 200, null: false
     t.string "agent_provider", default: "claude", null: false
-    t.json "agent_provider_failover_policy"
     t.text "api_token"
     t.string "auto_approve_mode", default: "never", null: false
     t.string "avatar_url"

@@ -67,31 +67,22 @@ RSpec.describe ProviderAvailabilityPause do
     end
 
     it "selects the first configured failover provider that is available enough" do
+      workflow.runs.delete_all
       user.update!(
         codex_auth_mode: "api_key",
         codex_api_key: "sk-test",
-        agent_provider_failover_policy: {
-          "enabled" => true,
-          "providers" => %w[codex],
-          "causes" => %w[provider_transient],
-          "override_explicit_pins" => false
-        }
+        provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 }
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: workflow.trigger_kind,
+        candidates: [
+          { "provider" => "claude" },
+          { "provider" => "codex" }
+        ]
       )
       observed_at = 1.minute.ago
-      failover = ProviderFailoverSelector::Decision.new(
-        selected_provider: "codex",
-        original_provider: "claude",
-        reason: "provider_unavailable",
-        availability: {
-          state: "open",
-          open: true,
-          retry_after: 10.minutes.from_now.iso8601,
-          evidence: { current: { observed_at: observed_at.iso8601 } }
-        },
-        candidate_availability: nil,
-        decided_at: Time.current,
-        manual_override: false
-      )
       allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
         {
           state: "open",
@@ -101,9 +92,6 @@ RSpec.describe ProviderAvailabilityPause do
         }
       )
       allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
-      allow(ProviderFailoverSelector).to receive(:call)
-        .with(workflow: workflow, reason: "provider_unavailable", availability: kind_of(Hash), now: anything)
-        .and_return(failover)
 
       decision = described_class.call(workflow: workflow)
 
@@ -124,16 +112,17 @@ RSpec.describe ProviderAvailabilityPause do
       user.update!(
         codex_auth_mode: "api_key",
         codex_api_key: "sk-test",
-        agent_provider_failover_policy: {
-          "enabled" => true,
-          "providers" => %w[codex],
-          "causes" => %w[provider_transient],
-          "override_explicit_pins" => false
-        }
+        provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 }
       )
-      allow_any_instance_of(Job).to receive(:agent_provider_failover_candidates)
-        .with(cause: "provider_transient")
-        .and_return([ "codex" ])
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: workflow.trigger_kind,
+        candidates: [
+          { "provider" => "claude" },
+          { "provider" => "codex" }
+        ]
+      )
       workflow.first_step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind, agent_provider: "claude")
       allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
         { state: "open", open: true, retry_after: 10.minutes.from_now.iso8601 }
@@ -145,71 +134,6 @@ RSpec.describe ProviderAvailabilityPause do
       expect(decision).to be_pause
       expect(decision).not_to be_failover
       expect(App::ProviderAvailability).not_to have_received(:for_user).with(user, "codex", now: anything)
-    end
-  end
-
-  describe ProviderFailoverSelector do
-    it "returns the first configured candidate whose availability is usable" do
-      user.update!(
-        codex_auth_mode: "api_key",
-        codex_api_key: "sk-test",
-        agent_provider_failover_policy: {
-          "enabled" => true,
-          "providers" => %w[codex],
-          "causes" => %w[provider_transient],
-          "override_explicit_pins" => false
-        }
-      )
-      selector_job = instance_double(Job, job_provider_setting_default?: true)
-      selector_workflow = instance_double(
-        Workflow,
-        user: user,
-        job: selector_job,
-        agent_provider: "claude",
-        runs: instance_double(ActiveRecord::Relation, none?: true)
-      )
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
-
-      decision = ProviderFailoverSelector.call(
-        workflow: selector_workflow,
-        reason: "provider_unavailable",
-        availability: { state: "open", open: true }
-      )
-
-      expect(decision).to be_failover
-      expect(decision.selected_provider).to eq("codex")
-    end
-
-    it "filters candidates against the workflow provider instead of the job default provider" do
-      user.update!(
-        codex_auth_mode: "api_key",
-        codex_api_key: "sk-test",
-        agent_provider_failover_policy: {
-          "enabled" => true,
-          "providers" => %w[claude],
-          "causes" => %w[provider_transient],
-          "override_explicit_pins" => false
-        }
-      )
-      selector_job = instance_double(Job, workflow_agent_provider: "claude", job_provider_setting_default?: true)
-      selector_workflow = instance_double(
-        Workflow,
-        user: user,
-        job: selector_job,
-        agent_provider: "codex",
-        runs: instance_double(ActiveRecord::Relation, none?: true)
-      )
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(nil)
-
-      decision = ProviderFailoverSelector.call(
-        workflow: selector_workflow,
-        reason: "provider_unavailable",
-        availability: { state: "open", open: true }
-      )
-
-      expect(decision).to be_failover
-      expect(decision.original_provider).to eq("codex")
-      expect(decision.selected_provider).to eq("claude")
     end
   end
 end

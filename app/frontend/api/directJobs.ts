@@ -1,4 +1,5 @@
 import { getJson, postForm } from "./client"
+import type { ProviderRoutingOptions } from "./providerRoutingRules"
 
 export type DirectJobRepository = {
   id: number
@@ -11,6 +12,10 @@ export type DirectJobRepository = {
 export type DirectJobAgentProvider = {
   value: string
   label: string
+  models?: Array<{
+    id: string
+    label: string
+  }>
 }
 
 export type DirectJobPromptTemplate = {
@@ -35,8 +40,11 @@ export type DirectJobEpic = {
 export type DirectJobFormPayload = {
   repositories: DirectJobRepository[]
   configured_agent_providers: DirectJobAgentProvider[]
+  provider_routing_options: ProviderRoutingOptions
   selected_repository_id: string | null
   selected_agent_provider: string | null
+  selected_model: string | null
+  selected_effort_level: string | null
   selected_epic_id: string | null
   epic: DirectJobEpic | null
   create_more: boolean
@@ -50,6 +58,8 @@ export type DirectJobFormPayload = {
 export type CreateDirectJobInput = {
   repositoryId: string
   agentProvider: string
+  model: string
+  effortLevel: string
   epicId: string
   title: string
   prompt: string
@@ -81,6 +91,8 @@ export function createDirectJob(values: CreateDirectJobInput) {
   const formData = new FormData()
   formData.append("repository_id", values.repositoryId)
   formData.append("agent_provider", values.agentProvider)
+  formData.append("model", values.model)
+  formData.append("effort_level", values.effortLevel)
   if (values.epicId) {
     formData.append("epic_id", values.epicId)
   }

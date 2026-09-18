@@ -166,21 +166,25 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
   end
 
-  it "updates the job provider setting without rewriting existing workflow pins" do
+  it "updates the job provider setting and job-level model override without rewriting existing workflow pins" do
     user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
     old_workflow = job.latest_workflow
     old_workflow.update!(agent_provider: "claude")
 
     patch "/api/v1/app/jobs/#{job.id}/provider_setting",
-      params: { job_provider_setting: "codex" },
+      params: { job_provider_setting: "codex", model: "gpt-5.2-codex", effort_level: "high" },
       as: :json
 
     expect(response).to have_http_status(:ok)
     expect(job.reload.job_provider_setting).to eq("codex")
-    expect(job.agent_provider).to eq("claude")
+    expect(job.agent_provider).to eq("codex")
+    expect(job.model).to eq("gpt-5.2-codex")
+    expect(job.effort_level).to eq("high")
     expect(old_workflow.reload.agent_provider).to eq("claude")
     expect(parse_body.dig("job", "agent_provider")).to eq("codex")
     expect(parse_body.dig("job", "job_provider_setting")).to eq("codex")
+    expect(parse_body.dig("job", "model")).to eq("gpt-5.2-codex")
+    expect(parse_body.dig("job", "effort_level")).to eq("high")
   end
 
   it "repins and wakes unstarted workflows paused on the previous provider" do

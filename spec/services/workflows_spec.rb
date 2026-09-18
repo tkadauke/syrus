@@ -68,6 +68,37 @@ RSpec.describe Workflows do
       expect(wf.artifact("agent_provider_selection")).to eq("explicit")
     end
 
+    it "selects the first available routed candidate for a default workflow" do
+      job.user.update!(provider_availability_pause_thresholds: { "claude" => 10, "codex" => 10 })
+      allow(AgentProviders.for("claude")).to receive(:available_models).and_return([])
+      allow(AgentProviders.for("codex")).to receive(:available_models).and_return([])
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: "initial",
+        candidates: [
+          { "provider" => "claude", "model" => "claude-sonnet-4-6", "effort_level" => "medium" },
+          { "provider" => "codex", "model" => "gpt-5.2-codex", "effort_level" => "high" }
+        ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(job.user, "claude", now: anything).and_return(
+        { provider: "claude", state: "open", open: true, retry_after: 10.minutes.from_now.iso8601 }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(job.user, "codex", now: anything).and_return(nil)
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.agent_provider).to eq("codex")
+      expect(wf.model).to eq("gpt-5.2-codex")
+      expect(wf.effort_level).to eq("high")
+      expect(wf.artifact("agent_provider_routing_decision")).to include(
+        "original_provider" => "claude",
+        "selected_provider" => "codex",
+        "selected_model" => "gpt-5.2-codex",
+        "selected_effort_level" => "high"
+      )
+    end
+
     it "leaves model/effort_level nil and records default selection when not passed" do
       allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))

@@ -40,6 +40,7 @@ import { Button } from "../components/Button"
 import { Checkbox as CheckboxPrimitive } from "../components/Checkbox"
 import { Form } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
+import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
 
 type OwnerOption = {
   login: string
@@ -415,6 +416,17 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </Form.Select>
             <Form.HelpText>{t('repository_form.agent_hint')}</Form.HelpText>
           </Field>
+
+          {mode === "edit" && payload.repository.id ? (
+            <ProviderRoutingRulesEditor
+              basePath={`/api/v1/app/repositories/${payload.repository.id}/provider_routing_rules`}
+              description={t("provider_routing.repository_description")}
+              options={payload.provider_routing_options}
+              queryKey={["repositories", mode, String(payload.repository.id)]}
+              rules={payload.provider_routing_rules}
+              title={t("provider_routing.title")}
+            />
+          ) : null}
 
           <Field label={t('repository_form.label_auto_approve')}>
             <Form.Select
