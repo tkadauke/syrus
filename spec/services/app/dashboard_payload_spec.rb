@@ -451,6 +451,26 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "kanban lane classification for overridden dependencies" do
+    it "places an override-started, queued job in the queued lane, not blocked" do
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[queued blocked])
+      blocker_one = Factories.job_record(user: user, repository: repo, state: "approved", approved_at: Time.current)
+      blocker_two = Factories.job_record(user: user, repository: repo, state: "approved", approved_at: Time.current)
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", state: "queued", issue_number: nil)
+      JobDependency.create!(job: job, depends_on_job: blocker_one, source: "manual", created_by_user: user)
+      JobDependency.create!(job: job, depends_on_job: blocker_two, source: "manual", created_by_user: user)
+      job.update!(dependencies_overridden_at: Time.current, dependencies_overridden_by_user: user)
+
+      result = call(subject: "job", view: "kanban", scope: "mine")
+
+      queued_lane = result.fetch(:lanes).find { |candidate| candidate.fetch(:key) == "queued" }
+      blocked_lane = result.fetch(:lanes).find { |candidate| candidate.fetch(:key) == "blocked" }
+
+      expect(queued_lane.fetch(:items).map { |item| item.fetch(:id) }).to include(job.id)
+      expect(blocked_lane.fetch(:items).map { |item| item.fetch(:id) }).not_to include(job.id)
+    end
+  end
+
   describe "active workflow trigger on job items" do
     it "uses preloaded active workflow trigger data for running jobs" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
