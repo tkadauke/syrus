@@ -814,6 +814,39 @@ RSpec.describe Steps::Base, :ci_only do
         .to raise_error(Steps::Base::AgentBrokeGitState, /no common ancestor with origin\/master/)
       expect(run.reload.agent_outcome).to eq("git_state_corrupt")
     end
+
+    # Regression for JOB-5006/WF-28504: a stack-child Job's base_ref is the
+    # parent Job's branch, resolved fresh on every new WorkflowWorkspace
+    # instance. A workspace that's reused across Runs within the same
+    # Workflow is never re-fetched, so a ref that genuinely exists on origin
+    # can still be absent locally (e.g. the local clone predates the parent
+    # branch's latest push, or the ref was pruned). `git merge-base` reports
+    # that the exact same way as a real orphan branch -- exit 128 -- so
+    # without this fix it was misreported as agent-caused git corruption.
+    it "self-heals and does not flag git_state_corrupt when base_ref is missing locally but still resolvable on origin" do
+      system("git", "-C", workspace_dir.to_s, "update-ref", "-d",
+             "refs/remotes/origin/syrus/issue-198-431", out: File::NULL, err: File::NULL)
+      expect(`git -C #{workspace_dir} rev-parse --verify --quiet refs/remotes/origin/syrus/issue-198-431`.strip)
+        .to eq(""), "expected the base ref to be missing locally before the self-heal"
+
+      allow(handler).to receive(:workspace).and_return(stacked_fake_ws)
+      allow(handler).to receive(:authenticated_git).and_yield(bare_remote.to_s)
+
+      expect { handler.send(:assert_branch_history_intact!) }.not_to raise_error
+      expect(run.reload.agent_outcome).not_to eq("git_state_corrupt")
+      expect(`git -C #{workspace_dir} rev-parse --verify --quiet refs/remotes/origin/syrus/issue-198-431`.strip)
+        .not_to eq(""), "expected the fetch-and-retry to have created the missing ref"
+    end
+
+    it "raises a distinct, retryable error (not git_state_corrupt) when base_ref still doesn't resolve after fetching" do
+      unresolvable_ws = instance_double(WorkflowWorkspace, path: workspace_dir, base_ref: "origin/syrus/does-not-exist-anywhere")
+      allow(handler).to receive(:workspace).and_return(unresolvable_ws)
+      allow(handler).to receive(:authenticated_git).and_yield(bare_remote.to_s)
+
+      expect { handler.send(:assert_branch_history_intact!) }
+        .to raise_error(Steps::Base::BranchHistoryBaseUnresolvable, /could not resolve base ref origin\/syrus\/does-not-exist-anywhere/)
+      expect(run.reload.agent_outcome).not_to eq("git_state_corrupt")
+    end
   end
 
   # the relevant change regression: Steps::Summarize amends the implement commit's
