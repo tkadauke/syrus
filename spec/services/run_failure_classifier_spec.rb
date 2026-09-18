@@ -445,6 +445,42 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).not_to eq("provider_auth_or_config")
   end
 
+  it "does not mislabel a rejected repair-commit push as auth/config just because the logged URL embeds x-access-token" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "external_pr_merge: failed to push repair commits to contributor-branch: " \
+      "git push https://x-access-token:[REDACTED]@github.com/acme/widgets.git exited 1\n" \
+      "! [rejected] HEAD -> contributor-branch (fetch first)\n" \
+      "Updates were rejected because the remote contains work that you do not have locally."
+    )
+
+    expect(classification.classification).not_to eq("provider_auth_or_config")
+  end
+
+  it "still classifies a genuine invalid/expired/missing token message as provider auth/config" do
+    run.update!(state: "failed")
+    diagnostic("StandardError", "Request failed: the access token is invalid, please reauthorize.")
+
+    expect(classification.classification).to eq("provider_auth_or_config")
+  end
+
+  it "classifies a rejected repair-commit push as branch_diverged when the step declared that problem, despite the logged x-access-token URL" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::ExternalPrMerge::RemoteBranchAdvancedRebaseConflict",
+      "external_pr_merge: remote branch contributor-branch advanced and could not be reconciled: " \
+      "git push https://x-access-token:[REDACTED]@github.com/acme/widgets.git exited 1\n" \
+      "! [rejected] HEAD -> contributor-branch (fetch first)\n" \
+      "Updates were rejected because the remote contains work that you do not have locally."
+    ).update!(problem_code: "branch_diverged")
+
+    result = classification
+
+    expect(result.classification).to eq("branch_diverged")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies rate limits from structured JobLog rows" do
     run.update!(state: "failed")
     JobLog.append!(run: run, chunk: "Provider paused this request", kind: "rate_limited")
