@@ -3743,6 +3743,88 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(agent_run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
   end
 
+  it "does not schedule a second resume_failed_step retry for repeated reconciler passes over the same worker-died agentic Run" do
+    agent_step = workflow.steps.find_by!(kind: "implement")
+    agent_run = agent_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: "claude",
+      state: "running",
+      started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago,
+      last_heartbeat_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    )
+    ProviderSession.create!(resumable: agent_run, provider: "claude", session_id: "session-1", transcript_jsonl: "{}\n")
+    agent_step.update_columns(state: "running", started_at: agent_run.started_at)
+    workflow.update_columns(state: "running", started_at: agent_run.started_at)
+    ensure_solid_queue_test_tables!
+
+    reconcile_and_execute(run_id: agent_run.id)
+    first_attempt = AutoRetryAttempt.find_by!(run: agent_run, retry_kind: "resume_failed_step")
+    # Simulate AutoRetryJob already having consumed this attempt (as it would
+    # almost immediately, since worker_died retries are scheduled for "now"),
+    # the exact state in which the old auto_retry_blocker_for's
+    # workflow-wide `pending.exists?` check stopped protecting against a
+    # second mark_worker_died_and_resume_failed_step / resume_failed_step
+    # repair for this same Run.
+    first_attempt.update!(performed_at: Time.current)
+
+    expect {
+      3.times { reconcile_and_execute(run_id: agent_run.id) }
+    }.not_to change { AutoRetryAttempt.count }
+
+    expect(AutoRetryAttempt.where(run: agent_run).count).to eq(1)
+    expect(first_attempt.reload).to have_attributes(performed_at: be_present, skipped_reason: nil)
+  end
+
+  it "does not schedule a second failed_step retry for repeated reconciler passes over the same worker-died grader_fanout Run" do
+    # A grader Step normally self-heals a worker_died failure in place
+    # (Runs::LifecyclePropagation#retried_in_place_after_worker_died?, up to
+    # Run::WORKER_DIED_STEP_MAX_RETRIES), bypassing AutoRetryAttempt entirely.
+    # Exhaust that budget first so this Run's failure escalates to the same
+    # reconciler-driven mark_worker_died_and_retry_failed_step path an
+    # agentic Run would use.
+    step.update_columns(kind: "grader", next_step_id: nil)
+    Run::WORKER_DIED_STEP_MAX_RETRIES.times do |index|
+      prior_run = step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider,
+        state: "failed",
+        finished_at: (Run::WORKER_DIED_STEP_MAX_RETRIES - index).hours.ago
+      )
+      RunFailureClassification.create!(
+        run: prior_run,
+        classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+        retryable: true,
+        confidence: 0.9,
+        reason: "worker process disappeared",
+        classified_at: prior_run.finished_at
+      )
+    end
+    workflow.update_columns(state: "running", started_at: 20.minutes.ago)
+    step.update_columns(state: "running", started_at: 20.minutes.ago)
+    run.update_columns(
+      state: "running",
+      started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago,
+      last_heartbeat_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    )
+    ensure_solid_queue_test_tables!
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    reconcile_and_execute(run_id: run.id)
+    first_attempt = AutoRetryAttempt.find_by!(run: run, retry_kind: "failed_step")
+    first_attempt.update!(performed_at: Time.current)
+
+    expect {
+      3.times { reconcile_and_execute(run_id: run.id) }
+    }.not_to change { AutoRetryAttempt.count }
+
+    expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
+    expect(AutoRetryAttempt.where(run: run).count).to eq(1)
+    expect(first_attempt.reload).to have_attributes(performed_at: be_present, skipped_reason: nil)
+  end
+
   it "does not fail a detached Run inside grace or a Run with a live spawned process" do
     fresh = step.runs.create!(
       job: job,
@@ -5376,10 +5458,17 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
         classified_at: now
       )
       prior_attempt_count.times do |index|
+        prior_run = retry_step.runs.create!(
+          job: retry_job,
+          trigger_kind: retry_workflow.trigger_kind,
+          agent_provider: retry_run.agent_provider,
+          state: "failed",
+          finished_at: now - 1.hour
+        )
         AutoRetryAttempt.create!(
           job: retry_job,
           workflow: retry_workflow,
-          run: retry_run,
+          run: prior_run,
           agent_provider: retry_run.agent_provider,
           failure_classification: "timeout",
           retry_kind: "failed_step",
