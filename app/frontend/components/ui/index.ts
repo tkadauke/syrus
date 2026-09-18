@@ -61,7 +61,7 @@ export {
 } from "../StatusPill"
 export type { BannerTone, PillTone } from "../StatusPill"
 
-export { Surface, surfaceClasses, SURFACE_PADDING_CLASSES, SURFACE_VARIANT_CLASSES } from "./Surface"
+export { Surface, surfaceClasses, SURFACE_CLIP_ROUNDED_CLASS, SURFACE_PADDING_CLASSES, SURFACE_VARIANT_CLASSES } from "./Surface"
 export type { SurfacePadding, SurfaceProps, SurfaceVariant } from "./Surface"
 
 export { ActivityRow, Timeline } from "./Timeline"
