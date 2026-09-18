@@ -121,18 +121,31 @@ module Steps
 
     private
 
-    # A retry reopens and reuses the same Step record, only adding a new Run
-    # (see RetryFailedStepEnqueuer#reopen_step!), so a failure recorded on
-    # step.details by an earlier attempt otherwise survives a later attempt
-    # that succeeds -- the UI kept showing "setup failed before the agent
-    # started" on top of the step panel long after a retry had fixed it. Clear
-    # both failure keys before this attempt runs so stale detail from a prior
-    # Run never outlives it; a fresh failure this attempt re-records them.
-    def clear_stale_failure_details!
-      stale_keys = %w[prepare_failure mise_install_failure]
-      return unless step.details.is_a?(Hash) && stale_keys.any? { |key| step.details.key?(key) }
+    STALE_FAILURE_KEYS = %w[prepare_failure mise_install_failure].freeze
 
-      step.update!(details: step.details.except(*stale_keys))
+    # A retry reopens and reuses the same Step *and* Workflow record, only
+    # adding a new Run (see RetryFailedStepEnqueuer#reopen_step!, which never
+    # resets `workflow.artifacts`), so a failure recorded by an earlier
+    # attempt on both step.details and workflow.artifacts otherwise survives
+    # a later attempt that succeeds. On the UI side that kept showing "setup
+    # failed before the agent started" on top of the step panel long after a
+    # retry had fixed it; on the workflow side, GraderFanout/PreflightGraderFanout's
+    # `prepared_workspace_matches_current_plan?` treats a present
+    # `workflow.artifact("prepare_failure")` as a permanent veto against
+    # publishing the prepared-workspace archive for distributed grader reuse,
+    # so a stale artifact silently disables that fast path forever. Clear both
+    # copies of both failure keys before this attempt runs so stale detail
+    # from a prior Run never outlives it; a fresh failure this attempt
+    # re-records them.
+    def clear_stale_failure_details!
+      if step.details.is_a?(Hash) && STALE_FAILURE_KEYS.any? { |key| step.details.key?(key) }
+        step.update!(details: step.details.except(*STALE_FAILURE_KEYS))
+      end
+
+      workflow_artifacts = workflow.artifacts
+      return unless workflow_artifacts.is_a?(Hash) && STALE_FAILURE_KEYS.any? { |key| workflow_artifacts.key?(key) }
+
+      workflow.update!(artifacts: workflow_artifacts.except(*STALE_FAILURE_KEYS))
     end
 
     def record_prepared_workspace!(plan)
