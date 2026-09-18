@@ -6,12 +6,13 @@ require "rails_helper"
 # only the per-source degradation guard needs a stand-in.
 RSpec.describe Metrics::WorkerSampler do
   class FakeWorkerSource
-    attr_writer :worker_cpu_percentages, :worker_memory_percentages, :active_agent_run_count,
-                :max_concurrent_agent_runs, :finished_steps
+    attr_writer :worker_cpu_percentages, :worker_memory_percentages, :worker_disk_percentages,
+                :active_agent_run_count, :max_concurrent_agent_runs, :finished_steps
 
     def initialize
       @worker_cpu_percentages = {}
       @worker_memory_percentages = {}
+      @worker_disk_percentages = {}
       @active_agent_run_count = 0
       @max_concurrent_agent_runs = 0
       @finished_steps = []
@@ -19,6 +20,7 @@ RSpec.describe Metrics::WorkerSampler do
 
     def worker_cpu_percentages = resolve(@worker_cpu_percentages)
     def worker_memory_percentages = resolve(@worker_memory_percentages)
+    def worker_disk_percentages = resolve(@worker_disk_percentages)
     def active_agent_run_count = resolve(@active_agent_run_count)
     def max_concurrent_agent_runs = resolve(@max_concurrent_agent_runs)
     def finished_steps(after:, through:) = resolve(@finished_steps)
@@ -48,18 +50,18 @@ RSpec.describe Metrics::WorkerSampler do
   def sample!(**opts) = described_class.sample!(**opts)
   def refresh!(**opts) = described_class.refresh_gauges!(**opts)
 
-  def worker_sample(hostname:, cpu:, memory:, observed_at: Time.current)
+  def worker_sample(hostname:, cpu:, memory:, disk: nil, observed_at: Time.current)
     WorkerHostHealthSample.create!(
       hostname: hostname, role: "worker", version: "abc123", observed_at: observed_at,
-      cpu_used_percent: cpu, memory_used_percent: memory
+      cpu_used_percent: cpu, memory_used_percent: memory, data_root_used_percent: disk
     )
   end
 
   describe "#sample!" do
-    it "caches worker cpu/memory percentages from the latest sample per hostname" do
-      worker_sample(hostname: "worker-a", cpu: 87.5, memory: 42.0)
-      worker_sample(hostname: "worker-a", cpu: 10.0, memory: 5.0, observed_at: 10.minutes.ago) # stale, excluded
-      worker_sample(hostname: "worker-b", cpu: 12.0, memory: 30.0)
+    it "caches worker cpu/memory/disk percentages from the latest sample per hostname" do
+      worker_sample(hostname: "worker-a", cpu: 87.5, memory: 42.0, disk: 63.0)
+      worker_sample(hostname: "worker-a", cpu: 10.0, memory: 5.0, disk: 5.0, observed_at: 10.minutes.ago) # stale, excluded
+      worker_sample(hostname: "worker-b", cpu: 12.0, memory: 30.0, disk: 20.0)
 
       sample!
       refresh!
@@ -67,7 +69,9 @@ RSpec.describe Metrics::WorkerSampler do
       rendered = Syrus::Metrics.render
       expect(rendered).to include('syrus_worker_cpu_percent{hostname="worker-a"} 87.5')
       expect(rendered).to include('syrus_worker_memory_percent{hostname="worker-a"} 42')
+      expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-a"} 63')
       expect(rendered).to include('syrus_worker_cpu_percent{hostname="worker-b"} 12')
+      expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-b"} 20')
     end
 
     it "caches active_agent_runs from currently-running agentic Runs" do
