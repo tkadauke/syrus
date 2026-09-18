@@ -192,8 +192,7 @@ export function useDiffReviewFeedback({
     const trimmed = body.trim()
     if (!trimmed) return
     const message = discussionMessageForSelection({ body: trimmed, headRef, selection })
-    cancelComposer()
-    discussComment.mutate(message)
+    discussComment.mutate(message, { onSuccess: () => cancelComposer() })
   }
 
   function commentOnReview() {
@@ -273,7 +272,6 @@ export function useDiffReviewFeedback({
         createError={createComment.error}
         createPending={createComment.isPending}
         deleteError={deleteComment.error}
-        discussError={discussComment.error}
         deletePending={deleteComment.isPending}
         editing={editing}
         handledComments={handledComments}
@@ -356,7 +354,6 @@ function DiffReviewFeedbackPanel({
   createPending,
   deleteError,
   deletePending,
-  discussError,
   editing,
   handledComments,
   isComposing,
@@ -395,7 +392,6 @@ function DiffReviewFeedbackPanel({
   createPending: boolean
   deleteError: Error | null
   deletePending: boolean
-  discussError: Error | null
   editing: DiffReviewComment | null
   handledComments: DiffReviewComment[]
   isComposing: boolean
@@ -485,7 +481,6 @@ function DiffReviewFeedbackPanel({
         })}
       </div>
       {deleteError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
-      {discussError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(discussError, t("review_discuss_error"))}</p> : null}
 
       {isComposing ? (
         <div className="mt-4 min-w-0 rounded border border-brand/30 bg-brand/5 p-3">
