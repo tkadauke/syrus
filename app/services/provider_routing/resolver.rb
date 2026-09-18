@@ -31,6 +31,7 @@ module ProviderRouting
         rule_candidates(scope_type: "repository", scope_id: repository_id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
         rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: task_key) ||
         rule_candidates(scope_type: "user", scope_id: effective_user&.id, task_key: ProviderRoutingRule::DEFAULT_TASK_KEY) ||
+        default_provider_candidates ||
         HARDCODED_FALLBACK
     end
 
@@ -47,6 +48,20 @@ module ProviderRouting
       # presentation and legacy callers, but the setting remains the source of
       # truth for explicit pins.
       [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level) ]
+    end
+
+    # No explicit job pin and no repository/user routing rule matched. Fall
+    # back to the pre-routing-rule single-value default
+    # (Repository#effective_agent_provider / User#agent_provider, via
+    # Job::ProviderSetting::Default#resolve) before the last-resort hardcoded
+    # candidate, so a repository/user that hasn't authored a routing rule yet
+    # keeps its existing default provider instead of silently landing on
+    # HARDCODED_FALLBACK's "claude".
+    def default_provider_candidates
+      provider = job.workflow_agent_provider
+      return nil if provider.blank?
+
+      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
     end
 
     def rule_candidates(scope_type:, scope_id:, task_key:)
