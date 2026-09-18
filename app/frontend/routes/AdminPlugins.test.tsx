@@ -100,7 +100,7 @@ describe("AdminPlugins", () => {
     expect(within(list).getByRole("heading", { name: "Codex Agent" })).toBeInTheDocument()
     expect(within(list).getByText("codex_agent")).toBeInTheDocument()
     expect(within(list).getByText("1.2.3")).toBeInTheDocument()
-    expect(within(list).getByRole("link", { name: "Details" })).toHaveAttribute("href", "/admin/plugins/codex_agent")
+    expect(within(list).getByRole("link", { name: "Codex Agent" })).toHaveAttribute("href", "/admin/plugins/codex_agent")
     expect(within(list).queryByText("AgentProviders::Codex")).not.toBeInTheDocument()
     expect(within(list).queryByText("OpenAI")).not.toBeInTheDocument()
   })
@@ -161,7 +161,7 @@ describe("AdminPlugins", () => {
     expect(screen.queryByText("Source")).not.toBeInTheDocument()
   })
 
-  it("links inventory cards to the plugin detail page", async () => {
+  it("links the plugin title to the plugin detail page", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
         {
@@ -190,7 +190,8 @@ describe("AdminPlugins", () => {
     renderRoute(<AdminPlugins />)
 
     await screen.findByRole("region", { name: "Registered plugins" })
-    expect(screen.getByRole("link", { name: "Details" })).toHaveAttribute("href", "/admin/plugins/claude_agent")
+    expect(screen.getByRole("link", { name: "Claude Agent" })).toHaveAttribute("href", "/admin/plugins/claude_agent")
+    expect(screen.queryByRole("link", { name: "Details" })).not.toBeInTheDocument()
     expect(screen.queryByText("AgentProviders::Claude")).not.toBeInTheDocument()
   })
 
@@ -704,6 +705,14 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("GET /api/v1/app/terminal_sessions")).toBeInTheDocument()
     expect(screen.getByText("Terminal::SidebarPages")).toBeInTheDocument()
     expect(screen.getByText("/app/plugins/terminal")).toBeInTheDocument()
+
+    const homepageLinks = screen.getAllByRole("link", { name: "https://example.test/terminal" })
+    expect(homepageLinks.length).toBeGreaterThan(0)
+    homepageLinks.forEach((link) => {
+      expect(link).toHaveAttribute("href", "https://example.test/terminal")
+      expect(link).toHaveAttribute("target", "_blank")
+      expect(link).toHaveAttribute("rel", "noreferrer")
+    })
   })
 
   it("renders detail empty states and hides enabled-only links while disabled", async () => {

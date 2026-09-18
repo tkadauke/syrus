@@ -42,17 +42,30 @@ export function Modal({
   const panelRef = useRef<HTMLDivElement>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
 
+  // Callers frequently pass inline callbacks (e.g. `onClose={() => setOpen(false)}`)
+  // and inline refs, so these props get a new identity on every parent render --
+  // including renders triggered by typing into a field inside the modal. Reading
+  // them through refs keeps the effect below scoped to `open` transitions only;
+  // otherwise every keystroke re-ran the initial-focus logic and yanked focus
+  // back to the panel's first focusable element after each character.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const closeOnEscapeRef = useRef(closeOnEscape)
+  closeOnEscapeRef.current = closeOnEscape
+  const initialFocusRef_ = useRef(initialFocusRef)
+  initialFocusRef_.current = initialFocusRef
+
   useEffect(() => {
     if (!open) return
 
     previouslyFocusedRef.current = document.activeElement as HTMLElement | null
 
-    const target = initialFocusRef?.current ?? panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ?? panelRef.current
+    const target = initialFocusRef_.current?.current ?? panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ?? panelRef.current
     target?.focus()
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        if (closeOnEscape) onClose()
+        if (closeOnEscapeRef.current) onCloseRef.current()
         return
       }
 
@@ -84,7 +97,8 @@ export function Modal({
       document.removeEventListener("keydown", onKeyDown)
       previouslyFocusedRef.current?.focus?.()
     }
-  }, [open, onClose, closeOnEscape, initialFocusRef])
+     
+  }, [open])
 
   if (!open) return null
 
