@@ -2788,7 +2788,6 @@ Bundled plugins:
   `Syrus::PluginRegistry.upsert_plugin_record!` only applies a manifest's
   `default_enabled` value to a brand-new `PluginRecord`, never to one that
   already exists.
-
   With every agent-provider plugin off by default, `User.agent_providers`
   (the list every `agent_provider`/`provider` column's `inclusion` validation
   checks against — `User`, `Job`, `Workflow`, `Run`, `AutoRetryAttempt`,
