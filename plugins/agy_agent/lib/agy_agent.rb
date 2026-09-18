@@ -9,7 +9,7 @@ module SyrusAgyAgent
     icon_url "/plugin-icons/agy_agent.svg"
     author "Thomas Kadauke"
     category "agent_provider"
-    default_enabled true
+    default_enabled false
     disableable true
     provides agent_provider: "AgentProviders::Agy",
              chat_provider: "ChatProviders::Agy"
