@@ -166,18 +166,26 @@ RSpec.describe ReapOrphanedSpawnedProcessesJob do
     expect(tool_result.content.dig("content", 0, "text")).to eq("Cancelled by operator before this tool returned.")
   end
 
-  it "marks orphaned chat agent turns as failed when there was no stop request" do
+  it "schedules an auto-retry for orphaned chat agent turns when there was no stop request" do
     user = Factories.user(claude_oauth_token: "oat-test")
     chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-reaper-failed")
-    chat.messages.create!(role: "user", content: { "text" => "This turn crashed" }, created_at: 20.seconds.ago)
+    message = chat.messages.create!(role: "user", content: { "text" => "This turn crashed" }, created_at: 20.seconds.ago)
     fixture(hostname: "dead-pod-xyz", workdir: chat.workspace_root.to_s, started_at: 15.seconds.ago)
     stub_live_hosts("live-pod")
 
-    described_class.perform_now
+    expect {
+      described_class.perform_now
+    }.to change(ChatTurnAutoRetryAttempt, :count).by(1)
 
     expect(chat.reload.stop_requested_at).to be_nil
-    expect(chat).not_to be_turn_in_flight
-    expect(chat.messages.order(:created_at).pluck(:role, :content)).to include(
+    expect(chat).to be_turn_in_flight
+    expect(ChatTurnAutoRetryAttempt.last).to have_attributes(
+      chat_session: chat,
+      root_user_message: message,
+      user_message: message,
+      attempt_number: 1
+    )
+    expect(chat.messages.order(:created_at).pluck(:role, :content)).not_to include(
       [ "system", { "text" => "Agent turn failed." } ]
     )
   end
