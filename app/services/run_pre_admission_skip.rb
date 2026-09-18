@@ -107,6 +107,8 @@ class RunPreAdmissionSkip
         "visual_review_iterations" => iterations + [
           {
             "iteration" => step.iteration,
+            "step_id" => step.id,
+            "run_id" => run.id,
             "critique" => VISUAL_REVIEW_PREFILTER_MESSAGE,
             "verdict" => "skipped"
           }
