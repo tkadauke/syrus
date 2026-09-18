@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ReactElement } from "react"
 import type { CredentialsPayload } from "../../api/credentials"
-import { AgyCredentialCard, ClaudeCredentialCard, CodexCredentialCard, GeminiCredentialCard, GithubCredentialCard } from "./CredentialCard"
+import { AgyCredentialCard, ClaudeCredentialCard, CodexCredentialCard, GeminiCredentialCard, GithubCredentialCard, MuseCredentialCard } from "./CredentialCard"
 
 function makePayload(overrides: {
   credential_status?: Partial<CredentialsPayload["credential_status"]>
@@ -405,5 +405,49 @@ describe("AgyCredentialCard", () => {
 
     const testCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/test_credential"))
     expect(JSON.parse(testCall?.[1]?.body as string)).toEqual({ credential: "agy" })
+  })
+})
+
+describe("MuseCredentialCard", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("saves the API key per-card and blocks blank saves", async () => {
+    const fetchSpy = mockRoutes({ patch: () => jsonResponse(makePayload({ credential_status: { muse_api_key: true } })) })
+    const onNotice = vi.fn()
+    renderCard(<MuseCredentialCard onNotice={onNotice} payload={makePayload()} />)
+
+    const save = screen.getByRole("button", { name: "Save" })
+    expect(save).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText("Muse API key"), { target: { value: "LLM|test-123" } })
+    fireEvent.click(save)
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Muse API key saved."))
+    const calls = patchCalls(fetchSpy)
+    expect(calls).toHaveLength(1)
+    expect(JSON.parse(calls[0][1]?.body as string)).toEqual({ user: { muse_api_key: "LLM|test-123" } })
+  })
+
+  it("shows the connected summary with Test/Replace/Clear when saved", () => {
+    mockRoutes()
+    renderCard(<MuseCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { muse_api_key: true } })} />)
+
+    expect(screen.getByText("Connected")).toBeInTheDocument()
+    expect(screen.getByText("A Muse API key is saved for future Muse runs.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Test" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Replace" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument()
+  })
+
+  it("clears only via the explicit Clear action", async () => {
+    const fetchSpy = mockRoutes({ clear: () => jsonResponse({ ...makePayload(), message: "Muse API key cleared." }) })
+    const onNotice = vi.fn()
+    renderCard(<MuseCredentialCard onNotice={onNotice} payload={makePayload({ credential_status: { muse_api_key: true } })} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Muse API key cleared."))
+    const clearCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/clear_credential"))
+    expect(JSON.parse(clearCall?.[1]?.body as string)).toEqual({ credential: "muse_api_key" })
   })
 })
