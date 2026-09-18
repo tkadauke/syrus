@@ -41,10 +41,11 @@ module ProviderRouting
     def job_override_candidates
       return nil if job.job_provider_setting_default?
 
-      # job.agent_provider is only set once at creation (Job#default_agent_provider)
-      # and does not follow a later explicit pin via switch_job_provider_setting!,
-      # which only updates job_provider_setting -- workflow_agent_provider is the
-      # one that resolves job_provider_setting itself and so stays current.
+      # Use workflow_agent_provider so the candidate is derived from the pinned
+      # job_provider_setting rather than duplicating ProviderSetting resolution
+      # here. switch_job_provider_setting! keeps agent_provider in sync for
+      # presentation and legacy callers, but the setting remains the source of
+      # truth for explicit pins.
       [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level) ]
     end
 

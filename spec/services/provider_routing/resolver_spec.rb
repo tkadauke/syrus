@@ -39,12 +39,10 @@ RSpec.describe ProviderRouting::Resolver do
       expect(resolve(job)).to eq(described_class::HARDCODED_FALLBACK)
     end
 
-    it "uses the pinned job_provider_setting, not the stale agent_provider column, once an operator repins the job" do
-      # switch_job_provider_setting! only ever updates job_provider_setting -- it
-      # never touches agent_provider, so a job created under one provider and
-      # later pinned to another ends up with the two columns diverged. The
-      # override candidate must reflect the pin (via workflow_agent_provider),
-      # not the stale creation-time agent_provider value.
+    it "uses the pinned job_provider_setting once an operator repins the job" do
+      # switch_job_provider_setting! keeps the presentation column in sync, but
+      # ProviderRouting::Resolver still resolves through workflow_agent_provider
+      # so job_provider_setting remains the source of truth for the override.
       job = Factories.job(
         repository: repository,
         user: user,
@@ -56,8 +54,8 @@ RSpec.describe ProviderRouting::Resolver do
 
       job.switch_job_provider_setting!("codex")
 
-      expect(job.agent_provider).to eq("claude")
-      expect(resolve(job)).to eq([ candidate(provider: "codex", model: "sonnet", effort_level: "high") ])
+      expect(job.agent_provider).to eq("codex")
+      expect(resolve(job)).to eq([ candidate(provider: "codex") ])
     end
   end
 
