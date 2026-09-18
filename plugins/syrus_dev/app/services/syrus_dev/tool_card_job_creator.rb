@@ -1,5 +1,4 @@
 require "base64"
-require "stringio"
 
 module SyrusDev
   # Backs the Tool Card Catalog's "Create Job" shortcut: the same
@@ -10,6 +9,12 @@ module SyrusDev
   # itself" (the configured report_issue_repo_slug, or the operator's own
   # fork of it) -- the Tool Card Catalog only exists to develop Syrus, so
   # there is no separate repository picker to ask the operator for.
+  #
+  # The actual Job-creation/triage-advance/attachment transaction is shared
+  # with BugReports::Creator via ::DirectJobs::Creator; this class only
+  # owns what's specific to a Tool Card Catalog screenshot (it arrives as a
+  # base64 JSON payload, not an uploaded file, so it needs its own
+  # decode/mime validation).
   class ToolCardJobCreator
     Result = Struct.new(:job, :error, keyword_init: true) do
       def success?
@@ -30,32 +35,18 @@ module SyrusDev
       repository = target_repository
       return failure("Tool Card jobs are only available when this instance can file Syrus Jobs for itself.") unless repository
 
-      screenshot_attrs, screenshot_error = normalize_screenshot(screenshot)
+      attachment, screenshot_error = normalize_screenshot(screenshot)
       return failure(screenshot_error) if screenshot_error
 
-      job = nil
-      ActiveRecord::Base.transaction do
-        job = user.jobs.create!(
-          repository: repository,
-          kind: "direct",
-          issue_number: nil,
-          issue_title: GenerateJobTitleJob::PENDING_TITLE,
-          title_pending: true,
-          issue_body: prompt_text,
-          agent_provider: repository.effective_agent_provider,
-          priority: "medium"
-        )
+      result = ::DirectJobs::Creator.new(user: user).call(
+        repository: repository,
+        prompt_text: prompt_text,
+        attachments: attachment ? [ attachment ] : []
+      )
 
-        job.advance_after_triage! if job.may_advance_after_triage?
+      return failure(result.error) unless result.success?
 
-        attach_screenshot!(job, screenshot_attrs) if screenshot_attrs
-      end
-
-      GenerateJobTitleJob.perform_later(job) if job.title_pending?
-
-      Result.new(job: job)
-    rescue ActiveRecord::RecordInvalid => e
-      failure(e.record.errors.full_messages.to_sentence)
+      Result.new(job: result.job)
     end
 
     private
@@ -81,23 +72,13 @@ module SyrusDev
       return [ nil, "Screenshot must be a PNG." ] unless ALLOWED_SCREENSHOT_MIME_TYPES.include?(mime_type)
       return [ nil, "Screenshot data is missing." ] if data.blank?
 
-      [ { name: name, mime_type: mime_type, body: Base64.decode64(data) }, nil ]
-    end
-
-    def attach_screenshot!(job, attrs)
-      attachment = job.job_attachments.build(
+      attachment = ::DirectJobs::Creator::Attachment.new(
         source_url: "tool-card-catalog://#{SecureRandom.uuid}",
-        filename: attrs[:name],
-        content_type: attrs[:mime_type],
-        byte_size: attrs[:body].bytesize
+        filename: name,
+        content_type: mime_type,
+        body: Base64.decode64(data)
       )
-      attachment.file.attach(
-        io: StringIO.new(attrs[:body]),
-        filename: attrs[:name],
-        content_type: attrs[:mime_type],
-        identify: false
-      )
-      attachment.save!
+      [ attachment, nil ]
     end
   end
 end
