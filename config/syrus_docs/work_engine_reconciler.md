@@ -107,6 +107,12 @@ The classifier currently emits these families:
 - `nonretryable_semantic_git_failure`
 - `cleanup_blocked_by_active_descendants`
 - `workflow_workspace_prune_risk`
+- `branch_diverged_pr_open` — the latest failed Workflow's `pr_open` step
+  found the remote PR branch had moved; plans `retry_workflow` from the
+  current PR branch
+- `stale_branch_diverged_workflow` — an older failed Workflow's recorded
+  branch divergence is now stale because the current PR branch already
+  matches the protected remote SHA; plans `discard_superseded_branch_output`
 
 `safe_to_auto_repair` only describes whether the repair planner may choose an
 automatic action. The classifier and planner are side-effect free; mutations are
@@ -208,6 +214,19 @@ Planner examples:
   permanent verdict.
 - Git publication, landing, and semantic failures return operator-review plans
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
+- `branch_diverged_pr_open` is never planned while the same Workflow already
+  has a `branch_divergence_recovery_pending` artifact — a force-push (or other)
+  recovery is already in flight for that exact divergence, so a competing
+  `retry_workflow` would only race the branch it is about to settle. The
+  pending marker clears on completion (success or failure), so a genuinely
+  failed recovery attempt still leaves `retry_workflow` free to run on the next
+  pass. `BranchDivergenceRecovery` is the single idempotency key for this
+  path: every mutating action (force-push, discard, adopt-current-head)
+  refuses to replay once `branch_divergence_recovery` is already recorded for
+  the Workflow, and a successful recovery skips (budget-exempt, prefix
+  `"branch divergence recovered"`) any pending `retry_workflow`
+  `AutoRetryAttempt` for the same Job and cancels any queued (not yet started)
+  retry Workflow the earlier planning pass already spawned.
 - Main-health, dependency, stack, and capacity blocks return waiting plans, not
   failed retries. If a queued Workflow still has
   `stack_dependencies_not_ready` persisted but the current dependency resolver

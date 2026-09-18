@@ -2581,6 +2581,43 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(enqueued_jobs.map { |entry| entry[:job] }).to include(AutoRetryJob)
   end
 
+  it "does not plan a competing retry across repeated reconciler passes while branch-divergence recovery is already queued" do
+    job.update!(
+      state: "failed",
+      pr_number: 77,
+      branch_name: "syrus/issue-42-#{job.id}",
+      mergeability_head_sha: "remote-head"
+    )
+    workflow.update_columns(state: "failed", trigger_kind: "retry", finished_at: 10.minutes.ago)
+    step.update_columns(kind: "pr_open", state: "failed", finished_at: 10.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 10.minutes.ago, agent_provider: "claude")
+    run.create_run_failure_classification!(
+      classification: "branch_diverged",
+      retryable: false,
+      confidence: 0.95,
+      reason: "The PR branch changed before Syrus could push this workflow.",
+      classified_at: 10.minutes.ago
+    )
+    workflow.set_artifact!("branch_divergence", {
+      "branch" => job.branch_name,
+      "remote_sha" => "remote-head",
+      "local_sha" => "stale-local"
+    })
+    workflow.set_artifact!("branch_divergence_recovery_pending", {
+      "action" => "force_push",
+      "at" => 1.minute.ago.iso8601
+    })
+
+    first_pass = reconcile_and_execute(workflow_id: workflow.id)
+    second_pass = reconcile_and_execute(workflow_id: workflow.id)
+
+    [ first_pass, second_pass ].each do |result|
+      expect(kind(result, :branch_diverged_pr_open)).to be_nil
+      expect(plan(result, :retry_workflow)).to be_nil
+    end
+    expect(AutoRetryAttempt.where(job: job, workflow: workflow, retry_kind: "retry_workflow")).not_to exist
+  end
+
   it "does not plan a fresh retry while active WorkUnit ownership exists for the Job" do
     job.update!(
       state: "failed",
