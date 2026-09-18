@@ -1,4 +1,4 @@
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { Modal } from "./Modal"
@@ -182,5 +182,30 @@ describe("Modal", () => {
       </>
     )
     expect(trigger).toHaveFocus()
+  })
+
+  it("keeps focus on a field inside the panel while the caller re-renders with a fresh onClose", () => {
+    // Regression test: callers commonly pass an inline `onClose={() => setOpen(false)}`,
+    // so `onClose` gets a new function identity on every parent render -- including
+    // renders triggered by typing into a controlled field inside the modal. The
+    // initial-focus effect must not depend on `onClose`'s identity, or it re-runs on
+    // every keystroke and steals focus back to the panel's first focusable element.
+    function Fixture() {
+      const [text, setText] = useState("")
+      return (
+        <Modal label="Example" onClose={() => {}} open>
+          <button type="button">First</button>
+          <textarea onChange={(event) => setText(event.target.value)} value={text} />
+        </Modal>
+      )
+    }
+    render(<Fixture />)
+
+    const textarea = screen.getByRole("textbox")
+    textarea.focus()
+    fireEvent.change(textarea, { target: { value: "h" } })
+    fireEvent.change(textarea, { target: { value: "he" } })
+    fireEvent.change(textarea, { target: { value: "hel" } })
+    expect(textarea).toHaveFocus()
   })
 })
