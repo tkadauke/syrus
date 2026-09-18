@@ -48,7 +48,7 @@ module Metrics
       @latest_samples ||= WorkerHostHealthSample.worker_role
         .where("observed_at >= ?", SAMPLE_WINDOW.ago)
         .order(observed_at: :desc)
-        .group_by(&:hostname)
+        .group_by { |sample| sample.worker_storage_key.presence || sample.hostname }
         .transform_values(&:first)
     end
   end

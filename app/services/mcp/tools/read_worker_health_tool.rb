@@ -11,7 +11,7 @@ module Mcp::Tools
         hostname: { type: "string", description: "Optional worker hostname to inspect." },
         since: { type: "string", description: "Optional ISO8601 range start. Defaults to 24 hours ago." },
         until: { type: "string", description: "Optional ISO8601 range end. Defaults to now." },
-        sample_limit_per_host: { type: "integer", description: "Maximum recent raw samples per hostname, up to 100." },
+        sample_limit_per_host: { type: "integer", description: "Maximum recent raw samples per worker history row, up to 100." },
         minute_bucket_window_minutes: { type: "integer", description: "Minute-resolution history window ending at until, up to 1440 minutes. Defaults to 60." }
       }
     )

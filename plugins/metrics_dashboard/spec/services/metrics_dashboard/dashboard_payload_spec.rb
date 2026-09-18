@@ -101,15 +101,24 @@ RSpec.describe MetricsDashboard::DashboardPayload do
       expect(values.compact).to all(eq(5))
     end
 
-    it "reports worker disk utilization grouped by hostname" do
+    it "anchors worker disk utilization by storage key but labels it with the latest hostname" do
       now = Time.current.change(sec: 0)
-      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-a" }, value: 63, at: now - 1.minute)
-      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-b" }, value: 20, at: now - 1.minute)
+      WorkerHostHealthSample.create!(
+        hostname: "worker-old", worker_storage_key: "storage-a", role: "worker",
+        version: "abc123", observed_at: now - 10.minutes, data_root_used_percent: 55
+      )
+      WorkerHostHealthSample.create!(
+        hostname: "worker-new", worker_storage_key: "storage-a", role: "worker",
+        version: "abc123", observed_at: now - 1.minute, data_root_used_percent: 63
+      )
+      sample(metric: "syrus_worker_disk_percent", labels: { "worker_storage_key" => "storage-a" }, value: 55, at: now - 10.minutes)
+      sample(metric: "syrus_worker_disk_percent", labels: { "worker_storage_key" => "storage-a" }, value: 63, at: now - 1.minute)
 
       series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
 
-      expect(series.map { |s| s[:name] }).to contain_exactly("worker-a", "worker-b")
-      expect(series.find { |s| s[:name] == "worker-a" }[:values].compact.max).to eq(63)
+      expect(series.sole[:key]).to eq("storage-a")
+      expect(series.sole[:name]).to eq("worker-new")
+      expect(series.sole[:values].compact.max).to eq(63)
     end
   end
 
