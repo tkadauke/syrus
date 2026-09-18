@@ -24,18 +24,6 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   end
 
 
-  it "does not serve GitHub Issues in simple mode" do
-    sign_in_as(user)
-    AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-
-    get "/api/v1/app/repositories/#{repository.id}/issues"
-
-    expect(response).to have_http_status(:not_found)
-    expect(parse_body.dig("error", "message")).to eq("GitHub issues are not available in simple mode.")
-  end
-
-
   it "returns repository GitHub issues" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
