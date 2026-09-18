@@ -192,11 +192,11 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     sign_in_as(admin)
 
     patch "/api/v1/app/admin/retention_settings", params: {
-      retention_settings: { notification_retention_days: 45, mode: "simple" }
+      retention_settings: { notification_retention_days: 45, polling_paused: true }
     }
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.notification_retention_days).to eq(45)
-    expect(AppSetting.current.mode).to eq("advanced")
+    expect(AppSetting.current.polling_paused).to eq(false)
   end
 end
