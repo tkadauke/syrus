@@ -560,6 +560,24 @@ module WorkEngine
 
       class RunningWorkflowWithFailedStep < Base
         def plan
+          if issue.recommended_repair_action == "continue_loop_iteration_from_failed_step"
+            return automatic_plan(
+              "continue_loop_iteration_from_failed_step",
+              primary_step,
+              "The Workflow has a failed loop-iteration Step, but the retry loop still has budget remaining, so continue with the next repair-and-check iteration.",
+              execution_steps: [ "StepDispatcher.fail_from(failed_step)" ],
+              preconditions: {
+                workflow_state: "running",
+                failed_step_id: issue.evidence["failed_step_id"],
+                failed_step_kind: issue.evidence["failed_step_kind"],
+                failed_step_iteration: issue.evidence["failed_step_iteration"],
+                loop_iteration_budget_remaining: true,
+                no_active_runs: true,
+                no_running_steps: true
+              }
+            )
+          end
+
           automatic_plan(
             "fail_workflow_from_failed_step",
             primary_workflow,
@@ -577,6 +595,24 @@ module WorkEngine
 
       class QueuedWorkflowWithFailedStep < Base
         def plan
+          if issue.recommended_repair_action == "continue_loop_iteration_from_failed_step"
+            return automatic_plan(
+              "continue_loop_iteration_from_failed_step",
+              primary_step,
+              "The Workflow has a failed loop-iteration Step, but the retry loop still has budget remaining, so continue with the next repair-and-check iteration.",
+              execution_steps: [ "StepDispatcher.fail_from(failed_step)" ],
+              preconditions: {
+                workflow_state: "queued",
+                failed_step_id: issue.evidence["failed_step_id"],
+                failed_step_kind: issue.evidence["failed_step_kind"],
+                failed_step_iteration: issue.evidence["failed_step_iteration"],
+                loop_iteration_budget_remaining: true,
+                no_active_runs: true,
+                no_running_steps: true
+              }
+            )
+          end
+
           automatic_plan(
             "fail_workflow_from_failed_step",
             primary_workflow,
