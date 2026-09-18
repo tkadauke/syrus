@@ -32,6 +32,10 @@ module PendingActions
       "job_id: #{payload["job_id"]}, base: #{payload["base"]}, push: #{payload.fetch("push", true)}"
     end
 
+    def presentation_label
+      "Manual agentic run for #{presentation_job_slug}"
+    end
+
     def repair_action? = true
     def repair_snapshot_targets = [ repair_action_job_or_nil ]
   end

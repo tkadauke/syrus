@@ -10,5 +10,9 @@ module PendingActions
     def execution_label
       "Unpausing run dispatch..."
     end
+
+    def presentation_label
+      "Resume runs"
+    end
   end
 end

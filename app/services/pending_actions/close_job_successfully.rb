@@ -35,6 +35,14 @@ module PendingActions
       "job_id: #{payload["job_id"]}, closure_reason: #{payload["closure_reason"]}"
     end
 
+    def presentation_label
+      "Close #{presentation_job_slug} as #{payload["closure_reason"]}"
+    end
+
+    def presentation_detail
+      payload["comment"].presence
+    end
+
     private
 
     def successful_reason?(reason)

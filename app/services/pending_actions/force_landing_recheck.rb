@@ -23,6 +23,10 @@ module PendingActions
       "job_id: #{payload["job_id"]}"
     end
 
+    def presentation_label
+      "Force landing recheck for #{presentation_job_slug}"
+    end
+
     repairs_job!
   end
 end

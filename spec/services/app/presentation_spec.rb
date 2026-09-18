@@ -119,13 +119,28 @@ RSpec.describe App::Presentation do
     end
   end
 
-  describe "App::Presentation::PendingActions coverage" do
-    it "registers a presenter for every action and action_type ChatPendingAction accepts" do
-      known_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES
+  describe "pending-action presentation coverage" do
+    it "resolves a presentation_label/presentation_detail through the PendingActions hierarchy for every core action and action_type" do
+      # Core specs must not enumerate plugin-provided things (see
+      # spec/models/chat_pending_action_spec.rb's equivalent registry-coverage
+      # example): subtract action keys a plugin's own
+      # app/services/pending_actions/*.rb owns, since a plugin action defines
+      # its own presentation directly on its PendingActions class and proves
+      # it in the plugin's own specs (e.g. schedule_recurring, delete_design_doc).
+      plugin_owned = Dir[Rails.root.join("plugins/*/app/services/pending_actions/*.rb")]
+        .map { |path| File.basename(path, ".rb") }
+        .reject { |key| PendingActions::REGISTRY.key?(key) }
 
-      unregistered = known_keys - App::Presentation::PendingActions::REGISTRY.keys
+      core_keys = (ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES) - plugin_owned
+      expect(core_keys).to include("cancel_job")
 
-      expect(unregistered).to be_empty
+      core_keys.each do |key|
+        attrs = ChatPendingAction::ACTION_TYPES.include?(key) ? { action_type: key } : { action: key }
+        action = ChatPendingAction.new(**attrs, payload: {})
+
+        expect { described_class.pending_action_label(action) }.not_to raise_error, "expected #{key} to resolve a presentation_label"
+        expect { described_class.pending_action_detail(action) }.not_to raise_error, "expected #{key} to resolve a presentation_detail"
+      end
     end
 
     it "falls back to the payload label or humanized key for an action with no registered presenter" do

@@ -29,5 +29,13 @@ module PendingActions
     def action_detail
       "branch: #{payload["branch"]}, repository_id: #{payload["repository_id"]}"
     end
+
+    def presentation_label
+      payload["title"].presence || action.action_type.to_s.humanize
+    end
+
+    def presentation_detail
+      payload["description"].presence
+    end
   end
 end

@@ -1,5 +1,7 @@
 module PendingActions
   class AdoptCurrentPrHead < Base
+    include BranchDivergenceEvidencePresentation
+
     action_key "adopt_current_pr_head"
 
     def perform
@@ -26,6 +28,10 @@ module PendingActions
 
     def action_detail
       "job_id: #{payload["job_id"]}, workflow_id: #{payload["workflow_id"]}"
+    end
+
+    def presentation_label
+      "Adopt current PR head for #{presentation_job_slug}"
     end
 
     repairs_job!
