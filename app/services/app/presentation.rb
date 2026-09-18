@@ -136,118 +136,13 @@ module App
     # independent copies previously drifted out of sync and a chat agent
     # tool (submit_coding_changes) silently rendered a blank label/detail
     # in the live list while working fine once anchored to a message.
+    #
+    # The actual rendering lives in the App::Presentation::PendingActions
+    # presenter hierarchy/registry (app/services/app/presentation/pending_actions/)
+    # so a new ChatPendingAction key is paired with a presenter registration
+    # instead of a new branch here.
     def pending_action_label(action)
-      payload = action.payload || {}
-      case action.action
-      when "cancel_job"
-        "Cancel #{job_slug(payload['job_id'])}"
-      when "close_job_successfully"
-        "Close #{job_slug(payload['job_id'])} as #{payload['closure_reason']}"
-      when "retry_job"
-        "Retry #{job_slug(payload['job_id'])}"
-      when "force_fail_job"
-        "Force fail #{job_slug(payload['job_id'])}"
-      when "rebase_job"
-        "Rebase #{job_slug(payload['job_id'])}"
-      when "force_rebase"
-        "Force rebase #{job_slug(payload['job_id'])}"
-      when "restack_epic"
-        "Restack Epic ##{payload['epic_id']}"
-      when "reopen_job"
-        "Reopen #{job_slug(payload['job_id'])}"
-      when "approve_job"
-        "Approve #{job_slug(payload['job_id'])}"
-      when "unapprove_job"
-        "Unapprove #{job_slug(payload['job_id'])}"
-      when "fire_scheduled_task_now"
-        "Fire scheduled task ##{payload['scheduled_task_id']}"
-      when "create_repo_document"
-        "Create document #{payload['title'].to_s.inspect}"
-      when "delete_repo_document"
-        "Delete document #{payload['title'].to_s.presence || "##{payload['document_id']}"}"
-      when "delete_design_doc"
-        "Archive #{payload['doc_ref'].presence || "DOC-#{payload['design_doc_id']}"}"
-      when "poll_job_feedback"
-        "Poll PR feedback for #{job_slug(payload['job_id'])}"
-      when "run_visual_review"
-        "Run visual review for #{job_slug(payload['job_id'])}"
-      when "check_job_mergeability"
-        "Check mergeability for #{job_slug(payload['job_id'])}"
-      when "force_landing_recheck"
-        "Force landing recheck for #{job_slug(payload['job_id'])}"
-      when "override_landing_blocker_once"
-        "Override #{payload['blocker_key']} once for #{job_slug(payload['job_id'])}"
-      when "wake_landing_queue"
-        "Wake landing queue"
-      when "delegate_issue"
-        "Delegate issue ##{payload['issue_number']}"
-      when "pause_landing_queue"
-        "Pause landing queue"
-      when "resume_landing_queue"
-        "Resume landing queue"
-      when "submit_chat_feedback"
-        "Submit feedback on #{job_slug(payload['job_id'])}"
-      when "complete_implement_step"
-        "Hand off #{job_slug(payload['job_id'])}"
-      when "emergency_land"
-        "Emergency land #{job_slug(payload['job_id'])}"
-      when "reopen_epic_and_attach_job"
-        "Reopen Epic ##{payload['epic_id']} and attach #{job_slug(payload['job_id'])}"
-      when "submit_coding_changes"
-        payload["title"].presence || action.action_type.to_s.humanize
-      when "admin_kill_process"
-        "Kill process ##{payload['process_id']}"
-      when "admin_reap_stale_runs"
-        "Force-reap stale runs"
-      when "admin_pause_polling"
-        "Pause repository polling"
-      when "admin_unpause_polling"
-        "Resume repository polling"
-      when "admin_pause_runs"
-        "Pause runs"
-      when "admin_unpause_runs"
-        "Resume runs"
-      when "admin_clear_github_cache"
-        "Clear GitHub API cache"
-      when "admin_pause_user_scheduling"
-        "Pause scheduling for user ##{payload['user_id']}"
-      when "admin_unpause_user_scheduling"
-        "Resume scheduling for user ##{payload['user_id']}"
-      when "admin_retry_step"
-        "Retry step #{payload['step_slug']} on workflow ##{payload['workflow_id']}"
-      when "admin_cleanup_workspace"
-        "Delete workspace for workflow ##{payload['workflow_id']}"
-      when "admin_refresh_installations"
-        "Refresh GitHub App installations"
-      when "manual_agentic_run"
-        "Manual agentic run for #{job_slug(payload['job_id'])}"
-      when "adopt_current_pr_head"
-        "Adopt current PR head for #{job_slug(payload['job_id'])}"
-      when "replace_pr_branch_with_workflow_output"
-        "Replace PR branch for #{job_slug(payload['job_id'])}"
-      when "retry_from_current_pr_branch"
-        "Retry from current PR branch for #{job_slug(payload['job_id'])}"
-      when "reconcile_job_state"
-        "Reconcile state for #{job_slug(payload['job_id'])} (#{payload['mode']})"
-      when "force_state_transition"
-        "Force #{payload['event']} on #{job_slug(payload['job_id'])}"
-      when "cancel_stale_work"
-        "Cancel stale work for #{job_slug(payload['job_id'])}"
-      when "reenqueue_work"
-        "Re-enqueue work for #{job_slug(payload['job_id'])}"
-      when "rerun_ci_repair"
-        "Re-run CI repair for #{job_slug(payload['job_id'])}"
-      when "mark_ci_repair_noop"
-        "Mark CI repair as no-op for #{job_slug(payload['job_id'])}"
-      when "repair_provider_circuit_evidence"
-        "Repair #{payload['evidence_type']} evidence ##{payload['evidence_id']}"
-      when "clear_provider_circuit"
-        "Clear #{payload['provider']} circuit for user ##{payload['user_id']}"
-      when "wake_provider_admission"
-        payload["user_id"].present? ? "Wake #{payload['provider']} admission for user ##{payload['user_id']}" : "Wake #{payload['provider']} admission"
-      else
-        payload["label"].presence || action.action_type.to_s.humanize
-      end
+      PendingActions.for(action).label
     end
 
     # Groups are homogeneous by construction (see PendingActionGroup) so a
@@ -255,69 +150,14 @@ module App
     # mixed-action fallback only guards against a future caller that doesn't
     # honor that convention.
     def pending_action_group_label(members)
-      action_keys = members.map { |member| member.action.presence || member.action_type }.uniq
+      action_keys = members.map { |member| PendingActions.key_for(member) }.uniq
       return "Batch action (#{members.size})" if action_keys.size != 1 || action_keys.first.blank?
 
       "#{action_keys.first.to_s.humanize} (#{members.size})"
     end
 
     def pending_action_detail(action)
-      payload = action.payload || {}
-      case action.action.presence || action.action_type
-      when "close_job_successfully"
-        payload["comment"].presence
-      when "submit_chat_feedback"
-        payload["feedback"].presence
-      when "delete_design_doc"
-        [
-          payload["title"].presence,
-          payload["confirmation_reason"].presence
-        ].compact.join("\n").presence
-      when "complete_implement_step"
-        payload["branch_name"].presence&.then { |branch| "Branch: #{branch}" }
-      when "emergency_land"
-        [
-          payload["branch_name"].presence&.then { |branch| "Branch: #{branch}" },
-          "Skips Syrus graders, adversarial review, and visual review; merges the PR directly through GitHub after confirmation. GitHub branch protection still applies."
-        ].compact.join("\n")
-      when "adopt_current_pr_head", "replace_pr_branch_with_workflow_output", "retry_from_current_pr_branch"
-        evidence = payload["evidence"].to_h
-        [
-          "Remote SHA: #{evidence['remote_sha'].presence || 'unknown'}",
-          "Workflow local SHA: #{evidence['workflow_local_sha'].presence || 'unknown'}",
-          "Base SHA: #{evidence['base_sha'].presence || 'unknown'}",
-          Array(evidence.dig("diff_summary", "files")).presence&.then { |files| "Changed files: #{files.first(10).join(', ')}" }
-        ].compact.join("\n")
-      when "schedule_recurring"
-        [
-          [ payload["label"], payload["schedule_explanation"] || payload["schedule_input"] || payload["cron_expression"] ].compact_blank.join(" — ").presence,
-          payload["prompt"].presence
-        ].compact.join("\n\n").presence
-      when "submit_coding_changes"
-        payload["description"].presence
-      when "reconcile_job_state"
-        "Mode: #{payload['mode']}"
-      when "force_state_transition"
-        "Event: #{payload['event']}"
-      when "cancel_stale_work"
-        [
-          Array(payload["workflow_ids"]).presence&.then { |ids| "Workflows: #{ids.join(', ')}" },
-          Array(payload["run_ids"]).presence&.then { |ids| "Runs: #{ids.join(', ')}" }
-        ].compact.join("\n").presence
-      when "reenqueue_work"
-        [
-          payload["workflow_id"].presence&.then { |id| "Workflow: ##{id}" },
-          payload["run_id"].presence&.then { |id| "Run: ##{id}" }
-        ].compact.join(", ").presence
-      when "rerun_ci_repair"
-        payload["instructions"].presence
-      when "mark_ci_repair_noop"
-        "Workflow: ##{payload['workflow_id']}"
-      when "repair_provider_circuit_evidence"
-        "Repair status: #{payload['repair_status']}"
-      when "clear_provider_circuit"
-        "Mode: #{payload.fetch('mode', 'clear')}"
-      end
+      PendingActions.for(action).detail
     end
   end
 end
