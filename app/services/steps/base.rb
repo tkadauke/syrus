@@ -634,12 +634,29 @@ module Steps
     end
 
     def raise_no_changes_produced!
+      return if no_changes_confirmed_not_broken?
+
       if AgenticWaitingNoDiffDetector.detect?(run)
         raise AgentGaveUpWaiting,
               "agent ended with no repository diff after expecting a background command or ScheduleWakeup to continue this Step Run"
       end
 
       raise NoChangesProduced, "agent produced no changes"
+    end
+
+    # Most agentic steps treat "no diff" as a real failure (or, for a skill's
+    # read-only investigation, a distinct happy path handled elsewhere) --
+    # base has no opinion either way. A step that repairs one specific,
+    # already-diagnosed failure (e.g. landing_fix repairing a failed grader
+    # loop iteration) can legitimately conclude there is nothing to fix: the
+    # failure it was asked to repair turned out to be transient or
+    # infrastructure-caused rather than a code defect, and it said so through
+    # a real, audited signal (e.g. filing report_main_concern) rather than
+    # merely giving up. Only override this to recognize that signal for a
+    # step whose job is repairing a specific diagnosed failure -- never as a
+    # generic "trust the agent's word for it" escape hatch.
+    def no_changes_confirmed_not_broken?
+      false
     end
 
     def publish_run_checkpoint!

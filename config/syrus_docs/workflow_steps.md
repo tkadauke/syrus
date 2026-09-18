@@ -403,6 +403,8 @@ Agentic. Used inside `coding_handoff`'s `adversarial_review`/`visual_review` loo
 
 Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. Runs only after final graders fail on the exact PR branch being landed; successful repairs are pushed before the merge API call.
 
+A `landing_fix` turn that legitimately finds nothing to fix does not fail the workflow. If the agent investigates the failing graders and confirms (by filing `report_main_concern` for this exact Run) that the failure was not caused by the code it is landing, a resulting no-diff turn is treated as the step's normal outcome instead of raising `Steps::Base::NoChangesProduced` (`Steps::Base#no_changes_confirmed_not_broken?`, overridden in `Steps::LandingFix`) — the loop proceeds straight to another `grader_fanout`/`grader_collect` check iteration instead of hard-failing the landing attempt on a diagnosis it already trusts. This does not apply to agentic steps in general (e.g. a bare `implement`/`respond` producing no diff is still `NoChangesProduced`) — only to a step whose job is repairing one specific, already-diagnosed grader failure.
+
 ### manual
 
 Agentic. Operator-triggered free-form step; prompt is supplied at dispatch time.
@@ -653,6 +655,20 @@ repair loops show whether the failed attempt actually spent time running graders
 In `ci_failure` workflows, `grader_collect` may be skipped after a repeated
 no-op `analyze_and_fix` main-concern diagnosis so the workflow can publish
 earlier repair commits without rerunning known non-actionable graders.
+
+When every failing required grader this iteration has an already-persisted
+`RunFailureClassification` naming a transient/infrastructure cause (a worker
+process dying, a full disk, a DB lock timeout, ...) rather than a code
+defect, `grader_collect` still fails the check cycle (so the retry loop
+retries) but marks its own Step details with
+`Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY`. `StepDispatcher`
+reads that marker when materializing the next loop iteration and skips
+inserting the repair agent step (e.g. `landing_fix`) for that iteration,
+going straight to another `grader_fanout`/`grader_collect` check instead —
+there is nothing for an agent to fix when the diagnosis is already known,
+only a regrade to retry. The skip is still bounded by the loop's
+`max_iterations`, and each skip is recorded on the workflow's
+`transient_grader_repair_skips` artifact for operator visibility.
 
 When `grader_collect` records a grader conclusion, it also records a persistent
 `TargetHealthRecord` for each materialized grader target. The record stores the
