@@ -787,7 +787,9 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
     : null
   const testPlanArtifact = step.kind === "test_plan" ? stepArtifactTestPlan(artifacts.test_plan) : null
   const adversarialReviewArtifact = step.kind === "adversarial_review" ? stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) : null
-  const visualReviewArtifact = step.kind === "visual_review" ? stepArtifactVisualReview(artifacts.visual_review_iterations) : null
+  const visualReviewArtifactsForRun = (run: JobRun) => step.kind === "visual_review"
+    ? stepArtifactVisualReview(artifacts.visual_review_iterations, { stepId: step.id, runId: run.id, iteration: step.iteration })
+    : null
 
   return (
     <div className="border-b border-border bg-surface last:border-b-0">
@@ -849,7 +851,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
                   stepAdversarialReviewArtifact={idx === 0 ? adversarialReviewArtifact : null}
                   stepSummaryArtifact={idx === 0 ? summaryArtifact : null}
                   stepTestPlanArtifact={idx === 0 ? testPlanArtifact : null}
-                  stepVisualReviewArtifact={idx === 0 ? visualReviewArtifact : null}
+                  stepVisualReviewArtifact={visualReviewArtifactsForRun(run)}
                   targetLabel={step.placement?.projected_target_label || null}
                   workflowId={workflowId}
                 />

@@ -25,6 +25,8 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     expect(run.workflow.reload.artifact("visual_review_iterations")).to eq([
       {
         "iteration" => run.step.iteration,
+        "step_id" => run.step_id,
+        "run_id" => run.id,
         "critique" => "No visual issues found.",
         "verdict" => "approved",
         "artifacts" => []
@@ -41,7 +43,7 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
 
     expect(run.workflow.reload.artifact("visual_review_iterations")).to eq([
       { "iteration" => 1, "critique" => "First pass.", "verdict" => "needs_work" },
-      { "iteration" => run.step.iteration, "critique" => "Second pass is clean.", "verdict" => "approved", "artifacts" => [] }
+      { "iteration" => run.step.iteration, "step_id" => run.step_id, "run_id" => run.id, "critique" => "Second pass is clean.", "verdict" => "approved", "artifacts" => [] }
     ])
   end
 
@@ -83,6 +85,7 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
         "created_at" => "2026-08-22T12:00:00Z"
       }
     ])
+    expect(artifact).to include("step_id" => run.step_id, "run_id" => run.id)
   end
 
   it "accepts the skipped verdict for changes that aren't visually testable" do

@@ -360,6 +360,8 @@ RSpec.describe Steps::VisualReview do
       expect(workflow.reload.artifact("visual_review_iterations")).to eq([
         {
           "iteration" => review_step.iteration,
+          "step_id" => review_step.id,
+          "run_id" => run.id,
           "critique" => "No changed files matched the configured visual_review.when_files_changed patterns.",
           "verdict" => "skipped"
         }
