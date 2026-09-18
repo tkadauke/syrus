@@ -107,18 +107,13 @@ RSpec.describe ProviderRoutingRule do
   end
 
   it "softly enforces a model against a provider's catalog once the provider implements one" do
-    provider_class = AgentProviders.for("claude")
-    provider_class.define_singleton_method(:available_models) { [ "sonnet", "opus" ] }
+    allow(AgentProviders.for("claude")).to receive(:available_models).and_return([ "sonnet", "opus" ])
 
-    begin
-      valid_record = rule(candidates: [ { "provider" => "claude", "model" => "sonnet" } ])
-      invalid_record = rule(candidates: [ { "provider" => "claude", "model" => "not-a-real-model" } ])
+    valid_record = rule(candidates: [ { "provider" => "claude", "model" => "sonnet" } ])
+    invalid_record = rule(candidates: [ { "provider" => "claude", "model" => "not-a-real-model" } ])
 
-      expect(valid_record).to be_valid
-      expect(invalid_record).not_to be_valid
-      expect(invalid_record.errors[:candidates]).to be_present
-    ensure
-      provider_class.singleton_class.remove_method(:available_models)
-    end
+    expect(valid_record).to be_valid
+    expect(invalid_record).not_to be_valid
+    expect(invalid_record.errors[:candidates]).to be_present
   end
 end
