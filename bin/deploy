@@ -157,13 +157,28 @@ if [ "$BUILD_ONLY" = true ]; then
 fi
 
 # --- rollout helpers -------------------------------------------------
-# Must exceed the worker's terminationGracePeriodSeconds (600s in
-# the K8s manifests) plus headroom for the new pod's startup. With
-# a long RunJob in flight, the old worker can drain for the full
-# grace period before the new pod becomes ready. 15m gives us ~5m
-# of headroom.
+# Headroom for the slowest rollout target to come back.
+#
+# This used to say it had to exceed the worker's 600s
+# terminationGracePeriodSeconds, because a long RunJob in flight would keep the
+# old worker draining for the full grace period. That is not what happens:
+# SolidQueue.shutdown_timeout defaults to 5 seconds and Syrus does not override
+# it, so the supervisor gives its children 5s and then kills them. Measured
+# termination during a production rollout was 6-13 seconds, never 600. The
+# grace period is not load-bearing and in-flight Runs do not survive a deploy
+# -- ReapStaleRunsJob and the auto-retry path are what recover them.
+#
+# What this timeout actually has to cover is startup, which is dominated by the
+# worker-dev image pull. prepull_worker_image below removes most of that.
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-15m}"
 ROLLOUT_STALL_DIAGNOSE_INTERVAL="${ROLLOUT_STALL_DIAGNOSE_INTERVAL:-90s}"
+# Pre-pull budget. Every compute node fetches the worker-dev image at the same
+# time, so this is one pull's wall clock plus contention for the uplink, not
+# one per node. Set PREPULL=0 to skip (e.g. when iterating on a tag every node
+# already has).
+PREPULL="${PREPULL:-1}"
+PREPULL_TIMEOUT="${PREPULL_TIMEOUT:-12m}"
+PREPULL_DAEMONSET="syrus-image-prepull"
 ROLLOUT_VERBOSE_DIAGNOSTICS="${ROLLOUT_VERBOSE_DIAGNOSTICS:-false}"
 MISE_CACHE_HOST_PATH="${MISE_CACHE_HOST_PATH:-/data/syrus-mise-cache}"
 MYSQL_BACKUP_CRONJOB="${MYSQL_BACKUP_CRONJOB:-syrus-mysql-backup}"
@@ -174,8 +189,13 @@ ACTIVE_FLUX_LABEL=""
 ACTIVE_BACKUP_KUBECONFIG=""
 ACTIVE_BACKUP_NAMESPACE=""
 ACTIVE_BACKUP_LABEL=""
+ACTIVE_PREPULL_KUBECONFIG=""
+ACTIVE_PREPULL_NAMESPACE=""
 
 cleanup_rollout_controls() {
+  if [ -n "$ACTIVE_PREPULL_KUBECONFIG" ]; then
+    delete_prepull_daemonset "$ACTIVE_PREPULL_KUBECONFIG" "$ACTIVE_PREPULL_NAMESPACE" || true
+  fi
   if [ -n "$ACTIVE_BACKUP_KUBECONFIG" ]; then
     resume_mysql_backup "$ACTIVE_BACKUP_KUBECONFIG" "$ACTIVE_BACKUP_NAMESPACE" "$ACTIVE_BACKUP_LABEL" || true
   fi
@@ -215,6 +235,7 @@ rollout() {
   suspend_mysql_backup "$kubeconfig" "$namespace" "$label"
   ensure_mise_cache "$label" "$kubeconfig" "$namespace"
   pin_live_images "$label" "$kubeconfig" "$namespace"
+  prepull_worker_image "$label" "$kubeconfig" "$namespace"
   echo "→ ${label}: rollout restart in ${namespace}"
   KUBECONFIG="$kubeconfig" kubectl rollout restart -n "$namespace" "${targets[@]}"
   for dep in "${targets[@]}"; do
@@ -227,6 +248,108 @@ rollout() {
   flux_resume_now "$kubeconfig" "$label"
   verify_flux_desired_images "$kubeconfig" "$label"
   echo "✓ ${label} rolled to ${SHA}"
+}
+
+# Warm the worker-dev image on every node that runs a compute worker, in
+# parallel, before any pod is restarted.
+#
+# Measured on a production rollout: a compute pod spent 3s in its chown-home
+# init, then sat for four minutes with nothing running while containerd pulled
+# worker-dev, then started in 3s. With the DaemonSet serialized at
+# maxUnavailable=1 that pull was paid six times in a row, five nodes idle for
+# each -- ~17 minutes of a deploy, nearly all of it waiting on the same bytes.
+# Pods on nodes that already had the layers were Ready in 6 seconds.
+#
+# Placement is copied from the live compute DaemonSet rather than written out
+# here, because the two environments genuinely differ: staging keeps the
+# anti-master nodeAffinity from apps/syrus.py, while production strips it (its
+# masters absorbed the worker role after the fleet consolidation). Hardcoding
+# either rule warms the wrong nodes in the other environment -- and in staging
+# that is not merely wasteful, since those nodes have ~20GB disks and this
+# image is multi-gigabyte. jsonpath emits JSON, which is valid YAML, so the
+# live values drop straight into the manifest.
+#
+# Failing to pre-pull is not a deploy failure. The rollout that follows pulls
+# the image itself, exactly as it did before this existed -- so a timeout here
+# costs the time it was meant to save and nothing else.
+prepull_worker_image() {
+  local label="$1" kubeconfig="$2" namespace="$3"
+
+  if [ "$PREPULL" = "0" ]; then
+    echo "→ ${label}: skipping image pre-pull (PREPULL=0)"
+    return 0
+  fi
+
+  if ! KUBECONFIG="$kubeconfig" kubectl get daemonset syrus-worker-compute -n "$namespace" >/dev/null 2>&1; then
+    echo "→ ${label}: no compute DaemonSet in ${namespace} — skipping pre-pull"
+    return 0
+  fi
+
+  local affinity tolerations
+  affinity=$(KUBECONFIG="$kubeconfig" kubectl get daemonset syrus-worker-compute -n "$namespace" \
+    -o jsonpath='{.spec.template.spec.affinity}' 2>/dev/null)
+  tolerations=$(KUBECONFIG="$kubeconfig" kubectl get daemonset syrus-worker-compute -n "$namespace" \
+    -o jsonpath='{.spec.template.spec.tolerations}' 2>/dev/null)
+  [ -n "$affinity" ] || affinity="{}"
+  [ -n "$tolerations" ] || tolerations="[]"
+
+  echo "→ ${label}: pre-pulling ${WORKER_DEV_REGISTRY}:${SHA} on every compute node"
+  ACTIVE_PREPULL_KUBECONFIG="$kubeconfig"
+  ACTIVE_PREPULL_NAMESPACE="$namespace"
+
+  if ! KUBECONFIG="$kubeconfig" kubectl apply -n "$namespace" -f - <<EOF
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ${PREPULL_DAEMONSET}
+  labels:
+    name: ${PREPULL_DAEMONSET}
+spec:
+  selector:
+    matchLabels:
+      name: ${PREPULL_DAEMONSET}
+  template:
+    metadata:
+      labels:
+        name: ${PREPULL_DAEMONSET}
+    spec:
+      terminationGracePeriodSeconds: 0
+      imagePullSecrets:
+        - name: ${GHCR_PULL_SECRET_NAME}
+      affinity: ${affinity}
+      tolerations: ${tolerations}
+      containers:
+        - name: prepull
+          image: ${WORKER_DEV_REGISTRY}:${SHA}
+          command: ["sleep", "600"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+EOF
+  then
+    echo "→ ${label}: could not create pre-pull DaemonSet — continuing without it" >&2
+    delete_prepull_daemonset "$kubeconfig" "$namespace"
+    return 0
+  fi
+
+  # Ready on every node means containerd has the image everywhere.
+  if KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" \
+       "daemonset/${PREPULL_DAEMONSET}" --timeout="$PREPULL_TIMEOUT"; then
+    echo "✓ ${label}: image warm on every compute node"
+  else
+    echo "→ ${label}: pre-pull did not finish within ${PREPULL_TIMEOUT} — continuing; the rollout will pull" >&2
+  fi
+
+  delete_prepull_daemonset "$kubeconfig" "$namespace"
+}
+
+delete_prepull_daemonset() {
+  local kubeconfig="$1" namespace="$2"
+  KUBECONFIG="$kubeconfig" kubectl delete daemonset "$PREPULL_DAEMONSET" \
+    -n "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  ACTIVE_PREPULL_KUBECONFIG=""
+  ACTIVE_PREPULL_NAMESPACE=""
 }
 
 pin_live_images() {

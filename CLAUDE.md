@@ -1551,9 +1551,17 @@ stranding the Job. It now treats two distinct worker `InstanceVersion` versions
 starting within `DEPLOY_ROLLOVER_WINDOW` of the failure as a rollout and stays
 retryable.
 
-**Deploys SIGKILL in-flight Runs.** Every `bin/deploy` rolling
-restart kills any active RunJob mid-perform after the K8s grace
-period (~30s). RunJob's `ensure` cleanup may not finish; orphan
+**Deploys SIGKILL in-flight Runs — after 5 seconds, not the grace period.**
+Every `bin/deploy` rolling restart kills any active RunJob mid-perform.
+The worker pods carry `terminationGracePeriodSeconds: 600`, which reads
+like a ten-minute drain window, but `SolidQueue.shutdown_timeout`
+defaults to **5 seconds** and Syrus does not override it: the supervisor
+waits 5s for its children and then kills them. Measured termination in a
+production rollout was 6–13 seconds. So the grace period is not
+load-bearing, and no amount of rollout staggering protects in-flight
+Runs — recovery is `ReapStaleRunsJob` plus auto-retry, not draining.
+Raise `SolidQueue.shutdown_timeout` if you ever want Runs to survive a
+deploy. RunJob's `ensure` cleanup may not finish; orphan
 worktrees and zombie Runs can accumulate. `ReapStaleRunsJob` marks dead
 Runs failed and schedules the same auto-retry path used for other failures;
 agentic runs with captured sessions resume from the failed Step when possible.
