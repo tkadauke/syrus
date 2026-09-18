@@ -29,6 +29,25 @@ RSpec.describe GitRunner do
     end
   end
 
+  it "passes an explicitly configured workflow through to ProcessRunner" do
+    workflow = Workflow.create!(job: Factories.job_record, trigger_kind: "initial", state: "running")
+    result = ProcessRunner::Result.new(
+      exit_status: 0,
+      timed_out: false,
+      stopped: false,
+      silent_timed_out: false,
+      operator_killed: false,
+      aliveness_failed: false,
+      duration_s: 0.1,
+      spawned_process_id: nil
+    )
+    runner = instance_double(ProcessRunner, run: result)
+
+    expect(ProcessRunner).to receive(:new).with(hash_including(workflow: workflow)).and_return(runner)
+
+    described_class.new(workflow: workflow).run("--version", chdir: WorkflowWorkspace.data_root.join("workflows").to_s)
+  end
+
   describe ".redact" do
     it "redacts the token in an x-access-token URL" do
       input = "git fetch https://x-access-token:github_pat_11ABC123XYZ@github.com/owner/repo.git"

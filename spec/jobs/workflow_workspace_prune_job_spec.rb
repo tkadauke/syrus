@@ -1,4 +1,6 @@
 require "rails_helper"
+require "rbconfig"
+require "timeout"
 require "tmpdir"
 
 RSpec.describe WorkflowWorkspacePruneJob do
@@ -325,6 +327,46 @@ RSpec.describe WorkflowWorkspacePruneJob do
 
     expect(older_path).not_to exist
     expect(older_wf.reload.cleaned_up_at).to be_present
+  end
+
+  it "filesystem_sweep cannot remove a workflow checkout while a ProcessRunner subprocess is still using it even with stale DB state" do
+    allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
+
+    job = Factories.job
+    older_wf = Workflow.create!(job: job, trigger_kind: "initial")
+    newer_wf = Workflow.create!(job: job, trigger_kind: "retry")
+    older_wf.update_columns(state: "failed", finished_at: 5.minutes.ago)
+    newer_wf.update_columns(state: "failed", finished_at: 1.minute.ago)
+
+    older_path = Pathname.new(data_root).join("workflows", older_wf.id.to_s)
+    FileUtils.mkdir_p(older_path.to_s)
+    older_path.join("Gemfile").write("source 'https://rubygems.org'\n")
+
+    ready = Queue.new
+    runner_thread = Thread.new do
+      ProcessRunner.new(
+        env: {},
+        command: [ RbConfig.ruby, "-e", "STDOUT.sync = true; puts 'ready'; sleep 0.5" ],
+        chdir: older_path,
+        timeout: 5,
+        on_output_line: ->(line) { ready << line if line.include?("ready") }
+      ).run
+    end
+    Timeout.timeout(3) { ready.pop }
+
+    described_class.perform_now("filesystem")
+
+    expect(older_path).to exist
+    expect(older_path.join("Gemfile")).to exist
+    expect(older_wf.reload.cleaned_up_at).to be_nil
+
+    runner_thread.join
+    described_class.perform_now("filesystem")
+
+    expect(older_path).not_to exist
+    expect(older_wf.reload.cleaned_up_at).to be_present
+  ensure
+    runner_thread&.join
   end
 
   it "filesystem_sweep removes the latest failed workflow dir when the job is closed, past the short window" do

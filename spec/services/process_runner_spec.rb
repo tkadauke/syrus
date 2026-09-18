@@ -432,6 +432,58 @@ RSpec.describe ProcessRunner, :ci_only do
     FileUtils.rm_rf(data_root) if data_root
   end
 
+  it "derives the workflow lock from a workflow-scoped chdir when workflow is not supplied" do
+    data_root = Dir.mktmpdir("process-runner-workspace")
+    ENV["SYRUS_DATA_ROOT"] = data_root
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    workspace_path = WorkflowWorkspace.path_for(workflow)
+    FileUtils.mkdir_p(workspace_path.join("nested").to_s)
+    lock_path = WorkflowWorkspace.lock_path_for(workflow)
+
+    runner_thread = Thread.new do
+      described_class.new(
+        env: {},
+        command: [ ruby, "-e", "sleep 0.5" ],
+        chdir: workspace_path.join("nested"),
+        timeout: 5
+      ).run
+    end
+
+    sleep 0.2
+
+    probe = File.open(lock_path, File::CREAT | File::RDWR)
+    expect(probe.flock(File::LOCK_EX | File::LOCK_NB)).to eq(false)
+    probe.close
+
+    runner_thread.join
+  ensure
+    ENV.delete("SYRUS_DATA_ROOT")
+    FileUtils.rm_rf(data_root) if data_root
+  end
+
+  it "raises when a workflow-scoped chdir disagrees with the supplied workflow" do
+    data_root = Dir.mktmpdir("process-runner-workspace")
+    ENV["SYRUS_DATA_ROOT"] = data_root
+    job = Factories.job_record
+    first = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    second = Workflow.create!(job: job, trigger_kind: "retry", state: "running")
+    FileUtils.mkdir_p(WorkflowWorkspace.path_for(first).to_s)
+
+    expect do
+      described_class.new(
+        env: {},
+        command: [ ruby, "-e", "exit 0" ],
+        chdir: WorkflowWorkspace.path_for(first),
+        timeout: 5,
+        workflow: second
+      )
+    end.to raise_error(ProcessRunner::WorkspaceAttributionError, /inside Workflow ##{first.id}/)
+  ensure
+    ENV.delete("SYRUS_DATA_ROOT")
+    FileUtils.rm_rf(data_root) if data_root
+  end
+
   it "does not touch any lock file when no workflow is given" do
     expect(WorkflowWorkspace).not_to receive(:lock_path_for)
 

@@ -60,20 +60,22 @@ class GitRunner
 
   # log_sink: a callable that receives each output line (stdout+stderr merged).
   # Defaults to a no-op so unit tests don't need to wire one up.
-  def initialize(log_sink: ->(_line) { }, env: {})
+  def initialize(log_sink: ->(_line) { }, env: {}, workflow: nil)
     @log_sink = log_sink
     @env = env
+    @workflow = workflow
   end
 
   # run("clone", "--bare", url, dest, chdir: nil)
   # Per-call env is merged with the instance env (per-call wins).
   # Useful for one-shot flags like GIT_TERMINAL_PROMPT=0 that you
   # only want on git operations that talk to a remote.
-  def run(*args, chdir: nil, env: {}, timeout: DEFAULT_TIMEOUT)
+  def run(*args, chdir: nil, env: {}, timeout: DEFAULT_TIMEOUT, workflow: nil)
     cmd = [ "git", *args.map(&:to_s) ]
     output = +""
     log_sink = @log_sink
     current_run = Thread.current[:syrus_current_run]
+    process_workflow = workflow || @workflow || current_run&.workflow
 
     # Route through ProcessRunner so the aliveness probe, kill switch,
     # SpawnedProcess registration, and heartbeat all apply to git ops
@@ -86,7 +88,7 @@ class GitRunner
       timeout: timeout.to_i,
       kind: "git",
       run: current_run,
-      workflow: current_run&.workflow,
+      workflow: process_workflow,
       on_output_line: ->(raw_line) do
         line = self.class.redact(raw_line)
         next if self.class.ignorable_output_line?(line)

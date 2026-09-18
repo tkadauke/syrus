@@ -23,7 +23,7 @@ class ImmutableSourceCheckout
     @workflow = step.workflow
     @job = @workflow.job
     @repository = @job.repository
-    @git = git || GitRunner.new
+    @git = git || GitRunner.new(workflow: @workflow)
     @log = log
     @path = self.class.path_for(step)
     @env = { "GIT_TERMINAL_PROMPT" => "0" }

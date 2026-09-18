@@ -244,7 +244,7 @@ class WorkflowWorkspace
     @workflow = workflow
     @job = workflow.job
     @repository = @job.repository
-    @git = git || GitRunner.new
+    @git = git || GitRunner.new(workflow: workflow)
     @path = self.class.path_for(workflow)
     @required_branch = @workflow.artifact(REQUIRED_BRANCH_ARTIFACT).presence
     @branch_name = @required_branch ||

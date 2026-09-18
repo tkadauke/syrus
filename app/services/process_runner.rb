@@ -1,6 +1,7 @@
 require "open3"
 require "socket"
 require "fileutils"
+require "pathname"
 
 # Small shared wrapper for subprocess lifetime management. Callers still own
 # command construction and output parsing; this class owns the boring parts:
@@ -8,6 +9,8 @@ require "fileutils"
 # SpawnedProcess registration + heartbeats + the operator kill switch, and
 # a common result shape.
 class ProcessRunner
+  class WorkspaceAttributionError < StandardError; end
+
   Result = Data.define(
     :exit_status, :timed_out, :stopped, :silent_timed_out, :operator_killed,
     :aliveness_failed, :duration_s, :spawned_process_id
@@ -81,7 +84,7 @@ class ProcessRunner
     @silent_timeout = silent_timeout
     @kind = kind
     @run = run
-    @workflow = workflow
+    @workflow = resolve_workflow_attribution(workflow)
     @chat_session = chat_session
     @agent = agent
     @display_command = display_command
@@ -119,6 +122,34 @@ class ProcessRunner
         lock_file.flock(File::LOCK_UN)
       end
     end
+  end
+
+  def resolve_workflow_attribution(workflow)
+    workflow_id = workflow_id_from_chdir
+    return workflow unless workflow_id
+
+    if workflow && workflow.id != workflow_id
+      raise WorkspaceAttributionError,
+            "ProcessRunner chdir #{@chdir} is inside Workflow ##{workflow_id}, but workflow ##{workflow.id} was supplied"
+    end
+
+    Workflow.find_by(id: workflow_id) ||
+      raise(WorkspaceAttributionError, "ProcessRunner chdir #{@chdir} is inside Workflow ##{workflow_id}, but no Workflow row exists")
+  end
+
+  def workflow_id_from_chdir
+    root = WorkflowWorkspace.data_root.join("workflows").expand_path
+    chdir_path = Pathname.new(@chdir).expand_path
+    relative = chdir_path.relative_path_from(root)
+    return nil if relative.to_s == "."
+    return nil if relative.to_s.start_with?("../")
+
+    first = relative.each_filename.first
+    return nil unless first.to_s.match?(/\A\d+\z/)
+
+    Integer(first)
+  rescue ArgumentError
+    nil
   end
 
   def run_process
