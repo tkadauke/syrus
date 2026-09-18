@@ -25,6 +25,8 @@ import { providerIconSrc } from "../lib/pluginIcon"
 type DirectJobFormState = {
   repositoryId: string
   agentProvider: string
+  model: string
+  effortLevel: string
   epicId: string
   title: string
   prompt: string
@@ -70,6 +72,10 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
   const selectedRepository = useMemo(
     () => payload.repositories.find((repository) => String(repository.id) === values.repositoryId) || null,
     [payload.repositories, values.repositoryId]
+  )
+  const selectedProvider = useMemo(
+    () => payload.provider_routing_options.agent_providers.find((provider) => provider.value === values.agentProvider) || null,
+    [payload.provider_routing_options.agent_providers, values.agentProvider]
   )
   const save = useMutation({
     mutationFn: () => createDirectJob({ ...values, files }),
@@ -173,7 +179,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                 ) : null}
                 <Form.Select
                   name="agent_provider"
-                  onChange={(event) => setValues({ ...values, agentProvider: event.target.value })}
+                  onChange={(event) => setValues({ ...values, agentProvider: event.target.value, model: "" })}
                   value={values.agentProvider}
                 >
                   <option value="">{t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})</option>
@@ -185,6 +191,34 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
             </Field>
           ) : null}
         </div>
+        {values.agentProvider ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Model">
+              <Form.Select
+                name="model"
+                onChange={(event) => setValues({ ...values, model: event.target.value })}
+                value={values.model}
+              >
+                <option value="">Provider default model</option>
+                {(selectedProvider?.models || []).map((model) => (
+                  <option key={model.id} value={model.id}>{model.label}</option>
+                ))}
+              </Form.Select>
+            </Field>
+            <Field label="Effort">
+              <Form.Select
+                name="effort_level"
+                onChange={(event) => setValues({ ...values, effortLevel: event.target.value })}
+                value={values.effortLevel}
+              >
+                <option value="">Default effort</option>
+                {payload.provider_routing_options.effort_levels.map((effort) => (
+                  <option key={effort.value} value={effort.value}>{effort.label}</option>
+                ))}
+              </Form.Select>
+            </Field>
+          </div>
+        ) : null}
         {payload.epic ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {t("form_epic_note")}{" "}
@@ -323,6 +357,8 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
   return {
     repositoryId: payload.selected_repository_id || "",
     agentProvider: payload.selected_agent_provider || "",
+    model: payload.selected_model || "",
+    effortLevel: payload.selected_effort_level || "",
     epicId: payload.selected_epic_id || "",
     title: "",
     prompt: "",

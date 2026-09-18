@@ -41,6 +41,7 @@ import { useConfirm } from "../hooks/useConfirm"
 import { deletePasskey, fetchPasskeyRegistrationOptions, fetchPasskeys, registerPasskey, type PasskeyRecord } from "../api/passkeys"
 import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
 import type { ProviderAvailability } from "../api/providerAvailability"
+import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
 
 const queryKey = ["credentials"] as const
 type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences"
@@ -310,6 +311,18 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
             payload={payload}
             setValues={setValues}
             values={values}
+          />
+        ) : null}
+
+        {section === "agent" ? (
+          <ProviderRoutingRulesEditor
+            basePath="/api/v1/app/credentials/provider_routing_rules"
+            description="Choose ordered fallback candidates by task key for jobs that use your account defaults."
+            onSaved={() => onNotice("Provider routing rules updated.")}
+            options={payload.options.provider_routing_options}
+            queryKey={queryKey}
+            rules={payload.provider_routing_rules}
+            title="Provider routing rules"
           />
         ) : null}
 

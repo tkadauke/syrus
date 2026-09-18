@@ -68,6 +68,7 @@ function makePayload(overrides: {
     },
     github_rate_limit: null,
     provider_availability: {},
+    provider_routing_rules: [],
     options: {
       locales: ["en", "de", "la"],
       agent_providers: overrides.agent_providers ?? ["agy", "claude", "codex"],
@@ -78,7 +79,8 @@ function makePayload(overrides: {
       codex_auth_modes: ["api_key", "chatgpt_login"],
       agent_max_turns: { min: 0, max: 1000 },
       clearable_credentials: [],
-      auto_approve_modes: [{ value: "never", label: "Never", preview: "No auto-approval." }]
+      auto_approve_modes: [{ value: "never", label: "Never", preview: "No auto-approval." }],
+      provider_routing_options: { agent_providers: [], effort_levels: [] }
     }
   }
 }

@@ -4,6 +4,7 @@ module Api
       class RepositoriesController < BaseController
         include RepositoryTabsSerialization
         include RepositorySummarySerialization
+        include ProviderRoutingRuleSerialization
 
         PER_PAGE = 20
 
@@ -315,6 +316,8 @@ module Api
             repository: repository_form_json(repository),
             configured_agent_providers: Current.user.configured_agent_providers.map { |provider| provider_json(provider) },
             user_agent_provider_label: agent_provider_label(Current.user.agent_provider),
+            provider_routing_rules: repository.persisted? ? provider_routing_rules_json(scope_type: "repository", scope_id: repository.id) : [],
+            provider_routing_options: agent_provider_catalog_options(Current.user),
             input_source_types: input_source_types_json(repository),
             auto_approve_modes: auto_approve_modes_json,
             repositories_path: repositories_path

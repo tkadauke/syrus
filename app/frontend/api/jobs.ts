@@ -2,6 +2,7 @@ import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
+import type { ProviderRoutingOptions } from "./providerRoutingRules"
 import type { AdmissionBreakdown, StartBlockedDetails } from "../types/startBlocked"
 import type { TypedArtifact } from "./artifacts"
 import type { GoalProvenance } from "./chats"
@@ -84,7 +85,10 @@ export type JobRecord = {
   agent_provider: string | null
   agent_provider_label?: string | null
   job_provider_setting?: string
-  job_provider_setting_options?: Array<{ value: string; label: string; configured: boolean }>
+  job_provider_setting_options?: Array<{ value: string; label: string; configured: boolean; models?: Array<{ id: string; label: string }> }>
+  model?: string | null
+  effort_level?: string | null
+  provider_routing_options?: ProviderRoutingOptions
   provider_availability?: ProviderAvailability
   provider_failover?: ProviderFailover
   stack_base: string
@@ -1523,8 +1527,12 @@ export function updateJobPriority(path: string, priority: string) {
   return patchJson<JobDetailPayload>(path, { priority })
 }
 
-export function updateJobProviderSetting(path: string, jobProviderSetting: string) {
-  return patchJson<JobDetailPayload>(path, { job_provider_setting: jobProviderSetting })
+export function updateJobProviderSetting(path: string, values: { jobProviderSetting: string; model?: string | null; effortLevel?: string | null }) {
+  return patchJson<JobDetailPayload>(path, {
+    job_provider_setting: values.jobProviderSetting,
+    model: values.model || "",
+    effort_level: values.effortLevel || ""
+  })
 }
 
 export function createJobAttachments(path: string, values: { files: File[]; googleDocUrl: string }) {

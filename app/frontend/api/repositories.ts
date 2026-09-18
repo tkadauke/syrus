@@ -2,6 +2,7 @@ import { getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState, PreviewEnvironmentRecord } from "./jobs"
 import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
+import type { ProviderRoutingOptions, ProviderRoutingRule } from "./providerRoutingRules"
 
 export type RepositoryEpicDependencyPolicy = "linear"
 
@@ -83,6 +84,10 @@ export type RepositoryFormRecord = {
 export type RepositoryProviderOption = {
   value: string
   label: string
+  models?: Array<{
+    id: string
+    label: string
+  }>
 }
 
 export type RepositoryAutoApproveMode = {
@@ -107,6 +112,8 @@ export type RepositoryFormPayload = {
   repository: RepositoryFormRecord
   configured_agent_providers: RepositoryProviderOption[]
   user_agent_provider_label: string
+  provider_routing_rules: ProviderRoutingRule[]
+  provider_routing_options: ProviderRoutingOptions
   input_source_types: InputSourceType[]
   auto_approve_modes: RepositoryAutoApproveMode[]
   repositories_path: string

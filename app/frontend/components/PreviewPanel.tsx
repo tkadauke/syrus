@@ -195,6 +195,8 @@ export function PreviewPanel({
     mutationFn: () => createDirectJob({
       repositoryId: String(repositoryId),
       agentProvider: "",
+      model: "",
+      effortLevel: "",
       epicId: "",
       title: t("preview_fix_job_title"),
       prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
