@@ -2982,7 +2982,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_18_162508) do
   create_table "users", force: :cascade do |t|
     t.integer "agent_max_turns", default: 200, null: false
     t.string "agent_provider", default: "claude", null: false
-    t.json "agent_provider_failover_policy"
     t.text "api_token"
     t.string "auto_approve_mode", default: "never", null: false
     t.string "avatar_url"

@@ -555,9 +555,12 @@ RSpec.describe AutoRetryJob do
     )
     result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)
     allow(ProviderCircuitBreaker).to receive(:call).and_return(open_circuit)
-    allow_any_instance_of(Job).to receive(:agent_provider_failover_candidates)
-      .with(cause: "provider_transient")
-      .and_return([ "codex" ])
+    ProviderRoutingRule.create!(
+      scope_type: "user",
+      scope_id: job.user_id,
+      task_key: "retry",
+      candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
+    )
     allow(RetryWorkflowEnqueuer).to receive(:call).and_return(result)
 
     described_class.perform_now(attempt.id)

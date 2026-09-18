@@ -74,14 +74,14 @@ RSpec.describe "WorkUnit runtime gates" do
     end
 
     it "repins an unstarted workflow when provider availability chooses failover" do
-      failover = ProviderFailoverSelector::Decision.new(
-        selected_provider: "codex",
-        original_provider: "claude",
+      failover = ProviderRouting::AvailabilitySelector::Decision.new(
+        candidate: ProviderRouting::Resolver::Candidate.new(provider: "codex", model: nil, effort_level: nil),
+        original_candidate: ProviderRouting::Resolver::Candidate.new(provider: "claude", model: nil, effort_level: nil),
         reason: "provider_unavailable",
         availability: { state: "open", evidence: { current: { observed_at: 1.minute.ago.iso8601 } } },
         candidate_availability: nil,
         decided_at: Time.current,
-        manual_override: false
+        exhausted: false
       )
       decision = ProviderAvailabilityPause::Decision.new(
         pause: false,
@@ -108,14 +108,14 @@ RSpec.describe "WorkUnit runtime gates" do
     end
 
     it "does not repin a workflow that already has a run" do
-      failover = ProviderFailoverSelector::Decision.new(
-        selected_provider: "codex",
-        original_provider: "claude",
+      failover = ProviderRouting::AvailabilitySelector::Decision.new(
+        candidate: ProviderRouting::Resolver::Candidate.new(provider: "codex", model: nil, effort_level: nil),
+        original_candidate: ProviderRouting::Resolver::Candidate.new(provider: "claude", model: nil, effort_level: nil),
         reason: "provider_unavailable",
         availability: { state: "open" },
         candidate_availability: nil,
         decided_at: Time.current,
-        manual_override: false
+        exhausted: false
       )
       decision = ProviderAvailabilityPause::Decision.new(
         pause: false,
