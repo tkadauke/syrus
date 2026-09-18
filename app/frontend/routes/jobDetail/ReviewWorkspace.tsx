@@ -227,6 +227,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             changedFilesPopup
             comments={feedback.diffThreads}
             composingBody={feedback.composingBody}
+            composingDiscussPending={feedback.discussComposingPending}
             composingError={feedback.composingError}
             composingPending={feedback.composingPending}
             composingSelection={feedback.composingSelection}
@@ -242,6 +243,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
             onCommentLine={startComment}
             onDeleteThread={feedback.onDeleteThread}
+            onDiscussComposing={feedback.onDiscussComposing}
             onLoadFileContext={activeDiff.head_ref ? (file) => fetchJobSourceFileContent(jobId, activeDiff.head_ref!, file.path) : undefined}
             onSaveComposing={feedback.onSaveComposing}
             onSaveEditThread={feedback.onSaveEditThread}

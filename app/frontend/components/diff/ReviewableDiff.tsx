@@ -66,6 +66,7 @@ export type ReviewableDiffProps = {
   changedFilesPopup?: boolean
   comments?: Record<string, Record<string, DiffReviewThread[]>> | null
   composingBody?: string
+  composingDiscussPending?: boolean
   composingError?: Error | null
   composingPending?: boolean
   composingSelection?: DiffLineSelection | null
@@ -87,6 +88,7 @@ export type ReviewableDiffProps = {
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
   onDeleteThread?: (thread: DiffReviewThread) => void
+  onDiscussComposing?: () => void
   // Fetches the full current file text (at the diff's head ref) so hidden
   // hunk context and "load whole file" can reveal real content. Omit to
   // hide context-expansion affordances entirely (e.g. a standalone patch
@@ -175,6 +177,7 @@ export function ReviewableDiff({
   changedFilesPopup = false,
   comments,
   composingBody,
+  composingDiscussPending,
   composingError,
   composingPending,
   composingSelection,
@@ -192,6 +195,7 @@ export function ReviewableDiff({
   onChangeEditingThreadBody,
   onCommentLine,
   onDeleteThread,
+  onDiscussComposing,
   onLoadFileContext,
   onSaveComposing,
   onSaveEditThread,
@@ -428,6 +432,7 @@ export function ReviewableDiff({
           cache={fileCache.current}
           comments={comments?.[file.path]}
           composingBody={composingBody}
+          composingDiscussPending={composingDiscussPending}
           composingError={composingError}
           composingPending={composingPending}
           composingSelection={composingSelection?.file.path === file.path ? composingSelection : undefined}
@@ -442,6 +447,7 @@ export function ReviewableDiff({
           onChangeEditingThreadBody={onChangeEditingThreadBody}
           onCommentLine={onCommentLine}
           onDeleteThread={onDeleteThread}
+          onDiscussComposing={onDiscussComposing}
           onLoadFileContext={onLoadFileContext}
           onSaveComposing={onSaveComposing}
           onSaveEditThread={onSaveEditThread}
@@ -643,6 +649,7 @@ function DiffFileSection({
   cache,
   comments,
   composingBody,
+  composingDiscussPending,
   composingError,
   composingPending,
   composingSelection,
@@ -657,6 +664,7 @@ function DiffFileSection({
   onChangeEditingThreadBody,
   onCommentLine,
   onDeleteThread,
+  onDiscussComposing,
   onLoadFileContext,
   onSaveComposing,
   onSaveEditThread,
@@ -674,6 +682,7 @@ function DiffFileSection({
   cache: Map<string, FileCacheEntry>
   comments?: Record<string, DiffReviewThread[]>
   composingBody?: string
+  composingDiscussPending?: boolean
   composingError?: Error | null
   composingPending?: boolean
   composingSelection?: DiffLineSelection | null
@@ -688,6 +697,7 @@ function DiffFileSection({
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
   onDeleteThread?: (thread: DiffReviewThread) => void
+  onDiscussComposing?: () => void
   onLoadFileContext?: (file: ReviewableDiffFile) => Promise<string | null>
   onSaveComposing?: () => void
   onSaveEditThread?: () => void
@@ -844,6 +854,7 @@ function DiffFileSection({
           annotations={annotations}
           comments={comments}
           composingBody={composingBody}
+          composingDiscussPending={composingDiscussPending}
           composingError={composingError}
           composingPending={composingPending}
           composingSelection={composingSelection}
@@ -859,6 +870,7 @@ function DiffFileSection({
           onChangeEditingThreadBody={onChangeEditingThreadBody}
           onCommentLine={onCommentLine}
           onDeleteThread={onDeleteThread}
+          onDiscussComposing={onDiscussComposing}
           onSaveComposing={onSaveComposing}
           onSaveEditThread={onSaveEditThread}
           onStartEditThread={onStartEditThread}
@@ -974,6 +986,7 @@ export function UnifiedDiffTable({
   annotations,
   comments,
   composingBody,
+  composingDiscussPending,
   composingError,
   composingPending,
   composingSelection,
@@ -989,6 +1002,7 @@ export function UnifiedDiffTable({
   onChangeEditingThreadBody,
   onCommentLine,
   onDeleteThread,
+  onDiscussComposing,
   onSaveComposing,
   onSaveEditThread,
   onStartEditThread,
@@ -999,6 +1013,7 @@ export function UnifiedDiffTable({
   annotations?: Record<string, LineAnnotation>
   comments?: Record<string, DiffReviewThread[]>
   composingBody?: string
+  composingDiscussPending?: boolean
   composingError?: Error | null
   composingPending?: boolean
   composingSelection?: DiffLineSelection | null
@@ -1014,6 +1029,7 @@ export function UnifiedDiffTable({
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
   onDeleteThread?: (thread: DiffReviewThread) => void
+  onDiscussComposing?: () => void
   onSaveComposing?: () => void
   onSaveEditThread?: () => void
   onStartEditThread?: (thread: DiffReviewThread) => void
@@ -1201,6 +1217,11 @@ export function UnifiedDiffTable({
                         />
                         <div className="flex gap-2">
                           <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">{t("diff_review_composer.create_comment")}</Button>
+                          {onDiscussComposing ? (
+                            <Button disabled={!composingBody?.trim() || composingDiscussPending} onClick={onDiscussComposing} size="sm" variant="secondary">
+                              {composingDiscussPending ? t("diff_review_composer.discussing") : t("diff_review_composer.discuss")}
+                            </Button>
+                          ) : null}
                           <Button onClick={onCancelComposing} size="sm" variant="secondary">{t("cancel")}</Button>
                         </div>
                         {composingError ? <p className="text-xs text-red-700 dark:text-red-300">{t("diff_review_composer.create_error")}</p> : null}
