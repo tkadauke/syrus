@@ -12,6 +12,11 @@ module Metrics
     # drops out of the gauge instead of reporting a stale reading forever.
     SAMPLE_WINDOW = 2.minutes
 
+    # Keyed by worker_storage_key -- the stable identity a Prometheus gauge's
+    # tag must carry for the series to survive a pod restart. A hostname is
+    # not safe here even as a second tag: series identity is the whole tag
+    # combination, so pairing a stable key with a churning hostname on the
+    # same gauge would still fork a new series every reschedule.
     def worker_cpu_percentages
       latest_samples.transform_values(&:cpu_used_percent).compact
     end
@@ -22,6 +27,15 @@ module Metrics
 
     def worker_disk_percentages
       latest_samples.transform_values(&:data_root_used_percent).compact
+    end
+
+    # Hash[worker_storage_key => hostname] for the latest sample of each
+    # currently-fresh worker -- the join key that lets a human-readable
+    # hostname label be recovered from the storage-key-tagged gauges above
+    # without putting hostname on their own tag set. Backs
+    # syrus_worker_identity_info.
+    def worker_hostname_labels
+      latest_samples.transform_values(&:hostname)
     end
 
     def active_agent_run_count
@@ -48,16 +62,15 @@ module Metrics
     # hostname, so a Deployment pod restart -- a new hostname, same storage --
     # does not fork the series. Rows written before this column existed have
     # no worker_storage_key, so they fall back to hostname for the rollout
-    # window. The hash is then re-keyed by each group's latest sample's
-    # hostname so callers keep the human-readable label the dashboard renders.
+    # window. Stays keyed by that identity -- callers that want the
+    # human-readable hostname use #worker_hostname_labels instead of losing
+    # the stable key by re-indexing on it.
     def latest_samples
       @latest_samples ||= WorkerHostHealthSample.worker_role
         .where("observed_at >= ?", SAMPLE_WINDOW.ago)
         .order(observed_at: :desc)
         .group_by { |sample| sample.worker_storage_key.presence || sample.hostname }
         .transform_values(&:first)
-        .values
-        .index_by(&:hostname)
     end
   end
 end

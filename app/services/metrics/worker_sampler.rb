@@ -30,12 +30,14 @@ module Metrics
 
     def self.declare_metrics!
       Syrus::Metrics.declare do
-        gauge :worker_cpu_percent, tags: %i[hostname],
-              comment: "Worker host CPU utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum)"
-        gauge :worker_memory_percent, tags: %i[hostname],
-              comment: "Worker host memory utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum)"
-        gauge :worker_disk_percent, tags: %i[hostname],
-              comment: "Worker host data-root disk utilization from the latest health sample (GLOBAL -- aggregate with max by, never sum)"
+        gauge :worker_cpu_percent, tags: %i[worker_storage_key],
+              comment: "Worker host CPU utilization from the latest health sample, tagged by durable storage identity so a pod restart does not fork the series (GLOBAL -- aggregate with max by, never sum)"
+        gauge :worker_memory_percent, tags: %i[worker_storage_key],
+              comment: "Worker host memory utilization from the latest health sample, tagged by durable storage identity so a pod restart does not fork the series (GLOBAL -- aggregate with max by, never sum)"
+        gauge :worker_disk_percent, tags: %i[worker_storage_key],
+              comment: "Worker host data-root disk utilization from the latest health sample, tagged by durable storage identity so a pod restart does not fork the series (GLOBAL -- aggregate with max by, never sum)"
+        gauge :worker_identity_info, tags: %i[worker_storage_key hostname],
+              comment: "1 for each currently-fresh worker's storage key/hostname pairing -- a join key for recovering the human-readable hostname behind worker_cpu_percent/memory_percent/disk_percent's worker_storage_key tag, e.g. `... * on(worker_storage_key) group_left(hostname) syrus_worker_identity_info` (GLOBAL -- aggregate with max by, never sum)"
         gauge :active_agent_runs,
               comment: "Currently running agentic Runs, subject to the global concurrency cap (GLOBAL -- aggregate with max by, never sum)"
         gauge :max_concurrent_agent_runs,
@@ -71,6 +73,7 @@ module Metrics
         worker_cpu_percent: guard("worker cpu percent", {}) { source.worker_cpu_percentages },
         worker_memory_percent: guard("worker memory percent", {}) { source.worker_memory_percentages },
         worker_disk_percent: guard("worker disk percent", {}) { source.worker_disk_percentages },
+        worker_hostname_labels: guard("worker hostname labels", {}) { source.worker_hostname_labels },
         active_agent_runs: guard("active agent runs", 0) { source.active_agent_run_count },
         max_concurrent_agent_runs: guard("max concurrent agent runs", 0) { source.max_concurrent_agent_runs }
       }
@@ -85,9 +88,10 @@ module Metrics
       return false if payload.blank? && totals.blank?
 
       if payload.present?
-        set_each(:syrus_worker_cpu_percent, payload[:worker_cpu_percent], :hostname)
-        set_each(:syrus_worker_memory_percent, payload[:worker_memory_percent], :hostname)
-        set_each(:syrus_worker_disk_percent, payload[:worker_disk_percent], :hostname)
+        set_each(:syrus_worker_cpu_percent, payload[:worker_cpu_percent], :worker_storage_key)
+        set_each(:syrus_worker_memory_percent, payload[:worker_memory_percent], :worker_storage_key)
+        set_each(:syrus_worker_disk_percent, payload[:worker_disk_percent], :worker_storage_key)
+        set_identity_info(payload[:worker_hostname_labels])
         Syrus::Metrics.gauge(:syrus_active_agent_runs).set(payload[:active_agent_runs].to_i)
         Syrus::Metrics.gauge(:syrus_max_concurrent_agent_runs).set(payload[:max_concurrent_agent_runs].to_i)
       end
@@ -104,6 +108,19 @@ module Metrics
     def set_each(metric, values, tag)
       gauge = Syrus::Metrics.gauge(metric)
       Hash(values).each { |label, value| gauge.set(value, tags: { tag => label }) }
+    end
+
+    # The join-metric counterpart to set_each above: one series per
+    # worker_storage_key/hostname pairing, always 1, so a PromQL `group_left`
+    # join can recover the human-readable hostname without hostname ever
+    # being part of worker_cpu_percent/memory_percent/disk_percent's own tag
+    # set (which would refork their series on every pod restart just as
+    # badly as tagging them by hostname directly).
+    def set_identity_info(hostname_labels)
+      gauge = Syrus::Metrics.gauge(:syrus_worker_identity_info)
+      Hash(hostname_labels).each do |storage_key, hostname|
+        gauge.set(1, tags: { worker_storage_key: storage_key, hostname: hostname })
+      end
     end
 
     # Bootstraps the cursor to "now" without instrumenting existing history,

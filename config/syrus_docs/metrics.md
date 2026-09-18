@@ -187,39 +187,58 @@ the sampler first runs, not from the beginning of time.
 
 | Metric | Meaning |
 |---|---|
-| `syrus_worker_cpu_percent{hostname}` | latest CPU utilization sample per worker |
-| `syrus_worker_memory_percent{hostname}` | latest memory utilization sample per worker |
-| `syrus_worker_disk_percent{hostname}` | latest data-root disk utilization sample per worker |
+| `syrus_worker_cpu_percent{worker_storage_key}` | latest CPU utilization sample per worker |
+| `syrus_worker_memory_percent{worker_storage_key}` | latest memory utilization sample per worker |
+| `syrus_worker_disk_percent{worker_storage_key}` | latest data-root disk utilization sample per worker |
+| `syrus_worker_identity_info{worker_storage_key,hostname}` | always `1`; join key for recovering the human-readable hostname behind a `worker_storage_key` |
 | `syrus_active_agent_runs` | currently running agentic Runs, subject to the global concurrency cap |
 | `syrus_max_concurrent_agent_runs` | the configured ceiling, so the dashboard panel shows capacity alongside utilization |
 | `syrus_admission_decisions_total{decision}` | admission decisions, tagged by the action taken |
 | `syrus_workflow_step_duration_seconds{kind}` | Step wall clock from start to finish |
 
 `Metrics::WorkerSampler` (`app/services/metrics/worker_sampler.rb`) owns the
-first five. `worker_cpu_percent`/`worker_memory_percent`/`worker_disk_percent`
+first six. `worker_cpu_percent`/`worker_memory_percent`/`worker_disk_percent`
 read the most recent `WorkerHostHealthSample` within a 2-minute window -- the
 same freshness window `RunHostAdmission`/`WorkflowAdmissionBudget` use to
 decide a sample is still trustworthy -- and are the panel that would have
 shown "one worker at 3277m and another idle at 51m" instead of someone
 finding it by hand. `active_agent_runs` and `max_concurrent_agent_runs` are
 plain gauges read from `Run.running_agent_runs.count` and
-`AppSetting.max_concurrent_agent_runs`. All five are GLOBAL and cache-mediated
+`AppSetting.max_concurrent_agent_runs`. All six are GLOBAL and cache-mediated
 exactly like the queue-health and landing-queue gauges above.
 
-**Grouped by `worker_storage_key`, labeled by `hostname`.** `WorkerHostHealthSample`
+**Tagged by `worker_storage_key`, not `hostname`.** `WorkerHostHealthSample`
 carries both a diagnostics `hostname` and a durable `worker_storage_key`
 (`WorkerStorageIdentity.queue_key`, the same id `workflows.worker_storage_key`
 already uses -- see `config/syrus_docs/multi_worker.md`'s "Retry-from-failed-step
 storage affinity"). `Metrics::WorkerSource#latest_samples` groups by
 `worker_storage_key` (falling back to `hostname` for samples written before
-that column existed) so a Kubernetes Deployment pod restart -- a new
-`<replicaset-hash>-<pod-suffix>` hostname, same underlying storage -- continues
-one series instead of forking a new one every reschedule. The `hostname` tag on
-the three gauges still comes from each group's most recent sample, so the
-label stays the human-readable pod name operators recognize; only the
-grouping identity changed. `Admin::WorkerHealthPayload`'s `current`/`hosts`
-fleet view (`GET /api/v1/admin/worker_health`) applies the same split and adds
-an explicit `storage_key` field per host alongside the `hostname` label.
+that column existed), and `worker_cpu_percent`/`memory_percent`/`disk_percent`
+are tagged by that same key -- not `hostname` -- so a Kubernetes Deployment pod
+restart, a new `<replicaset-hash>-<pod-suffix>` hostname on the same underlying
+storage, keeps writing the *same Prometheus series* instead of forking a new
+one every reschedule. This matters because a Prometheus series' identity is
+its full tag set: pairing a stable `worker_storage_key` with a churning
+`hostname` on the *same* gauge would still fork on every restart, just as
+tagging by `hostname` alone did -- there is no such thing as a "display-only"
+tag on one series.
+
+To keep the human-readable hostname visible anyway, `syrus_worker_identity_info`
+publishes `1` per `{worker_storage_key, hostname}` pairing currently observed
+(`Metrics::WorkerSource#worker_hostname_labels`) -- the standard Prometheus
+"info metric" pattern (`kube_pod_info` and friends). A PromQL query joins it in
+with `group_left`, e.g.:
+
+```promql
+syrus_worker_cpu_percent * on(worker_storage_key) group_left(hostname) syrus_worker_identity_info
+```
+
+`Admin::WorkerHealthPayload`'s `current`/`hosts` fleet view
+(`GET /api/v1/admin/worker_health`) applies the equivalent split at the JSON
+layer instead: it groups `current`/`hosts` entries by `storage_key` (an
+explicit field on each entry) and keeps `hostname` as a display field, since a
+JSON payload -- unlike a single Prometheus series -- can carry both a stable
+identity and a human label on the same record without forking anything.
 
 `workflow_step_duration_seconds` is a histogram and therefore goes through
 the same cursor + cumulative-snapshot dance `run_duration_seconds` uses (see
@@ -442,7 +461,7 @@ Summing across pods multiplies the value by the number of pods scraped. The
 `syrus_global_` prefix exists to make that rule legible from the metric name,
 but it is not the only signal: `job_state`, `landing_queue_depth`,
 `queue_table_rows`, `worker_cpu_percent`, `worker_memory_percent`,
-`worker_disk_percent`, `active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`,
+`worker_disk_percent`, `worker_identity_info`, `active_agent_runs`, `max_concurrent_agent_runs`, `instance_versions`,
 `spawned_processes`, `provider_circuit_state`, `github_rate_limit_remaining`,
 `repositories_main_branch_broken_count`, `recurring_job_last_success_seconds`,
 `provider_sessions_bytes`, `provider_sessions_rows`,

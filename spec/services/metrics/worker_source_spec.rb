@@ -30,11 +30,21 @@ RSpec.describe Metrics::WorkerSource do
       expect(source.worker_cpu_percentages).to eq({})
     end
 
-    it "treats samples with different hostnames but the same worker_storage_key as one continuous series" do
+    it "treats samples with different hostnames but the same worker_storage_key as one continuous series, keyed by the storage key" do
       sample(hostname: "syrus-worker-abc-1", worker_storage_key: "storage-a", cpu_used_percent: 10.0, observed_at: 1.minute.ago)
       sample(hostname: "syrus-worker-xyz-2", worker_storage_key: "storage-a", cpu_used_percent: 55.0, observed_at: 10.seconds.ago)
 
-      expect(source.worker_cpu_percentages).to eq("syrus-worker-xyz-2" => 55.0)
+      expect(source.worker_cpu_percentages).to eq("storage-a" => 55.0)
+    end
+  end
+
+  describe "#worker_hostname_labels" do
+    it "maps each worker_storage_key to its latest sample's hostname, for humanizing the storage-key-tagged gauges" do
+      sample(hostname: "syrus-worker-abc-1", worker_storage_key: "storage-a", cpu_used_percent: 10.0, observed_at: 1.minute.ago)
+      sample(hostname: "syrus-worker-xyz-2", worker_storage_key: "storage-a", cpu_used_percent: 55.0, observed_at: 10.seconds.ago)
+      sample(hostname: "worker-b", cpu_used_percent: 12.0)
+
+      expect(source.worker_hostname_labels).to eq("storage-a" => "syrus-worker-xyz-2", "worker-b" => "worker-b")
     end
   end
 

@@ -7,12 +7,13 @@ require "rails_helper"
 RSpec.describe Metrics::WorkerSampler do
   class FakeWorkerSource
     attr_writer :worker_cpu_percentages, :worker_memory_percentages, :worker_disk_percentages,
-                :active_agent_run_count, :max_concurrent_agent_runs, :finished_steps
+                :worker_hostname_labels, :active_agent_run_count, :max_concurrent_agent_runs, :finished_steps
 
     def initialize
       @worker_cpu_percentages = {}
       @worker_memory_percentages = {}
       @worker_disk_percentages = {}
+      @worker_hostname_labels = {}
       @active_agent_run_count = 0
       @max_concurrent_agent_runs = 0
       @finished_steps = []
@@ -21,6 +22,7 @@ RSpec.describe Metrics::WorkerSampler do
     def worker_cpu_percentages = resolve(@worker_cpu_percentages)
     def worker_memory_percentages = resolve(@worker_memory_percentages)
     def worker_disk_percentages = resolve(@worker_disk_percentages)
+    def worker_hostname_labels = resolve(@worker_hostname_labels)
     def active_agent_run_count = resolve(@active_agent_run_count)
     def max_concurrent_agent_runs = resolve(@max_concurrent_agent_runs)
     def finished_steps(after:, through:) = resolve(@finished_steps)
@@ -50,15 +52,16 @@ RSpec.describe Metrics::WorkerSampler do
   def sample!(**opts) = described_class.sample!(**opts)
   def refresh!(**opts) = described_class.refresh_gauges!(**opts)
 
-  def worker_sample(hostname:, cpu:, memory:, disk: nil, observed_at: Time.current)
+  def worker_sample(hostname:, cpu:, memory:, disk: nil, observed_at: Time.current, worker_storage_key: nil)
     WorkerHostHealthSample.create!(
       hostname: hostname, role: "worker", version: "abc123", observed_at: observed_at,
-      cpu_used_percent: cpu, memory_used_percent: memory, data_root_used_percent: disk
+      cpu_used_percent: cpu, memory_used_percent: memory, data_root_used_percent: disk,
+      worker_storage_key: worker_storage_key
     )
   end
 
   describe "#sample!" do
-    it "caches worker cpu/memory/disk percentages from the latest sample per hostname" do
+    it "caches worker cpu/memory/disk percentages from the latest sample per worker, tagged by storage key" do
       worker_sample(hostname: "worker-a", cpu: 87.5, memory: 42.0, disk: 63.0)
       worker_sample(hostname: "worker-a", cpu: 10.0, memory: 5.0, disk: 5.0, observed_at: 10.minutes.ago) # stale, excluded
       worker_sample(hostname: "worker-b", cpu: 12.0, memory: 30.0, disk: 20.0)
@@ -67,23 +70,54 @@ RSpec.describe Metrics::WorkerSampler do
       refresh!
 
       rendered = Syrus::Metrics.render
-      expect(rendered).to include('syrus_worker_cpu_percent{hostname="worker-a"} 87.5')
-      expect(rendered).to include('syrus_worker_memory_percent{hostname="worker-a"} 42')
-      expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-a"} 63')
-      expect(rendered).to include('syrus_worker_cpu_percent{hostname="worker-b"} 12')
-      expect(rendered).to include('syrus_worker_disk_percent{hostname="worker-b"} 20')
+      expect(rendered).to include('syrus_worker_cpu_percent{worker_storage_key="worker-a"} 87.5')
+      expect(rendered).to include('syrus_worker_memory_percent{worker_storage_key="worker-a"} 42')
+      expect(rendered).to include('syrus_worker_disk_percent{worker_storage_key="worker-a"} 63')
+      expect(rendered).to include('syrus_worker_cpu_percent{worker_storage_key="worker-b"} 12')
+      expect(rendered).to include('syrus_worker_disk_percent{worker_storage_key="worker-b"} 20')
+      expect(rendered).not_to include('syrus_worker_cpu_percent{hostname=')
     end
 
-    it "anchors the cpu gauge to worker_storage_key across a pod restart, not hostname" do
-      worker_sample(hostname: "syrus-worker-abc-1", cpu: 20.0, memory: nil, disk: nil, observed_at: 1.minute.ago).update!(worker_storage_key: "storage-a")
-      worker_sample(hostname: "syrus-worker-xyz-2", cpu: 65.0, memory: nil, disk: nil, observed_at: 10.seconds.ago).update!(worker_storage_key: "storage-a")
+    it "publishes syrus_worker_identity_info as the join key from storage key to hostname" do
+      worker_sample(hostname: "syrus-worker-home-2kcwb", cpu: 20.0, memory: nil, disk: nil, worker_storage_key: "storage-a")
 
       sample!
       refresh!
 
+      expect(Syrus::Metrics.render).to include(
+        'syrus_worker_identity_info{worker_storage_key="storage-a",hostname="syrus-worker-home-2kcwb"} 1'
+      )
+    end
+
+    it "keeps the cpu gauge's series identity anchored to worker_storage_key across two separate ticks under different hostnames" do
+      t0 = Time.current
+
+      travel_to(t0) do
+        worker_sample(hostname: "syrus-worker-home-655ddb4df7-2kcwb", cpu: 20.0, memory: nil, disk: nil, worker_storage_key: "storage-a")
+        sample!
+        refresh!
+      end
+      expect(Syrus::Metrics.render).to include('syrus_worker_cpu_percent{worker_storage_key="storage-a"} 20')
+
+      # Simulate a Deployment reschedule: a new pod hostname reports under the
+      # same durable storage key once the old sample has aged out of the
+      # 2-minute freshness window -- this is the actual restart scenario the
+      # bug report describes, not two co-resident samples in one window.
+      travel_to(t0 + 5.minutes) do
+        worker_sample(hostname: "syrus-worker-home-6c78d87664-8ptdv", cpu: 65.0, memory: nil, disk: nil, worker_storage_key: "storage-a")
+        sample!
+        refresh!
+      end
+
       rendered = Syrus::Metrics.render
-      expect(rendered).to include('syrus_worker_cpu_percent{hostname="syrus-worker-xyz-2"} 65')
-      expect(rendered).not_to include('syrus_worker_cpu_percent{hostname="syrus-worker-abc-1"}')
+      # Same tag value both ticks -- the series never forked -- just a fresh
+      # reading under it.
+      expect(rendered).to include('syrus_worker_cpu_percent{worker_storage_key="storage-a"} 65')
+      expect(rendered).not_to include('syrus_worker_cpu_percent{worker_storage_key="syrus-worker-home-655ddb4df7-2kcwb"}')
+      expect(rendered).not_to include('syrus_worker_cpu_percent{worker_storage_key="syrus-worker-home-6c78d87664-8ptdv"}')
+      expect(rendered).to include(
+        'syrus_worker_identity_info{worker_storage_key="storage-a",hostname="syrus-worker-home-6c78d87664-8ptdv"} 1'
+      )
     end
 
     it "caches active_agent_runs from currently-running agentic Runs" do

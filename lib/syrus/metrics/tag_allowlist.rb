@@ -17,17 +17,26 @@ module Syrus
       # Every entry here must have a small, bounded set of values that does not
       # grow with the amount of work Syrus does.
       #
-      # `hostname` and `version` are the two deliberate exceptions to "bounded
-      # set of values" in the strict sense -- pod names and git SHAs do churn
-      # across deploys over a long enough retention window. They are allowed
-      # anyway because the worker/fleet gauges (syrus_worker_cpu_percent,
-      # syrus_instance_versions, ...) are sampled centrally from one process
-      # and cached, not scraped per-pod -- there is no Prometheus-assigned
-      # `instance` label to fall back on, since only the web role currently
-      # serves /metrics (see config/syrus_docs/metrics.md). The set of values
-      # actually alive at any moment is small (the live worker fleet, "two
-      # versions during a rollout"), which is what keeps this from becoming
-      # the per-request unbounded case the rest of this list guards against.
+      # `hostname`, `version`, and `worker_storage_key` are the deliberate
+      # exceptions to "bounded set of values" in the strict sense -- pod names,
+      # git SHAs, and worker storage identities do churn over a long enough
+      # retention window. They are allowed anyway because the worker/fleet
+      # gauges (syrus_worker_cpu_percent, syrus_instance_versions, ...) are
+      # sampled centrally from one process and cached, not scraped per-pod --
+      # there is no Prometheus-assigned `instance` label to fall back on,
+      # since only the web role currently serves /metrics (see
+      # config/syrus_docs/metrics.md). The set of values actually alive at any
+      # moment is small (the live worker fleet, "two versions during a
+      # rollout"), which is what keeps this from becoming the per-request
+      # unbounded case the rest of this list guards against.
+      #
+      # `worker_storage_key` specifically is the stable identity
+      # WorkerStorageIdentity assigns per data root/worker, used instead of
+      # `hostname` as the primary tag on worker_cpu_percent/memory_percent/
+      # disk_percent so those series survive a Kubernetes Deployment pod
+      # restart (a new hostname, same storage) instead of forking on every
+      # reschedule -- see config/syrus_docs/metrics.md's "Workers and
+      # admission" section.
       ALLOWED = %i[
         queue
         state
@@ -48,6 +57,7 @@ module Syrus
         plugin
         hostname
         version
+        worker_storage_key
         job
         skip_reason
         problem_code

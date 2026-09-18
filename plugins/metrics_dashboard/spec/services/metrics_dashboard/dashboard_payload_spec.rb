@@ -101,15 +101,47 @@ RSpec.describe MetricsDashboard::DashboardPayload do
       expect(values.compact).to all(eq(5))
     end
 
-    it "reports worker disk utilization grouped by hostname" do
+    it "reports worker disk utilization grouped by worker_storage_key, relabeled with the latest hostname" do
       now = Time.current.change(sec: 0)
-      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-a" }, value: 63, at: now - 1.minute)
-      sample(metric: "syrus_worker_disk_percent", labels: { "hostname" => "worker-b" }, value: 20, at: now - 1.minute)
+      sample(metric: "syrus_worker_disk_percent", labels: { "worker_storage_key" => "storage-a" }, value: 63, at: now - 1.minute)
+      sample(metric: "syrus_worker_disk_percent", labels: { "worker_storage_key" => "storage-b" }, value: 20, at: now - 1.minute)
+      sample(metric: "syrus_worker_identity_info", labels: { "worker_storage_key" => "storage-a", "hostname" => "worker-a" }, value: 1, at: now - 1.minute)
+      sample(metric: "syrus_worker_identity_info", labels: { "worker_storage_key" => "storage-b", "hostname" => "worker-b" }, value: 1, at: now - 1.minute)
 
       series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
 
       expect(series.map { |s| s[:name] }).to contain_exactly("worker-a", "worker-b")
       expect(series.find { |s| s[:name] == "worker-a" }[:values].compact.max).to eq(63)
+    end
+
+    # The literal bug this panel exists to fix: a Kubernetes Deployment pod
+    # restart changes the hostname but not the durable worker_storage_key, so
+    # the chart must keep drawing one line, not fork a second one.
+    it "keeps one continuous worker_cpu series across a hostname change under the same storage key" do
+      now = Time.current.change(sec: 0)
+      sample(metric: "syrus_worker_cpu_percent", labels: { "worker_storage_key" => "storage-a" }, value: 20, at: now - 10.minutes)
+      sample(metric: "syrus_worker_cpu_percent", labels: { "worker_storage_key" => "storage-a" }, value: 65, at: now - 1.minute)
+      sample(metric: "syrus_worker_identity_info",
+             labels: { "worker_storage_key" => "storage-a", "hostname" => "syrus-worker-home-655ddb4df7-2kcwb" },
+             value: 1, at: now - 10.minutes)
+      sample(metric: "syrus_worker_identity_info",
+             labels: { "worker_storage_key" => "storage-a", "hostname" => "syrus-worker-home-6c78d87664-8ptdv" },
+             value: 1, at: now - 1.minute)
+
+      series = panel(described_class.build(window: "6h"), "worker_cpu")[:series]
+
+      expect(series.size).to eq(1)
+      expect(series.first[:name]).to eq("syrus-worker-home-6c78d87664-8ptdv")
+      expect(series.first[:values].compact.first).to eq(20)
+      expect(series.first[:values].compact.last).to eq(65)
+    end
+
+    it "falls back to the raw storage key when no identity info has been recorded yet" do
+      sample(metric: "syrus_worker_cpu_percent", labels: { "worker_storage_key" => "storage-a" }, value: 20, at: Time.current)
+
+      series = panel(described_class.build(window: "6h"), "worker_cpu")[:series]
+
+      expect(series.sole[:name]).to eq("storage-a")
     end
   end
 
