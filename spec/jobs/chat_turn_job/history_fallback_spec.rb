@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe ChatTurnJob::HistoryFallback do
+RSpec.describe ChatHistoryTranscriptRenderer do
   # Lightweight doubles for message attributes. Kept outside let blocks so
   # they can be used across all example groups without recreation overhead.
   MsgDouble         = Struct.new(:role, :content, :tool_name, :proposal, :pending_action, keyword_init: true)
@@ -12,14 +12,15 @@ RSpec.describe ChatTurnJob::HistoryFallback do
   let(:chat)         { ChatSession.create!(user: user, repository: repository) }
   let(:user_message) { chat.messages.create!(role: "user", content: { "text" => "What next?" }) }
 
-  # Build a host object that has the module's methods as singleton methods,
-  # plus the @chat / @user_message instance variables the module reads.
   let(:host) do
-    obj = Object.new
-    obj.extend(ChatTurnJob::HistoryFallback)
-    obj.instance_variable_set(:@chat, chat)
-    obj.instance_variable_set(:@user_message, user_message)
-    obj
+    described_class.new(
+      chat_session: chat,
+      current_message: user_message,
+      message_limit: described_class::COMPACT_MESSAGE_LIMIT,
+      max_bytes: described_class::COMPACT_MAX_BYTES,
+      entry_max_bytes: described_class::COMPACT_ENTRY_MAX_BYTES,
+      tool_result_max_bytes: described_class::COMPACT_TOOL_RESULT_MAX_BYTES
+    )
   end
 
   # --- bounded_history_text ---------------------------------------------------
@@ -38,12 +39,12 @@ RSpec.describe ChatTurnJob::HistoryFallback do
     end
 
     it "truncates text that exceeds the default byte limit" do
-      long_text = "x" * (ChatTurnJob::HISTORY_FALLBACK_ENTRY_MAX_BYTES + 10)
+      long_text = "x" * (ChatHistoryTranscriptRenderer::COMPACT_ENTRY_MAX_BYTES + 10)
       result = host.send(:bounded_history_text, long_text)
       expect(result).to end_with("...[truncated]")
       # The non-suffix portion must be at most the limit
       prefix = result.delete_suffix(" ...[truncated]")
-      expect(prefix.bytesize).to be <= ChatTurnJob::HISTORY_FALLBACK_ENTRY_MAX_BYTES
+      expect(prefix.bytesize).to be <= ChatHistoryTranscriptRenderer::COMPACT_ENTRY_MAX_BYTES
     end
 
     it "respects a custom max_bytes override" do
@@ -54,7 +55,7 @@ RSpec.describe ChatTurnJob::HistoryFallback do
     end
 
     it "does not truncate text at exactly the limit" do
-      at_limit = "a" * ChatTurnJob::HISTORY_FALLBACK_ENTRY_MAX_BYTES
+      at_limit = "a" * ChatHistoryTranscriptRenderer::COMPACT_ENTRY_MAX_BYTES
       expect(host.send(:bounded_history_text, at_limit)).to eq(at_limit)
     end
   end
@@ -82,7 +83,7 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       many  = Array.new(80) { |i| "#{entry}-#{i}" }
       result = host.send(:bounded_history_entries, many)
 
-      expect(result.bytesize).to be <= ChatTurnJob::HISTORY_FALLBACK_MAX_BYTES
+      expect(result.bytesize).to be <= ChatHistoryTranscriptRenderer::COMPACT_MAX_BYTES
       # The most recent entries survive.
       expect(result).to include(many.last)
     end
@@ -159,7 +160,7 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(host.send(:chat_history_entry, msg)).to eq("system: Graders passed")
     end
 
-    it "returns text for supervisor event messages" do
+    it "returns nil for supervisor event messages without an important source or text pattern" do
       msg = MsgDouble.new(
         role: "system",
         content: {
@@ -171,15 +172,15 @@ RSpec.describe ChatTurnJob::HistoryFallback do
         pending_action: nil
       )
 
-      expect(host.send(:chat_history_entry, msg)).to include("system: [CRITICAL] Workflow stalled")
+      expect(host.send(:chat_history_entry, msg)).to be_nil
     end
 
-    it "returns text for pending action outcome notifications" do
+    it "returns nil for pending action outcome notifications without an important text pattern" do
       msg = system_msg(
         "Pending action confirmed: retry_job . The action has been applied.",
         source: ChatPendingActionOutcomeNotification::SOURCE
       )
-      expect(host.send(:chat_history_entry, msg)).to include("system: Pending action confirmed")
+      expect(host.send(:chat_history_entry, msg)).to be_nil
     end
 
     it "returns text for proposal lifecycle text patterns" do
@@ -270,11 +271,11 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(check("anything", source: "grader_report")).to be(true)
     end
 
-    it "returns true for source=pending_action_notification" do
-      expect(check("anything", source: ChatPendingActionOutcomeNotification::SOURCE)).to be(true)
+    it "returns false for source=pending_action_notification alone" do
+      expect(check("anything", source: ChatPendingActionOutcomeNotification::SOURCE)).to be(false)
     end
 
-    it "returns true for supervisor_event content" do
+    it "returns false for supervisor_event content alone" do
       msg = MsgDouble.new(
         role: "system",
         content: { "text" => "event", "supervisor_event" => { "kind" => "queue_backlog" } },
@@ -283,7 +284,7 @@ RSpec.describe ChatTurnJob::HistoryFallback do
         pending_action: nil
       )
 
-      expect(host.send(:important_system_message?, msg, "event")).to be(true)
+      expect(host.send(:important_system_message?, msg, "event")).to be(false)
     end
 
     it "returns true for proposal-lifecycle text (case-insensitive match)" do
@@ -297,7 +298,7 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(check("Agent turn completed")).to be(true)
       expect(check("MCP unavailable: retrying")).to be(true)
       expect(check("Codex resume")).to be(true)
-      expect(check("Pending action dismissed: rebase_job")).to be(true)
+      expect(check("Pending action dismissed: rebase_job")).to be(false)
     end
 
     it "returns false for unrecognized system messages" do
@@ -376,19 +377,19 @@ RSpec.describe ChatTurnJob::HistoryFallback do
     before { user_message }  # ensure the excluded current message exists
 
     it "returns nil when there are no prior messages besides the current user message" do
-      expect(host.chat_history_fallback).to be_nil
+      expect(ChatHistoryTranscriptRenderer.compact_fallback(chat_session: chat, current_message: user_message)).to be_nil
     end
 
     it "returns nil when all prior messages are filtered out (unimportant system messages)" do
       chat.messages.create!(role: "system", content: { "text" => "Background context" })
-      expect(host.chat_history_fallback).to be_nil
+      expect(ChatHistoryTranscriptRenderer.compact_fallback(chat_session: chat, current_message: user_message)).to be_nil
     end
 
     it "builds a wrapped transcript from user and assistant messages" do
       chat.messages.create!(role: "user",      content: { "text" => "What is the plan?" })
       chat.messages.create!(role: "assistant", content: { "text" => "All is well." })
 
-      result = host.chat_history_fallback
+      result = ChatHistoryTranscriptRenderer.compact_fallback(chat_session: chat, current_message: user_message)
       expect(result).to include("Recent persisted chat context fallback:")
       expect(result).to include("Provider resume should still be attempted")
       expect(result).to include("user: What is the plan?")
@@ -398,7 +399,7 @@ RSpec.describe ChatTurnJob::HistoryFallback do
     it "excludes the current user_message from the transcript" do
       chat.messages.create!(role: "assistant", content: { "text" => "Prior answer." })
 
-      result = host.chat_history_fallback
+      result = ChatHistoryTranscriptRenderer.compact_fallback(chat_session: chat, current_message: user_message)
       expect(result).to include("Prior answer.")
       expect(result).not_to include("What next?")  # user_message text
     end
@@ -406,12 +407,12 @@ RSpec.describe ChatTurnJob::HistoryFallback do
     it "includes important system messages (grader_report) in the transcript" do
       chat.messages.create!(role: "system", content: { "text" => "Graders passed", "source" => "grader_report" })
 
-      result = host.chat_history_fallback
+      result = ChatHistoryTranscriptRenderer.compact_fallback(chat_session: chat, current_message: user_message)
       expect(result).not_to be_nil
       expect(result).to include("system: Graders passed")
     end
 
-    it "includes supervisor event messages in the transcript" do
+    it "excludes supervisor event messages without an important source or text pattern" do
       chat.messages.create!(
         role: "system",
         content: {
@@ -420,9 +421,8 @@ RSpec.describe ChatTurnJob::HistoryFallback do
         }
       )
 
-      result = host.chat_history_fallback
-      expect(result).not_to be_nil
-      expect(result).to include("system: [WARNING] Queue backlog")
+      result = ChatHistoryTranscriptRenderer.compact_fallback(chat_session: chat, current_message: user_message)
+      expect(result).to be_nil
     end
 
     it "excludes soft-deleted messages from the transcript" do
@@ -430,10 +430,54 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       cleared = chat.messages.create!(role: "assistant", content: { "text" => "Cleared answer." })
       cleared.soft_delete_by!(user)
 
-      result = host.chat_history_fallback
+      result = ChatHistoryTranscriptRenderer.compact_fallback(chat_session: chat, current_message: user_message)
       expect(result).not_to be_nil
       expect(result).to include("user: What is the plan?")
       expect(result).not_to include("Cleared answer.")
+    end
+
+    it "keeps the always-on fallback capped to the most recent 24 prior messages" do
+      first = chat.messages.create!(role: "user", content: { "text" => "Original task" })
+      30.times do |index|
+        chat.messages.create!(role: "assistant", content: { "text" => "Recent answer #{index}" })
+      end
+
+      result = ChatHistoryTranscriptRenderer.compact_fallback(chat_session: chat, current_message: user_message)
+
+      expect(result.scan(/^assistant:/).size).to eq(24)
+      expect(result).not_to include("user: #{first.content.fetch("text")}")
+      expect(result).not_to include("Recent answer 0")
+      expect(result).to include("Recent answer 29")
+    end
+  end
+
+  describe ".resume_recovery" do
+    it "preserves the first user message while including substantially more than 24 recent messages" do
+      first = chat.messages.create!(role: "user", content: { "text" => "Original task that started the chat" })
+      60.times do |index|
+        chat.messages.create!(role: "assistant", content: { "text" => "Recovered answer #{index}" })
+      end
+
+      result = described_class.resume_recovery(chat_session: chat)
+
+      expect(result).to include("Persisted chat context recovered after provider resume failed:")
+      expect(result).to include("user: #{first.content.fetch("text")}")
+      expect(result.scan(/^assistant:/).size).to eq(60)
+      expect(result.bytesize).to be <= described_class::RECOVERY_MAX_BYTES + 1_000
+    end
+
+    it "drops older middle history at the byte boundary while keeping the first user message and newest entries" do
+      first = chat.messages.create!(role: "user", content: { "text" => "Boundary original task" })
+      80.times do |index|
+        chat.messages.create!(role: "assistant", content: { "text" => "#{"x" * 3_000} boundary answer #{index}" })
+      end
+
+      result = described_class.resume_recovery(chat_session: chat)
+
+      expect(result).to include("user: #{first.content.fetch("text")}")
+      expect(result).to include("boundary answer 79")
+      expect(result).not_to include("boundary answer 0")
+      expect(result.bytesize).to be <= described_class::RECOVERY_MAX_BYTES + first.content.fetch("text").bytesize + 1_000
     end
   end
 end
