@@ -13,6 +13,7 @@ import {
   fetchDiffReviewComments,
   fetchJobSourceDiff,
   replyToDiffReviewComment,
+  startJobDiscussionChat,
   submitDiffReviewComments,
   updateDiffReviewComment,
   type DiffReviewComment,
@@ -32,6 +33,7 @@ vi.mock("../../api/jobs", async (importOriginal) => {
     fetchJobSourceDiff: vi.fn(),
     replyToDiffReviewComment: vi.fn(),
     resolveDiffReviewComment: vi.fn(),
+    startJobDiscussionChat: vi.fn(),
     submitDiffReviewComments: vi.fn(),
     updateDiffReviewComment: vi.fn()
   }
@@ -44,6 +46,7 @@ beforeEach(() => {
   vi.mocked(fetchDiffReviewVersion).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
   vi.mocked(replyToDiffReviewComment).mockReset()
+  vi.mocked(startJobDiscussionChat).mockReset()
   vi.mocked(submitDiffReviewComments).mockReset()
   vi.mocked(updateDiffReviewComment).mockReset()
   HTMLElement.prototype.scrollIntoView = vi.fn()
@@ -1066,6 +1069,28 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => {
       expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace&all_versions=1")
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
+    })
+  })
+
+  it("starts a discussion chat from a review comment with revision and line context", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment()]))
+    vi.mocked(startJobDiscussionChat).mockReturnValue(new Promise(() => {}))
+
+    renderWorkspace()
+
+    await screen.findByText("Please add a regression spec.")
+    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
+
+    await waitFor(() => {
+      expect(startJobDiscussionChat).toHaveBeenCalledWith(42, [
+        "Discuss this code review comment.",
+        "Revision: head-sha",
+        "Location: app/models/user.rb:2",
+        "",
+        "Comment:",
+        "Please add a regression spec."
+      ].join("\n"))
     })
   })
 

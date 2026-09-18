@@ -10,6 +10,7 @@ import {
   fetchDiffReviewComments,
   replyToDiffReviewComment,
   resolveDiffReviewComment,
+  startJobDiscussionChat,
   submitDiffReviewComments,
   updateDiffReviewComment,
   type DiffReviewComment,
@@ -139,6 +140,12 @@ export function useDiffReviewFeedback({
     },
     onError: (error) => setSubmitError(errorMessage(error, t("review_submit_error")))
   })
+  const discussComment = useMutation({
+    mutationFn: (comment: DiffReviewComment) => startJobDiscussionChat(jobId, discussionMessage(comment)),
+    onSuccess: (payload) => {
+      window.location.assign(payload.redirect_to)
+    }
+  })
 
   function startComment(nextSelection: DiffLineSelection) {
     if (!enabled) return
@@ -267,6 +274,7 @@ export function useDiffReviewFeedback({
         onChangeReplyBody={setReplyBody}
         onComment={commentOnReview}
         onDelete={(comment) => requestDeleteComment(comment.id, comment.diff_review_version_id)}
+        onDiscuss={(comment) => discussComment.mutate(comment)}
         onEdit={editComment}
         onReply={saveReply}
         onResolve={(comment) => resolveComment.mutate({ id: comment.id, versionId: comment.diff_review_version_id })}
@@ -292,6 +300,8 @@ export function useDiffReviewFeedback({
         replyingId={replyingId}
         resolvePending={resolveComment.isPending}
         reviewCommentBody={reviewCommentBody}
+        discussError={discussComment.error}
+        discussPendingId={discussComment.isPending ? discussComment.variables?.id ?? null : null}
         submitError={submitError}
         submitPending={submitComments.isPending}
         supportsGlobalComments={supportsGlobalComments}
@@ -345,6 +355,7 @@ function DiffReviewFeedbackPanel({
   onChangeReplyBody,
   onComment,
   onDelete,
+  onDiscuss,
   onEdit,
   onReply,
   onResolve,
@@ -359,6 +370,8 @@ function DiffReviewFeedbackPanel({
   replyingId,
   resolvePending,
   reviewCommentBody,
+  discussError,
+  discussPendingId,
   submitError,
   submitPending,
   supportsGlobalComments,
@@ -383,6 +396,7 @@ function DiffReviewFeedbackPanel({
   onChangeReplyBody: (body: string) => void
   onComment: () => void
   onDelete: (comment: DiffReviewComment) => void
+  onDiscuss: (comment: DiffReviewComment) => void
   onEdit: (comment: DiffReviewComment) => void
   onReply: () => void
   onResolve: (comment: DiffReviewComment) => void
@@ -397,6 +411,8 @@ function DiffReviewFeedbackPanel({
   replyingId: number | null
   resolvePending: boolean
   reviewCommentBody: string
+  discussError: Error | null
+  discussPendingId: number | null
   submitError: string | null
   submitPending: boolean
   supportsGlobalComments: boolean
@@ -439,6 +455,9 @@ function DiffReviewFeedbackPanel({
             <div className="mt-3 flex flex-wrap gap-2">
               {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
               {supportsGlobalComments && (comment.path || isGlobal) ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
+              <Button disabled={discussPendingId === comment.id} onClick={() => onDiscuss(comment)} size="sm" variant="secondary">
+                {discussPendingId === comment.id ? t("review_discussing_comment") : t("review_discuss_comment")}
+              </Button>
               {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
               {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
               {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
@@ -455,14 +474,15 @@ function DiffReviewFeedbackPanel({
                   <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">{t("review_send_reply")}</Button>
                   <Button onClick={onCancelReply} size="sm" variant="secondary">{t("tags_cancel")}</Button>
                 </div>
-                {replyError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
+                {replyError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
               </div>
             ) : null}
           </div>
           )
         })}
       </div>
-      {deleteError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
+      {deleteError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
+      {discussError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(discussError, t("review_discuss_error"))}</p> : null}
 
       {isComposing ? (
         <div className="mt-4 min-w-0 rounded border border-brand/30 bg-brand/5 p-3">
@@ -477,8 +497,8 @@ function DiffReviewFeedbackPanel({
             <Button disabled={!body.trim() || createPending || updatePending} onClick={onSave} size="sm">{editing ? t("review_save_comment") : t("review_create_comment")}</Button>
             <Button onClick={onCancel} size="sm" variant="secondary">{t("tags_cancel")}</Button>
           </div>
-          {createError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(createError, t("review_create_error"))}</p> : null}
-          {updateError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(updateError, t("review_update_error"))}</p> : null}
+          {createError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(createError, t("review_create_error"))}</p> : null}
+          {updateError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(updateError, t("review_update_error"))}</p> : null}
         </div>
       ) : null}
 
@@ -502,8 +522,8 @@ function DiffReviewFeedbackPanel({
             {submitPending ? t("submitting") : t("review_submit_feedback")}
           </Button>
         </div>
-        {createError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(createError, t("review_create_error"))}</p> : null}
-        {submitError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{submitError}</p> : null}
+        {createError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(createError, t("review_create_error"))}</p> : null}
+        {submitError ? <p className="mt-2 text-xs text-danger-text">{submitError}</p> : null}
       </div>
     </section>
   )
@@ -596,6 +616,24 @@ function diffContextHighlightLine(comment: DiffReviewComment): string | null {
   if (lineKind === "add") return `+${lineText}`
   if (lineKind === "delete") return `-${lineText}`
   return ` ${lineText}`
+}
+
+function discussionMessage(comment: DiffReviewComment) {
+  const location = comment.anchor_kind === "review"
+    ? "Whole review"
+    : [
+        comment.path || "Unknown file",
+        comment.side === "left" ? comment.old_line : comment.new_line
+      ].filter((part) => part != null && part !== "").join(":")
+
+  return [
+    "Discuss this code review comment.",
+    `Revision: ${comment.head_ref || comment.diff_review_version?.head_sha || "unknown"}`,
+    `Location: ${location}`,
+    "",
+    "Comment:",
+    comment.body
+  ].join("\n")
 }
 
 function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
