@@ -505,6 +505,7 @@ class ChatSession < ApplicationRecord
         action: "update_controls",
         turn_in_flight: turn_in_flight?,
         agent_busy: agent_busy?,
+        turn_retry_state: App::ChatTurnRetryState.for(self),
         stop_requested_at: stop_requested_at&.iso8601,
         switching_provider: switching_provider,
         queued_messages: queued_messages_payload,

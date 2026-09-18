@@ -103,6 +103,7 @@ class ChatMessage < ApplicationRecord
         messages: tail_payload.fetch(:messages),
         turn_in_flight: chat.turn_in_flight?,
         agent_busy: chat.agent_busy?,
+        turn_retry_state: App::ChatTurnRetryState.for(chat),
         stop_requested_at: chat.stop_requested_at&.iso8601,
         queued_messages: chat.queued_messages_payload
       }
@@ -111,6 +112,7 @@ class ChatMessage < ApplicationRecord
         action: "invalidate_messages",
         turn_in_flight: chat.turn_in_flight?,
         agent_busy: chat.agent_busy?,
+        turn_retry_state: App::ChatTurnRetryState.for(chat),
         stop_requested_at: chat.stop_requested_at&.iso8601,
         queued_messages: chat.queued_messages_payload,
         reason: "tail_payload_too_large"
