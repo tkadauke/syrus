@@ -116,6 +116,13 @@ RSpec.describe ProviderRouting::Resolver do
   end
 
   describe "6. hardcoded fallback" do
+    it "uses the legacy single-value provider default before the hardcoded fallback" do
+      user.update!(agent_provider: "codex")
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      expect(resolve(job)).to eq([ candidate(provider: "codex") ])
+    end
+
     it "returns a single claude candidate when no override or rule applies at any scope" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 

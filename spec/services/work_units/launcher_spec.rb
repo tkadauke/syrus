@@ -456,13 +456,16 @@ RSpec.describe WorkUnits::Launcher do
   it "starts an unstarted workflow on an available failover provider during admission" do
     user.update!(
       codex_auth_mode: "api_key",
-      codex_api_key: "sk-test",
-      agent_provider_failover_policy: {
-        "enabled" => true,
-        "providers" => %w[codex],
-        "causes" => %w[provider_transient],
-        "override_explicit_pins" => false
-      }
+      codex_api_key: "sk-test"
+    )
+    ProviderRoutingRule.create!(
+      scope_type: "user",
+      scope_id: user.id,
+      task_key: "default",
+      candidates: [
+        { "provider" => "claude" },
+        { "provider" => "codex" }
+      ]
     )
     workflow = described_class.instantiate(kind: "initial", job: job, agent_provider: "claude")
     allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(

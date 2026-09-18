@@ -131,15 +131,12 @@ class RetryWorkflowEnqueuer
   end
 
   def provider_failover_candidate?
-    job.agent_provider_failover_candidates(cause: retry_failover_cause).any?
+    job.provider_routing_failover_candidates(task_key: retry_task_key).any?
   end
 
-  def retry_failover_cause
+  def retry_task_key
     attempt = AutoRetryAttempt.find_by(id: artifacts.to_h["auto_retry_attempt_id"])
-    return "rate_limited" if attempt&.failure_classification == "rate_limited"
-    return "usage_exhausted" if attempt&.failure_classification == ProviderUsageLimit::CLASSIFICATION
-
-    "provider_transient"
+    attempt&.workflow&.trigger_kind || ProviderRoutingRule::DEFAULT_TASK_KEY
   end
 
   def circuit_failure
