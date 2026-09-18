@@ -117,6 +117,29 @@ RSpec.describe SpawnedProcessSupervisor do
       )
     end
 
+    it "schedules an auto-retry for finalized chat agent processes without a stop request" do
+      user = Factories.user(claude_oauth_token: "oat-test")
+      chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-supervisor-auto-retry", turn_in_flight: true, last_message_at: Time.current)
+      message = chat.messages.create!(role: "user", content: { "text" => "This turn crashed" }, created_at: 20.seconds.ago)
+      sp = fixture(workdir: chat.workspace_root.to_s, started_at: 15.seconds.ago)
+      allow(Process).to receive(:kill).with(0, sp.pid).and_raise(Errno::ESRCH)
+
+      expect {
+        described_class.tick(now: Time.current)
+      }.to change(ChatTurnAutoRetryAttempt, :count).by(1)
+
+      expect(chat.reload).to be_turn_in_flight
+      expect(ChatTurnAutoRetryAttempt.last).to have_attributes(
+        chat_session: chat,
+        root_user_message: message,
+        user_message: message,
+        attempt_number: 1
+      )
+      expect(chat.messages.order(:created_at).pluck(:role, :content)).not_to include(
+        [ "system", { "text" => "Agent turn failed." } ]
+      )
+    end
+
     it "does not clear a fresh stop request for a newer turn" do
       user = Factories.user(claude_oauth_token: "oat-test")
       chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-supervisor-fresh", stop_requested_at: Time.current)
