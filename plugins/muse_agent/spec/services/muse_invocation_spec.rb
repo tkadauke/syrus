@@ -1,5 +1,6 @@
 require "rails_helper"
 require "tmpdir"
+require "open3"
 
 RSpec.describe MuseInvocation do
   FIXTURE_PATH = File.expand_path("../fixtures/local_mode_echo.jsonl", __dir__)
@@ -365,7 +366,7 @@ RSpec.describe MuseInvocation do
     expect(result.final_text).to include("Muse request failed")
   end
 
-  it "writes per-home Muse settings with the Syrus MCP sidecar before exec" do
+  it "writes per-home Muse settings with the documented schema_version and complete sidecar entry before exec" do
     captured = []
     Dir.mktmpdir("muse-home") do |muse_home|
       stub_process_runners(lines: completed_lines_with, captured: captured)
@@ -387,12 +388,88 @@ RSpec.describe MuseInvocation do
 
       settings = JSON.parse(File.read(File.join(muse_home, ".config", "muse", "settings.json")))
       expect(result).to be_success
-      expect(settings.dig("mcp_servers", "syrus-mcp-sidecar")).to include(
+      expect(settings["schema_version"]).to eq(1)
+      expect(settings.dig("mcp_servers", "syrus-mcp-sidecar")).to eq(
+        "transport" => "stdio",
         "command" => "/app/bin/syrus-mcp-sidecar",
         "args" => [ "--run-id", "123" ],
-        "env" => { "RAILS_ENV" => "test" }
+        "env" => { "RAILS_ENV" => "test" },
+        "enabled" => true,
+        "mode" => "required"
       )
       expect(captured.first[:env]).to include("HOME" => muse_home, "XDG_CONFIG_HOME" => File.join(muse_home, ".config"))
+    end
+  end
+
+  it "repairs a legacy Syrus-written settings file that is missing schema_version, without crashing" do
+    Dir.mktmpdir("muse-home") do |muse_home|
+      config_dir = File.join(muse_home, ".config", "muse")
+      FileUtils.mkdir_p(config_dir)
+      settings_path = File.join(config_dir, "settings.json")
+      File.write(settings_path, JSON.generate(
+        "mcp_servers" => { "syrus-mcp-sidecar" => { "command" => "/old/syrus-mcp-sidecar" } }
+      ))
+      stub_process_runners(lines: completed_lines_with)
+
+      result = described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        muse_home: muse_home,
+        mcp_server: { "syrus-mcp-sidecar" => { command: "/app/bin/syrus-mcp-sidecar", args: [], env: {} } }
+      ).run
+
+      settings = JSON.parse(File.read(settings_path))
+      expect(result).to be_success
+      expect(settings["schema_version"]).to eq(1)
+      expect(settings.dig("mcp_servers", "syrus-mcp-sidecar", "command")).to eq("/app/bin/syrus-mcp-sidecar")
+    end
+  end
+
+  it "replaces a malformed (non-JSON) existing settings file instead of crashing" do
+    Dir.mktmpdir("muse-home") do |muse_home|
+      config_dir = File.join(muse_home, ".config", "muse")
+      FileUtils.mkdir_p(config_dir)
+      settings_path = File.join(config_dir, "settings.json")
+      File.write(settings_path, "{not valid json")
+      stub_process_runners(lines: completed_lines_with)
+
+      result = described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        muse_home: muse_home,
+        mcp_server: { "syrus-mcp-sidecar" => { command: "/app/bin/syrus-mcp-sidecar", args: [], env: {} } }
+      ).run
+
+      settings = JSON.parse(File.read(settings_path))
+      expect(result).to be_success
+      expect(settings["schema_version"]).to eq(1)
+      expect(settings.dig("mcp_servers", "syrus-mcp-sidecar", "command")).to eq("/app/bin/syrus-mcp-sidecar")
+    end
+  end
+
+  it "preserves unrelated existing settings when rewriting the file" do
+    Dir.mktmpdir("muse-home") do |muse_home|
+      config_dir = File.join(muse_home, ".config", "muse")
+      FileUtils.mkdir_p(config_dir)
+      settings_path = File.join(config_dir, "settings.json")
+      File.write(settings_path, JSON.generate("schema_version" => 1, "some_unrelated_setting" => "keep-me"))
+      stub_process_runners(lines: completed_lines_with)
+
+      described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "muse-secret",
+        transcript_policy: :exec_jsonl,
+        muse_home: muse_home,
+        mcp_server: { "syrus-mcp-sidecar" => { command: "/app/bin/syrus-mcp-sidecar", args: [], env: {} } }
+      ).run
+
+      settings = JSON.parse(File.read(settings_path))
+      expect(settings["some_unrelated_setting"]).to eq("keep-me")
     end
   end
 
@@ -516,5 +593,44 @@ RSpec.describe MuseInvocation do
     expect(captured.first[:command].join(" ")).not_to include("prompt with private content")
     expect(result.final_text).not_to include("muse-secret")
     expect(events.join("\n")).not_to include("muse-secret")
+  end
+
+  # Optional CLI smoke test: the Ruby specs above are deterministic and don't
+  # depend on the muse binary being installed. When it IS available (as in
+  # the Syrus worker/dev image), also confirm the real binary accepts the
+  # settings file we generate -- this is what actually caught the original
+  # bug (`missing field schema_version`), which no amount of pure-Ruby JSON
+  # parsing coverage would have caught on its own.
+  it "produces a settings.json the installed muse binary does not reject as malformed" do
+    muse_path = `which muse 2>/dev/null`.strip
+    skip("muse binary not found on PATH; skipping CLI smoke test, deterministic Ruby coverage above stands alone") if muse_path.empty?
+
+    Dir.mktmpdir("muse-home") do |muse_home|
+      Dir.mktmpdir("muse-workspace") do |workspace|
+        invocation = described_class.new(workspace, prompt: "P", api_key: "muse-secret")
+        invocation.send(
+          :write_muse_settings!,
+          muse_home: muse_home,
+          mcp_server: { "syrus-mcp-sidecar" => { command: "/bin/echo", args: [ "hi" ], env: {} } },
+          log_sink: ->(*, **) { }
+        )
+
+        prompt_path = File.join(workspace, "prompt.txt")
+        File.write(prompt_path, "say hi, then stop")
+        env = {
+          "HOME" => muse_home,
+          "XDG_CONFIG_HOME" => File.join(muse_home, ".config"),
+          "MUSE_NO_AUTO_UPDATE" => "1"
+        }
+
+        _stdout, stderr, = Open3.capture3(
+          env, "muse", "exec", "--json", "--provider", "echo", "--workspace", workspace,
+          "--approval-mode", "never", "--prompt-file", prompt_path
+        )
+
+        expect(stderr).not_to include("malformed settings file")
+        expect(stderr).not_to include("missing field `schema_version`")
+      end
+    end
   end
 end

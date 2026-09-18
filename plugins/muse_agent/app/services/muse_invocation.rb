@@ -13,6 +13,14 @@ class MuseInvocation
   # would otherwise re-enable the launcher's update check -- which stalls startup
   # and fails writing its timestamp into the read-only /opt/muse/bin.
   LAUNCHER_ENV = { "MUSE_NO_AUTO_UPDATE" => "1" }.freeze
+  # Muse Code's settings.json requires a top-level schema_version and, per
+  # server, the documented stdio shape (transport/command/args/env) plus
+  # enabled/mode -- confirmed against the installed `muse` binary's
+  # `SessionMcpServerConfig`/`SessionMcpServerMode` wire schema
+  # (`muse schema generate-json-schema`). "required" makes Muse hard-fail
+  # startup instead of silently dropping the sidecar when it can't connect.
+  SETTINGS_SCHEMA_VERSION = 1
+  REQUIRED_SERVER_MODE = "required"
 
   def initialize(workspace_path, prompt:, api_key:,
                  log_sink: ->(*, **) { },
@@ -186,18 +194,41 @@ class MuseInvocation
     config_dir = File.join(muse_home, ".config", "muse")
     FileUtils.mkdir_p(config_dir)
     settings_path = File.join(config_dir, "settings.json")
-    settings = if File.exist?(settings_path)
-      JSON.parse(File.read(settings_path))
-    else
-      {}
-    end
-    settings = {} unless settings.is_a?(Hash)
-    settings["mcp_servers"] = settings.fetch("mcp_servers", {}).merge(mcp_server)
+    settings = read_existing_muse_settings(settings_path)
+    settings["schema_version"] = SETTINGS_SCHEMA_VERSION
+    settings["mcp_servers"] = settings.fetch("mcp_servers", {}).merge(normalized_mcp_servers(mcp_server))
     File.write(settings_path, JSON.pretty_generate(settings))
     log_sink.call(
       "[mcp_config] server=syrus-mcp-sidecar config=#{settings_path}",
       kind: "system"
     )
+  end
+
+  def read_existing_muse_settings(settings_path)
+    return {} unless File.exist?(settings_path)
+
+    parsed = JSON.parse(File.read(settings_path))
+    parsed.is_a?(Hash) ? parsed : {}
+  rescue JSON::ParserError
+    {}
+  end
+
+  # Normalizes into Muse's documented per-server stdio shape regardless of
+  # what the caller supplied (agent_providers/muse.rb's mcp_server only sets
+  # command/args/env), so schema_version/transport/enabled/mode are always
+  # present without requiring every caller to know Muse's exact contract.
+  def normalized_mcp_servers(mcp_server)
+    mcp_server.transform_values do |server|
+      server = server.stringify_keys
+      {
+        "transport" => "stdio",
+        "command" => server["command"],
+        "args" => Array(server["args"]),
+        "env" => server["env"] || {},
+        "enabled" => true,
+        "mode" => REQUIRED_SERVER_MODE
+      }
+    end
   end
 
   def required_mcp_state(metadata)
