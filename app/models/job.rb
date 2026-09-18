@@ -1249,6 +1249,7 @@ class Job < ApplicationRecord
     promotion_landed
     hotfix_sync_landed
     investigation_reported
+    emergency_landed
   ].freeze
   # --- needs_attention flag --------------------------------------------------
   # Called by RunJob after a non-rebase run fails. Increments the
