@@ -124,6 +124,16 @@ internals gated by `AppSetting.show_work_unit_debug?`.
   non-publishing prevalidation for the next landing candidate when enabled.
 - `manual_visual_review` — on-demand visual QA over an already-implemented
   Job branch; records the review without looping back into implementation.
+- `visual_diff` — low-priority, non-blocking before/after screenshot
+  comparison. Automatically queued on a Job right after an approved
+  `visual_review` iteration records "after" screenshots; checks out the
+  merge-base for `Job#effective_base_branch`, captures matching baseline
+  screenshots there, and persists a `visual_diff_comparison` typed artifact
+  pairing baseline and PR/head images. Self-cancels/skips once the Job has
+  already moved to approval/landing (`obsolete_job_state?`), and never
+  blocks approval or landing (`Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES`).
+  Also available on demand via the Job detail page's "Run before/after
+  comparison" action.
 - `main_grader` / `main_branch_repair` / `agent_insight` / `deploy` —
   infrastructure/operations workflows for default-branch health, read-only
   insight generation, and configured deploy commands.
@@ -165,6 +175,7 @@ main_grader: prepare → grader_fanout → grader_collect
 main_branch_repair: prepare → preflight_graders → retry_until(implement → graders) → summarize → test_plan → pr_open
 agent_insight: [prepare] → agent_insight_run → auto_close
 deploy:      prepare → deploy
+visual_diff: prepare → visual_diff
 ```
 
 `[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository. `dependency_audit` (and, in feedback workflows, `dependency_audit_pr_comment`) is always present in these chains but self-skips at runtime unless the PR diff touched a lockfile a registered `:dependency_audit_command` plugin owns. In `initial`/`retry`/`pr_comment`/`chat_feedback`, the grader retry loop is likewise conditional at the step level: `format`, `generate`, and the `grader_fanout`/`grader_collect` check phase are only materialized when the repository's `.syrus.yml` configures `formatters:`, `generated:`, or `grade:` respectively (`RepoGradeLoopPlan`, resolved pre-clone the same way as the adversarial/visual review plans — `RepoAdversarialReviewPlan`, `RepoVisualReviewPlan`, `RepoGradeLoopPlan`, `RepoReviewPlanPlan`, and `RepoCoveragePlanReader` are thin adapters over one shared `RepoDefaultBranchSyrusYml` loader that fetches and parses the repository's default-branch `.syrus.yml` through GitHub exactly once; `Workflows::Initial`/`Retry`/`CodingHandoff`/`MainBranchRepair`/`LocalModeHandoff` resolve it once at the top of `steps_for` and thread it through via `syrus_yml:` instead of each helper triggering its own GitHub round-trip) — none of the three is configured by default, so a freshly onboarded repo gets a bare `implement`/`respond` step (or, in `initial`, nothing extra — the top-level `implement` already covers it) with no grade loop at all. As soon as any one of them is configured, the whole loop materializes together (the agent step, whichever of `format`/`generate` apply, and `grader_fanout`/`grader_collect`) — there is no way to retry without a check phase. This conditional gating is scoped to those four autofix-enabled chains; `ci_failure`, `skill`, `main_branch_repair`, and `external_pr_feedback` always materialize their grader check unconditionally since grading is the entire point of those repair loops.
