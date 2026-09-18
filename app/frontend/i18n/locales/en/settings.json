@@ -900,10 +900,8 @@
     "tab_codex": "Codex",
     "tab_gemini": "Gemini",
     "tab_agy": "Antigravity",
-    "soon": "Soon",
-    "codex_title": "Codex support is coming next",
-    "gemini_title": "Gemini support is planned",
-    "agy_title": "Antigravity is ready through the shared Gemini API key",
+    "tab_muse": "Muse",
+    "gemini_title": "Gemini powers walkthrough-video analysis",
     "done": "Done",
     "checking_login": "Checking for an existing Claude login on this machine…",
     "ambient_ready": "Claude already works on this machine. You can connect a durable token below (recommended for restarts and headless workers), or skip for now.",
@@ -929,12 +927,7 @@
     "exchange_catch_error": "Could not exchange the code. Try authorizing again.",
     "gemini_tab_intro": "Gemini turns screen-recording walkthroughs into Epics — optional, add it now or later. It isn't the coding agent; your Claude (or Codex) agent still does the work.",
     "gemini_tab_configured": "Gemini is set up — walkthrough videos will be analyzed automatically.",
-    "gemini_tab_add_key": "Add Gemini API key",
-    "agy_tab_ready": "Antigravity is ready for agent and chat runs through the shared Gemini API key.",
-    "agy_tab_selected": "Antigravity is already selected as your default agent provider.",
-    "agy_tab_use": "Use Antigravity",
-    "agy_tab_saving": "Saving…",
-    "agy_tab_save_error": "Could not select Antigravity."
+    "gemini_tab_add_key": "Add Gemini API key"
   },
   "input_sources": {
     "section_description": "Configure this repository input source.",
