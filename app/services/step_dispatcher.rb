@@ -144,10 +144,15 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, URGENT_BLOCK_REASON)
 
-    refresh_default_workflow_agent_provider!(workflow, step: first)
+    refresh_default_workflow_agent_provider!(workflow)
+    run_provider_candidate = run_provider_candidate_for(first, workflow)
 
-    provider_pause = ProviderAvailabilityPause.call(workflow: workflow, task_key: provider_task_key_for(first, workflow))
-    apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
+    provider_pause = ProviderAvailabilityPause.call(
+      workflow: workflow,
+      task_key: provider_task_key_for(first, workflow),
+      candidate: run_provider_candidate
+    )
+    apply_provider_failover!(workflow, provider_pause) if provider_pause.failover? && !step_specific_provider_task_key?(first, workflow)
     if provider_pause.pause?
       backoff = provider_pause.retry_at ? provider_pause.retry_at - Time.current : START_BLOCKED_BACKOFF
       record_pause!(
@@ -505,7 +510,7 @@ class StepDispatcher
         return nil
       end
 
-      refresh_default_workflow_agent_provider!(workflow, step: step)
+      refresh_default_workflow_agent_provider!(workflow)
       run_provider_candidate = run_provider_candidate_for(step, workflow)
 
       if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
@@ -546,7 +551,7 @@ class StepDispatcher
     true
   end
 
-  def self.refresh_default_workflow_agent_provider!(workflow, step: nil)
+  def self.refresh_default_workflow_agent_provider!(workflow)
     return unless workflow.job.job_provider_setting_default?
     selection = workflow.artifact("agent_provider_selection")
     return if selection == "explicit"
@@ -558,7 +563,7 @@ class StepDispatcher
       model: workflow.model,
       effort_level: workflow.effort_level
     )
-    task_key = provider_task_key_for(step, workflow)
+    task_key = workflow.trigger_kind
     routed_selection = if ProviderRouting::Resolver.rule_configured?(job: workflow.job.reload, task_key: task_key)
       ProviderRouting::AvailabilitySelector.call(
         job: workflow.job,
@@ -633,7 +638,7 @@ class StepDispatcher
     return false if step.runs.any?
 
     provider_pause = ProviderAvailabilityPause.call(workflow: workflow, task_key: provider_task_key_for(step, workflow), candidate: candidate)
-    apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
+    apply_provider_failover!(workflow, provider_pause) if provider_pause.failover? && !step_specific_provider_task_key?(step, workflow)
     unless provider_pause.pause?
       clear_start_blocked!(workflow, PROVIDER_AVAILABILITY_BLOCK_REASON)
       return false
