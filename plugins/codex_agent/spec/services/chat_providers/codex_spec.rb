@@ -121,6 +121,7 @@ RSpec.describe ChatProviders::Codex do
 
     it "bypasses the cached full transcript for compacted chats" do
       allow(Feature).to receive(:chat_context_compaction_enabled?).and_return(true)
+      allow_any_instance_of(ChatContextCompactor).to receive(:enabled_for_chat?).and_return(true)
       130.times do |i|
         chat.messages.create!(role: "assistant", content: [
           { "type" => "text", "text" => "assistant event #{i}" }

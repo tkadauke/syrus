@@ -1,7 +1,6 @@
 module AgentRole
   # Chat surface roles
   CHAT_PLANNER    = "chat:planner"
-  CHAT_ADMIN      = "chat:admin"
   CHAT_CODING     = "chat:coding"
   CHAT_LOCAL      = "chat:local"
   CHAT_WALKTHROUGH = "chat:walkthrough"
@@ -38,7 +37,6 @@ module AgentRole
 
   CHAT_ROLES = [
     CHAT_PLANNER,
-    CHAT_ADMIN,
     CHAT_CODING,
     CHAT_LOCAL,
     CHAT_WALKTHROUGH,

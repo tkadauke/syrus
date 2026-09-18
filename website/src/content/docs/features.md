@@ -654,11 +654,6 @@ decision, and handoff prompt. The admin overview includes operator/debug
 visibility for this path: recent scoped events, 24-hour `no_op`/`respond`/`act`
 counts, evaluator state counts, and recent failure reasons. Failed evaluator
 events can be retried without duplicating already delivered visible wakeups.
-When the `chat_context_compaction` operations flag is enabled, long-running
-chats also get durable context checkpoints: older raw messages are
-summarized for provider replay while the complete stored transcript remains
-visible, searchable, and auditable. The live agent receives the summary plus
-recent raw messages and can use Syrus tools when exact older details are needed.
 In the V2 layout, the
 sidebar search field opens a dedicated search
 page where operators can search Jobs, Epics, chat messages, and enabled

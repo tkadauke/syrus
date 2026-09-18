@@ -281,14 +281,12 @@ use, so it never blocks the write-gated action above it. This link is plain
 conversation, not ownership: unlike Coding/Local Mode's `linked_chat_id`, it
 never blocks automation or takes over the Job's implement step.
 
-When the `chat_context_compaction` feature is enabled, long-running chats keep
-their durable `ChatMessage` transcript but stop replaying all older raw
-messages into the provider session. `ChatTurnJob` stores
-`ChatContextCheckpoint` rows after the chat crosses the compaction threshold,
-and provider rehydration sends one synthetic prior-context summary plus the
-latest raw messages after the checkpoint. The summary is deterministic and
-extractive; exact older details remain available through persisted chat history
-and admin/search tools.
+The `chat_context_compaction` feature flag currently has no effect: its
+algorithm would keep a chat's durable `ChatMessage` transcript while no longer
+replaying all older raw messages into the provider session, but its only
+consumer (the admin Supervisor chat) has been removed, and
+`ChatContextCompactor` is hard-coded off pending a decision on whether to
+generalize it to ordinary chats. See `config/syrus_docs/feature_flags.md`.
 
 The chat composer recognizes leading slash commands. Typing `/` opens the
 command palette.

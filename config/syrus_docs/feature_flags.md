@@ -49,11 +49,18 @@ Instance-wide default for the visual_review feature: a headless-browser QA pass 
 
 **Category:** Operations
 
-Compacts provider replay context for long-running chats without
+**Currently has no effect.** `ChatContextCompactor#enabled_for_chat?` is
+hard-coded to `false`: this flag's only consumer was the admin Supervisor
+chat, and that feature has been removed. Toggling it on does not compact any
+chat today. The algorithm below is retained (and still fully unit-tested)
+pending a decision on whether to generalize it to ordinary chats or delete it
+outright — do not rely on this flag doing anything in the meantime.
+
+Compacts provider replay context for a chat without
 deleting or hiding any durable `ChatMessage` rows. The full chat remains visible
 and auditable in the UI and searchable through normal chat/admin tools.
 
-When enabled, `ChatTurnJob` creates a `ChatContextCheckpoint` once a
+If re-enabled, `ChatTurnJob` would create a `ChatContextCheckpoint` once a
 chat has at least 120 messages. The checkpoint deterministically summarizes all
 but the latest 40 messages, stores the summary and
 `compacted_through_message_id`, and leaves the original messages untouched.
