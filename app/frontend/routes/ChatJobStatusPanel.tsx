@@ -9,7 +9,7 @@ import { SlugHoverCard } from "../components/SlugHoverCard"
 import { StatusPill } from "../components/StatusPill"
 
 function jobBorderClass(job: ChatJobStatusJobItem): string {
-  if (job.blocker) return "border-l-red-500"
+  if (job.blocker) return job.blocker.reason === "awaiting_review" ? "border-l-amber-400" : "border-l-red-500"
 
   const s = job.active_workflow?.state || job.state
   if (s === "pr_merged" || s === "external_pr_merged" || s === "no_changes") return "border-l-emerald-500"
@@ -20,14 +20,27 @@ function jobBorderClass(job: ChatJobStatusJobItem): string {
 
 function BlockerBanner({ blocker }: { blocker: ChatJobStatusBlocker }) {
   const { t } = useT("chat")
+  const isAwaitingReview = blocker.reason === "awaiting_review"
   const label =
-    blocker.reason === "awaiting_review" ? t("job_status_blocker_awaiting_review") :
+    isAwaitingReview ? t("job_status_blocker_awaiting_review") :
       blocker.reason === "landing_failed" ? t("job_status_blocker_landing_failed") :
         t("job_status_blocker_dependency_failed")
 
+  // Awaiting review is an expected, natural step, not a failure. This
+  // intentionally uses the literal Tailwind amber palette rather than the
+  // semantic "warning" token: in the built-in Terracotta theme,
+  // --color-warning is set to the brand accent color, a muted red-orange
+  // that reads as red right next to the "danger" tone used below. A fixed
+  // amber avoids that per-theme collision and matches the amber left-border
+  // accent already used for other in-progress-but-not-failed job states.
+  const toneClasses = isAwaitingReview
+    ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+    : "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300"
+  const iconClasses = isAwaitingReview ? "text-amber-500" : "text-red-500"
+
   return (
-    <div className="mt-1.5 flex items-center gap-1.5 rounded bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950/50 dark:text-red-300">
-      <svg aria-hidden="true" className="h-3 w-3 shrink-0 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+    <div className={`mt-1.5 flex items-center gap-1.5 rounded px-2 py-1 text-xs ${toneClasses}`}>
+      <svg aria-hidden="true" className={`h-3 w-3 shrink-0 ${iconClasses}`} fill="currentColor" viewBox="0 0 20 20">
         <path clipRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2V9a1 1 0 0 0-1-1H9z" fillRule="evenodd" />
       </svg>
       {label}
