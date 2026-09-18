@@ -6,26 +6,10 @@ export function updateRecentChatHeaderCache(queryClient: QueryClient, chatId: nu
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
-    const existing = String(current.supervisor_chat?.id) === String(chatId)
-      ? current.supervisor_chat
-      : current.groups.flatMap((group) => group.chats).find((chat) => String(chat.id) === String(chatId))
+    const existing = current.groups.flatMap((group) => group.chats).find((chat) => String(chat.id) === String(chatId))
     if (!existing) return current
 
     const updated = { ...existing, ...updates }
-    if (updated.system_kind === "supervisor") {
-      return {
-        ...current,
-        supervisor_chat: {
-          ...current.supervisor_chat,
-          ...updated
-        },
-        groups: current.groups.map((group) => ({
-          ...group,
-          chats: group.chats.filter((chat) => String(chat.id) !== String(chatId))
-        }))
-      }
-    }
-
     const targetKey = chatGroupKey(updated)
     const groups = current.groups.map((group) => ({
       ...group,
@@ -46,10 +30,8 @@ export function updateRecentChatTurnCache(queryClient: QueryClient, chatId: numb
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
-    const supervisorChat = current.supervisor_chat
     return {
       ...current,
-      supervisor_chat: supervisorChat && String(supervisorChat.id) === String(chatId) ? { ...supervisorChat, ...updates } : supervisorChat,
       groups: current.groups.map((group) => ({
         ...group,
         chats: group.chats.map((chat) => (
@@ -64,10 +46,8 @@ export function updateRecentChatScratchpadCache(queryClient: QueryClient, chatId
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
-    const supervisorChat = current.supervisor_chat
     return {
       ...current,
-      supervisor_chat: supervisorChat && String(supervisorChat.id) === String(chatId) ? { ...supervisorChat, scratchpad_items_count: scratchpadItemsCount } : supervisorChat,
       groups: current.groups.map((group) => ({
         ...group,
         chats: group.chats.map((chat) => (

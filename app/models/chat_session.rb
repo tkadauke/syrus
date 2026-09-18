@@ -5,7 +5,6 @@ class ChatSession < ApplicationRecord
   TITLE_MAX_LENGTH = 120
   SUGGESTED_NEXT_STEP_MAX_BYTES = 200
   MODES = %w[planning coding local].freeze
-  SYSTEM_KINDS = %w[supervisor].freeze
   DAEMON_STATES = %w[connected disconnected].freeze
   EFFORT_LEVELS = %w[none medium high].freeze
   CONVERSATION_KINDS = { direct: "direct", group: "group" }.freeze
@@ -100,7 +99,6 @@ class ChatSession < ApplicationRecord
   # released BEFORE `dependent: :destroy` deletes the proposals they
   # reference, or the proposal delete raises InvalidForeignKey.
   before_destroy :release_unresolved_proposal_dependencies, prepend: true
-  before_destroy :prevent_enabled_supervisor_destroy, prepend: true
   # Filesystem + FTS cleanup is deliberately NOT done here: it runs
   # post-commit on the worker via ChatSessionCleanupJob, so a rollback
   # can't leave irreversible side effects behind and the rm_rf happens
@@ -125,7 +123,6 @@ class ChatSession < ApplicationRecord
   validates :cumulative_cost_usd,
             numericality: { greater_than_or_equal_to: 0 }
   enum :mode, { planning: "planning", coding: "coding", local: "local" }, validate: { allow_nil: true }
-  enum :system_kind, { supervisor: "supervisor" }, prefix: true, validate: { allow_nil: true }
   # scopes: false — an auto-generated `.group` scope would shadow
   # ActiveRecord's GROUP BY `group` method, which admin chat listing
   # relies on (Api::V1::Admin::ChatsController#index).
@@ -138,8 +135,6 @@ class ChatSession < ApplicationRecord
   validates :local_daemon_state, inclusion: { in: DAEMON_STATES }, allow_nil: true
   validates :chat_effort, inclusion: { in: EFFORT_LEVELS }, allow_nil: true
   validates :share_token, uniqueness: true, allow_nil: true
-  validates :system_kind, uniqueness: { scope: :user_id }, allow_nil: true
-  validate :enabled_supervisor_affordance_is_preserved, if: :enabled_supervisor_chat?
   enum :trigger_policy, { speak_when_spoken_to: "speak_when_spoken_to" }, validate: true
 
   normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }
@@ -192,10 +187,6 @@ class ChatSession < ApplicationRecord
   # flag that would otherwise make ChatTitleJob eligible to overwrite it.
   def rename!(new_title)
     update!(title: new_title, title_auto_fallback: false)
-  end
-
-  def supervisor_chat?
-    system_kind == "supervisor"
   end
 
   def soft_delete_by!(actor)
@@ -521,10 +512,6 @@ class ChatSession < ApplicationRecord
     )
   end
 
-  def enabled_supervisor_chat?
-    supervisor_chat? && Feature.admin_supervisor_chat_enabled?
-  end
-
   # Plain-text, case-insensitive `@syrus` substring match — no
   # autocomplete/chip UI in this pass. Mirrors Telegram's own
   # plain-text bot-mention convention so this stays compatible with a
@@ -634,21 +621,8 @@ class ChatSession < ApplicationRecord
   end
   alias_method :enqueue_cleanup_job_on_soft_delete, :enqueue_cleanup_job
 
-  def enabled_supervisor_affordance_is_preserved
-    errors.add(:title, "cannot be changed for the supervisor chat") if title_changed? && persisted?
-    errors.add(:pinned, "cannot be disabled for the supervisor chat") if pinned == false
-    errors.add(:hidden_at, "cannot be set for the supervisor chat") if hidden_at.present?
-  end
-
   def conversation_kind_is_immutable
     errors.add(:conversation_kind, "cannot be changed after creation")
-  end
-
-  def prevent_enabled_supervisor_destroy
-    return unless enabled_supervisor_chat?
-
-    errors.add(:base, "Supervisor chat cannot be deleted while the feature is enabled")
-    throw :abort
   end
 
   def attached_records_for(type)

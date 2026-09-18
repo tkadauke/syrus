@@ -698,15 +698,15 @@ it was opened in, scoped by `PreviewPanel.accessible_to`. Preview panel
 versions can be attached to proposed Jobs as `preview_panel_version:<id>` so
 implementation agents receive the source files, not just a screenshot.
 
-Supervisor chat is a feature-gated admin control room
-(`admin_supervisor_chat`). It is one pinned, durable chat per admin with no
-repository attachment by default. `SupervisorEvents.publish!` records scoped
-operational events for Supervisor chats and for ordinary chats that originated
-the referenced work; a disposable `ChatScopedEventEvaluatorJob` reviews each
-event with read-only tools and either records `no_op` or creates a real
-`ChatWakeup` (`respond`/`act`). Supervisor prompts tell agents to read current
-Syrus state before acting on event payloads and to keep risky side effects
-behind proposals or pending-action confirmation.
+`ChatWorkEvents.publish!` (formerly `SupervisorEvents`, before the admin
+Supervisor chat feature was removed) records scoped operational events for
+ordinary chats that originated the referenced work, resolved through
+confirmed proposal lineage (`ChatScopedEventRecipients`); a disposable
+`ChatScopedEventEvaluatorJob` reviews each event with read-only tools and
+either records `no_op` or creates a real `ChatWakeup` (`respond`/`act`). The
+handoff prompt tells the agent to read current Syrus state before acting on
+event payloads and to keep risky side effects behind proposals or
+pending-action confirmation.
 
 Chat proposal tools can express runtime dependencies when drafting work:
 `depends_on` for Job proposal slugs in the same chat, `depends_on_job_ids` for

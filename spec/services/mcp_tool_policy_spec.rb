@@ -139,7 +139,6 @@ RSpec.describe McpToolPolicy do
 
     it "does not resolve chat-only policy lists for an ordinary implement run" do
       context = McpToolContext.from_run(run)
-      expect(described_class).not_to receive(:supervisor_excluded_tools)
       expect(described_class).not_to receive(:ref_movement_tools)
 
       expect(described_class.for(context)).to include(Mcp::Tools::ReadLiveStateTool)
@@ -340,33 +339,7 @@ RSpec.describe McpToolPolicy do
     end
   end
 
-  describe "chat admin role" do
-    it "includes admin tools for admin supervisor chats" do
-      admin = Factories.user(admin: true)
-      admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin), system_kind: "supervisor")
-      tools = described_class.for(context_for(admin_session))
-
-      expect(McpToolContext.from_chat_session(admin_session).role).to eq(AgentRole::CHAT_ADMIN)
-      expect(tools).to include(*Mcp::Sidecar::CHAT_ADMIN_TOOLS)
-    end
-
-    it "excludes repository attachment and work-creation tools for supervisor chats" do
-      admin = Factories.user(admin: true)
-      admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin), system_kind: "supervisor")
-      tools = described_class.for(context_for(admin_session))
-
-      expect(tools & described_class::SUPERVISOR_EXCLUDED_TOOLS).to be_empty
-      expect(tools).to include(
-        Mcp::Tools::AdminOverviewTool,
-        Mcp::Tools::ReadQueueTool,
-        Mcp::Tools::SearchJobsTool,
-        Mcp::Tools::ReadJobTool,
-        Mcp::Tools::ListJobWorkflowsTool,
-        Mcp::Tools::ReadWorkflowTool,
-        Mcp::Tools::ReadRunTranscriptTool
-      )
-    end
-
+  describe "admin planning chats" do
     it "keeps repository attachment and proposal tools for ordinary admin planning chats" do
       admin = Factories.user(admin: true)
       admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin))
@@ -379,14 +352,6 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::ProposeEpicWithJobsTool,
         Mcp::Tools::SubmitChatFeedbackTool
       )
-    end
-
-    it "still excludes admin tools when a non-admin has a supervisor-kind session" do
-      supervisor_session = chat_session(system_kind: "supervisor")
-      tools = described_class.for(context_for(supervisor_session))
-
-      expect(McpToolContext.from_chat_session(supervisor_session).role).to eq(AgentRole::CHAT_ADMIN)
-      expect(tools & Mcp::Sidecar::CHAT_ADMIN_TOOLS).to be_empty
     end
   end
 

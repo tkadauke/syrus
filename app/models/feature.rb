@@ -92,10 +92,6 @@ class Feature < ApplicationRecord
     enabled?(:browser_error_auto_reports)
   end
 
-  def self.admin_supervisor_chat_enabled?
-    enabled?(:admin_supervisor_chat)
-  end
-
   def self.chat_context_compaction_enabled?
     enabled?(:chat_context_compaction)
   end

@@ -5,7 +5,7 @@ module Mcp::Tools
     extend BranchDivergenceToolSupport
 
     tool_name "replace_pr_branch_with_workflow_output"
-    description "Plan or request an audited destructive repair that force-pushes a branch-diverged workflow's output over the current PR branch with a lease. Admin/Supervisor only; confirmation required unless dry_run is true."
+    description "Plan or request an audited destructive repair that force-pushes a branch-diverged workflow's output over the current PR branch with a lease. Admin only; confirmation required unless dry_run is true."
 
     input_schema(
       properties: {

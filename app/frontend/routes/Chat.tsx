@@ -109,7 +109,7 @@ import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { errorMessage } from "../lib/errorMessage"
 import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
-import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, isSupervisorChat, withRoutePrefix } from "./chat/utils"
+import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, withRoutePrefix } from "./chat/utils"
 import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
@@ -597,7 +597,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
     return (
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
-          <div>{isSupervisorChat(payload) ? t("empty_supervisor") : payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
+          <div>{payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
           {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}

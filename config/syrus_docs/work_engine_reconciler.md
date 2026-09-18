@@ -238,7 +238,7 @@ same issue kinds, evidence, repair plans, and derived attention state. The
 admin overview is intentionally read-only against the latest cached stuck
 snapshot refreshed by the global reconciler or by opening the dedicated stuck
 list; it must not run a global reconciliation inline because that path can be
-too expensive for the dashboard and Supervisor `admin_overview` tool.
+too expensive for the dashboard and the `admin_overview` chat tool.
 
 The React admin overview and dedicated stuck list paginate visible stuck items
 in 50-item pages. The `/api/v1/app/admin/stuck` and `/api/v1/admin/stuck`

@@ -9,13 +9,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     JSON.parse(response.body)
   end
 
-  def set_supervisor_feature(enabled)
-    Feature.find_or_create_by!(slug: "admin_supervisor_chat") do |feature|
-      feature.category = "Operations"
-      feature.name = "Admin supervisor chat"
-    end.update!(enabled: enabled)
-  end
-
   def capture_sql
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|
@@ -348,117 +341,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
   end
 
-  it "exposes the enabled admin supervisor chat separately above ordinary groups" do
-    set_supervisor_feature(true)
-    admin = Factories.user(admin: true)
-    sign_in_as(admin)
-    ordinary = ChatSession.create!(user: admin, title: "Planning", pinned: true, last_message_at: 1.hour.ago)
-
-    get "/api/v1/app/chats"
-
-    expect(response).to have_http_status(:ok)
-    body = parse_body
-    supervisor = admin.chat_sessions.find_by!(system_kind: "supervisor")
-    expect(body["supervisor_chat"]).to include(
-      "id" => supervisor.id,
-      "title" => "Supervisor",
-      "system_kind" => "supervisor",
-      "pinned" => true,
-      "repository" => nil,
-      "unread" => false,
-      "supervisor_unread_count" => 0,
-      "supervisor_unread_severity" => nil
-    )
-    expect(body["groups"].flat_map { |group| group["chats"] }.map { |chat| chat["id"] }).to eq([ ordinary.id ])
-  end
-
-  it "includes supervisor unread count and strongest severity" do
-    set_supervisor_feature(true)
-    admin = Factories.user(admin: true)
-    chat = SupervisorChat.ensure_for!(admin)
-    chat.update!(last_read_at: 10.minutes.ago)
-    chat.messages.create!(role: "system", content: { "text" => "Warn", "supervisor_event" => { "severity" => "warning" } }, created_at: 5.minutes.ago)
-    chat.messages.create!(role: "system", content: { "text" => "Critical", "supervisor_event" => { "severity" => "critical" } }, created_at: 1.minute.ago)
-    sign_in_as(admin)
-
-    get "/api/v1/app/chats"
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["supervisor_chat"]).to include(
-      "unread" => true,
-      "supervisor_unread_count" => 2,
-      "supervisor_unread_severity" => "critical"
-    )
-  end
-
-  it "loads only scoped event payloads when computing supervisor unread severity" do
-    set_supervisor_feature(true)
-    admin = Factories.user(admin: true)
-    chat = SupervisorChat.ensure_for!(admin)
-    chat.update!(last_read_at: 10.minutes.ago)
-    chat.scoped_events.create!(
-      source_kind: "job_failed",
-      payload: { "severity" => "critical", "summary" => "boom" },
-      created_at: 1.minute.ago
-    )
-    sign_in_as(admin)
-
-    queries = capture_sql { get "/api/v1/app/chats" }
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["supervisor_chat"]).to include(
-      "unread" => true,
-      "supervisor_unread_count" => 1,
-      "supervisor_unread_severity" => "critical"
-    )
-
-    scoped_event_selects = queries.grep(/FROM ["`]?chat_scoped_events["`]?/i)
-    expect(scoped_event_selects.grep(/SELECT\s+["`]?chat_scoped_events["`]?\.\*/i)).to be_empty
-  end
-
-  it "forces the role-created index for MySQL supervisor legacy unread messages" do
-    set_supervisor_feature(true)
-    admin = Factories.user(admin: true)
-    chat = SupervisorChat.ensure_for!(admin)
-    chat.update!(last_read_at: 10.minutes.ago)
-    chat.messages.create!(
-      role: "system",
-      content: { "text" => "Critical", "supervisor_event" => { "severity" => "critical" } },
-      created_at: 1.minute.ago
-    )
-
-    allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return("Mysql2")
-
-    controller = Api::V1::App::ChatsController.new
-    sql = controller.send(:legacy_supervisor_unread_message_scope, chat.id).to_sql
-
-    expect(sql).to match(/FROM ["`]?chat_messages["`]? FORCE INDEX \(idx_chat_messages_session_role_created_id\)/i)
-  end
-
-  it "hides supervisor payloads when the feature is off or the user is not an admin" do
-    set_supervisor_feature(false)
-    admin = Factories.user(admin: true)
-    ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true)
-    sign_in_as(admin)
-
-    get "/api/v1/app/chats"
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["supervisor_chat"]).to be_nil
-    expect(parse_body.to_s).not_to include("Supervisor")
-
-    set_supervisor_feature(true)
-    non_admin = Factories.user(admin: false)
-    ChatSession.create!(user: non_admin, system_kind: "supervisor", title: "Supervisor", pinned: true)
-    sign_in_as(non_admin)
-
-    get "/api/v1/app/chats"
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["supervisor_chat"]).to be_nil
-    expect(parse_body.to_s).not_to include("Supervisor")
-  end
-
   it "omits hidden chats from recent chat groups" do
     sign_in_as(user)
     visible_chat = ChatSession.create!(user: user, repository: repository, title: "Visible chat", last_message_at: 1.hour.ago)
@@ -578,18 +460,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:forbidden)
     expect(chat.reload.pinned?).to eq(false)
-  end
-
-  it "does not unpin an enabled supervisor chat" do
-    Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
-
-    patch "/api/v1/app/chats/#{chat.id}", params: { pinned: false }
-
-    expect(response).to have_http_status(:forbidden)
-    expect(parse_body.dig("error", "code")).to eq("forbidden")
-    expect(chat.reload).to be_pinned
   end
 
   it "does not load hidden chats when paginating one sidebar group" do
@@ -845,18 +715,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.hidden_at).to be_nil
   end
 
-  it "does not hide an enabled supervisor chat" do
-    Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
-
-    patch "/api/v1/app/chats/#{chat.id}/hide"
-
-    expect(response).to have_http_status(:forbidden)
-    expect(parse_body.dig("error", "code")).to eq("forbidden")
-    expect(chat.reload.hidden_at).to be_nil
-  end
-
   it "lists hidden chats for recovery in hidden order with shared sidebar context" do
     sign_in_as(user)
     older = ChatSession.create!(user: user, repository: repository, title: "Older", hidden_at: 2.days.ago)
@@ -912,18 +770,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.reload.title).to eq("Release planning")
     expect(chat.title_auto_fallback).to eq(false)
-  end
-
-  it "does not rename an enabled supervisor chat" do
-    Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
-
-    post "/api/v1/app/chats/#{chat.id}/rename", params: { name: "Renamed" }
-
-    expect(response).to have_http_status(:forbidden)
-    expect(parse_body.dig("error", "code")).to eq("forbidden")
-    expect(chat.reload.title).to eq("Supervisor")
   end
 
   it "rejects invalid chat rename names" do
@@ -1046,18 +892,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:conflict)
       expect(parse_body.dig("error", "code")).to eq("turn_in_flight")
       expect(parse_body.dig("error", "message")).to include("while a turn is in progress")
-      expect(chat.reload.deleted_at).to be_nil
-    end
-
-    it "does not delete an enabled supervisor chat" do
-      Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
-      sign_in_as(user)
-      chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
-
-      delete "/api/v1/app/chats/#{chat.id}"
-
-      expect(response).to have_http_status(:forbidden)
-      expect(parse_body.dig("error", "code")).to eq("forbidden")
       expect(chat.reload.deleted_at).to be_nil
     end
 
@@ -3526,22 +3360,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(queries.grep(/FROM [`"]?chat_bookmarks[`"]?.*JOIN [`"]?chat_messages[`"]?.*ORDER BY .*chat_messages.*created_at/i)).to be_empty
   end
 
-  it "does not preload bookmarks in enabled supervisor chat payloads" do
-    set_supervisor_feature(true)
-    admin = Factories.user(admin: true)
-    sign_in_as(admin)
-    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
-    message = chat.messages.create!(role: "assistant", content: { "text" => "Operational note." })
-    message.bookmarks.create!(label: "Slow query", kind: "topic")
-
-    queries = capture_sql { get "/api/v1/app/chats/#{chat.id}" }
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["bookmarks"]).to eq([])
-    expect(parse_body.dig("paths", "app_bookmarks_index_path")).to eq("/api/v1/app/chats/#{chat.id}/bookmarks")
-    expect(queries.grep(/FROM [`"]?chat_bookmarks[`"]?/i)).to be_empty
-  end
-
   it "serializes a heavy chat payload without repeated counts or duplicate participant/question loads" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -5731,7 +5549,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     admin = Factories.user(admin: true)
     admin_repository = Factories.repository(user: admin, owner: "acme", name: "ops")
     job = Factories.job_record(user: admin, repository: admin_repository)
-    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
+    chat = ChatSession.create!(user: admin, title: "Ops", pinned: true, last_message_at: Time.current)
     action = chat.pending_actions.create!(
       action: "reconcile_job_state",
       reason: "Job is stuck ready with a merged PR.",
@@ -5753,10 +5571,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
   end
 
-  it "confirms supervisor retry_job pending actions for user-owned Jobs through the app API" do
+  it "confirms admin retry_job pending actions for user-owned Jobs through the app API" do
     admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
     admin_repository = Factories.repository(user: admin, owner: "acme", name: "supervised")
-    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
+    chat = ChatSession.create!(user: admin, title: "Ops", pinned: true, last_message_at: Time.current)
     job = Job.create!(
       user: admin,
       repository: admin_repository,
@@ -5788,12 +5606,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(RunJob).to have_been_enqueued
   end
 
-  it "returns not found when confirming supervisor retry_job pending actions for inaccessible Jobs" do
+  it "returns not found when confirming admin retry_job pending actions for inaccessible Jobs" do
     admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
     other_user = Factories.user
     other_repository = Factories.repository(user: other_user, owner: "acme", name: "other")
     other_job = Factories.job_record(user: other_user, repository: other_repository)
-    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
+    chat = ChatSession.create!(user: admin, title: "Ops", pinned: true, last_message_at: Time.current)
     action = chat.pending_actions.create!(
       action: "retry_job",
       payload: { "job_id" => other_job.id }
@@ -5815,9 +5633,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(RunJob).not_to have_been_enqueued
   end
 
-  it "returns not found when confirming supervisor retry_job pending actions for missing Jobs" do
+  it "returns not found when confirming admin retry_job pending actions for missing Jobs" do
     admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
-    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
+    chat = ChatSession.create!(user: admin, title: "Ops", pinned: true, last_message_at: Time.current)
     action = chat.pending_actions.create!(
       action: "retry_job",
       payload: { "job_id" => Job.maximum(:id).to_i + 1000 }

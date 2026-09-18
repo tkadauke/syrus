@@ -292,11 +292,11 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(workflow.first_step.runs.count).to eq(1)
   end
 
-  it "confirms a supervisor retry_job action without an attached repository" do
-    supervisor_chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
+  it "confirms a retry_job action without an attached repository" do
+    admin_chat = ChatSession.create!(user: user, title: "Ops", pinned: true)
     job = direct_job
     Workflows::Initial.instantiate(job: job).update!(state: "succeeded")
-    action = supervisor_chat.pending_actions.create!(
+    action = admin_chat.pending_actions.create!(
       action: "retry_job",
       payload: { "job_id" => job.id }
     )

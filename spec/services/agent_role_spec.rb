@@ -4,7 +4,6 @@ RSpec.describe AgentRole do
   describe "constants" do
     it "defines all chat roles" do
       expect(described_class::CHAT_PLANNER).to    eq("chat:planner")
-      expect(described_class::CHAT_ADMIN).to      eq("chat:admin")
       expect(described_class::CHAT_CODING).to     eq("chat:coding")
       expect(described_class::CHAT_LOCAL).to      eq("chat:local")
       expect(described_class::CHAT_WALKTHROUGH).to eq("chat:walkthrough")
@@ -48,7 +47,6 @@ RSpec.describe AgentRole do
     it "collects chat roles into CHAT_ROLES" do
       expect(described_class::CHAT_ROLES).to contain_exactly(
         described_class::CHAT_PLANNER,
-        described_class::CHAT_ADMIN,
         described_class::CHAT_CODING,
         described_class::CHAT_LOCAL,
         described_class::CHAT_WALKTHROUGH,

@@ -159,12 +159,12 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(host.send(:chat_history_entry, msg)).to eq("system: Graders passed")
     end
 
-    it "returns text for supervisor event messages" do
+    it "returns text for scoped event messages" do
       msg = MsgDouble.new(
         role: "system",
         content: {
           "text" => "[CRITICAL] Workflow stalled\nRUN-42 has no heartbeat.",
-          "supervisor_event" => { "kind" => "run_stalled", "severity" => "critical" }
+          "scoped_event" => { "kind" => "run_stalled", "severity" => "critical" }
         },
         tool_name: nil,
         proposal: nil,
@@ -274,7 +274,19 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(check("anything", source: ChatPendingActionOutcomeNotification::SOURCE)).to be(true)
     end
 
-    it "returns true for supervisor_event content" do
+    it "returns true for scoped_event content" do
+      msg = MsgDouble.new(
+        role: "system",
+        content: { "text" => "event", "scoped_event" => { "kind" => "queue_backlog" } },
+        tool_name: nil,
+        proposal: nil,
+        pending_action: nil
+      )
+
+      expect(host.send(:important_system_message?, msg, "event")).to be(true)
+    end
+
+    it "keeps legacy supervisor_event content important for existing messages" do
       msg = MsgDouble.new(
         role: "system",
         content: { "text" => "event", "supervisor_event" => { "kind" => "queue_backlog" } },
@@ -411,12 +423,12 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(result).to include("system: Graders passed")
     end
 
-    it "includes supervisor event messages in the transcript" do
+    it "includes scoped event messages in the transcript" do
       chat.messages.create!(
         role: "system",
         content: {
           "text" => "[WARNING] Queue backlog\nThe runs queue has 18 pending entries.",
-          "supervisor_event" => { "kind" => "queue_backlog", "severity" => "warning" }
+          "scoped_event" => { "kind" => "queue_backlog", "severity" => "warning" }
         }
       )
 

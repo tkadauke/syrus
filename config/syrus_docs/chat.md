@@ -108,7 +108,7 @@ daemon sessions, the SPA `/chats/:id` gate) and every chat-reading MCP tool
 `ChatSession.active`, so a deleted chat is invisible to both the operator
 and the agent — the same invisibility `ChatMessage.active` already gives
 soft-deleted messages after `/clear`. Deletion is still refused while a
-turn is in flight or for the enabled Supervisor chat.
+turn is in flight.
 
 `read_chat_messages` and `search_chats` are admin-aware (via
 `AuthorizationSupport#admin?`): a non-admin caller never sees a trace of
@@ -244,13 +244,32 @@ events, and recent evaluator failure reasons. A recurring maintenance job
 automatically retries recent failed pending evaluator events; already delivered
 actionable events are skipped on retry so visible chat wakeups are not duplicated.
 
-When the `admin_supervisor_chat` feature is enabled, the same scoped event flow
-also applies to ordinary chat threads for work that originated in that chat.
-Syrus resolves ordinary chat scope from confirmed proposal lineage: the
-materialized proposal itself, its Job or Epic, a Job's Epic, related
-Workflows/Runs through their Job, and pull request numbers that map back to a
-Syrus Job. Ordinary chats do not receive events for unrelated Jobs or Epics, and
-generic chat attachments are not treated as origin evidence.
+`NotificationService::CHAT_WORK_EVENT_KINDS` (`app/services/notification_service.rb`)
+is the allowlist of notification kinds that publish a scoped chat event at all;
+everything else is still a regular `Notification` the user sees, it just never
+reaches this pipeline. It covers both attention kinds (`job_failed`,
+`epic_failed`, `main_broken`, `main_inconclusive`, `upstream_pr_closed`) and
+success-completion kinds (`job_implemented`, `pr_merged`, `epic_completed`,
+`epic_review_ready`, `main_recovered`). Routine progress kinds that are neither
+a failure nor a real completion (`epic_feedback_queued`, `pr_comment_addressed`,
+`external_pr_feedback`) are deliberately left out — they fire too often to be
+worth a judgment pass. There is no deterministic auto-skip by kind for the
+events that do publish: every one of them, including success kinds, reaches the
+evaluator agent above, which is the only thing that decides `no_op` vs.
+`respond`/`act` for a given event and chat. The evaluator prompt
+(`Prompts::ChatEventEvaluator`) specifically tells the judging agent to default
+to `no_op` for a routine successful completion, and only choose `respond`/`act`
+when the chat's own transcript shows the operator is actually waiting on that
+specific outcome (an explicit "let me know when this lands", a direct question
+about timing, or the event closing out something they were visibly waiting on).
+
+This scoped event flow applies to ordinary chat threads for work that
+originated in that chat. Syrus resolves ordinary chat scope from confirmed
+proposal lineage: the materialized proposal itself, its Job or Epic, a Job's
+Epic, related Workflows/Runs through their Job, and pull request numbers that
+map back to a Syrus Job. Ordinary chats do not receive events for unrelated
+Jobs or Epics, and generic chat attachments are not treated as origin
+evidence.
 
 ## Chat about this
 
@@ -281,14 +300,12 @@ use, so it never blocks the write-gated action above it. This link is plain
 conversation, not ownership: unlike Coding/Local Mode's `linked_chat_id`, it
 never blocks automation or takes over the Job's implement step.
 
-When the `chat_context_compaction` feature is enabled, long-running Supervisor
-chats keep their durable `ChatMessage` transcript but stop replaying all older
-raw messages into the provider session. `ChatTurnJob` stores
-`ChatContextCheckpoint` rows after the chat crosses the compaction threshold,
-and provider rehydration sends one synthetic prior-context summary plus the
-latest raw messages after the checkpoint. The summary is deterministic and
-extractive; exact older details remain available through persisted chat history
-and admin/search tools. Ordinary chats are not compacted by this feature.
+The `chat_context_compaction` feature flag currently has no effect: its
+algorithm would keep a chat's durable `ChatMessage` transcript while no longer
+replaying all older raw messages into the provider session, but its only
+consumer (the admin Supervisor chat) has been removed, and
+`ChatContextCompactor` is hard-coded off pending a decision on whether to
+generalize it to ordinary chats. See `config/syrus_docs/feature_flags.md`.
 
 The chat composer recognizes leading slash commands. Typing `/` opens the
 command palette.
@@ -308,9 +325,7 @@ filtered to `implemented` Jobs.
 
 Skill commands, such as `/canvas`, `/feedback`, and `/propose`, are sent through
 the normal chat message path so the agent can interpret them and call the
-matching MCP tools. `/feedback` and `/propose` are hidden in Supervisor chats,
-where the agent recommends operational next steps in prose instead of starting
-new work.
+matching MCP tools.
 
 ## Coding Mode existing-Job takeover
 

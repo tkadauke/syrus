@@ -425,7 +425,6 @@ Rails.application.routes.draw do
           get "installations", to: "installations#index"
           get "installations/diagnostic", to: "installations#diagnostic"
           post "installations/refresh", to: "installations#refresh"
-          get "supervisor_chat", to: "supervisor_chats#show"
           resources :invitations, only: %i[ index create destroy ]
           resources :features, only: %i[ index update ], param: :slug
           get "settings", to: "settings#show"

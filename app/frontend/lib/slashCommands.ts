@@ -29,7 +29,6 @@ export type RepoSkillCommandSource = {
 export type SlashCommandContext = {
   chat?: {
     pinned?: boolean
-    system_kind?: "supervisor" | string | null
   }
   dynamicCommands?: SlashCommand[]
 }
@@ -205,24 +204,12 @@ export function slashCommandPrompt(text: string, context: SlashCommandContext = 
 }
 
 function commandsForContext(context: SlashCommandContext) {
-  const base = context.chat?.system_kind !== "supervisor"
-    ? slashCommands
-    : slashCommands.filter((command) => !supervisorHiddenCommands.has(command.name))
-
   const dynamic = (context.dynamicCommands ?? []).filter(
-    (command) => !base.some((existing) => existing.name === command.name)
+    (command) => !slashCommands.some((existing) => existing.name === command.name)
   )
 
-  return dynamic.length > 0 ? [ ...base, ...dynamic ] : base
+  return dynamic.length > 0 ? [ ...slashCommands, ...dynamic ] : slashCommands
 }
-
-const supervisorHiddenCommands = new Set<SlashCommand["name"]>([
-  "/attach",
-  "/proposals",
-  "/discard",
-  "/feedback",
-  "/propose"
-])
 
 function commandMatchRank(commandName: string, query: string) {
   if (commandName === query) return 0

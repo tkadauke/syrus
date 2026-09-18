@@ -15,19 +15,14 @@ module Syrus
     # part in the rules core applies to its own chat tools rather than sitting
     # outside them:
     #
-    #   { name: "schedule_recurring", ..., supervisor_excluded: true }
     #   { name: "list_scheduled_tasks", ..., evaluator: true }
     #
-    # * +supervisor_excluded+ keeps the tool out of Supervisor chats. Plugin
-    #   tools are appended after core's supervisor filter runs, so without
-    #   this flag a plugin tool is always offered there -- which is wrong for
-    #   anything that creates or fires work.
     # * +evaluator+ offers the tool to the disposable scoped-event evaluator,
     #   whose tool set is otherwise a fixed read-only allowlist in
     #   McpToolPolicy that a plugin cannot join. Only mark read-only tools.
     #
-    # Both default to false, so a tool set that says nothing behaves exactly
-    # as it did before the flags existed.
+    # Defaults to false, so a tool set that says nothing behaves exactly as
+    # it did before the flag existed.
     module ChatMcpToolSet
     end
   end

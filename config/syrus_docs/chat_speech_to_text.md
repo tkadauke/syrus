@@ -108,6 +108,6 @@ disabled-response guard, and write-time redaction as the workflow/agent-insight
 `read_syrus_logs` tool (`SyrusDev::ReadSyrusLogsTool`); the shared search and
 row-rendering logic lives in `OperationalLogSearch`. Unlike `read_syrus_logs`,
 it is not restricted to runs on a `tkadauke/syrus` repository — any admin chat
-session, including Supervisor chats with no attached repository, can call it —
-so an operator can ask "which STT mode fired for that transcription?" and get
-an answer in seconds.
+session, including one with no attached repository, can call it — so an
+operator can ask "which STT mode fired for that transcription?" and get an
+answer in seconds.

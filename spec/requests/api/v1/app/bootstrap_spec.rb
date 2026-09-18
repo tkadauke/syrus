@@ -134,7 +134,6 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["system_alerts"]).to eq([])
     expect(body["unread_notifications_count"]).to eq(0)
     expect(body["feature_flags"]).to include(
-      "admin_supervisor_chat" => false,
       "coding_mode" => false,
       "local_mode" => false,
       "visual_review" => false

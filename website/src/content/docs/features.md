@@ -117,8 +117,7 @@ an item to a new position. The chosen order is saved per user and follows
 that operator across devices and sessions. If a new item becomes visible
 later — a newly enabled plugin, or a feature-flag-gated item like
 Terminal — it's appended at the end of the list rather than dropped or
-inserted at a random position. The pinned Supervisor chat entry below the
-primary nav is not part of this list and always stays in place.
+inserted at a random position.
 
 Reordering uses the same mouse-driven HTML5 drag-and-drop pattern as the
 recent chats list; there is currently no keyboard-only way to reorder items.
@@ -637,16 +636,7 @@ conversation as deleted (recording who deleted it and when) and removes it
 from the sidebar, chat search, and the chat agent's own tools, while leaving
 the underlying conversation, messages, attachments, proposals, and whiteboard
 in place for audit. The chat's search-index entries and its workspace on disk
-are still cleaned up, and deletion is refused while a turn is still running. When the `admin_supervisor_chat` operations flag is
-enabled, admins also get one durable **Supervisor** chat. Syrus provisions it on
-demand, exposes it on the chat index payload, renders it as a distinct admin row
-above normal chat groups, keeps it pinned and visible, and blocks ordinary rename,
-hide, unpin, or delete actions for that chat while the flag remains enabled. Provisioning
-also seeds one canned operations-triage kickoff and starts the initial chat turn
-automatically; repeated provisioning or opening reuses the same kickoff instead
-of adding duplicate messages or turns. Its composer is oriented around incidents,
-stuck Jobs, Workflows, Runs, queues, PRs, and operational state, and it does not
-show ordinary repository-attachment hints or coding/local mode controls. Major operational
+are still cleaned up, and deletion is refused while a turn is still running. Major operational
 events, including Job notifications, Epic completion, main-branch health changes,
 and new Agent Insight suggestions, are first stored as scoped chat event records.
 Scoped events can run through an isolated disposable evaluator before waking the
@@ -654,35 +644,16 @@ live chat: Syrus clones the persisted transcript, uses the full context when it
 fits and otherwise caps to the latest 10,000 messages plus a byte budget, gives
 the evaluator read-only tools, stores its structured `no_op`/`respond`/`act`
 decision, and discards the temporary provider session without touching the live
-chat session. The same scoped event path wakes ordinary chat threads only for
+chat session. The scoped event path wakes ordinary chat threads only for
 work that originated in that thread through confirmed proposal lineage: Jobs,
 Epics, related Workflows/Runs, and pull requests that map back to those Jobs.
 Unrelated Job and Epic events stay out of ordinary chats. `no_op` decisions stay
 silent in the transcript, while `respond` and `act` decisions create an
 immediate wakeup for the real chat agent with the structured event, evaluator
-decision, and handoff prompt. Scoped Supervisor events mark the chat unread in
-the sidebar with an unread count and strongest event severity even when no
-visible response is created. The admin overview includes operator/debug
+decision, and handoff prompt. The admin overview includes operator/debug
 visibility for this path: recent scoped events, 24-hour `no_op`/`respond`/`act`
 counts, evaluator state counts, and recent failure reasons. Failed evaluator
 events can be retried without duplicating already delivered visible wakeups.
-When an admin chats in Supervisor, the agent uses admin-oriented guidance:
-system event messages are treated as operational context, incident summaries
-favor evidence and recommended next steps, live Syrus state is checked before
-acting, and risky actions such as retries, cancellations, rebases, pause/unpause,
-or cleanup stay behind pending-action confirmation flows. Supervisor does not
-receive repository attachment, new-work drafting, work-delegation, recurring-work
-creation, or feedback-submission tools. Missing repository attachment is not
-treated as a blocker for Supervisor; when code inspection or new implementation
-work is needed, it recommends the next step in prose for an ordinary planning
-surface instead of initiating it. Supervisor event messages and
-pending-action outcome notices are retained in compact history fallback so the
-chat remains auditable even when provider resume needs fallback context.
-When the `chat_context_compaction` operations flag is enabled, long-running
-Supervisor chats also get durable context checkpoints: older raw messages are
-summarized for provider replay while the complete stored transcript remains
-visible, searchable, and auditable. The live agent receives the summary plus
-recent raw messages and can use Syrus tools when exact older details are needed.
 In the V2 layout, the
 sidebar search field opens a dedicated search
 page where operators can search Jobs, Epics, chat messages, and enabled
@@ -927,8 +898,7 @@ before they mutate anything. `/approve` accepts `JOB-123`, `job-123`, or `123`,
 opens a picker of implemented Jobs when no ID is provided, and approves the
 selected Job for landing after confirmation. Skill commands such as `/canvas`,
 `/feedback`, and `/propose` are sent through the normal chat message path for
-the agent to interpret. `/feedback` and `/propose` are hidden in Supervisor
-chats. In ordinary chats, `/propose` starts a guided wizard: the agent asks for
+the agent to interpret. `/propose` starts a guided wizard: the agent asks for
 a Job title, description, and optional Epic, then creates a proposal card for
 operator confirmation.
 
@@ -986,7 +956,7 @@ history beyond their initial creation show a changed indicator that opens a
 history modal with each event's before/after content, kind, confidence,
 actor, and timestamp. A deleted-memories view (admin-or-owner scoped, same
 as the rest of the panel) lists soft-deleted memories alongside who deleted
-them and when. Admin and Supervisor chat agents can call
+them and when. Admin chat agents can call
 `admin_read_memory_audit_history` to read the same audit trail for any
 memory, including deleted ones.
 

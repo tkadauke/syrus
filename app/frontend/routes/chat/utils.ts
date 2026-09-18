@@ -65,10 +65,6 @@ export function providerLabel(provider: string, labels: Record<string, string | 
   return labels[provider] || provider
 }
 
-export function isSupervisorChat(payload: ChatPayload) {
-  return payload.chat.system_kind === "supervisor"
-}
-
 export function startOfLocalDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }

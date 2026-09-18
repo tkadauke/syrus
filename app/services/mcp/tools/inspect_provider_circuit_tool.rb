@@ -5,7 +5,7 @@ module Mcp::Tools
     extend AdminPendingActionToolSupport
 
     tool_name "inspect_provider_circuit"
-    description "Inspect provider-circuit evidence, failed Runs, diagnostics, classifications, retry timing, and blocked consumers. Admin/Supervisor only; read-only."
+    description "Inspect provider-circuit evidence, failed Runs, diagnostics, classifications, retry timing, and blocked consumers. Admin only; read-only."
 
     input_schema(
       properties: {

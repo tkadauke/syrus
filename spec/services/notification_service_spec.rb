@@ -1,10 +1,6 @@
 require "rails_helper"
 
 RSpec.describe NotificationService do
-  after do
-    Feature.clear_enabled_cache!("admin_supervisor_chat")
-  end
-
   describe ".create_for" do
     it "creates a notification for an existing user" do
       user = Factories.user
@@ -43,19 +39,23 @@ RSpec.describe NotificationService do
       )
     end
 
-    it "publishes a supervisor event when supervisor chat is enabled" do
-      feature = Feature.find_or_create_by!(slug: "admin_supervisor_chat") do |record|
-        record.category = "Operations"
-        record.name = "Admin supervisor chat"
-      end
-      feature.update!(enabled: true)
-      Feature.clear_enabled_cache!("admin_supervisor_chat")
-
-      admin = Factories.user(admin: true)
+    it "publishes a chat work event to the ordinary chat that originated the Job" do
       user = Factories.user
       job = Factories.job_record(user: user)
+      chat = ChatSession.create!(user: user, repository: job.repository)
+      ChatProposal.create!(
+        chat_session: chat,
+        repository: job.repository,
+        slug: "originated-job",
+        title: "Originated job",
+        body: "Body",
+        kind: "job",
+        state: "confirmed",
+        job: job,
+        confirmed_at: Time.current,
+        filed_at: Time.current
+      )
       allow(ActionCable.server).to receive(:broadcast)
-      allow(AppEvents).to receive(:broadcast)
 
       described_class.create_for(
         user: user,
@@ -65,7 +65,6 @@ RSpec.describe NotificationService do
         body: "JOB-1 failed after repeated retries"
       )
 
-      chat = admin.chat_sessions.find_by!(system_kind: "supervisor")
       event = chat.scoped_events.last
       expect(event.payload).to include(
         "kind" => "job_failed",
@@ -76,11 +75,6 @@ RSpec.describe NotificationService do
         "notification_kind" => "job_failed",
         "job_id" => job.id,
         "pr_url" => "https://github.com/acme/widgets/pull/1"
-      )
-      expect(chat.messages.pluck(:role)).to eq([ "user" ])
-      expect(chat.messages.first.content).to include(
-        "source" => "supervisor_kickoff",
-        "text" => include("Supervisor operations triage")
       )
     end
 
@@ -231,30 +225,40 @@ RSpec.describe NotificationService do
     end
   end
 
-  describe "supervisor events" do
+  describe "chat work events" do
     let(:user) { Factories.user }
     let(:job) { Factories.job(user: user) }
 
     # workflow-engine-v3 B2. Most notifications report that something went
-    # fine; a supervisor queue full of those buries the rare one that needs a
-    # decision.
+    # fine; a chat work event queue full of those buries the rare one that
+    # needs a decision.
     it "publishes an event for a kind someone may have to act on" do
-      expect(SupervisorEvents).to receive(:publish!).with(hash_including(kind: "job_failed"))
+      expect(ChatWorkEvents).to receive(:publish!).with(hash_including(kind: "job_failed"))
 
       described_class.create_for(user: user, kind: "job_failed", job: job, body: "failed")
     end
 
-    it "does not wake the supervisor for routine good news" do
-      expect(SupervisorEvents).not_to receive(:publish!)
+    # Success completions now publish too -- the evaluator (not this
+    # allowlist) decides per-event whether the chat cares about the outcome.
+    it "publishes an event for widened success-completion kinds" do
+      %w[job_implemented pr_merged epic_completed epic_review_ready main_recovered].each do |kind|
+        expect(ChatWorkEvents).to receive(:publish!).with(hash_including(kind: kind))
 
-      described_class.create_for(user: user, kind: "pr_merged", job: job, body: "merged")
-      described_class.create_for(user: user, kind: "job_implemented", job: job, body: "done")
-      described_class.create_for(user: user, kind: "main_recovered", job: job, body: "recovered")
+        described_class.create_for(user: user, kind: kind, job: job, body: "#{kind} happened")
+      end
     end
 
-    # The user still sees them; they just are not supervisor events.
+    it "does not publish a chat work event for routine progress kinds" do
+      expect(ChatWorkEvents).not_to receive(:publish!)
+
+      described_class.create_for(user: user, kind: "epic_feedback_queued", job: job, body: "queued")
+      described_class.create_for(user: user, kind: "pr_comment_addressed", job: job, body: "addressed")
+      described_class.create_for(user: user, kind: "external_pr_feedback", job: job, body: "feedback")
+    end
+
+    # The user still sees them; they just are not chat work events.
     it "still creates the notification for a kind it does not publish" do
-      expect { described_class.create_for(user: user, kind: "pr_merged", job: job, body: "merged") }
+      expect { described_class.create_for(user: user, kind: "epic_feedback_queued", job: job, body: "queued") }
         .to change(Notification, :count).by(1)
     end
   end

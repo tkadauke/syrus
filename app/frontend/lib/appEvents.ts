@@ -369,12 +369,6 @@ function flushChatDetailInvalidation(queryClient: QueryClient, queryKey: QueryKe
 function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   if (event.resource !== "chat" || event.id == null) return false
 
-  if (event.changed?.includes("supervisor_event")) {
-    void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-    void queryClient.invalidateQueries({ queryKey: ["chats", String(event.id)] })
-    return true
-  }
-
   const replaceTail = chatReplaceTailPayload(event.payload)
   if (replaceTail) {
     let patched = false
@@ -753,7 +747,7 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   const updates: ChatHeaderPayload["chat"] = {}
   if (typeof chat.title === "string" || chat.title === null) updates.title = chat.title
   if (typeof chat.title_pending === "boolean") updates.title_pending = chat.title_pending
-  if (chat.system_kind === "supervisor" || chat.system_kind === null) updates.system_kind = chat.system_kind
+  if (typeof chat.system_kind === "string" || chat.system_kind === null) updates.system_kind = chat.system_kind
   if (typeof chat.pinned_context === "string" || chat.pinned_context === null) updates.pinned_context = chat.pinned_context
   if (typeof chat.chat_provider === "string") updates.chat_provider = chat.chat_provider
   if (typeof chat.effective_chat_provider === "string") updates.effective_chat_provider = chat.effective_chat_provider
