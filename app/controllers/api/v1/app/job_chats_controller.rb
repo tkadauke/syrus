@@ -16,6 +16,7 @@ module Api
 
           chat_session = job.discussion_chat
           user_message = nil
+          message_text = requested_message(job).presence
 
           unless chat_session
             ApplicationRecord.transaction do
@@ -23,15 +24,24 @@ module Api
               chat_session.chat_attachments.create!(attachable: job)
               user_message = chat_session.messages.create!(
                 role: "user",
-                content: { "text" => opening_message(job) },
+                content: { "text" => message_text || opening_message(job) },
                 sender_user_id: Current.user.id
               )
               chat_session.pin_chat_provider!
             end
-
-            enqueue_chat_title(chat_session, user_message)
-            enqueue_chat_turn(chat_session, user_message)
           end
+
+          if chat_session && message_text.present? && user_message.nil?
+            user_message = chat_session.messages.create!(
+              role: "user",
+              content: { "text" => message_text },
+              sender_user_id: Current.user.id
+            )
+            chat_session.pin_chat_provider!
+          end
+
+          enqueue_chat_title(chat_session, user_message) if user_message && chat_session.messages.where(role: "user").count == 1
+          enqueue_chat_turn(chat_session, user_message) if user_message
 
           render json: { redirect_to: "/chats/#{chat_session.id}" }
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
@@ -50,6 +60,13 @@ module Api
 
         def opening_message(job)
           "I would like to chat about #{job.slug}."
+        end
+
+        def requested_message(job)
+          body = params[:message].to_s.strip
+          return if body.blank?
+
+          [ "I would like to discuss #{job.slug}.", body.truncate(8_000) ].join("\n\n")
         end
       end
     end
