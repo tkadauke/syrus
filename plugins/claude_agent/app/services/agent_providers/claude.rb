@@ -20,6 +20,26 @@ module AgentProviders
       "mcp__#{server_name}__#{tool_name}"
     end
 
+    # Rough categorical capability metadata for a future routing-rule
+    # system -- not exact pricing/token data. Mirrors the identifiers
+    # ClaudeInvocation accepts via `--model`.
+    def self.available_models
+      [
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "claude-opus-4-7", display_name: "Claude Opus 4.7",
+          context_window: :large, cost_tier: :high
+        ),
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6",
+          context_window: :large, cost_tier: :medium
+        ),
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5",
+          context_window: :standard, cost_tier: :low
+        )
+      ]
+    end
+
     def self.evidence_reset_at(evidence)
       snapshot = evidence&.details&.dig("snapshot") || {}
       minutes = [
@@ -118,7 +138,8 @@ module AgentProviders
       )
     end
 
-    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil)
+    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:,
+              required_mcp_tools: nil, disallowed_tools: nil, model: nil, effort_level: nil)
       on_session_id = ->(sid) { @run.update_columns(live_session_id: sid) rescue nil }
       if mcp
         decision = mcp_transport_decision
@@ -134,6 +155,8 @@ module AgentProviders
                         resume_session_id: resume_session_id,
                         required_mcp_tools: required_mcp_tools,
                         disallowed_tools: disallowed_tools,
+                        model: model,
+                        effort_level: effort_level,
                         on_session_id: on_session_id)
         end
       else
@@ -146,6 +169,8 @@ module AgentProviders
                       resume_session_id: resume_session_id,
                       required_mcp_tools: required_mcp_tools,
                       disallowed_tools: disallowed_tools,
+                      model: model,
+                      effort_level: effort_level,
                       on_session_id: on_session_id)
       end
     end
@@ -164,7 +189,9 @@ module AgentProviders
       ClaudeUsageProbe.refresh_for(user: user) if user.claude_oauth_token.present?
     end
 
-    def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil, on_session_id: ->(_) { })
+    def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:,
+                      required_mcp_tools: nil, disallowed_tools: nil, model: nil, effort_level: nil,
+                      on_session_id: ->(_) { })
       invocation_user = job.user.reload
       ClaudeInvocation.new(
         workspace_path,
@@ -178,6 +205,8 @@ module AgentProviders
         resume_session_id: resume_session_id,
         required_mcp_tools: required_mcp_tools,
         disallowed_tools: disallowed_tools,
+        model: model,
+        effort_level: effort_level,
         on_session_id: on_session_id
       ).run
     ensure

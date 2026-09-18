@@ -32,6 +32,7 @@ RSpec.describe CodexInvocation do
                                    mcp_server: { command: "sidecar", args: [] },
                                    resume_session_id: "abc",
                                    resume_transcript_jsonl: "jsonl",
+                                   effort_level: "high",
                                    startup_timing: startup_timing).run
 
       expect(received).to include(
@@ -42,6 +43,7 @@ RSpec.describe CodexInvocation do
         resume_session_id: "abc",
         resume_transcript_jsonl: "jsonl",
         model: "gpt-5.5",
+        effort_level: "high",
         startup_timing: startup_timing
       )
       expect(result).to be_success
@@ -109,6 +111,38 @@ RSpec.describe CodexInvocation do
       end
     ensure
       ENV["SYRUS_CODEX_MODEL"] = old_model
+    end
+
+    it "writes model_reasoning_effort to config.toml when effort_level is given" do
+      Dir.mktmpdir do |home|
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home, effort_level: "high")
+
+        capture_popen(invocation)
+
+        expect(File.read(File.join(home, "config.toml"))).to include('model_reasoning_effort = "high"')
+      end
+    end
+
+    it "omits model_reasoning_effort from config.toml by default, preserving current behavior" do
+      Dir.mktmpdir do |home|
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home)
+
+        capture_popen(invocation)
+
+        expect(File.read(File.join(home, "config.toml"))).not_to include("model_reasoning_effort")
+      end
+    end
+
+    it "omits model_reasoning_effort from config.toml when effort_level is 'none'" do
+      Dir.mktmpdir do |home|
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home, effort_level: "none")
+
+        capture_popen(invocation)
+
+        expect(File.read(File.join(home, "config.toml"))).not_to include("model_reasoning_effort")
+      end
     end
 
     it "runs codex exec resume when resume_session_id is set" do

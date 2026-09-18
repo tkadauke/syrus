@@ -20,6 +20,26 @@ module AgentProviders
       "#{server_name}.#{tool_name}"
     end
 
+    # Rough categorical capability metadata for a future routing-rule
+    # system -- not exact pricing/token data. Mirrors the identifiers
+    # CodexInvocation accepts via `model =` in config.toml.
+    def self.available_models
+      [
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "gpt-5.5", display_name: "GPT-5.5",
+          context_window: :large, cost_tier: :high
+        ),
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "gpt-5.2-codex", display_name: "GPT-5.2 Codex",
+          context_window: :large, cost_tier: :medium
+        ),
+        Syrus::Plugin::AgentProvider::ModelInfo.new(
+          id: "gpt-5.1-codex-mini", display_name: "GPT-5.1 Codex Mini",
+          context_window: :standard, cost_tier: :low
+        )
+      ]
+    end
+
     def self.evidence_reset_at(evidence)
       snapshot = evidence&.details&.dig("snapshot") || {}
       windows = [
@@ -110,7 +130,8 @@ module AgentProviders
 
     private
 
-    def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:, **_ignored)
+    def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:,
+              model: nil, effort_level: nil, **_ignored)
       log_mcp_transport_decision!(effective_mcp_transport_decision) if mcp
 
       invoke_with_auth(
@@ -119,7 +140,9 @@ module AgentProviders
         log_sink: log_sink,
         timeout: timeout,
         mcp: mcp,
-        resume_session_id: resume_session_id
+        resume_session_id: resume_session_id,
+        model: model,
+        effort_level: effort_level
       )
     end
 
@@ -142,7 +165,8 @@ module AgentProviders
       )
     end
 
-    def invoke_with_auth(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:)
+    def invoke_with_auth(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:,
+                         model: nil, effort_level: nil)
       codex_home = WorkflowWorkspace.agent_home_for(workflow, provider)
       codex_auth = CodexAuth.new(user: job.user, codex_home: codex_home)
       auth = CodexAuth.with_refresh_lock(user: job.user) { codex_auth.prepare! }
@@ -158,7 +182,9 @@ module AgentProviders
           codex_home: codex_home,
           mcp_server: (mcp ? mcp_server : nil),
           resume_session_id: resume_session_id,
-          resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id)
+          resume_transcript_jsonl: resume_transcript_jsonl(resume_session_id),
+          model: model,
+          effort_level: effort_level
         ).run
       ensure
         codex_auth.persist_updated_auth_json
