@@ -128,6 +128,23 @@ export function navigationIndex(context: JobNavigationContext, jobId: number) {
   return context.items.findIndex((item) => item.id === jobId)
 }
 
+// The list of items is a point-in-time snapshot captured when the user left
+// the Dashboard/Epic page and cached in sessionStorage so it survives
+// forward/back navigation. Nothing re-fetches it, so a job's live state
+// changes (e.g. implemented -> approved -> landing) never reach the entry
+// sitting in that snapshot. JobDetailRoute calls this on every render with
+// the live state of whichever job is currently open, keeping at least that
+// one entry fresh; it returns the same context reference when nothing
+// changed so callers can skip re-storing it.
+export function withUpdatedNavigationItemState(context: JobNavigationContext, jobId: number, state: string | null | undefined): JobNavigationContext {
+  const index = context.items.findIndex((item) => item.id === jobId)
+  if (index < 0 || context.items[index].state === state) return context
+
+  const items = [...context.items]
+  items[index] = { ...items[index], state: state ?? null }
+  return { ...context, items }
+}
+
 function dashboardNavigationItem(job: DashboardNavigationSource): JobNavigationItem {
   return {
     id: job.id,

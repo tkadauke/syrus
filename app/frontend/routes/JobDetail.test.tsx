@@ -13,7 +13,7 @@ import { ShortcutsProvider } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { ArtifactsTab, FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
-import { storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
+import { readJobNavigationContext, storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
   return {
@@ -2846,7 +2846,7 @@ describe("Job detail navigation", () => {
   it("shows each job's status under its slug in the jump list", () => {
     storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
 
-    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2 } }), {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2, summary_state: "implemented" } }), {
       initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
     })
 
@@ -2855,6 +2855,22 @@ describe("Job detail navigation", () => {
     expect(screen.getByRole("option", { name: "1. JOB-1 — First snapshot title" })).toHaveTextContent("running")
     expect(screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })).toHaveTextContent("implemented")
     expect(screen.getByRole("option", { name: "3. JOB-3 — Third snapshot title" })).toHaveTextContent("queued")
+  })
+
+  it("overrides the current job's stale snapshot status with its live state", () => {
+    storeJobNavigationContext(jobNavigationContext({ currentJobId: 2 }))
+
+    renderJobDetail(jobPayload({ job: { ...baseJob(), id: 2, summary_state: "approved" } }), {
+      initialEntry: "/app-shell/jobs/2?job_nav=nav-token"
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to Job" }))
+
+    const currentOption = screen.getByRole("option", { name: "2. JOB-2 — Second snapshot title" })
+    expect(currentOption).toHaveTextContent("approved")
+    expect(currentOption).not.toHaveTextContent("implemented")
+
+    expect(readJobNavigationContext("nav-token")?.items.find((item) => item.id === 2)?.state).toBe("approved")
   })
 
   it("does not show a trailing index number in the jump list", () => {
