@@ -914,9 +914,11 @@ class Job < ApplicationRecord
     job_provider_setting == Job::ProviderSetting::Base::DEFAULT_VALUE
   end
 
-  def switch_job_provider_setting!(setting)
+  def switch_job_provider_setting!(setting, model: nil, effort_level: nil)
     previous_provider = workflow_agent_provider
-    update!(job_provider_setting: setting)
+    assign_attributes(job_provider_setting: setting, model: model, effort_level: effort_level)
+    self.agent_provider = workflow_agent_provider
+    save!
     next_provider = workflow_agent_provider
     if previous_provider.present? && previous_provider != next_provider
       repin_provider_paused_unstarted_workflows!(from: previous_provider, to: next_provider)

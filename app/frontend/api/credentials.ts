@@ -1,5 +1,6 @@
 import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { ProviderAvailability } from "./providerAvailability"
+import type { ProviderRoutingOptions, ProviderRoutingRule } from "./providerRoutingRules"
 
 export type CredentialsUser = {
   id: number
@@ -77,6 +78,7 @@ export type CredentialsOptions = {
     label: string
     preview: string
   }>
+  provider_routing_options: ProviderRoutingOptions
 }
 
 export type CredentialsPayload = {
@@ -85,6 +87,7 @@ export type CredentialsPayload = {
   github_rate_limit: GithubRateLimit | null
   provider_availability: Record<string, ProviderAvailability>
   options: CredentialsOptions
+  provider_routing_rules: ProviderRoutingRule[]
   message?: string
   new_api_token?: string
 }

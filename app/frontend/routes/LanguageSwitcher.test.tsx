@@ -45,6 +45,7 @@ function makePayload(locale = "en"): CredentialsPayload {
     },
     github_rate_limit: null,
     provider_availability: {},
+    provider_routing_rules: [],
     options: {
       locales: ["en", "de", "la"],
       agent_providers: ["claude", "codex"],
@@ -55,7 +56,8 @@ function makePayload(locale = "en"): CredentialsPayload {
       clearable_credentials: [],
       auto_approve_modes: [
         { value: "never", label: "Never", preview: "No auto-approval." }
-      ]
+      ],
+      provider_routing_options: { agent_providers: [], effort_levels: [] }
     }
   }
 }

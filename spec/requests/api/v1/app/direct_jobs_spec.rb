@@ -81,9 +81,10 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
       )
     )
     expect(body["configured_agent_providers"]).to contain_exactly(
-      include("value" => "claude", "label" => "Claude Code"),
-      include("value" => "codex", "label" => "Codex")
+      include("value" => "claude", "label" => "Claude Code", "models" => include(include("id" => "claude-sonnet-4-6"))),
+      include("value" => "codex", "label" => "Codex", "models" => include(include("id" => "gpt-5.2-codex")))
     )
+    expect(body.dig("provider_routing_options", "effort_levels").map { |option| option["value"] }).to include("high")
     expect(body["selected_repository_id"]).to eq(repository.id.to_s)
     expect(body["create_more"]).to eq(true)
     expect(body["prompt_templates"]).to include(include("id" => "configure-syrus-prep", "prompt" => include("syrus")))
@@ -251,7 +252,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("job", "title_pending")).to eq(true)
   end
 
-  it "uses an explicitly selected configured agent for the job, workflow, and run" do
+  it "uses an explicitly selected configured agent/model/effort for the job, workflow, and run" do
     sign_in_as(user)
     user.update!(claude_oauth_token: "oat-test", codex_auth_mode: "api_key", codex_api_key: "sk-test")
     repository.update!(agent_provider: "claude")
@@ -259,13 +260,21 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     post "/api/v1/app/jobs", params: {
       repository_id: repository.id,
       agent_provider: "codex",
+      model: "gpt-5.2-codex",
+      effort_level: "high",
       prompt: "Do something."
     }
 
     new_job = Job.order(:created_at).last
     expect(new_job.agent_provider).to eq("codex")
+    expect(new_job.model).to eq("gpt-5.2-codex")
+    expect(new_job.effort_level).to eq("high")
     expect(new_job.workflows.order(:created_at).last.agent_provider).to eq("codex")
+    expect(new_job.workflows.order(:created_at).last.model).to eq("gpt-5.2-codex")
+    expect(new_job.workflows.order(:created_at).last.effort_level).to eq("high")
     expect(new_job.runs.first.agent_provider).to eq("codex")
+    expect(new_job.runs.first.model).to eq("gpt-5.2-codex")
+    expect(new_job.runs.first.effort_level).to eq("high")
   end
 
   it "defaults direct jobs to the repository's effective agent" do

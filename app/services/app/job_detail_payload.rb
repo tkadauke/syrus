@@ -8,6 +8,7 @@ module App
     include WorkflowSerializers
     include DependencySerializers
     include LandingQueue
+    include AgentProviderCatalogOptions
 
     def self.build(job:, user:, params: {})
       new(job: job, user: user, params: params).payload
@@ -142,11 +143,14 @@ module App
 
     def job_provider_setting_options
       PerformanceLogging.phase("job_detail.job.provider_setting_options", job_id: @job.id) do
+        provider_options = agent_provider_catalog_options(@user).fetch(:agent_providers)
         Job.provider_settings.map do |setting|
+          provider_option = provider_options.find { |option| option[:value] == setting }
           {
             value: setting,
             label: setting == "default" ? "Default" : App::Presentation.agent_provider_label(setting),
-            configured: setting == "default" || PerformanceLogging.phase("job_detail.job.agent_provider_configured", job_id: @job.id, provider: setting) { @user.agent_provider_configured?(setting) }
+            configured: setting == "default" || PerformanceLogging.phase("job_detail.job.agent_provider_configured", job_id: @job.id, provider: setting) { @user.agent_provider_configured?(setting) },
+            models: provider_option ? provider_option[:models] : []
           }
         end
       end
@@ -198,6 +202,9 @@ module App
         agent_provider_label: App::Presentation.agent_provider_label(workflow_agent_provider),
         job_provider_setting: @job.job_provider_setting,
         job_provider_setting_options: job_provider_setting_options,
+        model: @job.model,
+        effort_level: @job.effort_level,
+        provider_routing_options: agent_provider_catalog_options(@user),
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,

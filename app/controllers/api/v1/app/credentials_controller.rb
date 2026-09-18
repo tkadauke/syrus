@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class CredentialsController < BaseController
+        include ProviderRoutingRuleSerialization
+
         # Scopes a classic GitHub PAT must carry for Syrus to clone, branch,
         # open PRs, and update GitHub Actions workflows.
         GITHUB_REQUIRED_SCOPES = %w[ repo workflow ].freeze
@@ -234,6 +236,7 @@ module Api
             credential_status: credential_status_json(user),
             github_rate_limit: github_rate_limit_json(user),
             provider_availability: ::App::ProviderAvailability.all_for_user(user),
+            provider_routing_rules: provider_routing_rules_json(scope_type: "user", scope_id: user.id),
             options: credentials_options(user)
           }
         end
@@ -332,7 +335,7 @@ module Api
               { value: value, label: label }
             end,
             auto_approve_modes: AutoApproveModes.options
-          }
+          }.merge(provider_routing_options: agent_provider_catalog_options(user))
         end
 
         def testable_credentials

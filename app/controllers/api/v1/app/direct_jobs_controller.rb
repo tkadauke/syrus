@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class DirectJobsController < BaseController
+        include AgentProviderCatalogOptions
+
         def new
           render json: form_payload
         end
@@ -18,6 +20,8 @@ module Api
             render_error("validation_failed", "That agent is not configured.", status: :unprocessable_content)
             return
           end
+          model = params[:model].to_s.strip.presence
+          effort_level = params[:effort_level].to_s.strip.presence
 
           prompt_text = params[:prompt].to_s.strip
           if prompt_text.blank?
@@ -38,7 +42,7 @@ module Api
             end
           end
 
-          job = create_direct_job(repository: repository, agent_provider: agent_provider, prompt_text: prompt_text, epic: epic, owner: owner)
+          job = create_direct_job(repository: repository, agent_provider: agent_provider, model: model, effort_level: effort_level, prompt_text: prompt_text, epic: epic, owner: owner)
           attachment_errors = attach_initial_job_attachments(job)
           if attachment_errors.any?
             job.destroy!
@@ -68,8 +72,11 @@ module Api
           {
             repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
             configured_agent_providers: Current.user.configured_agent_providers.map { |provider| provider_json(provider) },
+            provider_routing_options: agent_provider_catalog_options(Current.user),
             selected_repository_id: params[:repository_id].to_s.presence,
             selected_agent_provider: params[:agent_provider].to_s.presence,
+            selected_model: params[:model].to_s.presence,
+            selected_effort_level: params[:effort_level].to_s.presence,
             selected_epic_id: epic&.id&.to_s,
             epic: epic ? epic_json(epic) : nil,
             create_more: create_more?,
@@ -105,7 +112,7 @@ module Api
           }
         end
 
-        def create_direct_job(repository:, agent_provider:, prompt_text:, epic: nil, owner: nil)
+        def create_direct_job(repository:, agent_provider:, model:, effort_level:, prompt_text:, epic: nil, owner: nil)
           selected_agent_provider = agent_provider || repository.effective_agent_provider
           title = params[:title].to_s.strip.presence
           priority = params[:priority].to_s.presence
@@ -122,6 +129,8 @@ module Api
             issue_body: prompt_text,
             agent_provider: selected_agent_provider,
             job_provider_setting: agent_provider || "default",
+            model: agent_provider.present? ? model : nil,
+            effort_level: agent_provider.present? ? effort_level : nil,
             priority: priority,
             epic: epic,
             owner_user: owner,
@@ -173,7 +182,8 @@ module Api
         def provider_json(provider)
           {
             value: provider,
-            label: agent_provider_label(provider)
+            label: agent_provider_label(provider),
+            models: agent_provider_option_json(provider, user: Current.user)[:models]
           }
         end
 
@@ -204,10 +214,6 @@ module Api
             { value: "medium", label: "Medium", description: "Default" },
             { value: "low", label: "Low", description: "Yields to higher-priority jobs" }
           ]
-        end
-
-        def agent_provider_label(provider)
-          ::App::Presentation.agent_provider_label(provider)
         end
 
         def create_more?
